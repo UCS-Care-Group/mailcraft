@@ -13,14 +13,15 @@ use crate::{CmdError, Session};
 /// Largest file read (512 MB).
 pub const MAX_FILE: u64 = 512 << 20;
 
-/// Largest mailbox file read in the JSON forms (formats 1 and 2: one self-contained file, or the
-/// JSON file with a content folder beside it): 4 GiB. A hostile file can't make a program take
-/// more than that, and a real one older programs wrote (a complete sync of a large IMAP account
-/// into the one-file form) fits with room to spare. The bytes are read with an allocation that may
-/// fail, and a file wanting more than a third of the memory not in use is refused before it is
-/// read (parsing holds about twice the file), so it is an error, never an abort. Where that memory
-/// can't be measured (all but Linux) the limit is 1 GiB instead (`store::UNMEASURED_JSON_MAX`). The next save writes the form with a log of records and a
-/// content folder (`crate::store`), which stops at `store::MAX_INDEX` instead. Small in tests.
+/// Largest mailbox file read whole in the JSON forms (formats 1 and 2: one self-contained file, or
+/// the JSON file with a content folder beside it): 4 GiB. The bytes are read with an allocation
+/// that may fail, and a file wanting more than a third of the memory not in use is not read whole
+/// (parsing holds about twice the file); where that memory can't be measured (all but Linux) the
+/// limit is 1 GiB instead (`store::UNMEASURED_JSON_MAX`). A one-file mailbox (format 1) past
+/// either is read as a stream instead, a message at a time, with its content going to the content
+/// folder as it is read (`store::stream`, #649), so that it opens whatever its size. The next save
+/// writes the form with a log of records and a content folder (`crate::store`), which stops at
+/// `store::MAX_INDEX` instead. Small in tests.
 pub const MAX_MAILBOX_JSON: u64 = if cfg!(test) { 16 << 20 } else { 4 << 30 };
 
 /// The mailbox file's extension.

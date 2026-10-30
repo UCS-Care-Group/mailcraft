@@ -31,7 +31,8 @@
 //!   form before this one (format 2, with the same content folder), or this form. Either of the
 //!   first two becomes this form the first time a changed mailbox is saved, written whole and
 //!   renamed over (until then the old file is the mailbox), and the old file is kept beside it as
-//!   `mailbox.mailcraft.format1` or `.format2`. Everything read back is hostile: a content file is
+//!   `mailbox.mailcraft.format1` or `.format2`. A format 1 file too large to hold in memory whole is read as a stream
+//!   (`store_stream.rs`, #649): its content goes to the content folder as each message is read. Everything read back is hostile: a content file is
 //!   taken only when it is a plain file of the length and SHA-256 the mailbox file names; names
 //!   are 64 hex digits or nothing; sizes are capped; a record counts only whole, with its
 //!   checksum, and closed by a commit. Bytes after the last commit (a save cut short, or damage)
@@ -77,6 +78,8 @@ use crate::io::{BackgroundSave, ContentSource, MAX_FILE, MAX_MAILBOX_JSON, OpenP
 
 #[path = "store_index.rs"]
 mod index;
+#[path = "store_stream.rs"]
+mod stream;
 
 use index::{Coll, Fp, Key, Tail};
 
@@ -762,6 +765,9 @@ struct State {
     /// The file was opened in an earlier form (1 or 2): it is kept beside the new one when that
     /// takes its place.
     legacy: Option<u32>,
+    /// It was read as a stream (`stream`): its content is in the folder beside it, and the file
+    /// must be kept aside before it is written over, or nothing is written.
+    streamed: bool,
     /// The SHA-256 of attachments already worked out, by where their bytes are.
     hashes: HashMap<usize, (Weak<Vec<u8>>, Digest)>,
     /// The newest state written (see [`next_seq`]): an older one arriving late is dropped.
@@ -1563,6 +1569,13 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     // (zeros left by a write the system cut short, another program's file) is not "too large".
     if !starts_like_json(&file).map_err(|e| format!("{show}: {e}"))? {
         return Err(format!("{show} isn't a MailCraft mailbox (it doesn't start like one; it may be damaged, and it is left as it is)"));
+    }
+    // A file that would not fit in memory whole (or is more than is read whole) is read as a
+    // stream, its content going to the content folder as it is read (#649).
+    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()))
+        && let Some(opened) = stream::open(st, &file, len, progress).map_err(|e| e.to_string())?
+    {
+        return Ok((opened, true));
     }
     if len > MAX_MAILBOX_JSON {
         return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
@@ -3044,6 +3057,7 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
         st.stamp = None;
         st.disk = None;
         st.legacy = None;
+        st.streamed = false;
     }
     if ours && st.loaded.as_ref().is_some_and(|loaded| loaded.is(mailbox)) {
         return Ok(Saved { unchanged: true, ..Saved::default() });
@@ -3055,7 +3069,7 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
     } else if matches!(prior, Some(Disk { tail: Tail::Bytes(_), .. })) {
         Some(Keep::Damaged)
     } else {
-        st.legacy.map(Keep::Legacy)
+        st.legacy.map(|v| if st.streamed { Keep::Streamed(v) } else { Keep::Legacy(v) })
     };
     let mut d = match prior {
         Some(d) if d.appendable() => d,
@@ -3120,6 +3134,8 @@ enum Keep {
     Changed,
     /// It is in an earlier form, which this one takes the place of: `<file>.format<n>`.
     Legacy(u32),
+    /// [`Keep::Legacy`], for a file read as a stream: nothing is written unless it is kept.
+    Streamed(u32),
 }
 
 impl Keep {
@@ -3130,6 +3146,7 @@ impl Keep {
             Keep::Damaged => (format!("{DAMAGED}{}", secs()), true),
             Keep::Changed => (format!("{CHANGED}{}", secs()), true),
             Keep::Legacy(version) => (format!("{FORMAT}{version}"), false),
+            Keep::Streamed(version) => (format!("{FORMAT}{version}"), true),
         }
     }
 }
@@ -3163,7 +3180,7 @@ const FORMAT: &str = "format";
 /// form takes its place ([`Keep`]).
 fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, progress: &Progress) -> Result<Saved, String> {
     // (An earlier form of the file than this one is kept as `.format<n>` already.)
-    let legacy = matches!(keep, Some(Keep::Legacy(_)));
+    let legacy = matches!(keep, Some(Keep::Legacy(_) | Keep::Streamed(_)));
     let keep = keep.map(Keep::name);
     let rest = rest_json(mailbox)?;
     let mut out = Summed::new(AtomicFile::create(path).map_err(io_error)?);
@@ -3227,6 +3244,7 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, p
     st.live = live;
     st.stamp = Stamp::of(path, d.len, (len == d.len).then_some(sum));
     st.legacy = None;
+    st.streamed = false;
     saved.bytes = d.len;
     saved.compacted = true;
     st.disk = Some(d);
@@ -3421,7 +3439,15 @@ pub fn forget_due(path: &Path, rev: u64) -> Swept {
     let file = resolve(path);
     let Some(kept_aside) = named_by_kept_aside(&file) else { return swept };
     let known = st.disk.as_ref().is_some_and(Disk::appendable) && st.stamp.as_ref().is_some_and(|s| s.still(&file));
-    let named: Option<HashSet<Digest>> = if known { Some(st.live.keys().copied().collect()) } else { named_by(&file).ok().flatten() };
+    // (A file read as a stream is of the one-file form, which names no content and can be
+    // gigabytes: it is not read through again.)
+    let named: Option<HashSet<Digest>> = if known {
+        Some(st.live.keys().copied().collect())
+    } else if st.streamed {
+        None
+    } else {
+        named_by(&file).ok().flatten()
+    };
     // Without knowing what the file names, nothing goes: the sweep looks again later.
     let Some(mut named) = named else { return swept };
     named.extend(kept_aside);
@@ -3468,7 +3494,15 @@ pub fn sweep(path: &Path, grace: Duration) -> Result<Swept, String> {
     };
     // The file as this program last read or wrote it names what it knows; otherwise it is read.
     let known = st.disk.as_ref().is_some_and(Disk::appendable) && st.stamp.as_ref().is_some_and(|s| s.still(&file));
-    let named = if known { Some(st.live.keys().copied().collect()) } else { named_by(&file).map_err(|e| format!("{}: {e}", path.display()))? };
+    // (A file read as a stream is of the one-file form, which names no content and can be
+    // gigabytes: it is not read through again.)
+    let named = if known {
+        Some(st.live.keys().copied().collect())
+    } else if st.streamed {
+        None
+    } else {
+        named_by(&file).map_err(|e| format!("{}: {e}", path.display()))?
+    };
     let Some(mut named) = named else { return Ok(Swept::default()) };
     named.extend(kept_aside);
     // What a message still in memory keeps on disk stays, though the file no longer names it.
@@ -3770,3 +3804,7 @@ mod bench_tests;
 #[cfg(test)]
 #[path = "store_large_tests.rs"]
 mod large_tests;
+
+#[cfg(test)]
+#[path = "store_stream_tests.rs"]
+mod stream_tests;
