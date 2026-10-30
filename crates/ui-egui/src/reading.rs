@@ -151,6 +151,24 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     show_message(app, ui, &m, Place::Pane);
 }
 
+/// The bar over a draft in the reading pane: it hasn't been sent, and the way to open it in the
+/// composer (the command `mail.editDraft`, as a double click runs it).
+fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
+    let t = Tokens::get(ui.ctx());
+    let id = m.id;
+    let r = egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin { left: 20, right: 20, top: 6, bottom: 6 }).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.label(egui::RichText::new(tl!("This message hasn't been sent.")).font(crate::theme::regular(12.0)).color(t.text));
+            if ui.button(tl!("Continue editing")).clicked() {
+                let _ = app.run("mail.editDraft", serde_json::json!({"id": id}));
+            }
+        });
+    });
+    app.hit.add("draftBar", 0, r.response.rect);
+}
+
 /// One message in the room `ui` has: its header, its attachments, and its body, which scrolls.
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
@@ -167,6 +185,10 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // Asked for: what has not come yet is sent for, while the message is on screen.
     let progress = if access == Access::Allowed { remote::want(app, &ctx, m, &doc) } else { remote::Progress::default() };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    // A draft in the reading pane is not received mail: say so, and offer to go on writing it (#651).
+    if place == Place::Pane && m.draft {
+        draft_bar(app, ui, m);
+    }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, t);

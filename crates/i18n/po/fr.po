@@ -2141,6 +2141,11 @@ msgid "Continue"
 msgstr "Continuer"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Contributors"
@@ -11066,6 +11071,11 @@ msgstr "Ce message ne contient pas de texte."
 #, fuzzy
 msgid "This message has pictures on the web. This build can't download them."
 msgstr "Ce message contient des images sur le web. Cette version ne peut pas les télécharger."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs

@@ -64,6 +64,8 @@ pub mod dates;
 #[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
+#[cfg(test)]
+mod draft_continue_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;

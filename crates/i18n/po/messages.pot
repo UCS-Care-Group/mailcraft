@@ -1835,6 +1835,11 @@ msgid "Continue"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Contributors"
 msgstr ""
@@ -9517,6 +9522,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "This message has pictures on the web. This build can't download them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
 msgstr ""
 
 #. what a command says
