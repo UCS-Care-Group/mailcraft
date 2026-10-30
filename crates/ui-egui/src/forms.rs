@@ -5790,10 +5790,7 @@ pub(crate) mod rules {
         // A change the server isn't told of while MailCraft may not change its rules: the server
         // still has the rule as it was, and runs it so.
         if r.changed_here() && app.rules_held(r.account) {
-            return tl!(
-                "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-            )
-            .to_string();
+            return tl!("On the server, still as it was: your change waits for permission (File › Info)").to_string();
         }
         if let Some(server) = r.server.as_ref().filter(|_| r.on_server()) {
             return if !server.unknown.is_empty() {
@@ -5868,7 +5865,8 @@ pub(crate) mod rules {
             let shade = if r.enabled { t.text } else { t.text_disabled };
             paint_clipped(ui.painter(), pos2(rect.min.x, rect.min.y + 11.0), width, &shown(&r.name, 200), semibold(12.5), shade);
             paint_clipped(ui.painter(), pos2(rect.min.x, rect.min.y + 27.0), width, &words, regular(11.5), t.text_dim);
-            let mark_colour = if r.waiting() || !r.refused.is_empty() { t.orange } else { t.text_dim };
+            let held = r.changed_here() && app.rules_held(r.account);
+            let mark_colour = if r.waiting() || !r.refused.is_empty() || held { t.orange } else { t.text_dim };
             paint_clipped(ui.painter(), pos2(rect.min.x, rect.min.y + 43.0), width, mark, regular(11.0), mark_colour);
             resp.on_hover_text(format!("{words}\n{mark}"));
             let place = |direction: &str| json!({"id": r.id, "direction": direction, "account": account});

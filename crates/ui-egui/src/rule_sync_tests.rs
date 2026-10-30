@@ -309,7 +309,7 @@ fn changes_held_back_from_the_server_say_the_server_still_has_the_rule_as_it_was
     app.execute("rules.remove", json!({"id": club})).unwrap();
     let r = app.session.mailbox.rules.iter().find(|r| r.id == shop).unwrap().clone();
     let mark = crate::forms::rules::mark(&app, &r, owner);
-    assert!(mark.starts_with("On the server, still as it was") && mark.contains("Ask again"), "{mark}");
+    assert!(mark.starts_with("On the server, still as it was") && mark.contains("File › Info"), "{mark}");
     // Allowed, the change is the rule's own again.
     app.rules.perm.remove(&owner);
     assert_eq!(crate::forms::rules::mark(&app, &r, owner), "On the server");

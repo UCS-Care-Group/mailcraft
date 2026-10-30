@@ -6850,8 +6850,8 @@ msgstr "Op de server · Zoeken…"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-msgstr "Op de server, nog zoals hij was: uw wijziging gaat erheen zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)"
+msgid "On the server, still as it was: your change waits for permission (File › Info)"
+msgstr "Op de server, nog zoals hij was: uw wijziging wacht op toestemming (Bestand › Info)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -15937,6 +15937,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
+#~ msgstr "Op de server, nog zoals hij was: uw wijziging gaat erheen zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)"
 
 #, fuzzy
 #~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"

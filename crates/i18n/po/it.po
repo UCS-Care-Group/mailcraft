@@ -6662,8 +6662,8 @@ msgstr "Sul server · Ricerca…"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-msgstr "Sul server, ancora com'era: la modifica arriva lì non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo)"
+msgid "On the server, still as it was: your change waits for permission (File › Info)"
+msgstr "Sul server, ancora com'era: la modifica attende l'autorizzazione (File › Informazioni)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -15447,6 +15447,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
+#~ msgstr "Sul server, ancora com'era: la modifica arriva lì non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo)"
 
 #, fuzzy
 #~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
