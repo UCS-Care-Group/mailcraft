@@ -39,11 +39,17 @@ fn the_field_above_the_list_says_where_a_task_goes() {
     // With no account that keeps tasks there is nothing to say.
     assert_eq!(add_hint(w.state(), false), "Add a task");
     let work = add(&mut w, "work@example.org");
-    assert_eq!(add_hint(w.state(), false), "Add a task on this computer");
-    assert_eq!(add_hint(w.state(), true), "Add a task due today on this computer");
+    assert_eq!(add_hint(w.state(), false), "Add a task on this computer for now");
+    assert_eq!(add_hint(w.state(), true), "Add a task due today on this computer for now");
     w.state_mut().execute("view.taskAccount", json!({"value": work})).unwrap();
     assert_eq!(add_hint(w.state(), false), "Add a task to work@example.org");
     assert_eq!(add_hint(w.state(), true), "Add a task due today to work@example.org");
+    // An account that hasn't let tasks through yet: they wait here, and the field says so.
+    w.state_mut().tasks.perm.insert(work, crate::task_sync::Permission::Needed);
+    let waits = "Add a task to work@example.org (it waits here until To Do is allowed)";
+    assert_eq!(add_hint(w.state(), false), waits);
+    w.state_mut().tasks.perm.insert(work, crate::task_sync::Permission::Given);
+    assert_eq!(add_hint(w.state(), false), "Add a task to work@example.org");
 }
 
 #[test]

@@ -617,8 +617,20 @@ msgstr "Agregar una tarea que vence hoy en este equipo"
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
+msgid "Add a task due today on this computer for now"
+msgstr "Agregar una tarea que vence hoy en este equipo por ahora"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Add a task due today to {address}"
 msgstr "Agregar una tarea que vence hoy a {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address} (it waits here until To Do is allowed)"
+msgstr "Agregar una tarea que vence hoy a {address} (espera aquí hasta que se permita To Do)"
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -629,8 +641,20 @@ msgstr "Agregar una tarea en este equipo"
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
+msgid "Add a task on this computer for now"
+msgstr "Agregar una tarea en este equipo por ahora"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Add a task to {address}"
 msgstr "Agregar una tarea a {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address} (it waits here until To Do is allowed)"
+msgstr "Agregar una tarea a {address} (espera aquí hasta que se permita To Do)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4496,6 +4520,12 @@ msgstr "También se quita del servidor de correo, y eso no se puede deshacer."
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It waits on this computer until To Do is allowed for this account"
+msgstr "Espera en este equipo hasta que se permita To Do para esta cuenta"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6553,6 +6583,12 @@ msgstr "En el servidor · Buscando…"
 #, fuzzy
 msgid "On this computer"
 msgstr "En este equipo"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On this computer for now"
+msgstr "En este equipo por ahora"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs

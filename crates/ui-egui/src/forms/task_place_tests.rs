@@ -45,3 +45,12 @@ fn a_task_that_exists_stays_where_it_is() {
     assert_eq!(command, "tasks.edit");
     assert_eq!(params.get("account"), None);
 }
+
+#[test]
+fn another_account_counts_as_a_change_to_the_form() {
+    let (s, work, _) = session();
+    let mut form = TaskForm::new(&s, &json!({"title": "Same"}));
+    assert!(!form.dirty());
+    form.place = Some(work);
+    assert!(form.dirty(), "closing the form asks before that choice is lost");
+}

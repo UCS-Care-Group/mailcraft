@@ -694,11 +694,12 @@ fn unsaved(params: &Value) -> bool {
     params.get("unsaved").is_some_and(|v| !v.is_null())
 }
 
-/// The account whose To Do a to-do made by `id` would go to, when that isn't where the owner's own
-/// new to-do goes now.
+/// The account whose To Do a to-do made by `id` would go to, unless it is the account the owner
+/// sent their local to-dos to. That answer is the owner's alone, where an agent can move the list
+/// and with it the place a new to-do goes.
 fn new_task_onto(s: &Session, id: &str, params: &Value) -> Option<Id> {
     let place = crate::cmd::tasks::place_of(s, id, params).filter(|place| *place != 0)?;
-    (crate::cmd::tasks::new_task_place(s) != Some(place)).then_some(place)
+    (crate::cmd::tasks_remote::tasks_home(&s.mailbox) != Some(place)).then_some(place)
 }
 
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is

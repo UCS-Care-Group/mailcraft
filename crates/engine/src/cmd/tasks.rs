@@ -24,19 +24,19 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
         CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(
-            r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all", "account"?: "all" | "here" | number} (default: what the list shows)"#,
+            r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all", "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#,
         ),
         CommandSpec::new("tasks.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
             .selection(needs_task),
         CommandSpec::new("tasks.fromMessage", "Add to Tasks", "Home › Tags", from_message)
-            .params(r#"{"id"?: number, "due"?: "YYYY-MM-DD"} (a message; default: the selected one)"#)
+            .params(r#"{"id"?: number, "due"?: "YYYY-MM-DD"} (a message; default: the selected one) — the task goes to the message's account when it keeps to-dos, else where a new task goes; a message with a task already shows that one. The list moves to show it"#)
             .selection(needs_message),
     ]
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected task)"#;
-const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null, "account"?: number} — `account`: the account whose To Do keeps it, 0 for this computer (default: whose tasks the list shows; with all of them, where the last one was put)"#;
+const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null, "account"?: number} — `account`: the account whose To Do keeps it, 0 for this computer (default: whose tasks the list shows; with all of them, where the last one was put; if nobody has said, it stays here and can be offered to an account later). The list moves to show it"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
     if s.sel.task.is_none() { Some("select a task first") } else { None }
@@ -103,7 +103,7 @@ pub fn new_task_place(s: &Session) -> Option<Id> {
 
 /// Where `tasks.new` puts a task: where `v` says, else [`new_task_place`].
 fn place_of_new(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
-    let Some(account) = v.get("account").filter(|a| !a.is_null()) else { return Ok(new_task_place(s)) };
+    let Some(account) = v.get("account") else { return Ok(new_task_place(s)) };
     let account = account.as_u64().ok_or_else(|| bad("`account` is an account's id, or 0 for this computer"))?;
     if account != 0 && !keeps_tasks(&s.mailbox, account) {
         return Err(bad("that account doesn't keep its to-dos with Microsoft"));
@@ -112,9 +112,9 @@ fn place_of_new(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
 }
 
 /// Where a to-do made from a message goes: that message's account when it keeps to-dos, else
-/// wherever the owner last put one.
-fn place_of_message(mailbox: &Mailbox, message: &Message) -> Option<Id> {
-    if keeps_tasks(mailbox, message.account) { Some(message.account) } else { last_place(mailbox) }
+/// where a new one goes.
+fn place_of_message(s: &Session, message: &Message) -> Option<Id> {
+    if keeps_tasks(&s.mailbox, message.account) { Some(message.account) } else { new_task_place(s) }
 }
 
 /// Where the task `id` would make with `v` goes, for the agent gate: `None` when it makes none or
@@ -125,7 +125,7 @@ pub fn place_of(s: &Session, id: &str, v: &Value) -> Option<Id> {
         "tasks.fromMessage" => {
             let message = p::id(v, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m))?;
             let made = s.mailbox.tasks.values().any(|t| t.message == Some(message.id));
-            if made { None } else { place_of_message(&s.mailbox, message) }
+            if made { None } else { place_of_message(s, message) }
         }
         _ => None,
     }
@@ -167,10 +167,10 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
-    if v.get("account").is_some() {
+    let mut t = s.mailbox.task(id).cloned().ok_or_else(|| fail("the task is gone"))?;
+    if v.get("account").is_some_and(|account| account.as_u64() != Some(t.origin.account)) {
         return Err(bad("a task stays in its account"));
     }
-    let mut t = s.mailbox.task(id).cloned().ok_or_else(|| fail("the task is gone"))?;
     apply(s, &mut t, v)?;
     if t.title.is_empty() {
         return Err(fail("a task needs a title"));
@@ -280,7 +280,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         Some(f) => crate::session::parse_enum::<TaskFilter>(f).ok_or_else(|| bad("`filter` is active, today, overdue, completed or all"))?,
         None => s.view.task_filter,
     };
-    let account = match v.get("account").filter(|a| !a.is_null()) {
+    let account = match v.get("account") {
         Some(a) => AccountChoice::parse(a).ok_or_else(|| bad("`account` is all, here or an account's id"))?,
         None => shown_account(s),
     };
@@ -311,7 +311,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         reveal(s, &existing.origin);
         return Ok(json!({"id": existing.id, "existing": true}));
     }
-    let place = place_of_message(&s.mailbox, m);
+    let place = place_of_message(s, m);
     let mut task = Task {
         title: m.topic(),
         notes: format!("From {}: {}", m.from.display(), crate::list::preview(m, 300)),

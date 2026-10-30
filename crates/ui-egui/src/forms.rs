@@ -4974,7 +4974,9 @@ mod task {
         id: Option<Id>,
         /// Where the task is: an account, or 0 for this computer. `None` for a new one that
         /// nobody has said where to put: it stays here, like one that isn't put anywhere.
-        place: Option<Id>,
+        pub(super) place: Option<Id>,
+        /// The place as the form opened: choosing another is something to ask about.
+        opened_place: Option<Id>,
         title: String,
         due: String,
         start: String,
@@ -5007,6 +5009,7 @@ mod task {
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
             f.place = p.get("account").and_then(Value::as_u64).or_else(|| tasks::new_task_place(s));
+            f.opened_place = f.place;
             f.opened = f.fields();
             f
         }
@@ -5019,6 +5022,7 @@ mod task {
             let mut f = TaskForm {
                 id: Some(id),
                 place: Some(t.origin.account),
+                opened_place: Some(t.origin.account),
                 title: t.title.clone(),
                 due: t.due.map(Date::iso).unwrap_or_default(),
                 start: t.start.map(Date::iso).unwrap_or_default(),
@@ -5048,10 +5052,10 @@ mod task {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
         }
 
-        /// Whether the fields differ from what the form opened with, Completed too: there is
-        /// something to save.
+        /// Whether the fields differ from what the form opened with, Completed and the Account
+        /// list too: there is something to save.
         pub fn dirty(&self) -> bool {
-            self.fields() != self.opened || self.completed != self.was_completed
+            self.fields() != self.opened || self.completed != self.was_completed || self.place != self.opened_place
         }
 
         /// The task it changes; `None` for a new one.
@@ -5132,7 +5136,10 @@ mod task {
             let place = self.place.unwrap_or(0);
             let places: Vec<(Id, String)> =
                 tasks_remote::task_accounts(mailbox).into_iter().chain([0]).map(|a| (a, crate::widgets::place_name(mailbox, a))).collect();
-            let place_name = crate::widgets::place_name(mailbox, place);
+            // Nobody has said: it can still be offered to an account.
+            let place_name =
+                if self.place.is_some() { crate::widgets::place_name(mailbox, place) } else { tl!("On this computer for now").to_string() };
+            let held = place != 0 && app.tasks_held(place);
             body(ui, |ui| {
                 row(ui, tl!("Title"), |ui| {
                     pass.text(ui, "title", &mut self.title, f32::INFINITY, "");
@@ -5146,12 +5153,17 @@ mod task {
                     row(ui, tl!("Account"), |ui| {
                         egui::ComboBox::from_id_salt("task_account").width(220.0).selected_text(place_name.as_str()).truncate().show_ui(ui, |ui| {
                             for (account, name) in &places {
-                                if ui.selectable_label(*account == place, name.as_str()).clicked() {
+                                if ui.selectable_label(self.place == Some(*account), name.as_str()).clicked() {
                                     self.place = Some(*account);
                                 }
                             }
                         });
                     });
+                    if held {
+                        row(ui, "", |ui| {
+                            ui.label(egui::RichText::new(tl!("It waits on this computer until To Do is allowed for this account")).size(11.5));
+                        });
+                    }
                 }
                 row(ui, tl!("Due date"), |ui| {
                     pass.date(ui, "due", &mut self.due, false);

@@ -1191,7 +1191,10 @@ impl Mailbox {
         if matches!(self.local_tasks, crate::LocalTasks::SendTo(a) if going.contains(&a)) {
             self.local_tasks = crate::LocalTasks::Unasked;
         }
-        self.task_place = self.task_place.filter(|place| !going.contains(place));
+        // Never back to nothing while the answer above stands: that would read as a file from
+        // before it (`migrate_waiting_tasks`).
+        let sent_to = if let crate::LocalTasks::SendTo(account) = self.local_tasks { Some(account) } else { None };
+        self.task_place = self.task_place.filter(|place| !going.contains(place)).or(sent_to);
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
         self.tidy_listed_twice();

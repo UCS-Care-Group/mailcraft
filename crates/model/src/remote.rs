@@ -88,12 +88,13 @@ pub enum AccountChoice {
 }
 
 impl AccountChoice {
-    /// What a command says for it: `"all"`, `"here"` or the account's id.
+    /// What a command says for it: `"all"`, `"here"` (or 0, as `tasks.new` says it) or the
+    /// account's id.
     pub fn parse(value: &serde_json::Value) -> Option<AccountChoice> {
         match value {
             serde_json::Value::String(s) if s == "all" => Some(AccountChoice::All),
             serde_json::Value::String(s) if s == "here" => Some(AccountChoice::Here),
-            value => value.as_u64().filter(|id| *id != 0).map(AccountChoice::Account),
+            value => value.as_u64().map(|id| if id == 0 { AccountChoice::Here } else { AccountChoice::Account(id) }),
         }
     }
 

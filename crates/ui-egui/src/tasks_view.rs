@@ -443,10 +443,19 @@ fn add_hint(app: &MailApp, today: bool) -> String {
     if tasks_remote::task_accounts(&s.mailbox).is_empty() {
         return if today { tl!("Add a task due today") } else { tl!("Add a task") }.to_string();
     }
-    match tasks::new_task_place(s).unwrap_or(0) {
+    let Some(place) = tasks::new_task_place(s) else {
+        // Nobody has said: it can still be offered to an account.
+        return if today { tl!("Add a task due today on this computer for now") } else { tl!("Add a task on this computer for now") }.to_string();
+    };
+    match place {
         0 => if today { tl!("Add a task due today on this computer") } else { tl!("Add a task on this computer") }.to_string(),
         account => {
-            let text = if today { tl!("Add a task due today to {address}") } else { tl!("Add a task to {address}") };
+            let text = match (today, app.tasks_held(account)) {
+                (false, false) => tl!("Add a task to {address}"),
+                (true, false) => tl!("Add a task due today to {address}"),
+                (false, true) => tl!("Add a task to {address} (it waits here until To Do is allowed)"),
+                (true, true) => tl!("Add a task due today to {address} (it waits here until To Do is allowed)"),
+            };
             crate::i18n::fmt(text, &[("address", &widgets::place_name(&s.mailbox, account))])
         }
     }

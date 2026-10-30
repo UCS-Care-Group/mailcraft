@@ -353,6 +353,12 @@ impl MailApp {
         tasks_remote::task_accounts(&self.session.mailbox).into_iter().filter(|a| self.tasks.perm.get(a) == Some(&Permission::Given)).collect()
     }
 
+    /// Whether a to-do put in `account` waits on this computer because a job found that To Do
+    /// isn't allowed there (nothing is known of an account no job has looked at yet).
+    pub(crate) fn tasks_held(&self, account: Id) -> bool {
+        !matches!(self.tasks.perm.get(&account), None | Some(Permission::Given))
+    }
+
     /// The first account whose To Do works: File › Info says what is local under it.
     pub(crate) fn tasks_working_first(&self) -> Option<Id> {
         self.tasks_working().first().copied()

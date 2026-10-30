@@ -2324,6 +2324,8 @@ impl Session {
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
         self.view.open.clear();
+        // An account's id means another account there, or none.
+        self.view.task_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();

@@ -71,7 +71,7 @@ fn the_list_shows_one_accounts_tasks_or_those_on_this_computer_or_all() {
 fn the_choice_refuses_what_it_cant_show_and_lets_go_of_what_it_no_longer_lists() {
     let (mut s, work, _) = session();
     from_server(&mut s, work, "work@example.org", "w1", "Work task");
-    for junk in [json!({}), json!({"value": 0}), json!({"value": "somebody"}), json!({"value": 12_345}), json!({"value": null})] {
+    for junk in [json!({}), json!({"value": null}), json!({"value": "somebody"}), json!({"value": 12_345}), json!({"value": null})] {
         assert!(s.run("view.taskAccount", &junk).is_err(), "{junk}");
     }
     let imap = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}}))["id"].as_u64().unwrap();
@@ -82,6 +82,10 @@ fn the_choice_refuses_what_it_cant_show_and_lets_go_of_what_it_no_longer_lists()
     assert_eq!(s.sel.task, Some(id));
     run(&mut s, "view.taskAccount", json!({"value": "here"}));
     assert_eq!(s.sel.task, None);
+    // 0 is this computer here too, as in `tasks.new`.
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    run(&mut s, "view.taskAccount", json!({"value": 0}));
+    assert_eq!(shown_account(&s), AccountChoice::Here);
 }
 
 #[test]
@@ -220,9 +224,13 @@ fn add_to_tasks_puts_it_in_the_messages_account() {
     assert_eq!(s.view.task_account, AccountChoice::Account(home));
     // It doesn't count as the place the owner last chose.
     assert_eq!(s.mailbox.task_place, Some(work));
-    // An account with no To Do of its own: as with All accounts.
+    // An account with no To Do of its own: where a new task goes, and the list is on `home` now.
     let other = run(&mut s, "tasks.fromMessage", json!({"id": ids[1]}))["id"].as_u64().unwrap();
-    assert_eq!(s.mailbox.task(other).unwrap().origin.account, work);
+    assert_eq!(s.mailbox.task(other).unwrap().origin.account, home);
+    // With the list on this computer it stays here, whatever was answered about local tasks.
+    run(&mut s, "view.taskAccount", json!({"value": "here"}));
+    let here = run(&mut s, "tasks.fromMessage", json!({"id": ids[2]}))["id"].as_u64().unwrap();
+    assert!(s.mailbox.task(here).unwrap().origin.is_local());
     // One to-do per message: picking it again shows it.
     run(&mut s, "view.taskAccount", json!({"value": "here"}));
     assert_eq!(run(&mut s, "tasks.fromMessage", json!({"id": ids[0]}))["existing"], true);
@@ -234,7 +242,44 @@ fn a_task_stays_in_its_account() {
     let (mut s, work, home) = session();
     let id = run(&mut s, "tasks.new", json!({"title": "Stays", "account": work}))["id"].as_u64().unwrap();
     assert!(s.run("tasks.edit", &json!({"id": id, "account": home})).is_err());
+    assert!(s.run("tasks.edit", &json!({"id": id, "account": null})).is_err());
     assert_eq!(s.mailbox.task(id).unwrap().origin.account, work);
+    // What `tasks.get` answers can come back with a change in it.
+    run(&mut s, "tasks.edit", json!({"id": id, "account": work, "notes": "changed"}));
+    assert_eq!(s.mailbox.task(id).unwrap().notes, "changed");
+}
+
+#[test]
+fn an_empty_account_is_refused_not_taken_for_the_default() {
+    let (mut s, work, _) = session();
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    assert!(s.run("tasks.new", &json!({"title": "Where?", "account": null})).is_err());
+    assert!(s.run("tasks.list", &json!({"account": null})).is_err());
+    assert!(!s.mailbox.tasks.values().any(|t| t.title == "Where?"));
+}
+
+#[test]
+fn an_account_removed_doesnt_start_the_catch_up_again() {
+    let (mut s, work, home) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    let sent = going_to(&s, work).len();
+    run(&mut s, "tasks.new", json!({"title": "In home", "account": home}));
+    s.mailbox.add_task(Task { title: "From a file".into(), ..Default::default() });
+    s.mailbox.remove_account(home).unwrap();
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let back = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
+    assert_eq!(going_to(&back, work).len(), sent);
+    assert_eq!(local_task_count(&back.mailbox), 2, "they wait for a yes of their own");
+}
+
+#[test]
+fn the_choice_stays_with_its_mailbox() {
+    let (mut s, work, _) = session();
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    let mut other = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    assert_eq!(add(&mut other, "someone.else@example.org"), work, "the same id, another account");
+    s.replace_mailbox(other.mailbox.clone());
+    assert_eq!((shown_account(&s), new_task_place(&s)), (AccountChoice::All, None));
 }
 
 #[test]
@@ -252,7 +297,7 @@ fn an_account_that_goes_takes_its_choice_with_it() {
 }
 
 #[test]
-fn an_agent_is_asked_before_a_task_goes_anywhere_the_owners_wouldnt() {
+fn an_agent_is_asked_before_a_task_goes_to_an_account() {
     let (mut s, work, home) = session();
     run(&mut s, "tasks.sendLocal", json!({"account": null}));
     let ask = Access::Owner(Class::Send);
@@ -262,8 +307,12 @@ fn an_agent_is_asked_before_a_task_goes_anywhere_the_owners_wouldnt() {
     assert_eq!(classify(&s, "tasks.new", &json!({"title": "From an agent"})), Access::Safe);
     // The window's question, for one that has no title yet, puts nothing anywhere.
     assert_eq!(classify(&s, "tasks.new", &json!({"account": home})), Access::Safe);
-    // Where the owner's own goes now, it is no more than theirs.
+    // The list says nothing for the owner: anybody can move it.
     run(&mut s, "view.taskAccount", json!({"value": work}));
+    assert_eq!(classify(&s, "tasks.new", &json!({"title": "From an agent"})), ask);
+    assert_eq!(classify(&s, "tasks.new", &new_in(json!(work))), ask);
+    // The account the owner sent their local tasks to does: only they answer that.
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
     assert_eq!(classify(&s, "tasks.new", &json!({"title": "From an agent"})), Access::Safe);
     assert_eq!(classify(&s, "tasks.new", &new_in(json!(work))), Access::Safe);
     assert_eq!(classify(&s, "tasks.new", &new_in(json!(home))), ask);
@@ -272,6 +321,24 @@ fn an_agent_is_asked_before_a_task_goes_anywhere_the_owners_wouldnt() {
     s.mailbox.message_mut(message).unwrap().account = home;
     assert_eq!(classify(&s, "tasks.fromMessage", &json!({"id": message})), ask);
     assert!(crate::agent::describe(&s, "tasks.fromMessage", &json!({"id": message})).contains("home@example.org"));
+}
+
+#[test]
+fn an_agent_gets_no_further_by_moving_the_list() {
+    let (mut s, _, home) = session();
+    let ask = Access::Owner(Class::Send);
+    assert_eq!(classify(&s, "view.taskAccount", &json!({"value": home})), Access::Safe);
+    run(&mut s, "view.taskAccount", json!({"value": home}));
+    assert_eq!(classify(&s, "tasks.new", &json!({"title": "From an agent"})), ask);
+    // Nor by a task that exists, which moves the list to it.
+    let message = s.mailbox.messages.keys().copied().next().unwrap();
+    s.mailbox.message_mut(message).unwrap().account = home;
+    run(&mut s, "tasks.fromMessage", json!({"id": message}));
+    run(&mut s, "view.taskAccount", json!({"value": "here"}));
+    assert_eq!(classify(&s, "tasks.fromMessage", &json!({"id": message})), Access::Safe);
+    run(&mut s, "tasks.fromMessage", json!({"id": message}));
+    assert_eq!(s.view.task_account, AccountChoice::Account(home));
+    assert_eq!(classify(&s, "tasks.new", &json!({"title": "From an agent"})), ask);
 }
 
 #[test]
