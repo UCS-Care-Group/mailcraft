@@ -668,9 +668,11 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
+            let account = app.session.mailbox.contact(id).map(|c| c.origin.account);
             crate::ribbon::category_menu(
                 ui,
                 app,
+                account.as_slice(),
                 "people.categorize",
                 |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
                 None,
@@ -740,21 +742,22 @@ fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
             }
             if !c.categories.is_empty() {
                 ui.add_space(2.0);
-                chips(app, ui, &c.categories);
+                chips(app, ui, c.origin.account, &c.categories);
             }
         });
     });
 }
 
-/// Category chips, wrapping onto more lines when they don't fit on one.
-pub(crate) fn chips(app: &MailApp, ui: &mut Ui, categories: &[String]) {
+/// The category chips of an item of `account`, wrapping onto more lines when they don't fit on
+/// one.
+pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[String]) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         for name in categories.iter().take(40) {
             let shown = one_line(name, 40);
             let w = text_width(ui, &shown, regular(10.5)) + 12.0;
             let (r, _) = ui.allocate_exact_size(vec2(w, 18.0), Sense::hover());
-            widgets::category_chip(ui, pos2(r.min.x, r.center().y), &shown, crate::theme::c32(app.session.mailbox.category_color(name)));
+            widgets::category_chip(ui, pos2(r.min.x, r.center().y), &shown, crate::theme::c32(app.session.mailbox.category_color_of(account, name)));
         }
     });
 }

@@ -582,7 +582,7 @@ fn an_agents_command_that_changes_a_shared_to_do_by_another_way_is_undone() {
     let s = categorised(true);
     let before = s.mailbox.clone();
     let mut after = before.clone();
-    after.rename_category("Red category", "Agent was here").unwrap();
+    after.rename_category(0, "Red category", "Agent was here").unwrap();
     assert_eq!(overstep(&before, &after, &[]), Some(Class::Send));
     assert_eq!(overstep(&before, &after, &[Class::Send]), None);
     // A deletion from a shared list, which the server is to be told of.
@@ -593,7 +593,7 @@ fn an_agents_command_that_changes_a_shared_to_do_by_another_way_is_undone() {
     // The same to a list that isn't shared, and nothing at all: fine.
     let s = categorised(false);
     let mut mine = s.mailbox.clone();
-    mine.rename_category("Red category", "Agent was here").unwrap();
+    mine.rename_category(0, "Red category", "Agent was here").unwrap();
     assert_eq!(overstep(&s.mailbox, &mine, &[]), None);
     assert_eq!(overstep(&s.mailbox, &s.mailbox, &[]), None);
     // Run as an agent, the rename is refused and nothing changes.

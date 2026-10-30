@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, ContentRef, Id, Importance, Mailbox, Message, RichBody};
+use mailcraft_model::{Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -2447,11 +2447,14 @@ impl Session {
             return Some(Class::Send);
         }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
+        let category_gone =
+            |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
         let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
             || now.events.keys().any(|k| !to.events.contains_key(k))
             || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
-            || now.categories.iter().any(|c| !to.categories.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
+            || category_gone(&now.categories, &to.categories)
+            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
         if gone || !self.undo_drafts(redo).is_empty() {
             return Some(Class::Delete);
         }

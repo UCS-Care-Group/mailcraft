@@ -1072,7 +1072,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
     }
     for c in m.categories.iter().take(4) {
-        let color = crate::theme::c32(app.session.mailbox.category_color(c));
+        let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
@@ -1183,9 +1183,11 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, if pinned { "Unpin" } else { "Pin" }, "mail.pin", json!({}));
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
+            let accounts = crate::ribbon::selected_accounts(app);
             crate::ribbon::category_menu(
                 ui,
                 app,
+                &accounts,
                 "mail.categorize",
                 |app, name| ids.iter().all(|id| app.session.mailbox.message(*id).is_some_and(|m| m.has_category(name))),
                 Some("mail.clearCategories"),

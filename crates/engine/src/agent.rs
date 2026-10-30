@@ -16,7 +16,7 @@
 //! - [`Session::run`](crate::Session::run) checks what a command did while [`Session::agent`] is
 //!   set: mail put in an Outbox (which sends it) or gone for good without the grant is undone.
 
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::{FolderKind, Id, Mailbox, Task};
 use serde_json::{Value, json};
 
 use crate::cmd::compose::{LEAVING, draft_gone};
@@ -707,7 +707,10 @@ fn shared_category(s: &Session, id: &str, params: &Value) -> bool {
         _ => return false,
     };
     let Some(name) = p::str(params, key).map(str::trim) else { return false };
-    s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && s.mailbox.in_shared_task_list(t))
+    // The command changes the to-dos that use the list it names.
+    let list = s.mailbox.category_list_owner(p::id(params, "account").unwrap_or(0));
+    let on_list = |t: &Task| s.mailbox.category_list_owner(t.origin.account) == list;
+    s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && on_list(t) && s.mailbox.in_shared_task_list(t))
 }
 
 /// Whether going from `before` to `after` changes what a list shared with other people has, as
@@ -1106,7 +1109,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "category.remove" => {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
-            format!("delete the category {}, taking it off everything that has it{shared}", quoted(st("name")))
+            let whose = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))

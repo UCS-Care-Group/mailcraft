@@ -1014,9 +1014,19 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     }
 }
 
-/// The categories as menu items that toggle one on the selection through `command`.
-pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn(&MailApp, &str) -> bool, clear: Option<&str>) {
-    let cats: Vec<(String, egui::Color32)> = app.session.mailbox.categories.iter().map(|c| (c.name.clone(), crate::theme::c32(c.color))).collect();
+/// The accounts of the selected messages, each once.
+pub(crate) fn selected_accounts(app: &MailApp) -> Vec<Id> {
+    let mut accounts: Vec<Id> = app.session.sel.messages.iter().filter_map(|id| app.session.mailbox.message(*id)).map(|m| m.account).collect();
+    accounts.sort_unstable();
+    accounts.dedup();
+    accounts
+}
+
+/// The categories of `accounts`, those of the selection's items (#633), as menu items that toggle
+/// one on the selection through `command`.
+pub fn category_menu(ui: &mut Ui, app: &mut MailApp, accounts: &[Id], command: &str, has: impl Fn(&MailApp, &str) -> bool, clear: Option<&str>) {
+    let cats: Vec<(String, egui::Color32)> =
+        app.session.mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1037,7 +1047,7 @@ pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn
     }
     ui.separator();
     if ui.add(egui::Button::new(tl!("All Categories…")).min_size(vec2(190.0, 0.0))).clicked() {
-        let _ = app.run("ui.dialog", json!({"name": "categories"}));
+        let _ = app.run("ui.dialog", json!({"name": "categories", "account": accounts.first()}));
         ui.close();
     }
 }
@@ -1124,9 +1134,11 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::Junk => junk_menu(ui, app),
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
+            let accounts = selected_accounts(app);
             category_menu(
                 ui,
                 app,
+                &accounts,
                 "mail.categorize",
                 |app, name| !ids.is_empty() && ids.iter().all(|id| app.session.mailbox.message(*id).is_some_and(|m| m.has_category(name))),
                 Some("mail.clearCategories"),
@@ -1170,21 +1182,24 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "calendar.categorize", has, None);
+            let account = id.and_then(|id| app.session.mailbox.event(id)).map(|e| app.session.mailbox.event_account(e));
+            category_menu(ui, app, account.as_slice(), "calendar.categorize", has, None);
         }
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "people.categorize", has, None);
+            let account = id.and_then(|id| app.session.mailbox.contact(id)).map(|c| c.origin.account);
+            category_menu(ui, app, account.as_slice(), "people.categorize", has, None);
         }
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "tasks.categorize", has, None);
+            let account = id.and_then(|id| app.session.mailbox.task(id)).map(|t| t.origin.account);
+            category_menu(ui, app, account.as_slice(), "tasks.categorize", has, None);
         }
         Menu::FilterTasks => {
             let cur = app.session.view.task_filter;

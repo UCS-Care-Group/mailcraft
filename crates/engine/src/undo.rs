@@ -196,7 +196,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
         out.queued.push(q);
     }
     // What the server last gave of these is the server's, not the owner's to undo.
-    out.outlook_categories = now.outlook_categories.clone();
+    out.server_categories = now.server_categories.clone();
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines())
 }

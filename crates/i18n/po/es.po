@@ -493,7 +493,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 msgid "Account"
 msgstr ""
 
@@ -6518,7 +6518,7 @@ msgid "On the server · Searching…"
 msgstr "En el servidor · Buscando…"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "En este equipo"
@@ -6879,6 +6879,12 @@ msgstr "Otra (IMAP)"
 #, fuzzy
 msgid "Other Calendars"
 msgstr "Otros calendarios"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Other accounts and On this computer"
+msgstr "Otras cuentas y En este equipo"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs

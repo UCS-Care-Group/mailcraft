@@ -187,6 +187,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-30 | #633: each Microsoft account has its own list of categories, made at the first read of its server's list from that list and the categories its items already carry (`Mailbox::account_categories`, and `server_categories` in place of the one mailbox-wide `outlook_categories`). Categorize, the item forms and the colours of an item use the list of its account: a message's, an event's calendar's, a contact's or a task's `origin.account`; a shared mailbox has its owner's. IMAP accounts, On this computer and a Microsoft account not read yet share `Mailbox::categories`, which stays as it was. All Categories chooses the list, `category.*` take an optional `account`, and renaming or deleting reaches only the items of that list. Writing the list to the server is #661. |
 | 2026-10-30 | #634: File › Options › General, *Show messages on a light background in the dark theme* (`ui.lightMessages`, off by default): in the dark theme a message's body, in the reading pane and in a message's own window, is laid out in the light theme's colours on a light page, as its sender made it; its header and the rest of the window stay dark, and the original under a reply being written keeps the window's colours; a message's `@media` is tested against the page's theme, so one with its own design for dark windows (#599) shows its light design there |
 | 2026-10-30 | #252 E8 review (behind `MAILCRAFT_EWS=1`): a draft of an Exchange account whose make was never answered is found by its marker when its message is sent, and taken away (if it cannot be found or deleted, the next run deletes it by the marker, and sends nothing); the verifier's log line is left out only for the pinned certificate; a move into a folder waiting for its place in the listing is not counted as a change to send |
 | 2026-10-30 | #252 E8 fixes (behind `MAILCRAFT_EWS=1`): every send from an Exchange server account goes as one `CreateItem` with `SendAndSaveCopy`, a saved draft too, and the draft is then taken away with a soft delete only after a clear success (a failed takeaway is an ordinary delete of the next run, never a second send); an Exchange account's Archive is made at the top of the mail on the server when mail is put in it, or taken from a server folder of that name; folder class is asked for by name and calendar, contacts, tasks and search folders are never mail; the system verifier's error line is left out of the log for a connection with a trusted fingerprint. Tried again on Grommunio. See [docs/exchange-servers.md](docs/exchange-servers.md) |
@@ -393,6 +394,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-30 | #633: the progress log: each Microsoft account's own list of categories |
 | 2026-10-30 | #634: the progress log: messages on a light page in the dark theme |
 | 2026-10-30 | #252 E8: the trial against Grommunio, in the progress log |
 | 2026-10-30 | #252 E8: the three faults the trial found are fixed, in the progress log |
