@@ -13207,11 +13207,6 @@ msgstr "het kon niet worden verwijderd"
 msgid "it deletes for good"
 msgstr "het verwijdert definitief"
 
-#. what a command says
-#: crates/engine/src/store_stream.rs
-msgid "it holds more than this computer has the memory to open"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy

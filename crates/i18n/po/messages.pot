@@ -10996,11 +10996,6 @@ msgstr ""
 msgid "it deletes for good"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/store_stream.rs
-msgid "it holds more than this computer has the memory to open"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "it is a drawing of a kind that isn't shown (SVG)"

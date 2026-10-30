@@ -333,18 +333,36 @@ fn what_stays_in_memory_has_a_total_bound() {
     let e = open(&path).err().unwrap();
     assert!(e.contains("memory to open"), "{e}");
     assert_eq!(fs::read(&path).unwrap(), json.as_bytes());
-    // Messages whose JSON stays (no content to move out) count too.
-    let mut many = String::from(r#"{"version":1,"messages":{"#);
-    for i in 1..=5_000 {
-        if i > 1 {
-            many.push(',');
-        }
-        many.push_str(&format!(r#""{i}":{{"subject":"{}"}}"#, "s".repeat(6_000)));
-    }
-    many.push_str("}}");
-    fs::write(&path, &many).unwrap();
-    let e = open(&path).err().unwrap();
-    assert!(e.contains("memory to open"), "{e}");
+    assert!(e.contains("MB of memory to open"), "{e}");
+}
+
+/// A file of header-heavy mail: what stays in memory (its headers) is most of the file.
+fn header_heavy(messages: usize, header: usize) -> String {
+    let mb = mailbox(1, 10);
+    let inbox = mb.inbox().unwrap();
+    let mut json: Value = serde_json::to_value(&mb).unwrap();
+    let one = serde_json::json!({"folder": inbox, "subject": "Mail", "headers": [["X-Trace", "r".repeat(header)]]});
+    let map: serde_json::Map<String, Value> = (1..=messages).map(|i| (i.to_string(), one.clone())).collect();
+    json["messages"] = Value::Object(map);
+    serde_json::to_string(&json).unwrap()
+}
+
+#[test]
+fn a_file_of_mostly_headers_opens_where_memory_cannot_be_measured() {
+    let tmp = Temp::new("headers");
+    let path = tmp.file();
+    // 30 MB of which 30 MB stays: over the 24 MB floor, under the file's own length.
+    let json = header_heavy(5_000, 6_000);
+    fs::write(&path, &json).unwrap();
+    assert!(json.len() > 24 << 20);
+    TEST_AVAILABLE.set(u64::MAX);
+    let unmeasured = open(&path).map(|o| o.mailbox.messages.len());
+    // Measured, and scarce: the file's own length is still allowed.
+    TEST_AVAILABLE.set(1);
+    let measured = open(&path).map(|o| o.mailbox.messages.len());
+    TEST_AVAILABLE.set(0);
+    assert_eq!(unmeasured.unwrap(), 5_000);
+    assert_eq!(measured.unwrap(), 5_000);
 }
 
 #[test]
@@ -385,10 +403,11 @@ fn the_newest_mail_has_its_text_read_once_the_window_shows() {
     write_one_file(&path, &mb);
     let _scarce = Scarce::new();
     let opened = open(&path).unwrap();
-    let later = bodies_later(&path);
-    assert_eq!(later.len(), 5);
-    let (read, failed) = read_bodies(&path, &later);
-    assert!(failed.is_empty());
+    // As the app does it: when the opening says so, the bodies are read once the window shows.
+    assert!(opened.unchecked);
+    let (missing, read) = content_later(&path);
+    assert_eq!(missing.count, 0);
+    assert_eq!(read.len(), 5);
     for body in read {
         let was = mb.messages.get(&body.id).unwrap();
         assert_eq!(body.text.unwrap().1, was.body.text.as_bytes());
@@ -396,6 +415,7 @@ fn the_newest_mail_has_its_text_read_once_the_window_shows() {
     assert_eq!(opened.mailbox.messages.len(), 5);
     // Once only.
     assert!(bodies_later(&path).is_empty());
+    assert!(content_later(&path).1.is_empty());
 }
 
 /// Timing of a big file (not run by default): `MC_BENCH_DIR=<folder> cargo test -p mailcraft-engine

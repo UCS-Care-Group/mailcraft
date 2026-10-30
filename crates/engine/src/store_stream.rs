@@ -149,10 +149,20 @@ fn batch_limits() -> (usize, usize) {
     BATCH.get()
 }
 
-/// The most bytes (as JSON) of the file that stay in memory: a quarter of the memory not in use
-/// where that is known (at least 512 MB, at most 4 GB), 1 GB where it is not. 24 MB under test.
-fn kept_cap() -> u64 {
-    if cfg!(test) { 24 << 20 } else { available_memory().map_or(1 << 30, |a| a / 4).clamp(512 << 20, 4 << 30) }
+/// The most bytes (as JSON) of a file of `len` bytes that stay in memory. What stays can't be
+/// more than the file holds (the headers of its mail, which the next start holds again, being
+/// read from the form with a log of records), apart from what parsed values cost over their text:
+/// so where memory can't be measured it is the file's length with a quarter more, and at least
+/// 1 GB; where it can, a quarter of the memory not in use (at least 512 MB, at most 4 GB), and
+/// never less than the file's length (up to 4 GB), so that a mailbox the log form could hold is not
+/// refused by moving to it alone. 24 MB for both floors under test.
+fn kept_cap(len: u64) -> u64 {
+    let (floor, measured_floor) = if cfg!(test) { (24 << 20, 24 << 20) } else { (1u64 << 30, 512u64 << 20) };
+    let own = len.saturating_add(len / 4);
+    match available_memory() {
+        None => floor.max(own),
+        Some(free) => (free / 4).clamp(measured_floor, 4 << 30).max(len.min(4 << 30)),
+    }
 }
 
 /// The content `r` as a file under `dir`, in place only once it is whole and flushed to the disk:
@@ -211,7 +221,8 @@ impl Build {
     fn keep<E: serde::de::Error>(&mut self, n: u64) -> Result<(), E> {
         self.kept = self.kept.saturating_add(n);
         if self.kept > self.cap {
-            return Err(self.fail("it holds more than this computer has the memory to open".into()));
+            let (kept, cap) = (self.kept >> 20, self.cap >> 20);
+            return Err(self.fail(format!("it needs {kept} MB of memory to open, more than the {cap} MB this computer allows for it")));
         }
         Ok(())
     }
@@ -457,7 +468,7 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         pending: Pending::default(),
         seen: HashSet::new(),
         kept: 0,
-        cap: kept_cap(),
+        cap: kept_cap(len),
         failure: None,
     };
     // (A byte order mark is skipped by hand: the parser takes none.)
@@ -535,7 +546,8 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         lost_records: 0,
         bytes: len,
         repaired: fixed.len(),
-        unchecked: false,
+        // (The window then asks for the bodies left for after it shows, `bodies_later`.)
+        unchecked: true,
     }))
 }
 
