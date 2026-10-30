@@ -426,7 +426,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 msgid "Account"
 msgstr ""
 
@@ -517,6 +517,26 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "Add a task due today"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today to {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task to {address}"
 msgstr ""
 
 #. interface
@@ -639,6 +659,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "All Mailboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+msgid "All accounts"
 msgstr ""
 
 #. interface
@@ -5572,7 +5597,7 @@ msgid "On the server · Searching…"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/widgets.rs
 msgid "On this computer"
 msgstr ""
 
@@ -7527,6 +7552,11 @@ msgstr ""
 msgid "Show Sender Images"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Tasks Of"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Show a Shared Mailbox's Calendars"
@@ -9079,12 +9109,12 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
 msgstr ""
 
 #. interface

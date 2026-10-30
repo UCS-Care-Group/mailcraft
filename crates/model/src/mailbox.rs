@@ -953,6 +953,10 @@ pub struct Mailbox {
     /// to a server.
     #[serde(skip_serializing_if = "crate::LocalTasks::is_unasked")]
     pub local_tasks: crate::LocalTasks,
+    /// Where the owner last put a new to-do: an account, or 0 for this computer. `None` until
+    /// they have put one anywhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_place: Option<Id>,
     /// Changes to events that a server said it took and that no download has shown yet
     /// ([`crate::remote::EventCheck`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -1008,6 +1012,7 @@ impl Default for Mailbox {
             task_gone: Vec::new(),
             shared_task_lists: BTreeMap::new(),
             local_tasks: crate::LocalTasks::Unasked,
+            task_place: None,
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
             queued: Vec::new(),
@@ -1181,6 +1186,7 @@ impl Mailbox {
         if matches!(self.local_tasks, crate::LocalTasks::SendTo(a) if going.contains(&a)) {
             self.local_tasks = crate::LocalTasks::Unasked;
         }
+        self.task_place = self.task_place.filter(|place| !going.contains(place));
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
         self.tidy_listed_twice();

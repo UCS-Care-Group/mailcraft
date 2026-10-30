@@ -509,7 +509,7 @@ msgid "Accessibility"
 msgstr "Toegankelijkheid"
 
 #. interface
-#: crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -623,6 +623,30 @@ msgstr "Een taak toevoegen"
 #, fuzzy
 msgid "Add a task due today"
 msgstr "Een taak toevoegen die vandaag vervalt"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer"
+msgstr "Een taak die vandaag vervalt toevoegen op deze computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address}"
+msgstr "Een taak die vandaag vervalt toevoegen aan {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer"
+msgstr "Een taak toevoegen op deze computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address}"
+msgstr "Een taak toevoegen aan {address}"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -770,6 +794,12 @@ msgstr "Alle categorieën…"
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Alle postvakken"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "All accounts"
+msgstr "Alle accounts"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -6706,7 +6736,7 @@ msgid "On the server · Searching…"
 msgstr "Op de server · Zoeken…"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Op deze computer"
@@ -9066,6 +9096,12 @@ msgstr "Voortgang van verzenden/ontvangen weergeven"
 msgid "Show Sender Images"
 msgstr "Afbeeldingen van afzenders tonen"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Tasks Of"
+msgstr "Taken tonen van"
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
@@ -10912,14 +10948,14 @@ msgstr "Deze konden niet worden verwijderd. Verwijder ze zelf:"
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
-msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt, en elke taak die u vanaf nu maakt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden ze bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -15449,6 +15485,14 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
+#~ msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt, en elke taak die u vanaf nu maakt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
+
+#, fuzzy
+#~ msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+#~ msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
 
 #, fuzzy
 #~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."

@@ -367,6 +367,17 @@ fn a_refused_change_is_kept_not_reverted_and_tried_again_after_an_edit() {
 }
 
 #[test]
+fn a_task_taken_in_when_the_answer_was_lost_is_saved() {
+    let (mut s, a) = session();
+    let id = run(&mut s, "tasks.new", json!({"title": "Lost answer", "account": a}))["id"].as_u64().unwrap();
+    let rev = s.rev();
+    let merged = super::tasks_remote::apply_tasks(&mut s, &download(a, vec![remote("srv-9", "Lost answer")])).unwrap();
+    assert!(merged.changed());
+    assert!(s.rev() > rev, "or the task is made again after a restart");
+    assert_eq!(s.mailbox.task(id).unwrap().origin.id, "srv-9");
+}
+
+#[test]
 fn a_refused_new_task_is_tried_again_once_it_is_changed() {
     let (mut s, a) = session();
     run(&mut s, "tasks.sendLocal", json!({"account": a}));

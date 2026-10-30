@@ -493,9 +493,10 @@ msgid "Accessibility"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Account"
-msgstr ""
+msgstr "Compte"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -606,6 +607,30 @@ msgstr "Ajouter une tâche"
 #, fuzzy
 msgid "Add a task due today"
 msgstr "Ajouter une tâche à échéance aujourd'hui"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer"
+msgstr "Ajouter une tâche à échéance aujourd'hui sur cet ordinateur"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address}"
+msgstr "Ajouter une tâche à échéance aujourd'hui à {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer"
+msgstr "Ajouter une tâche sur cet ordinateur"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address}"
+msgstr "Ajouter une tâche à {address}"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -749,6 +774,12 @@ msgstr "Toutes les catégories…"
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Toutes les boîtes aux lettres"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "All accounts"
+msgstr "Tous les comptes"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -6518,7 +6549,7 @@ msgid "On the server · Searching…"
 msgstr "Sur le serveur · Recherche…"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Sur cet ordinateur"
@@ -8802,6 +8833,12 @@ msgstr "Afficher la progression d'Envoyer/Recevoir"
 msgid "Show Sender Images"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Tasks Of"
+msgstr "Afficher les tâches de"
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Show a Shared Mailbox's Calendars"
@@ -10555,13 +10592,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Ces tâches n'existent que sur cet ordinateur. Choisissez le compte Microsoft dont To Do les recevra. Tant que vous n'avez pas choisi, elles restent ici et rien n'en est envoyé."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Ces tâches n'existent que sur cet ordinateur. Si vous les envoyez, elles seront synchronisées avec Microsoft To Do. Tant que vous ne le faites pas, elles restent ici et rien n'en est envoyé. Fichier › Informations le propose à nouveau."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

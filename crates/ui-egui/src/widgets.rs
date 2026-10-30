@@ -263,6 +263,45 @@ pub fn category_chip(ui: &Ui, left_center: egui::Pos2, name: &str, color: Color3
     w
 }
 
+/// What a place is called: an account by its address (two accounts of one person can have one
+/// name), 0 this computer.
+pub fn place_name(mailbox: &mailcraft_model::Mailbox, account: mailcraft_model::Id) -> String {
+    match mailbox.account(account) {
+        Some(a) => crate::people_view::one_line(&a.email, 200),
+        None => tl!("On this computer").to_string(),
+    }
+}
+
+/// Whose items a list shows, at the top of its pane: All accounts, each of `accounts`, On this
+/// computer. Returns what was picked.
+pub fn account_choice(
+    ui: &mut Ui,
+    mailbox: &mailcraft_model::Mailbox,
+    accounts: &[mailcraft_model::Id],
+    current: mailcraft_model::AccountChoice,
+) -> Option<mailcraft_model::AccountChoice> {
+    use mailcraft_model::AccountChoice;
+    let label = |choice: AccountChoice| match choice {
+        AccountChoice::All => tl!("All accounts").to_string(),
+        AccountChoice::Here => place_name(mailbox, 0),
+        AccountChoice::Account(account) => place_name(mailbox, account),
+    };
+    let choices = std::iter::once(AccountChoice::All).chain(accounts.iter().copied().map(AccountChoice::Account)).chain([AccountChoice::Here]);
+    let mut picked = None;
+    ui.horizontal(|ui| {
+        ui.add_space(10.0);
+        let width = (ui.available_width() - 10.0).max(60.0);
+        egui::ComboBox::from_id_salt("account_choice").width(width).selected_text(label(current)).truncate().show_ui(ui, |ui| {
+            for choice in choices {
+                if ui.selectable_label(choice == current, label(choice)).clicked() {
+                    picked = Some(choice);
+                }
+            }
+        });
+    });
+    picked
+}
+
 /// A section heading inside a side pane (`My Calendars`, `My Tasks`), in the size and weight of
 /// the folder pane's own headings.
 pub fn pane_heading(ui: &mut Ui, text: &str) {

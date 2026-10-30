@@ -16,8 +16,9 @@
 //! no longer has goes from here too, unless it was changed here since: then it is made again (a
 //! change made here is never lost to a deletion elsewhere). A to-do deleted here is remembered
 //! ([`mailcraft_model::TaskGone`]) until the server has been told, and is not brought back by a
-//! download that still shows it. To-dos made here (no account yet) go up to the first Microsoft
-//! account's default list.
+//! download that still shows it. A new to-do goes up to the default list of the account it was put
+//! in; those that exist only here go when the owner says so (`tasks.sendLocal`), and never by
+//! themselves.
 //!
 //! Everything from outside is hostile: ids and text are cut by [`RemoteTask::tidy`], counts are
 //! capped, and a download or an answer for another account is refused whole.
@@ -41,7 +42,7 @@ const MAX_SHOWN: usize = 200;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("tasks.sendLocal", "Send Local Tasks to To Do", "File › Info", send_local_command)
-            .params(r#"{"account": number | null} — the owner's answer to "Send your local tasks to <account>'s To Do?": a Microsoft account sends the to-dos that exist only on this computer, and every one made from now on, to its default list at the next Send/Receive of tasks; null ("Not now") keeps them here. Until it is answered nothing local is sent. Answers {"sent": number (how many are to go), "keptHere": number}"#),
+            .params(r#"{"account": number | null} — the owner's answer to "Send your local tasks to <account>'s To Do?": a Microsoft account sends the to-dos that exist only on this computer now to its default list at the next Send/Receive of tasks; null ("Not now") keeps them here. Until it is answered nothing local is sent, and a to-do the owner chose to keep here is never part of it. Answers {"sent": number (how many are to go), "keptHere": number}"#),
         CommandSpec::new("sync.taskChanges", "To-do Changes to Send", "Send / Receive", task_changes_command)
             .pure()
             .params(r#"{"account": number} — what that Microsoft account's server (Microsoft To Do) is to be told of to-dos made, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "task": number, "id"?: string, "list"?: string, "patch": {title?, notes?, start?, due?, completed?, importance?, categories?, reminder?}}]}"#),
@@ -56,14 +57,14 @@ pub fn specs() -> Vec<CommandSpec> {
 
 /// Whether the account is one whose to-dos Microsoft keeps: it signs in with Microsoft and is not
 /// a shared mailbox.
-fn keeps_tasks(mailbox: &Mailbox, account: Id) -> bool {
+pub fn keeps_tasks(mailbox: &Mailbox, account: Id) -> bool {
     mailbox.account(account).is_some_and(|a| {
         !a.is_shared() && a.kind != AccountKind::Jmap && a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft)
     })
 }
 
-/// The account that to-dos made here (with no account yet) go up to: the one the owner said yes
-/// to ([`LocalTasks::SendTo`]); none before that, so nothing local leaves the computer unasked.
+/// The account the owner sent their local to-dos to ([`LocalTasks::SendTo`]), if any: where they
+/// are first offered to put a new one.
 pub fn tasks_home(mailbox: &Mailbox) -> Option<Id> {
     match mailbox.local_tasks {
         LocalTasks::SendTo(account) if keeps_tasks(mailbox, account) => Some(account),
@@ -71,15 +72,14 @@ pub fn tasks_home(mailbox: &Mailbox) -> Option<Id> {
     }
 }
 
-/// How many to-dos exist only on this computer and could go to an account's To Do.
-pub fn local_task_count(mailbox: &Mailbox) -> usize {
-    mailbox.tasks.values().filter(|t| t.origin.is_local() && t.origin.id.is_empty() && !t.local_only).count()
+/// The to-dos that exist only on this computer and could go to an account's To Do.
+fn local_tasks(mailbox: &Mailbox) -> impl Iterator<Item = &Task> {
+    mailbox.tasks.values().map(|t| t.as_ref()).filter(|t| t.origin.is_local() && t.origin.id.is_empty() && !t.local_only && !t.kept_here)
 }
 
-/// Where a to-do made here lives: the address of the account whose To Do it goes to, or `None`
-/// for this computer only.
-pub fn tasks_kept_at(mailbox: &Mailbox) -> Option<String> {
-    tasks_home(mailbox).and_then(|a| mailbox.account(a)).map(|a| a.email.trim().to_string())
+/// How many of them there are.
+pub fn local_task_count(mailbox: &Mailbox) -> usize {
+    local_tasks(mailbox).count()
 }
 
 /// The accounts whose to-dos are kept in step now.
@@ -96,7 +96,6 @@ fn task_upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<TaskOp>, CmdErro
     if !keeps_tasks(mailbox, account) {
         return Err(bad("that account doesn't keep its to-dos with Microsoft"));
     }
-    let home = tasks_home(mailbox) == Some(account);
     let mut ops: Vec<TaskOp> = Vec::new();
     for gone in mailbox.task_gone.iter().filter(|gone| gone.account == account) {
         ops.push(TaskOp { kind: TaskOpKind::Delete, task: 0, id: gone.id.clone(), list: gone.list.clone(), patch: Default::default() });
@@ -106,8 +105,7 @@ fn task_upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<TaskOp>, CmdErro
             ops.push(TaskOp { kind: TaskOpKind::Update, task: task.id, id: task.origin.id.clone(), list: task.list.clone(), patch });
         }
     }
-    let waiting =
-        |t: &&std::sync::Arc<Task>| !t.local_only && t.origin.id.is_empty() && (t.origin.account == account || (home && t.origin.account == 0));
+    let waiting = |t: &&std::sync::Arc<Task>| !t.local_only && t.origin.id.is_empty() && t.origin.account == account;
     for task in mailbox.tasks.values().filter(waiting).take(MAX_TASK_CREATES) {
         ops.push(TaskOp { kind: TaskOpKind::Create, task: task.id, id: String::new(), list: String::new(), patch: task.fields().whole() });
     }
@@ -160,7 +158,6 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
     let told: HashSet<&str> = mailbox.task_gone.iter().filter(|g| g.account == account).map(|g| g.id.as_str()).collect();
     let told: HashSet<String> = told.into_iter().map(str::to_string).collect();
     let mut seen: HashSet<String> = HashSet::new();
-    let home = tasks_home(mailbox);
     for remote in download.tasks.iter().take(MAX_TASKS) {
         let mut remote = remote.clone();
         remote.tidy();
@@ -193,11 +190,7 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
                 let twin = mailbox
                     .tasks
                     .values()
-                    .find(|t| {
-                        t.origin.id.is_empty()
-                            && (t.origin.account == account || t.origin.is_local() && home == Some(account))
-                            && same_todo(&t.fields(), &there)
-                    })
+                    .find(|t| t.origin.id.is_empty() && t.origin.account == account && same_todo(&t.fields(), &there))
                     .map(|t| t.id);
                 if let Some(twin) = twin
                     && let Ok(task) = mailbox.task_mut(twin)
@@ -206,7 +199,8 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
                     task.list = remote.list.clone();
                     task.synced = Some(there);
                     task.local_only = false;
-                    merged.unchanged += 1;
+                    // (It has the server's id now: the mailbox is to be saved, or it is made again.)
+                    merged.updated += 1;
                     continue;
                 }
                 let mut task = Task { origin, list: remote.list.clone(), synced: Some(there.clone()), ..Default::default() };
@@ -410,8 +404,16 @@ fn send_local_command(s: &mut Session, v: &Value) -> CmdResult {
         }
     };
     s.mailbox.local_tasks = answer;
+    let local: Vec<Id> = local_tasks(&s.mailbox).map(|t| t.id).collect();
+    let waiting = local.len();
+    if let LocalTasks::SendTo(account) = answer {
+        for id in local {
+            if let Ok(task) = s.mailbox.task_mut(id) {
+                task.origin.account = account;
+            }
+        }
+    }
     s.mailbox_changed();
-    let waiting = local_task_count(&s.mailbox);
     Ok(match answer {
         LocalTasks::SendTo(_) => json!({"sent": waiting, "keptHere": 0}),
         _ => json!({"sent": 0, "keptHere": waiting}),

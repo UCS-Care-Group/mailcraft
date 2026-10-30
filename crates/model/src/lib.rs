@@ -59,7 +59,7 @@ pub use message::{
     RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
-pub use remote::Origin;
+pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Rule};
 pub use signature::Signature;

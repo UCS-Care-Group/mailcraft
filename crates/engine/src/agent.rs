@@ -231,6 +231,7 @@ const SAFE: &[&str] = &[
     "view.previous",
     "view.goToDate",
     "view.taskFilter",
+    "view.taskAccount",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -599,6 +600,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if shared_task(s, id, params).is_some() || shared_category(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    // A to-do put in another account's To Do than the owner's own would go to is on that server
+    // at once, as mail moved there is (#632).
+    if new_task_onto(s, id, params).is_some() {
+        return Access::Owner(Class::Send);
+    }
     // A rule that files mail into another account's folder puts it on that server, as a move
     // there does (#451).
     if rules_onto_another_server(s, id, params) {
@@ -686,6 +692,13 @@ fn draft_in_window(s: &Session, id: &str, params: &Value) -> Option<Id> {
 /// (`unsaved`, from `agent_gate`, never from the agent).
 fn unsaved(params: &Value) -> bool {
     params.get("unsaved").is_some_and(|v| !v.is_null())
+}
+
+/// The account whose To Do a to-do made by `id` would go to, when that isn't where the owner's own
+/// new to-do goes now.
+fn new_task_onto(s: &Session, id: &str, params: &Value) -> Option<Id> {
+    let place = crate::cmd::tasks::place_of(s, id, params).filter(|place| *place != 0)?;
+    (crate::cmd::tasks::new_task_place(s) != Some(place)).then_some(place)
 }
 
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
@@ -1094,6 +1107,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 },
                 name(p::id(params, "keep"))
             )
+        }
+        "tasks.new" | "tasks.fromMessage" if new_task_onto(s, id, params).is_some() => {
+            let account = new_task_onto(s, id, params).and_then(|a| s.mailbox.account(a));
+            format!("put a task in the To Do of {}", account.map(|a| a.email.trim().to_string()).unwrap_or_else(|| "an account".to_string()))
         }
         "tasks.delete" => {
             let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));

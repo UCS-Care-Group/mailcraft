@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, ContentRef, Id, Importance, Mailbox, Message, RichBody};
+use mailcraft_model::{AccountChoice, Attachment, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -307,6 +307,8 @@ pub struct ViewState {
     pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
     pub task_sort: TaskSort,
+    /// Whose tasks Tasks shows.
+    pub task_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -333,6 +335,7 @@ impl Default for ViewState {
             people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
+            task_account: AccountChoice::All,
         }
     }
 }

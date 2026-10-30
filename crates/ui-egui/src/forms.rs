@@ -4938,6 +4938,7 @@ mod contact {
 mod task {
     use egui::Ui;
     use mailcraft_engine::Session;
+    use mailcraft_engine::cmd::{tasks, tasks_remote};
     use mailcraft_model::{Id, Importance};
     use mailcraft_time::{Date, time_short};
     use serde_json::{Map, Value, json};
@@ -4971,6 +4972,9 @@ mod task {
     pub struct TaskForm {
         /// The task being edited; `None` for a new one.
         id: Option<Id>,
+        /// Where the task is: an account, or 0 for this computer. `None` for a new one that
+        /// nobody has said where to put: it stays here, like one that isn't put anywhere.
+        place: Option<Id>,
         title: String,
         due: String,
         start: String,
@@ -5002,6 +5006,7 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.place = p.get("account").and_then(Value::as_u64).or_else(|| tasks::new_task_place(s));
             f.opened = f.fields();
             f
         }
@@ -5013,6 +5018,7 @@ mod task {
             let reminder = t.reminder.map(|r| s.local(r));
             let mut f = TaskForm {
                 id: Some(id),
+                place: Some(t.origin.account),
                 title: t.title.clone(),
                 due: t.due.map(Date::iso).unwrap_or_default(),
                 start: t.start.map(Date::iso).unwrap_or_default(),
@@ -5091,7 +5097,12 @@ mod task {
                     m.insert("id".into(), json!(id));
                     ("tasks.edit", Value::Object(m))
                 }
-                None => ("tasks.new", Value::Object(m)),
+                None => {
+                    if let Some(place) = self.place {
+                        m.insert("account".into(), json!(place));
+                    }
+                    ("tasks.new", Value::Object(m))
+                }
             }
         }
 
@@ -5117,10 +5128,31 @@ mod task {
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
             let today = pass.today;
             let categories = app.session.mailbox.categories.clone();
+            let mailbox = &app.session.mailbox;
+            let place = self.place.unwrap_or(0);
+            let places: Vec<(Id, String)> =
+                tasks_remote::task_accounts(mailbox).into_iter().chain([0]).map(|a| (a, crate::widgets::place_name(mailbox, a))).collect();
+            let place_name = crate::widgets::place_name(mailbox, place);
             body(ui, |ui| {
                 row(ui, tl!("Title"), |ui| {
                     pass.text(ui, "title", &mut self.title, f32::INFINITY, "");
                 });
+                if self.id.is_some() && (places.len() > 1 || place != 0) {
+                    // Where it is, as it stays there.
+                    row(ui, tl!("Account"), |ui| {
+                        ui.add(egui::Label::new(place_name.as_str()).truncate());
+                    });
+                } else if places.len() > 1 {
+                    row(ui, tl!("Account"), |ui| {
+                        egui::ComboBox::from_id_salt("task_account").width(220.0).selected_text(place_name.as_str()).truncate().show_ui(ui, |ui| {
+                            for (account, name) in &places {
+                                if ui.selectable_label(*account == place, name.as_str()).clicked() {
+                                    self.place = Some(*account);
+                                }
+                            }
+                        });
+                    });
+                }
                 row(ui, tl!("Due date"), |ui| {
                     pass.date(ui, "due", &mut self.due, false);
                     date_note(ui, &self.due, false);
@@ -5555,6 +5587,8 @@ mod categories {
 mod junk;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod task_place_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 mod rules {

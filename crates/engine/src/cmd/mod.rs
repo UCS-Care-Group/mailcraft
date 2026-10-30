@@ -94,6 +94,8 @@ pub mod tasks;
 pub mod tasks_remote;
 #[cfg(test)]
 mod tasks_remote_tests;
+#[cfg(test)]
+mod tasks_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
