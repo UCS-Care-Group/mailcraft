@@ -8903,6 +8903,11 @@ msgid "Theme"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Then run the rules over the mail in {folder}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "There is no data folder to open here"
 msgstr ""
@@ -12673,6 +12678,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{saving} · the other mailbox opens when it is done"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "{sender} to {folder}"
 msgstr ""
 
 #. what a command says

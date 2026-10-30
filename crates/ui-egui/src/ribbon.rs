@@ -1111,7 +1111,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             if !app.session.sel.messages.is_empty() {
                 ui.menu_button(tl!("Always Move Messages From This Sender"), |ui| {
                     folder_menu(ui, app, |app, folder| {
-                        let _ = app.run("rules.fromMessage", json!({"folder": folder}));
+                        // The New rule filled in, for the owner to see and add, where it is kept too.
+                        let _ = app.run("ui.dialog", json!({"name": "rules", "folder": folder}));
                     });
                 });
                 ui.separator();

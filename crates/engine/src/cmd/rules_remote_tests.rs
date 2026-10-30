@@ -482,6 +482,10 @@ fn always_move_messages_from_a_sender_of_a_microsoft_account_goes_to_its_server(
     let upload = rule_upload(&s.mailbox, account).unwrap();
     assert_eq!(upload.ops.len(), 1);
     assert_eq!(upload.ops[0].body.as_ref().unwrap().move_to, "news");
+    // Kept on this computer when asked, as `rules.add` is.
+    let other = arriving(&mut s, account, "shop@news.example", "Sale");
+    let here = run(&mut s, "rules.fromMessage", json!({"folder": news, "id": other, "server": false}));
+    assert_eq!(rule(&s, here["id"].as_u64().unwrap()).keep, Keep::Here);
 }
 
 #[test]

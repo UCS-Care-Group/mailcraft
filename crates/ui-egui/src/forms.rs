@@ -34,7 +34,8 @@ pub enum Form {
 impl Form {
     /// The form called `name`: `event` / `meeting` / `contact` / `task` start something new (`params` may
     /// prefill it), `editEvent` / `editContact` / `editTask` edit the selected one (or `params.id`),
-    /// `account`, `categories` and `rules` manage those. `None` for an unknown name or nothing to edit.
+    /// `account`, `categories` and `rules` manage those (`rules` with a `folder` has the New rule filled
+    /// in to move the selected message's sender there). `None` for an unknown name or nothing to edit.
     pub fn open(name: &str, app: &MailApp, params: &Value) -> Option<Form> {
         let s = &app.session;
         Some(match name {
@@ -47,7 +48,7 @@ impl Form {
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
-            "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
+            "rules" => Form::Rules(Box::new(rules::RulesForm::new(s, params))),
             "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
         })
@@ -5916,6 +5917,10 @@ pub(crate) mod rules {
         /// Keep on the server: ticked when the builder starts, the owner's to untick; while the
         /// server can't do the rule it is greyed and the rule stays here.
         server: bool,
+        /// Opened by Always Move Messages From This Sender: the folder the message is in, and its
+        /// path. Once the rule is added, the rules are run over that folder while this is ticked.
+        run_in: Option<(Id, String)>,
+        then_run: bool,
         /// The folders a move can go to: id and path.
         folders: Vec<(Id, String)>,
         /// The folder and category a fresh action starts with.
@@ -5928,13 +5933,44 @@ pub(crate) mod rules {
     }
 
     impl RulesForm {
-        /// The dialog, with the builder unfolded when there are no rules yet.
-        pub fn new(s: &Session) -> RulesForm {
+        /// The dialog, with the builder unfolded when there are no rules yet. With a `folder`, as
+        /// Always Move Messages From This Sender opens it, the builder is unfolded and filled in to
+        /// move the mail of the selected message's sender (or message `id`'s) there.
+        pub fn new(s: &Session, params: &Value) -> RulesForm {
             let first_category = s.mailbox.categories.first().map(|c| c.name.clone()).unwrap_or_default();
             let mut f = RulesForm { open: s.mailbox.rules.is_empty(), first_category, focus: true, ..Default::default() };
             f.choose(&s.mailbox, account_in_view(s));
             f.reset();
+            if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
+                f.from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
+            }
             f
+        }
+
+        /// Fill the builder in for the mail of message `id`'s sender to go to `folder`, for the
+        /// account the message came to (a shared mailbox's owner's, as `rules.fromMessage` makes
+        /// it). Nothing for a message or folder that isn't there, a send queue or a sender with no
+        /// address.
+        fn from_message(&mut self, s: &Session, folder: Id, id: Option<Id>) {
+            let mb = &s.mailbox;
+            let Some(m) = id.and_then(|id| mb.message(id)) else { return };
+            let Some(target) = mb.folder(folder).filter(|_| !mb.is_send_queue(folder)) else { return };
+            let sender = m.from.email.trim();
+            let account = match mb.account(m.account) {
+                Some(a) if a.is_shared() => mb.owner_of(m.account).map_or(m.account, |o| o.id),
+                _ => m.account,
+            };
+            if sender.is_empty() || !rule_accounts(mb).iter().any(|(id, _)| *id == account) {
+                return;
+            }
+            self.choose(mb, account);
+            let name = crate::i18n::fmt(tl!("{sender} to {folder}"), &[("sender", m.from.display()), ("folder", &target.name)]);
+            self.name = name.chars().take(mailcraft_model::MAX_NAME).collect();
+            self.conds = vec![Cond { kind: When::From, text: sender.to_string(), ..Default::default() }];
+            self.acts = vec![Act { kind: Do::Move, folder, ..self.fresh_action() }];
+            self.open = true;
+            self.run_in = Some((m.folder, crate::nav::folder_path(mb, m.folder)));
+            self.then_run = true;
         }
 
         /// Show the rules of `account`: a new rule is for its mail, and moves it to its folders.
@@ -5955,6 +5991,8 @@ pub(crate) mod rules {
             self.name.clear();
             self.stop = false;
             self.server = true;
+            self.run_in = None;
+            self.then_run = false;
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
         }
@@ -6120,6 +6158,13 @@ pub(crate) mod rules {
                         // The count is of the last run; it goes when the rules change.
                         self.ran = v.get("matched").and_then(Value::as_u64).filter(|_| command == "rules.run");
                         if add {
+                            // Then over the mail already in the folder, as the menu that opened it says.
+                            if let Some((folder, _)) = self.run_in.take().filter(|_| self.then_run) {
+                                match app.execute("rules.run", json!({"folder": folder})) {
+                                    Ok(v) => self.ran = v.get("matched").and_then(Value::as_u64),
+                                    Err(e) => self.error = e,
+                                }
+                            }
                             self.reset();
                         }
                     }
@@ -6271,6 +6316,15 @@ pub(crate) mod rules {
                     ui.label(egui::RichText::new(said).color(if warn { t.orange } else { t.text_dim }).size(11.5));
                 });
             }
+            if let Some(label) = self
+                .run_in
+                .as_ref()
+                .map(|(_, path)| crate::i18n::fmt(tl!("Then run the rules over the mail in {folder}"), &[("folder", &shown(path, 80))]))
+            {
+                row(ui, "", |ui| {
+                    ui.checkbox(&mut self.then_run, label);
+                });
+            }
             row(ui, "", |ui| {
                 add = ui.add_enabled(ready, egui::Button::new(tl!("Add Rule")).min_size(vec2(84.0, 24.0))).clicked();
                 if !ready {
@@ -6300,7 +6354,7 @@ pub(crate) mod rules {
         #[test]
         fn a_new_rule_is_spelled_out_for_the_command() {
             let mut s = session();
-            let mut f = RulesForm::new(&s);
+            let mut f = RulesForm::new(&s, &json!({}));
             // The sample has a rule, so the builder starts folded, with one condition and a move to Archive.
             assert!(!f.open && !f.ready());
             assert_eq!((f.conds.len(), f.acts.len(), f.first_folder, f.first_category.as_str()), (1, 1, folder_id(&s, "Archive"), "Red category"));
@@ -6367,7 +6421,7 @@ pub(crate) mod rules {
         #[test]
         fn add_waits_for_what_a_rule_needs() {
             let s = session();
-            let mut f = RulesForm::new(&s);
+            let mut f = RulesForm::new(&s, &json!({}));
             f.name = "News".into();
             assert!(!f.ready());
             f.conds[0].text = " digest ".into();
@@ -6387,7 +6441,7 @@ pub(crate) mod rules {
             f.name = " ".into();
             assert!(!f.ready());
             // On an empty mailbox the builder is unfolded: there is nothing else to show.
-            assert!(RulesForm::new(&Session::empty()).open);
+            assert!(RulesForm::new(&Session::empty(), &json!({})).open);
         }
 
         #[test]
@@ -6426,7 +6480,7 @@ pub(crate) mod rules {
             assert_eq!(describe(&s.mailbox, &first), "When from contains \"harborbooks\": categorize it as \"Purple category\"");
             // Hostile text in a rule is the command's to cut down.
             let junk = "\u{0}\u{202e}é\n".repeat(40_000);
-            let mut f = RulesForm::new(&s);
+            let mut f = RulesForm::new(&s, &json!({}));
             f.name.clone_from(&junk);
             f.conds[0].text.clone_from(&junk);
             f.acts[0] = Act { kind: Do::Categorize, category: junk.clone(), ..f.fresh_action() };
@@ -6441,7 +6495,7 @@ pub(crate) mod rules {
         fn the_owner_says_where_a_new_rule_is_kept() {
             let mut s = session();
             let noor = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-            let mut f = RulesForm::new(&s);
+            let mut f = RulesForm::new(&s, &json!({}));
             f.choose(&s.mailbox, noor);
             let fill = |f: &mut RulesForm, kind: Do, folder: Option<Id>| {
                 f.name = "Club".into();
@@ -6476,6 +6530,38 @@ pub(crate) mod rules {
             assert_eq!(made["keep"], "here");
             let rule = s.mailbox.rules.iter().find(|r| r.id == made["id"].as_u64().unwrap()).unwrap();
             assert!(describe(&s.mailbox, rule).ends_with(&format!(" - {theirs}")), "{}", describe(&s.mailbox, rule));
+        }
+
+        #[test]
+        fn always_move_messages_from_this_sender_fills_the_new_rule_in() {
+            use mailcraft_model::{Address, Message};
+            let mut s = session();
+            let noor = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let inbox = s.mailbox.folder_of_kind(noor, FolderKind::Inbox).unwrap();
+            let (to, _) = folder_choices(&s.mailbox, noor).into_iter().find(|(id, _)| *id != inbox).unwrap();
+            s.mailbox.folder_mut(to).unwrap().server = Some(mailcraft_model::ServerFolder { id: "news".into(), ..Default::default() });
+            let from = Address::new("Weekly Digest", "digest@news.example");
+            let m = s.mailbox.add_message(Message { folder: inbox, from, subject: "This week".into(), ..Default::default() }).unwrap();
+            s.sel.messages = vec![m];
+            let f = RulesForm::new(&s, &json!({"folder": to}));
+            // Unfolded, for the account the message came to, with the box ticked.
+            let to_name = s.mailbox.folder(to).unwrap().name.clone();
+            assert!(f.open && f.server && f.then_run);
+            assert_eq!((f.account, f.name.clone()), (noor, format!("Weekly Digest to {to_name}")));
+            assert_eq!(f.conds, [Cond { kind: When::From, text: "digest@news.example".into(), ..Default::default() }]);
+            assert_eq!((f.acts.len(), f.acts[0].kind, f.acts[0].folder), (1, Do::Move, to));
+            assert_eq!(f.run_in.as_ref().map(|(id, _)| *id), Some(inbox));
+            // Nothing is made until Add Rule, and then on the server, which can keep it.
+            assert!(s.mailbox.rules.iter().all(|r| r.account != noor));
+            let (command, params) = f.command();
+            assert_eq!(server_cannot_draft(&s, &params), None);
+            assert_eq!(s.run(command, &params).unwrap()["keep"], "server");
+            // A folder or a message that isn't there, or a send queue, leaves the dialog as it opens.
+            let plain = RulesForm::new(&s, &json!({}));
+            let outbox = s.mailbox.folder_of_kind(noor, FolderKind::Outbox).unwrap();
+            for p in [json!({"folder": 99_999}), json!({"folder": to, "id": 99_999}), json!({"folder": outbox})] {
+                assert_eq!(RulesForm::new(&s, &p), plain, "{p}");
+            }
         }
     }
 }
@@ -6579,6 +6665,32 @@ mod tests {
         // An appointment's form opens in a window of its own; the dialog that was up stays.
         assert_eq!(a.run("calendar.edit", json!({})).unwrap()["pending"], "editEvent");
         assert_eq!((a.dialog.as_ref().map(Dialog::name), a.windows.of_event(event).is_some()), (Some("task"), true));
+    }
+
+    #[test]
+    fn always_move_messages_from_this_sender_adds_the_rule_only_when_asked_then_runs_it() {
+        let mut a = app();
+        let inbox = a.session.view.folder;
+        let mb = &a.session.mailbox;
+        let m = mb.messages_in(inbox).find(|m| !m.from.email.is_empty()).map(|m| m.id).unwrap();
+        let sender = mb.message(m).unwrap().from.email.clone();
+        let account = mb.message(m).unwrap().account;
+        let to = mb.folder_of_kind(account, mailcraft_model::FolderKind::Archive).unwrap();
+        let before = mb.rules.len();
+        a.session.sel.messages = vec![m];
+        a.execute("ui.dialog", json!({"name": "rules", "folder": to})).unwrap();
+        let mut h = window(a, (1280.0, 800.0));
+        assert_eq!(h.state().session.mailbox.rules.len(), before, "nothing is made before Add Rule");
+        assert!(h.query_by_label("Then run the rules over the mail in Inbox").is_some());
+        h.get_by_label("Add Rule").click();
+        h.run_steps(4);
+        let mb = &h.state().session.mailbox;
+        let rule = mb.rules.last().unwrap();
+        assert_eq!(rule.conditions, [mailcraft_model::Condition::FromContains(sender)]);
+        assert_eq!(rule.actions, [mailcraft_model::Action::MoveTo(to)]);
+        // Then the rules ran over the Inbox, as the menu said: the message is there now.
+        assert_eq!(mb.message(m).unwrap().folder, to);
+        assert_eq!(open_dialog(&h), Some("rules"));
     }
 
     #[test]

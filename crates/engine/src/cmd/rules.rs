@@ -29,7 +29,7 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("rules.run", "Run Rules Now", "Folder › Clean Up", run).params(r#"{"folder"?: number} (default: the folder in view)"#),
         CommandSpec::new("rules.fromMessage", "Always Move Messages From", "Home › Move", from_message)
-            .params(r#"{"folder": number, "id"?: number} — a rule moving this sender's mail to the folder, run at once"#)
+            .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once; the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
             r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer"#,
@@ -221,9 +221,15 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     }
     let account = rule_account(s, v)?;
     let mut rule = Rule { id: 0, name, enabled: true, conditions, actions, stop: p::bool(v, "stop").unwrap_or(false), account, ..Default::default() };
-    // On a server that can do all of it, as Outlook keeps an Exchange account's rules, unless the
-    // owner keeps it on this computer.
-    let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, &rule, account) };
+    place(s, &mut rule, v)?;
+    Ok(rule)
+}
+
+/// Where a new rule is kept, by `v`'s `server`: on a server that can do all of it, as Outlook
+/// keeps an Exchange account's rules, unless the owner keeps it on this computer.
+fn place(s: &Session, rule: &mut Rule, v: &Value) -> Result<(), CmdError> {
+    let account = rule.account;
+    let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, rule, account) };
     match (p::bool(v, "server"), cannot) {
         (Some(false), _) => {}
         (Some(true), _) if account == 0 => return Err(bad("say which account's server is to keep it (`account`)")),
@@ -231,7 +237,7 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
         (_, None) if account != 0 => rule.keep = Keep::Server,
         _ => {}
     }
-    Ok(rule)
+    Ok(())
 }
 
 /// Why the rule `v` describes (the params of `rules.add`, finished or not) couldn't be kept on
@@ -376,9 +382,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         account,
         ..Default::default()
     };
-    if server_cannot(&s.mailbox, &rule, account).is_none() {
-        rule.keep = Keep::Server;
-    }
+    place(s, &mut rule, v)?;
     s.mailbox.rules.push(rule);
     let matched = run_on(s, source);
     Ok(json!({"id": id, "matched": matched}))

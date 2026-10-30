@@ -10770,6 +10770,12 @@ msgid "Theme"
 msgstr "Thema"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Then run the rules over the mail in {folder}"
+msgstr "Daarna de regels uitvoeren op de e-mail in {folder}"
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "There is no data folder to open here"
@@ -15288,6 +15294,12 @@ msgstr "{saving} · MailCraft sluit wanneer dat klaar is"
 #, fuzzy
 msgid "{saving} · the other mailbox opens when it is done"
 msgstr "{saving} · het andere postvak wordt geopend wanneer dat klaar is"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "{sender} to {folder}"
+msgstr "{sender} naar {folder}"
 
 #. what a command says
 #: crates/model/src/sync.rs
