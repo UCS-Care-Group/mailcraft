@@ -119,6 +119,8 @@ mod report_problem;
 pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
+#[cfg(test)]
+mod search_pills_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]
