@@ -257,7 +257,10 @@ fn removing_an_account_takes_what_came_from_its_server() {
     s.run("calendar.new", &json!({"title": "Lunch", "start": "2027-01-15T12:00", "calendar": graces})).unwrap();
     assert_eq!(s.mailbox.event_changes.len(), 1, "waiting to go to Grace's server");
     s.mailbox.add_contact(Contact { display_name: "Neighbour".into(), ..Default::default() });
-    s.mailbox.outlook_categories = vec!["Red category".into()];
+    for account in [keep, going] {
+        s.mailbox.account_categories.insert(account, Vec::new());
+        s.mailbox.server_categories.insert(account, vec!["Red category".into()]);
+    }
     apply_mailbox_hours(&mut s, going, Some(&hours())).unwrap();
     assert!(s.prefs.mailbox_hours.is_some());
 
@@ -270,18 +273,17 @@ fn removing_an_account_takes_what_came_from_its_server() {
     assert_eq!(people(&s), ["Ada's colleague", "Neighbour"]);
     assert!(s.mailbox.calendars.iter().all(|c| c.origin.is_local() || c.origin.account == keep), "{:?}", s.mailbox.calendars);
     assert!(s.mailbox.calendars.iter().any(|c| c.origin.is_local()));
-    // Outlook's list goes: Ada's next calendar run reads hers again.
-    assert!(s.mailbox.outlook_categories.is_empty());
+    // Its list of categories goes with it, and Ada's stays.
+    assert!(s.mailbox.account_categories.keys().eq([&keep]) && s.mailbox.server_categories.keys().eq([&keep]));
     assert_eq!(s.prefs.mailbox_hours, None);
     assert!(s.mailbox.clone().repair().is_empty());
 
-    // An account that isn't Microsoft's leaves Outlook's list, and another account's hours stay.
+    // An account that isn't Microsoft's leaves the lists, and another account's hours stay.
     let imap = s.run("account.add", &json!({"email": "lin@example.org"})).unwrap()["id"].as_u64().unwrap();
     assert_ne!(s.mailbox.account(imap).unwrap().kind, AccountKind::Microsoft);
-    s.mailbox.outlook_categories = vec!["Red category".into()];
     apply_mailbox_hours(&mut s, keep, Some(&hours())).unwrap();
     s.run("account.remove", &json!({"id": imap})).unwrap();
-    assert_eq!(s.mailbox.outlook_categories, ["Red category"]);
+    assert_eq!(s.mailbox.server_categories[&keep], ["Red category"]);
     assert_eq!(s.prefs.mailbox_hours.as_ref().map(|h| h.email.as_str()), Some("ada@example.org"));
 
     // The last one: the empty mailbox keeps a calendar of its own, and nothing of the account.
@@ -289,7 +291,7 @@ fn removing_an_account_takes_what_came_from_its_server() {
     assert_eq!(titles(&s), ["Dentist", "Lunch"]);
     assert_eq!(people(&s), ["Neighbour"]);
     assert!(!s.mailbox.calendars.is_empty() && s.mailbox.calendars.iter().all(|c| c.origin.is_local()));
-    assert!(s.mailbox.outlook_categories.is_empty() && s.prefs.mailbox_hours.is_none());
+    assert!(s.mailbox.server_categories.is_empty() && s.prefs.mailbox_hours.is_none());
 }
 
 /// Closing a shared mailbox takes what came from its server, and leaves its owner's.
@@ -300,7 +302,7 @@ fn closing_a_shared_mailbox_takes_what_came_from_its_server() {
     let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
     from_server(&mut s, owner, "Owner");
     from_server(&mut s, shared, "Team");
-    s.mailbox.outlook_categories = vec!["Red category".into()];
+    s.mailbox.server_categories.insert(owner, vec!["Red category".into()]);
     apply_mailbox_hours(&mut s, owner, Some(&hours())).unwrap();
 
     s.run("account.removeSharedMailbox", &json!({"id": shared})).unwrap();
@@ -308,7 +310,7 @@ fn closing_a_shared_mailbox_takes_what_came_from_its_server() {
     assert_eq!(people(&s), ["Owner's colleague"]);
     assert!(!s.mailbox.calendars.iter().any(|c| c.origin.account == shared));
     // The list and the hours are the owner's: a shared mailbox reads neither.
-    assert_eq!(s.mailbox.outlook_categories, ["Red category"]);
+    assert_eq!(s.mailbox.server_categories[&owner], ["Red category"]);
     assert!(s.prefs.mailbox_hours.is_some());
 }
 

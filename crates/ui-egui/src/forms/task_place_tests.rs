@@ -3,7 +3,7 @@
 //! The Account list in the task window (#632).
 
 use mailcraft_engine::Session;
-use mailcraft_model::Id;
+use mailcraft_model::{Category, Id, Rgb};
 use serde_json::{Value, json};
 
 use super::task::TaskForm;
@@ -53,4 +53,22 @@ fn another_account_counts_as_a_change_to_the_form() {
     assert!(!form.dirty());
     form.place = Some(work);
     assert!(form.dirty(), "closing the form asks before that choice is lost");
+}
+
+#[test]
+fn the_categories_on_offer_follow_the_account_list() {
+    let (mut s, work, home) = session();
+    let list = |name: &str| vec![Category { name: name.into(), color: Rgb(1, 2, 3) }];
+    s.mailbox.account_categories.insert(work, list("Clients"));
+    s.mailbox.account_categories.insert(home, list("Garden"));
+    let mut form = TaskForm::new(&s, &json!({"title": "x", "account": work}));
+    let offered = |form: &TaskForm, s: &Session| s.mailbox.categories_of(form.category_account()).first().map(|c| c.name.clone());
+    assert_eq!(offered(&form, &s).as_deref(), Some("Clients"));
+    form.place = Some(home);
+    assert_eq!(offered(&form, &s).as_deref(), Some("Garden"));
+    form.place = None;
+    assert_eq!(form.category_account(), 0, "the list every task on this computer uses");
+    // A task that exists keeps the list of the account it is in.
+    let id = s.run("tasks.new", &json!({"title": "Stays", "account": home})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(TaskForm::edit(&s, &json!({"id": id})).unwrap().category_account(), home);
 }

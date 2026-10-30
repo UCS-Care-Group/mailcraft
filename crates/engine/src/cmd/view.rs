@@ -140,7 +140,7 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 /// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
 /// window's list and `view.searchSuggestions` both ask this.
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
-    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
+    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.every_category(), |typed| {
         let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
         if let Some(typed) = super::compose::Typed::new(typed) {
             let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));

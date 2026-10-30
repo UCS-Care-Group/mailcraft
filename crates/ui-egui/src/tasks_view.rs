@@ -544,7 +544,11 @@ fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, today
         marker("mail", t.text_dim);
     }
     for c in task.categories.iter().take(3) {
-        p.rect_filled(Rect::from_center_size(pos2(x - 5.0, y), vec2(10.0, 10.0)), 2.0, crate::theme::c32(app.session.mailbox.category_color(c)));
+        p.rect_filled(
+            Rect::from_center_size(pos2(x - 5.0, y), vec2(10.0, 10.0)),
+            2.0,
+            crate::theme::c32(app.session.mailbox.category_color_of(task.origin.account, c)),
+        );
         x -= 13.0;
     }
     let left = rect.min.x + TITLE_X;
@@ -592,9 +596,13 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
         }
     });
     ui.menu_button(tl!("Categorize"), |ui| {
+        let task = app.session.mailbox.task(id);
+        let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
         crate::ribbon::category_menu(
             ui,
             app,
+            account.as_slice(),
+            &carried,
             "tasks.categorize",
             |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
             None,
@@ -688,7 +696,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                     detail_label(ui, r, "categorize", tl!("Categories"));
                     ui.vertical(|ui| {
                         ui.add_space(4.0);
-                        chips(app, ui, &task.categories);
+                        chips(app, ui, task.origin.account, &task.categories);
                     });
                 });
             }

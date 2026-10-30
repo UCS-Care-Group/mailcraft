@@ -5622,7 +5622,7 @@ msgid "On the server · Searching…"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 msgid "On this computer"
 msgstr ""
 
@@ -5941,6 +5941,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Other Calendars"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Other accounts and On this computer"
 msgstr ""
 
 #. what a command says
