@@ -950,8 +950,30 @@ fn messages_can_stay_light_in_the_dark_theme() {
     assert!(super::view::on_light_page(harness.state(), Place::Pane) && super::view::on_light_page(harness.state(), Place::Window(1)));
     assert!(!super::view::on_light_page(harness.state(), Place::Quote) && !super::view::on_light_page(harness.state(), Place::Preview));
 
+    // The page is painted light under the body in the pane, and in a message's own window.
+    assert_eq!(light_pages(&harness), 1);
+    harness.state_mut().execute("ui.openWindow", json!({"message": id})).unwrap();
+    harness.run_steps(8);
+    assert_eq!(light_pages(&harness), 2);
+
     harness.state_mut().execute("ui.lightMessages", json!({"value": false})).unwrap();
     assert_eq!(colours(&mut harness), dark);
+    assert_eq!(light_pages(&harness), 0);
+}
+
+/// How many light pages were painted in the last frame: rectangles in the light theme's surface
+/// colour taller and wider than a block of a message.
+fn light_pages(harness: &Window) -> usize {
+    fn count(shape: &egui::Shape, n: &mut usize) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| count(s, n)),
+            egui::Shape::Rect(r) if r.fill == Tokens::light().surface && r.rect.width() > 300.0 && r.rect.height() > 300.0 => *n += 1,
+            _ => {}
+        }
+    }
+    let mut n = 0;
+    harness.output().shapes.iter().for_each(|s| count(&s.shape, &mut n));
+    n
 }
 
 /// Generous bounds: this is an unoptimised build of this crate, on whatever machine runs the

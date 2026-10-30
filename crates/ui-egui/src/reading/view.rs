@@ -349,11 +349,12 @@ pub fn doc_where(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
 }
 
 /// A first guess at the width and theme the body will be laid out at in the room `ui` has, for a
-/// message whose blocks are made before the body is: the room less the body's margins. [`show`]
-/// then fits the blocks to the width it really lays out at.
-pub fn env_of(ui: &Ui) -> Env {
+/// message whose blocks are made before the body is: the room less the body's margins, and the
+/// page's theme (light on a light page, [`on_light_page`]). [`show`] then fits the blocks to the
+/// width it really lays out at.
+pub fn env_of(app: &MailApp, ui: &Ui, place: Place) -> Env {
     let width = (ui.available_width() - BODY_MARGINS).min(super::MAX_TEXT_WIDTH);
-    Env::for_pane(width, Tokens::get(ui.ctx()).dark)
+    Env::for_pane(width, Tokens::get(ui.ctx()).dark && !on_light_page(app, place))
 }
 
 /// The left and right margins of the body, which the room it is laid out in is less than the pane.
