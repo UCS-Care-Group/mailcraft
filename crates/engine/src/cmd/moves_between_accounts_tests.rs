@@ -1475,6 +1475,15 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     s.run("rules.enable", &json!({"id": made, "value": true})).unwrap();
     let what = describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(what.contains("which move mail onto the server of blake@other.example"), "{what}");
+    // A rule for one account's mail that files it in that account's own folder puts nothing on
+    // another server: switched on, or named to run over another account's folder.
+    let own = json!({"name": "Own", "account": b, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": other}]});
+    let own = s.run("rules.add", &own).unwrap()["id"].as_u64().unwrap();
+    s.run("rules.enable", &json!({"id": own, "value": false})).unwrap();
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": own})), Access::Owner(Class::Settings));
+    s.run("rules.enable", &json!({"id": own, "value": true})).unwrap();
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": own})), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": made})), Access::Owner(Class::Send));
 }
 
 #[test]

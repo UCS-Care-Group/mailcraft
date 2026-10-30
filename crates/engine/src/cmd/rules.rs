@@ -465,7 +465,10 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     if server && rule.on_server() != other.on_server() {
         return Err(fail("a rule waiting to go to the server goes after those there; it can be moved once it is there"));
     }
-    s.mailbox.rules.swap(i, j);
+    // Taken out and put in beside its neighbour, not swapped with it: a rule for every account is
+    // in every account's list, and a swap across one would reorder another account's rules.
+    let moving = s.mailbox.rules.remove(i);
+    s.mailbox.rules.insert(j, moving);
     if server {
         renumber(&mut s.mailbox, account);
     }

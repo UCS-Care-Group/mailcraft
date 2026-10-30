@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use egui_kittest::kittest::{By, Queryable as _};
 use mailcraft_engine::Session;
-use mailcraft_model::remote_rules::{RemoteRule, RulesDownload};
+use mailcraft_model::remote_rules::{RemoteRule, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUploaded};
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{Action, Condition, Id};
 use serde_json::json;
@@ -294,6 +294,30 @@ fn a_rule_that_went_nowhere_goes_with_the_next_job() {
     assert!(app.rules_tick_at(60_000.0));
     assert!(!app.rules_tick_at(61_000.0));
     assert_eq!(*jobs.lock().unwrap(), [(owner, 1), (owner, 1)]);
+}
+
+#[test]
+fn a_job_stopped_part_way_sends_what_it_did_not_reach_with_the_next() {
+    let (mut app, owner, answers, jobs, _) = window();
+    let first = add_rule(&mut app, owner);
+    let second = app
+        .execute(
+            "rules.add",
+            json!({"name": "Invoices", "account": owner, "conditions": [{"type": "subjectContains", "value": "invoice"}], "actions": [{"type": "markRead"}]}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    // The first went and no answer came; then the sign-in was refused, before the second.
+    let lost = RuleOutcome { kind: RuleOpKind::Create, rule: first, result: RuleResult::Failed, error: "timed out".into(), ..Default::default() };
+    let uploaded = RulesUploaded { account: owner, email: OWNER.into(), outcomes: vec![lost], token_refused: true };
+    answers.lock().unwrap().push_back(RulesResult { account: owner, uploaded: Some(uploaded), ..Default::default() });
+    assert!(app.rules_tick_at(0.0));
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 2)]);
+    app.poll_rules();
+    let unanswered = |app: &MailApp, id: Id| app.session.mailbox.rules.iter().any(|r| r.id == id && r.unanswered);
+    assert!(unanswered(&app, first), "the server may have the first");
+    assert!(!unanswered(&app, second), "the second never went");
 }
 
 #[test]

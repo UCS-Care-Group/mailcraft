@@ -245,6 +245,36 @@ fn a_change_made_here_survives_a_download_until_the_server_has_it() {
 }
 
 #[test]
+fn moving_one_accounts_rule_leaves_anothers_in_its_order() {
+    let (mut s, account, local, _) = session();
+    // A rule for every account, then one of this computer's account, then one of the Microsoft
+    // account's kept here: the Microsoft account's list is Every, Mine; the other's Every, Theirs.
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "Every".into(),
+        enabled: true,
+        conditions: vec![Condition::HasAttachment],
+        actions: vec![Action::Flag],
+        ..Default::default()
+    });
+    add(&mut s, local, "Theirs", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    let mine = add(&mut s, account, "Mine", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    let names = |s: &Session, a: Id| s.mailbox.rules_in_order(a).iter().map(|i| s.mailbox.rules[*i].name.clone()).collect::<Vec<_>>();
+    assert_eq!(
+        (names(&s, account), names(&s, local)),
+        (["Every", "Mine"].map(String::from).to_vec(), ["Every", "Theirs"].map(String::from).to_vec())
+    );
+    assert_eq!(run(&mut s, "rules.move", json!({"id": mine, "direction": "up"}))["moved"], true);
+    assert_eq!(names(&s, account), ["Mine", "Every"]);
+    assert_eq!(names(&s, local), ["Every", "Theirs"], "the other account's rules run as they did");
+    assert_eq!(run(&mut s, "rules.move", json!({"id": mine, "direction": "down"}))["moved"], true);
+    assert_eq!(
+        (names(&s, account), names(&s, local)),
+        (["Every", "Mine"].map(String::from).to_vec(), ["Every", "Theirs"].map(String::from).to_vec())
+    );
+}
+
+#[test]
 fn moving_a_rule_among_the_servers_sends_where_each_stands() {
     let (mut s, account, _, _) = session();
     merge_rules(&mut s.mailbox, &download(account, vec![remote("r2", "Second", 20), remote("r1", "First", 10)])).unwrap();

@@ -280,10 +280,12 @@ impl MailApp {
             log::info!("rules, account {account}: the answer is for a mailbox that is no longer open; let go of");
             return;
         }
-        // Nothing went out (no sign-in that covers it, or none at all): what was to be made goes
-        // with the next job. A job that ended without a word may have sent it.
-        if result.uploaded.is_none() && !ended_early {
-            rules_remote::not_sent(&mut self.session, &sending);
+        // What was to be made and went nowhere goes with the next job: all of it when nothing went
+        // out (no sign-in that covers it, or none at all), and else what the job stopped before. A
+        // job that ended without a word may have sent it.
+        if !ended_early {
+            let told = result.uploaded.as_ref().map_or(&[][..], |u| u.outcomes.as_slice());
+            rules_remote::not_sent(&mut self.session, &sending, told);
         }
         let mut errors = result.errors;
         if let Some(tokens) = &result.tokens

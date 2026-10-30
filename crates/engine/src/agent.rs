@@ -792,10 +792,14 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
         "rules.enable" => p::id(params, "id")
             .and_then(|r| mb.rules.iter().find(|x| x.id == r))
-            .is_some_and(|r| p::bool(params, "value").unwrap_or(!r.enabled) && rule_onto_server(s, r, None).is_some()),
+            .is_some_and(|r| p::bool(params, "value").unwrap_or(!r.enabled) && rule_onto_server(s, r, one_account(r)).is_some()),
+        // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
             let from = mb.folder(p::id(params, "folder").unwrap_or(s.view.folder)).map(|f| f.account);
-            from.is_some() && mb.rules.iter().any(|r| r.enabled && rule_onto_server(s, r, from).is_some())
+            let only = p::id(params, "id");
+            from.is_some_and(|a| {
+                mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && rule_onto_server(s, r, Some(a)).is_some())
+            })
         }
         _ => false,
     }

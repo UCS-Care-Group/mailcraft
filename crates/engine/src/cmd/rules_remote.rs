@@ -33,7 +33,7 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::remote_rules::{
-    MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
+    MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
 };
 use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule};
 use serde_json::{Value, json};
@@ -149,11 +149,14 @@ pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
     }
 }
 
-/// Unmark the rules [`mark_sent`] marked for `upload` when nothing of it went out (the sign-in
-/// didn't cover changing the rules, or failed): they go with the next job.
-pub fn not_sent(s: &mut Session, upload: &RulesUpload) {
+/// Unmark the rules [`mark_sent`] marked for `upload` that went nowhere: every one when nothing
+/// of it went out (the sign-in didn't cover changing the rules, or failed), and else those the
+/// job stopped before, of which `told` says nothing (a sign-in refused, a busy server or a lost
+/// connection ended it). They go with the next job.
+pub fn not_sent(s: &mut Session, upload: &RulesUpload, told: &[RuleOutcome]) {
     let mut unmarked = false;
-    for op in upload.ops.iter().filter(|op| op.kind == RuleOpKind::Create) {
+    let reached = |op: &RuleOp| told.iter().any(|o| o.kind == RuleOpKind::Create && o.rule == op.rule);
+    for op in upload.ops.iter().filter(|op| op.kind == RuleOpKind::Create && !reached(op)) {
         if let Some(rule) = s.mailbox.rules.iter_mut().find(|r| r.id == op.rule && r.account == upload.account && r.waiting()) {
             unmarked |= rule.unanswered;
             rule.unanswered = false;

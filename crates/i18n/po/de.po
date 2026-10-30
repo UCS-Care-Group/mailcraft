@@ -12794,7 +12794,7 @@ msgstr "eine Regel gilt für die eigenen E-Mails eines Kontos, nicht für die ei
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
-msgstr "die Regel eines Kontos kann nicht auf den Server eines anderen Kontos"
+msgstr "die Regel eines Kontos kann nicht auf den Server eines anderen Kontos gelangen"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

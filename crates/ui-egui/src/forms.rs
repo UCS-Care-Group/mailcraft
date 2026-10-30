@@ -5769,7 +5769,8 @@ pub(crate) mod rules {
                     format!("move it to {}", crate::nav::folder_path(mb, *f))
                 }
                 Action::MoveTo(f) if let Some(other) = mb.folder(*f).and_then(|f| mb.account(f.account)) => {
-                    format!("move it to {} - {}", crate::nav::folder_path(mb, *f), other.email)
+                    let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
+                    format!("move it to {} - {who}", crate::nav::folder_path(mb, *f))
                 }
                 Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
                 other => other.describe(),
@@ -5987,6 +5988,11 @@ pub(crate) mod rules {
                 if !folders.iter().any(|f| f.0 == a.folder) {
                     a.folder = first;
                 }
+            }
+            // The mail already there that the new rule may run over is the account's own.
+            if self.run_in.as_ref().is_some_and(|(f, _)| mb.folder(*f).is_none_or(|f| f.account != account)) {
+                self.run_in = None;
+                self.then_run = false;
             }
         }
 
@@ -6556,8 +6562,13 @@ pub(crate) mod rules {
             let (command, params) = f.command();
             let made = s.run(command, &params).unwrap();
             assert_eq!(made["keep"], "here");
-            let rule = s.mailbox.rules.iter().find(|r| r.id == made["id"].as_u64().unwrap()).unwrap();
-            assert!(describe(&s.mailbox, rule).ends_with(&format!(" - {theirs}")), "{}", describe(&s.mailbox, rule));
+            let rule = s.mailbox.rules.iter().find(|r| r.id == made["id"].as_u64().unwrap()).unwrap().clone();
+            assert!(describe(&s.mailbox, &rule).ends_with(&format!(" - {theirs}")), "{}", describe(&s.mailbox, &rule));
+            // An account without an address is named by its name.
+            let theirs = s.mailbox.folder(elsewhere).unwrap().account;
+            let account = s.mailbox.accounts.iter_mut().find(|a| a.id == theirs).unwrap();
+            (account.email, account.name) = (String::new(), "Archive here".into());
+            assert!(describe(&s.mailbox, &rule).ends_with(" - Archive here"), "{}", describe(&s.mailbox, &rule));
         }
 
         #[test]
@@ -6579,6 +6590,11 @@ pub(crate) mod rules {
             assert_eq!(f.conds, [Cond { kind: When::From, text: "digest@news.example".into(), ..Default::default() }]);
             assert_eq!((f.acts.len(), f.acts[0].kind, f.acts[0].folder), (1, Do::Move, to));
             assert_eq!(f.run_in.as_ref().map(|(id, _)| *id), Some(inbox));
+            // Another account picked in Rules for: the mail already in the folder is the first's.
+            let mut other = f.clone();
+            let (elsewhere, _) = rule_accounts(&s.mailbox).into_iter().find(|(id, _)| *id != noor).unwrap();
+            other.choose(&s.mailbox, elsewhere);
+            assert!(other.run_in.is_none() && !other.then_run);
             // Nothing is made until Add Rule, and then on the server, which can keep it.
             assert!(s.mailbox.rules.iter().all(|r| r.account != noor));
             let (command, params) = f.command();
