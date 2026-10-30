@@ -1105,16 +1105,14 @@ pub(crate) fn link_address(typed: &str) -> String {
     }
 }
 
-/// A host and a port typed without a scheme (`www.example.org:8443/x`, `intranet:8080/wiki`): the
-/// would-be scheme has a dot, or what follows the colon is a port number (1 to 5 digits, then
-/// the end or a `/`, `?` or `#`). `tel:` and `mailto:` are schemes whatever follows.
+/// A host and a port typed without a scheme (`www.example.org:8443/x`, `intranet:8080/wiki`):
+/// what follows the colon is a port number (1 to 5 digits, then the end or a `/`, `?` or `#`).
+/// Schemes whose address is a number (`tel:`, `sip:911`, `sms:12345`…) are schemes whatever follows.
 fn host_and_port(typed: &str) -> bool {
+    const NUMERIC: [&str; 9] = ["tel", "mailto", "sip", "sips", "sms", "callto", "fax", "xmpp", "im"];
     let Some((scheme, rest)) = typed.split_once(':') else { return false };
-    if scheme.eq_ignore_ascii_case("tel") || scheme.eq_ignore_ascii_case("mailto") {
+    if NUMERIC.iter().any(|n| scheme.eq_ignore_ascii_case(n)) {
         return false;
-    }
-    if scheme.contains('.') {
-        return true;
     }
     let digits = rest.chars().take_while(char::is_ascii_digit).count();
     (1..=5).contains(&digits) && rest.get(digits..).is_some_and(|after| after.is_empty() || after.starts_with(['/', '?', '#']))
