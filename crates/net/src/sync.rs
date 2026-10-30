@@ -935,7 +935,16 @@ impl FolderSync<'_> {
                 }
                 // Gone since the listing: the next run's listing says so.
                 Ok(None) => {}
-                Err(e) => *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e.into()),
+                // Said once: a refusal settles the message, which is not asked for again. A lost
+                // connection settles nothing, and the next run tries again.
+                Err(e) => {
+                    let e = NetError::from(e);
+                    let fatal = e.is_fatal();
+                    *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
+                    if !fatal && !run.cancelled() {
+                        delta.refetch_done.push(uid);
+                    }
+                }
             }
         }
     }

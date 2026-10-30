@@ -258,6 +258,10 @@ pub struct Message {
     /// and the mark goes. Everything else about it stays as it is.
     #[serde(skip_serializing_if = "is_false")]
     pub refetch: bool,
+    /// It was downloaded again for that (#650), or the server would not give it: it is not
+    /// marked a second time, whatever it holds (a message whose own bytes are broken stays so).
+    #[serde(skip_serializing_if = "is_false")]
+    pub refetched: bool,
     /// While it is not fetched: the server said it has attachments (Graph's `hasAttachments`),
     /// which its headers and preview don't show. It wears the paperclip and `has:attachment`
     /// finds it; once it is fetched its own attachments say.

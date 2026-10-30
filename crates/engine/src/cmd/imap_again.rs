@@ -26,22 +26,24 @@ fn unreadable(m: &Message) -> bool {
     names.chain(texts).any(|text| text.contains(MARK))
 }
 
-/// Once a mailbox: the messages of IMAP accounts that the server has (they have a UID) and whose
-/// subject, names or text hold U+FFFD are marked to be downloaded again. Drafts are the owner's
-/// own and left alone, as is mail that was never downloaded whole. Only what is in memory is
-/// looked at. How many were marked; none once the mailbox has been looked through
-/// ([`Mailbox::redecoded_imap`]), and the mailbox is left as it is while it has no IMAP account.
+/// The messages of IMAP accounts that the server has (they have a UID) and whose subject, names
+/// or text hold U+FFFD are marked to be downloaded again, each at most once
+/// ([`Message::refetched`]). Drafts are the owner's own and left alone, as is mail that was never
+/// downloaded whole. Only what is in memory is looked at, so a host calls this when the mailbox
+/// opens and again once the bodies an opening left for later have come in (a body not in memory
+/// yet reads as empty, and is looked at then). A body kept on disk beyond the memory budget is
+/// not looked at (it is not read for this). How many were marked.
 pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
-    if mb.redecoded_imap || !mb.accounts.iter().any(|a| a.kind == AccountKind::Imap) {
+    if !mb.accounts.iter().any(|a| a.kind == AccountKind::Imap) {
         return 0;
     }
-    mb.redecoded_imap = true;
     let imap: Vec<Id> = mb.accounts.iter().filter(|a| a.kind == AccountKind::Imap).map(|a| a.id).collect();
     let mut marked = 0usize;
     for m in mb.messages.values_mut() {
         let candidate = m.uid != 0
             && imap.contains(&m.account)
             && !m.refetch
+            && !m.refetched
             && !m.draft
             && !m.unfetched
             && !m.incomplete
@@ -76,7 +78,7 @@ pub fn wanted(mb: &Mailbox, account: Id) -> HashMap<Id, Vec<u32>> {
 /// the same list and stays.
 pub fn take_again(mb: &mut Mailbox, id: Id, read: Message) {
     let Ok(m) = mb.message_mut(id) else { return };
-    m.refetch = false;
+    (m.refetch, m.refetched) = (false, true);
     if m.draft {
         return;
     }
@@ -114,7 +116,7 @@ pub fn take_in(mb: &mut Mailbox, delta: &mut FolderDelta, by_uid: impl Fn(u32) -
         if let Some(id) = by_uid(uid)
             && let Ok(m) = mb.message_mut(id)
         {
-            m.refetch = false;
+            (m.refetch, m.refetched) = (false, true);
         }
     }
 }

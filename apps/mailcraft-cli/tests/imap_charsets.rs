@@ -111,12 +111,10 @@ fn imap_mail_kept_with_unreadable_characters_is_downloaded_again_once() {
         m.categories = vec!["Blue category".into()];
     }
     let (folder, count) = (r.s.mailbox.message(two).unwrap().folder, r.s.mailbox.messages.len());
-    r.s.mailbox.redecoded_imap = false;
 
     // Uid 1 and 2 are marked, and uid 3 too: its own bytes are broken, which a look cannot tell.
     assert_eq!(mark_unreadable(&mut r.s.mailbox), 3);
-    assert!(r.s.mailbox.redecoded_imap);
-    assert_eq!(mark_unreadable(&mut r.s.mailbox), 0, "looked through once");
+    assert_eq!(mark_unreadable(&mut r.s.mailbox), 0, "marked once");
     // Nothing changes until the server is asked.
     assert!(r.s.mailbox.message(two).unwrap().subject.contains('\u{FFFD}'));
     let request = sync_request(&r.s, r.account).unwrap();
@@ -142,10 +140,11 @@ fn imap_mail_kept_with_unreadable_characters_is_downloaded_again_once() {
     r.sync();
     assert_eq!(r.downloads(), 6);
     let json = serde_json::to_string(&r.s.mailbox).unwrap();
-    assert!(json.contains(r#""redecoded_imap":true"#) || json.contains(r#""redecodedImap":true"#), "{json}");
     assert!(!json.contains(r#""refetch":true"#));
     let mut again: Mailbox = serde_json::from_str(&json).unwrap();
+    // Not marked again, though message 3 still holds U+FFFD.
     assert_eq!(mark_unreadable(&mut again), 0);
+    assert_eq!(mark_unreadable(&mut r.s.mailbox), 0);
 }
 
 #[test]
@@ -156,7 +155,6 @@ fn what_is_asked_for_again_is_bounded_and_a_message_the_server_lost_is_left() {
     for uid in 1..=3 {
         r.damage(uid);
     }
-    r.s.mailbox.redecoded_imap = false;
     assert_eq!(mark_unreadable(&mut r.s.mailbox), 3);
     // Gone from the server meanwhile: not asked for, and removed by the run as any other.
     r.imap.world().mailbox("INBOX").messages.retain(|m| m.uid != 2);
@@ -174,4 +172,29 @@ fn what_is_asked_for_again_is_bounded_and_a_message_the_server_lost_is_left() {
         many.add_message(message).unwrap();
     }
     assert_eq!(mailcraft_engine::cmd::imap_again::wanted(&many, account)[&inbox].len(), MAX_AGAIN);
+}
+
+#[test]
+fn a_refused_download_again_is_told_once_and_not_asked_for_again() {
+    let mut r = Rig::new(vec![fake(1, "", central_european(1)), fake(2, "", central_european(2))]);
+    r.sync();
+    r.damage(1);
+    r.damage(2);
+    assert_eq!(mark_unreadable(&mut r.s.mailbox), 2);
+    // The server answers NO to the download of uid 1.
+    r.imap.world().refuse_uid = Some(1);
+    let mut request = sync_request(&r.s, r.account).unwrap();
+    request.password = PASSWORD.into();
+    let result = mailcraft_net::sync(&request);
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors[0].contains("again"), "{:?}", result.errors);
+    apply_sync(&mut r.s, result).unwrap();
+    // Uid 2 is read anew, uid 1 is settled as it was.
+    assert_eq!(r.s.mailbox.message(r.by_uid(2)).unwrap().subject, "Spo\u{161}tovani partner 2");
+    let one = r.s.mailbox.message(r.by_uid(1)).unwrap();
+    assert!(one.subject.contains('\u{FFFD}') && !one.refetch && one.refetched);
+    // Nothing more is asked for, nor said.
+    let before = r.imap.world().log.len();
+    r.sync();
+    assert!(r.imap.world().log[before..].iter().all(|line| !line.contains("BODY.PEEK[]")));
 }
