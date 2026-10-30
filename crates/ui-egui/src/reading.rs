@@ -355,7 +355,7 @@ pub(crate) fn header_widths(room: f32, name: f32, address: f32) -> (f32, f32) {
     if name + address <= room {
         return (name, address);
     }
-    let address_w = address.min(room * 0.6);
+    let address_w = address.min((room * 0.6).max(room - name));
     ((room - address_w).min(name).max(0.0), address_w)
 }
 

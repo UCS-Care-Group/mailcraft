@@ -35,3 +35,34 @@ fn a_very_narrow_row_puts_the_date_on_its_own_line() {
     assert!(header_date_on_own_line(250.0, 130.0));
     assert!(!header_date_on_own_line(600.0, 130.0));
 }
+
+#[test]
+fn a_short_name_leaves_the_address_the_room_that_is_left() {
+    assert_eq!(header_widths(400.0, 60.0, 450.0), (60.0, 340.0));
+}
+
+/// (#630) At a narrow width the name, the address, the External tag and the date are drawn
+/// apart, never over one another.
+#[test]
+fn a_narrow_pane_draws_the_sender_the_tag_and_the_date_apart() {
+    use egui_kittest::kittest::Queryable as _;
+    let email = "newsletter.monthly.updates@harborbooks-and-stationery.example";
+    for width in [960.0, 1060.0, 1280.0] {
+        let mut m = super::tests::web_message(0, email, "Long", &[]);
+        m.from = mailcraft_model::Address::new("Harbor Books and Stationery Supplies", email);
+        let (app, ids) = super::tests::app_with(vec![m]);
+        let mut harness = super::tests::window(app, (width, 800.0));
+        super::tests::select(&mut harness, ids[0]);
+        harness.run_steps(3);
+        let tag = harness.state().hit.rect("externalTag", ids[0]).expect("the External tag is shown");
+        let name = harness.get_by_label_contains("Harbor Books").rect();
+        let address = harness.get_by_label_contains("<newsletter").rect();
+        let date = harness.get_by_label_contains("2026").rect();
+        let parts = [("name", name), ("address", address), ("tag", tag), ("date", date)];
+        for (i, (a, ra)) in parts.iter().enumerate() {
+            for (b, rb) in &parts[i + 1..] {
+                assert!(!ra.shrink(0.5).intersects(rb.shrink(0.5)), "{width}: {a} {ra:?} over {b} {rb:?}");
+            }
+        }
+    }
+}
