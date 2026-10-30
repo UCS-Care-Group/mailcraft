@@ -374,6 +374,8 @@ const ACCOUNTS: &[&str] = &[
     "account.add",
     "account.edit",
     "account.remove",
+    // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
+    "account.forgetEwsCertificate",
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
@@ -463,6 +465,7 @@ const NEVER: &[&str] = &[
     "sync.ewsRequest",
     "sync.applyEws",
     "sync.ewsFetchRequest",
+    "sync.applyEwsFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
@@ -653,6 +656,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // An appointment, a contact or a task with changes that aren't saved, in the dialog that
         // this closes or opens another in place of: the changes are lost. The window says which
         // (`unsaved`, from `agent_gate`, never from the agent).
+        // The page that reviews an Exchange server's certificate looks at the server over the network.
+        "ui.dialog" if p::str(params, "page") == Some("certificate") => Access::Owner(Class::Accounts),
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
@@ -1489,6 +1494,9 @@ mod tests {
         }
         assert_eq!(classify(&s, "calendar.respond", &json!({"response": "accept", "send": true})), Access::Owner(Class::Send));
         assert_eq!(classify(&s, "calendar.respond", &json!({"response": "accept"})), Access::Safe);
+        // The review of a server's certificate makes a network contact; the Exchange page waits for Connect.
+        assert_eq!(classify(&s, "ui.dialog", &json!({"name": "account", "id": 3, "page": "certificate"})), Access::Owner(Class::Accounts));
+        assert_eq!(classify(&s, "ui.dialog", &json!({"name": "account", "page": "exchange", "email": "ada@example.org"})), Access::Safe);
         let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id);
         if let Some(outbox) = outbox {
             assert_eq!(classify(&s, "mail.move", &json!({"folder": outbox, "ids": [1]})), Access::Owner(Class::Send));

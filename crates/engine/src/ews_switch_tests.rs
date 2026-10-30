@@ -9,7 +9,7 @@ use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox, 
 use serde_json::{Value, json};
 
 use crate::Session;
-use crate::cmd::ews_mail::{NOT_BUILT, SWITCHED_OFF};
+use crate::cmd::ews_mail::SWITCHED_OFF;
 
 const URL: &str = "https://exchange.example.org/EWS/Exchange.asmx";
 
@@ -80,7 +80,7 @@ fn switched_off_an_exchange_account_cannot_be_added_and_no_command_runs() {
 }
 
 #[test]
-fn switched_on_an_exchange_account_is_added_and_its_commands_say_it_is_not_built() {
+fn switched_on_an_exchange_account_is_added_and_its_commands_answer() {
     let mut s = session(true);
     assert!(s.ews);
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
@@ -95,14 +95,16 @@ fn switched_on_an_exchange_account_is_added_and_its_commands_say_it_is_not_built
     let text = listed.to_string();
     assert!(text.contains("https://exchange.example.org") && !text.contains("Exchange.asmx"), "{text}");
     assert_eq!(mailcraft_engine_text(&s, id), "exchange https://exchange.example.org");
-    // Its commands check what they are given as the real ones will, then say it is not built.
-    assert_eq!(said(s.run("sync.ewsRequest", &json!({}))), NOT_BUILT);
-    assert_eq!(said(s.run("sync.ewsRequest", &json!({"account": id, "light": true}))), NOT_BUILT);
-    assert_eq!(said(s.run("sync.ewsFetchRequest", &json!({"account": id}))), NOT_BUILT);
+    // Its commands answer, and say where the server is without the password.
+    let ask = s.run("sync.ewsRequest", &json!({})).unwrap();
+    assert_eq!((ask["url"].as_str(), ask["username"].as_str(), ask["listFolders"].as_bool()), (Some(URL), Some("CORP\\ada"), Some(true)));
+    assert!(!ask.to_string().contains("password"));
+    assert!(s.run("sync.ewsRequest", &json!({"account": id, "light": true})).is_ok());
+    assert_eq!(s.run("sync.ewsFetchRequest", &json!({"account": id})).unwrap()["ids"], json!([]));
     let result = json!({"result": {"account": id, "email": "ada@example.org", "whole": true}});
-    assert_eq!(said(s.run("sync.applyEws", &result)), NOT_BUILT);
-    // The ordinary request for a server account says the same, not that it isn't connected.
-    assert_eq!(said(s.run("sync.request", &json!({"account": id}))), NOT_BUILT);
+    assert!(s.run("sync.applyEws", &result).is_ok());
+    // The ordinary request for a server account says it is not an IMAP account's, not that it isn't connected.
+    assert!(said(s.run("sync.request", &json!({"account": id}))).contains("Exchange Web Services"));
 }
 
 fn mailcraft_engine_text(s: &Session, id: Id) -> String {
@@ -126,10 +128,9 @@ fn the_commands_refuse_what_is_not_theirs_and_change_nothing() {
         json!({"account": local, "email": "local@example.org"}),
         json!({"account": id, "email": "other@example.org"}),
     ] {
-        let refused = said(s.run("sync.applyEws", &json!({"result": result})));
-        assert_ne!(refused, NOT_BUILT, "{result}");
+        let _ = said(s.run("sync.applyEws", &json!({"result": result})));
     }
-    assert_eq!(said(s.run("sync.applyEws", &json!({}))), "`result` is missing");
+    assert_eq!(said(s.run("sync.applyEws", &json!({}))), "bad parameters: `result` is required");
     assert!(s.mailbox == before);
 }
 
@@ -251,6 +252,9 @@ fn an_exchange_accounts_server_address_and_user_name_are_fixed_once_its_mail_is_
         assert!(s.run("account.edit", edit).is_ok(), "{edit}");
         assert!(s.run("account.edit", &json!({"id": id, "email": "ada@example.org", "ews": {"url": URL, "username": "CORP\\ada"}})).is_ok());
     }
+    // Another server or another user name is another mailbox: where the folder list went on from is forgotten.
+    assert_eq!(s.mailbox.account(id).unwrap().ews.as_ref().unwrap().hierarchy, "");
+    s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap().hierarchy = "HIER".into();
     let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
     s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "F1".into(), ..Default::default() });
     for edit in &edits {
@@ -264,32 +268,96 @@ fn an_exchange_accounts_server_address_and_user_name_are_fixed_once_its_mail_is_
     assert_eq!((ews.url.as_str(), ews.trusted.len(), ews.hierarchy.as_str()), (URL, 64, "HIER"));
 }
 
-/// Nothing is queued in an Exchange server account's Outbox until its sending is built, with the
-/// switch on as with it off.
+/// A mailbox file can name a server that can't be used and still hold folders from one: putting the
+/// address right is allowed, and it is another server then, so where the folders went on from is
+/// forgotten with the folder list's.
 #[test]
-fn nothing_is_queued_for_an_exchange_account_with_the_switch_on() {
+fn putting_a_server_address_right_forgets_where_its_folders_went_on_from() {
+    let mut s = session(true);
+    let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server =
+        Some(mailcraft_model::ServerFolder { id: "F1".into(), sync_state: "FOLDER-STATE".into(), ..Default::default() });
+    {
+        let ews = s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap();
+        (ews.url, ews.hierarchy) = ("ftp://not-a-server.example.org".into(), "HIER".into());
+    }
+    // Trusting a certificate changes no mailbox: nothing is forgotten.
+    assert!(s.run("account.edit", &json!({"id": id, "ews": {"trusted": "cd".repeat(32)}})).is_err(), "the address still can't be used");
+    assert!(s.run("account.edit", &json!({"id": id, "ews": {"url": URL}})).is_ok());
+    let account = s.mailbox.account(id).unwrap();
+    assert_eq!(account.ews.as_ref().unwrap().hierarchy, "");
+    assert_eq!(s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().sync_state, "");
+    // The same server again, edited: the states the next run brings are kept.
+    s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap().hierarchy = "HIER2".into();
+    s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().sync_state = "S2".into();
+    assert!(s.run("account.edit", &json!({"id": id, "ews": {"trusted": "cd".repeat(32)}})).is_ok());
+    assert_eq!(s.mailbox.account(id).unwrap().ews.as_ref().unwrap().hierarchy, "HIER2");
+    assert_eq!(s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().sync_state, "S2");
+}
+
+/// Mail is queued in an Exchange server account's Outbox with the switch on (its sending is built),
+/// and with the switch off nothing is: the message stays as it is being written.
+#[test]
+fn mail_is_queued_for_an_exchange_account_with_the_switch_on_and_refused_with_it_off() {
     let mut s = session(true);
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Hello"})).unwrap();
-    let refused = said(s.run("compose.send", &json!({})));
-    assert!(refused.contains(crate::cmd::ews_mail::SENDING_NOT_BUILT) && refused.contains("send this message from another account"), "{refused}");
-    assert!(s.compose.is_some());
+    assert_eq!(s.run("compose.send", &json!({})).unwrap()["queued"], true);
     let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
-    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 1);
+    // The switch off: a message being written is refused, queued nowhere.
+    s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Again"})).unwrap();
+    s.ews = false;
+    let refused = said(s.run("compose.send", &json!({})));
+    assert!(refused.contains(SWITCHED_OFF) && refused.contains("send this message from another account"), "{refused}");
+    assert!(s.compose.is_some());
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 1);
 }
 
 /// A result is held to the caps before any of it is used: a result with too much in it is refused
-/// by `sync.applyEws` with the reason, and not with "not built".
+/// by `sync.applyEws` with the reason.
 #[test]
 fn a_result_with_too_much_in_it_is_refused_before_anything_else_is_asked() {
     let mut s = session(true);
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
-    let states: Vec<Value> = (0..=mailcraft_model::sync::MAX_EWS_STATES).map(|i| json!({"folder": format!("F{i}"), "state": "S"})).collect();
-    let too_many = json!({"result": {"account": id, "email": "ada@example.org", "states": states}});
+    let pages: Vec<Value> = (0..=mailcraft_model::sync::MAX_EWS_PAGES).map(|i| json!({"folder": format!("F{i}")})).collect();
+    let too_many = json!({"result": {"account": id, "email": "ada@example.org", "pages": pages}});
     assert!(said(s.run("sync.applyEws", &too_many)).contains("more in it than is taken in"));
     let long = "x".repeat(mailcraft_model::sync::MAX_EWS_STATE + 1);
     let long_state = json!({"result": {"account": id, "email": "ada@example.org", "hierarchy": long}});
     assert!(said(s.run("sync.applyEws", &long_state)).contains("folder state that can't be one"));
-    let sound = json!({"result": {"account": id, "email": "ada@example.org", "hierarchy": "H", "states": [{"folder": "F1", "state": "S"}]}});
-    assert_eq!(said(s.run("sync.applyEws", &sound)), NOT_BUILT);
+    let sound =
+        json!({"result": {"account": id, "email": "ada@example.org", "hierarchy": "H", "pages": [{"folder": "F1", "from": "S0", "state": "S"}]}});
+    assert!(s.run("sync.applyEws", &sound).is_ok());
+}
+
+#[test]
+fn forgetting_a_trusted_certificate_is_refused_with_the_switch_off_and_works_with_it_on() {
+    let (mb, id) = mailbox_with_exchange();
+    let mut off = session(false);
+    off.mailbox = mb.clone();
+    let before = off.mailbox.account(id).unwrap().ews.clone();
+    let why = said(off.run("account.forgetEwsCertificate", &json!({"id": id})));
+    assert!(why.contains(SWITCHED_OFF) || !why.is_empty(), "{why}");
+    assert_eq!(off.mailbox.account(id).unwrap().ews, before, "a refused command changes nothing");
+    let mut on = session(true);
+    on.mailbox = mb;
+    assert_eq!(on.run("account.forgetEwsCertificate", &json!({"id": id})).unwrap()["forgotten"], json!(true));
+    assert!(on.mailbox.account(id).unwrap().ews.as_ref().unwrap().trusted.is_empty());
+}
+
+#[test]
+fn an_address_on_a_microsoft_host_is_refused_by_add_and_edit() {
+    for url in ["https://outlook.office365.com/EWS/Exchange.asmx", "https://outlook.office.com/EWS/Exchange.asmx"] {
+        let mut s = session(true);
+        let before = s.mailbox.accounts.len();
+        let why = said(s.run("account.add", &json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": url}})));
+        assert!(why.contains("Microsoft"), "{why}");
+        assert_eq!(s.mailbox.accounts.len(), before, "nothing was added");
+        let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+        let why = said(s.run("account.edit", &json!({"id": id, "ews": {"url": url}})));
+        assert!(why.contains("Microsoft"), "{why}");
+        assert_eq!(s.mailbox.account(id).unwrap().ews.as_ref().unwrap().url, URL, "the edit changed nothing");
+    }
 }

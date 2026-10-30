@@ -1263,13 +1263,14 @@ mod tests {
         assert_eq!((outbox(&s, account).len(), outbox(&s, imap).len()), (0, 1));
     }
 
-    /// An Exchange server account sends nothing until its sending is built (#252), switch on or
-    /// off: an invitation to it isn't answered by mail, a meeting isn't forwarded through its
+    /// An Exchange server account sends nothing while its switch is off (#252): an invitation to it isn't answered by mail, a meeting isn't forwarded through its
     /// Outbox, and nothing is put there to wait for ever. Answered without mail, it goes on a
     /// calendar here.
     #[test]
     fn an_exchange_account_answers_and_forwards_no_meeting_by_mail() {
-        for switch in [false, true] {
+        // With the switch on the account sends (#252 E5): only the switch off is a refusal.
+        {
+            let switch = false;
             let mut s = Session::at(crate::sample::mailbox(now(), 0), now(), 0);
             s.ews = switch;
             let server = mailcraft_model::EwsServer { url: "https://exchange.example.org/EWS/Exchange.asmx".into(), ..Default::default() };
@@ -1281,7 +1282,7 @@ mod tests {
                 ..Default::default()
             };
             let account = s.mailbox.add_account(exchange);
-            let reason = if switch { crate::cmd::ews_mail::SENDING_NOT_BUILT } else { crate::cmd::ews_mail::SWITCHED_OFF };
+            let reason = crate::cmd::ews_mail::SWITCHED_OFF;
             let request = mail(&mut s, account, "REQUEST", "uid-ews", "");
             let said = run(&mut s, "calendar.invitation", json!({"message": request}));
             assert_eq!((said["answerable"].as_bool(), said["canSend"].as_bool()), (Some(true), Some(false)), "switch {switch}");

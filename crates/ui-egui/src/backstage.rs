@@ -151,14 +151,25 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     }
 }
 
-/// An Exchange server account's line (#252): the name of its server alone, and why it isn't kept in
-/// step, which is the switch while Exchange server accounts are being tested, and then that the
-/// part that does it is not built.
+/// An Exchange server account's line (#252): the name of its server alone, and, while the switch
+/// is off, why it isn't kept in step. Where it connects, as whom and the certificate it trusts are
+/// under its card ([`crate::ews_setup::info_rows`]).
 pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     let host = a.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
     let Some(host) = host else { return tl!("Exchange server · no usable server address").to_string() };
     if app.session.ews {
-        crate::i18n::fmt(tl!("Exchange server {host} · not kept in step yet: this part is not built"), &[("host", host)])
+        let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
+        // A certificate the system doesn't trust, which only the owner can decide about.
+        if app.ews_certificate.contains_key(&a.id) {
+            line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+        }
+        // The folders the last run couldn't read, as the owner knows them.
+        match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
+            Some(folders) => {
+                crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
+            }
+            None => line,
+        }
     } else {
         crate::i18n::fmt(
             tl!(
@@ -251,6 +262,10 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 }
             });
             ui.add_space(4.0);
+        }
+        // An Exchange server account: its server, user name, sign-in and certificate (#252).
+        if a.kind == AccountKind::Exchange {
+            crate::ews_setup::info_rows(app, ui, t, a);
         }
         // Where keeping the tasks in step with Microsoft To Do stands, with a way to ask again (#248).
         if let Some((line, again)) = app.tasks_line(a.id) {

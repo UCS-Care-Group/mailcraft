@@ -93,9 +93,27 @@ pub(super) fn destination(mb: &Mailbox, account: Id, folder: Id) -> Option<(Stri
     match &f.server {
         Some(server) => Some((server.id.clone(), None)),
         // A folder made here is made on the server by this run; the special ones are found there.
-        None if f.kind == FolderKind::Custom => Some((String::new(), Some(f.id))),
+        // (Not one that is waiting for its place in the server's listing: it is never made, so a
+        // move into it would wait for a make that does not come.)
+        None if f.kind == FolderKind::Custom && !f.awaiting_listing => Some((String::new(), Some(f.id))),
+        // An Exchange server account's Archive is a folder like another there (the server has no
+        // folder of that kind): made when the owner puts mail in it (E8).
+        None if made_on_server(mb, f) => Some((String::new(), Some(f.id))),
         None => None,
     }
+}
+
+/// Whether `f`, which has no server id, is a special folder of an Exchange server account that
+/// the server doesn't have of its own accord: its Archive, once the account's folders are listed
+/// (so that one the server has already is found, not made twice) and mail has been put in it. A
+/// server that already has an `Archive` folder gives it its id by the listing, whose name is
+/// matched (`graph_mail::adopt`); the Outbox is the queue here and never goes up.
+pub(super) fn made_on_server(mb: &Mailbox, f: &Folder) -> bool {
+    f.kind == FolderKind::Archive
+        && !f.awaiting_listing
+        && mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange)
+        && mb.folder_of_kind(f.account, FolderKind::Inbox).and_then(|i| mb.folder(i)).is_some_and(|i| i.server.is_some())
+        && mb.messages_in(f.id).next().is_some()
 }
 
 /// Whether two lists of categories hold the same names, whatever their order and case.
@@ -315,8 +333,13 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
             let Some(m) = mine(mb, account, *message, id) else { return false };
             let Some(server) = m.server.as_mut() else { return false };
             match &done.outcome {
-                MessageOutcome::Done { folder, .. } => {
+                MessageOutcome::Done { folder, id: now, .. } => {
                     server.folder = if folder.is_empty() { to.clone() } else { folder.clone() };
+                    // An Exchange server gives a moved message an id of its own in its new folder
+                    // (a Microsoft account's ids stay: it says none).
+                    if !now.is_empty() {
+                        server.id = now.clone();
+                    }
                 }
                 MessageOutcome::Gone => {
                     server.gone = true;

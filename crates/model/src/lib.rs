@@ -44,7 +44,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
-pub use ews_server::EwsServer;
+pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use jmap_server::JmapServer;
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};

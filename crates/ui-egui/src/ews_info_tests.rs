@@ -32,7 +32,7 @@ fn file_info_says_why_an_exchange_account_is_not_kept_in_step() {
     assert!(!card.contains("Exchange.asmx") && !card.contains(":444"), "{card}");
     let (a, _, id) = app(true);
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
-    assert_eq!(card, "Exchange server mail.example.org · not kept in step yet: this part is not built");
+    assert_eq!(card, "Exchange server mail.example.org");
 }
 
 #[test]
@@ -50,9 +50,9 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     let (a, imap, id) = app(true);
     let exchange = a.session.mailbox.account(id).unwrap();
     let key = MailApp::secret_key("password", exchange);
-    assert_eq!(key, "password:ada@exchange.example|ews=https://mail.example.org:444/EWS/Exchange.asmx");
-    // Another server, or another address, is another key; the user name and the trusted
-    // certificate are no part of it; and it is not an IMAP account's.
+    assert_eq!(key, "password:ada@exchange.example|ews=https://mail.example.org:444/EWS/Exchange.asmx|user=");
+    // Another server, another address or another user name is another key; the trusted
+    // certificate is no part of it; and it is not an IMAP account's.
     let other = |change: &dyn Fn(&mut Account)| {
         let mut account = exchange.clone();
         change(&mut account);
@@ -60,12 +60,12 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     };
     assert_ne!(other(&|x| x.ews.as_mut().unwrap().url = "https://elsewhere.example/EWS/Exchange.asmx".into()), key);
     assert_ne!(other(&|x| x.email = "bo@exchange.example".into()), key);
-    assert_eq!(other(&|x| x.ews.as_mut().unwrap().username = "CORP\\ada".into()), key);
+    assert_ne!(other(&|x| x.ews.as_mut().unwrap().username = "CORP\\ada".into()), key, "a password is for one user name");
     assert_eq!(other(&|x| x.ews.as_mut().unwrap().trusted = "ab".repeat(32)), key);
     assert_ne!(MailApp::secret_key("refresh", exchange), key);
     assert!(!MailApp::secret_key("password", a.session.mailbox.account(imap).unwrap()).contains("ews="));
     // One that has no server settings gets a key that no server's is.
-    assert_eq!(other(&|x| x.ews = None), "password:ada@exchange.example|ews=none");
+    assert_eq!(other(&|x| x.ews = None), "password:ada@exchange.example|ews=none|user=");
 }
 
 #[test]
@@ -74,4 +74,27 @@ fn no_send_receive_of_the_window_takes_an_exchange_account_in() {
         let (a, imap, _) = app(on);
         assert_eq!(a.server_accounts(), vec![imap], "switch {on}");
     }
+}
+
+#[test]
+fn file_info_names_the_folders_the_last_run_could_not_read() {
+    let (mut a, _, id) = app(true);
+    a.ews_unreadable.insert(id, vec!["Inbox".into(), "Apollo".into()]);
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
+    assert!(card.starts_with("Exchange server mail.example.org") && card.ends_with("couldn't be read in the last run: Inbox, Apollo"), "{card}");
+    // None named: the card is as it was.
+    a.ews_unreadable.insert(id, Vec::new());
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
+    assert_eq!(card, "Exchange server mail.example.org");
+}
+
+#[test]
+fn the_folders_a_run_could_not_read_go_with_the_mailbox_that_is_replaced() {
+    let (mut a, _, id) = app(true);
+    a.ews_unreadable.insert(id, vec!["Inbox".into()]);
+    a.drop_secrets_if_replaced();
+    assert!(!a.ews_unreadable.is_empty(), "kept while the mailbox stays");
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.drop_secrets_if_replaced();
+    assert!(a.ews_unreadable.is_empty());
 }

@@ -1035,7 +1035,8 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
-    let saved = c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.is_graph(d.account));
+    let saved =
+        c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.keeps_drafts_on_server(d.account));
     let mut m = build_as(s, &c, true, saved.as_ref().map(|d| d.message_id.as_str()).filter(|id| !id.is_empty()))?;
     if let Some(d) = saved.as_ref().filter(|d| d.account == m.account) {
         (m.server, m.server_draft) = (d.server.clone(), d.server_draft.clone());
@@ -1125,7 +1126,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
-    let graph = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Microsoft);
+    let graph = s.mailbox.keeps_drafts_on_server(m.account);
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
         // Not a forward as an attachment: made as a forward, it would have the source's files

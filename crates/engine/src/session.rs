@@ -900,6 +900,11 @@ pub struct Session {
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
     /// Messages kept in step by server id (through Graph, over JMAP): kept between the pages of a run.
     pub(crate) graph_index: crate::cmd::graph_down::ServerIndex,
+    /// The Exchange server accounts whose run now under way has had a piece refused, cut or left
+    /// out, or a folder blocked: the run's end removes nothing for them (a piece lost earlier in
+    /// the run is not made good by one that says all went well). Set by any such piece, cleared
+    /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
+    pub(crate) ews_run_cut: std::collections::HashSet<Id>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
     /// (opening one still asks). Never saved.
@@ -1065,6 +1070,7 @@ impl Session {
             sync_status: String::new(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
+            ews_run_cut: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
@@ -2367,6 +2373,7 @@ impl Session {
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
+        self.ews_run_cut.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;

@@ -69,6 +69,8 @@ mod drag_pointer;
 mod drag_pointer_tests;
 #[cfg(test)]
 mod ews_info_tests;
+pub mod ews_mail;
+pub mod ews_setup;
 pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
@@ -234,6 +236,22 @@ pub struct Services {
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
     pub jmap_fetch: Option<Box<dyn Fn(jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// Desktop: read an Exchange server account (#252, E6) as the job says, on a background thread:
+    /// sign in to the account's server with the job's password (Basic over TLS, the certificate
+    /// trusted as the request says), read what the request asks for (`mailcraft_ews::sync_mail`) and
+    /// hand the run back through the channel in pieces (`EwsMailResult::partial` on all but the
+    /// last), waking the UI for each. Absent where no host does (the browser): an Exchange server
+    /// account then has no Send/Receive ([`ews_mail`]).
+    pub ews: Option<Box<dyn Fn(ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
+    /// The same host: fetch messages of an Exchange server account whole
+    /// (`mailcraft_ews::fetch_messages`), as `graph_fetch` does for a Microsoft account.
+    pub ews_fetch: Option<Box<dyn Fn(ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
+    /// has pressed Connect and not before: find the server unless its address is given, ask the
+    /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
+    /// test the account with one request for the Inbox ([`ews_setup`]). Absent where no host does
+    /// (the browser): Add Account then says it can't connect.
+    pub ews_setup: Option<Box<dyn Fn(ews_setup::EwsSetupJob) -> Receiver<ews_setup::EwsSetupEvent>>>,
     /// Whether the host holds the credential of this JMAP account itself (a page that signed the
     /// owner in to its server): for such an account the window never asks for a password, and its
     /// jobs go without one. Absent, or false for an account: the owner types it.
@@ -381,9 +399,9 @@ pub struct Services {
 }
 
 impl Services {
-    /// Whether this build reaches mail servers at all: with mail connections, or over JMAP.
+    /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
-        self.sync.is_some() || self.jmap.is_some()
+        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
     }
 }
 
@@ -1222,6 +1240,15 @@ pub struct MailApp {
     pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
+    /// The folders of an Exchange server account the last run could not read (named as the owner
+    /// knows them; no id), for File › Info. Not saved.
+    pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
+    /// How the last run of each Exchange server account signed in (`basic` or `ntlm`), for File ›
+    /// Info. Not saved.
+    pub(crate) ews_signed_in: std::collections::HashMap<Id, String>,
+    /// The fingerprint of the certificate an Exchange server account's server showed that needs
+    /// the owner's say (its last run stopped at it), for File › Info. Not saved.
+    pub(crate) ews_certificate: std::collections::HashMap<Id, String>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
@@ -1506,6 +1533,12 @@ pub(crate) enum MailRun {
         opening: u64,
         pieces: Receiver<mailcraft_model::sync::JmapMailResult>,
     },
+    /// An Exchange server account's run ([`ews_mail`]).
+    Ews {
+        account: Id,
+        opening: u64,
+        pieces: Receiver<mailcraft_model::sync::EwsMailResult>,
+    },
 }
 
 impl MailApp {
@@ -1533,6 +1566,9 @@ impl MailApp {
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
+            ews_unreadable: Default::default(),
+            ews_signed_in: Default::default(),
+            ews_certificate: Default::default(),
             secrets_opening: 0,
             secret_cache: Default::default(),
             secret_read: None,
@@ -1918,6 +1954,9 @@ impl MailApp {
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
+            self.ews_unreadable.remove(&account);
+            self.ews_signed_in.remove(&account);
+            self.ews_certificate.remove(&account);
             self.forget_account_secrets(&gone);
         }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
@@ -1931,6 +1970,8 @@ impl MailApp {
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
             self.jmap_refused.remove(&before.id);
+            self.ews_signed_in.remove(&before.id);
+            self.ews_certificate.remove(&before.id);
         }
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
@@ -2291,9 +2332,11 @@ impl MailApp {
             let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
             format!("{kind}:{address}|jmap={session}|bearer={bearer}")
         } else if a.kind == mailcraft_model::AccountKind::Exchange {
-            // (Its whole EWS address: another one, on the same server or not, is another server.)
+            // (Its whole EWS address: another one, on the same server or not, is another server;
+            // and the user name it signs in with: a password is for one name.)
             let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
-            format!("{kind}:{address}|ews={url}")
+            let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
+            format!("{kind}:{address}|ews={url}|user={user}")
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -2600,10 +2643,13 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
-        // An Exchange server account is not kept in step yet (#252): the switch, then the part
-        // that is not built.
+        // An Exchange server account is kept in step through Exchange Web Services (#252), where the
+        // switch is on and the host runs it.
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
-            return Err(mailcraft_engine::cmd::ews_mail::refusal_text(&self.session).to_string());
+            if !self.session.ews {
+                return Err(mailcraft_engine::cmd::ews_mail::SWITCHED_OFF.to_string());
+            }
+            return self.start_ews_mail(account, quiet, p);
         }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
         if self.services.jmap.is_some() && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
@@ -2778,8 +2824,8 @@ impl MailApp {
         // at all, to be told so.
         let runs = |a: &&mailcraft_model::Account| match a.kind {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
-            // (Nothing runs an Exchange server account yet, #252.)
-            mailcraft_model::AccountKind::Exchange => false,
+            // (Where the switch is on and the host runs it, #252.)
+            mailcraft_model::AccountKind::Exchange => self.session.ews && self.services.ews.is_some(),
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
@@ -2787,7 +2833,7 @@ impl MailApp {
 
     /// How much of `account` waits to go to its server: mail in the Outbox, and changes made here
     /// that the server hasn't been told.
-    fn waiting_to_go(&self, account: Id) -> usize {
+    pub(crate) fn waiting_to_go(&self, account: Id) -> usize {
         let mb = &self.session.mailbox;
         // (A held message waits for the owner, not for a run; and so does mail in a shared
         // mailbox's Outbox that may not be sent from it yet, #70.)
@@ -2828,11 +2874,14 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
+            self.ews_unreadable.clear();
+            self.ews_signed_in.clear();
+            self.ews_certificate.clear();
             // Work started for the old mailbox stays with it: a JMAP run and the messages being
             // fetched whole are called off (what they still bring is thrown away, `jmap_mail`,
             // `graph_fetch`), a sign-in on its way is called off, and a switch to Graph (its copy,
             // its backup) is forgotten.
-            if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
+            if matches!(self.sync_rx, Some(MailRun::Jmap { .. } | MailRun::Ews { .. })) {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             }
             self.fetching.forget();
@@ -2861,8 +2910,10 @@ impl MailApp {
         if a.kind == mailcraft_model::AccountKind::Jmap {
             return !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some();
         }
+        // (An Exchange server account's password is in memory only, for now; and one its server turned
+        // down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Exchange {
-            return false;
+            return !self.jmap_refused.contains(&account) && self.ews_secret(account).is_some();
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
@@ -3488,6 +3539,9 @@ impl MailApp {
             // (A JMAP account's run has pieces of its own: [`jmap_mail`].)
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
+            }
+            if matches!(self.sync_rx, Some(MailRun::Ews { .. })) {
+                return self.poll_ews();
             }
             let Some(MailRun::Imap(rx)) = &self.sync_rx else { return };
             let piece = match rx.try_recv() {

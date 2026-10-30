@@ -50,7 +50,7 @@ pub(crate) struct Touched {
 
 /// The accounts of `mb` kept in step through Graph.
 fn graph_accounts(mb: &Mailbox) -> BTreeSet<Id> {
-    mb.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect()
+    mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)).map(|a| a.id).collect()
 }
 
 /// Whether `m` is one of those accounts' (or is being moved out of one).
