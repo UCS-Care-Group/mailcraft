@@ -13,6 +13,14 @@ use crate::{CmdError, Session};
 /// Largest file read (512 MB).
 pub const MAX_FILE: u64 = 512 << 20;
 
+/// Largest mailbox file read in the JSON forms (formats 1 and 2: one self-contained file, or the
+/// JSON file with a content folder beside it): 4 GiB. A hostile file can't make a program take
+/// more than that, and a real one older programs wrote (a complete sync of a large IMAP account
+/// into the one-file form) fits with room to spare. It is read with allocations that may fail
+/// (an error, never an abort), and the next save writes the form with a log of records and a
+/// content folder (`crate::store`), which stops at `store::MAX_INDEX` instead. Small in tests.
+pub const MAX_MAILBOX_JSON: u64 = if cfg!(test) { 16 << 20 } else { 4 << 30 };
+
 /// The mailbox file's extension.
 pub const MAILBOX_EXT: &str = "mailcraft";
 

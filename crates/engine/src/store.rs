@@ -73,7 +73,7 @@ use std::time::{Duration, Instant, SystemTime};
 use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
-use crate::io::{BackgroundSave, ContentSource, MAX_FILE, OpenProgress, SaveProgress, SaveReport, SaveStage};
+use crate::io::{BackgroundSave, ContentSource, MAX_FILE, MAX_MAILBOX_JSON, OpenProgress, SaveProgress, SaveReport, SaveStage};
 
 #[path = "store_index.rs"]
 mod index;
@@ -81,7 +81,7 @@ mod index;
 use index::{Coll, Fp, Key, Tail};
 
 /// Largest mailbox file read in this form (16 GB; the JSON forms stop at [`MAX_FILE`]).
-pub const MAX_INDEX: u64 = 16 << 30;
+pub const MAX_INDEX: u64 = if cfg!(test) { 64 << 20 } else { 16 << 30 };
 
 /// Items of a mailbox file parsed at a time when it is opened.
 const OPEN_SLICE: usize = 16_384;
@@ -1354,6 +1354,17 @@ fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
 
 /// Whether the file at `path` begins as a mailbox file in this form does. A file that begins as
 /// one of a form a newer MailCraft writes is an error that says so.
+/// Whether the file starts like a JSON object (after a byte order mark and white space): what a
+/// mailbox of the forms before the log of records is.
+fn starts_like_json(file: &Path) -> Result<bool, String> {
+    let mut f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
+    let mut head = [0u8; 64];
+    let got = index::fill(&mut f, &mut head).map_err(|e| e.to_string())?;
+    let head = head.get(..got).unwrap_or(&[]);
+    let head = head.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(head);
+    Ok(head.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{'))
+}
+
 fn is_index(file: &Path) -> Result<bool, String> {
     let mut head = [0u8; 16];
     // (Without waiting, and only a regular file: a pipe put where a mailbox was named can't hold
@@ -1548,15 +1559,24 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
         }
         return Ok((opened, true));
     }
-    if len > MAX_FILE {
-        return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
+    // Only a file that starts like JSON is a mailbox of the forms before this one: anything else
+    // (zeros left by a write the system cut short, another program's file) is not "too large".
+    if !starts_like_json(&file).map_err(|e| format!("{show}: {e}"))? {
+        return Err(format!("{show} isn't a MailCraft mailbox (it doesn't start like one; it may be damaged, and it is left as it is)"));
     }
-    // (Read as `io::read_regular_file` does, its bytes counted.)
+    if len > MAX_MAILBOX_JSON {
+        return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
+    }
+    // (Read as `io::read_regular_file` does, its bytes counted; the room asked for first, so that
+    // a machine without it says so instead of stopping.)
     let f = crate::io::regular_file(&file).map_err(|e| format!("{show}: {e}"))?;
-    let mut bytes = Vec::with_capacity(usize::try_from(len).unwrap_or(0));
-    Counted { inner: f.take(MAX_FILE.saturating_add(1)), progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
-    if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_FILE) {
-        return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(usize::try_from(len).map_err(|_| format!("{show} is too large for this computer's memory"))?)
+        .map_err(|_| format!("{show} is too large for this computer's memory ({} MB)", len >> 20))?;
+    Counted { inner: f.take(MAX_MAILBOX_JSON.saturating_add(1)), progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
+    if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_MAILBOX_JSON) {
+        return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
     }
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
@@ -2442,6 +2462,14 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
 /// written whole and atomically. Returns the bytes written.
 pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
     let bytes = crate::io::write_mailbox(mailbox)?;
+    // Never write a file a later open would refuse.
+    if bytes.len() as u64 > MAX_MAILBOX_JSON {
+        return Err(format!(
+            "the mailbox is {} MB, more than one file holds ({} MB); nothing was written. Use File › Save, which keeps its content in a folder beside the mailbox file",
+            bytes.len() >> 20,
+            MAX_MAILBOX_JSON >> 20
+        ));
+    }
     let shared = shared(path);
     let mut st = lock(&shared.state);
     write_atomic(&resolve(path), &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -2933,6 +2961,11 @@ fn keep_aside(path: &Path, what: &str) -> std::io::Result<PathBuf> {
     Err(std::io::Error::other("too many files kept aside already"))
 }
 
+/// Why a save wasn't written: the file would be one a later open refuses.
+fn too_big_to_open(len: u64) -> String {
+    format!("the mailbox file would be {} MB, more than MailCraft opens ({} GB); nothing was written", len >> 20, MAX_INDEX >> 30)
+}
+
 fn write_index(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &Progress) -> Result<Saved, String> {
     let saved = write_index_once(st, path, mailbox, progress);
     // What was worked out of attachments no longer in memory is no use to anybody.
@@ -2983,6 +3016,12 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
             return Err(e);
         }
     };
+    // Never write a file a later open would refuse.
+    if d.len.saturating_add(delta.group.len() as u64) > MAX_INDEX {
+        let e = too_big_to_open(d.len.saturating_add(delta.group.len() as u64));
+        st.disk = Some(d);
+        return Err(e);
+    }
     // The content first: a mailbox file never names what isn't on disk yet.
     let mut saved = Saved::default();
     if let Err(e) = write_content(path, &delta.wanted, &mut saved, progress) {
@@ -3108,6 +3147,10 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, p
     compact_items(&mailbox.tasks, Coll::Task, &mut out, &mut d.tasks, &mut d.live, &mut records)?;
     let commit = index::commit(&mut out, records).map_err(io_error)?;
     d.len = index::HEADER_LEN.saturating_add(d.live).saturating_add(commit);
+    // Never write a file a later open would refuse (the temporary file goes, the old one stays).
+    if d.len > MAX_INDEX {
+        return Err(too_big_to_open(d.len));
+    }
     // The content first: the file isn't the mailbox until it is renamed over.
     let mut saved = Saved::default();
     write_content(path, &wanted, &mut saved, progress)?;
@@ -3195,7 +3238,7 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
         }
         return Ok(Some(named));
     }
-    if len > MAX_FILE {
+    if len > MAX_MAILBOX_JSON {
         return Err("too large".into());
     }
     let head: Head = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -3669,3 +3712,7 @@ mod open_tests;
 #[cfg(test)]
 #[path = "store_bench_tests.rs"]
 mod bench_tests;
+
+#[cfg(test)]
+#[path = "store_large_tests.rs"]
+mod large_tests;
