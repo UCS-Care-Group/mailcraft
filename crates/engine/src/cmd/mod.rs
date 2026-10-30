@@ -16,6 +16,9 @@ pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
 pub mod edit;
+mod ews_down;
+pub mod ews_mail;
+mod ews_up;
 #[cfg(test)]
 mod favorites_tests;
 pub mod file;
@@ -140,6 +143,7 @@ pub fn registry() -> Registry {
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
+    v.extend(ews_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

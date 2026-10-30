@@ -55,6 +55,21 @@ fn span<'a>(blocks: &'a [Block], text: &str) -> &'a Span {
         .unwrap_or_else(|| panic!("no span holds {text:?}\n{}", show(blocks)))
 }
 
+/// The table that has a box on a line (`display: inline-block`) in one of its cells, the box's text starting with `start`.
+fn holder_of_box<'a>(blocks: &'a [Block], start: &str) -> &'a Table {
+    tables(blocks)
+        .into_iter()
+        .find(|t| {
+            t.rows.iter().flat_map(|r| &r.cells).any(|c| {
+                c.blocks.iter().any(|b| {
+                    matches!(&b.kind, BlockKind::Table(i) if i.inline
+                        && i.rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(|b| b.text().starts_with(start)))
+                })
+            })
+        })
+        .unwrap_or_else(|| panic!("no table holds a box starting {start:?}\n{}", show(blocks)))
+}
+
 /// The table one of whose cells holds a block starting with `start`, directly.
 fn table_with<'a>(blocks: &'a [Block], start: &str) -> &'a Table {
     tables(blocks)
@@ -315,9 +330,13 @@ fn newsletter() {
     assert_eq!((was.strike, was.color), (true, Some(Rgb(0x9a, 0xa3, 0x97))));
     assert_eq!((span(&blocks, "72.00 for members").bold, span(&blocks, "72.00 for members").color), (true, Some(Rgb(0xc8, 0x55, 0x2b))));
     // The button is a cell with a background, white text that leads somewhere.
-    let button = table_with(&blocks, "See the members' weekend");
+    // Its link is a box on a line with the room round the words.
+    let button = holder_of_box(&blocks, "See the members' weekend");
     let cell = button.rows.first().and_then(|r| r.cells.first()).unwrap_or_else(|| panic!("no button cell"));
     assert_eq!((button.rows.len(), button.columns, cell.background), (1, 1, Some(Rgb(0xc8, 0x55, 0x2b))));
+    let inner = table_with(&blocks, "See the members' weekend");
+    assert!(inner.inline);
+    assert_eq!(inner.rows[0].cells[0].padding, Some(Insets { top: 13, right: 28, bottom: 13, left: 28 }));
     let label = span(&blocks, "See the members' weekend");
     assert_eq!(
         (label.color, label.bold, label.link.as_deref()),
@@ -414,8 +433,12 @@ fn built_newsletter() {
     let button = span(&blocks, "See the winter tapers");
     assert_eq!(
         (button.color, button.background, button.bold, button.link.as_deref()),
-        (Some(Rgb(255, 255, 255)), Some(Rgb(0xb5, 0x56, 0x2b)), true, Some("https://go.tallowwick.example/c/7Qk2/cta?m=40117&r=lamplight-41"))
+        (Some(Rgb(255, 255, 255)), None, true, Some("https://go.tallowwick.example/c/7Qk2/cta?m=40117&r=lamplight-41"))
     );
+    // It is a box on a line 240 pixels wide, with the colour of the button.
+    let area = table_with(&blocks, "See the winter tapers");
+    assert!(area.inline && area.width == Some(Length::Px(240)));
+    assert_eq!(area.rows[0].cells[0].background, Some(Rgb(0xb5, 0x56, 0x2b)));
     // Text keeps the sizes and colours its own blocks give it.
     let body = span(&blocks, "The clocks went back on Sunday");
     assert_eq!((body.color, body.size), (Some(Rgb(0x3d, 0x38, 0x33)), Some(16)));
@@ -546,7 +569,7 @@ fn calendar_notice() {
     assert_eq!(marker("Whether the shortcuts page"), BlockKind::ListItem { marker: Marker::Number(3), depth: 0 });
     assert_eq!(marker("and if so, where"), BlockKind::ListItem { marker: Marker::Bullet, depth: 1 });
     // The answers: a filled button and two outlined ones in a row, the gaps between them gone.
-    let answers = table_with(&blocks, "Maybe");
+    let answers = holder_of_box(&blocks, "Maybe");
     assert!(answers.layout);
     let cells: Vec<_> = answers.rows.iter().flat_map(|r| &r.cells).collect();
     assert_eq!(

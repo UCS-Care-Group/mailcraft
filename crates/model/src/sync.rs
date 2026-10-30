@@ -12,11 +12,13 @@ use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importan
 use mailcraft_time::Timestamp;
 
 mod drafts;
+mod ews;
 mod jmap;
 mod place;
 mod progress;
 mod search;
 pub use drafts::*;
+pub use ews::*;
 pub use jmap::*;
 pub use place::*;
 pub use progress::*;

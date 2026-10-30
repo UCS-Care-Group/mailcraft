@@ -24,13 +24,19 @@
 pub const AVAILABLE: bool = false;
 
 #[cfg(not(target_arch = "wasm32"))]
+mod cert;
+#[cfg(not(target_arch = "wasm32"))]
 mod dns;
+#[cfg(not(target_arch = "wasm32"))]
+mod dns_srv;
 #[cfg(not(target_arch = "wasm32"))]
 mod favorite_paths;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod graph;
 #[cfg(not(target_arch = "wasm32"))]
 mod http;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod https;
 #[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
@@ -39,6 +45,8 @@ mod kinds;
 pub mod oauth;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod pictures;
+#[cfg(not(target_arch = "wasm32"))]
+mod pinned;
 #[cfg(not(target_arch = "wasm32"))]
 mod push;
 #[cfg(not(target_arch = "wasm32"))]
@@ -69,7 +77,10 @@ pub use native::*;
 mod native {
     use mailcraft_model::Account;
 
+    pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
+    pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
+    pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
     pub use crate::sync::{sync, sync_with};
 
@@ -106,6 +117,11 @@ mod native {
         /// seconds the service asked to be left alone for, when it said.
         #[error("{text}")]
         Busy { text: String, retry_after: Option<u32> },
+        /// The system does not trust the server's certificate, or it is one nobody may trust
+        /// ([`https`](crate::https)): what setup shows is in it. It holds nothing of the
+        /// certificate in its text.
+        #[error("{0}")]
+        Certificate(Box<CertificateProblem>),
         /// A shared mailbox Microsoft won't open for the owner of the token (#70), by Graph's own
         /// code: asking again by itself changes nothing.
         #[error("{}", .0.said())]
@@ -130,7 +146,7 @@ mod native {
                 NetError::ConsentNeeded(text) => NetError::ConsentNeeded(clean(text)),
                 NetError::Forbidden(text) => NetError::Forbidden(clean(text)),
                 NetError::Busy { text, retry_after } => NetError::Busy { text: clean(text), retry_after },
-                unworded @ (NetError::SignInCancelled | NetError::SignInTimedOut | NetError::SharedRefused(_)) => unworded,
+                unworded @ (NetError::SignInCancelled | NetError::SignInTimedOut | NetError::SharedRefused(_) | NetError::Certificate(_)) => unworded,
             }
         }
 

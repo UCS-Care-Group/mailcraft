@@ -21,6 +21,8 @@ mailcraft-ui-egui = { workspace = true }
 mailcraft-control-key = { workspace = true }
 # Sockets: Send/Receive runs on a background thread.
 mailcraft-net = { workspace = true }
+# Exchange server accounts (#252): the requests and the readers of the answers; the HTTPS is `mailcraft-net`'s.
+mailcraft-ews = { workspace = true }
 # `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
@@ -36,6 +38,9 @@ mailcraft-net = { workspace = true, features = ["stand-in"] }
 # The window reading a JMAP account through a host, against the JMAP client and its server in the
 # process (`mailcraft_jmap::standin`): in a test's build only.
 mailcraft-jmap = { workspace = true, features = ["stand-in"] }
+# The window reading an Exchange server account through a host, against the strict stand-in
+# for Exchange Web Services behind a loopback server (`mailcraft_ews::standin`): in a test's build only.
+mailcraft-ews = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }

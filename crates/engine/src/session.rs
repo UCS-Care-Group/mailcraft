@@ -900,6 +900,11 @@ pub struct Session {
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
     /// Messages kept in step by server id (through Graph, over JMAP): kept between the pages of a run.
     pub(crate) graph_index: crate::cmd::graph_down::ServerIndex,
+    /// The Exchange server accounts whose run now under way has had a piece refused, cut or left
+    /// out, or a folder blocked: the run's end removes nothing for them (a piece lost earlier in
+    /// the run is not made good by one that says all went well). Set by any such piece, cleared
+    /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
+    pub(crate) ews_run_cut: std::collections::HashSet<Id>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
     /// (opening one still asks). Never saved.
@@ -940,6 +945,10 @@ pub struct Session {
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
+    /// Exchange server accounts may be added and kept in step through Exchange Web Services
+    /// (#252): the switch for testing, off until a tester has confirmed it on a server of their
+    /// own. Set by the host (`MAILCRAFT_EWS=1`), never by a command's params. Never saved.
+    pub ews: bool,
     /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
     /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
     pub staged_tree: Option<crate::import_tree::Parsed>,
@@ -1061,6 +1070,7 @@ impl Session {
             sync_status: String::new(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
+            ews_run_cut: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
@@ -1073,6 +1083,7 @@ impl Session {
             agent: None,
             owner_changing: Vec::new(),
             graph_switch_backup: None,
+            ews: false,
             staged_tree: None,
             server_search: Default::default(),
             history: Vec::new(),
@@ -2362,6 +2373,7 @@ impl Session {
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
+        self.ews_run_cut.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;

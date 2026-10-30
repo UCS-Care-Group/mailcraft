@@ -28,6 +28,7 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+mod look;
 mod media;
 mod preview;
 mod quote;
@@ -120,6 +121,10 @@ pub enum VAlign {
     Middle,
     Bottom,
 }
+
+/// The most boxes a message can lay out on lines (`display: inline-block`); past it the elements
+/// are read as they were without it.
+pub const MAX_INLINE_BOXES: usize = 256;
 
 /// The widest gap between cells read from `cellspacing` or `border-spacing`, in pixels.
 pub const MAX_SPACING_PX: u8 = 16;
@@ -411,6 +416,18 @@ pub struct Table {
     /// gives one; `None` leaves it to the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spacing: Option<u8>,
+    /// The source lays it out as a box on a line (`display: inline-block`): the boxes that follow
+    /// one another stand side by side and wrap when the line is full. Its `width` is the box's,
+    /// and `None` is as wide as what is in it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
+    /// A box on a line: the source has white space between it and the box before it on the line,
+    /// which is a gap there (none when it has not, or when it was written at a size of nothing).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub spaced: bool,
+    /// A box on a line: the room its margins keep free left and right of it, in pixels.
+    #[serde(default, skip_serializing_if = "is_no_inset")]
+    pub box_margin: [u8; 2],
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -544,6 +561,8 @@ pub(crate) fn is_blank(c: char) -> bool {
 
 #[cfg(test)]
 mod data_tests;
+#[cfg(test)]
+mod inline_tests;
 #[cfg(test)]
 mod text_link_tests;
 

@@ -36,7 +36,7 @@ use crate::http::{self, Reply};
 /// anything was asked to go).
 pub(super) fn sends(graph: &Graph<'_>, sends: &[SendUp], out: &mut Vec<SendDone>) -> Result<(), NetError> {
     for send in sends.iter().take(MAX_SENDS) {
-        let mut done = SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None };
+        let mut done = SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None, draft_left: String::new() };
         let result = one(graph, send, &mut done);
         let tried = done.draft.is_some() || done.outcome != SendOutcome::Waits;
         if tried {

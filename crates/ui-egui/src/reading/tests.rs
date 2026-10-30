@@ -206,6 +206,7 @@ pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
             "style boxes",
             html_message(34, ("Hollowpine Rambling Club", "bulletin@hollowpine.example"), "The Hollowpine bulletin", corpus::STYLE_BOXES),
         ),
+        ("style inline", html_message(35, ("Marrowby Trust", "garden@marrowby.example"), "Autumn open day at the garden", corpus::STYLE_INLINE)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -3824,6 +3825,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod inline_blocks;
 mod invitation;
 mod primary;
 mod remote_server;

@@ -46,6 +46,8 @@ pub(crate) struct Held {
     graph_rules: Option<Box<dyn Fn(crate::rule_sync::RulesJob) -> Receiver<crate::rule_sync::RulesResult>>>,
     jmap: Option<Box<dyn Fn(crate::jmap_mail::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
     jmap_fetch: Option<Box<dyn Fn(crate::jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    ews: Option<Box<dyn Fn(crate::ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
+    ews_fetch: Option<Box<dyn Fn(crate::ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
 }
 
 /// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
@@ -59,11 +61,20 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
     };
     // (Only for an account that has one: what every other account's line was stays as it was.)
     let jmap = |a: &Account| a.jmap.as_ref().map(|j| format!("\u{1}{}\u{1}{}", j.session.trim(), j.bearer)).unwrap_or_default();
+    // (An Exchange server account's address and the user name its password goes with, likewise.)
+    let ews = |a: &Account| a.ews.as_ref().map(|e| format!("\u{1}{}\u{1}{}", e.url.trim(), e.username.trim())).unwrap_or_default();
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
         .map(|a| {
-            format!("{}\u{1}{:?}\u{1}{}\u{1}{}{}", a.email.trim().to_ascii_lowercase(), a.kind, server(&a.incoming), server(&a.outgoing), jmap(a))
+            format!(
+                "{}\u{1}{:?}\u{1}{}\u{1}{}{}",
+                a.email.trim().to_ascii_lowercase(),
+                a.kind,
+                server(&a.incoming),
+                server(&a.outgoing),
+                jmap(a) + &ews(a)
+            )
         })
         .collect();
     lines.sort();
@@ -139,6 +150,8 @@ impl MailApp {
             graph_rules: s.graph_rules.take(),
             jmap: s.jmap.take(),
             jmap_fetch: s.jmap_fetch.take(),
+            ews: s.ews.take(),
+            ews_fetch: s.ews_fetch.take(),
         };
     }
 
@@ -154,6 +167,8 @@ impl MailApp {
         s.graph_rules = held.graph_rules.or(s.graph_rules.take());
         s.jmap = held.jmap.or(s.jmap.take());
         s.jmap_fetch = held.jmap_fetch.or(s.jmap_fetch.take());
+        s.ews = held.ews.or(s.ews.take());
+        s.ews_fetch = held.ews_fetch.or(s.ews_fetch.take());
     }
 
     /// `ui.confirmServers`: the owner has seen where every account connects and says yes. Kept

@@ -28,6 +28,7 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
+//! | boxes on a line | `display: inline-block`, exactly (any other `display` but `none` says nothing) |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
@@ -149,6 +150,8 @@ pub(crate) struct Css {
     pub margin_left_auto: Option<bool>,
     pub margin_right_auto: Option<bool>,
     pub valign: Option<VAlign>,
+    /// `display: inline-block`.
+    pub inline_block: bool,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
 }
@@ -219,7 +222,10 @@ impl Css {
                 "text-align" => css.align = align(value).or(css.align),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
-                "display" => display_none = value == "none",
+                "display" => {
+                    display_none = value == "none";
+                    css.inline_block = value == "inline-block";
+                }
                 "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
                 "opacity" => opacity_zero = number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
                 // (`mso-hide:all` hides nothing here: see the notes at the top.)

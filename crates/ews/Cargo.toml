@@ -1,0 +1,31 @@
+[package]
+name = "mailcraft-ews"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MailCraft Exchange Web Services without sockets or browser APIs: builds each SOAP request, reads each answer as hostile XML, and judges it; an in-process, strict stand-in server for the tests of the crates that sit on it"
+
+[lints]
+workspace = true
+
+[dependencies]
+# What a run brings back is the model's own sync data, and an item's dates are read by the time
+# crate (lower layers, both wasm-ready).
+mailcraft-model = { workspace = true }
+mailcraft-time = { workspace = true }
+mailcraft-mime = { workspace = true }
+log = { workspace = true }
+quick-xml = { workspace = true }
+# NTLMv2 (`ntlm`): MD4 of the password, then HMAC-MD5.
+md4 = { workspace = true }
+md-5 = { workspace = true }
+hmac = { workspace = true }
+
+[features]
+# An in-process Exchange Web Services server that holds a client to the documented schema
+# (`standin`), for the tests of the crates that sit on this one. Never in a build that isn't a test's.
+stand-in = []
+
+[dev-dependencies]
+proptest = { workspace = true }

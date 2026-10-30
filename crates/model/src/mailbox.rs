@@ -8,7 +8,9 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::sync::RemoteFlags;
-use crate::{Action, Answers, Calendar, Contact, Event, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name};
+use crate::{
+    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name,
+};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
@@ -162,6 +164,12 @@ pub struct ServerFolder {
     /// (a round not ended, one begun in an earlier run, a mailbox from before): never passed over.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub counts: Option<FolderCounts>,
+    /// For a folder of an Exchange server account: where its mail goes on from, the sync state the
+    /// server gave at the end of the last `SyncFolderItems` (opaque), kept with the mail it
+    /// brought in one step. Empty until its mail has been read once, and for every other account
+    /// (which use `delta`).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub sync_state: String,
 }
 
 /// A folder's message counts as its server's listing gives them (#276).
@@ -245,6 +253,14 @@ pub enum AccountKind {
     /// [`Account::jmap`], and the secret it is opened with (a password, or a bearer token) is
     /// given by whoever holds the connection and is never written anywhere.
     Jmap,
+    /// A mailbox on a server an organisation runs itself that speaks Exchange Web Services
+    /// (Exchange Server, Grommunio, SmarterMail), kept in step over HTTPS alone, never by IMAP or
+    /// SMTP (#252). Never a Microsoft 365 mailbox: that is a [`AccountKind::Microsoft`] account.
+    /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
+    /// is never written anywhere. Works only while its switch is on
+    /// ([`AccountKind::needs_switch`]): switched off, an account of this kind in a mailbox opens
+    /// and shows its mail, but is not kept in step.
+    Exchange,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
     /// is read of it; the whole of it is kept as the file had it and written back so
@@ -259,20 +275,28 @@ impl AccountKind {
     /// Not an account of a kind this version doesn't know: whatever server it has, this version
     /// can't use it.
     pub fn has_server(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
-    /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP, or
-    /// through Microsoft Graph). Not yet for a JMAP account: its sending comes after its reading,
-    /// and until then no mail is put in its Outbox, where it would wait for ever.
+    /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
+    /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
+    /// sending comes after its reading, and until then no mail is put in its Outbox, where it
+    /// would wait for ever.
     pub fn sends_mail(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
+    }
+
+    /// Whether the kind is kept in step only while its feature switch is on (`MAILCRAFT_EWS=1`,
+    /// #252: [`Session::ews`] in the engine). Switched off, an account of the kind opens and
+    /// shows its mail, and nothing is synchronised or sent for it.
+    pub fn needs_switch(self) -> bool {
+        matches!(self, AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server
     /// hands out (Microsoft Graph, JMAP), rather than by IMAP's paths and UIDs.
     pub fn server_ids(self) -> bool {
-        matches!(self, AccountKind::Microsoft | AccountKind::Jmap)
+        matches!(self, AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 }
 
@@ -350,6 +374,12 @@ pub struct Account {
     /// every other account, and in a file from before there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub jmap: Option<JmapServer>,
+    /// For an [`AccountKind::Exchange`] account: where its Exchange Web Services are, the user
+    /// name it signs in with and the certificate it trusts ([`EwsServer`]). Plain settings: the
+    /// password is never kept here. `None` for every other account, and in a file from before
+    /// there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub ews: Option<EwsServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -1458,7 +1488,7 @@ impl Mailbox {
     /// server allows them, and its folders are known by their server ids, never by a path. Any
     /// other account's folders are named by their path on an IMAP server, where `/` parts them.
     pub fn names_may_hold_slashes(&self, account: Id) -> bool {
-        self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft)
+        self.keeps_changes_for_server(account)
     }
 
     /// The folder of `account` that its server calls `id` ([`Folder::server`]).
@@ -1947,6 +1977,20 @@ impl Mailbox {
         self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
+    /// Whether a draft saved in `account` is kept on its server, field by field, with MailCraft's
+    /// marker: a Microsoft account's, and an Exchange server account's (#252).
+    pub fn keeps_drafts_on_server(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange))
+    }
+
+    /// Whether the changes made in `account` are queued for its server to make (a message or folder
+    /// deleted for good, a copy), and its folders are known by server ids: a Microsoft account's
+    /// and an Exchange server account's (#252). Moves between accounts stay Graph's
+    /// ([`Mailbox::is_graph`], [`Mailbox::puts_on_server`]).
+    pub fn keeps_changes_for_server(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange))
+    }
+
     /// Whether `account` is kept in step through Microsoft Graph.
     pub fn is_graph(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft)
@@ -2280,10 +2324,10 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.is_graph(from_account) && m.unfetched {
+        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
-        let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.is_graph(from_account));
+        let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));
         let mut copy = m.clone();
         copy.id = 0;
         copy.folder = folder;
@@ -2312,7 +2356,7 @@ impl Mailbox {
     fn queue_graph_delete(&mut self, id: Id, own: bool) {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.is_graph(m.account)) {
+        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
             deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
         }
         if let Some(out) = &m.moving_out {

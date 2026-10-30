@@ -17,8 +17,13 @@
 //! sits where the source puts it in its row (`valign`, `vertical-align`); where it says nothing, a
 //! row of a layout table whose cells each hold one line has them on its middle.
 //!
-//! Pictures and text that the message has in one line (`<img> 12`) stand side by side in it,
-//! on its middle, when the line fits; else each takes lines of its own.
+//! Pictures and text that the message has in one line (`<img> 12`) stand side by side in it, on
+//! its middle, and wrap when the line is full as words do: a piece that does not fit starts the
+//! next line, and a text that is longer than the line starts beside what is before it and goes on
+//! under it.
+//!
+//! Boxes on a line (`display: inline-block`, [`Table::inline`]) that follow one another stand
+//! side by side, each as wide as it asks or as its contents want, and wrap when the line is full.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -81,6 +86,12 @@ pub const PIECE_CHARS: usize = 4_000;
 const MAX_NESTING: usize = 24;
 /// Most pictures that stand in one line run.
 const MAX_RUN: usize = 64;
+/// The space between boxes on a line, and between their lines.
+const BOX_GAP: f32 = 4.0;
+/// The space between the wrapped lines of pictures and text.
+const WRAP_GAP: f32 = 2.0;
+/// The least room a text that is longer than the line needs beside what is before it to start there.
+const TAIL_MIN: f32 = 96.0;
 
 /// Most tabs written between two texts of a table row when they are copied.
 const MAX_TABS: u8 = 64;
@@ -516,6 +527,11 @@ fn place(cx: &mut Cx<'_>, flow: &mut Flow, blocks: &[Block], index: usize, depth
             let run = blocks.get(index..index + used).unwrap_or_default();
             (pictures(cx, run, x, top, width, flow.paper), PrevKind::Picture)
         }
+        (BlockKind::Table(table), None) if table.inline => {
+            used = box_run(blocks, index);
+            let run = blocks.get(index..index + used).unwrap_or_default();
+            (boxes_line(cx, run, x, top, width, flow.paper, depth), PrevKind::Other)
+        }
         (BlockKind::Table(table), None) => {
             let bottom = table_block(cx, table, block.align, x, top, width, flow.paper, depth);
             (bottom, if table.layout { PrevKind::Other } else { PrevKind::DataTable })
@@ -699,6 +715,11 @@ fn list_indent(kind: &BlockKind, width: f32) -> f32 {
 
 /// Lay out a paragraph, a heading, a list item or preformatted text; its bottom.
 fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper) -> f32 {
+    text_from(cx, block, x, y, width, paper, 0.0)
+}
+
+/// [`text`], its first line starting `lead` points in (there is something in front of it).
+fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper, lead: f32) -> f32 {
     let mut indent = list_indent(&block.kind, width);
     let left = x;
     // A long marker (item 4294967295 of a list) makes room for itself rather than hang out of the list.
@@ -715,9 +736,15 @@ fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
     let mut begun = false;
     for (n, (piece, glue)) in cut(&block.spans).iter().enumerate() {
-        let (job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align, block.line_height);
+        let (mut job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align, block.line_height);
         if chars == 0 {
             continue;
+        }
+        if n == 0
+            && lead > 0.0
+            && let Some(first) = job.sections.first_mut()
+        {
+            first.leading_space = lead;
         }
         let galley = cx.measure(job.clone());
         let height = galley.size().y;
@@ -982,9 +1009,22 @@ fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
     vec2(size.x.ceil() + 1.0, size.y)
 }
 
+/// How far a text starts and how tall its first row is, and how tall it is in all, when it
+/// starts `lead` points in and wraps at `width`.
+fn tail_metrics(cx: &mut Cx<'_>, block: &Block, paper: Paper, width: f32, lead: f32) -> (f32, f32) {
+    let (mut job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height);
+    if let Some(first) = job.sections.first_mut() {
+        first.leading_space = lead;
+    }
+    let galley = cx.measure(job);
+    (galley.rows.first().map_or(0.0, |r| r.height()), galley.size().y)
+}
+
 /// Lay out pictures and text that stand in one line, side by side and centred on the line's
-/// middle, the line placed as the first of them asks; the bottom. `None`, and nothing laid out,
-/// when they do not fit in `width`: then each takes its own lines, as before.
+/// middle, the line placed as the first of them asks; the bottom. When they do not fit in
+/// `width` they wrap as words do: a piece that does not fit starts the next line. A text longer
+/// than the line starts after what is in front of it, if there is room for a few words, and goes
+/// on under it. `None`, and nothing laid out, when a size is not a number.
 fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper) -> Option<f32> {
     let mut sizes = Vec::with_capacity(run.len());
     for block in run {
@@ -993,37 +1033,172 @@ fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             _ => line_size(cx, block, paper),
         });
     }
-    let length = sizes.iter().map(|s| s.x).sum::<f32>() + PICTURE_GAP * run.len().saturating_sub(1) as f32;
-    if !length.is_finite() || length > width + 0.5 {
+    if sizes.iter().any(|s| !s.x.is_finite() || !s.y.is_finite()) {
         return None;
     }
-    let height = sizes.iter().map(|s| s.y).fold(0.0, f32::max);
     let align = run.first().map_or(Align::Left, |b| b.align);
-    let mut at = x + match align {
-        Align::Left => 0.0,
-        Align::Center => ((width - length) / 2.0).max(0.0),
-        Align::Right => (width - length).max(0.0),
-    };
-    let mut said = false;
-    for (n, (block, size)) in run.iter().zip(&sizes).enumerate() {
-        // A copy has a space between the things of the line, not a line break.
-        if n > 0 {
-            cx.beside();
-        }
-        let top = y + ((height - size.y) / 2.0).max(0.0);
-        match block.kind {
-            BlockKind::Image { .. } => {
-                let tile = tile(cx, block, width, true);
-                put_tile(cx, &tile, Rect::from_min_size(pos2(at, top), tile.size), paper, &mut said);
+    let (mut y, mut i, mut first, mut said) = (y, 0, true, false);
+    while i < run.len() {
+        // The pieces of this line: as many as fit, and at least one.
+        let start = i;
+        let (mut used, mut height) = (0.0f32, 0.0f32);
+        let mut tail: Option<(usize, f32)> = None;
+        while let (Some(size), Some(block)) = (sizes.get(i), run.get(i)) {
+            let gap = if i > start { PICTURE_GAP } else { 0.0 };
+            if i > start && used + gap + size.x > width + 0.5 {
+                let text = !matches!(block.kind, BlockKind::Image { .. });
+                if text && align == Align::Left && width - used - gap >= TAIL_MIN {
+                    tail = Some((i, used + gap));
+                    i += 1;
+                }
+                break;
             }
-            _ => {
-                let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
-                text(cx, &alone, at, top, size.x, paper);
+            used += gap + size.x;
+            height = height.max(size.y);
+            i += 1;
+            if used > width + 0.5 {
+                // Alone and wider than the line: a text that takes lines of its own.
+                break;
             }
         }
-        at += size.x + PICTURE_GAP;
+        let end = tail.map_or(i, |(t, _)| t);
+        let line = run.get(start..end).unwrap_or_default();
+        let row = tail.and_then(|(t, lead)| run.get(t).map(|b| tail_metrics(cx, b, paper, width, lead)));
+        let line_height = height.max(row.map_or(0.0, |(first_row, _)| first_row));
+        let too_wide = used > width + 0.5;
+        let mut at = x + if tail.is_some() || too_wide {
+            0.0
+        } else {
+            match align {
+                Align::Left => 0.0,
+                Align::Center => ((width - used) / 2.0).max(0.0),
+                Align::Right => (width - used).max(0.0),
+            }
+        };
+        let mut bottom = y + line_height;
+        for (block, size) in line.iter().zip(sizes.get(start..end).unwrap_or_default()) {
+            // A copy has a space between the things of the line, not a line break.
+            if !std::mem::take(&mut first) {
+                cx.beside();
+            }
+            let top = y + ((line_height - size.y) / 2.0).max(0.0);
+            match block.kind {
+                BlockKind::Image { .. } => {
+                    let tile = tile(cx, block, width, true);
+                    put_tile(cx, &tile, Rect::from_min_size(pos2(at, top), tile.size), paper, &mut said);
+                }
+                _ if too_wide => {
+                    let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
+                    bottom = bottom.max(text(cx, &alone, x, y, width, paper));
+                }
+                _ => {
+                    let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
+                    text(cx, &alone, at, top, size.x, paper);
+                }
+            }
+            at += size.x + PICTURE_GAP;
+        }
+        if let (Some((t, lead)), Some((first_row, _))) = (tail, row)
+            && let Some(block) = run.get(t)
+        {
+            if !std::mem::take(&mut first) {
+                cx.beside();
+            }
+            let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
+            let top = y + ((line_height - first_row) / 2.0).max(0.0);
+            bottom = bottom.max(text_from(cx, &alone, x, top, width, paper, lead));
+        }
+        y = bottom + if i < run.len() { WRAP_GAP } else { 0.0 };
     }
-    Some(y + height)
+    Some(y)
+}
+
+// ---- boxes on a line ----
+
+/// How many blocks from `index` are boxes on a line: the box and those that follow it.
+fn box_run(blocks: &[Block], index: usize) -> usize {
+    let inline = |b: &&Block| matches!(&b.kind, BlockKind::Table(t) if t.inline);
+    let quote = blocks.get(index).map_or(0, |b| b.quote);
+    1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote).count()
+}
+
+/// The room a box on a line asks to be kept free left and right of it.
+fn box_margins(table: &Table) -> f32 {
+    f32::from(table.box_margin[0]) + f32::from(table.box_margin[1])
+}
+
+/// The gap in front of a box on a line, when it stands after another: the one the source has,
+/// white space (none where the columns are written touching, or at a size of nothing).
+fn box_gap(table: &Table) -> f32 {
+    if table.spaced { BOX_GAP } else { 0.0 }
+}
+
+/// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
+/// as its contents want, wrapping to more lines when a box does not fit; the bottom. A box that
+/// asks for more than the line is held to it. The boxes of a line stand at its top, the line
+/// where the first of them says (`text-align` of what holds them).
+fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
+    // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
+    struct Slot<'a> {
+        table: &'a Table,
+        wide: f32,
+        room: f32,
+        clear: f32,
+    }
+    let mut slots: Vec<Slot<'_>> = Vec::with_capacity(run.len());
+    for block in run {
+        let BlockKind::Table(table) = &block.kind else { continue };
+        let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
+        let line = (width - clear).max(MIN_CELL.min(width));
+        let (wide, room) = match table.width {
+            Some(Length::Px(w)) => (f32::from(w).min(line), f32::from(w).min(line)),
+            Some(Length::Percent(p)) => (line * f32::from(p.min(100)) / 100.0, line),
+            None => {
+                let extent = if depth >= MAX_NESTING { Extent { min: MIN_WIDTH, max: line } } else { table_extent(cx, table, depth) };
+                let wide = extent.max.min(line);
+                (wide, wide)
+            }
+        };
+        let wide = wide.max(MIN_CELL.min(line));
+        slots.push(Slot { table, wide, room: room.max(wide), clear });
+    }
+    let align = run.first().map_or(Align::Left, |b| b.align);
+    let (mut y, mut first, mut start) = (y, true, 0);
+    while start < slots.len() {
+        // As many as fit in this line, at least one.
+        let (mut used, mut end) = (0.0f32, start);
+        while let Some(slot) = slots.get(end) {
+            let gap = if end > start { box_gap(slot.table) } else { 0.0 };
+            let next = used + gap + slot.wide + slot.clear;
+            if end > start && next > width + 0.5 {
+                break;
+            }
+            used = next;
+            end += 1;
+        }
+        let mut at = x + match align {
+            Align::Left => 0.0,
+            Align::Center => ((width - used) / 2.0).max(0.0),
+            Align::Right => (width - used).max(0.0),
+        };
+        let mut bottom = y;
+        for (n, slot) in slots.get(start..end).unwrap_or_default().iter().enumerate() {
+            // A copy has a space between the boxes, whether they are on one line or more: it does
+            // not go by the room there is.
+            if !std::mem::take(&mut first) {
+                cx.beside();
+            }
+            if n > 0 {
+                at += box_gap(slot.table);
+            }
+            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
+            bottom = bottom.max(table_block(cx, slot.table, Align::Left, at + left, y, slot.room, paper, depth));
+            at += slot.wide + slot.clear;
+        }
+        y = bottom + if end < slots.len() { BOX_GAP } else { 0.0 };
+        start = end.max(start + 1);
+    }
+    y
 }
 
 // ---- how wide things want to be ----
@@ -1076,6 +1251,21 @@ fn blocks_extent(cx: &mut Cx<'_>, blocks: &[Block], depth: usize) -> Extent {
                     };
                     extent.min = extent.min.max(least);
                     extent.max += tile.wanted + if n > 0 { PICTURE_GAP } else { 0.0 };
+                }
+                extent
+            }
+            // Boxes on a line: as long as all of them, and when it is short of room each stands on
+            // its own.
+            BlockKind::Table(table) if table.inline => {
+                used = box_run(blocks, i);
+                let mut extent = Extent::default();
+                for (n, part) in blocks.iter().skip(i).take(used).enumerate() {
+                    if let BlockKind::Table(t) = &part.kind {
+                        let own = table_extent(cx, t, depth);
+                        let clear = box_margins(t);
+                        extent.min = extent.min.max(own.min + clear);
+                        extent.max += own.max + clear + if n > 0 { box_gap(t) } else { 0.0 };
+                    }
                 }
                 extent
             }
