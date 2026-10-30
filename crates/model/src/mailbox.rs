@@ -2950,10 +2950,6 @@ impl Mailbox {
             self.server_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
             fixed.push("accounts, folders or categories beyond the limits dropped".into());
         }
-        // A list of categories is an account's own: a shared mailbox has its owner's.
-        let own: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
-        self.account_categories.retain(|account, _| own.contains(account));
-        self.server_categories.retain(|account, _| own.contains(account));
         for c in self.categories.iter_mut().chain(self.account_categories.values_mut().flatten()) {
             if let Some(clean) = clean_name(&c.name)
                 && clean != c.name
@@ -2975,12 +2971,26 @@ impl Mailbox {
         for a in &mut self.accounts {
             a.clamp_opened_calendars();
             if a.id == 0 || !sane(&a.id) || !seen.insert(a.id) {
+                let old = a.id;
                 a.id = self.next_id;
                 self.next_id = self.next_id.saturating_add(1);
+                // Its list of categories goes with it, unless the old id is another account's.
+                if !seen.contains(&old) {
+                    if let Some(list) = self.account_categories.remove(&old) {
+                        self.account_categories.insert(a.id, list);
+                    }
+                    if let Some(names) = self.server_categories.remove(&old) {
+                        self.server_categories.insert(a.id, names);
+                    }
+                }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
             }
         }
+        // A list of categories is an account's own: a shared mailbox has its owner's.
+        let own: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
+        self.account_categories.retain(|account, _| own.contains(account));
+        self.server_categories.retain(|account, _| own.contains(account));
         self.tidy_listed_twice();
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();

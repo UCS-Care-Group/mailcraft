@@ -192,7 +192,8 @@ fn categorize_shows_what_the_items_carry_off_the_list_and_takes_it_off() {
 #[test]
 fn a_list_that_goes_leaves_the_dialog_on_the_shared_list() {
     let (mut app, a, _) = rig();
-    let form = CategoriesForm::new(&app.session, &json!({"account": a}));
+    let mut form = CategoriesForm::new(&app.session, &json!({"account": a}));
+    form.new_name = "Meant for that list".into();
     app.session.run("account.remove", &json!({"id": a})).unwrap();
     let shared = CategoriesForm::new(&app.session, &json!({"account": 0}));
     let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(600.0, 600.0)).build_ui_state(
@@ -204,4 +205,17 @@ fn a_list_that_goes_leaves_the_dialog_on_the_shared_list() {
     h.run_steps(2);
     // What it adds goes there, in a colour free there.
     assert_eq!(h.state().1.add_command(), shared.add_command());
+}
+
+#[test]
+fn an_events_window_offers_what_the_event_has_off_its_list() {
+    let (mut app, a, _) = rig();
+    let calendar = app.session.mailbox.alloc_id();
+    let origin = mailcraft_model::Origin { account: a, id: "C-1".into(), ..Default::default() };
+    app.session.mailbox.calendars.push(mailcraft_model::Calendar { id: calendar, name: "Team".into(), origin, ..Default::default() });
+    let event = Event { calendar, title: "Review".into(), categories: vec!["Came with it".into(), "red".into()], ..Default::default() };
+    let id = app.session.mailbox.add_event(event).unwrap();
+    let Some(Form::Event(f)) = Form::open("editEvent", &app, &json!({"id": id})) else { panic!("no form") };
+    let offered: Vec<String> = f.offered_categories(&app.session).into_iter().map(|(name, _)| name).collect();
+    assert_eq!(offered, ["Red", "Client X", "Came with it"]);
 }
