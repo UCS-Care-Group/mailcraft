@@ -216,6 +216,13 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
 /// as you go doesn't wander off to the copy.
 fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     let path = p::req_str(v, "path")?.to_string();
+    // Saved onto the file the mailbox is kept in (the dialog suggests its very name): that is a
+    // save, never the one-file form written over it, which would leave its content folder
+    // orphaned and a large mailbox unreadable (#649).
+    #[cfg(not(target_arch = "wasm32"))]
+    if s.path.as_deref().is_some_and(|kept| same_file(kept, std::path::Path::new(&path))) {
+        return save(s, &json!({"path": s.path.as_ref().map(|p| p.to_string_lossy().to_string())})).map(|r| with(r, "copy", json!(false)));
+    }
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
         let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
@@ -230,6 +237,13 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
         s.note_saved();
     }
     Ok(with(r, "copy", json!(!home)))
+}
+
+/// Whether two paths name one file: equal, or the same on disk (another spelling, case on
+/// Windows, a link).
+#[cfg(not(target_arch = "wasm32"))]
+fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
+    a == b || matches!((std::fs::canonicalize(a), std::fs::canonicalize(b)), (Ok(x), Ok(y)) if x == y)
 }
 
 fn import(s: &mut Session, v: &Value) -> CmdResult {
