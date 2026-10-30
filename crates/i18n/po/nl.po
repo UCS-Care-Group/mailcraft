@@ -417,9 +417,8 @@ msgstr "Een reeks die de server van het account bewaart, kan vanaf hier niet naa
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-msgstr "Een webadres, een e-mailadres of een telefoonnummer (tel:). Als er niets is geselecteerd, wordt het adres ingevoegd zoals het is."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -12795,9 +12794,8 @@ msgstr "een map heeft een naam nodig"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-#, fuzzy
-msgid "a link goes to an http, https, mailto or tel address"
-msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -15423,6 +15421,14 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Een webadres, een e-mailadres of een telefoonnummer (tel:). Als er niets is geselecteerd, wordt het adres ingevoegd zoals het is."
+
+#, fuzzy
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"

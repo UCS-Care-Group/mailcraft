@@ -403,9 +403,8 @@ msgstr "Una serie conservata sul server dell'account non può essere spostata da
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-msgstr "Un indirizzo web, un indirizzo di posta elettronica o un numero di telefono (tel:). Se non è selezionato nulla, l'indirizzo viene inserito così com'è."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -12376,9 +12375,8 @@ msgstr "una cartella richiede un nome"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-#, fuzzy
-msgid "a link goes to an http, https, mailto or tel address"
-msgstr "un collegamento punta a un indirizzo http, https, mailto o tel"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -14933,6 +14931,14 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Un indirizzo web, un indirizzo di posta elettronica o un numero di telefono (tel:). Se non è selezionato nulla, l'indirizzo viene inserito così com'è."
+
+#, fuzzy
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "un collegamento punta a un indirizzo http, https, mailto o tel"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"

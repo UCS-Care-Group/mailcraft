@@ -350,7 +350,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
 
 #. date and time, interface
@@ -10644,7 +10644,7 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-msgid "a link goes to an http, https, mailto or tel address"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
 msgstr ""
 
 #. what a command says

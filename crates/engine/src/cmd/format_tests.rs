@@ -140,6 +140,21 @@ fn a_plain_edit_keeps_the_formatting_around_it() {
 }
 
 #[test]
+fn a_link_may_go_to_any_scheme_but_the_unsafe_ones() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "VPN", "body": "Open the network settings now"}));
+    run(&mut s, "compose.link", json!({"url": "ms-settings:network-vpn", "from": 9, "to": 25}));
+    assert!(compose(&s).body.text().link_span(10).is_some());
+    for bad in ["javascript:alert(1)", "JAVASCRIPT:alert(1)", " vbscript:x", "data:text/html,x", "File:///etc/passwd", "java\tscript:x", "nonsense"] {
+        let err = s.run("compose.link", &json!({"url": bad, "from": 0, "to": 4})).unwrap_err().to_string();
+        assert!(err.contains("a link goes to an address like"), "{bad}: {err}");
+    }
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("<a href=\"ms-settings:network-vpn\">"), "{html}");
+}
+
+#[test]
 fn a_formatted_message_goes_out_as_html_with_a_plain_text_part() {
     let mut s = session();
     run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Plan", "body": "Agenda\nfirst\nsecond\nsee <the> site"}));

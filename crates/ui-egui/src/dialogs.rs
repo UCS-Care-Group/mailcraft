@@ -1474,7 +1474,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 ui.label(
                     egui::RichText::new(tl!(
-                        "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+                        "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
                     ))
                     .color(t.text_dim)
                     .size(11.0),
@@ -1496,7 +1496,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             } else if submit {
                 match app.execute("compose.link", json!({"url": link_address(url)})) {
                     Ok(_) => close = true,
-                    Err(e) => *error = e,
+                    Err(e) => *error = tl!(&e).to_string(),
                 }
             }
             // The keyboard goes back to the text.
