@@ -412,6 +412,9 @@ fn a_lost_answer_doesnt_make_a_rule_twice_and_a_rule_deleted_while_made_is_delet
     let upload = rule_upload(&s.mailbox, account).unwrap();
     mark_sent(&mut s, &upload);
     assert!(rule(&s, id).unanswered);
+    // An answer that stopped before it (the sign-in refused part-way) leaves it so too.
+    apply_rule_changes(&mut s, &answered(account, Vec::new())).unwrap();
+    assert!(rule(&s, id).unanswered && rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
     let failed = |rule: Id| RuleOutcome { kind: RuleOpKind::Create, rule, result: RuleResult::Failed, ..Default::default() };
     apply_rule_changes(&mut s, &answered(account, vec![failed(id)])).unwrap();
     assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
