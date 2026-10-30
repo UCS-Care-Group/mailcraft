@@ -419,12 +419,13 @@ fn the_newest_mail_has_its_text_read_once_the_window_shows() {
 }
 
 /// Timing of a big file (not run by default): `MC_BENCH_DIR=<folder> cargo test -p mailcraft-engine
-/// --lib stream_bench -- --ignored --nocapture`. About 1.4 GB, 50,000 messages, 100,000 files.
+/// --lib stream_bench -- --ignored --nocapture`. About 1.4 GB, 50,000 messages, 100,000 files,
+/// in a folder `mailcraft-stream-bench` made in `<folder>` (only that is cleared).
 #[test]
 #[ignore]
 fn stream_bench() {
     use std::io::Write as _;
-    let dir = PathBuf::from(std::env::var("MC_BENCH_DIR").unwrap());
+    let dir = PathBuf::from(std::env::var("MC_BENCH_DIR").unwrap()).join("mailcraft-stream-bench");
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     let path = dir.join("mailbox.mailcraft");
