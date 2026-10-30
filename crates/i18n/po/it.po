@@ -493,9 +493,10 @@ msgid "Accessibility"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Account"
-msgstr ""
+msgstr "Account"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -606,6 +607,54 @@ msgstr "Aggiungi un'attività"
 #, fuzzy
 msgid "Add a task due today"
 msgstr "Aggiungi un'attività con scadenza oggi"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer"
+msgstr "Aggiungi un'attività con scadenza oggi su questo computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer for now"
+msgstr "Aggiungi un’attività in scadenza oggi su questo computer per ora"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address}"
+msgstr "Aggiungi un'attività con scadenza oggi a {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address} (it waits here until To Do is allowed)"
+msgstr "Aggiungi un’attività in scadenza oggi a {address} (resta qui finché To Do non è consentito)"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer"
+msgstr "Aggiungi un'attività su questo computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer for now"
+msgstr "Aggiungi un’attività su questo computer per ora"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address}"
+msgstr "Aggiungi un'attività a {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address} (it waits here until To Do is allowed)"
+msgstr "Aggiungi un’attività a {address} (resta qui finché To Do non è consentito)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -749,6 +798,12 @@ msgstr "Tutte le categorie…"
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Tutte le cassette postali"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "All accounts"
+msgstr "Tutti gli account"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -4465,6 +4520,12 @@ msgstr "Viene rimosso anche dal server di posta, e l'operazione non può essere 
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It waits on this computer until To Do is allowed for this account"
+msgstr "Resta su questo computer finché To Do non è consentito per questo account"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6518,10 +6579,16 @@ msgid "On the server · Searching…"
 msgstr "Sul server · Ricerca…"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Su questo computer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On this computer for now"
+msgstr "Su questo computer per ora"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
@@ -6879,6 +6946,12 @@ msgstr "Altro (IMAP)"
 #, fuzzy
 msgid "Other Calendars"
 msgstr "Altri calendari"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Other accounts and On this computer"
+msgstr "Altri account e Su questo computer"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -8802,6 +8875,12 @@ msgstr "Mostra avanzamento Invia/Ricevi"
 msgid "Show Sender Images"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Tasks Of"
+msgstr "Mostra attività di"
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Show a Shared Mailbox's Calendars"
@@ -10553,13 +10632,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Queste attività esistono solo su questo computer. Scegli l'account Microsoft il cui To Do le riceverà. Finché non scegli, restano qui e non ne viene inviato nulla."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Queste attività esistono solo su questo computer. Se le invii, vengono mantenute allineate con Microsoft To Do. Finché non lo fai, restano qui e non ne viene inviato nulla. File › Informazioni lo propone di nuovo."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

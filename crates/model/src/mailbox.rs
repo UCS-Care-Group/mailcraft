@@ -642,6 +642,11 @@ impl Account {
         self.shared_of.is_some()
     }
 
+    /// Whether Microsoft keeps its to-dos: it signs in with Microsoft and is not a shared mailbox.
+    pub fn keeps_tasks(&self) -> bool {
+        !self.is_shared() && self.kind != AccountKind::Jmap && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
@@ -882,6 +887,9 @@ pub struct Category {
     pub color: Rgb,
 }
 
+/// The colour of a category with none: one a list doesn't have, or one new to the list.
+pub const GREY_CATEGORY: Rgb = Rgb(0x8A, 0x8A, 0x8A);
+
 /// The categories a new mailbox starts with (our own colours).
 fn default_categories() -> Vec<Category> {
     [
@@ -953,6 +961,10 @@ pub struct Mailbox {
     /// to a server.
     #[serde(skip_serializing_if = "crate::LocalTasks::is_unasked")]
     pub local_tasks: crate::LocalTasks,
+    /// Where the owner last put a new to-do: an account, or 0 for this computer. `None` until
+    /// they have put one anywhere or answered [`crate::LocalTasks::SendTo`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_place: Option<Id>,
     /// Changes to events that a server said it took and that no download has shown yet
     /// ([`crate::remote::EventCheck`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -966,10 +978,16 @@ pub struct Mailbox {
     /// can't be worked out by comparing ([`Queued`]), oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub queued: Vec<Queued>,
-    /// The names on Outlook's list of categories, as a Microsoft account's server last gave it
-    /// (R3 spec S18): their colours are Outlook's. Empty until such a list was read.
-    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
-    pub outlook_categories: Vec<String>,
+    /// The lists of categories of the Microsoft accounts, each made at the first read of its
+    /// server's list (#633), by the id of the account. An account with none (IMAP, this computer,
+    /// a Microsoft account not read yet) has [`Mailbox::categories`]; a shared mailbox its owner's
+    /// ([`Mailbox::category_list_owner`]).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
+    pub account_categories: BTreeMap<Id, Vec<Category>>,
+    /// The names on Outlook's list of categories, as each Microsoft account's server last gave it
+    /// (R3 spec S18, #633): their colours are Outlook's. No entry until such a list was read.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
+    pub server_categories: BTreeMap<Id, Vec<String>>,
     /// The time zone the wall-clock times of the events are written in ([`Event::start`]): the
     /// zone the calendar was shown in when they were written, by its name in the IANA database
     /// (`Europe/Berlin`) or as an offset (`UTC+05:30`). Empty in a mailbox written before zones
@@ -1008,10 +1026,12 @@ impl Default for Mailbox {
             task_gone: Vec::new(),
             shared_task_lists: BTreeMap::new(),
             local_tasks: crate::LocalTasks::Unasked,
+            task_place: None,
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
             queued: Vec::new(),
-            outlook_categories: Vec::new(),
+            account_categories: BTreeMap::new(),
+            server_categories: BTreeMap::new(),
             zone: String::new(),
             redecoded: false,
             next_id: 1,
@@ -1161,6 +1181,19 @@ impl Mailbox {
             return Err(not_found("account", id));
         }
         let going: HashSet<Id> = self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+        // Its to-dos stay, and use the shared list from now on: what they carry comes across.
+        let carried: Vec<Category> = self
+            .tasks
+            .values()
+            .filter(|t| going.contains(&t.origin.account))
+            .flat_map(|t| t.categories.iter().filter_map(|name| self.category_of(t.origin.account, name)))
+            .cloned()
+            .collect();
+        for category in carried {
+            if self.category(&category.name).is_none() && self.categories.len() < MAX_CATEGORIES {
+                self.categories.push(category);
+            }
+        }
         self.accounts.retain(|a| !going.contains(&a.id));
         self.folders.retain(|f| !going.contains(&f.account));
         self.messages.retain(|_, m| !going.contains(&m.account));
@@ -1170,6 +1203,8 @@ impl Mailbox {
         self.task_gone.retain(|gone| !going.contains(&gone.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
         self.junk_accounts.retain(|account, _| !going.contains(account));
+        self.account_categories.retain(|account, _| !going.contains(account));
+        self.server_categories.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -1181,6 +1216,10 @@ impl Mailbox {
         if matches!(self.local_tasks, crate::LocalTasks::SendTo(a) if going.contains(&a)) {
             self.local_tasks = crate::LocalTasks::Unasked;
         }
+        // Never back to nothing while the answer above stands: that would read as a file from
+        // before it (`migrate_waiting_tasks`).
+        let sent_to = if let crate::LocalTasks::SendTo(account) = self.local_tasks { Some(account) } else { None };
+        self.task_place = self.task_place.filter(|place| !going.contains(place)).or(sent_to);
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
         self.tidy_listed_twice();
@@ -2508,6 +2547,38 @@ impl Mailbox {
         true
     }
 
+    /// Before #632 a to-do left here went to the account of [`crate::LocalTasks::SendTo`] whenever
+    /// it was made; now that answer moves what is here when it is given. What a file from then
+    /// still has waiting goes there all the same, once: `task_place`, set here and by the answer,
+    /// says that it has been done. Whether anything moved.
+    fn migrate_waiting_tasks(&mut self) -> bool {
+        let crate::LocalTasks::SendTo(account) = self.local_tasks else { return false };
+        if self.task_place.is_some() || !self.account(account).is_some_and(Account::keeps_tasks) {
+            return false;
+        }
+        self.task_place = Some(account);
+        let waiting: Vec<Id> = self.tasks.values().filter(|t| t.only_here()).map(|t| t.id).collect();
+        self.send_tasks_to(&waiting, account);
+        !waiting.is_empty()
+    }
+
+    /// The to-dos of `ids` go from this computer to `account`, and the categories they carry onto
+    /// the account's list, in the colours they have here (a list made later takes them anyway).
+    pub fn send_tasks_to(&mut self, ids: &[Id], account: Id) {
+        let mut carried = std::collections::BTreeSet::new();
+        for id in ids {
+            if let Ok(task) = self.task_mut(*id) {
+                task.origin.account = account;
+                carried.extend(task.categories.iter().cloned());
+            }
+        }
+        for name in carried {
+            if self.categories_of(account).len() < MAX_CATEGORIES {
+                self.adopt_category(account, &name);
+            }
+        }
+    }
+
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
     pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
         let mut ran = Vec::new();
@@ -2531,7 +2602,11 @@ impl Mailbox {
                     change => {
                         let Ok(m) = self.message_mut(id) else { break };
                         match change {
-                            Action::Categorize(c) if !m.has_category(c) => m.categories.push(c.clone()),
+                            Action::Categorize(c) if !m.has_category(c) => {
+                                m.categories.push(c.clone());
+                                let account = m.account;
+                                self.adopt_category(account, c);
+                            }
                             Action::Flag => m.flag = crate::FlagStatus::Flagged,
                             Action::MarkRead => m.read = true,
                             Action::SetImportance(i) => m.importance = *i,
@@ -2650,38 +2725,94 @@ impl Mailbox {
 
     // ---- categories ----
 
+    /// The account whose own list of categories the items of `account` use: itself, or for a
+    /// shared mailbox its owner. `None` when they use the list the rest share,
+    /// [`Mailbox::categories`].
+    pub fn category_list_owner(&self, account: Id) -> Option<Id> {
+        let owner = self.junk_owner(account);
+        self.account_categories.contains_key(&owner).then_some(owner)
+    }
+
+    /// The categories the items of `account` use (0, or an account that is gone: the shared list).
+    pub fn categories_of(&self, account: Id) -> &[Category] {
+        self.category_list_owner(account).and_then(|owner| self.account_categories.get(&owner)).unwrap_or(&self.categories)
+    }
+
+    fn categories_of_mut(&mut self, account: Id) -> &mut Vec<Category> {
+        match self.category_list_owner(account) {
+            Some(owner) => self.account_categories.entry(owner).or_default(),
+            None => &mut self.categories,
+        }
+    }
+
+    /// The categories on the lists of all of `accounts` (a selection may hold items of several),
+    /// in the first's colours; the shared list when there are none.
+    pub fn categories_for(&self, accounts: &[Id]) -> Vec<Category> {
+        let Some((first, rest)) = accounts.split_first() else { return self.categories.clone() };
+        self.categories_of(*first).iter().filter(|c| rest.iter().all(|a| self.category_of(*a, &c.name).is_some())).cloned().collect()
+    }
+
+    /// Every list of categories, the shared one first.
+    pub fn all_categories(&self) -> impl Iterator<Item = &Category> {
+        self.categories.iter().chain(self.account_categories.values().flatten())
+    }
+
+    /// Every category of every list, a name once: what a search or a rule, which aren't any one
+    /// account's, offer.
+    pub fn every_category(&self) -> Vec<Category> {
+        let mut seen = HashSet::new();
+        self.all_categories().filter(|c| seen.insert(c.name.to_lowercase())).cloned().collect()
+    }
+
+    /// The account an event's categories are of: its calendar's (0 for this computer's).
+    pub fn event_account(&self, event: &Event) -> Id {
+        self.calendar(event.calendar).map_or(0, |c| c.origin.account)
+    }
+
     pub fn category(&self, name: &str) -> Option<&Category> {
-        self.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name.trim()))
+        self.category_of(0, name)
     }
 
-    /// A category's colour; grey for a name the list doesn't have (a category from elsewhere).
+    /// The category `name` on the list the items of `account` use.
+    pub fn category_of(&self, account: Id, name: &str) -> Option<&Category> {
+        self.categories_of(account).iter().find(|c| c.name.eq_ignore_ascii_case(name.trim()))
+    }
+
+    /// A category's colour on the shared list; grey for a name it doesn't have.
     pub fn category_color(&self, name: &str) -> Rgb {
-        self.category(name).map_or(Rgb(0x8A, 0x8A, 0x8A), |c| c.color)
+        self.category_color_of(0, name)
     }
 
-    /// Add a category, or recolour the one with that name.
-    pub fn set_category(&mut self, name: &str, color: Rgb) -> Result<(), ModelError> {
+    /// A category's colour on an item of `account`; grey for a name its list doesn't have (a
+    /// category from elsewhere).
+    pub fn category_color_of(&self, account: Id, name: &str) -> Rgb {
+        self.category_of(account, name).map_or(GREY_CATEGORY, |c| c.color)
+    }
+
+    /// Add a category to the list `account`'s items use, or recolour the one with that name.
+    pub fn set_category(&mut self, account: Id, name: &str, color: Rgb) -> Result<(), ModelError> {
         let name = clean_name(name).ok_or_else(|| invalid("a category needs a name"))?;
-        match self.categories.iter_mut().find(|c| c.name.eq_ignore_ascii_case(&name)) {
+        let list = self.categories_of_mut(account);
+        match list.iter_mut().find(|c| c.name.eq_ignore_ascii_case(&name)) {
             Some(c) => c.color = color,
-            None => self.categories.push(Category { name, color }),
+            None => list.push(Category { name, color }),
         }
         Ok(())
     }
 
-    /// Rename a category everywhere it is used.
-    pub fn rename_category(&mut self, from: &str, to: &str) -> Result<(), ModelError> {
+    /// Rename a category on the list `account`'s items use, and on the items that use that list.
+    pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
-        if !from.eq_ignore_ascii_case(&to) && self.category(&to).is_some() {
+        if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
             return Err(invalid(format!("a category named \"{to}\" already exists")));
         }
         let cat = self
-            .categories
+            .categories_of_mut(account)
             .iter_mut()
             .find(|c| c.name.eq_ignore_ascii_case(from.trim()))
             .ok_or_else(|| invalid(format!("no category named \"{from}\"")))?;
         cat.name = to.clone();
-        self.each_category_list(|list| {
+        self.each_category_list(account, |list| {
             for c in list.iter_mut().filter(|c| c.eq_ignore_ascii_case(from.trim())) {
                 *c = to.clone();
             }
@@ -2689,30 +2820,75 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Remove a category from the list and from every item.
-    pub fn remove_category(&mut self, name: &str) -> Result<(), ModelError> {
-        let before = self.categories.len();
-        self.categories.retain(|c| !c.name.eq_ignore_ascii_case(name.trim()));
-        if self.categories.len() == before {
+    /// Remove a category from the list `account`'s items use, and from the items that use it.
+    pub fn remove_category(&mut self, account: Id, name: &str) -> Result<(), ModelError> {
+        let list = self.categories_of_mut(account);
+        let before = list.len();
+        list.retain(|c| !c.name.eq_ignore_ascii_case(name.trim()));
+        if list.len() == before {
             return Err(invalid(format!("no category named \"{name}\"")));
         }
-        self.each_category_list(|list| list.retain(|c| !c.eq_ignore_ascii_case(name.trim())));
+        self.each_category_list(account, |list| list.retain(|c| !c.eq_ignore_ascii_case(name.trim())));
         Ok(())
     }
 
-    /// Apply `f` to the category list of every item that has one (items without stay shared).
-    fn each_category_list(&mut self, f: impl Fn(&mut Vec<String>)) {
-        for m in self.messages.values_mut().filter(|m| !m.categories.is_empty()) {
+    /// Apply `f` to the category list of every item that has one (items without stay shared) and
+    /// uses the same list of categories as `account`'s items.
+    fn each_category_list(&mut self, account: Id, f: impl Fn(&mut Vec<String>)) {
+        let list = self.category_list_owner(account);
+        let lists: HashMap<Id, Id> = self.accounts.iter().filter_map(|a| Some((a.id, self.category_list_owner(a.id)?))).collect();
+        let calendars: HashMap<Id, Id> = self.calendars.iter().map(|c| (c.id, c.origin.account)).collect();
+        let uses = |account: Id| lists.get(&account).copied() == list;
+        for m in self.messages.values_mut().filter(|m| !m.categories.is_empty() && uses(m.account)) {
             f(&mut Arc::make_mut(m).categories);
         }
-        for c in self.contacts.values_mut().filter(|c| !c.categories.is_empty()) {
+        for c in self.contacts.values_mut().filter(|c| !c.categories.is_empty() && uses(c.origin.account)) {
             f(&mut Arc::make_mut(c).categories);
         }
-        for e in self.events.values_mut().filter(|e| !e.categories.is_empty()) {
+        for e in self.events.values_mut().filter(|e| !e.categories.is_empty() && uses(calendars.get(&e.calendar).copied().unwrap_or(0))) {
             f(&mut Arc::make_mut(e).categories);
         }
-        for t in self.tasks.values_mut().filter(|t| !t.categories.is_empty()) {
+        for t in self.tasks.values_mut().filter(|t| !t.categories.is_empty() && uses(t.origin.account)) {
             f(&mut Arc::make_mut(t).categories);
+        }
+    }
+
+    /// The names the items of `owner` (its shared mailboxes' too) carry, each once and fit for a
+    /// list (a server wrote them), at most `MAX_REMOTE_CATEGORIES`.
+    fn category_names_of(&self, owner: Id) -> Vec<String> {
+        let mine = |account: Id| self.junk_owner(account) == owner;
+        let messages = self.messages.values().filter(|m| mine(m.account)).map(|m| &m.categories);
+        let contacts = self.contacts.values().filter(|c| mine(c.origin.account)).map(|c| &c.categories);
+        let events = self.events.values().filter(|e| mine(self.event_account(e))).map(|e| &e.categories);
+        let tasks = self.tasks.values().filter(|t| mine(t.origin.account)).map(|t| &t.categories);
+        let mut seen = HashSet::new();
+        messages
+            .chain(contacts)
+            .chain(events)
+            .chain(tasks)
+            .flatten()
+            .filter_map(|name| clean_name(name))
+            .filter(|name| seen.insert(name.to_lowercase()))
+            .take(crate::remote::MAX_REMOTE_CATEGORIES)
+            .collect()
+    }
+
+    /// Give `account` a list of categories of its own, at the first read of its server's (#633):
+    /// the categories its items already carry, in the colours they have today. Those of the
+    /// other accounts stay out of it, and the shared list stays as it is.
+    pub fn start_account_categories(&mut self, account: Id) {
+        let owner = self.junk_owner(account);
+        if !self.account_categories.contains_key(&owner) {
+            let list = self.category_names_of(owner).into_iter().map(|name| Category { color: self.category_color(&name), name }).collect();
+            self.account_categories.insert(owner, list);
+        }
+    }
+
+    /// Put a category that a rule gave an item of `account` on the account's own list, in the
+    /// shared list's colour: the rule isn't any one account's.
+    fn adopt_category(&mut self, account: Id, name: &str) {
+        if self.category_list_owner(account).is_some() && self.category_of(account, name).is_none() {
+            let _ = self.set_category(account, name, self.category_color(name));
         }
     }
 
@@ -2810,13 +2986,21 @@ impl Mailbox {
         // A file can't hold more accounts, folders or colour categories than a person has: the
         // rest are dropped (their messages go to the Inbox below), so the work on a hostile file
         // stays bounded.
-        if self.accounts.len() > MAX_ACCOUNTS || self.folders.len() > MAX_FOLDERS || self.categories.len() > MAX_CATEGORIES {
+        let crowded = self.account_categories.values().any(|list| list.len() > MAX_CATEGORIES)
+            || self.server_categories.values().any(|list| list.len() > MAX_CATEGORIES);
+        if self.accounts.len() > MAX_ACCOUNTS || self.folders.len() > MAX_FOLDERS || self.categories.len() > MAX_CATEGORIES || crowded {
             self.accounts.truncate(MAX_ACCOUNTS);
             self.folders.truncate(MAX_FOLDERS);
             self.categories.truncate(MAX_CATEGORIES);
+            self.account_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
+            self.server_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
             fixed.push("accounts, folders or categories beyond the limits dropped".into());
         }
-        for c in &mut self.categories {
+        // A list of categories is an account's own: a shared mailbox has its owner's.
+        let own: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
+        self.account_categories.retain(|account, _| own.contains(account));
+        self.server_categories.retain(|account, _| own.contains(account));
+        for c in self.categories.iter_mut().chain(self.account_categories.values_mut().flatten()) {
             if let Some(clean) = clean_name(&c.name)
                 && clean != c.name
             {
@@ -2844,6 +3028,9 @@ impl Mailbox {
             }
         }
         self.tidy_listed_twice();
+        if self.migrate_waiting_tasks() {
+            fixed.push("to-dos waiting for an earlier answer given to its account".to_string());
+        }
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
         let before = self.folders.len();

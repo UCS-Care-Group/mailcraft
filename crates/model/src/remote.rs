@@ -77,6 +77,51 @@ impl Origin {
     }
 }
 
+/// Whose items a list shows: every account's, those kept on this computer, or one account's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountChoice {
+    #[default]
+    All,
+    Here,
+    Account(Id),
+}
+
+impl AccountChoice {
+    /// What a command says for it: `"all"`, `"here"` (or 0, as `tasks.new` says it) or the
+    /// account's id.
+    pub fn parse(value: &serde_json::Value) -> Option<AccountChoice> {
+        match value {
+            serde_json::Value::String(s) if s == "all" => Some(AccountChoice::All),
+            serde_json::Value::String(s) if s == "here" => Some(AccountChoice::Here),
+            value => value.as_u64().map(|id| if id == 0 { AccountChoice::Here } else { AccountChoice::Account(id) }),
+        }
+    }
+
+    /// The same, for an answer.
+    pub fn code(self) -> serde_json::Value {
+        match self {
+            AccountChoice::All => "all".into(),
+            AccountChoice::Here => "here".into(),
+            AccountChoice::Account(id) => id.into(),
+        }
+    }
+
+    /// The choice that holds an item of this origin.
+    pub fn of(origin: &Origin) -> AccountChoice {
+        if origin.is_local() { AccountChoice::Here } else { AccountChoice::Account(origin.account) }
+    }
+
+    /// Whether the list shows an item of this origin.
+    pub fn shows(self, origin: &Origin) -> bool {
+        match self {
+            AccountChoice::All => true,
+            AccountChoice::Here => origin.is_local(),
+            AccountChoice::Account(account) => origin.account == account,
+        }
+    }
+}
+
 /// What a server's event is to a series.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

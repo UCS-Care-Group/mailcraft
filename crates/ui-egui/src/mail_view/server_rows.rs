@@ -215,7 +215,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         app.hit.add("serverResultFolder", index as u64, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(time_end, tail_y + 7.0)));
     }
     for c in m.categories.iter().take(4) {
-        let color = crate::theme::c32(app.session.mailbox.category_color(c));
+        let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
