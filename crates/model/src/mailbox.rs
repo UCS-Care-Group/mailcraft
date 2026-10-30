@@ -984,6 +984,10 @@ pub struct Mailbox {
     /// for once only, so that a message whose own bytes are broken isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub redecoded: bool,
+    /// The same for the messages of IMAP accounts (#650): looked for once, and each one that held
+    /// U+FFFD marked ([`Message::refetch`]) to be downloaded again by its UID.
+    #[serde(skip_serializing_if = "is_false")]
+    pub redecoded_imap: bool,
     next_id: Id,
 }
 
@@ -1014,6 +1018,7 @@ impl Default for Mailbox {
             outlook_categories: Vec::new(),
             zone: String::new(),
             redecoded: false,
+            redecoded_imap: false,
             next_id: 1,
         }
     }
