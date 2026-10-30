@@ -940,6 +940,13 @@ fn messages_can_stay_light_in_the_dark_theme() {
     harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
     let light = colours(&mut harness);
+    // In the light theme the page is the window's own: turning the switch lays nothing out again.
+    let begun = super::view::layouts_begun(&harness.ctx);
+    for value in [true, false] {
+        harness.state_mut().execute("ui.lightMessages", json!({"value": value})).unwrap();
+        assert_eq!(colours(&mut harness), light);
+    }
+    assert_eq!(super::view::layouts_begun(&harness.ctx), begun);
     harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
     let dark = colours(&mut harness);
     assert_ne!(dark, light);
@@ -951,14 +958,14 @@ fn messages_can_stay_light_in_the_dark_theme() {
     assert!(!super::view::on_light_page(harness.state(), Place::Quote) && !super::view::on_light_page(harness.state(), Place::Preview));
 
     // The page is painted light under the body in the pane, and in a message's own window.
-    assert_eq!(light_pages(&harness), 1);
+    assert_eq!(light_pages(&harness).len(), 1);
     harness.state_mut().execute("ui.openWindow", json!({"message": id})).unwrap();
     harness.run_steps(8);
-    assert_eq!(light_pages(&harness), 2);
+    assert_eq!(light_pages(&harness).len(), 2);
 
     harness.state_mut().execute("ui.lightMessages", json!({"value": false})).unwrap();
     assert_eq!(colours(&mut harness), dark);
-    assert_eq!(light_pages(&harness), 0);
+    assert_eq!(light_pages(&harness).len(), 0);
 }
 
 /// A message still being laid out when the owner keeps messages light and turns the window dark
@@ -1024,19 +1031,52 @@ fn the_owners_own_text_keeps_the_windows_colours() {
     assert_eq!(inks(&harness, Place::Preview, 0), std::collections::HashSet::from([Tokens::dark().text]));
 }
 
-/// How many light pages were painted in the last frame: rectangles in the light theme's surface
-/// colour taller and wider than a block of a message.
-fn light_pages(harness: &Window) -> usize {
-    fn count(shape: &egui::Shape, n: &mut usize) {
+/// On a light page in a dark window the body's scroll bar is the light theme's, not the dark
+/// window's on the white page.
+#[test]
+fn a_light_page_scrolls_with_the_light_themes_bar() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(4);
+    // The bar floats in sight while the pointer is over the body.
+    let page = light_pages(&harness)[0];
+    harness.event(egui::Event::PointerMoved(page.center()));
+    harness.run_steps(30);
+    let scroll = harness.ctx.global_style().spacing.scroll;
+    let bar = rects(&harness).into_iter().filter(|r| page.contains_rect(r.rect) && r.rect.width() <= scroll.bar_width && r.fill.a() > 0);
+    let light = Tokens::light();
+    assert_eq!(
+        bar.map(|r| r.fill).collect::<std::collections::HashSet<_>>(),
+        std::collections::HashSet::from([
+            light.input.gamma_multiply(scroll.active_background_opacity),
+            light.text.gamma_multiply(scroll.active_handle_opacity)
+        ])
+    );
+}
+
+/// Every rectangle painted in the last frame.
+fn rects(harness: &Window) -> Vec<egui::epaint::RectShape> {
+    fn walk(shape: &egui::Shape, rects: &mut Vec<egui::epaint::RectShape>) {
         match shape {
-            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| count(s, n)),
-            egui::Shape::Rect(r) if r.fill == Tokens::light().surface && r.rect.width() > 300.0 && r.rect.height() > 300.0 => *n += 1,
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, rects)),
+            egui::Shape::Rect(r) => rects.push(r.clone()),
             _ => {}
         }
     }
-    let mut n = 0;
-    harness.output().shapes.iter().for_each(|s| count(&s.shape, &mut n));
-    n
+    let mut rects = Vec::new();
+    harness.output().shapes.iter().for_each(|s| walk(&s.shape, &mut rects));
+    rects
+}
+
+/// The light pages painted in the last frame: rectangles in the light theme's surface colour
+/// taller and wider than a block of a message.
+fn light_pages(harness: &Window) -> Vec<egui::Rect> {
+    let pages = rects(harness).into_iter().filter(|r| r.fill == Tokens::light().surface && r.rect.width() > 300.0 && r.rect.height() > 300.0);
+    pages.map(|r| r.rect).collect()
 }
 
 /// Generous bounds: this is an unoptimised build of this crate, on whatever machine runs the

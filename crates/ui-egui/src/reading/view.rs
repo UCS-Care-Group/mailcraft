@@ -221,7 +221,9 @@ struct Key {
     /// In whole points.
     width: u32,
     dark: bool,
-    /// On a light page ([`on_light_page`]): turned on as the window turns dark, `dark` stays as it was.
+    /// A light page ([`on_light_page`]) in a dark window: turned on as the window turns dark,
+    /// `dark` (the page's) stays as it was. In the light theme the page is the window's own, and
+    /// turning the switch lays nothing out again.
     light: bool,
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
@@ -475,7 +477,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let key = Key {
         width: width as u32,
         dark: t.dark,
-        light,
+        light: light && Tokens::get(&ctx).dark,
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
@@ -544,9 +546,14 @@ pub fn on_light_page(app: &MailApp, place: Place) -> bool {
 }
 
 /// What the body scrolls on: the light theme's page when [`on_light_page`] (the edges of the
-/// scrolling fade to it too), else the window's own.
-pub fn page(app: &MailApp, place: Place) -> egui::Frame {
-    if on_light_page(app, place) { egui::Frame::NONE.fill(Tokens::light().surface) } else { egui::Frame::NONE }
+/// scrolling fade to it too), with the light theme's visuals in `ui` for what egui draws on it,
+/// its scroll bars; else the window's own.
+pub fn page(app: &MailApp, place: Place, ui: &mut Ui) -> egui::Frame {
+    if !on_light_page(app, place) {
+        return egui::Frame::NONE;
+    }
+    *ui.visuals_mut() = ui.ctx().style_of(egui::Theme::Light).visuals.clone();
+    egui::Frame::NONE.fill(Tokens::light().surface)
 }
 
 /// Look at what is laid out of a message's body where it is shown, when it is shown there.
