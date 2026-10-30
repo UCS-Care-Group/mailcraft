@@ -90,7 +90,7 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
     let ctx = ui.ctx().clone();
     remote::tick(app, &ctx);
     select::begin(app, ui, m, place);
-    let doc = view::doc_shown(&ctx, m, place, false, view::env_of(ui));
+    let doc = view::doc_shown(&ctx, m, place, false, view::env_of(app, ui, place));
     let access = Access::Blocked;
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     header(app, ui, m, place, |_, ui, t| {
@@ -102,9 +102,11 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
     });
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", place)).show(ui, |ui| {
-            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                view::show(app, ui, m, place, access);
+        view::page(app, place, ui).show(ui, |ui| {
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", place)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
             });
         });
     });
@@ -160,7 +162,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     }
     remote::tick(app, &ctx);
     select::begin(app, ui, m, place);
-    let doc = view::doc_shown(&ctx, m, place, remote::available(app), view::env_of(ui));
+    let doc = view::doc_shown(&ctx, m, place, remote::available(app), view::env_of(app, ui, place));
     let access = if doc.remote.is_empty() { Access::Blocked } else { remote::access(app, m) };
     // Asked for: what has not come yet is sent for, while the message is on screen.
     let progress = if access == Access::Allowed { remote::want(app, &ctx, m, &doc) } else { remote::Progress::default() };
@@ -203,10 +205,12 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // header too wide for a narrow pane must not make the text run out of sight with it.
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
-        egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
-            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                view::show(app, ui, m, place, access);
+        view::page(app, place, ui).show(ui, |ui| {
+            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
             });
         });
     });
@@ -280,7 +284,7 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
     let Some(m) = quote_message(app, &ctx) else { return };
     remote::tick(app, &ctx);
     select::begin(app, ui, &m, Place::Quote);
-    let doc = view::doc_shown(&ctx, &m, Place::Quote, remote::available(app), view::env_of(ui));
+    let doc = view::doc_shown(&ctx, &m, Place::Quote, remote::available(app), view::env_of(app, ui, Place::Quote));
     // A quote whose original isn't known (a reopened draft, an original since deleted) has no
     // folder or sender to judge by: it never fetches anything.
     let known = app.session.compose.as_ref().and_then(|c| c.source).is_some_and(|id| app.session.mailbox.messages.contains_key(&id));

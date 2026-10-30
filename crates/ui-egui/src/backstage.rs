@@ -492,6 +492,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    let mut light = app.ui.light_messages;
+    if ui
+        .checkbox(&mut light, tl!("Show messages on a light background in the dark theme"))
+        .on_hover_text(tl!("Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."))
+        .changed()
+    {
+        let _ = app.run("ui.lightMessages", json!({"value": light}));
+    }
     row(ui, tl!("Language"), |ui| {
         // Each language by its own name, so the owner finds theirs whatever the window speaks.
         let name = |l: crate::i18n::Lang| l.picker_name();

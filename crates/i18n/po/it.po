@@ -5393,6 +5393,18 @@ msgstr "Messaggi nella cartella stessa"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr "I messaggi mantengono i colori scelti dai mittenti, su una pagina bianca, mentre il resto della finestra resta scuro."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Messages on a Light Background"
+msgstr "Messaggi su sfondo chiaro"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Messages to download per folder"
 msgstr "Messaggi da scaricare per cartella"
 
@@ -8841,6 +8853,12 @@ msgstr "Mostra in gruppi"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Mostra nella barra dell'orario"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Show messages on a light background in the dark theme"
+msgstr "Mostra i messaggi su sfondo chiaro nel tema scuro"
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs

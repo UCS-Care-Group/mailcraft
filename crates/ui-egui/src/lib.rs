@@ -734,6 +734,9 @@ pub struct UiState {
     pub ribbon_mode: ribbon::Mode,
     /// Interface theme: light, dark, or follow the OS appearance.
     pub theme: theme::Appearance,
+    /// A message's body on a light page in the light theme's colours, as its sender made it, also
+    /// when the window is dark: the reading pane and a message's own window, not its header.
+    pub light_messages: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -819,6 +822,7 @@ impl Default for UiState {
             ribbon_collapsed: false,
             ribbon_mode: ribbon::Mode::default(),
             theme: theme::Appearance::default(),
+            light_messages: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             language: i18n::AUTO.into(),
@@ -873,6 +877,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
+    (
+        "ui.lightMessages",
+        "Messages on a Light Background",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
+    ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
@@ -2033,6 +2043,10 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.lightMessages" => {
+                self.ui.light_messages = b("value").unwrap_or(!self.ui.light_messages);
+                Ok(json!({"value": self.ui.light_messages}))
             }
             "ui.collapseRibbon" => {
                 self.ui.ribbon_collapsed = b("value").unwrap_or(!self.ui.ribbon_collapsed);

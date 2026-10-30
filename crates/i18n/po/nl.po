@@ -5561,6 +5561,18 @@ msgstr "Berichten in de map zelf"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr "Berichten houden de kleuren die hun afzenders kozen, op een witte pagina, terwijl de rest van het venster donker blijft."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Messages on a Light Background"
+msgstr "Berichten op een lichte achtergrond"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Messages to download per folder"
 msgstr "Berichten om per map te downloaden"
 
@@ -9107,6 +9119,12 @@ msgstr "Weergeven in groepen"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Weergeven in de tijdbalk"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Show messages on a light background in the dark theme"
+msgstr "Berichten in het donkere thema op een lichte achtergrond tonen"
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs

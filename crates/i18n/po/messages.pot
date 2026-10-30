@@ -4625,6 +4625,16 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Messages on a Light Background"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
 msgid "Messages to download per folder"
 msgstr ""
 
@@ -7557,6 +7567,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show in the time bar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show messages on a light background in the dark theme"
 msgstr ""
 
 #. interface

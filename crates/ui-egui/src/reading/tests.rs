@@ -917,6 +917,168 @@ fn the_theme_changes_the_colours_of_a_message_that_is_open() {
     assert!(blue.b() > blue.r() && contrast(blue, Tokens::dark().surface) >= super::colors::TARGET_CONTRAST, "{blue:?}");
 }
 
+/// In the dark theme, an owner who keeps messages light reads them in the light theme's colours,
+/// as their senders made them, laid out again when the switch is turned, while the window around
+/// them stays dark. The original under a reply being written keeps the window's colours.
+#[test]
+fn messages_can_stay_light_in_the_dark_theme() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "outlook reply");
+    let mut harness = window(app, (1280.0, 800.0));
+    let colours = |harness: &mut egui_kittest::Harness<'static, MailApp>| {
+        harness.run_steps(4);
+        super::view::kept(&harness.ctx, id, |laid, _| {
+            let colours = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some((text.paper, text.job.sections.iter().map(|s| s.format.color).collect::<Vec<_>>())),
+                ItemKind::Fill { color, .. } => Some((*color, Vec::new())),
+                _ => None,
+            });
+            colours.collect::<Vec<_>>()
+        })
+        .unwrap()
+    };
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    let light = colours(&mut harness);
+    // In the light theme the page is the window's own: turning the switch lays nothing out again.
+    let begun = super::view::layouts_begun(&harness.ctx);
+    for value in [true, false] {
+        harness.state_mut().execute("ui.lightMessages", json!({"value": value})).unwrap();
+        assert_eq!(colours(&mut harness), light);
+    }
+    assert_eq!(super::view::layouts_begun(&harness.ctx), begun);
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    let dark = colours(&mut harness);
+    assert_ne!(dark, light);
+
+    assert_eq!(harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap()["value"], true);
+    assert_eq!(colours(&mut harness), light);
+    assert!(harness.ctx.global_style().visuals.dark_mode, "the window stays dark");
+    assert!(super::view::on_light_page(harness.state(), Place::Pane) && super::view::on_light_page(harness.state(), Place::Window(1)));
+    assert!(!super::view::on_light_page(harness.state(), Place::Quote) && !super::view::on_light_page(harness.state(), Place::Preview));
+
+    // The page is painted light under the body in the pane, and in a message's own window.
+    assert_eq!(light_pages(&harness).len(), 1);
+    harness.state_mut().execute("ui.openWindow", json!({"message": id})).unwrap();
+    harness.run_steps(8);
+    assert_eq!(light_pages(&harness).len(), 2);
+
+    harness.state_mut().execute("ui.lightMessages", json!({"value": false})).unwrap();
+    assert_eq!(colours(&mut harness), dark);
+    assert_eq!(light_pages(&harness).len(), 0);
+}
+
+/// A message still being laid out when the owner keeps messages light and turns the window dark
+/// at once is laid out again: its page is still light, but what was begun without the light page
+/// must not go on in the dark window's colours.
+#[test]
+fn a_layout_begun_before_the_light_page_goes_on_in_its_colours() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(2);
+    assert_eq!(super::view::kept(&harness.ctx, id, |laid, _| laid.done), Some(false));
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    for _ in 0..500 {
+        if super::view::kept(&harness.ctx, id, |laid, _| laid.done) == Some(true) {
+            break;
+        }
+        harness.step();
+    }
+    let inks = super::view::kept(&harness.ctx, id, |laid, _| {
+        let inks = laid.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+            _ => None,
+        });
+        (laid.done, inks.flatten().collect::<std::collections::HashSet<_>>())
+    })
+    .unwrap();
+    assert_eq!(inks, (true, std::collections::HashSet::from([Tokens::light().text])));
+}
+
+/// With messages kept light in the dark theme, what the owner writes keeps the window's colours:
+/// the original under a reply being written and File › Signatures' sample are laid out dark.
+#[test]
+fn the_owners_own_text_keeps_the_windows_colours() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
+    app.autosave = false;
+    app.execute("ui.theme", json!({"value": "dark"})).unwrap();
+    app.execute("ui.lightMessages", json!({"value": true})).unwrap();
+    app.execute("signature.set", json!({"name": "Mine", "text": "Avery"})).unwrap();
+    app.execute("signature.open", json!({"name": "Mine"})).unwrap();
+    let id = app.session.mailbox.messages.values().find(|m| m.subject.starts_with("Five new arrivals")).map(|m| m.id).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(4);
+    let inks = |harness: &Window, place: Place, id: u64| {
+        super::view::kept_at(&harness.ctx, place, id, |laid, _| {
+            let inks = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+                _ => None,
+            });
+            inks.flatten().collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_else(|| panic!("nothing is laid out at {place:?}"))
+    };
+    let quote = inks(&harness, Place::Quote, id);
+    assert!(quote.contains(&Tokens::dark().text) && !quote.contains(&Tokens::light().text), "{quote:?}");
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(inks(&harness, Place::Preview, 0), std::collections::HashSet::from([Tokens::dark().text]));
+}
+
+/// On a light page in a dark window the body's scroll bar is the light theme's, not the dark
+/// window's on the white page.
+#[test]
+fn a_light_page_scrolls_with_the_light_themes_bar() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(4);
+    // The bar floats in sight while the pointer is over the body.
+    let page = light_pages(&harness)[0];
+    harness.event(egui::Event::PointerMoved(page.center()));
+    harness.run_steps(30);
+    let scroll = harness.ctx.global_style().spacing.scroll;
+    let bar = rects(&harness).into_iter().filter(|r| page.contains_rect(r.rect) && r.rect.width() <= scroll.bar_width && r.fill.a() > 0);
+    let light = Tokens::light();
+    assert_eq!(
+        bar.map(|r| r.fill).collect::<std::collections::HashSet<_>>(),
+        std::collections::HashSet::from([
+            light.input.gamma_multiply(scroll.active_background_opacity),
+            light.text.gamma_multiply(scroll.active_handle_opacity)
+        ])
+    );
+}
+
+/// Every rectangle painted in the last frame.
+fn rects(harness: &Window) -> Vec<egui::epaint::RectShape> {
+    fn walk(shape: &egui::Shape, rects: &mut Vec<egui::epaint::RectShape>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, rects)),
+            egui::Shape::Rect(r) => rects.push(r.clone()),
+            _ => {}
+        }
+    }
+    let mut rects = Vec::new();
+    harness.output().shapes.iter().for_each(|s| walk(&s.shape, &mut rects));
+    rects
+}
+
+/// The light pages painted in the last frame: rectangles in the light theme's surface colour
+/// taller and wider than a block of a message.
+fn light_pages(harness: &Window) -> Vec<egui::Rect> {
+    let pages = rects(harness).into_iter().filter(|r| r.fill == Tokens::light().surface && r.rect.width() > 300.0 && r.rect.height() > 300.0);
+    pages.map(|r| r.rect).collect()
+}
+
 /// Generous bounds: this is an unoptimised build of this crate, on whatever machine runs the
 /// tests. What it takes is printed (`--nocapture`).
 #[test]

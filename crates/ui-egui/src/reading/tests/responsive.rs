@@ -159,6 +159,26 @@ fn a_dark_window_uses_the_senders_dark_palette() {
     assert!(text(&harness, dark_id).contains("light edition"));
 }
 
+/// A dark window that keeps messages on a light page (#634) shows a newsletter's light edition
+/// there, without its dark design, and makes its blocks once: the first guess at the theme, made
+/// before the body is laid out, is the page's and not the window's.
+#[test]
+fn a_light_page_in_a_dark_window_shows_the_light_edition() {
+    let (mut app, _, dark_id, _) = app();
+    app.execute("ui.theme", json!({"value": "dark"})).unwrap();
+    app.execute("ui.lightMessages", json!({"value": true})).unwrap();
+    let mut harness = window(app, (1400.0, 900.0));
+    select(&mut harness, dark_id);
+    harness.run_steps(12);
+    assert!(harness.ctx.global_style().visuals.dark_mode, "the window stays dark");
+    let doc = view::current_doc(&harness.ctx, Place::Pane, dark_id).unwrap();
+    assert!(!doc.sender_dark);
+    assert!(!view::current_look(&harness.ctx, Place::Pane, dark_id).unwrap().dark());
+    let t = text(&harness, dark_id);
+    assert!(t.contains("light edition") && !t.contains("dark edition"), "{t}");
+    assert_eq!(view::docs_made(&harness.ctx), 1);
+}
+
 /// With the sender's own dark design, its backgrounds are painted as asked, and a text colour is
 /// changed only when it cannot be read on them; without it a light background is turned dark.
 #[test]
