@@ -1007,8 +1007,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 13,
-        "reading.rs, colors, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view and warnings (and its tests)"
+        checked, 14,
+        "reading.rs, colors, header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view and warnings (and its tests)"
     );
 }
 

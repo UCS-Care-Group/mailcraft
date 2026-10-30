@@ -24,6 +24,8 @@
 //! ([`invitation`]).
 
 pub(crate) mod colors;
+#[cfg(test)]
+mod header_tests;
 pub(crate) mod images;
 #[cfg(test)]
 mod images_tests;
@@ -343,6 +345,26 @@ pub(crate) const ACTIONS: [(&str, &str, &str); 4] = [
     ("delete", "Delete", "mail.delete"),
 ];
 
+/// The widths the sender's name and address get in `room` (what is left of the row after the
+/// tag), given the widths they would like. Both fit when they can; else the address is
+/// shortened first, down to 60% of the room, and the name gets the rest, shortened in turn
+/// (#630). The two never add up to more than `room`.
+pub(crate) fn header_widths(room: f32, name: f32, address: f32) -> (f32, f32) {
+    let room = room.max(0.0);
+    let (name, address) = (name.max(0.0), address.max(0.0));
+    if name + address <= room {
+        return (name, address);
+    }
+    let address_w = address.min(room * 0.6);
+    ((room - address_w).min(name).max(0.0), address_w)
+}
+
+/// Whether the date goes on a line of its own: the pane is too narrow to give the sender a
+/// useful row beside it.
+pub(crate) fn header_date_on_own_line(row: f32, date: f32) -> bool {
+    row - date < 220.0
+}
+
 fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
     let t = Tokens::get(ui.ctx());
     // The texts that can be selected are laid out here and painted once the pointer has had its
@@ -383,49 +405,69 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
                 let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-                // The date first, at the right; the name and address get what is left, cut short
-                // when the pane is narrow rather than run under the date.
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(8.0);
-                        fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when).font(regular(11.5)).color(t.text_dim)));
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            // The address is what the sender really is: it gets its room first, and a
-                            // long name is cut short instead (and a name that looks like an address
-                            // is marked, as it may be passing for one).
-                            let address_text = format!("<{}>", m.from.email);
-                            let room = ui.available_width();
-                            let address_w = if m.from.name.is_empty() {
-                                0.0
-                            } else {
-                                ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x.min(room * 0.8)
-                            };
-                            // From outside the organisation: a quiet tag after the address, which
-                            // keeps its room.
-                            let external = warnings::external(app, m);
-                            let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
-                            let name_w = (room - address_w - tag_w - ui.spacing().item_spacing.x).max(room * 0.2);
-                            let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
-                            let name =
-                                egui::RichText::new(m.from.display()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
-                            ui.scope(|ui| {
-                                ui.set_max_width(name_w);
-                                fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                // The date at the right; the name and address get what is left, cut short when
+                // the pane is narrow rather than run under the date (#630). A pane too narrow
+                // for both puts the date on a line of its own.
+                let date_w = ui.painter().layout_no_wrap(when.clone(), regular(11.5), t.text_dim).size().x + 8.0;
+                let on_own_line = header_date_on_own_line(ui.available_width(), date_w);
+                let date_label = |fields: &mut select::Fields, ui: &mut Ui| {
+                    fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when.clone()).font(regular(11.5)).color(t.text_dim)));
+                };
+                let sender_row = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui, room: f32| {
+                    // From outside the organisation: a quiet tag after the address, which
+                    // keeps its room.
+                    let external = warnings::external(app, m);
+                    let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
+                    let address_text = format!("<{}>", m.from.email);
+                    let name_text = m.from.display();
+                    let name_nat = ui.painter().layout_no_wrap(name_text.to_string(), semibold(13.0), t.text).size().x;
+                    let address_nat = if m.from.name.is_empty() {
+                        0.0
+                    } else {
+                        ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x
+                    };
+                    let gap = ui.spacing().item_spacing.x;
+                    let (name_w, address_w) = header_widths(room - tag_w - gap, name_nat, address_nat);
+                    let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
+                    let name =
+                        egui::RichText::new(name_text.to_string()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
+                    ui.scope(|ui| {
+                        ui.set_max_width(name_w);
+                        fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                    });
+                    if !m.from.name.is_empty() {
+                        let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                        ui.scope(|ui| {
+                            ui.set_max_width(address_w);
+                            fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                        });
+                    }
+                    if external {
+                        ui.add_space(6.0);
+                        let tag = warnings::external_tag(ui, &t);
+                        if place == Place::Pane {
+                            app.hit.add("externalTag", m.id, tag.rect);
+                        }
+                    }
+                };
+                if on_own_line {
+                    ui.horizontal(|ui| {
+                        let room = ui.available_width();
+                        sender_row(app, &mut fields, ui, room);
+                    });
+                    date_label(&mut fields, ui);
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(8.0);
+                            date_label(&mut fields, ui);
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                let room = ui.available_width();
+                                sender_row(app, &mut fields, ui, room);
                             });
-                            if !m.from.name.is_empty() {
-                                let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
-                                fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
-                            }
-                            if external {
-                                ui.add_space(6.0);
-                                let tag = warnings::external_tag(ui, &t);
-                                if place == Place::Pane {
-                                    app.hit.add("externalTag", m.id, tag.rect);
-                                }
-                            }
                         });
                     });
-                });
+                }
                 // (`said` is the line in the interface language, with `{names}` still to fill.)
                 let mut line = |ui: &mut Ui, field: select::Field, said: &str, list: &[mailcraft_model::Address]| {
                     if !list.is_empty() {
