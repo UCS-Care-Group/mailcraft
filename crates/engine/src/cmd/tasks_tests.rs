@@ -3,7 +3,7 @@
 //! Each account's tasks apart, and a new task in the place chosen (#632).
 
 use mailcraft_model::remote_tasks::{RemoteTask, RemoteTaskList, TaskOpKind, TasksDownload};
-use mailcraft_model::{AccountChoice, Id, LocalTasks, Task};
+use mailcraft_model::{AccountChoice, Category, GREY_CATEGORY, Id, LocalTasks, Rgb, Task};
 use serde_json::{Value, json};
 
 use super::tasks::{new_task_place, shown_account};
@@ -187,6 +187,38 @@ fn what_waited_for_an_answer_given_before_goes_there_once() {
     let bytes = crate::io::write_mailbox(&back.mailbox).unwrap();
     let again = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
     assert_eq!((going_to(&again, work).len(), local_task_count(&again.mailbox)), (waiting, 1));
+}
+
+#[test]
+fn a_task_sent_from_here_keeps_its_colours() {
+    let list = |name: &str| vec![Category { name: name.into(), color: Rgb(1, 2, 3) }];
+    let (mut s, work, home) = session();
+    s.mailbox.account_categories.insert(work, list("Clients"));
+    let blue = s.mailbox.category_color("Blue category");
+    assert_ne!(blue, GREY_CATEGORY);
+    assert_eq!(s.mailbox.category_color_of(work, "Blue category"), GREY_CATEGORY);
+    run(&mut s, "tasks.new", json!({"title": "Here", "account": 0, "categories": ["Blue category"]}));
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    assert_eq!(s.mailbox.category_color_of(work, "Blue category"), blue);
+    assert_eq!(s.mailbox.category_color_of(work, "Clients"), Rgb(1, 2, 3));
+    // An account with no list of its own yet uses the shared one, and gets none from this.
+    assert_eq!(s.mailbox.category_list_owner(home), None);
+
+    // What a file from before had waiting comes across the same way.
+    let (mut s, work, _) = session();
+    s.mailbox.account_categories.insert(work, list("Clients"));
+    s.mailbox.local_tasks = LocalTasks::SendTo(work);
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let back = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
+    assert_eq!(back.mailbox.category_color_of(work, "Blue category"), blue);
+
+    // A full list stays as it is: the name is still on the task, off the list.
+    let (mut s, work, _) = session();
+    const FULL: usize = 1_000;
+    let full = (0..FULL).map(|n| Category { name: format!("List {n}"), color: Rgb(1, 2, 3) }).collect();
+    s.mailbox.account_categories.insert(work, full);
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    assert_eq!(s.mailbox.categories_of(work).len(), FULL);
 }
 
 #[test]

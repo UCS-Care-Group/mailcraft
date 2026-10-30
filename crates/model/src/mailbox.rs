@@ -2557,12 +2557,26 @@ impl Mailbox {
             return false;
         }
         self.task_place = Some(account);
-        let mut moved = false;
-        for task in self.tasks.values_mut().filter(|t| t.only_here()) {
-            Arc::make_mut(task).origin.account = account;
-            moved = true;
+        let waiting: Vec<Id> = self.tasks.values().filter(|t| t.only_here()).map(|t| t.id).collect();
+        self.send_tasks_to(&waiting, account);
+        !waiting.is_empty()
+    }
+
+    /// The to-dos of `ids` go from this computer to `account`, and the categories they carry onto
+    /// the account's list, in the colours they have here (a list made later takes them anyway).
+    pub fn send_tasks_to(&mut self, ids: &[Id], account: Id) {
+        let mut carried = std::collections::BTreeSet::new();
+        for id in ids {
+            if let Ok(task) = self.task_mut(*id) {
+                task.origin.account = account;
+                carried.extend(task.categories.iter().cloned());
+            }
         }
-        moved
+        for name in carried {
+            if self.categories_of(account).len() < MAX_CATEGORIES {
+                self.adopt_category(account, &name);
+            }
+        }
     }
 
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.

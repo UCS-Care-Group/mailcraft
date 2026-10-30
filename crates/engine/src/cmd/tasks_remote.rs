@@ -406,11 +406,7 @@ fn send_local_command(s: &mut Session, v: &Value) -> CmdResult {
     let waiting = local.len();
     if let LocalTasks::SendTo(account) = answer {
         s.mailbox.task_place.get_or_insert(account);
-        for id in local {
-            if let Ok(task) = s.mailbox.task_mut(id) {
-                task.origin.account = account;
-            }
-        }
+        s.mailbox.send_tasks_to(&local, account);
     }
     s.mailbox_changed();
     Ok(match answer {
