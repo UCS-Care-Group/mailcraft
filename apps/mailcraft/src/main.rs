@@ -1920,7 +1920,9 @@ fn main() -> eframe::Result {
                 }
                 // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
                 // before their character sets were) is fetched again, once (#185).
-                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox);
+                // IMAP accounts' mail the same way, by UID, at the next Send/Receive (#650).
+                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox)
+                    + mailcraft_engine::cmd::imap_again::mark_unreadable(&mut app.session.mailbox);
                 if again > 0 {
                     app.session.mailbox_changed();
                     app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));

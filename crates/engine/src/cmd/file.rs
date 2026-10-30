@@ -149,6 +149,11 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if fetched_again > 0 {
         s.mailbox_changed();
     }
+    // So is that of IMAP accounts, by UID, at the next Send/Receive (#650).
+    let fetched_again = fetched_again.saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
+    if fetched_again > 0 {
+        s.mailbox_changed();
+    }
     Ok(json!({
         "favoritesNowGraph": favorites_now_graph,
         "fetchedAgain": fetched_again,

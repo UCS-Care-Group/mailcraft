@@ -882,6 +882,7 @@ fn a_sync_result_lands_in_the_right_folders() {
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
             complete: true,
+            ..Default::default()
         }],
         ..Default::default()
     };

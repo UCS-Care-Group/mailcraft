@@ -671,3 +671,29 @@ fn a_damaged_mailbox_marks_what_is_missing_without_saying_the_count() {
     let m = h.state().session.mailbox.message(id).unwrap();
     assert!(m.kept.as_ref().unwrap().failed && m.body.text == mailcraft_engine::store_placeholder());
 }
+
+#[test]
+fn imap_mail_damaged_only_in_a_body_that_comes_later_is_marked_once_it_has_come() {
+    let (mut mb, id, r, _) = kept_text();
+    // A message of an IMAP account whose subject and sender are plain and whose text, kept on
+    // disk for now, holds U+FFFD where an s with a caron was (#650).
+    let text = "Spo\u{FFFD}tovani partner, v znesku 155,81.".as_bytes().to_vec();
+    let account = mb.message(id).unwrap().account;
+    mb.account_mut(account).unwrap().kind = mailcraft_model::AccountKind::Imap;
+    mb.message_mut(id).unwrap().uid = 5;
+    // The opening looks first: the body is not in memory yet, so there is nothing to see.
+    assert_eq!(mailcraft_engine::cmd::imap_again::mark_unreadable(&mut mb), 0);
+    let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    app.autosave = false;
+    let (missing_tx, missing_rx) = channel();
+    let (tx, rx) = channel();
+    app.check_parts_later(missing_rx, 0, true);
+    app.take_bodies_later(rx);
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None, hidden: None }]).unwrap();
+    missing_tx.send(mailcraft_engine::Missing::default()).unwrap();
+    drop(tx);
+    let mut h = harness(app);
+    h.run_steps(3);
+    let m = h.state().session.mailbox.message(id).unwrap();
+    assert!(m.body.text.contains('\u{FFFD}') && m.refetch && !m.refetched);
+}
