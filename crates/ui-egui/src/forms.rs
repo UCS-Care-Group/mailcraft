@@ -5450,6 +5450,14 @@ mod categories {
             CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() }
         }
 
+        /// Put the list of `account` in view; nothing begun on the last one carries over.
+        fn show_list(&mut self, mailbox: &Mailbox, account: Id) {
+            self.account = account;
+            self.editing = None;
+            self.error.clear();
+            self.new_color = unused_color(mailbox.categories_of(account));
+        }
+
         /// A command's `params` for the list in view.
         fn on_list(&self, mut params: Value) -> Value {
             if let Some(params) = params.as_object_mut().filter(|_| self.account != 0) {
@@ -5469,7 +5477,7 @@ mod categories {
             let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let lists = lists(&app.session.mailbox);
             if !lists.iter().any(|(id, _)| *id == self.account) {
-                self.account = 0;
+                self.show_list(&app.session.mailbox, 0);
             }
             let list = app.session.mailbox.categories_of(self.account).to_vec();
             // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
@@ -5555,10 +5563,7 @@ mod categories {
                 });
             });
             if let Some(account) = picked {
-                self.account = account;
-                self.editing = None;
-                self.error.clear();
-                self.new_color = unused_color(app.session.mailbox.categories_of(account));
+                self.show_list(&app.session.mailbox, account);
             }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {

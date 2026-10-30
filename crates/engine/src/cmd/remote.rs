@@ -3742,7 +3742,7 @@ pub fn apply_categories(s: &mut Session, download: &CategoriesDownload) -> CmdRe
         }
     }
     // Outlook's list, by name, for its colours to win here (R3 spec S18). The items of a name that
-    // left it keep the name, in grey, as Outlook shows them.
+    // left it keep the name, in grey.
     if microsoft {
         let names: Vec<String> = download.categories.iter().map(|c| c.name.clone()).collect();
         let last = s.mailbox.server_categories.get(&list);

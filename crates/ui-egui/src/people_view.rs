@@ -668,11 +668,13 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
-            let account = app.session.mailbox.contact(id).map(|c| c.origin.account);
+            let contact = app.session.mailbox.contact(id);
+            let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
             crate::ribbon::category_menu(
                 ui,
                 app,
                 account.as_slice(),
+                &carried,
                 "people.categorize",
                 |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
                 None,

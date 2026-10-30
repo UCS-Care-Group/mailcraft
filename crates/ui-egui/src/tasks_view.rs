@@ -553,11 +553,13 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
         }
     });
     ui.menu_button(tl!("Categorize"), |ui| {
-        let account = app.session.mailbox.task(id).map(|t| t.origin.account);
+        let task = app.session.mailbox.task(id);
+        let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
         crate::ribbon::category_menu(
             ui,
             app,
             account.as_slice(),
+            &carried,
             "tasks.categorize",
             |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
             None,

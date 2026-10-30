@@ -238,3 +238,39 @@ fn a_file_keeps_the_lists_and_one_from_before_opens() {
     let text = serde_json::to_string(&Mailbox::default()).unwrap();
     assert!(!text.contains("accountCategories") && !text.contains("serverCategories"));
 }
+
+#[test]
+fn a_to_do_that_stays_keeps_the_colours_of_the_list_that_goes() {
+    let (mut mb, a, _) = two_accounts();
+    mb.start_account_categories(a);
+    mb.set_category(a, "Client X", WINE).unwrap();
+    mb.set_category(a, "Home", WINE).unwrap();
+    mb.set_category(a, "Unused", WINE).unwrap();
+    mb.set_category(0, "Home", RED).unwrap();
+    let origin = Origin { account: a, id: "T-1".into(), ..Default::default() };
+    let task = mb.add_task(Task { origin, categories: vec!["client x".into(), "Home".into(), "Nobody's".into()], ..Default::default() });
+
+    mb.remove_account(a).unwrap();
+    assert!(mb.task(task).is_some_and(|t| t.origin.is_local()));
+    assert_eq!(mb.category_color_of(0, "client x"), WINE);
+    // The shared list's colour stays, and only what a to-do carries comes across.
+    assert_eq!(mb.category_color_of(0, "Home"), RED);
+    assert!(mb.category("Unused").is_none() && mb.category("Nobody's").is_none());
+}
+
+#[test]
+fn every_category_of_a_list_in_a_file_counts() {
+    let (mut mb, a, _) = two_accounts();
+    let room = 200;
+    assert!(crate::from_json(&serde_json::to_vec(&mb).unwrap(), room).is_ok());
+    mb.account_categories.insert(a, (0..room).map(|i| tagged(&format!("c{i}"), RED)).collect());
+    let bytes = serde_json::to_vec(&mb).unwrap();
+    assert!(crate::from_json(&bytes, room).is_err());
+    assert!(crate::from_json(&bytes, 2 * room + 1).is_ok());
+
+    mb.account_categories.clear();
+    mb.server_categories.insert(a, (0..room).map(|i| format!("c{i}")).collect());
+    let bytes = serde_json::to_vec(&mb).unwrap();
+    assert!(crate::from_json(&bytes, room).is_err());
+    assert!(crate::from_json(&bytes, 2 * room + 1).is_ok());
+}

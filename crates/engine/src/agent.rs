@@ -1109,7 +1109,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "category.remove" => {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
-            let whose = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
+            let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
             format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "category.rename" if shared_category(s, id, params) => {

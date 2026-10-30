@@ -42,11 +42,15 @@ fn message_of(app: &mut MailApp, account: Id) -> Id {
 
 /// The Categorize menu for `accounts`, drawn on its own.
 fn menu(app: MailApp, accounts: Vec<Id>) -> Harness<'static, MailApp> {
-    let mut h = Harness::builder()
-        .with_accessibility_check(false)
-        .allow_missing_glyphs()
-        .with_size(egui::vec2(400.0, 500.0))
-        .build_ui_state(move |ui, app: &mut MailApp| crate::ribbon::category_menu(ui, app, &accounts, "mail.categorize", |_, _| false, None), app);
+    menu_carrying(app, accounts, Vec::new())
+}
+
+/// The Categorize menu for `accounts`, for items that have `carried`.
+fn menu_carrying(app: MailApp, accounts: Vec<Id>, carried: Vec<String>) -> Harness<'static, MailApp> {
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(400.0, 500.0)).build_ui_state(
+        move |ui, app: &mut MailApp| crate::ribbon::category_menu(ui, app, &accounts, &carried, "mail.categorize", |_, _| false, None),
+        app,
+    );
     h.run_steps(2);
     h
 }
@@ -164,4 +168,40 @@ fn with_no_account_of_its_own_the_dialog_is_as_it_was() {
     let h = dialog(app, json!({}));
     assert!(h.query_by_label("Account").is_none());
     assert!(h.query_by_label(REMARK).is_none());
+}
+
+#[test]
+fn categorize_shows_what_the_items_carry_off_the_list_and_takes_it_off() {
+    let (mut app, a, _) = rig();
+    let m = message_of(&mut app, a);
+    app.session.mailbox.message_mut(m).unwrap().categories = vec!["Came with it".into(), "red".into()];
+    app.session.sel.messages = vec![m];
+    let carried = crate::ribbon::selected_categories(&app);
+    let mut h = menu_carrying(app, vec![a], carried);
+    // One of each, the list's own spelling for what is on it.
+    assert_eq!(h.query_all_by_label("Came with it").count(), 1);
+    assert_eq!(h.query_all_by_label("Red").count(), 1);
+    assert_eq!(h.query_all_by_label("red").count(), 0);
+    h.get_by_label("Came with it").click();
+    h.run_steps(2);
+    let app = h.state();
+    assert_eq!(app.session.mailbox.message(m).unwrap().categories, ["red"]);
+    assert!(app.session.mailbox.category_of(a, "Came with it").is_none(), "taking it off doesn't list it");
+}
+
+#[test]
+fn a_list_that_goes_leaves_the_dialog_on_the_shared_list() {
+    let (mut app, a, _) = rig();
+    let form = CategoriesForm::new(&app.session, &json!({"account": a}));
+    app.session.run("account.remove", &json!({"id": a})).unwrap();
+    let shared = CategoriesForm::new(&app.session, &json!({"account": 0}));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(600.0, 600.0)).build_ui_state(
+        |ui, (app, form): &mut (MailApp, CategoriesForm)| {
+            form.show(app, ui);
+        },
+        (app, form),
+    );
+    h.run_steps(2);
+    // What it adds goes there, in a colour free there.
+    assert_eq!(h.state().1.add_command(), shared.add_command());
 }

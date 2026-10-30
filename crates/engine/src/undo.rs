@@ -196,9 +196,29 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
         out.queued.push(q);
     }
     // What the server last gave of these is the server's, not the owner's to undo.
-    out.server_categories = now.server_categories.clone();
+    server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines())
+}
+
+/// Each account's list of categories in `out` with what reads have done to it since kept: one
+/// read since stays, a name its server stopped listing stays gone, and one it added stays (#633).
+fn server_lists(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
+    let then = std::mem::replace(&mut out.server_categories, now.server_categories.clone());
+    let on = |list: Option<&Vec<String>>, name: &str| list.is_some_and(|names| names.iter().any(|n| same_category(n, name)));
+    for (account, list) in now.account_categories.iter().filter(|(account, _)| g.contains(account)) {
+        let Some(own) = out.account_categories.get_mut(account) else {
+            out.account_categories.insert(*account, list.clone());
+            continue;
+        };
+        let (was, is) = (then.get(account), now.server_categories.get(account));
+        own.retain(|c| !on(was, &c.name) || on(is, &c.name));
+        for c in list.iter().filter(|c| on(is, &c.name) && !on(was, &c.name)) {
+            if !own.iter().any(|o| same_category(&o.name, &c.name)) {
+                own.push(c.clone());
+            }
+        }
+    }
 }
 
 /// A message the undo puts back into the IMAP account it was being moved out of, while the run

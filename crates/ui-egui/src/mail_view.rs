@@ -1184,10 +1184,12 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
             let accounts = crate::ribbon::selected_accounts(app);
+            let carried = crate::ribbon::selected_categories(app);
             crate::ribbon::category_menu(
                 ui,
                 app,
                 &accounts,
+                &carried,
                 "mail.categorize",
                 |app, name| ids.iter().all(|id| app.session.mailbox.message(*id).is_some_and(|m| m.has_category(name))),
                 Some("mail.clearCategories"),

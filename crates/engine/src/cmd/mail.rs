@@ -818,19 +818,19 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
 fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let name = mailcraft_model::clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let ids = targets(s, v)?;
+    let all_have = ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.has_category(&name));
+    let on = p::bool(v, "value").unwrap_or(!all_have);
     // Each message takes the spelling of its account's list. A category nobody defined yet joins
-    // that list, in grey, so it can be given a colour.
+    // that list as it is put on, in grey, so it can be given a colour.
     let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
     let mut spelled = HashMap::new();
     for account in accounts {
         let spelling = s.mailbox.category_of(account, &name).map(|c| c.name.clone());
-        if spelling.is_none() {
+        if spelling.is_none() && on {
             s.mailbox.set_category(account, &name, GREY_CATEGORY)?;
         }
         spelled.insert(account, spelling.unwrap_or_else(|| name.clone()));
     }
-    let all_have = ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.has_category(&name));
-    let on = p::bool(v, "value").unwrap_or(!all_have);
     each(s, v, |m| {
         m.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
         if on {

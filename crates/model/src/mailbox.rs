@@ -973,11 +973,11 @@ pub struct Mailbox {
     /// server's list (#633), by the id of the account. An account with none (IMAP, this computer,
     /// a Microsoft account not read yet) has [`Mailbox::categories`]; a shared mailbox its owner's
     /// ([`Mailbox::category_list_owner`]).
-    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub account_categories: BTreeMap<Id, Vec<Category>>,
     /// The names on Outlook's list of categories, as each Microsoft account's server last gave it
     /// (R3 spec S18, #633): their colours are Outlook's. No entry until such a list was read.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub server_categories: BTreeMap<Id, Vec<String>>,
     /// The time zone the wall-clock times of the events are written in ([`Event::start`]): the
     /// zone the calendar was shown in when they were written, by its name in the IANA database
@@ -1171,6 +1171,19 @@ impl Mailbox {
             return Err(not_found("account", id));
         }
         let going: HashSet<Id> = self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+        // Its to-dos stay, and use the shared list from now on: what they carry comes across.
+        let carried: Vec<Category> = self
+            .tasks
+            .values()
+            .filter(|t| going.contains(&t.origin.account))
+            .flat_map(|t| t.categories.iter().filter_map(|name| self.category_of(t.origin.account, name)))
+            .cloned()
+            .collect();
+        for category in carried {
+            if self.category(&category.name).is_none() && self.categories.len() < MAX_CATEGORIES {
+                self.categories.push(category);
+            }
+        }
         self.accounts.retain(|a| !going.contains(&a.id));
         self.folders.retain(|f| !going.contains(&f.account));
         self.messages.retain(|_, m| !going.contains(&m.account));

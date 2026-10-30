@@ -193,11 +193,84 @@ fn an_agents_undo_that_loses_an_accounts_category_is_a_deletion() {
 
 #[test]
 fn an_agent_is_told_whose_category_goes() {
-    let (s, a, _) = rig();
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
     let Verdict::Ask(Class::Delete, text) = check(&s, "category.remove", &json!({"account": a, "name": "Red"}), &[]) else { panic!() };
     assert!(text.contains("a@example.org"), "{text}");
     for junk in [json!({"account": "x", "name": 7}), json!({"account": u64::MAX, "name": "Red"}), json!({"account": -1})] {
         let _ = check(&s, "category.remove", &junk, &[]);
         let _ = check(&s, "category.rename", &junk, &[]);
     }
+}
+
+#[test]
+fn an_account_that_isnt_one_is_refused_and_no_list_changes() {
+    let (mut s, a, _) = rig();
+    s.run("category.set", &json!({"name": "Shared", "color": "#112233"})).unwrap();
+    let before = s.mailbox.categories.clone();
+    for junk in [json!(a.to_string()), json!(-1), json!(true), json!(1.5), json!(0), json!([a]), json!({"id": a}), json!(9_999_999)] {
+        assert!(s.run("category.remove", &json!({"account": junk, "name": "Shared"})).is_err(), "{junk}");
+        assert!(s.run("category.rename", &json!({"account": junk, "from": "Shared", "to": "Other"})).is_err(), "{junk}");
+        assert!(s.run("category.set", &json!({"account": junk, "name": "New", "color": "#112233"})).is_err(), "{junk}");
+        assert!(s.run("category.list", &json!({"account": junk})).is_err(), "{junk}");
+    }
+    assert_eq!(s.mailbox.categories, before);
+    // No account, said or not, is the shared list.
+    s.run("category.rename", &json!({"account": null, "from": "Shared", "to": "Other"})).unwrap();
+    assert!(s.mailbox.category("Other").is_some() && s.mailbox.category("Shared").is_none());
+}
+
+#[test]
+fn a_list_read_since_the_step_stays_after_an_undo() {
+    let (mut s, a, _) = rig();
+    s.run("category.set", &json!({"name": "Shared", "color": "#112233"})).unwrap();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.category("Shared").is_none());
+    assert_eq!(s.mailbox.category_list_owner(a), Some(a));
+    assert_eq!(names(&s, a), ["Red"]);
+}
+
+#[test]
+fn what_a_read_changed_on_a_list_stays_after_an_undo() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![tag("Red", RED), tag("Old", RED)]);
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    let now = vec![tag("Red", RED), tag("New", WINE)];
+    read(&mut s, a, now.clone());
+    s.run("edit.undo", &json!({})).unwrap();
+    // The owner's step is undone; what the server said isn't, and no name is left stranded here.
+    assert_eq!(names(&s, a), ["Red", "New"]);
+    read(&mut s, a, now);
+    assert_eq!(names(&s, a), ["Red", "New"]);
+}
+
+#[test]
+fn taking_off_a_name_no_list_has_leaves_the_list_alone() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let m = message_of(&mut s, a, &["Came with it"]);
+    s.run("mail.categorize", &json!({"id": m, "category": "Came with it"})).unwrap();
+    assert!(s.mailbox.message(m).unwrap().categories.is_empty());
+    assert_eq!(names(&s, a), ["Red"]);
+    // Put on, it joins the list, to be given a colour.
+    s.run("mail.categorize", &json!({"id": m, "category": "Came with it"})).unwrap();
+    assert_eq!(names(&s, a), ["Red", "Came with it"]);
+}
+
+#[test]
+fn an_agent_is_told_the_account_only_when_the_list_is_its_own() {
+    let (mut s, a, b) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let imap = s.run("account.add", &json!({"email": "imap@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let local = s.mailbox.accounts.iter().find(|x| x.kind == AccountKind::Local).unwrap().id;
+    let text = |s: &Session, account: Id| {
+        let Verdict::Ask(Class::Delete, text) = check(s, "category.remove", &json!({"account": account, "name": "Red"}), &[]) else { panic!() };
+        text
+    };
+    assert!(text(&s, a).contains("a@example.org"));
+    // These use the shared list, which is no one account's.
+    assert!(!text(&s, b).contains("b@example.org"));
+    assert!(!text(&s, imap).contains("imap@example.org"));
+    assert!(!text(&s, local).contains("no subject"));
 }
