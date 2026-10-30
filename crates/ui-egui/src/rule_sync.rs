@@ -108,6 +108,10 @@ pub struct RuleSync {
     failures: HashMap<Id, (u32, f64)>,
     pub(crate) perm: HashMap<Id, Permission>,
     settling: HashMap<Id, u32>,
+    /// Which mailbox the job under way is for ([`Session::openings`]): its answer is for that one
+    /// alone, and is let go of when another has been opened since. And what it was to send.
+    opening: u64,
+    sending: RulesUpload,
     /// How many changes were waiting the last time, and since when.
     waiting: HashMap<Id, (usize, f64)>,
     /// How many changes wait per account, worked out for the mailbox as of this revision.
@@ -127,7 +131,7 @@ impl RuleSync {
 impl MailApp {
     /// Whether changes to the rules of `account` wait for the owner's permission. The server's
     /// rules are read all the same.
-    fn rules_held(&self, account: Id) -> bool {
+    pub(crate) fn rules_held(&self, account: Id) -> bool {
         matches!(self.rules.perm.get(&account), Some(Permission::Needed | Permission::Asking | Permission::Declined | Permission::Refused(_)))
     }
 
@@ -241,9 +245,16 @@ impl MailApp {
             .filter(|id| !id.is_empty())
             .collect();
         let given = fingerprint(&refresh);
+        let sent = upload.clone();
         let job = RulesJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, folders, cancel: Default::default() };
         let Some(graph) = &self.services.graph_rules else { return false };
-        self.rules.rx = Some((account, now, given, graph(job)));
+        let rx = graph(job);
+        // What goes to be made is not sent again until an answer, or the server's rules read
+        // whole, say what became of it: an answer lost would make it twice.
+        rules_remote::mark_sent(&mut self.session, &sent);
+        self.rules.sending = sent;
+        self.rules.rx = Some((account, now, given, rx));
+        self.rules.opening = self.session.openings();
         self.rules.checked.insert(account, now);
         true
     }
@@ -253,19 +264,27 @@ impl MailApp {
     pub fn poll_rules(&mut self) {
         let Some((account, started, given, rx)) = &self.rules.rx else { return };
         let (account, started, given) = (*account, *started, *given);
-        let result = match rx.try_recv() {
-            Ok(result) => result,
+        let (result, ended_early) = match rx.try_recv() {
+            Ok(result) => (result, false),
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("rules, account {account}: the job ended without an answer (its thread ended early)");
-                RulesResult {
-                    account,
-                    errors: vec![tl!("The rules on the server couldn't be read: the job stopped unexpectedly").to_string()],
-                    ..Default::default()
-                }
+                let errors = vec![tl!("The rules on the server couldn't be read: the job stopped unexpectedly").to_string()];
+                (RulesResult { account, errors, ..Default::default() }, true)
             }
         };
         self.rules.rx = None;
+        let sending = std::mem::take(&mut self.rules.sending);
+        // For a mailbox that has been closed since: its ids may name other things in this one.
+        if self.rules.opening != self.session.openings() {
+            log::info!("rules, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            return;
+        }
+        // Nothing went out (no sign-in that covers it, or none at all): what was to be made goes
+        // with the next job. A job that ended without a word may have sent it.
+        if result.uploaded.is_none() && !ended_early {
+            rules_remote::not_sent(&mut self.session, &sending);
+        }
         let mut errors = result.errors;
         if let Some(tokens) = &result.tokens
             && !tokens.refresh.is_empty()
@@ -312,12 +331,9 @@ impl MailApp {
             self.rules.read.insert(account);
         }
         let mut worked = false;
+        // (The host names the account it was for, address and all, which the engine checks.)
         if let Some(uploaded) = &result.uploaded {
-            let uploaded = match self.session.mailbox.account(account) {
-                Some(a) => uploaded.clone().for_account(a),
-                None => uploaded.clone(),
-            };
-            match rules_remote::apply_rule_changes(&mut self.session, &uploaded) {
+            match rules_remote::apply_rule_changes(&mut self.session, uploaded) {
                 Ok(merged) => {
                     errors.extend(merged.messages);
                     worked = true;
@@ -497,15 +513,13 @@ impl MailApp {
             Some(Permission::Given) => (tl!("Rules: kept on the server").to_string(), false),
             Some(Permission::Needed) => (tl!("Rules: waiting for your permission to keep them on the server").to_string(), true),
             Some(Permission::Asking) => (tl!("Rules: asking for your permission…").to_string(), false),
-            Some(Permission::Declined) => (tl!("Rules: new ones are kept on this computer only (not allowed on the server yet)").to_string(), true),
+            Some(Permission::Declined) => (tl!("Rules: not allowed on the server yet; new ones and changes stay on this computer").to_string(), true),
             Some(Permission::Refused(why)) => {
                 (crate::i18n::fmt(tl!("Rules: not allowed on the server ({why})"), &[("why", shown(why).as_str())]), true)
             }
             Some(Permission::SignInOver(_)) => (tl!("Rules: Microsoft no longer takes the sign-in").to_string(), true),
             None if self.rules.unreadable.contains(&account) => (tl!("Rules: the server's rules can't be read with this sign-in").to_string(), false),
-            None if self.rules.read.contains(&account) => {
-                (tl!("Rules: the server's are shown; you're asked before the first one goes there").to_string(), false)
-            }
+            None if self.rules.read.contains(&account) => (tl!("Rules: the server's are shown").to_string(), false),
             None => (tl!("Rules: not read from the server yet").to_string(), false),
         })
     }

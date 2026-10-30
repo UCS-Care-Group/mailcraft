@@ -2086,6 +2086,13 @@ impl MailApp {
                     self.sync_panel = Some(panel);
                     return Some(Ok(json!({"panel": "syncProgress"})));
                 }
+                // The New rule filled in from a message: an id that is none is refused, never
+                // taken to mean the selection (#566).
+                if name == "rules"
+                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::opt_id(p, k).err())
+                {
+                    return Some(Err(e.to_string()));
+                }
                 match dialogs::open_dialog(self, name, p) {
                     Some(d) => {
                         self.dialog = Some(d);
@@ -2920,6 +2927,9 @@ impl MailApp {
                 self.session.sync_status.clear();
             }
             self.forget_graph_switch();
+            // The rules job's answer is let go of (`poll_rules`), and what was known of the old
+            // mailbox's permissions goes: its account ids may name others here (#566).
+            self.rules = rule_sync::RuleSync::default();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
         }

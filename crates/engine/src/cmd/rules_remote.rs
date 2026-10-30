@@ -149,6 +149,21 @@ pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
     }
 }
 
+/// Unmark the rules [`mark_sent`] marked for `upload` when nothing of it went out (the sign-in
+/// didn't cover changing the rules, or failed): they go with the next job.
+pub fn not_sent(s: &mut Session, upload: &RulesUpload) {
+    let mut unmarked = false;
+    for op in upload.ops.iter().filter(|op| op.kind == RuleOpKind::Create) {
+        if let Some(rule) = s.mailbox.rules.iter_mut().find(|r| r.id == op.rule && r.account == upload.account && r.waiting()) {
+            unmarked |= rule.unanswered;
+            rule.unanswered = false;
+        }
+    }
+    if unmarked {
+        s.mailbox_changed();
+    }
+}
+
 /// What `account`'s server is to be told.
 pub fn rule_upload(mailbox: &Mailbox, account: Id) -> Result<RulesUpload, CmdError> {
     let ops = upload_of(mailbox, account)?;

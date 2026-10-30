@@ -482,7 +482,11 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let text = if rules == 0 {
                 text
             } else {
-                let going = tln!(rules, "Its {n} rule goes too; one its server keeps stays there.", "Its {n} rules go too; those its server keeps stay there.");
+                let going = tln!(
+                    rules,
+                    "Its {n} rule goes too; one its server keeps stays there.",
+                    "Its {n} rules go too; those its server keeps stay there."
+                );
                 format!("{text} {going}")
             };
             // The only account leaves an empty mailbox, as at a first start (#313).

@@ -46,7 +46,7 @@ pub fn specs() -> Vec<CommandSpec> {
 /// as "any of them", where MailCraft's conditions all have to hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotOnServer {
-    /// The account's server doesn't keep rules.
+    /// MailCraft keeps no rules on the account's server (an account of this computer, IMAP).
     NoServer,
     Flag,
     /// The folder the rule moves mail to is on this computer.
@@ -70,7 +70,7 @@ impl NotOnServer {
     /// Why, in words.
     pub fn said(self) -> &'static str {
         match self {
-            NotOnServer::NoServer => "this account's server doesn't keep rules",
+            NotOnServer::NoServer => "MailCraft can't keep this account's rules on its server",
             NotOnServer::Flag => "the server can't flag mail",
             NotOnServer::FolderHere => "the folder it moves mail to is on this computer",
             NotOnServer::FolderElsewhere => "the folder it moves mail to is in another account",

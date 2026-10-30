@@ -5787,6 +5787,14 @@ pub(crate) mod rules {
         if r.account == 0 {
             return tl!("On this computer, for the mail of every account").to_string();
         }
+        // A change the server isn't told of while MailCraft may not change its rules: the server
+        // still has the rule as it was, and runs it so.
+        if r.changed_here() && app.rules_held(r.account) {
+            return tl!(
+                "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
+            )
+            .to_string();
+        }
         if let Some(server) = r.server.as_ref().filter(|_| r.on_server()) {
             return if !server.unknown.is_empty() {
                 tl!("On the server: here it can be switched on or off, moved or deleted").to_string()
@@ -5948,18 +5956,16 @@ pub(crate) mod rules {
         }
 
         /// Fill the builder in for the mail of message `id`'s sender to go to `folder`, for the
-        /// account the message came to (a shared mailbox's owner's, as `rules.fromMessage` makes
-        /// it). Nothing for a message or folder that isn't there, a send queue or a sender with no
-        /// address.
+        /// account the message came to, as `rules.fromMessage` makes it. Nothing for a message or
+        /// folder that isn't there, a send queue, a sender with no address, or a shared mailbox's
+        /// message (its rules are its own; one for its owner's account would move the owner's mail
+        /// into it).
         fn fill_from_message(&mut self, s: &Session, folder: Id, id: Option<Id>) {
             let mb = &s.mailbox;
             let Some(m) = id.and_then(|id| mb.message(id)) else { return };
             let Some(target) = mb.folder(folder).filter(|_| !mb.is_send_queue(folder)) else { return };
             let sender = m.from.email.trim();
-            let account = match mb.account(m.account) {
-                Some(a) if a.is_shared() => mb.owner_of(m.account).map_or(m.account, |o| o.id),
-                _ => m.account,
-            };
+            let account = m.account;
             if sender.is_empty() || !rule_accounts(mb).iter().any(|(id, _)| *id == account) {
                 return;
             }
@@ -6048,6 +6054,9 @@ pub(crate) mod rules {
 
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            // A held Space on a rule's button is one press: its repeats would reach the button
+            // that takes its place, the next rule's, and delete or move that one too.
+            ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
             let mut pass = Pass::new(ui, &app.session, &mut false);
             let t = pass.t;
             let accounts = rule_accounts(&app.session.mailbox);
@@ -6065,6 +6074,8 @@ pub(crate) mod rules {
             let categories: Vec<String> = mb.categories.iter().map(|c| c.name.clone()).collect();
             let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
+            let held = app.rules_held(account);
+            let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account).count() } else { 0 };
             // Whether the rule being made could be kept on the server, and why not (an account on
             // this computer alone has none).
             let place = mb
@@ -6100,6 +6111,15 @@ pub(crate) mod rules {
                     }
                     if there.is_empty() {
                         ui.label(egui::RichText::new(tl!("None yet.")).color(t.text_dim).size(11.5));
+                    }
+                    // Deleted here, and still run by the server while it isn't told.
+                    if gone > 0 {
+                        let said = tln!(
+                            gone,
+                            "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).",
+                            "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+                        );
+                        ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
                     }
                     ui.add_space(6.0);
                     heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
@@ -6140,7 +6160,7 @@ pub(crate) mod rules {
                     self.focus = self.open;
                 }
                 if self.open {
-                    add = self.builder(ui, &mut pass, &categories, on_server, place.as_ref());
+                    add = self.builder(ui, &mut pass, &categories, place.as_ref(), held);
                 }
             });
             if let Some(id) = chosen {
@@ -6158,9 +6178,11 @@ pub(crate) mod rules {
                         // The count is of the last run; it goes when the rules change.
                         self.ran = v.get("matched").and_then(Value::as_u64).filter(|_| command == "rules.run");
                         if add {
-                            // Then over the mail already in the folder, as the menu that opened it says.
-                            if let Some((folder, _)) = self.run_in.take().filter(|_| self.then_run) {
-                                match app.execute("rules.run", json!({"folder": folder})) {
+                            // Then the new rule alone over the mail already in the folder, as the
+                            // menu that opened it says and Outlook offers.
+                            let made = v.get("id").and_then(Value::as_u64);
+                            if let Some(((folder, _), rule)) = self.run_in.take().filter(|_| self.then_run).zip(made) {
+                                match app.execute("rules.run", json!({"folder": folder, "id": rule})) {
                                     Ok(v) => self.ran = v.get("matched").and_then(Value::as_u64),
                                     Err(e) => self.error = e,
                                 }
@@ -6181,10 +6203,13 @@ pub(crate) mod rules {
             ui: &mut Ui,
             pass: &mut Pass,
             categories: &[String],
-            on_server: bool,
             place: Option<&(String, Option<NotOnServer>)>,
+            held: bool,
         ) -> bool {
             let t = pass.t;
+            // A rule kept on the server looks at addresses alone, as the server does; one kept here
+            // at names too.
+            let on_server = self.server && place.is_some_and(|(_, cannot)| cannot.is_none());
             row(ui, tl!("Name"), |ui| {
                 let resp = pass.text(ui, "rule_name", &mut self.name, f32::INFINITY, "");
                 if std::mem::take(&mut self.focus) {
@@ -6297,13 +6322,18 @@ pub(crate) mod rules {
                 });
                 let (said, warn) = match cannot {
                     Some(NotOnServer::NoServer) => {
-                        (tl!("This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open.").to_string(), false)
+                        (tl!("MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open.").to_string(), false)
                     }
                     Some(why) => (
                         crate::i18n::fmt(
                             tl!("This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."),
                             &[("why", tl!(why.said()))],
                         ),
+                        true,
+                    ),
+                    None if ticked && held => (
+                        tl!("It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open.")
+                            .to_string(),
                         true,
                     ),
                     None if ticked => {
@@ -6319,7 +6349,7 @@ pub(crate) mod rules {
             if let Some(label) = self
                 .run_in
                 .as_ref()
-                .map(|(_, path)| crate::i18n::fmt(tl!("Then run the rules over the mail in {folder}"), &[("folder", &shown(path, 80))]))
+                .map(|(_, path)| crate::i18n::fmt(tl!("Then run it over the mail already in {folder}"), &[("folder", &shown(path, 80))]))
             {
                 row(ui, "", |ui| {
                     ui.checkbox(&mut self.then_run, label);
@@ -6681,7 +6711,7 @@ mod tests {
         a.execute("ui.dialog", json!({"name": "rules", "folder": to})).unwrap();
         let mut h = window(a, (1280.0, 800.0));
         assert_eq!(h.state().session.mailbox.rules.len(), before, "nothing is made before Add Rule");
-        assert!(h.query_by_label("Then run the rules over the mail in Inbox").is_some());
+        assert!(h.query_by_label("Then run it over the mail already in Inbox").is_some());
         h.get_by_label("Add Rule").click();
         h.run_steps(4);
         let mb = &h.state().session.mailbox;
