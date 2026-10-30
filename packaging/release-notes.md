@@ -1,4 +1,4 @@
-**MailCraft 0.8.3 in short**: the public beta, for Microsoft accounts (testers welcome; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
+**MailCraft 0.9.0 in short**: the public beta, for Microsoft accounts (testers welcome; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
 - Move mail between accounts: Gmail or another IMAP account, your Microsoft accounts and folders on this computer ([#451](https://github.com/GITHUB_REPOSITORY/issues/451)).
 - Newsletters look as their sender made them: style sheets, columns and buttons side by side, layouts for the pane's width and their own dark colours ([#596](https://github.com/GITHUB_REPOSITORY/issues/596), [#597](https://github.com/GITHUB_REPOSITORY/issues/597), [#598](https://github.com/GITHUB_REPOSITORY/issues/598), [#599](https://github.com/GITHUB_REPOSITORY/issues/599)).
 - Messages on a light background in the dark theme, if you want them ([#634](https://github.com/GITHUB_REPOSITORY/issues/634)).
