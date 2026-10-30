@@ -402,6 +402,12 @@ msgid "A series that the account's server keeps can't be moved to another calend
 msgstr "Una serie conservata sul server dell'account non può essere spostata da qui in un altro calendario: il server non consente di spostarla, e ricreandola si potrebbero perdere i giorni modificati singolarmente."
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "A shared mailbox's rules are its own: this version doesn't make them"
+msgstr "Le regole di una cassetta postale condivisa sono sue: questa versione non le crea"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
@@ -4446,6 +4452,12 @@ msgid "It goes as mail from the Outbox at the next Send/Receive, with the item a
 msgstr "Parte come messaggio da Posta in uscita al prossimo Invia/Ricevi, con l'elemento allegato come file iCalendar."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
+msgstr "Passa al server non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo); fino ad allora viene eseguita su questo computer, mentre MailCraft è aperto."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -4548,6 +4560,14 @@ msgstr ""
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "Il testo viene sostituito"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its {n} rule goes too; one its server keeps stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Anche la sua {n} regola viene rimossa; se il suo server la conserva, resta lì."
+msgstr[1] "Anche le sue {n} regole vengono rimosse; quelle che il suo server conserva restano lì."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5088,6 +5108,12 @@ msgstr "Posta, calendario, persone e attività, scritti da zero in Rust. Funzion
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft ora può mantenere {account} sincronizzato con Microsoft tramite Microsoft Graph, come fa Outlook sul web, invece che tramite IMAP. Cartelle, contrassegni, categorie e bozze corrispondono allora a ciò che si vede in Outlook, e la posta continua ad arrivare anche dove l'organizzazione ha disattivato IMAP."
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't keep this account's rules on its server"
+msgstr "MailCraft non può conservare le regole di questo account sul suo server"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
@@ -5151,6 +5177,12 @@ msgid "MailCraft keeps it in memory until you close the app. It is never written
 msgstr "MailCraft la conserva in memoria fino alla chiusura dell'app. Non viene mai scritta su disco."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
+msgstr "MailCraft conserva le regole di questo account su questo computer: la regola viene eseguita mentre MailCraft è aperto."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
@@ -5161,6 +5193,12 @@ msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
 msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Opzioni."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph"
+msgstr "MailCraft raggiunge le regole di questo account sul server non appena passa a Microsoft Graph"
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -6620,6 +6658,12 @@ msgstr "Sul server"
 #, fuzzy
 msgid "On the server · Searching…"
 msgstr "Sul server · Ricerca…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
+msgstr "Sul server, ancora com'era: la modifica arriva lì non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8096,14 +8140,14 @@ msgstr "Regole: conservate sul server"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
-msgstr "Regole: le nuove sono conservate solo su questo computer (non ancora consentite sul server)"
+msgid "Rules: not allowed on the server ({why})"
+msgstr "Regole: non consentite sul server ({why})"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules: not allowed on the server ({why})"
-msgstr "Regole: non consentite sul server ({why})"
+msgid "Rules: not allowed on the server yet; new ones and changes stay on this computer"
+msgstr "Regole: non ancora consentite sul server; le nuove regole e le modifiche restano su questo computer"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -8114,8 +8158,8 @@ msgstr "Regole: non ancora lette dal server"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules: the server's are shown; you're asked before the first one goes there"
-msgstr "Regole: quelle del server sono mostrate; ti verrà chiesto prima che la prima vada lì"
+msgid "Rules: the server's are shown"
+msgstr "Regole: vengono mostrate quelle del server"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -10771,8 +10815,8 @@ msgstr "Tema"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "Then run the rules over the mail in {folder}"
-msgstr "Poi applica le regole alla posta in {folder}"
+msgid "Then run it over the mail already in {folder}"
+msgstr "Poi applicala alla posta già presente in {folder}"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10930,12 +10974,6 @@ msgstr "I Preferiti di questo account provengono da Outlook e si modificano lì 
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Non è ancora possibile interrogare il calendario di questo account: prima Invia/Ricevi effettua l'accesso."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
-msgstr "Il server di questo account non conserva regole: la regola viene eseguita su questo computer, mentre MailCraft è aperto."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -12802,6 +12840,12 @@ msgstr "una cassetta postale condivisa conserva offline tanta posta quanto l'acc
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
 msgstr "l'indirizzo di una cassetta postale condivisa non può essere modificato: rimuoverla e aggiungere l'altra"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a shared mailbox's rules are its own: this version doesn't make them"
+msgstr "le regole di una cassetta postale condivisa sono sue: questa versione non le crea"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 msgid "a signature is open: add its pictures with signature.picture.add"
@@ -13149,6 +13193,12 @@ msgstr "è danneggiata, o troppo grande per essere mostrata"
 #, fuzzy
 msgid "it is too large to show"
 msgstr "è troppo grande per essere mostrata"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it looks for a name, and the server looks at addresses only"
+msgstr "cerca un nome, e il server guarda solo gli indirizzi"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -14070,12 +14120,6 @@ msgstr "questo account non ha una cartella {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "questo account non è autorizzato a salvarlo"
-
-#. name
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "this account's server doesn't keep rules"
-msgstr "il server di questo account non conserva regole"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -15140,6 +15184,14 @@ msgstr[0] "{n} risultato in {scope}"
 msgstr[1] "{n} risultati in {scope}"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgstr[0] "{n} regola eliminata qui è ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Chiedi di nuovo)."
+msgstr[1] "{n} regole eliminate qui sono ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Chiedi di nuovo)."
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "{n} s"
 msgstr "{n} s"
@@ -15395,6 +15447,26 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
+#~ msgstr "Regole: le nuove sono conservate solo su questo computer (non ancora consentite sul server)"
+
+#, fuzzy
+#~ msgid "Rules: the server's are shown; you're asked before the first one goes there"
+#~ msgstr "Regole: quelle del server sono mostrate; ti verrà chiesto prima che la prima vada lì"
+
+#, fuzzy
+#~ msgid "Then run the rules over the mail in {folder}"
+#~ msgstr "Poi applica le regole alla posta in {folder}"
+
+#, fuzzy
+#~ msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
+#~ msgstr "Il server di questo account non conserva regole: la regola viene eseguita su questo computer, mentre MailCraft è aperto."
+
+#, fuzzy
+#~ msgid "this account's server doesn't keep rules"
+#~ msgstr "il server di questo account non conserva regole"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"
