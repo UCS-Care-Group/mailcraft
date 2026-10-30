@@ -297,11 +297,13 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let i = changeable(s, id)?;
     let rule = s.mailbox.rules.remove(i);
     // The server is told at the next look; until then, a download that still has it doesn't bring
-    // it back.
-    if let Some(server) = rule.server.filter(|s| !s.id.is_empty())
-        && s.mailbox.rule_gone.len() < mailcraft_model::MAX_RULE_GONE
-    {
-        s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: server.id });
+    // it back. One the server was making, with no answer, is looked for by what it is.
+    if s.mailbox.rule_gone.len() < mailcraft_model::MAX_RULE_GONE {
+        match rule.server.as_ref().filter(|s| !s.id.is_empty()) {
+            Some(server) => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: server.id.clone(), made: None }),
+            None if rule.unanswered => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: String::new(), made: Some(Box::new(rule)) }),
+            None => {}
+        }
     }
     Ok(json!({"deleted": id}))
 }
@@ -465,10 +467,16 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     if server && rule.on_server() != other.on_server() {
         return Err(fail("a rule waiting to go to the server goes after those there; it can be moved once it is there"));
     }
-    // Taken out and put in beside its neighbour, not swapped with it: a rule for every account is
-    // in every account's list, and a swap across one would reorder another account's rules.
-    let moving = s.mailbox.rules.remove(i);
-    s.mailbox.rules.insert(j, moving);
+    // The one of the two that is in this account's list alone is taken out and put in on the
+    // other side of the other, not swapped with it: a rule for every account is in every
+    // account's list, and moving one across others would reorder another account's rules.
+    if rule.account == 0 && other.account != 0 {
+        let neighbour = s.mailbox.rules.remove(j);
+        s.mailbox.rules.insert(i, neighbour);
+    } else {
+        let moving = s.mailbox.rules.remove(i);
+        s.mailbox.rules.insert(j, moving);
+    }
     if server {
         renumber(&mut s.mailbox, account);
     }

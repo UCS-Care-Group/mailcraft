@@ -20,7 +20,10 @@
 //! again until the server's rules have been read whole. A rule there with the same name, conditions
 //! and actions is then taken as it; when there is none, it is sent again. Only such a rule is
 //! taken for one of the server's that looks the same: a rule never sent is never taken for one
-//! made elsewhere.
+//! made elsewhere. One deleted here meanwhile is remembered by what it is
+//! ([`mailcraft_model::RuleGone::made`]): the next whole read deletes the one there that looks the
+//! same, or, finding none, lets it go. A job sends before it reads, and its answer is taken in in
+//! that order, so a whole read that comes with it is later than what it sent.
 //!
 //! **Conflicts.** A download is the server's word on everything but what was changed here and not
 //! sent yet. A rule the server no longer has goes from here too, unless it was changed here
@@ -107,7 +110,7 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
         return Err(bad("that account doesn't keep its rules on its server"));
     }
     let mut ops: Vec<RuleOp> = Vec::new();
-    for gone in mailbox.rule_gone.iter().filter(|gone| gone.account == account) {
+    for gone in mailbox.rule_gone.iter().filter(|gone| gone.account == account && !gone.id.is_empty()) {
         ops.push(RuleOp { kind: RuleOpKind::Delete, id: gone.id.clone(), ..Default::default() });
     }
     let mine = || mailbox.rules.iter().filter(move |r| r.account == account);
@@ -215,6 +218,15 @@ fn same_words(here: &[Condition], there: &[Condition]) -> bool {
 }
 
 /// The same with the categories it gives.
+/// A rule made here that went to the server and the server's `remote` (its actions as the
+/// mailbox has them) are the same one, as far as can be told.
+fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action]) -> bool {
+    here.name.eq_ignore_ascii_case(&remote.name)
+        && same_words(&here.conditions, &remote.conditions)
+        && same_actions(&here.actions, actions)
+        && here.stop == remote.stop
+}
+
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
     same_parts(here, there, |a, b| match (a, b) {
         (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
@@ -230,7 +242,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         return Err(bad("that account doesn't keep its rules on its server"));
     }
     let mut merged = Merged::default();
-    let told: HashSet<String> = mailbox.rule_gone.iter().filter(|g| g.account == account).map(|g| g.id.clone()).collect();
+    let told: HashSet<String> = mailbox.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).map(|g| g.id.clone()).collect();
     let mut known: HashMap<String, Id> = HashMap::new();
     for rule in mailbox.rules.iter().filter(|r| r.account == account && r.on_server()) {
         if let Some(server) = rule.server.as_ref() {
@@ -283,17 +295,17 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             }
             continue;
         }
+        // One deleted here while the server was making it, with no answer: the server made it,
+        // and is told to delete it.
+        let unmade = mailbox.rule_gone.iter().position(|g| g.account == account && g.made.as_deref().is_some_and(|r| alike(r, &remote, &actions)));
+        if let Some(gone) = unmade.and_then(|i| mailbox.rule_gone.get_mut(i)) {
+            (gone.id, gone.made) = (remote.id.clone(), None);
+            merged.skipped += 1;
+            continue;
+        }
         // A rule made here whose answer was lost (the server made it, the word didn't come) is the
         // same one: taken in, not made twice. Only one that went out without an answer is.
-        let twin = mailbox.rules.iter().position(|r| {
-            r.account == account
-                && r.waiting()
-                && r.unanswered
-                && r.name.eq_ignore_ascii_case(&remote.name)
-                && same_words(&r.conditions, &remote.conditions)
-                && same_actions(&r.actions, &actions)
-                && r.stop == remote.stop
-        });
+        let twin = mailbox.rules.iter().position(|r| r.account == account && r.waiting() && r.unanswered && alike(r, &remote, &actions));
         if let Some(i) = twin
             && let Some(rule) = mailbox.rules.get_mut(i)
         {
@@ -329,6 +341,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             rule.unanswered = false;
             merged.updated += 1;
         }
+        mailbox.rule_gone.retain(|g| !(g.account == account && g.made.is_some()));
     }
     // What the server no longer has: only when the download says it showed every rule there is.
     if download.complete && download.rules.len() <= MAX_SERVER_RULES {
@@ -410,7 +423,7 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     merged.added += 1;
                 } else if mailbox.rule_gone.len() < MAX_RULE_GONE {
                     // Deleted here while it was being made: the server is told to delete it.
-                    mailbox.rule_gone.push(RuleGone { account, id: outcome.id.clone() });
+                    mailbox.rule_gone.push(RuleGone { account, id: outcome.id.clone(), made: None });
                 }
             }
             (RuleOpKind::Update, RuleResult::Done) => {

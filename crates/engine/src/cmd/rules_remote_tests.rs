@@ -275,6 +275,58 @@ fn moving_one_accounts_rule_leaves_anothers_in_its_order() {
 }
 
 #[test]
+fn moving_a_rule_for_every_account_leaves_anothers_in_its_order() {
+    let (mut s, account, local, _) = session();
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "Every".into(),
+        enabled: true,
+        conditions: vec![Condition::HasAttachment],
+        actions: vec![Action::Flag],
+        ..Default::default()
+    });
+    add(&mut s, local, "Theirs", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    add(&mut s, account, "Mine", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    let names = |s: &Session, a: Id| s.mailbox.rules_in_order(a).iter().map(|i| s.mailbox.rules[*i].name.clone()).collect::<Vec<_>>();
+    let both = |s: &Session| (names(s, account), names(s, local));
+    let list = |a: [&str; 2]| a.map(String::from).to_vec();
+    // Moved down in the Microsoft account's list, below its own rule: the other's stays.
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 900, "account": account, "direction": "down"}))["moved"], true);
+    assert_eq!(both(&s), (list(["Mine", "Every"]), list(["Every", "Theirs"])));
+    // And up again.
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 900, "account": account, "direction": "up"}))["moved"], true);
+    assert_eq!(both(&s), (list(["Every", "Mine"]), list(["Every", "Theirs"])));
+}
+
+#[test]
+fn a_rule_deleted_while_the_server_was_making_it_is_deleted_there_too() {
+    let deleted_while_sent = || {
+        let (mut s, account, _, _) = session();
+        let id = add(&mut s, account, "Receipts", json!([{"type": "subjectContains", "value": "receipt"}]), json!([{"type": "markRead"}]));
+        let upload = rule_upload(&s.mailbox, account).unwrap();
+        mark_sent(&mut s, &upload);
+        run(&mut s, "rules.remove", json!({"id": id}));
+        // Nothing to tell the server until it is known whether it has it.
+        assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+        (s, account)
+    };
+    // No answer came, and the server made it: a full read finds it, and it is deleted there.
+    let (mut s, account) = deleted_while_sent();
+    let mut made = remote("made-1", "Receipts", 1);
+    made.conditions = vec![Condition::SubjectContains("receipt".into())];
+    merge_rules(&mut s.mailbox, &download(account, vec![made, remote("r2", "Invoices", 2)])).unwrap();
+    let names: Vec<&str> = s.mailbox.rules.iter().filter(|r| r.account == account).map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["Invoices"], "the deleted rule isn't brought back");
+    let ops = rule_upload(&s.mailbox, account).unwrap().ops;
+    assert_eq!(ops.iter().map(|op| (op.kind, op.id.as_str())).collect::<Vec<_>>(), [(RuleOpKind::Delete, "made-1")]);
+    // The server didn't make it: a full read without it lets it go.
+    let (mut s, account) = deleted_while_sent();
+    merge_rules(&mut s.mailbox, &download(account, vec![remote("r2", "Invoices", 2)])).unwrap();
+    assert!(s.mailbox.rule_gone.is_empty());
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+}
+
+#[test]
 fn moving_a_rule_among_the_servers_sends_where_each_stands() {
     let (mut s, account, _, _) = session();
     merge_rules(&mut s.mailbox, &download(account, vec![remote("r2", "Second", 20), remote("r1", "First", 10)])).unwrap();

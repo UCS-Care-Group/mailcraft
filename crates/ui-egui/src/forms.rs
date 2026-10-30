@@ -6079,7 +6079,7 @@ pub(crate) mod rules {
             let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
-            let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account).count() } else { 0 };
+            let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
             // Whether the rule being made could be kept on the server, and why not (an account on
             // this computer alone has none).
             let place = mb

@@ -1184,11 +1184,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "rules.run" if rules_onto_another_server(s, id, params) => {
             let folder = p::id(params, "folder").unwrap_or(s.view.folder);
             let from = s.mailbox.folder(folder).map(|f| f.account);
+            let only = p::id(params, "id");
             let onto: Vec<String> = s
                 .mailbox
                 .rules
                 .iter()
-                .filter(|r| r.enabled)
+                .filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id))
                 .filter_map(|r| rule_onto_server(s, r, from))
                 .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
                 .collect();

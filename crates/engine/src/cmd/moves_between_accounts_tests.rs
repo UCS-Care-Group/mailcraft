@@ -1484,6 +1484,14 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     s.run("rules.enable", &json!({"id": own, "value": true})).unwrap();
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": own})), Access::Owner(Class::Settings));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": made})), Access::Owner(Class::Send));
+    // The question for one rule names where that rule files, not the other rules' places: with
+    // many, it would be too long to be asked.
+    for n in 0..40 {
+        let more = json!({"name": format!("B{n}"), "account": b, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": other}]});
+        s.run("rules.add", &more).unwrap();
+    }
+    let what = describe(&s, "rules.run", &json!({"folder": inbox, "id": made}));
+    assert_eq!(what.matches("blake@other.example").count(), 1, "{what}");
 }
 
 #[test]
