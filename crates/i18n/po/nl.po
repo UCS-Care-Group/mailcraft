@@ -12885,7 +12885,10 @@ msgid ""
 "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-msgstr "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n\nMailCraft wijzigt daarmee alleen uw automatische antwoorden en de regels van uw Postvak IN, nooit uw categorieën of werktijden. Voor het lezen van uw automatische antwoorden is ze niet nodig."
+msgstr ""
+"Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n"
+"\n"
+"MailCraft wijzigt daarmee alleen uw automatische antwoorden en de regels van uw Postvak IN, nooit uw categorieën of werktijden. Voor het lezen van uw automatische antwoorden is ze niet nodig."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -12894,7 +12897,10 @@ msgid ""
 "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-msgstr "Om de regels van {address} op de server te bewaren, waar ze ook worden uitgevoerd terwijl MailCraft gesloten is en in Outlook op het web en op uw telefoon verschijnen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen, waar Microsoft de regels bewaart. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n\nTot u het toestaat, blijven uw regels op deze computer en wordt er niets van naar Microsoft verzonden."
+msgstr ""
+"Om de regels van {address} op de server te bewaren, waar ze ook worden uitgevoerd terwijl MailCraft gesloten is en in Outlook op het web en op uw telefoon verschijnen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen, waar Microsoft de regels bewaart. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n"
+"\n"
+"Tot u het toestaat, blijven uw regels op deze computer en wordt er niets van naar Microsoft verzonden."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs

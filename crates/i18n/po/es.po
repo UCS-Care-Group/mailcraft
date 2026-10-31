@@ -12433,7 +12433,10 @@ msgid ""
 "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-msgstr "Para cambiar las respuestas automáticas de {address}, MailCraft necesita su permiso para cambiar la configuración de su buzón. La página de Microsoft se abre en su navegador para preguntárselo, una vez.\n\nMailCraft solo cambia con él sus respuestas automáticas y las reglas de su Bandeja de entrada, nunca sus categorías ni su horario laboral. Para leer sus respuestas automáticas no hace falta."
+msgstr ""
+"Para cambiar las respuestas automáticas de {address}, MailCraft necesita su permiso para cambiar la configuración de su buzón. La página de Microsoft se abre en su navegador para preguntárselo, una vez.\n"
+"\n"
+"MailCraft solo cambia con él sus respuestas automáticas y las reglas de su Bandeja de entrada, nunca sus categorías ni su horario laboral. Para leer sus respuestas automáticas no hace falta."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -12442,7 +12445,10 @@ msgid ""
 "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-msgstr "Para guardar las reglas de {address} en su servidor, donde se ejecutan aunque MailCraft esté cerrado y aparecen en Outlook en la web y en su teléfono, MailCraft necesita su permiso para cambiar la configuración de su buzón, donde Microsoft guarda las reglas. La página de Microsoft se abre en su navegador para preguntárselo, una vez.\n\nHasta que lo permita, sus reglas se quedan en este equipo y no se envía nada de ellas a Microsoft."
+msgstr ""
+"Para guardar las reglas de {address} en su servidor, donde se ejecutan aunque MailCraft esté cerrado y aparecen en Outlook en la web y en su teléfono, MailCraft necesita su permiso para cambiar la configuración de su buzón, donde Microsoft guarda las reglas. La página de Microsoft se abre en su navegador para preguntárselo, una vez.\n"
+"\n"
+"Hasta que lo permita, sus reglas se quedan en este equipo y no se envía nada de ellas a Microsoft."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs

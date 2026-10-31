@@ -12431,7 +12431,10 @@ msgid ""
 "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-msgstr "Per modificare le risposte automatiche di {address}, MailCraft ha bisogno della tua autorizzazione a modificare le impostazioni della cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una volta.\n\nCon essa MailCraft modifica solo le tue risposte automatiche e le regole della tua Posta in arrivo, mai le categorie o l'orario di lavoro. Per leggere le risposte automatiche non serve."
+msgstr ""
+"Per modificare le risposte automatiche di {address}, MailCraft ha bisogno della tua autorizzazione a modificare le impostazioni della cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una volta.\n"
+"\n"
+"Con essa MailCraft modifica solo le tue risposte automatiche e le regole della tua Posta in arrivo, mai le categorie o l'orario di lavoro. Per leggere le risposte automatiche non serve."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -12440,7 +12443,10 @@ msgid ""
 "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-msgstr "Per conservare le regole di {address} sul suo server, dove vengono eseguite anche quando MailCraft è chiuso e compaiono in Outlook sul web e sul telefono, MailCraft ha bisogno della tua autorizzazione a modificare le impostazioni della cassetta postale, dove Microsoft conserva le regole. La pagina di Microsoft si apre nel browser per chiedertelo, una volta.\n\nFinché non lo consenti, le tue regole restano su questo computer e nulla di esse viene inviato a Microsoft."
+msgstr ""
+"Per conservare le regole di {address} sul suo server, dove vengono eseguite anche quando MailCraft è chiuso e compaiono in Outlook sul web e sul telefono, MailCraft ha bisogno della tua autorizzazione a modificare le impostazioni della cassetta postale, dove Microsoft conserva le regole. La pagina di Microsoft si apre nel browser per chiedertelo, una volta.\n"
+"\n"
+"Finché non lo consenti, le tue regole restano su questo computer e nulla di esse viene inviato a Microsoft."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
