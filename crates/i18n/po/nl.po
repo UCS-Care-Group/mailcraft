@@ -3249,10 +3249,20 @@ msgid "Edit Signature"
 msgstr "Handtekening bewerken"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Signature as Text"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Edit Task"
 msgstr "Taak bewerken"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Edit signature as text"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -9564,6 +9574,11 @@ msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr "Afbeeldingen van afzenders van Gravatar, favicon.im en Google tonen"
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Show signature as it is sent"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Show the Copy under Shared Calendars"
@@ -9638,6 +9653,11 @@ msgstr "Weergegeven als Voornaam Achternaam wanneer leeg"
 #. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Shows the signature as it was designed again, as long as its text is unchanged"
 msgstr ""
 
 #. interface
@@ -11214,6 +11234,11 @@ msgstr "De aanmelding van het account waarmee dit gedeelde postvak wordt geopend
 #, fuzzy
 msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
 msgstr "De aanmelding bij {address} die in uw browser wachtte, is gestopt zodat het gedeelde postvak kon worden gelezen. Verzenden/ontvangen vraagt u om opnieuw aan te melden."
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "The signature is then sent as the simpler text shown here, not as it was designed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
@@ -14457,6 +14482,11 @@ msgid "the message can't hold that much text"
 msgstr "het bericht kan niet zoveel tekst bevatten"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the message has no HTML signature"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "the message has no attachment {index}"
@@ -14583,6 +14613,11 @@ msgstr "de handtekening heeft wijzigingen: sla die op, of sluit die met verwerpe
 #, fuzzy
 msgid "the signature is no longer there"
 msgstr "de handtekening is er niet meer"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the signature was edited as text: its copy is what goes out"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs

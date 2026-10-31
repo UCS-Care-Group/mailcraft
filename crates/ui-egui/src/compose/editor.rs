@@ -27,9 +27,9 @@ use std::sync::{Arc, Mutex};
 use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
 use egui::{Align2, Event, FontFamily, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use mailcraft_model::RichBody;
 use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
-use mailcraft_model::{RichBody, RichText};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -205,14 +205,13 @@ pub(crate) struct Layout {
 impl Layout {
     /// Bring the layout up to `doc`: the paragraphs that changed (and only those) are laid out
     /// again. Whether anything did.
-    fn sync(&mut self, ctx: &egui::Context, doc: &RichText, pictures: &[Picture], key: LayoutKey, t: &Tokens, width: f32) -> bool {
+    fn sync(&mut self, ctx: &egui::Context, paragraphs: &[Paragraph], pictures: &[Picture], key: LayoutKey, t: &Tokens, width: f32) -> bool {
         let atlas = ctx.fonts(|f| f.font_atlas_fill_ratio());
         if self.key != Some(key) || atlas < self.atlas {
             self.paras.clear();
             self.key = Some(key);
         }
         self.atlas = atlas;
-        let paragraphs = doc.paragraphs();
         let numbers = numbers(paragraphs);
         let same = |new: usize, old: usize| matches!((paragraphs.get(new), numbers.get(new), self.paras.get(old)), (Some(p), Some(n), Some(o)) if o.number == *n && o.source == *p);
         let (n_new, n_old) = (paragraphs.len(), self.paras.len());
@@ -526,6 +525,23 @@ fn pictures(app: &MailApp, which: Which) -> Vec<Picture> {
     }
 }
 
+/// The signature's own HTML while the message shows it as it goes out, under the text in place of
+/// its simpler copy ([`crate::compose`] draws it): an unedited HTML signature, unless the owner
+/// chose to edit it as text (`compose.signatureAsText`).
+pub(crate) fn html_signature(app: &MailApp) -> Option<&str> {
+    app.session.compose.as_ref()?.signature_html_shown()
+}
+
+/// The signature's own HTML while it is still unedited: an HTML signature that ends an HTML
+/// message with text before it, shown as it goes out or as its simpler copy.
+pub(crate) fn unedited_html_signature(app: &MailApp) -> Option<&str> {
+    let c = app.session.compose.as_ref()?;
+    let html = c.signature.as_ref()?.html.as_deref()?;
+    let paragraphs = c.body.text().paragraphs();
+    let ends = paragraphs.first().is_some_and(|p| !p.signature) && paragraphs.last().is_some_and(|p| p.signature);
+    (c.format == mailcraft_engine::BodyFormat::Html && ends && c.signature_unedited()).then_some(html)
+}
+
 /// The selection, the caret and whether the text is plain.
 fn now(app: &MailApp, which: Which) -> Option<(Selection, bool)> {
     body(app, which).map(|(b, plain)| (b.selection(), plain))
@@ -559,7 +575,11 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
     let resync = |layout: &mut Layout, app: &MailApp| {
         if let Some((b, _)) = body(app, which) {
-            layout.sync(&ctx, b.text(), &shown, key, &t, width);
+            let all = b.text().paragraphs();
+            // An HTML signature drawn as it goes out is not in the text laid out here.
+            let html = which == Which::Message && html_signature(app).is_some();
+            let end = if html { all.iter().position(|p| p.signature).unwrap_or(all.len()) } else { all.len() };
+            layout.sync(&ctx, all.get(..end).unwrap_or(all), &shown, key, &t, width);
         }
     };
     resync(&mut layout, app);
@@ -1059,6 +1079,8 @@ fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: 
         Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),
         Key::Backspace if sel.is_empty() && word && head > 0 => ask("compose.delete", json!({"from": layout.word_left(head), "to": head})),
         Key::Backspace => ask("compose.delete", json!({})),
+        // (At the end, nothing: not the paragraph break before a signature that isn't shown.)
+        Key::Delete if sel.is_empty() && head >= len => None,
         Key::Delete if sel.is_empty() && word && head < len => ask("compose.delete", json!({"from": head, "to": layout.word_right(head)})),
         Key::Delete => ask("compose.delete", json!({"forward": true})),
         // In a list, Tab at an item's start (or over a selection) takes it a level deeper and
