@@ -104,7 +104,7 @@ fn ctrl_shift_g_counts_the_words() {
 fn the_rest_of_insert_and_review_is_pending() {
     let mut app = writing();
     for (tab, pending) in
-        [("Insert", ["Item", "Table", "Diagram", "Saved Text"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
+        [("Insert", ["Table", "Diagram", "Saved Text", "Chart"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
     {
         app.execute("ui.tab", json!({"tab": tab})).unwrap();
         let described = crate::ribbon::describe(&app);

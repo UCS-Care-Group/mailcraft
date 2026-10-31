@@ -437,6 +437,28 @@ fn details_form(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 
 /// A sample reply in which the signature is shown as recipients see it, and its plain-text form
 /// (S15). It follows the window's light or dark.
+/// A message that is only `html`, with `pictures` as its own pictures, each at the `cid:` that
+/// `cid` names: what the reading pane draws for a signature that is not in a message yet.
+pub(crate) fn message_of(
+    html: String,
+    pictures: &[mailcraft_model::signature::Picture],
+    cid: impl Fn(&mailcraft_model::signature::Picture) -> String,
+) -> mailcraft_model::Message {
+    mailcraft_model::Message {
+        body: mailcraft_model::Body { text: String::new(), html: Some(html) },
+        attachments: pictures
+            .iter()
+            .map(|p| mailcraft_model::Attachment {
+                content_id: cid(p),
+                inline: true,
+                data: p.data.clone(),
+                ..mailcraft_model::Attachment::new(p.name.clone(), p.mime.clone(), Vec::new())
+            })
+            .collect(),
+        ..mailcraft_model::Message::default()
+    }
+}
+
 fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let Some(e) = app.session.signature_edit.as_ref() else { return };
     let mut sig = e.signature.clone();
@@ -465,21 +487,7 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             // An HTML signature as it is sent: cleaned.
             let signature = sig.html().map_or_else(|| mailcraft_engine::mime::rich::signature_html(&sig, &cid), mailcraft_engine::html::quotable);
             let html = format!("<p>{}</p>\r\n{signature}", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
-            let m = mailcraft_model::Message {
-                body: mailcraft_model::Body { text: String::new(), html: Some(html) },
-                attachments: sig
-                    .pictures()
-                    .iter()
-                    .map(|p| mailcraft_model::Attachment {
-                        content_id: cid(p),
-                        inline: true,
-                        data: p.data.clone(),
-                        ..mailcraft_model::Attachment::new(p.name.clone(), p.mime.clone(), Vec::new())
-                    })
-                    .collect(),
-                ..mailcraft_model::Message::default()
-            };
-            let m = std::sync::Arc::new(m);
+            let m = std::sync::Arc::new(message_of(html, sig.pictures(), cid));
             ctx.data_mut(|d| d.insert_temp(key, (hash, m.clone())));
             m
         }

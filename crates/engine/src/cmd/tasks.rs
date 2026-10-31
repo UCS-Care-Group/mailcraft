@@ -10,6 +10,10 @@ use super::tasks_remote::{keeps_tasks, task_accounts, tasks_home};
 use super::{bad, done, fail, needs_message};
 use crate::{CmdError, CmdResult, CommandSpec, Module, Session, TaskFilter, p};
 
+mod status;
+#[cfg(test)]
+mod status_tests;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("tasks.new", "New Task", "Home › New", new).key("Mod+Shift+K").params(TASK),
@@ -22,6 +26,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_task),
         CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null}"#),
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
+        CommandSpec::new("tasks.statusReport", "Send Status Report", "Home › Manage Task", status::report)
+            .pure()
+            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .selection(needs_task),
         CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(
             r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all", "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#,

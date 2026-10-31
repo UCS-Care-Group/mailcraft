@@ -197,7 +197,7 @@ pub(crate) fn tidy_imported(event: Event, offset_at: &dyn Fn(Timestamp) -> i32) 
 
 /// The meeting the message named in `v` (or the selected one) carries.
 fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
-    let id = p::id(v, "message").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::id_strict(v, "message")?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }

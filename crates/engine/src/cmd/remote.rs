@@ -3724,8 +3724,9 @@ pub fn apply_categories(s: &mut Session, download: &CategoriesDownload) -> CmdRe
     let mut download = download.clone();
     download.tidy();
     let list = if microsoft { s.mailbox.junk_owner(download.account) } else { 0 };
+    let names: Vec<String> = download.categories.iter().map(|c| c.name.clone()).collect();
     if microsoft {
-        s.mailbox.start_account_categories(list);
+        s.mailbox.start_account_categories(list, &names);
     }
     let mut changed = 0usize;
     for category in &download.categories {
@@ -3744,7 +3745,6 @@ pub fn apply_categories(s: &mut Session, download: &CategoriesDownload) -> CmdRe
     // Outlook's list, by name, for its colours to win here (R3 spec S18). The items of a name that
     // left it keep the name, in grey.
     if microsoft {
-        let names: Vec<String> = download.categories.iter().map(|c| c.name.clone()).collect();
         let last = s.mailbox.server_categories.get(&list);
         if last != Some(&names) {
             let left: Vec<String> = last.into_iter().flatten().filter(|old| !names.iter().any(|name| same_category(name, old))).cloned().collect();

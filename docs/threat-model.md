@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -362,9 +362,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   is not theirs to read. A start that finds the lock held but nobody answering says MailCraft is
   already open and does not open the mailbox twice; a crashed run's lock is gone, and its stale
   `.instance` is replaced. The sample mailbox and a run without preferences that names no
-  `--mailbox` take no lock and don't listen (`apps/mailcraft/src/single_instance.rs`). The lock covers the
-  mailbox a run started with only: a `.mailcraft` file opened later in the window (File › Open, a
-  drop, a hand-over) takes no lock of its own, so another window may have that one open.
+  `--mailbox` take no lock and don't listen at the start (`apps/mailcraft/src/single_instance.rs`). A
+  `.mailcraft` file the window opens later (File › Open, a recent one, a drop, a hand-over) or saves
+  to has its lock taken first, before anything is read or asked, while the open mailbox's is still
+  held; one another window has open is refused and the open mailbox stays as it was. Once the
+  window has the other file open, later starts are told of it and the old lock is let go of; after
+  File › New nothing is held (#517).
 - **Agents on the same computer.** The agent gate ([MCP](mcp.md#agents-get-only-what-the-owner-allows))
   binds agents that reach MailCraft only through MCP. The control channel takes a request without
   the bridge's `agent` marking for the owner's own script, so an agent that can run a shell or read
@@ -488,6 +491,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
 | 2026-10-29 | patch | #599 review: `@media` is tested against the width the body is laid out at, to the pixel; a picture shown only under a dark or narrow `@media` is fetched when that look is shown, which tells its server the theme or width |
 | 2026-10-27 | minor | #508: the sender-warning banner can be dismissed by the owner only (`mail.dismissWarnings`, class settings); a new kind of warning shows it again |

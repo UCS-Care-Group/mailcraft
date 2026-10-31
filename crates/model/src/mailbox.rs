@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::sync::RemoteFlags;
+use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name,
 };
@@ -123,6 +123,11 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+}
+
+/// Whether a list of category names has `name`.
+fn on_list(names: &[String], name: &str) -> bool {
+    names.iter().any(|have| same_category(have, name))
 }
 
 /// A folder as a Microsoft account's server knows it (ADR 0003): its server id, which stays the
@@ -979,9 +984,9 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub queued: Vec<Queued>,
     /// The lists of categories of the Microsoft accounts, each made at the first read of its
-    /// server's list (#633), by the id of the account. An account with none (IMAP, this computer,
-    /// a Microsoft account not read yet) has [`Mailbox::categories`]; a shared mailbox its owner's
-    /// ([`Mailbox::category_list_owner`]).
+    /// server's list ([`Mailbox::start_account_categories`], #633), by the id of the account. An
+    /// account with none (IMAP, this computer, a Microsoft account not read yet) has
+    /// [`Mailbox::categories`]; a shared mailbox its owner's ([`Mailbox::category_list_owner`]).
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub account_categories: BTreeMap<Id, Vec<Category>>,
     /// The names on Outlook's list of categories, as each Microsoft account's server last gave it
@@ -1926,11 +1931,8 @@ impl Mailbox {
         }
         let (uid, synced) = self.imap_side(id, folder, account, &remote, fresh)?;
         let m = self.message_mut(id)?;
-        m.folder = folder;
-        m.account = account;
-        // The UID belonged to the old folder.
-        m.uid = uid;
-        m.synced = synced;
+        // (The UID belonged to the old folder.)
+        m.lies_in(folder, account, uid, synced);
         hold_if_put_in_outbox(m, into_outbox);
         Ok(())
     }
@@ -1996,8 +1998,19 @@ impl Mailbox {
         self.is_send_queue(folder) && !self.is_imap_outbox(folder)
     }
 
-    /// Whether `folder` is the Outbox of an IMAP account, which sends all it holds (#607).
-    fn is_imap_outbox(&self, folder: Id) -> bool {
+    /// `id`, come back to the folder it lies in without a move (#451): in an Outbox of any kind it
+    /// is held, whatever it was when it left, for it left unsent and only Send sends; anywhere
+    /// else it is no longer held for having been put in one (#607).
+    pub fn hold_if_in_outbox(&mut self, id: Id) {
+        let in_outbox = self.message(id).is_some_and(|m| self.is_send_queue(m.folder));
+        if let Ok(m) = self.message_mut(id) {
+            hold_if_put_in_outbox(m, in_outbox);
+        }
+    }
+
+    /// Whether `folder` is the Outbox of an IMAP account, which holds what is moved or copied
+    /// there and sends only what was queued with Send (#607).
+    pub fn is_imap_outbox(&self, folder: Id) -> bool {
         self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
@@ -2093,8 +2106,9 @@ impl Mailbox {
     }
 
     /// Why `m` can't go to another mailbox (#70, #451), when it can't: what goes there is made of
-    /// the whole message, and a draft stays in its own mailbox. `fetched_first`: one not fetched
-    /// yet will be before its copy goes.
+    /// the whole message, and a draft stays in its own mailbox, as does a message a Microsoft
+    /// account's server wouldn't send; one held only for having been put in an IMAP account's
+    /// Outbox is no draft. `fetched_first`: one not fetched yet will be before its copy goes.
     fn not_whole(m: &Message, doing: &str, fetched_first: bool) -> Option<String> {
         let subject = subject_said(m);
         if m.incomplete || m.not_downloaded > 0 {
@@ -2103,7 +2117,7 @@ impl Mailbox {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
-        } else if m.draft || m.server_draft.is_some() || !m.held.is_empty() {
+        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && m.held != MOVED_INTO_OUTBOX) {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
         } else {
             None
@@ -2112,12 +2126,12 @@ impl Mailbox {
 
     /// Put `id` on its account's server again, from the whole message here: the server's copy
     /// was deleted while the message was moved back there (#451). Nothing for one that isn't
-    /// whole here, a draft, or one that waits to go there already.
+    /// whole here, a draft, one held in an Outbox, or one that waits to go there already.
     pub fn place_again(&mut self, id: Id) {
         let Some(m) = self.message(id) else { return };
         let account = m.account;
         let waits = self.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
-        if waits || !self.puts_on_server(account) || Mailbox::not_whole(m, "moved", false).is_some() {
+        if waits || !m.held.is_empty() || !self.puts_on_server(account) || Mailbox::not_whole(m, "moved", false).is_some() {
             return;
         }
         let marker = self.place_marker(id, "");
@@ -2181,7 +2195,8 @@ impl Mailbox {
     ///   owner's (a shared mailbox and its owner's, or two of his shared mailboxes, #70): there at
     ///   once, being moved, and waiting to be made on the destination's server
     ///   ([`Queued::PlaceMessage`]); the original is removed from its own server once that copy
-    ///   is there. Refused for a message that isn't whole here, and for a draft.
+    ///   is there. Refused for a message that isn't whole here, a draft, and mail a Microsoft
+    ///   account's server wouldn't send ([`Mailbox::not_whole`]).
     /// - Back into the account it is being moved out of: it is that server message again.
     /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
     fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool) -> Result<bool, ModelError> {
@@ -2203,7 +2218,7 @@ impl Mailbox {
             let (uid, synced) = self.imap_side(id, folder, to_account, remote, fresh)?;
             let m = self.message_mut(id)?;
             m.server = None;
-            (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
+            m.lies_in(folder, to_account, uid, synced);
             return Ok(true);
         }
         if self.is_graph(to_account)
@@ -2226,7 +2241,7 @@ impl Mailbox {
             self.imap_side(id, folder, to_account, remote, fresh)?;
             let m = self.message_mut(id)?;
             (m.server, m.moving_out) = (Some(server), None);
-            (m.folder, m.account, m.uid, m.synced) = (folder, to_account, 0, None);
+            m.lies_in(folder, to_account, 0, None);
             // Its run may be removing the server's copy: should that answer be lost, it is kept
             // here rather than forgotten.
             m.returned = crate::RETURNED_LISTINGS;
@@ -2262,7 +2277,7 @@ impl Mailbox {
                 m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
             }
             m.server = None;
-            (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
+            m.lies_in(folder, to_account, uid, synced);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from });
             return Ok(true);
         }
@@ -2283,7 +2298,7 @@ impl Mailbox {
             m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
         }
         m.server = None;
-        (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
+        m.lies_in(folder, to_account, uid, synced);
         Ok(true)
     }
 
@@ -2339,6 +2354,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
+            copy.placed.clear();
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
@@ -2359,8 +2375,10 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
-        // (Put back after a refused copy is said of the message, not of a copy of it.)
+        // (Put back after a refused copy is said of the message, not of a copy of it, and so is
+        // the copy on a server it waits for.)
         copy.returned = 0;
+        copy.placed.clear();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {
@@ -2873,14 +2891,49 @@ impl Mailbox {
             .collect()
     }
 
-    /// Give `account` a list of categories of its own, at the first read of its server's (#633):
-    /// the categories its items already carry, in the colours they have today. Those of the
-    /// other accounts stay out of it, and the shared list stays as it is.
-    pub fn start_account_categories(&mut self, account: Id) {
+    /// Give `account` a list of categories of its own, at the first read of its server's, whose
+    /// names are `on_server` (#633): the categories of the shared list that no other Microsoft
+    /// account's server lists (the owner's own, in their colours, and so the whole shared list
+    /// with one Microsoft account), then what its items already carry. The shared list stays.
+    pub fn start_account_categories(&mut self, account: Id, on_server: &[String]) {
         let owner = self.junk_owner(account);
-        if !self.account_categories.contains_key(&owner) {
-            let list = self.category_names_of(owner).into_iter().map(|name| Category { color: self.category_color(&name), name }).collect();
-            self.account_categories.insert(owner, list);
+        if self.account_categories.contains_key(&owner) {
+            return;
+        }
+        let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
+        let mut list: Vec<Category> = self.categories.iter().filter(|c| !elsewhere(&c.name)).cloned().collect();
+        for name in self.category_names_of(owner) {
+            if !list.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
+                list.push(Category { color: self.category_color(&name), name });
+            }
+        }
+        list.truncate(MAX_CATEGORIES);
+        self.account_categories.insert(owner, list);
+        self.settle_earlier_lists(owner, on_server);
+    }
+
+    /// The first read of `owner`'s server shows names that an account read before it, which
+    /// couldn't know them, took for the owner's own: each leaves that list, with this server's
+    /// list `on_server` deciding as if it had been read first. What that account's items carry,
+    /// what its own server lists and what changed on its list since stay, and so does the shared
+    /// list, where the name still is.
+    fn settle_earlier_lists(&mut self, owner: Id, on_server: &[String]) {
+        let earlier: Vec<Id> = self.account_categories.keys().copied().filter(|id| *id != owner).collect();
+        for account in earlier {
+            let its_server = self.server_categories.get(&account);
+            let came_across = |c: &&Category| {
+                on_list(on_server, &c.name)
+                    && self.category(&c.name).is_some_and(|shared| shared.color == c.color)
+                    && !its_server.is_some_and(|names| on_list(names, &c.name))
+            };
+            let leaving: Vec<String> = self.categories_of(account).iter().filter(came_across).map(|c| c.name.clone()).collect();
+            if leaving.is_empty() {
+                continue;
+            }
+            let carried = self.category_names_of(account);
+            if let Some(list) = self.account_categories.get_mut(&account) {
+                list.retain(|c| !on_list(&leaving, &c.name) || on_list(&carried, &c.name));
+            }
         }
     }
 
@@ -3128,7 +3181,7 @@ impl Mailbox {
                         if m.account != account {
                             (m.server, m.moving_out) = (None, None);
                         }
-                        (m.folder, m.account, m.uid, m.synced) = (folder, account, 0, None);
+                        m.lies_in(folder, account, 0, None);
                     }
                 }
                 None => {

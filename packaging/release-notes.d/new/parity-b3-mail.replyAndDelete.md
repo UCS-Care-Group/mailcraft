@@ -1,0 +1,1 @@
+- Reply and Delete: answer a message and move it to Deleted Items in one step, from Home › Respond, the message's right-click menu or the Message menu.

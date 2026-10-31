@@ -14,11 +14,23 @@ const NOW: i64 = 1_800_000_000;
 const RED: Rgb = Rgb(200, 0, 0);
 const WINE: Rgb = Rgb(90, 0, 30);
 
+/// Two Microsoft accounts and a shared list with nothing on it, so that a list holds what a test
+/// puts there; what comes across from the shared list has tests of its own.
 fn rig() -> (Session, Id, Id) {
-    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
-    let mut add = |email: &str| s.run("account.add", &json!({"email": email, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let (a, b) = (add("a@example.org"), add("b@example.org"));
+    let (mut s, a) = one_account();
+    let b = add(&mut s, "b@example.org");
+    s.mailbox.categories.clear();
     (s, a, b)
+}
+
+fn add(s: &mut Session, email: &str) -> Id {
+    s.run("account.add", &json!({"email": email, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap()
+}
+
+fn one_account() -> (Session, Id) {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let a = add(&mut s, "a@example.org");
+    (s, a)
 }
 
 fn tag(name: &str, color: Rgb) -> Category {
@@ -228,7 +240,8 @@ fn a_list_read_since_the_step_stays_after_an_undo() {
     s.run("edit.undo", &json!({})).unwrap();
     assert!(s.mailbox.category("Shared").is_none());
     assert_eq!(s.mailbox.category_list_owner(a), Some(a));
-    assert_eq!(names(&s, a), ["Red"]);
+    // What the read brought across stays with the list, as the read isn't what is undone.
+    assert_eq!(names(&s, a), ["Shared", "Red"]);
 }
 
 #[test]
@@ -273,4 +286,59 @@ fn an_agent_is_told_the_account_only_when_the_list_is_its_own() {
     assert!(!text(&s, b).contains("b@example.org"));
     assert!(!text(&s, imap).contains("imap@example.org"));
     assert!(!text(&s, local).contains("no subject"));
+}
+
+#[test]
+fn with_one_microsoft_account_the_whole_shared_list_comes_across() {
+    let (mut s, a) = one_account();
+    s.mailbox.set_category(0, "Follow-up", WINE).unwrap();
+    let shared = s.mailbox.categories.clone();
+    read(&mut s, a, vec![tag("Client X", RED), tag("Blue category", RED)]);
+    for c in shared.iter().filter(|c| c.name != "Blue category") {
+        assert_eq!(s.mailbox.category_of(a, &c.name), Some(c), "{}", c.name);
+    }
+    // Its server's own come in its server's colour, and the shared list stays.
+    assert_eq!(s.mailbox.category_color_of(a, "Blue category"), RED);
+    assert_eq!(s.mailbox.category_color_of(a, "Client X"), RED);
+    assert_eq!(s.mailbox.categories, shared);
+}
+
+#[test]
+fn the_owners_own_come_across_to_each_account_and_another_servers_dont() {
+    for first_is_a in [true, false] {
+        let (mut s, a, b) = rig();
+        // One list today: a name from each server, and one made here.
+        for name in ["Client X", "Invoices", "Follow-up"] {
+            s.mailbox.set_category(0, name, WINE).unwrap();
+        }
+        let (a_list, b_list) = (vec![tag("Client X", RED)], vec![tag("Invoices", RED)]);
+        if first_is_a {
+            read(&mut s, a, a_list);
+            read(&mut s, b, b_list);
+        } else {
+            read(&mut s, b, b_list);
+            read(&mut s, a, a_list);
+        }
+        assert_eq!(names(&s, a), ["Client X", "Follow-up"], "a first: {first_is_a}");
+        assert_eq!(names(&s, b), ["Invoices", "Follow-up"], "a first: {first_is_a}");
+        assert_eq!(s.mailbox.category_color_of(a, "Follow-up"), WINE);
+        assert_eq!(s.mailbox.category_color_of(b, "Follow-up"), WINE);
+    }
+}
+
+#[test]
+fn what_is_used_or_changed_on_a_list_stays_when_another_server_lists_it() {
+    let (mut s, a, b) = rig();
+    for name in ["Unused", "On an item", "Recoloured", "On both"] {
+        s.mailbox.set_category(0, name, WINE).unwrap();
+    }
+    message_of(&mut s, a, &["On an item"]);
+    read(&mut s, a, vec![tag("On both", RED)]);
+    s.run("category.set", &json!({"account": a, "name": "Recoloured", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Made on this list", "color": "#112233"})).unwrap();
+    let on_b = ["Unused", "On an item", "Recoloured", "On both", "Made on this list"];
+    read(&mut s, b, on_b.iter().map(|name| tag(name, RED)).collect());
+    assert_eq!(names(&s, a), ["On an item", "Recoloured", "On both", "Made on this list"]);
+    // The name that left stays on the shared list.
+    assert!(s.mailbox.category("Unused").is_some());
 }

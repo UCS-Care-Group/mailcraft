@@ -1,0 +1,1 @@
+- **Recent searches.** The last ten searches you ran are offered under the search box when it is empty, and in View › Recent Searches, to run again with one click; Clear Recent Searches there forgets them. The list is kept only in MailCraft's settings on this computer and is never sent anywhere (`view.recentSearches`).
