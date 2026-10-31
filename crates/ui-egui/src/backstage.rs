@@ -292,16 +292,30 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
-        // Whether MailCraft may change the automatic replies, with a way to sign in again for it.
+        // Where the automatic replies stand, and whether MailCraft may change them, with a way
+        // to sign in again or to ask for that permission again.
         if let Some((line, again)) = app.auto_replies_line(a.id) {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Sign in again: Microsoft's page opens in your browser and asks to let MailCraft read and change your mailbox settings, which hold your automatic replies. Mail and your calendar work as they are meanwhile."
-                );
-                if again && ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
-                    let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
+                match again {
+                    Some(crate::auto_replies::Again::SignIn) => {
+                        let tip = tl!(
+                            "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+                        );
+                        if ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
+                            let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
+                        }
+                    }
+                    Some(crate::auto_replies::Again::Ask) => {
+                        let tip = tl!(
+                            "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+                        );
+                        if ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                            app.auto_replies_ask_again(a.id);
+                        }
+                    }
+                    None => {}
                 }
             });
             ui.add_space(4.0);

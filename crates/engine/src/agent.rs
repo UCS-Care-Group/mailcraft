@@ -444,6 +444,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.allowSharedSend",
     "ui.allowSharedCalendars",
     "ui.allowTasks",
+    "ui.allowAutomaticReplies",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",

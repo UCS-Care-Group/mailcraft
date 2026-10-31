@@ -7,7 +7,7 @@ use mailcraft_model::Id;
 use mailcraft_model::auto_replies::MAX_REPLY_TEXT;
 use serde_json::{Value, json};
 
-use super::auto_replies::{NOT_MICROSOFT, SHARED, any_on};
+use super::auto_replies::{NOT_MICROSOFT, NOT_READ, SHARED, any_on};
 use crate::Session;
 use crate::agent::{self, Access, Class};
 
@@ -44,7 +44,7 @@ fn what_the_server_has_is_kept_as_plain_text() {
     // The first account that can have them is the default.
     assert_eq!(run(&mut s, "account.automaticReplies", json!({}))["account"].as_u64(), Some(account));
 
-    let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": server_setting(), "canWrite": false}));
+    let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": server_setting()}));
     assert_eq!(known["status"], "scheduled");
     assert_eq!(known["audience"], "contactsOnly");
     // Times in the calendar's zone (UTC here); a zone by its Windows name is known.
@@ -56,16 +56,16 @@ fn what_the_server_has_is_kept_as_plain_text() {
         assert!(!internal.contains(gone), "{gone} in {internal}");
     }
     assert!(known["external"].as_str().unwrap().contains("Ask bo@example.org."));
-    assert_eq!((known["on"].as_bool(), known["canWrite"].as_bool()), (Some(true), Some(false)));
+    assert_eq!(known["on"].as_bool(), Some(true));
     assert!(any_on(&s));
     // What is known is what `account.automaticReplies` says.
     assert_eq!(run(&mut s, "account.automaticReplies", json!({"account": account}))["known"], known);
 
     // Turned off on the server: off here, and the status bar says nothing.
-    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "disabled"}, "canWrite": true}));
+    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "disabled"}}));
     assert!(!any_on(&s));
     // Never kept in the mailbox: another mailbox knows nothing of them.
-    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "alwaysEnabled"}, "canWrite": true}));
+    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "alwaysEnabled"}}));
     assert!(any_on(&s));
     s.replace_mailbox(s.mailbox.clone());
     assert!(!any_on(&s) && s.auto_replies.is_empty());
@@ -74,7 +74,7 @@ fn what_the_server_has_is_kept_as_plain_text() {
 #[test]
 fn a_change_says_what_changes_in_graphs_names() {
     let (mut s, account) = session();
-    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": server_setting(), "canWrite": true}));
+    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": server_setting()}));
     // Always on, with a new reply inside the organisation: the one outside, unchanged, isn't sent.
     let said = run(
         &mut s,
@@ -95,6 +95,7 @@ fn a_change_says_what_changes_in_graphs_names() {
     let mut east = Session::at(crate::sample::mailbox(NOW, 0), NOW, 120);
     let added = run(&mut east, "account.add", json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}));
     let account = added["id"].as_u64().unwrap();
+    run(&mut east, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "disabled"}}));
     let said = run(
         &mut east,
         "account.setAutomaticReplies",
@@ -114,6 +115,11 @@ fn a_change_says_what_changes_in_graphs_names() {
 fn what_cant_be_is_refused_with_a_reason() {
     let (mut s, account) = session();
     let refused = |s: &mut Session, params: Value| s.run("account.setAutomaticReplies", &params).unwrap_err().to_string();
+    // Before the server's setting is read, nothing is changed: empty replies would be written
+    // over the owner's.
+    let blind = json!({"account": account, "status": "disabled", "internal": "", "external": "", "audience": "all"});
+    assert_eq!(refused(&mut s, blind), NOT_READ);
+    run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "disabled"}}));
     // A time range with no end, an end before its start, times that aren't.
     assert!(refused(&mut s, json!({"account": account, "status": "scheduled", "start": "2026-10-01T09:00"})).contains("`end`"));
     assert!(
@@ -166,14 +172,13 @@ fn what_cant_be_is_refused_with_a_reason() {
 fn a_hostile_answer_is_cut_or_refused() {
     let (mut s, account) = session();
     for odd in [json!(null), json!("on"), json!([1])] {
-        assert!(s.run("sync.applyAutomaticReplies", &json!({"account": account, "setting": odd, "canWrite": true})).is_err(), "{odd}");
+        assert!(s.run("sync.applyAutomaticReplies", &json!({"account": account, "setting": odd})).is_err(), "{odd}");
     }
     // What is no setting in it is none: off, no replies.
     for odd in [json!({"status": 7}), json!({"internalReplyMessage": {"html": 1}})] {
-        let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": odd, "canWrite": true}));
+        let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": odd}));
         assert_eq!((known["status"].as_str(), known["internal"].as_str()), (Some("disabled"), Some("")));
     }
-    assert!(s.run("sync.applyAutomaticReplies", &json!({"account": account, "setting": {}})).is_err(), "canWrite is required");
     // Unknown words are no status; a zone nobody knows is UTC; times that aren't are none.
     let odd = json!({
         "status": "sometimes",
@@ -182,7 +187,7 @@ fn a_hostile_answer_is_cut_or_refused() {
         "internalReplyMessage": "<p>".repeat(100_000),
         "externalReplyMessage": format!("<p>{}</p>", "word ".repeat(40_000)),
     });
-    let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": odd, "canWrite": true}));
+    let known = run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": odd}));
     assert_eq!((known["status"].as_str(), known["start"].as_str(), known["end"].clone()), (Some("disabled"), Some("2026-09-21T08:00"), Value::Null));
     assert!(known["external"].as_str().unwrap().chars().count() <= MAX_REPLY_TEXT);
     assert_eq!(known["on"], false);

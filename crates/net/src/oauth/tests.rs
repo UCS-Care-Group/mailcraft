@@ -56,10 +56,7 @@ fn graph_endpoints_of(server: &FakeHttp) -> Endpoints {
     Endpoints { scope: "graph.send graph.calendars offline_access".into(), ..endpoints_of(server) }
 }
 
-const GRAPH_SCOPES: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.ReadWrite";
-/// What Graph was asked for when the mailbox's settings were only read: what a sign-in from
-/// before the automatic replies could be changed agreed to.
-const GRAPH_SCOPES_READ: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read";
+const GRAPH_SCOPES: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read";
 /// What Graph was asked for before the mailbox's settings were: what an older sign-in agreed to.
 const GRAPH_SCOPES_BEFORE: &str =
     "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read";
@@ -69,7 +66,7 @@ fn a_sign_in_that_lacks_the_newest_permission_keeps_everything_it_had() {
     let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
     let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
     let over = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The user could not be authenticated as the grant is expired. The user must sign in again."}"#;
-    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_READ} offline_access"), ..endpoints_of(server) };
+    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} offline_access"), ..endpoints_of(server) };
     let plain = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_BEFORE} offline_access"), ..endpoints_of(server) };
     let ask = |server: &FakeHttp| refresh_graph_at(&all(server), &plain(server), &endpoints_of(server), &oauth(), "re-fresh");
     // What the provider's own endpoints ask for: tokens for what was always asked for, and the
@@ -327,7 +324,7 @@ fn microsoft_endpoints() {
     assert_eq!(graph.authorize, "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize");
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
-    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.ReadWrite");
+    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read");
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
@@ -673,7 +670,7 @@ fn graph_can_be_signed_in_to_on_its_own() {
     // The tokens are for what Graph was always asked for; the page is asked for one thing more
     // (the mailbox's settings, for its categories), which the refresh token then covers too.
     let expected = format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email");
-    assert_eq!(visit_asked(&visits, 0)["scope"], format!("{expected} https://graph.microsoft.com/MailboxSettings.ReadWrite"));
+    assert_eq!(visit_asked(&visits, 0)["scope"], format!("{expected} https://graph.microsoft.com/MailboxSettings.Read"));
     assert_eq!(visit_asked(&visits, 0)["login_hint"], "ada@example.org");
     let form = form_of(&server, 0);
     assert_eq!((form["code"].as_str(), form["scope"].as_str()), ("graph-code", expected.as_str()));
@@ -874,8 +871,8 @@ fn a_sign_in_that_does_not_cover_the_favorites_keeps_everything_it_had() {
     let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
     let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
     let over = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The user could not be authenticated as the grant is expired. The user must sign in again."}"#;
-    let most = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_READ} {FAVORITES_SCOPES} offline_access"), ..endpoints_of(server) };
-    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_READ} offline_access"), ..endpoints_of(server) };
+    let most = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} offline_access"), ..endpoints_of(server) };
+    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} offline_access"), ..endpoints_of(server) };
     let plain = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_BEFORE} offline_access"), ..endpoints_of(server) };
     let ask =
         |server: &FakeHttp| refresh_graph_with_favorites_at(&most(server), &all(server), &plain(server), &endpoints_of(server), &oauth(), "re-fresh");
@@ -1670,11 +1667,11 @@ fn the_identity_token_says_which_directory_signed_in() {
 
 /// What an administrator is asked to approve: everything the program asks an owner for, and what
 /// later shared-mailbox slices will ask for.
-const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite offline_access openid profile email";
+const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
 /// The same, service by service.
 const ADMIN_SCOPES_MAIL: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
-const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite offline_access openid profile email";
+const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
 /// A directory's id and an application's, both invented.
 const DIRECTORY: &str = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
 const APPLICATION: &str = "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6";
@@ -2245,98 +2242,52 @@ fn a_graph_accounts_no_for_the_tasks_is_checked_against_graph_mail() {
     assert_eq!(kinds, [(true, false), (false, true)]);
 }
 
-/// A token endpoint that hands out tokens for what the owner agreed to (`agreed`, separated by
-/// spaces) and says "not agreed" (AADSTS65001) to anything more, as Microsoft's does.
-fn agreeing_to(agreed: &'static str) -> FakeHttp {
-    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
-    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
-    FakeHttp::start(move |_, request| {
-        let form = fields(request.split("\r\n\r\n").nth(1).unwrap_or(""));
-        let asked = form.get("scope").cloned().unwrap_or_default();
-        let covered = asked.split(' ').filter(|scope| !scope.is_empty()).all(|scope| agreed.split(' ').any(|had| had == scope));
-        if covered { ok(granted) } else { response("400 Bad Request", unasked) }
-    })
-}
-
-const SIGNED_IN: &str = "offline_access openid profile email";
+const SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 
 #[test]
-fn the_mailbox_settings_are_asked_to_be_changed_and_an_older_sign_in_keeps_reading_them() {
-    // Every page of a sign-in asks for changing the settings now, in place of reading them; the
-    // administrator's one approval covers it, and reading them alone is asked of nobody.
+fn changing_the_settings_is_never_on_a_sign_in_page_and_reading_them_costs_nothing_more() {
+    // A sign-in still asks to read the settings, and never to change them: a tenant that makes an
+    // administrator approve that must not stop a sign-in.
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        assert!(endpoints.consent.split(' ').any(|scope| scope == "https://graph.microsoft.com/MailboxSettings.ReadWrite"), "{resource:?}");
-        assert!(
-            !format!("{} {}", endpoints.consent, endpoints.scope).split(' ').any(|scope| scope == "https://graph.microsoft.com/MailboxSettings.Read")
-        );
+        let all = format!("{} {} {}", endpoints.consent, endpoints.lesser, endpoints.scope);
+        assert!(!all.contains("MailboxSettings.ReadWrite"), "{resource:?}: {all}");
     }
-    let admin: Vec<String> = admin_scope().split(' ').map(str::to_string).collect();
-    assert!(admin.iter().any(|scope| scope == "https://graph.microsoft.com/MailboxSettings.ReadWrite"));
-    assert!(!admin.iter().any(|scope| scope == "https://graph.microsoft.com/MailboxSettings.Read"));
-
-    // A calendar job's tokens: a new sign-in gets them at once, with the settings.
-    let new_sign_in: &'static str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
-    let old_sign_in: &'static str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read offline_access openid profile email";
-    let older_still: &'static str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read offline_access openid profile email";
-    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} {SIGNED_IN}"), ..endpoints_of(server) };
-    let plain = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_BEFORE} {SIGNED_IN}"), ..endpoints_of(server) };
-    let ask = |server: &FakeHttp| refresh_graph_at(&all(server), &plain(server), &endpoints_of(server), &oauth(), "re-fresh");
-    let server = agreeing_to(new_sign_in);
-    assert_eq!(ask(&server).map(|got| (got.extras_missing, server.asked())), Ok((false, 1)));
-    // A sign-in from before (reading them only): the categories and the working hours stay, with
-    // one question more, and nothing is missing.
-    let server = agreeing_to(old_sign_in);
-    assert_eq!(ask(&server).map(|got| (got.extras_missing, server.asked())), Ok((false, 2)));
-    assert!(form_of(&server, 1)["scope"].split(' ').any(|scope| scope == "https://graph.microsoft.com/MailboxSettings.Read"));
-    // From before the settings at all: as it was, only the extras missing.
-    let server = agreeing_to(older_still);
-    assert_eq!(ask(&server).map(|got| (got.extras_missing, server.asked())), Ok((true, 3)));
-    // And with the Favorites asked for too, which a sign-in from before has with reading the
-    // settings: kept, with the settings read.
-    let most = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} {SIGNED_IN}"), ..endpoints_of(server) };
-    let favorites_old: &'static str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic offline_access openid profile email";
-    let server = agreeing_to(favorites_old);
-    let got = refresh_graph_with_favorites_at(&most(&server), &all(&server), &plain(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
-    assert_eq!((got.extras_missing, got.covers_favorites, server.asked()), (false, true, 2));
+    assert!(Endpoints::for_resource(&oauth(), Resource::Mail).consent.split(' ').any(|s| s == "https://graph.microsoft.com/MailboxSettings.Read"));
+    // The administrator's one approval covers it.
+    assert!(admin_scope().split(' ').any(|scope| scope == SETTINGS_WRITE));
+    // The calendar's (and the replies' reading) refresh asks for what it asked before: once.
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let all = Endpoints { scope: format!("{GRAPH_SCOPES} offline_access openid profile email"), ..endpoints_of(&server) };
+    refresh_graph_at(&all, &all, &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!(server.asked(), 1);
+    assert!(!form_of(&server, 0)["scope"].contains(SETTINGS_WRITE));
 }
 
 #[test]
-fn the_automatic_replies_job_says_whether_it_may_change_them() {
-    let mail = |server: &FakeHttp| (endpoints_of(server), Resource::Mail);
-    let ask = |server: &FakeHttp| {
-        let (endpoints, resource) = mail(server);
-        refresh_graph_settings_at(&endpoints_of(server), (&endpoints, resource), &oauth(), "re-fresh")
-    };
-    // A sign-in from now: the replies may be changed, with one question.
-    let server = agreeing_to(
-        "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email",
-    );
-    let got = ask(&server).unwrap();
-    assert_eq!((got.can_write, got.tokens.access.as_str(), server.asked()), (true, "graph-access", 1));
-    assert!(form_of(&server, 0)["scope"].contains("MailboxSettings.ReadWrite") && !form_of(&server, 0)["scope"].contains("Tasks"));
-    // A sign-in from before: read, not changed; the owner is to sign in again for that.
-    let server = agreeing_to(
-        "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read offline_access openid profile email",
-    );
-    let got = ask(&server).unwrap();
-    assert_eq!((got.can_write, server.asked()), (false, 2));
-    // A sign-in that covers neither, while mail still takes it: the owner is to sign in again,
-    // never a sign-in that is over.
-    let server = agreeing_to("mail.read mail.send offline_access");
-    let refused = ask(&server).unwrap_err();
-    assert!(refused.is_consent_needed() && !refused.is_refused_sign_in(), "{refused:?}");
-    assert_eq!(server.asked(), 3);
-    // A sign-in that is over: for mail too.
-    let over = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The user could not be authenticated as the grant is expired. The user must sign in again."}"#;
-    let server = FakeHttp::answering(response("400 Bad Request", over));
-    let refused = ask(&server).unwrap_err();
-    assert!(refused.is_refused_sign_in() && !refused.is_consent_needed(), "{refused:?}");
-    assert!(!format!("{refused} {refused:?}").contains("re-fresh"));
-    // The provider can't say just now: nothing is concluded, and nothing more is asked.
-    let busy = r#"{"error":"temporarily_unavailable","error_description":"Try again."}"#;
-    let server = FakeHttp::answering(response("503 Service Unavailable", busy));
-    let refused = ask(&server).unwrap_err();
-    assert!(!refused.is_refused_sign_in() && !refused.is_consent_needed(), "{refused:?}");
+fn a_change_of_the_replies_needs_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"replies-access","refresh_token":"re-fresh-6"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), server.asked()), ("replies-access", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == SETTINGS_WRITE) && scope.contains("Calendars.ReadWrite"), "{scope}");
+    assert!(!scope.contains("Tasks") && !scope.contains("Shared") && !scope.contains("Mail.ReadWrite"), "{scope}");
+    // A sign-in from before (reading them only): the owner is to be asked, once.
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed(), "{error}");
     assert_eq!(server.asked(), 1);
+    // Microsoft's no in the words of a sign-in that is over, while mail takes it: the permission.
+    let mail = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"mail-access"}"#;
+    let no = r#"{"error":"invalid_grant"}"#;
+    let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", no) } else { ok(mail) });
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed() && !format!("{error:?}").contains("re-fresh"), "{error}");
+    // And mail doesn't either: the sign-in is over.
+    let server = FakeHttp::answering(response("400 Bad Request", no));
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
 }

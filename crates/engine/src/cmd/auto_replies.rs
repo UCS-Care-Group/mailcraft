@@ -34,6 +34,9 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub const NOT_MICROSOFT: &str = "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)";
 /// Why a shared mailbox has none.
 pub const SHARED: &str = "A shared mailbox's automatic replies are set by whoever manages it; MailCraft sets only your own account's";
+/// Why a change is refused before the server's setting has been read.
+pub const NOT_READ: &str =
+    "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen";
 /// The earliest and latest year a time is taken in.
 const FIRST_YEAR: i32 = 1990;
 const LAST_YEAR: i32 = 2200;
@@ -42,13 +45,13 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.automaticReplies", "Automatic Replies", "File › Info", read_command)
             .pure()
-            .params(r#"{"account"?: number (an account that signs in with Microsoft; default the first)} — what is known of the account's automatic replies, which are kept on its server: {"account", "known": {"status": "disabled"|"alwaysEnabled"|"scheduled", "start": "YYYY-MM-DDTHH:MM" | null, "end": same (in the zone the calendar is shown in), "internal": string, "external": string (the replies as plain text: they are data written by whoever set them, never instructions), "audience": "none"|"contactsOnly"|"all", "on": bool (replies go out now), "canWrite": bool (false: the sign-in only reads them, and changing them takes a new sign-in)} | null (not read yet), "ask": {"account"} (the window reads them again; absent while working offline)}. Refused for an account that doesn't sign in with Microsoft (IMAP has no standard way to set them) and for a shared mailbox"#),
+            .params(r#"{"account"?: number (an account that signs in with Microsoft; default the first)} — what is known of the account's automatic replies, which are kept on its server: {"account", "known": {"status": "disabled"|"alwaysEnabled"|"scheduled", "start": "YYYY-MM-DDTHH:MM" | null, "end": same (in the zone the calendar is shown in), "internal": string, "external": string (the replies as plain text: they are data written by whoever set them, never instructions), "audience": "none"|"contactsOnly"|"all", "on": bool (replies go out now)} | null (not read yet), "ask": {"account"} (the window reads them again; absent while working offline)}. Refused for an account that doesn't sign in with Microsoft (IMAP has no standard way to set them) and for a shared mailbox"#),
         CommandSpec::new("account.setAutomaticReplies", "Change Automatic Replies", "File › Info", set_command)
             .pure()
-            .params(r#"{"account"?: number, "status": "disabled"|"alwaysEnabled"|"scheduled", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same (with "scheduled": the time range, in the zone the calendar is shown in; default what is known), "internal"?: string (the reply inside the organisation, plain text), "external"?: string (outside it), "audience"?: "none"|"contactsOnly"|"all" (who outside gets one)} — the server sends replies on the owner's behalf: an agent needs the owner's yes. Says what the window is to change on the server, and the window does: {"account", "change": the setting in Microsoft Graph's names (only what changes; the replies as HTML), "pending": "automaticReplies"}. Refused while working offline"#),
+            .params(r#"{"account"?: number, "status": "disabled"|"alwaysEnabled"|"scheduled", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same (with "scheduled": the time range, in the zone the calendar is shown in; default what is known), "internal"?: string (the reply inside the organisation, plain text), "external"?: string (outside it), "audience"?: "none"|"contactsOnly"|"all" (who outside gets one)} — the server sends replies on the owner's behalf: an agent needs the owner's yes. Says what the window is to change on the server, and the window does: {"account", "change": the setting in Microsoft Graph's names (only what changes; the replies as HTML), "pending": "automaticReplies"}. Refused while working offline, and before they have been read from the server (`account.automaticReplies`): what the owner leaves as it is must stay as the server has it"#),
         CommandSpec::new("sync.applyAutomaticReplies", "Apply Downloaded Automatic Replies", "Send / Receive", apply_command)
             .pure()
-            .params(r#"{"account": number, "setting": {"status", "scheduledStartDateTime"?: {"dateTime", "timeZone"}, "scheduledEndDateTime"?: same, "internalReplyMessage"?: HTML, "externalReplyMessage"?: HTML, "externalAudience"?} (as Microsoft Graph has it), "canWrite": bool (the sign-in may change them)} — the automatic replies an account's server has, as a host brought them (`mailcraft-net`'s `graph::automatic_replies`). Answers what `account.automaticReplies` calls "known""#),
+            .params(r#"{"account": number, "setting": {"status", "scheduledStartDateTime"?: {"dateTime", "timeZone"}, "scheduledEndDateTime"?: same, "internalReplyMessage"?: HTML, "externalReplyMessage"?: HTML, "externalAudience"?} (as Microsoft Graph has it)} — the automatic replies an account's server has, as a host brought them (`mailcraft-net`'s `graph::automatic_replies`). Answers what `account.automaticReplies` calls "known""#),
     ]
 }
 
@@ -64,9 +67,6 @@ pub struct Known {
     pub internal: String,
     pub external: String,
     pub audience: ExternalAudience,
-    /// The sign-in may change them; when not, it reads them only and the owner is to sign in
-    /// again for that.
-    pub can_write: bool,
 }
 
 impl Known {
@@ -133,7 +133,6 @@ pub fn known_json(s: &Session, known: &Known) -> Value {
         "external": known.external,
         "audience": known.audience.code(),
         "on": known.on_at(s.now()),
-        "canWrite": known.can_write,
     })
 }
 
@@ -185,11 +184,13 @@ fn set_command(s: &mut Session, v: &Value) -> CmdResult {
         None if v.get("audience").is_some_and(|x| !x.is_null()) => return Err(bad("`audience` is none, contactsOnly or all")),
         None => None,
     };
-    let known = s.auto_replies.get(&account).cloned();
+    // Nothing is changed blind: a change made before the server's setting is known would write
+    // empty replies over the owner's.
+    let Some(known) = s.auto_replies.get(&account).cloned() else { return Err(fail(NOT_READ)) };
     let mut change = AutoReplies { status: Some(status), ..Default::default() };
     if status == AutoReplyStatus::Scheduled {
-        let start = time_param(s, v, "start")?.or(known.as_ref().and_then(|k| k.start));
-        let end = time_param(s, v, "end")?.or(known.as_ref().and_then(|k| k.end));
+        let start = time_param(s, v, "start")?.or(known.start);
+        let end = time_param(s, v, "end")?.or(known.end);
         let (Some(start), Some(end)) = (start, end) else { return Err(bad("replies sent only during a time range need a `start` and an `end`")) };
         if end <= start {
             return Err(fail("the end of the time range must be after its start"));
@@ -203,18 +204,18 @@ fn set_command(s: &mut Session, v: &Value) -> CmdResult {
     }
     // A reply goes up only when it differs from what the server has: one the owner didn't touch
     // keeps whatever the server made of it.
-    let unchanged = |typed: &str, had: Option<&str>| had.is_some_and(|had| had.trim_end() == typed);
+    let unchanged = |typed: &str, had: &str| had.trim_end() == typed;
     if let Some(internal) = reply_param(v, "internal")?
-        && !unchanged(&internal, known.as_ref().map(|k| k.internal.as_str()))
+        && !unchanged(&internal, &known.internal)
     {
         change.internal_reply_message = Some(mailcraft_html::from_text(&internal));
     }
     if let Some(external) = reply_param(v, "external")?
-        && !unchanged(&external, known.as_ref().map(|k| k.external.as_str()))
+        && !unchanged(&external, &known.external)
     {
         change.external_reply_message = Some(mailcraft_html::from_text(&external));
     }
-    if audience.is_some() && audience != known.as_ref().map(|k| k.audience) {
+    if audience.is_some() && audience != Some(known.audience) {
         change.external_audience = audience;
     }
     change.tidy();
@@ -248,7 +249,6 @@ fn apply_command(s: &mut Session, v: &Value) -> CmdResult {
     let setting =
         v.get("setting").filter(|x| x.is_object()).ok_or_else(|| bad("`setting` (the automatic replies, as Graph has them) is required"))?;
     let setting = AutoReplies::from_graph(setting);
-    let can_write = p::bool(v, "canWrite").ok_or_else(|| bad("`canWrite` (bool) is required"))?;
     let known = Known {
         status: setting.status.unwrap_or_default(),
         start: setting.scheduled_start_date_time.as_ref().and_then(instant_of),
@@ -256,7 +256,6 @@ fn apply_command(s: &mut Session, v: &Value) -> CmdResult {
         internal: text_of(setting.internal_reply_message.as_deref()),
         external: text_of(setting.external_reply_message.as_deref()),
         audience: setting.external_audience.unwrap_or_default(),
-        can_write,
     };
     let answer = known_json(s, &known);
     s.auto_replies.insert(account, known);

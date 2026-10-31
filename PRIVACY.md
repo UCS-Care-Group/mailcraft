@@ -68,10 +68,12 @@ computer, for you, and for nothing else:
 
 - reading and sending your mail (IMAP and SMTP access, and sending through Microsoft Graph);
 - reading and changing your calendar, and reading your contacts;
-- reading your mailbox settings (working hours and categories), and reading and changing your automatic
-  replies (File › Info › Automatic Replies) when you change them there; nothing else of your settings is
-  changed. A sign-in from before this was asked for can read them but not change them: the program says
-  so and offers to sign you in again;
+- reading your mailbox settings (working hours, categories and automatic replies);
+- changing your automatic replies (`MailboxSettings.ReadWrite`), so that File › Info › Automatic Replies
+  can turn them on or off and change their text: never asked for on a sign-in page; it is asked for by
+  itself the first time you change your automatic replies, after the program has asked you, and File ›
+  Info shows whether it was given. Only the automatic replies are changed with it, never your
+  categories, working hours or other settings;
 - reading and changing your To Do lists and tasks (`Tasks.ReadWrite`), so that your tasks are kept in
   step with Microsoft To Do: your tasks' titles, notes, dates, importance, categories and whether they are
   done go to your own Microsoft account and come back from it, and nowhere else. It is never asked for

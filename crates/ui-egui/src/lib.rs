@@ -575,6 +575,10 @@ pub struct SignInRequest {
     /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
     /// the sign-in doesn't cover it, and the owner said go ahead.
     pub tasks: bool,
+    /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
+    /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
+    /// the sign-in doesn't cover it, and the owner said go ahead.
+    pub replies: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -737,6 +741,8 @@ struct SigningIn {
     shared_calendars: bool,
     /// And for the To Do lists (#248).
     tasks: bool,
+    /// And for changing the automatic replies.
+    replies: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -1011,7 +1017,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.automaticRepliesSignIn",
         "Sign In Again for Automatic Replies",
         "File › Info",
-        r#"{"account": number (a Microsoft account)} — signs in again on Microsoft's page in the browser, which asks for permission to read and change the mailbox's settings (MailboxSettings.ReadWrite), for an account whose sign-in is from before that was asked and so reads its automatic replies but can't change them; they are read again once it is done. Answers {"pending": "signIn", "account": number}"#,
+        r#"{"account": number (a Microsoft account)} — signs in again on Microsoft's page in the browser, for an account whose sign-in doesn't read its mailbox's settings or is over; its automatic replies are read again once it is done. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowAutomaticReplies",
+        "Allow Changing Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the mailbox's settings (MailboxSettings.ReadWrite) for its automatic replies, by itself: never with a sign-in. The window asks first, when a change finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the change that waited goes; refused, or when an administrator has to approve first, it is dropped and the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.checkCalendar",
@@ -1348,6 +1360,8 @@ pub struct MailApp {
     /// without it, for reading the calendars opened by address (#70).
     shared_calendars_next: bool,
     tasks_next: bool,
+    /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
+    replies_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
     /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
@@ -1632,6 +1646,7 @@ impl MailApp {
             shared_send_next: false,
             shared_calendars_next: false,
             tasks_next: false,
+            replies_next: false,
             tasks: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
@@ -2269,6 +2284,13 @@ impl MailApp {
                 }
                 self.auto_replies_sign_in(account)
             }
+            "ui.allowAutomaticReplies" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_replies_sign_in(account)
+            }
             "ui.allowTasks" => {
                 if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
                     return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
@@ -2551,6 +2573,7 @@ impl MailApp {
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
         let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
+        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks;
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2580,11 +2603,12 @@ impl MailApp {
             shared_send,
             shared_calendars,
             tasks,
+            replies,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
         self.signing_in =
-            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, browser, opening, rx, cancel });
+            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, replies, browser, opening, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -3377,6 +3401,7 @@ impl MailApp {
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
+        let for_replies = waiting.replies;
         let started_under = waiting.opening;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
@@ -3415,6 +3440,10 @@ impl MailApp {
         // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
         if for_tasks {
             return self.tasks_signed_in(account, answer);
+        }
+        // For changing the automatic replies: the change that waited goes now, or why not is said.
+        if for_replies {
+            return self.replies_signed_in(account, answer);
         }
         // For reading the calendars opened by address (#70): they are read now, or why not is said.
         if for_shared_calendars {

@@ -5,10 +5,9 @@
 //! `PATCH /me/mailboxSettings`, which is told the automatic replies and nothing else of the
 //! settings (the categories and the working hours are never written).
 //!
-//! Reading takes `MailboxSettings.Read` or `.ReadWrite`; changing takes `.ReadWrite`, which a
-//! sign-in from before it was asked for doesn't have: the answer is then
-//! [`NetError::Forbidden`], and nothing has changed. Which token the host has is
-//! [`crate::oauth::refresh_graph_settings`]'s to say.
+//! Reading takes `MailboxSettings.Read`, which a sign-in asks for; changing takes
+//! `.ReadWrite`, which is asked for by itself ([`crate::oauth::refresh_graph_replies`]). A token
+//! without it gets [`NetError::Forbidden`], and nothing has changed.
 //!
 //! What comes back is hostile JSON like everything else from a server: the answer is capped, a
 //! status or an audience that isn't one is none, and each reply is cut to
