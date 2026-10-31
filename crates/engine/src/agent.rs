@@ -14,7 +14,8 @@
 //!   [`check`] refuses them. (`mailcraft-cli mcp --files DIR` reads and writes inside DIR itself
 //!   and hands the command `data`.)
 //! - [`Session::run`](crate::Session::run) checks what a command did while [`Session::agent`] is
-//!   set: mail put in an Outbox (which sends it) or gone for good without the grant is undone.
+//!   set: mail put in an Outbox (which sends it, or, an IMAP account's, holds it for Send Again)
+//!   or gone for good without the grant is undone.
 
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -1052,17 +1053,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "mail.move" | "mail.copy" => {
             // What the agent names (#620), read as the command reads them (#503, #451).
             let ids = taken(params);
-            let into = p::id(params, "folder").filter(|f| !is_outbox(&s.mailbox, *f)).and_then(|f| s.mailbox.folder(f));
-            match into {
-                Some(f) => {
-                    let account = s.mailbox.account(f.account).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
-                    let verb = if id == "mail.move" { "move" } else { "copy" };
-                    format!("{verb} {} onto the server of {account}, into {}", messages_text(s, &ids), quoted(&f.name))
+            let verb = if id == "mail.move" { "move" } else { "copy" };
+            let account = |id| s.mailbox.account(id).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+            match p::id(params, "folder").and_then(|f| s.mailbox.folder(f)) {
+                Some(f) if !is_outbox(&s.mailbox, f.id) => {
+                    format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                None => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
+                // An IMAP account's holds what is put there (#607).
+                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                    format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
+                }
+                _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
             }
         }
-        "file.import" => "import messages into the Outbox, which sends them".to_string(),
+        // (Never into the Outbox itself: `import` puts mail elsewhere, or refuses it.)
+        "file.import" => "import a file with an Outbox chosen: no mail goes in it, and none is sent".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
             let ids = taken(params);
             format!("delete {} for good", messages_text(s, &ids))

@@ -33,8 +33,8 @@ A command without a class is refused; every command MailCraft has carries one, a
 new commands choose.
 
 What a command does is checked too: a command run for an agent that would put mail in an Outbox
-(which sends it) or remove messages for good, without that being allowed, is undone and refused,
-whichever way it got there.
+(which sends it, or, an IMAP account's, holds it unsent until Send Again) or remove messages for
+good, without that being allowed, is undone and refused, whichever way it got there.
 
 **Files.** An agent never names a file on this computer. A param that does (`path` of
 `file.open`, `file.import`, `file.save`, `file.saveAs`, the `file.export…` commands,
@@ -206,3 +206,4 @@ parameters.
 | 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` doesn't cover throwing away a message the owner typed in; any other command of an agent's that would take away an appointment being changed, overwrite what the owner typed in its window, or put back an earlier draft of the message the owner is writing, is refused; any other undo or redo that would take away a draft or put back an earlier version of one is `delete` |
 | 2026-10-28 | minor | #451: moving or copying mail onto another account's server (from another account or from this computer) is `send`; `mail.move` and `mail.copy` refuse an `id` or `ids` named wrongly rather than take the selection |
 | 2026-10-30 | patch | #577: an agent's command that would change what is written in a message the owner has typed in (its text, recipients, subject, attachments, importance, formatting) is refused, and nothing is changed; Save Draft saves only what the owner wrote |
+| 2026-10-30 | patch | #451 follow-up: an IMAP account's Outbox holds what is put there, and the question to the owner says so |
