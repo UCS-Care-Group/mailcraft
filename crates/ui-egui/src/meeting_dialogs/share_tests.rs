@@ -105,3 +105,17 @@ fn search_calendar_finds_and_goes_to_the_appointment() {
     assert!(app.dialog.is_none());
     assert_eq!(app.session.sel.event, Some(design_review(app)));
 }
+
+#[test]
+fn people_meeting_opens_the_meeting_form_with_the_contact_invited() {
+    let mut app = app();
+    let contact = app.session.mailbox.contacts.values().find(|c| c.address().is_some()).map(|c| c.id).unwrap();
+    app.session.sel.contact = Some(contact);
+    let to = app.session.mailbox.contact(contact).and_then(mailcraft_model::Contact::address).unwrap();
+    assert_eq!(crate::dialogs::as_opened(&mut app, "people.meeting", json!({}))["attendees"], json!(to.full()));
+    let events = app.session.mailbox.events.len();
+    let opened = app.run("people.meeting", json!({})).unwrap();
+    assert_eq!((opened["new"].as_str(), app.windows.len()), (Some("meeting"), 1));
+    // Nothing is saved, let alone sent, until the form is.
+    assert_eq!(app.session.mailbox.events.len(), events);
+}

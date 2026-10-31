@@ -294,6 +294,11 @@ const SAFE: &[&str] = &[
     "people.email",
     "people.fromMessage",
     "people.findDuplicates",
+    // A meeting as calendar.newMeeting ("send": true is asked about, `classify`); a message
+    // opened for the owner to send.
+    "people.meeting",
+    "people.forward",
+    "tasks.statusReport",
     "tasks.new",
     "tasks.edit",
     "tasks.complete",
@@ -636,7 +641,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // Saving or sending the appointment in a window runs later, as the owner, and the
         // account's server writes to the people invited: that is a send.
         "ui.eventWindow" if matches!(p::str(params, "do"), Some("send" | "save" | "saveAndClose")) => Access::Owner(Class::Send),
-        _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
+        _ if (id.starts_with("calendar.") || id == "people.meeting") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
             let onto = id != "file.import" && folder.is_some_and(|f| onto_another_server(s, params, f));
@@ -1357,6 +1362,14 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
         "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
         "calendar.respondEmail" => format!("start a new message to the organizer of {}", event_title(s, id, params)),
+        "people.forward" => {
+            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            format!("start a new message with the contact {} attached", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "tasks.statusReport" => {
+            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            format!("start a new message about the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
+        }
         _ => String::new(),
     };
     let writing = writing(s);

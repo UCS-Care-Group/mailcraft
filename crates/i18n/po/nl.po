@@ -1708,6 +1708,11 @@ msgstr "Geannuleerd"
 msgid "Categories"
 msgstr "Categorieën"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Categories:"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -2143,8 +2148,8 @@ msgstr "Communiceren"
 msgid "Company"
 msgstr "Bedrijf"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Completed"
 msgstr "Voltooid"
@@ -3060,6 +3065,11 @@ msgstr "Einddatum"
 msgid "Due date"
 msgstr "Einddatum"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Due date:"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3815,6 +3825,18 @@ msgstr "Opmaken als tekst zonder opmaak"
 msgid "Forward"
 msgstr "Doorsturen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Forward\n"
+"Contact"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Forward Contact"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -4202,8 +4224,8 @@ msgstr "Deze agenda verbergen"
 msgid "Hide this message's warning again"
 msgstr "De waarschuwing van dit bericht weer verbergen"
 
-#. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "High"
 msgstr "Hoog"
@@ -4380,6 +4402,11 @@ msgstr "Belang"
 msgid "Importance is"
 msgstr "Belang is"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Importance:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -4421,6 +4448,11 @@ msgstr "{what} geïmporteerd; gestopt na {count}: het bestand vergt meer dan é�
 #, fuzzy
 msgid "Importing… {messages} of {total}"
 msgstr "Importeren… {messages} van {total}"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "In Progress"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -5104,8 +5136,8 @@ msgstr ""
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "Zoeken… {folders}, {files}, {messages} tot nu toe"
 
-#. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Low"
 msgstr "Laag"
@@ -5527,8 +5559,8 @@ msgstr "Als ongelezen markeren"
 msgid "May"
 msgstr "mei"
 
-#. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Meeting"
 msgstr "Vergadering"
@@ -6535,14 +6567,14 @@ msgstr "Niemand met een adres is uitgenodigd"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Niemand, of meer dan één van uw contactpersonen, komt overeen: {names}"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Geen"
 
-#. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Normal"
 msgstr "Normaal"
@@ -6552,6 +6584,11 @@ msgstr "Normaal"
 #, fuzzy
 msgid "Not Junk"
 msgstr "Geen ongewenste e-mail"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Not Started"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -8749,6 +8786,18 @@ msgstr "Annulering verzenden"
 msgid "Send Local Tasks to To Do"
 msgstr "Lokale taken naar To Do verzenden"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Send Status\n"
+"Report"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Send Status Report"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
@@ -9080,7 +9129,7 @@ msgid "Shapes"
 msgstr "Vormen"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Share"
 msgstr "Delen"
@@ -9700,6 +9749,11 @@ msgstr "Opnieuw beginnen vanuit de details"
 msgid "Start date"
 msgstr "Begindatum"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Start date:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -9740,6 +9794,11 @@ msgstr "Statusbalk"
 #, fuzzy
 msgid "Status bar · File"
 msgstr "Statusbalk · Bestand"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Status:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -9931,6 +9990,16 @@ msgstr "Haal de vergadering die is afgezegd uit uw agenda. Niemand wordt aangesc
 #, fuzzy
 msgid "Task"
 msgstr "Taak"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Task Status Report:"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "Task:"
+msgstr ""
 
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
@@ -13635,7 +13704,7 @@ msgid "no such paragraph"
 msgstr "geen dergelijke alinea"
 
 #. what a command says
-#: crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "geen taak met id {id}"
@@ -13745,6 +13814,11 @@ msgstr "organisator"
 msgid "other people's calendars open under a Microsoft work or school account"
 msgstr "agenda's van anderen worden geopend onder een werk- of schoolaccount van Microsoft"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/status.rs
+msgid "overdue"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -13806,7 +13880,7 @@ msgid "select a message first"
 msgstr "selecteer eerst een bericht"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "select a task first"
 msgstr "selecteer eerst een taak"

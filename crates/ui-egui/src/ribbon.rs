@@ -499,7 +499,10 @@ fn home_people(app: &MailApp) -> Tab {
             ],
         ),
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
-        g("Communicate", vec![Item::big("mail", "Email", "people.email", no()).at(2, 2)]),
+        g(
+            "Communicate",
+            vec![Item::big("mail", "Email", "people.email", no()).at(2, 2), Item::big("meeting", "Meeting", "people.meeting", no()).at(2, 3)],
+        ),
         g(
             "Actions",
             vec![
@@ -514,6 +517,7 @@ fn home_people(app: &MailApp) -> Tab {
         g(
             "Share",
             vec![
+                Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
                 Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
@@ -552,6 +556,7 @@ fn home_tasks(app: &MailApp) -> Tab {
             vec![
                 Item::big("complete", "Mark\nComplete", "tasks.complete", no()).checked(done).at(2, 2),
                 Item::big("edit", "Edit\nTask", "tasks.edit", no()).at(2, 3),
+                Item::big("mail", "Send Status\nReport", "tasks.statusReport", no()).at(2, 4),
             ],
         ),
         g(

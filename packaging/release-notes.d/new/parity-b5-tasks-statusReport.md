@@ -1,0 +1,1 @@
+- Tasks › Home › Send Status Report starts a message saying how the selected task stands (its status, dates, importance, categories and notes), for you to address and send.

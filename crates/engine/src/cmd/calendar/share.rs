@@ -33,7 +33,8 @@ const MAX_FOUND: usize = 500;
 /// The commands beyond [`LEAVING`](crate::cmd::compose::LEAVING) that start a new message, as
 /// `mail.new` does, and so close the one being written: what isn't saved of it goes to Drafts
 /// first, or the owner is asked, as for those (#442, #494).
-pub const STARTS_MESSAGE: [&str; 3] = ["calendar.email", "calendar.contactAttendees", "calendar.respondEmail"];
+pub const STARTS_MESSAGE: [&str; 5] =
+    ["calendar.email", "calendar.contactAttendees", "calendar.respondEmail", "people.forward", "tasks.statusReport"];
 
 /// Whether `id` is one of [`STARTS_MESSAGE`].
 pub fn starts_message(id: &str) -> bool {
