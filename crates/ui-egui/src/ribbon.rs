@@ -462,6 +462,11 @@ fn home_calendar(app: &MailApp) -> Tab {
         if event.join_link().is_some() {
             items.insert(2, Item::small("joinMeeting", "Join", "Join Online Meeting", "ui.joinMeeting", no()).at(3, 4));
         }
+        // A meeting: a message to its people, and how they have answered.
+        if !event.attendees.is_empty() {
+            items.push(Item::small("people", "Contact Attendees", "Email the people of this meeting", "calendar.contactAttendees", no()).at(3, 7));
+            items.push(Item::small("list", "Tracking", "Who has answered, and how", "calendar.tracking", no()).at(3, 7));
+        }
         groups.push(g("Appointment", items));
         if crate::calendar_view::invitation(app, event).0 {
             let mut answers = vec![
@@ -475,12 +480,20 @@ fn home_calendar(app: &MailApp) -> Tab {
             if kept && event.origin.guest && event.response_options.allow_proposals {
                 answers.push(Item::small("proposeTime", "Propose New Time", "Propose New Time", "calendar.propose", no()).at(4, 5));
             }
+            answers.push(Item::small("reply", "Reply by Email", "Write to the organizer without answering", "calendar.respondEmail", no()).at(4, 6));
             groups.push(g("Respond", answers));
         }
     }
     // Somebody else's calendar, by their address (#70).
     groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
-    groups.push(g("Share", vec![Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6)]));
+    groups.push(g(
+        "Share",
+        vec![
+            Item::big("email", "Email\nCalendar", "calendar.email", no()).at(5, 5),
+            Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6),
+        ],
+    ));
+    groups.push(g("Find", vec![Item::big("search", "Search\nCalendar", "calendar.search", no()).at(4, 6)]));
     Tab::of(groups)
 }
 
@@ -495,7 +508,10 @@ fn home_people(app: &MailApp) -> Tab {
             ],
         ),
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
-        g("Communicate", vec![Item::big("mail", "Email", "people.email", no()).at(2, 2)]),
+        g(
+            "Communicate",
+            vec![Item::big("mail", "Email", "people.email", no()).at(2, 2), Item::big("meeting", "Meeting", "people.meeting", no()).at(2, 3)],
+        ),
         g(
             "Actions",
             vec![
@@ -510,6 +526,7 @@ fn home_people(app: &MailApp) -> Tab {
         g(
             "Share",
             vec![
+                Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
                 Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
@@ -548,6 +565,7 @@ fn home_tasks(app: &MailApp) -> Tab {
             vec![
                 Item::big("complete", "Mark\nComplete", "tasks.complete", no()).checked(done).at(2, 2),
                 Item::big("edit", "Edit\nTask", "tasks.edit", no()).at(2, 3),
+                Item::big("mail", "Send Status\nReport", "tasks.statusReport", no()).at(2, 4),
             ],
         ),
         g(
@@ -707,7 +725,7 @@ fn insert() -> Tab {
                 Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
                 Item::big("open", "Item", "compose.attachItem", no()).at(0, 3),
                 Item::big("people", "Contact\nCard", "insert.businessCard", no()).at(0, 4),
-                Item::pending("insert.calendar", "Calendar", 0),
+                Item::small("calendar", "Calendar", "Insert Calendar", "insert.calendar", no()).at(0, 4),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
             ],
         ),

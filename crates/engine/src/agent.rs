@@ -297,6 +297,13 @@ const SAFE: &[&str] = &[
     "calendar.showOnly",
     "calendar.color",
     "calendar.timeZones",
+    // A message opened for the owner to send, a summary put in one, what is known of answers.
+    "calendar.email",
+    "insert.calendar",
+    "calendar.contactAttendees",
+    "calendar.respondEmail",
+    "calendar.tracking",
+    "calendar.search",
     // People and tasks.
     "people.new",
     "people.edit",
@@ -310,6 +317,11 @@ const SAFE: &[&str] = &[
     "people.email",
     "people.fromMessage",
     "people.findDuplicates",
+    // A meeting as calendar.newMeeting ("send": true is asked about, `classify`); a message
+    // opened for the owner to send.
+    "people.meeting",
+    "people.forward",
+    "tasks.statusReport",
     "tasks.new",
     "tasks.edit",
     "tasks.complete",
@@ -666,7 +678,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // Saving or sending the appointment in a window runs later, as the owner, and the
         // account's server writes to the people invited: that is a send.
         "ui.eventWindow" if matches!(p::str(params, "do"), Some("send" | "save" | "saveAndClose")) => Access::Owner(Class::Send),
-        _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
+        _ if (id.starts_with("calendar.") || id == "people.meeting") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
             let onto = id != "file.import" && folder.is_some_and(|f| onto_another_server(s, params, f));
@@ -682,7 +694,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // away. When the owner wrote in it, the window asks them every time either way, saved or
         // not, until it is closed (#494); an agent's own message, headless too, is the agent's to
         // leave.
-        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
+        _ if leaves(id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
             let lost = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c)) && p::bool(params, "discard") == Some(true);
             match (writing, lost) {
                 (true, true) => Access::Asked(Class::Delete),
@@ -699,6 +711,12 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
+}
+
+/// Whether `id` closes the message being written, or puts another in its place: [`LEAVING`],
+/// and the commands of the calendar, People and Tasks that start a new message.
+fn leaves(id: &str) -> bool {
+    LEAVING.contains(&id) || crate::cmd::calendar::share::starts_message(id)
 }
 
 /// Whether what is written in the message isn't all in Drafts: changed since it was saved, or
@@ -1177,7 +1195,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
         }
-        _ if LEAVING.contains(&id) => leaving_text(s, id, params),
+        _ if leaves(id) => leaving_text(s, id, params),
         "ui.closeDialog" | "ui.dialog" => form_text(id, params),
         "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => form_text(id, params),
         "compose.discard" if owner_writing(s) => {
@@ -1381,6 +1399,17 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "people.email" => {
             let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
             format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
+        "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
+        "calendar.respondEmail" => format!("start a new message to the organizer of {}", event_title(s, id, params)),
+        "people.forward" => {
+            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            format!("start a new message with the contact {} attached", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "tasks.statusReport" => {
+            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            format!("start a new message about the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
         _ => String::new(),
     };

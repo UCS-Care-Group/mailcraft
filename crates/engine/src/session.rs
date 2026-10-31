@@ -2590,7 +2590,7 @@ impl Session {
         }
         // A message being written isn't let go of with what isn't saved of it (#442): it goes to
         // Drafts first, in a step of its own, and a save that fails stops here.
-        if crate::cmd::compose::saves_first(self, id, params) {
+        if crate::cmd::compose::saves_first(self, id, params) || crate::cmd::calendar::share::saves_first(self, id, params) {
             self.run("compose.saveDraft", &Value::Null)?;
         }
         // Undo and redo manage the history themselves.

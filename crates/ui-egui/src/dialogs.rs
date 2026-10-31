@@ -835,7 +835,8 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
     let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
-    mailcraft_engine::cmd::compose::leaves(id)
+    // (One that first asks which days asks this once they are chosen.)
+    (mailcraft_engine::cmd::compose::leaves(id) || (mailcraft_engine::cmd::calendar::share::starts_message(id) && input_dialog(id, params).is_none()))
         && !choosing
         && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
@@ -1080,6 +1081,17 @@ fn from_form(id: &str, params: &Value) -> bool {
 /// and the owner said whether one occurrence or the whole series was meant, what its form saves
 /// (`calendar.edit` with everything the form has) is saved for that, without asking again.
 pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
+    // People › Meeting opens the meeting's form with the contact invited (what the form saves is
+    // `calendar.newMeeting`, which says what goes to whom).
+    if id == "people.meeting" && input_dialog(id, &params) == Some("meeting") {
+        let contact = params.get("id").and_then(Value::as_u64).or(app.session.sel.contact).and_then(|c| app.session.mailbox.contact(c));
+        let mut params = params;
+        if let (Some(to), Some(map)) = (contact.and_then(mailcraft_model::Contact::address), params.as_object_mut()) {
+            map.remove("id");
+            map.entry("attendees").or_insert_with(|| json!(to.full()));
+        }
+        return params;
+    }
     // Opened anew, with nothing said of which is meant: what was said the last time no longer
     // holds. (What is said now, when the question is asked, is noted by [`go_ahead`].)
     if (id == "ui.openWindow" || input_dialog(id, &params) == Some("editEvent")) && params.get("scope").is_none() {
@@ -1115,7 +1127,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
-        "calendar.newMeeting" if !has("title") => Some("meeting"),
+        "calendar.newMeeting" | "people.meeting" if !has("title") => Some("meeting"),
         // (Which of a series is meant says nothing of what to change: the form is still to come.)
         "calendar.edit" if empty || params.as_object().is_some_and(|m| m.keys().all(|key| matches!(key.as_str(), "scope" | "occurrence"))) => {
             Some("editEvent")
@@ -1125,6 +1137,12 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.propose" if !has("start") => Some("proposeTime"),
         "calendar.forward" if !has("to") => Some("forwardMeeting"),
         "calendar.proposals" => Some("proposals"),
+        // Which days of the calendar, and how much of each; what was answered, a list to look at;
+        // what to look for.
+        "calendar.email" if empty => Some("emailCalendar"),
+        "insert.calendar" if empty => Some("insertCalendar"),
+        "calendar.tracking" => Some("tracking"),
+        "calendar.search" if !has("query") => Some("searchCalendar"),
         "people.new" if empty => Some("contact"),
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
