@@ -384,3 +384,45 @@ fn an_account_without_them_is_refused() {
     assert!(app.auto_replies_line(imap).is_none());
     assert!(app.run("ui.allowAutomaticReplies", json!({"account": imap, "confirmed": true})).is_err());
 }
+
+/// Re-review F1, F2: a change that found the permission missing while the owner couldn't be
+/// asked (another window, a sign-in under way) was kept, and a much later Ask again sent it.
+#[test]
+fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
+    for busy in ["window", "signIn"] {
+        let (mut app, owner, answers, jobs, _) = window();
+        read(&mut app, owner, &answers);
+        answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+        app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+        if busy == "window" {
+            app.dialog = Some(Dialog::Confirm {
+                command: "ui.nothing".into(),
+                params: json!({}),
+                ask: crate::dialogs::Question {
+                    title: String::new(),
+                    text: String::new(),
+                    action: String::new(),
+                    with: serde_json::Value::Null,
+                    more: Vec::new(),
+                    note: None,
+                    cancel: None,
+                    tick: None,
+                },
+            });
+        } else {
+            app.run("ui.connectMicrosoft", json!({"account": owner})).unwrap();
+            assert!(app.signing_in());
+        }
+        app.poll_auto_replies();
+        assert!(!matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies"), "{busy}");
+        assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Needed), "{busy}");
+        assert!(said(&app).contains("weren't changed"), "{busy}: {}", said(&app));
+        // Asked again later: the permission alone; the old change never goes.
+        app.dialog = None;
+        app.poll_sign_in();
+        let before = jobs.lock().unwrap().len();
+        app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
+        app.poll_sign_in();
+        assert!(jobs.lock().unwrap().iter().skip(before).all(|(_, change)| change.is_none()), "{busy}");
+    }
+}

@@ -390,13 +390,15 @@ impl MailApp {
             log::info!("automatic replies, account {account}: the sign-in doesn't cover the mailbox's settings");
             trouble = Some(Trouble::SignInToRead);
         } else if result.write_consent_needed {
-            // The owner is asked, once, by itself; the change goes when he allows it.
+            // The owner is asked, once, by itself; the change goes when he allows it. When he can't
+            // be asked now (another window, a sign-in under way), the change is dropped and said:
+            // a later Ask again never sends a change made long before.
             log::info!("automatic replies, account {account}: changing them needs the owner's permission");
             self.auto_replies.perm.insert(account, Permission::Needed);
-            if let Some(change) = change.clone() {
+            asked = self.dialog.is_none() && self.signing_in.is_none() && self.ask_replies(account);
+            if let Some(change) = change.clone().filter(|_| asked) {
                 self.auto_replies.held.insert(account, change);
             }
-            asked = self.dialog.is_none() && self.ask_replies(account);
         } else if result.write_denied {
             self.auto_replies.perm.insert(account, Permission::Denied);
         } else if !result.error.is_empty() {
@@ -479,6 +481,12 @@ impl MailApp {
     pub(crate) fn auto_replies_forget_if_replaced(&mut self) {
         let opening = self.session.openings();
         if self.auto_replies.opening != opening {
+            // (A change of the old mailbox's that was under way said so in the status bar.)
+            if self.auto_replies.rx.as_ref().is_some_and(|(_, change, ..)| change.is_some())
+                && self.session.sync_status == tl!("Changing your automatic replies…")
+            {
+                self.session.sync_status.clear();
+            }
             self.auto_replies = AutoRepliesSync { opening, ..Default::default() };
         }
     }
