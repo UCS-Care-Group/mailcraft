@@ -524,6 +524,18 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                     crate::i18n::fmt(tl!("The {n} shared mailboxes opened through it are removed from this device too."), &[("n", &n.to_string())])
                 ),
             };
+            // Its rules go with it, as an account's rules are its own (#566); its server keeps its.
+            let rules = mb.rules.iter().filter(|r| r.account == a.id).count();
+            let text = if rules == 0 {
+                text
+            } else {
+                let going = tln!(
+                    rules,
+                    "Its {n} rule goes too; one its server keeps stays there.",
+                    "Its {n} rules go too; those its server keeps stay there."
+                );
+                format!("{text} {going}")
+            };
             // The only account leaves an empty mailbox, as at a first start (#313).
             let text = if mb.accounts.iter().all(|x| x.id == a.id || x.shared_of == Some(a.id)) {
                 format!("{text} {}", tl!("MailCraft will have no account afterwards: File › Add Account sets one up again."))

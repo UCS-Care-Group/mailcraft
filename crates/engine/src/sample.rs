@@ -317,6 +317,8 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         conditions: vec![Condition::FromContains("harborbooks".into())],
         actions: vec![Action::Categorize("Purple category".into())],
         stop: false,
+        account,
+        ..Default::default()
     });
     b.mb
 }

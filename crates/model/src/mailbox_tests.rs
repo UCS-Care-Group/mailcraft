@@ -157,6 +157,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("digest".into())],
             actions: vec![Action::MoveTo(news), Action::MarkRead, Action::Categorize("Blue category".into())],
             stop: true,
+            ..Default::default()
         },
         Rule {
             id: 2,
@@ -165,6 +166,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::FromContains("bob".into())],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         },
         Rule {
             id: 3,
@@ -173,6 +175,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("hello".into())],
             actions: vec![Action::MoveTo(4242), Action::Delete],
             stop: false,
+            ..Default::default()
         },
     ];
     let digest = mb.add_message(mail(inbox, "Weekly Digest", 1)).unwrap();
@@ -246,6 +249,7 @@ fn a_mailbox_round_trips_as_json() {
         conditions: vec![Condition::HasAttachment],
         actions: vec![Action::Flag],
         stop: false,
+        ..Default::default()
     });
     let json = serde_json::to_string(&mb).unwrap();
     let mut back: Mailbox = serde_json::from_str(&json).unwrap();
@@ -1039,6 +1043,7 @@ fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
             conditions: vec![Condition::HasAttachment],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         });
     }
     let fixed = mb.repair();

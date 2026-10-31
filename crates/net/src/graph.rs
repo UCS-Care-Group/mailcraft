@@ -317,6 +317,7 @@ enum Doing {
     Folders,
     Mail,
     Tasks,
+    Rules,
 }
 
 impl Doing {
@@ -331,6 +332,7 @@ impl Doing {
             Doing::Folders => "folders",
             Doing::Mail => "mail",
             Doing::Tasks => "tasks",
+            Doing::Rules => "rules",
         }
     }
 }
@@ -796,6 +798,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Folders => "this account may not read or change its folders through Microsoft Graph",
                 Doing::Mail => "this account may not read its mail through Microsoft Graph",
                 Doing::Tasks => "this account may not read or change its to-dos through Microsoft Graph",
+                Doing::Rules => "this account may not read or change its rules through Microsoft Graph",
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
@@ -2215,6 +2218,9 @@ pub use people::{Opened, open_calendar};
 mod tasks;
 pub use tasks::{push_tasks, tasks};
 
+mod rules;
+pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2234,6 +2240,8 @@ pub mod standin;
 
 #[cfg(test)]
 mod people_tests;
+#[cfg(test)]
+mod rules_tests;
 #[cfg(test)]
 mod shared_calendar_tests;
 #[cfg(test)]

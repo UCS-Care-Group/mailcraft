@@ -133,6 +133,7 @@ fn a_rule_that_reads_the_body_reads_one_kept_on_disk() {
         conditions: vec![Condition::BodyContains("quixotic".into())],
         actions: vec![Action::MoveTo(target)],
         stop: false,
+        ..Default::default()
     });
     let said = s.run("rules.run", &json!({"folder": inbox})).unwrap();
     assert_eq!(said["matched"].as_u64(), Some(1));

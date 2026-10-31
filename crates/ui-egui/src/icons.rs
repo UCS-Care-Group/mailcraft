@@ -942,6 +942,15 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
         "dropdown" => pen.fill(&[(4.5, 7.5), (15.5, 7.5), (10.0, 13.5)], c),
         "expanded" => pen.line(&[(5.0, 7.5), (10.0, 12.5), (15.0, 7.5)]),
         "collapsed" => pen.line(&[(7.5, 5.0), (12.5, 10.0), (7.5, 15.0)]),
+        // A rule one place earlier or later in its list (#566): an arrow with its stem.
+        "moveUp" => {
+            pen.line(&[(10.0, 16.0), (10.0, 4.5)]);
+            pen.line(&[(5.5, 9.0), (10.0, 4.5), (14.5, 9.0)]);
+        }
+        "moveDown" => {
+            pen.line(&[(10.0, 4.0), (10.0, 15.5)]);
+            pen.line(&[(5.5, 11.0), (10.0, 15.5), (14.5, 11.0)]);
+        }
         "launcher" => {
             pen.rounded(&[(16.0, 4.0), (16.0, 16.0), (4.0, 16.0)], false, 1.0, c);
             pen.line(&[(5.5, 5.5), (12.5, 12.5)]);
@@ -1353,6 +1362,8 @@ pub const NAMES: &[&str] = &[
     "dropdown",
     "expanded",
     "collapsed",
+    "moveUp",
+    "moveDown",
     "launcher",
     "plus",
     "add",

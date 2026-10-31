@@ -249,6 +249,24 @@ pub mod p {
     pub fn req_id(v: &Value, k: &str) -> Result<Id, CmdError> {
         id(v, k).ok_or_else(|| CmdError::Params(format!("`{k}` (id) is required")))
     }
+    /// An id under `k`, read strictly, for a command whose default reaches further than the
+    /// caller meant (#566): `None` when `k` isn't given. Anything else under it (`null`, an id as
+    /// text, zero, a fraction) is refused, never taken to mean the default, as [`id`] takes it.
+    pub fn opt_id(v: &Value, k: &str) -> Result<Option<Id>, CmdError> {
+        match v.get(k) {
+            None => Ok(None),
+            Some(x) => whole(x).filter(|i| *i != 0).map(Some).ok_or_else(|| CmdError::Params(format!("`{k}` is an id: a whole number above 0"))),
+        }
+    }
+    /// `true` or `false` under `k`, read strictly: `None` when `k` isn't given; anything else
+    /// (`"false"`, `0`, `null`) is refused.
+    pub fn opt_bool(v: &Value, k: &str) -> Result<Option<bool>, CmdError> {
+        match v.get(k) {
+            None => Ok(None),
+            Some(Value::Bool(b)) => Ok(Some(*b)),
+            Some(_) => Err(CmdError::Params(format!("`{k}` is true or false"))),
+        }
+    }
     /// `ids` (an array) or `id` (one), when either is given.
     pub fn ids(v: &Value) -> Option<Vec<Id>> {
         if let Some(a) = v.get("ids").and_then(Value::as_array) {

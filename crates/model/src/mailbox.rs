@@ -941,6 +941,10 @@ pub struct Mailbox {
     /// oldest first ([`crate::TaskGone`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub task_gone: Vec<crate::TaskGone>,
+    /// Rules deleted here that a Microsoft account's server is yet to be told about (#566),
+    /// oldest first ([`crate::RuleGone`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub rule_gone: Vec<crate::RuleGone>,
     /// The lists of a Microsoft account's To Do that are shared with other people (#461): what an
     /// agent changes in them, they see.
     #[serde(
@@ -1006,6 +1010,7 @@ impl Default for Mailbox {
             pending: Vec::new(),
             event_changes: Vec::new(),
             task_gone: Vec::new(),
+            rule_gone: Vec::new(),
             shared_task_lists: BTreeMap::new(),
             local_tasks: crate::LocalTasks::Unasked,
             event_checks: Vec::new(),
@@ -1168,6 +1173,11 @@ impl Mailbox {
         self.event_changes.retain(|change| !going.contains(&change.account));
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
+        self.rule_gone.retain(|gone| !going.contains(&gone.account));
+        // Its rules go with it, as Outlook keeps an account's rules in its mailbox (#566): one
+        // left behind would act on the mail of accounts it was never made for. Those for every
+        // account stay.
+        self.rules.retain(|r| !going.contains(&r.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
         self.junk_accounts.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
@@ -2521,44 +2531,97 @@ impl Mailbox {
         true
     }
 
+    /// Whether `account` keeps its rules on its server (#566): a Microsoft account kept in step
+    /// through Graph, not a shared mailbox (whose mail the rules leave alone).
+    pub fn keeps_rules(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
+    /// kept on its account's server does, there and here, as the server does
+    /// ([`crate::Condition::matches_as`]). One kept on this computer reads names too.
+    pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
+        rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
+    }
+
+    /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
+    /// run: those for its server first (the server runs them before anything here does), then
+    /// those of this computer.
+    pub fn rules_in_order(&self, account: Id) -> Vec<usize> {
+        let server = |r: &Rule| r.account == account && r.keep == crate::Keep::Server;
+        let first = self.rules.iter().enumerate().filter(|(_, r)| server(r)).map(|(i, _)| i);
+        let then = self.rules.iter().enumerate().filter(|(_, r)| !server(r) && r.is_for(account)).map(|(i, _)| i);
+        first.chain(then).collect()
+    }
+
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
+    ///
+    /// A rule its account's server has doesn't act: the server ran it before the mail came here.
+    /// It is still matched, so that one that stops later rules stops those of this computer too.
     pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
+        self.run_rules(id, false)
+    }
+
+    /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
+    /// the server has here too, as Outlook does).
+    pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
         let mut ran = Vec::new();
-        for rule in self.rules.clone() {
+        let Some(account) = self.message(id).map(|m| m.account) else { return ran };
+        let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
+        for rule in order {
             let Some(m) = self.message(id) else { break };
-            if !rule.matches(m) {
+            if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
                 continue;
             }
-            for action in &rule.actions {
-                match action {
-                    Action::MoveTo(folder) => {
-                        // A rule pointing at a folder that is gone does nothing, and none puts
-                        // mail into a send queue (the next Send/Receive would send it).
-                        if !self.is_send_queue(*folder) {
-                            let _ = self.move_message(id, *folder);
-                        }
-                    }
-                    Action::Delete => {
-                        let _ = self.delete_message(id);
-                    }
-                    change => {
-                        let Ok(m) = self.message_mut(id) else { break };
-                        match change {
-                            Action::Categorize(c) if !m.has_category(c) => m.categories.push(c.clone()),
-                            Action::Flag => m.flag = crate::FlagStatus::Flagged,
-                            Action::MarkRead => m.read = true,
-                            Action::SetImportance(i) => m.importance = *i,
-                            _ => {}
-                        }
-                    }
-                }
+            if now || !rule.on_server() {
+                self.act(id, &rule.actions);
+                ran.push(rule.name.clone());
             }
-            ran.push(rule.name.clone());
             if rule.stop {
                 break;
             }
         }
         ran
+    }
+
+    /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
+    /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
+    pub fn run_rule(&mut self, id: Id, rule: Id) -> bool {
+        let Some(m) = self.message(id) else { return false };
+        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(m.account)).cloned() else { return false };
+        if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+            return false;
+        }
+        self.act(id, &rule.actions);
+        true
+    }
+
+    /// Do what a rule says to a message.
+    fn act(&mut self, id: Id, actions: &[Action]) {
+        for action in actions {
+            match action {
+                Action::MoveTo(folder) => {
+                    // A rule pointing at a folder that is gone does nothing, and none puts
+                    // mail into a send queue (the next Send/Receive would send it).
+                    if !self.is_send_queue(*folder) {
+                        let _ = self.move_message(id, *folder);
+                    }
+                }
+                Action::Delete => {
+                    let _ = self.delete_message(id);
+                }
+                change => {
+                    let Ok(m) = self.message_mut(id) else { break };
+                    match change {
+                        Action::Categorize(c) if !m.has_category(c) => m.categories.push(c.clone()),
+                        Action::Flag => m.flag = crate::FlagStatus::Flagged,
+                        Action::MarkRead => m.read = true,
+                        Action::SetImportance(i) => m.importance = *i,
+                        _ => {}
+                    }
+                }
+            }
+        }
     }
 
     // ---- contacts, events, tasks ----
