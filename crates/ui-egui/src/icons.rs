@@ -1137,6 +1137,20 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.head(2.5, 10.0, 180.0, 2.5, a);
             }
         }
+        // Text Highlight Color: a marker's slanted tip over the band it draws.
+        "highlight" => {
+            pen.closed(&[(9.0, 3.0), (14.0, 6.0), (10.5, 12.0), (5.5, 9.0)], c);
+            pen.line(&[(5.5, 9.0), (5.0, 12.5), (7.0, 13.5), (10.5, 12.0)]);
+            pen.frect_r(3.5, 14.5, 16.5, 17.5, 1.0, a);
+        }
+        // Format Painter: a brush, its bristles the accent.
+        "formatPainter" => {
+            pen.rect(3.5, 3.0, 15.5, 7.5, c);
+            pen.line(&[(15.5, 5.25), (17.0, 5.25), (17.0, 10.0), (10.0, 10.0), (10.0, 12.0)]);
+            pen.frect_r(8.5, 12.0, 11.5, 17.5, 1.0, a);
+        }
+        // Insert › Symbol: an omega, drawn as a letter of the window's own face.
+        "symbol" => pen.text(10.0, 10.0, 16.0, "\u{3a9}", c, 0.0),
         // Format Text › Replace: one letter, a turn, another in its place.
         "replace" => {
             pen.text(6.0, 6.0, 10.0, "a", c, 0.0);
@@ -1353,6 +1367,9 @@ pub const NAMES: &[&str] = &[
     "formatHtml",
     "formatPlain",
     "replace",
+    "highlight",
+    "formatPainter",
+    "symbol",
     "increaseIndent",
     "decreaseIndent",
     "showPassword",

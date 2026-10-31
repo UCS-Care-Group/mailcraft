@@ -631,6 +631,9 @@ pub struct Compose {
     pub to: String,
     pub cc: String,
     pub bcc: String,
+    /// Direct Replies To: where replies go (the `Reply-To` line), as typed; empty for the sender.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reply_to: String,
     pub subject: String,
     /// What the owner writes, in rich text, with its selection and its own undo. Stored as plain
     /// text before rich text; that still reads.

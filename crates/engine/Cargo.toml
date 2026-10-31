@@ -12,12 +12,12 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
+mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
+# Format characters made visible in View Source (`cmd::source`).
 mailcraft-mime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
-# A line of an appointment put into a message (`cmd::calendar::share`): no format characters.
-mailcraft-names = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

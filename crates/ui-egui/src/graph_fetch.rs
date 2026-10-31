@@ -116,7 +116,20 @@ impl Fetching {
 
 /// The commands other than a forward that need a message whole, and the message they are about.
 fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
-    if !matches!(id, "mail.reply" | "mail.replyAll" | "mail.editDraft" | "file.exportMessage" | "mail.saveAttachment" | "mail.openAttachment") {
+    if !matches!(
+        id,
+        "mail.reply"
+            | "mail.replyAll"
+            | "mail.replyAndDelete"
+            | "mail.editDraft"
+            | "mail.resend"
+            | "file.exportMessage"
+            | "mail.saveAttachment"
+            | "mail.saveAllAttachments"
+            | "mail.openAttachment"
+            | "mail.viewSource"
+            | "compose.attachItem"
+    ) {
         return None;
     }
     let selected = match app.session.sel.messages.as_slice() {
@@ -127,7 +140,8 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     // refused by the command, so nothing is fetched for it.
     use mailcraft_engine::p;
     let named = match id {
-        "mail.reply" | "mail.replyAll" | "mail.editDraft" => p::message_strict(params).ok()?,
+        "mail.reply" | "mail.replyAll" | "mail.replyAndDelete" | "mail.editDraft" | "mail.resend" => p::message_strict(params).ok()?,
+        "mail.viewSource" | "mail.saveAllAttachments" | "compose.attachItem" => p::id_strict(params, "id").ok()?,
         _ => p::id(params, "id"),
     };
     to_fetch(app, id, named.or(selected)?)

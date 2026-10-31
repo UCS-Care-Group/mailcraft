@@ -138,6 +138,7 @@ pub(crate) enum Menu {
     FontSize,
     Font,
     FontColor,
+    Highlight,
     Junk,
 }
 
@@ -350,6 +351,8 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big("replyAll", "Reply\nAll", "mail.replyAll", no()).at(2, 2).plain(),
                 Item::big("forward", "Forward", "mail.forward", no()).at(2, 2).plain(),
                 Item::small("forwardAsAttachment", "Forward as Attachment", "", "mail.forwardAsAttachment", no()).under("mail.forward"),
+                Item::small("delete", "Reply and Delete", "", "mail.replyAndDelete", no()).under("mail.reply"),
+                Item::small("open", "View Source", "", "mail.viewSource", no()).under("mail.forward"),
                 Item::small("meeting", "Meeting", "Reply with Meeting", "calendar.fromMessage", no()).at(5, 6),
                 Item::small("newContact", "Add Sender", "Add to Contacts", "people.fromMessage", no()).at(5, 7),
             ],
@@ -359,6 +362,7 @@ fn home_mail(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("moveMessages", "move", "Move", "Move to Folder", Menu::MoveMessages).at(1, 2).plain(),
                 Item::big_menu("rules", "rules", "Rules", "Rules", Menu::Rules).at(4, 4),
+                Item::small("send", "Resend Message", "Open a message you sent as a new one", "mail.resend", no()).at(5, 7),
             ],
         ),
         g(
@@ -594,6 +598,7 @@ pub(crate) struct Look {
     /// The font and the colour all of it has, the same way.
     pub font: Option<Option<mailcraft_model::rich::Font>>,
     pub color: Option<Option<String>>,
+    pub highlight: Option<Option<String>>,
     pub bullets: bool,
     pub numbering: bool,
     pub link: bool,
@@ -621,6 +626,7 @@ pub(crate) fn look(body: &mailcraft_model::RichBody, plain: bool) -> Look {
         size: all(&|s| s.size == first.size).then_some(first.size),
         font: all(&|s| s.font == first.font).then_some(first.font),
         color: all(&|s| s.color == first.color).then(|| first.color.clone()),
+        highlight: all(&|s| s.highlight == first.highlight).then(|| first.highlight.clone()),
         bullets: text.all_lists(from, to, ListKind::Bullet).unwrap_or(false),
         numbering: text.all_lists(from, to, ListKind::Numbered).unwrap_or(false),
         link: if sel.is_empty() { text.link_span(sel.head).is_some() } else { text.all(from, to, |s| s.link.is_some()).unwrap_or(false) },
@@ -634,14 +640,20 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let look = look_now(app);
+    let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
         g("Send", vec![Item::big("send", "Send", "compose.send", no()).at(0, 1)]),
+        g(
+            "Clipboard",
+            vec![Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain()],
+        ),
         g(
             "Basic Text",
             vec![
                 Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
                 Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
                 Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
+                Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
                 Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
                 Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
                 Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
@@ -670,6 +682,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("lowImportance", "Low Importance", "Low Importance", "compose.lowImportance", no())
                     .checked(importance == Some(Importance::Low))
                     .at(4, 4),
+                Item::small("reply", "Direct Replies To", "Have replies sent to other addresses", "compose.replyTo", no()).at(4, 6),
             ],
         ),
         g(
@@ -705,8 +718,8 @@ fn insert() -> Tab {
             "Include",
             vec![
                 Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
-                Item::pending("insert.outlookItem", "Item", 0),
-                Item::pending("insert.businessCard", "Business Card", 0),
+                Item::big("open", "Item", "compose.attachItem", no()).at(0, 3),
+                Item::big("people", "Contact\nCard", "insert.businessCard", no()).at(0, 4),
                 Item::small("calendar", "Calendar", "Insert Calendar", "insert.calendar", no()).at(0, 4),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
             ],
@@ -740,7 +753,7 @@ fn insert() -> Tab {
             "Symbols",
             vec![
                 Item::pending("insert.equation", "Equation", 5),
-                Item::pending("insert.symbol", "Symbol", 5),
+                Item::big("symbol", "Symbol", "insert.symbol", no()).at(5, 4),
                 Item::pending("insert.rule", "Horizontal Line", 5),
                 Item::pending("insert.emoji", "Emoji", 5),
             ],
@@ -1294,6 +1307,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::TimeScale => crate::calendar_view::time_scale_menu(ui, app),
         Menu::Font => font_menu(ui, app),
         Menu::FontColor => color_menu(ui, app),
+        Menu::Highlight => highlight_menu(ui, app),
         Menu::FontSize => size_menu(ui, app),
     }
 }
@@ -1373,6 +1387,42 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
             ui.close();
         }
         ui.data_mut(|d| d.insert_temp(key, typed));
+    });
+}
+
+/// Highlights offered behind text: an original palette of light colours, which dark text reads on.
+pub(crate) const HIGHLIGHTS: [(&str, &str); 8] = [
+    ("Yellow", "#fff176"),
+    ("Lime", "#c5e1a5"),
+    ("Aqua", "#80deea"),
+    ("Sky", "#90caf9"),
+    ("Pink", "#f8bbd0"),
+    ("Lavender", "#d1c4e9"),
+    ("Peach", "#ffcc80"),
+    ("Grey", "#d9d9d9"),
+];
+
+/// The highlights (`format.highlight`): No Color, and the palette as swatches.
+pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
+    let now = look_now(app).highlight;
+    let enabled = app.enabled("format.highlight");
+    mi_check(ui, app, "No Color", now == Some(None), "format.highlight", json!({"value": null}));
+    ui.horizontal_wrapped(|ui| {
+        ui.set_max_width(190.0);
+        for (name, hex) in HIGHLIGHTS {
+            let Ok(c) = egui::Color32::from_hex(hex) else { continue };
+            let chosen = now.as_ref().is_some_and(|n| n.as_deref() == Some(hex));
+            let (r, resp) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::click());
+            ui.painter().rect_filled(r, 2.0, c);
+            if chosen || resp.hovered() {
+                ui.painter().rect_stroke(r.expand(1.5), 2.0, egui::Stroke::new(1.5, ui.visuals().text_color()), egui::StrokeKind::Outside);
+            }
+            app.hit.add("highlightSwatch", hit_id(hex), r);
+            if resp.on_hover_text(tl!(name)).clicked() && enabled {
+                let _ = app.run("format.highlight", json!({"value": hex}));
+                ui.close();
+            }
+        }
     });
 }
 
@@ -2525,8 +2575,11 @@ mod tests {
             [
                 ("New", vec!["New\nEmail", "New\nItems"]),
                 ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
-                ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Meeting", "Add Sender"]),
-                ("Move", vec!["Move", "Rules"]),
+                (
+                    "Respond",
+                    vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Reply and Delete", "View Source", "Meeting", "Add Sender"]
+                ),
+                ("Move", vec!["Move", "Rules", "Resend Message"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
                 ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),

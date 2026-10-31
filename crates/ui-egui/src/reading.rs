@@ -633,6 +633,7 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             resp.context_menu(|ui| {
                 crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": m.id, "index": index}));
                 crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": m.id, "index": index}));
+                crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": m.id}));
                 crate::widgets::mi(ui, app, "Remove Attachment", "mail.removeAttachment", json!({"id": m.id, "index": index}));
             });
         }

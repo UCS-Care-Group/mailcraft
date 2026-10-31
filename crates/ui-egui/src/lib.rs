@@ -116,6 +116,9 @@ mod opened_message;
 mod opened_message_tests;
 pub mod opening;
 pub mod people_view;
+mod pick_item;
+#[cfg(test)]
+mod pick_item_tests;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -146,6 +149,7 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+mod symbol;
 mod sync_panel;
 pub mod task_sync;
 #[cfg(test)]
@@ -159,6 +163,9 @@ mod text_menu_tests;
 pub mod theme;
 pub mod unconfirmed;
 pub mod updates;
+mod view_source;
+#[cfg(test)]
+mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
 pub mod windows;
@@ -1828,6 +1835,10 @@ impl MailApp {
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => self.execute(id, params),
         };
+        // View Source pressed by the owner: its window, with what it answered.
+        if let (Ok(v), "mail.viewSource") = (&r, id) {
+            self.show_source(v);
+        }
         // Sent from a shared mailbox (#70): pressing Send is the owner asking for it to go.
         if id == "compose.send"
             && let Ok(v) = &r

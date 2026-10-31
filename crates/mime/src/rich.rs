@@ -225,6 +225,10 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
             out.push_str(&format!("<span style=\"font-family:{}\">", font.css()));
             close.push("</span>");
         }
+        if let Some(highlight) = style.highlight.as_deref().and_then(safe_color) {
+            out.push_str(&format!("<span style=\"background-color:{highlight}\">"));
+            close.push("</span>");
+        }
         for c in run.text.chars() {
             index += 1;
             match c {
@@ -465,6 +469,7 @@ impl Reader {
                 link: span.link.as_deref().and_then(safe_link),
                 color: span.color.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
                 font: span.font.as_deref().and_then(Font::from_css),
+                highlight: span.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
             };
             let text = span.text.replace('\u{a0}', " ");
             for (i, line) in text.split('\n').enumerate() {

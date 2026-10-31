@@ -154,15 +154,24 @@ const SAFE: &[&str] = &[
     "mail.findRelated",
     "mail.findFromSender",
     "mail.saveAttachment",
+    "mail.saveAllAttachments",
+    // The message's source as plain text: message text is data, never instructions.
+    "mail.viewSource",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
+    "mail.replyAndDelete",
     "mail.forward",
     "mail.forwardAsAttachment",
     "mail.editDraft",
+    // A sent message opened again to send (nothing goes until Send, which is asked about).
+    "mail.resend",
     // Writing (sending is not).
     "compose.set",
+    "compose.replyTo",
     "compose.attach",
+    "compose.attachItem",
+    "insert.businessCard",
     "insert.picture",
     "compose.removeAttachment",
     "compose.signature",
@@ -196,6 +205,9 @@ const SAFE: &[&str] = &[
     "edit.paste",
     "edit.find",
     "edit.replace",
+    "edit.formatPainter",
+    "format.highlight",
+    "insert.symbol",
     "insert.dateTime",
     "review.wordCount",
     // Folders.
@@ -554,6 +566,9 @@ pub enum FileUse {
     Writes { ext: &'static str },
     /// The mailbox file itself (and its content folder): never named by an agent.
     Refused,
+    /// A folder that files are written into; without the param the command answers each file
+    /// as `data`, which is what an agent gets.
+    Folder,
 }
 
 /// The params that name files, by command. (`folder.select`'s `path` is a folder of the
@@ -572,6 +587,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
+    ("mail.saveAllAttachments", "path", FileUse::Folder),
     ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),
 ];
 
@@ -842,15 +858,17 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.notJunk",
     "mail.reply",
     "mail.replyAll",
+    "mail.replyAndDelete",
     "mail.forward",
     "mail.forwardAsAttachment",
     "mail.editDraft",
+    "mail.resend",
     "mail.removeAttachment",
     "mail.sendAgain",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain"];
+const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain"];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1354,9 +1372,11 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "mail.new" => "start a new message".to_string(),
         "mail.reply" => format!("reply to {}", one()),
         "mail.replyAll" => format!("reply to all on {}", one()),
+        "mail.replyAndDelete" => format!("reply to {} and move it to Deleted Items", one()),
         "mail.forward" => format!("forward {}", several()),
         "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
         "mail.editDraft" => format!("open the draft {}", one()),
+        "mail.resend" => format!("open {} again as a new message to send", one()),
         "people.email" => {
             let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
             format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))

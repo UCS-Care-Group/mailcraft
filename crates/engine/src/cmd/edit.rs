@@ -11,7 +11,7 @@
 use mailcraft_model::rich::{MAX_FIND, Place};
 use serde_json::{Value, json};
 
-use super::format::{edit, needs_doc, reach};
+use super::format::{edit, needs_doc, needs_html, reach};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
@@ -21,6 +21,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("edit.redo", "Redo", "Quick Access", redo)
             .key("Mod+Y / Mod+Shift+Z")
             .when(|s| if s.can_redo() { None } else { Some("nothing to redo") }),
+        CommandSpec::new("edit.formatPainter", "Format Painter", "Message › Clipboard", format_painter)
+            .pure()
+            .params(r#"{"apply"?: bool, "from"?: number, "to"?: number} — copies the look of the selection (or puts away a look copied before); apply: puts the copied look on the selection, or on from–to, as one step, and puts it away. Answers {"copied", "look"}"#)
+            .when(needs_html),
         CommandSpec::new("edit.find", "Find", "Format Text › Editing", find)
             .pure()
             .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; answers {"found", "from", "to", "count"} (count: the places in all)"#)
@@ -91,6 +95,30 @@ fn select_next(s: &mut Session, places: &[Place], backward: bool) -> CmdResult {
     };
     s.doc_mut().ok_or_else(|| fail("no message is being written"))?.body.select(from, to).map_err(|e| fail(e.to_string()))?;
     Ok(json!({"found": true, "from": from, "to": to, "count": places.len()}))
+}
+
+fn format_painter(s: &mut Session, v: &Value) -> CmdResult {
+    let armed = s.doc().is_some_and(|(b, _)| b.painter().is_some());
+    if p::bool(v, "apply").unwrap_or(false) {
+        if !armed {
+            return Err(fail("no look was copied: press Format Painter on the text to copy it from first"));
+        }
+        edit(s, v, |b| b.paste_look())?;
+        return Ok(json!({"copied": false}));
+    }
+    if armed {
+        // A second press puts it away.
+        edit(s, &json!({}), |b| {
+            b.drop_look();
+            Ok(())
+        })?;
+        return Ok(json!({"copied": false}));
+    }
+    let look = edit(s, v, |b| {
+        b.copy_look();
+        Ok(b.painter().cloned())
+    })?;
+    Ok(json!({"copied": true, "look": look}))
 }
 
 fn find(s: &mut Session, v: &Value) -> CmdResult {

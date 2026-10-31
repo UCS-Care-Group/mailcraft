@@ -81,6 +81,8 @@ mod picture_tests;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;
+#[cfg(test)]
+mod resend_reply_to_tests;
 pub mod rules;
 #[cfg(test)]
 mod search_scope_tests;

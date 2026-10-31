@@ -3,7 +3,8 @@
 //! The text of a message being written, in rich text: paragraphs of runs.
 //!
 //! The set is deliberately small (the roadmap's minimal rich-text reply): bold, italic,
-//! underline, one font size, a text colour, a font from a short list ([`Font`]), links to `http`,
+//! underline, one font size, a text colour, a highlight behind the text, a font from a short list
+//! ([`Font`]), links to `http`,
 //! `https`, `mailto` and `tel` addresses, and paragraphs that are plain, bulleted or numbered.
 //! Nothing else can be expressed, so nothing else can be sent: pasted formatting is reduced to
 //! this set before it gets here (`mailcraft_mime::rich`), and the HTML that goes out is written
@@ -157,6 +158,9 @@ pub struct Style {
     /// Font; `None` for the message's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font: Option<Font>,
+    /// A highlight behind the text, `#rrggbb` ([`safe_color`]); `None` for none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub highlight: Option<String>,
 }
 
 impl Style {
@@ -165,6 +169,7 @@ impl Style {
         self.size = self.size.map(clamp_size);
         self.link = self.link.as_deref().and_then(safe_link);
         self.color = self.color.as_deref().and_then(safe_color);
+        self.highlight = self.highlight.as_deref().and_then(safe_color);
         self
     }
 
@@ -410,6 +415,11 @@ pub enum Format {
     Color(Option<String>),
     /// A font, or `None` for the message's own.
     Font(Option<Font>),
+    /// A `#rrggbb` highlight ([`safe_color`]), or `None` for none.
+    Highlight(Option<String>),
+    /// Every look of another piece of text (Format Painter): all of [`Style`] but the link, which
+    /// is where the text leads, not how it looks.
+    Look(Style),
     /// Back to plain text, links and all.
     Clear,
 }
@@ -424,6 +434,11 @@ impl Format {
             Format::Link(url) => style.link = url.as_deref().and_then(safe_link),
             Format::Color(color) => style.color = color.as_deref().and_then(safe_color),
             Format::Font(font) => style.font = *font,
+            Format::Highlight(color) => style.highlight = color.as_deref().and_then(safe_color),
+            Format::Look(look) => {
+                let link = style.link.take();
+                *style = Style { link, ..look.clone().clean() };
+            }
             Format::Clear => *style = Style::default(),
         }
     }
@@ -875,7 +890,7 @@ impl RichText {
                 "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:".into(),
             ));
         }
-        if let Format::Color(Some(color)) = change
+        if let Format::Color(Some(color)) | Format::Highlight(Some(color)) = change
             && safe_color(color).is_none()
         {
             return Err(ModelError::Invalid("a colour is written #rrggbb".into()));

@@ -72,6 +72,9 @@ pub struct RichBody {
     /// Where typing goes on in the same undo step.
     #[serde(skip)]
     typing: Option<usize>,
+    /// The look Format Painter copied, to be put on the next selection.
+    #[serde(skip)]
+    painter: Option<Style>,
 }
 
 /// A body as stored: plain text (what a message being written held before rich text), or the
@@ -135,6 +138,34 @@ impl RichBody {
             style.link = None;
             style
         })
+    }
+
+    /// The look Format Painter copied and has yet to put down.
+    pub fn painter(&self) -> Option<&Style> {
+        self.painter.as_ref()
+    }
+
+    /// Format Painter: copy the look of the selection's first character (with nothing selected,
+    /// what the next typed character would take), its link left out.
+    pub fn copy_look(&mut self) {
+        let sel = self.selection;
+        let mut look = if sel.is_empty() { self.typing_style() } else { self.text.style_at(sel.start() + 1) };
+        look.link = None;
+        self.painter = Some(look);
+    }
+
+    /// Put the look Format Painter copied on the selection (with nothing selected, on the next
+    /// typed character), as one step; it is then put away. Whether there was one.
+    pub fn paste_look(&mut self) -> Result<bool, ModelError> {
+        let Some(look) = self.painter.clone() else { return Ok(false) };
+        self.format(Format::Look(look))?;
+        self.painter = None;
+        Ok(true)
+    }
+
+    /// Put away the look Format Painter copied.
+    pub fn drop_look(&mut self) {
+        self.painter = None;
     }
 
     pub fn can_undo(&self) -> bool {

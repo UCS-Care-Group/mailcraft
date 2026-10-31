@@ -50,6 +50,14 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r##"{"value": "#rrggbb" | null (the message's own colour), "from"?: number, "to"?: number}"##)
             .when(needs_html),
+        CommandSpec::new("format.highlight", "Text Highlight Color", "Message › Basic Text", highlight)
+            .pure()
+            .params(r##"{"value": "#rrggbb" | null (no highlight), "from"?: number, "to"?: number}"##)
+            .when(needs_html),
+        CommandSpec::new("insert.symbol", "Symbol", "Insert › Symbols", symbol)
+            .pure()
+            .params(r#"{"char": string (one character)} | {"code": number | "U+20AC"} — put in at the caret, over the selection; a control or format character, a private-use or non-character code point, or white space other than the no-break space is refused"#)
+            .when(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
             .params(r#"{"value": "Arial"|"Calibri"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
@@ -92,7 +100,7 @@ pub(super) fn needs_doc(s: &Session) -> Option<&'static str> {
 }
 
 /// Enabled only while a message in HTML is being written (or a signature is open).
-fn needs_html(s: &Session) -> Option<&'static str> {
+pub(super) fn needs_html(s: &Session) -> Option<&'static str> {
     match s.doc() {
         None => Some("no message is being written"),
         Some((_, true)) => Some("the message is plain text; switch it to HTML first"),
@@ -237,6 +245,76 @@ fn color(s: &mut Session, v: &Value) -> CmdResult {
     };
     edit(s, v, |b| b.format(Format::Color(value.clone())))?;
     Ok(json!({"value": value}))
+}
+
+fn highlight(s: &mut Session, v: &Value) -> CmdResult {
+    let value = match v.get("value") {
+        Some(Value::Null) => None,
+        Some(_) => Some(p::str(v, "value").and_then(safe_color).ok_or_else(|| bad("`value` is a colour written #rrggbb, or null"))?),
+        None => return Err(bad("`value` (#rrggbb, or null) is required")),
+    };
+    edit(s, v, |b| b.format(Format::Highlight(value.clone())))?;
+    Ok(json!({"value": value}))
+}
+
+/// Symbols Insert › Symbol offers: common marks the fonts the window draws in all have.
+pub const SYMBOLS: [char; 36] = [
+    '©', '®', '™', '€', '£', '¥', '¢', '§', '¶', '°', '±', '×', '÷', '≠', '≤', '≥', '≈', '∞', 'µ', '½', '¼', '¾', '…', '–', '—', '•', '·', '←', '→',
+    '↑', '↓', '«', '»', '¿', '¡', '\u{a0}',
+];
+
+/// Whether `c` may be put in as a symbol: something that shows (or the no-break space), not a
+/// control or format character, a private-use code point, a non-character or the character a
+/// picture stands as.
+pub fn symbol_ok(c: char) -> bool {
+    let n = u32::from(c);
+    let private = (0xe000..=0xf8ff).contains(&n) || n >= 0xf_0000;
+    let nonchar = (0xfdd0..=0xfdef).contains(&n) || n & 0xfffe == 0xfffe;
+    !(c.is_control()
+        || mailcraft_names::is_format(c)
+        || private
+        || nonchar
+        || c == mailcraft_model::rich::OBJECT
+        || (c.is_whitespace() && c != '\u{a0}'))
+}
+
+/// The symbol the params name.
+fn symbol_of(v: &Value) -> Result<char, CmdError> {
+    let bad_code = || bad("`code` is a Unicode code point, a number or written U+20AC");
+    let c = match (v.get("char"), v.get("code")) {
+        (Some(Value::String(t)), None) => {
+            let mut chars = t.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => c,
+                _ => return Err(bad("`char` is one character")),
+            }
+        }
+        (None, Some(Value::Number(_))) => p::u64(v, "code").and_then(|n| u32::try_from(n).ok()).and_then(char::from_u32).ok_or_else(bad_code)?,
+        (None, Some(Value::String(t))) => {
+            let hex = t.trim();
+            let hex = hex.strip_prefix("U+").or_else(|| hex.strip_prefix("u+")).unwrap_or(hex);
+            if hex.is_empty() || hex.len() > 6 {
+                return Err(bad_code());
+            }
+            u32::from_str_radix(hex, 16).ok().and_then(char::from_u32).ok_or_else(bad_code)?
+        }
+        _ => return Err(bad("`char` (one character) or `code` (a code point) is required")),
+    };
+    if !symbol_ok(c) {
+        return Err(bad("that character can't be put in: it is a control or format character, white space, or shows nothing"));
+    }
+    Ok(c)
+}
+
+fn symbol(s: &mut Session, v: &Value) -> CmdResult {
+    let c = symbol_of(v)?;
+    edit(s, &json!({}), |b| b.type_text(&c.to_string()))?;
+    let mut out = state(s);
+    if let Some(o) = out.as_object_mut() {
+        o.insert("char".into(), json!(c.to_string()));
+        o.insert("code".into(), json!(format!("U+{:04X}", u32::from(c))));
+    }
+    Ok(out)
 }
 
 fn font(s: &mut Session, v: &Value) -> CmdResult {
@@ -398,3 +476,7 @@ fn format_html(s: &mut Session, _: &Value) -> CmdResult {
 fn format_plain(s: &mut Session, _: &Value) -> CmdResult {
     set_format(s, BodyFormat::Plain)
 }
+
+#[cfg(test)]
+#[path = "highlight_tests.rs"]
+mod highlight_tests;

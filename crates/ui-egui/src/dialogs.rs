@@ -38,6 +38,11 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
+    ReplyTo {
+        text: String,
+        error: String,
+    },
     /// The address of a shared mailbox to open under a Microsoft account (#70): it only collects
     /// the address, then runs `account.addSharedMailbox`.
     SharedMailbox {
@@ -135,8 +140,15 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
+    /// runs `compose.attachItem` or `insert.businessCard`.
+    Pick(Box<crate::pick_item::Pick>),
+    /// View Source: a message's source as plain text ([`crate::view_source`]).
+    ViewSource(Box<crate::view_source::Source>),
     /// Find and Replace in the message being written ([`crate::find_replace`]).
     FindReplace(crate::find_replace::FindReplace),
+    /// Insert › Symbol ([`crate::symbol`]).
+    Symbol(crate::symbol::Symbol),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -210,6 +222,7 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
@@ -230,6 +243,12 @@ impl Dialog {
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::ImportTree(_) => "importTree",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::Pick(p) => match p.kind {
+                crate::pick_item::PickKind::Message => "attachItem",
+                crate::pick_item::PickKind::Contact => "businessCard",
+            },
+            Dialog::ViewSource(_) => "viewSource",
+            Dialog::Symbol(_) => "symbol",
             Dialog::FindReplace(d) => {
                 if d.replace {
                     "replace"
@@ -271,6 +290,7 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
                 let can = |a: &&mailcraft_model::Account| crate::shared_mailboxes::can_open_shared(a);
@@ -340,8 +360,23 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         let counts = [n("words"), n("characters"), n("charactersWithSpaces"), n("paragraphs")];
         return Some(Dialog::WordCount { counts, selection: answer.get("selection").and_then(Value::as_bool) == Some(true) });
     }
+    if name == "viewSource" {
+        // (The engine reads the source; when it refuses, there is no dialog.)
+        let named = params.get("id").map_or_else(|| json!({}), |id| json!({"id": id}));
+        let answer = app.session.run("mail.viewSource", &named).ok()?;
+        return crate::view_source::Source::from_answer(&answer).map(|s| Dialog::ViewSource(Box::new(s)));
+    }
+    if name == "symbol" {
+        app.session.doc()?;
+        return Some(Dialog::Symbol(crate::symbol::Symbol::default()));
+    }
     if matches!(name, "find" | "replace") {
         return crate::find_replace::FindReplace::open(app, name == "replace").map(Dialog::FindReplace);
+    }
+    if matches!(name, "attachItem" | "businessCard") {
+        app.session.compose.as_ref()?;
+        let kind = if name == "attachItem" { crate::pick_item::PickKind::Message } else { crate::pick_item::PickKind::Contact };
+        return Some(Dialog::Pick(Box::new(crate::pick_item::Pick::new(kind))));
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
@@ -1115,9 +1150,13 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        "compose.attachItem" if !has("id") => Some("attachItem"),
+        "insert.businessCard" if !has("id") => Some("businessCard"),
+        "compose.replyTo" if !has("value") => Some("replyTo"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
+        "insert.symbol" if !has("char") && !has("code") => Some("symbol"),
         "edit.find" if !has("text") => Some("find"),
         "edit.replace" if !has("text") => Some("replace"),
         // (What it answers is counts to look at.)
@@ -1426,6 +1465,30 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
+        Dialog::ReplyTo { text, error } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Direct Replies To"), 420.0, |ui| {
+                ui.label(tl!("Have replies sent to"));
+                let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.label(egui::RichText::new(tl!("Addresses separated by ; (leave empty for replies to come to you)")).color(t.text_dim));
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("OK"), true);
+                submit = ok || enter;
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("compose.replyTo", json!({"value": text.trim()})) {
+                    Ok(_) => close = true,
+                    Err(e) => *error = e,
+                }
+            }
+        }
         Dialog::SharedMailbox { account, address, error, checking } => {
             let mut submit = false;
             let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
@@ -1689,6 +1752,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             close |= !open;
         }
+        Dialog::ViewSource(source) => {
+            let title = crate::i18n::fmt(tl!("Source of {subject}"), &[("subject", &source.subject)]);
+            let open = window(ctx, &title, 720.0, |ui| close |= crate::view_source::show(ui, source, &t));
+            close |= !open;
+        }
         Dialog::Refused { text } => {
             let open = window(ctx, "MailCraft", 420.0, |ui| {
                 ui.horizontal_top(|ui| {
@@ -1876,10 +1944,21 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
         // keyboard is that button's.
+        Dialog::Pick(dialog) => {
+            let mut done = false;
+            let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
         Dialog::MergeContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
+        }
+        Dialog::Symbol(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+            app.body_focus_wanted |= close;
         }
         Dialog::FindReplace(dialog) => {
             let mut done = false;
