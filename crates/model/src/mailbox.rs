@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::sync::RemoteFlags;
+use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name,
 };
@@ -123,6 +123,11 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+}
+
+/// Whether a list of category names has `name`.
+fn on_list(names: &[String], name: &str) -> bool {
+    names.iter().any(|have| same_category(have, name))
 }
 
 /// A folder as a Microsoft account's server knows it (ADR 0003): its server id, which stays the
@@ -970,9 +975,9 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub queued: Vec<Queued>,
     /// The lists of categories of the Microsoft accounts, each made at the first read of its
-    /// server's list (#633), by the id of the account. An account with none (IMAP, this computer,
-    /// a Microsoft account not read yet) has [`Mailbox::categories`]; a shared mailbox its owner's
-    /// ([`Mailbox::category_list_owner`]).
+    /// server's list ([`Mailbox::start_account_categories`], #633), by the id of the account. An
+    /// account with none (IMAP, this computer, a Microsoft account not read yet) has
+    /// [`Mailbox::categories`]; a shared mailbox its owner's ([`Mailbox::category_list_owner`]).
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub account_categories: BTreeMap<Id, Vec<Category>>,
     /// The names on Outlook's list of categories, as each Microsoft account's server last gave it
@@ -2840,14 +2845,49 @@ impl Mailbox {
             .collect()
     }
 
-    /// Give `account` a list of categories of its own, at the first read of its server's (#633):
-    /// the categories its items already carry, in the colours they have today. Those of the
-    /// other accounts stay out of it, and the shared list stays as it is.
-    pub fn start_account_categories(&mut self, account: Id) {
+    /// Give `account` a list of categories of its own, at the first read of its server's, whose
+    /// names are `on_server` (#633): the categories of the shared list that no other Microsoft
+    /// account's server lists (the owner's own, in their colours, and so the whole shared list
+    /// with one Microsoft account), then what its items already carry. The shared list stays.
+    pub fn start_account_categories(&mut self, account: Id, on_server: &[String]) {
         let owner = self.junk_owner(account);
-        if !self.account_categories.contains_key(&owner) {
-            let list = self.category_names_of(owner).into_iter().map(|name| Category { color: self.category_color(&name), name }).collect();
-            self.account_categories.insert(owner, list);
+        if self.account_categories.contains_key(&owner) {
+            return;
+        }
+        let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
+        let mut list: Vec<Category> = self.categories.iter().filter(|c| !elsewhere(&c.name)).cloned().collect();
+        for name in self.category_names_of(owner) {
+            if !list.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
+                list.push(Category { color: self.category_color(&name), name });
+            }
+        }
+        list.truncate(MAX_CATEGORIES);
+        self.account_categories.insert(owner, list);
+        self.settle_earlier_lists(owner, on_server);
+    }
+
+    /// The first read of `owner`'s server shows names that an account read before it, which
+    /// couldn't know them, took for the owner's own: each leaves that list, with this server's
+    /// list `on_server` deciding as if it had been read first. What that account's items carry,
+    /// what its own server lists and what changed on its list since stay, and so does the shared
+    /// list, where the name still is.
+    fn settle_earlier_lists(&mut self, owner: Id, on_server: &[String]) {
+        let earlier: Vec<Id> = self.account_categories.keys().copied().filter(|id| *id != owner).collect();
+        for account in earlier {
+            let its_server = self.server_categories.get(&account);
+            let came_across = |c: &&Category| {
+                on_list(on_server, &c.name)
+                    && self.category(&c.name).is_some_and(|shared| shared.color == c.color)
+                    && !its_server.is_some_and(|names| on_list(names, &c.name))
+            };
+            let leaving: Vec<String> = self.categories_of(account).iter().filter(came_across).map(|c| c.name.clone()).collect();
+            if leaving.is_empty() {
+                continue;
+            }
+            let carried = self.category_names_of(account);
+            if let Some(list) = self.account_categories.get_mut(&account) {
+                list.retain(|c| !on_list(&leaving, &c.name) || on_list(&carried, &c.name));
+            }
         }
     }
 

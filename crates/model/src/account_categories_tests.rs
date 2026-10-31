@@ -125,33 +125,36 @@ fn renaming_or_deleting_reaches_only_the_items_that_use_that_list() {
 #[test]
 fn an_accounts_first_list_is_what_its_items_carry_in_the_colours_they_had() {
     let (mut mb, a, b) = two_accounts();
+    mb.categories.clear();
     mb.set_category(0, "Client X", RED).unwrap();
     mb.set_category(0, "Only B", WINE).unwrap();
     items_of(&mut mb, a, "Client X");
     message_of(&mut mb, a, &["client x", "From elsewhere"]);
     message_of(&mut mb, b, &["Only B"]);
     let shared_list = mb.categories.clone();
+    mb.server_categories.insert(b, vec!["Only B".into()]);
 
-    mb.start_account_categories(a);
+    mb.start_account_categories(a, &[]);
     assert_eq!(mb.categories_of(a), [tagged("Client X", RED), tagged("From elsewhere", GREY_CATEGORY)]);
     assert_eq!(mb.categories, shared_list, "nothing leaves the shared list");
     assert_eq!(mb.categories_of(b), mb.categories.as_slice(), "and B isn't read yet");
 
     // It is made once.
     mb.set_category(a, "Mine", RED).unwrap();
-    mb.start_account_categories(a);
+    mb.start_account_categories(a, &[]);
     assert!(mb.category_of(a, "Mine").is_some());
 }
 
 #[test]
 fn an_accounts_first_list_takes_only_names_fit_for_a_list() {
     let (mut mb, a, _) = two_accounts();
+    mb.categories.clear();
     let long = "x".repeat(100_000);
     message_of(&mut mb, a, &["  ", "\u{0}", &long, "Fine"]);
     let many: Vec<String> = (0..500).map(|i| format!("c{i}")).collect();
     let many: Vec<&str> = many.iter().map(String::as_str).collect();
     message_of(&mut mb, a, &many);
-    mb.start_account_categories(a);
+    mb.start_account_categories(a, &[]);
     let list = mb.categories_of(a);
     assert_eq!(list.len(), crate::remote::MAX_REMOTE_CATEGORIES);
     assert!(list.iter().all(|c| !c.name.trim().is_empty() && c.name.chars().count() <= crate::MAX_NAME));
@@ -242,7 +245,7 @@ fn a_file_keeps_the_lists_and_one_from_before_opens() {
 #[test]
 fn a_to_do_that_stays_keeps_the_colours_of_the_list_that_goes() {
     let (mut mb, a, _) = two_accounts();
-    mb.start_account_categories(a);
+    mb.start_account_categories(a, &[]);
     mb.set_category(a, "Client X", WINE).unwrap();
     mb.set_category(a, "Home", WINE).unwrap();
     mb.set_category(a, "Unused", WINE).unwrap();
@@ -326,4 +329,14 @@ fn a_second_account_with_an_id_doesnt_take_the_firsts_list() {
     assert_ne!(other, a);
     assert_eq!(mb.categories_of(a), [tagged("Mine", RED)]);
     assert!(!mb.account_categories.contains_key(&other));
+}
+
+#[test]
+fn a_first_read_doesnt_build_a_list_repair_would_cut() {
+    let (mut mb, a, _) = two_accounts();
+    mb.categories = (0..MAX_CATEGORIES).map(|i| tagged(&format!("c{i}"), RED)).collect();
+    let folder = mb.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    mb.add_message(Message { folder, categories: vec!["carried".into()], ..Default::default() }).unwrap();
+    mb.start_account_categories(a, &[]);
+    assert!(mb.categories_of(a).len() <= MAX_CATEGORIES);
 }

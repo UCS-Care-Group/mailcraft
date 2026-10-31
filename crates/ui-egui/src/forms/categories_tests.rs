@@ -19,12 +19,13 @@ use crate::{MailApp, Services};
 const NOW: i64 = 1_791_993_600;
 const RED: Rgb = Rgb(200, 0, 0);
 
-/// A mailbox with this computer and two Microsoft accounts: `a` has Client X, `b` has Other, and
-/// both have Red.
+/// A mailbox with this computer and two Microsoft accounts: `a` has Client X, `b` has Other, both
+/// have Red, and the shared list has nothing to bring across.
 fn rig() -> (MailApp, Id, Id) {
     let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut add = |email: &str| s.run("account.add", &json!({"email": email, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let (a, b) = (add("a@example.org"), add("b@example.org"));
+    s.mailbox.categories.clear();
     for (account, email, extra) in [(a, "a@example.org", "Client X"), (b, "b@example.org", "Other")] {
         let tag = |name: &str| Category { name: name.into(), color: RED };
         let download = CategoriesDownload { account, email: email.into(), categories: vec![tag("Red"), tag(extra)] };
@@ -89,9 +90,10 @@ fn categorize_offers_the_list_of_the_items_account() {
     drop(h);
 
     // An item of this computer: the shared list, which the servers' lists didn't reach.
-    let (app, ..) = rig();
+    let (mut app, ..) = rig();
+    app.session.mailbox.set_category(0, "Here", RED).unwrap();
     let h = menu(app, vec![0]);
-    assert!(h.query_by_label("Red category").is_some());
+    assert!(h.query_by_label("Here").is_some());
     assert!(h.query_by_label("Client X").is_none());
 }
 
