@@ -805,6 +805,7 @@ fn send_receive(app: &MailApp) -> Tab {
                 vec![
                     Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(0, 1),
                     Item::big("syncProgress", "Show\nProgress", "ui.dialog", json!({"name": "syncProgress"})).key("sync.progress").at(0, 3),
+                    Item::big("close", "Cancel\nAll", "sync.cancel", no()).at(0, 4),
                 ],
             ),
             g(
@@ -814,6 +815,7 @@ fn send_receive(app: &MailApp) -> Tab {
                     Item::big("info", "Account\nSettings", "ui.backstage", json!({"value": true, "page": "info"})).key("account.settings").at(1, 2),
                 ],
             ),
+            g("Preferences", vec![Item::big("device", "Work\nOffline", "sync.offline", no()).checked(app.offline()).at(2, 2)]),
         ],
         note,
         note_width: 360.0,
@@ -927,6 +929,10 @@ fn help() -> Tab {
         groups: vec![g(
             "Help",
             vec![
+                Item::big("help", "Help", "help.help", no()).at(0, 1),
+                Item::big("web", "Get\nSupport", "help.support", no()).at(0, 3),
+                Item::big("notes", "Feedback", "help.feedback", no()).at(0, 4),
+                Item::big("favorite", "What's\nNew", "help.whatsNew", no()).at(0, 3),
                 Item::big("search", "Search\nCommands", "ui.dialog", json!({"name": "commands"})).key("help.commands").at(0, 1),
                 Item::big("about", "About\nMailCraft", "ui.dialog", json!({"name": "about"})).key("help.about").at(0, 2),
                 Item::big("copy", "Copy\nDiagnostics", "ui.copyDiagnostics", no()).at(0, 3),

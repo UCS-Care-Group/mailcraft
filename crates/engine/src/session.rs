@@ -782,6 +782,10 @@ pub struct Prefs {
     /// computer's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_zones: Vec<String>,
+    /// Work Offline (`sync.offline`): nothing goes to or comes from a server while it is on;
+    /// mail that is sent waits in the Outbox. Off unless the owner turns it on; kept between runs.
+    #[serde(skip_serializing_if = "is_false")]
+    pub offline: bool,
 }
 
 impl Default for Prefs {
@@ -813,6 +817,7 @@ impl Default for Prefs {
             zone_label: String::new(),
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
+            offline: false,
         }
     }
 }
@@ -2493,6 +2498,10 @@ impl Session {
     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
+        // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).
+        if self.prefs.offline && crate::cmd::send_receive::ASKS_A_SERVER.contains(&id) {
+            return Err(CmdError::Disabled(crate::cmd::send_receive::OFFLINE.to_string()));
+        }
         if let Some(reason) = (spec.enabled)(self) {
             // A command that only lacks a selection still runs on what the caller names, and on
             // what it names wrongly, which the command refuses for what it is (#553).

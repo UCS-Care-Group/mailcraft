@@ -294,6 +294,9 @@ impl MailApp {
         if self.signing_in.is_some() || self.approvals.asking.is_some() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(ask) = &self.services.admin_consent else { return Ok(()) };
         let cancel = Arc::new(AtomicBool::new(false));
         let request = AdminConsentRequest {

@@ -3,6 +3,7 @@ name = "mailcraft-engine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft engine: session, selection, undo, the command registry (every action is a command), Outlook's command catalog, the sample mailbox, file I/O dispatch"
 
 [lints]
