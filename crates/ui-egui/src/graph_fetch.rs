@@ -385,6 +385,10 @@ impl MailApp {
     /// Hand the host a fetch of `account`'s messages: `messages` alone, or, when there are none,
     /// the next `most` in the background. `None` when there is nothing to fetch.
     fn hand_over(&self, account: Id, way: Way, messages: &[Id], most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
+        // Working offline, nothing is fetched: what is here is shown.
+        if self.offline() {
+            return None;
+        }
         match way {
             Way::Graph(access) => {
                 let fetch = self.services.graph_fetch.as_ref()?;

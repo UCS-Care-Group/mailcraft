@@ -514,6 +514,18 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     } else {
                         ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
                     }
+                    // Work Offline is on: said for as long as it is, and a click turns it off.
+                    if app.offline() {
+                        let offline = st(ui, tl!("Working Offline"), t.text)
+                            .interact(Sense::click())
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .on_hover_text(tl!("Nothing is sent or received. Click to connect again."));
+                        app.hit.add("workingOffline", 0, offline.rect);
+                        if offline.clicked() {
+                            let _ = app.run("sync.offline", json!({"value": false}));
+                        }
+                        ui.add_space(10.0);
+                    }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);
                     // The last Send/Receive had problems: one click shows them, in Send/Receive

@@ -325,6 +325,14 @@ const SAFE: &[&str] = &[
     "account.preset",
     // What Send/Receive is doing, or did: read only.
     "sync.progress",
+    // Calls off the run under way; nothing is sent or lost by it.
+    "sync.cancel",
+    // Help: the addresses of the project's own pages, and what this copy is.
+    "help.help",
+    "help.support",
+    "help.feedback",
+    "help.whatsNew",
+    "file.account",
     // The window's own.
     "ui.tab",
     "ui.backstage",
@@ -435,6 +443,8 @@ const SETTINGS: &[&str] = &[
     // the owner's phishing warning.
     "mail.dismissWarnings",
     "file.options",
+    // Work Offline: turned off, what waits in the Outbox goes out.
+    "sync.offline",
     "calendar.deleteAnsweredRequests",
     "rules.add",
     "rules.remove",

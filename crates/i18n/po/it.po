@@ -497,8 +497,8 @@ msgstr ""
 msgid "Accessibility"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms/junk.rs
+#. command label, interface
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms/junk.rs
 msgid "Account"
 msgstr ""
 
@@ -1390,6 +1390,11 @@ msgid "Back"
 msgstr "Indietro"
 
 #. interface
+#: crates/ui-egui/src/send_receive.rs
+msgid "Back online"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Basic (user name and password over a secure connection)"
 msgstr ""
@@ -1622,6 +1627,18 @@ msgstr "Calibri"
 #, fuzzy
 msgid "Cancel"
 msgstr "Annulla"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Cancel\n"
+"All"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/send_receive.rs
+msgid "Cancel All"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2876,6 +2893,11 @@ msgstr "Fatto: {n} nuovi"
 msgid "Double-click to open {name}; right-click to save it"
 msgstr "Doppio clic per aprire {name}; clic destro per salvarlo"
 
+#. ribbon location
+#: crates/engine/src/cmd/send_receive.rs
+msgid "Download"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Download Exchange Messages in Full"
@@ -3458,13 +3480,18 @@ msgstr "feb"
 msgid "February"
 msgstr "febbraio"
 
+#. command label, ribbon
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/ribbon.rs
+msgid "Feedback"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "File"
@@ -3903,6 +3930,13 @@ msgstr "Generale"
 msgid "Georgia"
 msgstr "Georgia"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Get\n"
+"Support"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -3920,6 +3954,11 @@ msgstr "Ottieni evento"
 #, fuzzy
 msgid "Get Message"
 msgstr "Ottieni messaggio"
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+msgid "Get Support"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -4103,8 +4142,8 @@ msgstr ""
 "\n"
 "Grazie"
 
-#. interface, name, ribbon, ribbon location
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Help"
 msgstr "Guida"
@@ -6582,6 +6621,11 @@ msgid "Nothing is scheduled on these days."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Nothing is sent or received. Click to connect again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Nothing matches the search."
@@ -7402,6 +7446,11 @@ msgstr ""
 #, fuzzy
 msgid "Postal code"
 msgstr "CAP"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+msgid "Preferences"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8632,7 +8681,7 @@ msgid "Send & Receive"
 msgstr "Invia e ricevi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Invia/Ricevi"
@@ -12188,6 +12237,18 @@ msgstr ""
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"What's\n"
+"New"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+msgid "What's New"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -12282,6 +12343,13 @@ msgstr "Lavoro"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Work\n"
+"Offline"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Work\n"
@@ -12289,6 +12357,11 @@ msgid ""
 msgstr ""
 "Settimana\n"
 "lavorativa"
+
+#. command label
+#: crates/engine/src/cmd/send_receive.rs
+msgid "Work Offline"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs
@@ -12321,10 +12394,20 @@ msgid "Working Hours"
 msgstr "Orario di lavoro"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Working Offline"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Working hours"
 msgstr "Orario di lavoro"
+
+#. interface
+#: crates/ui-egui/src/send_receive.rs
+msgid "Working offline: mail you send waits in the Outbox"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12488,6 +12571,11 @@ msgstr "È stato eseguito l'accesso come {signedIn}, non come {typed}."
 #, fuzzy
 msgid "You tentatively accepted this meeting."
 msgstr "Questa riunione è stata accettata come provvisoria."
+
+#. interface
+#: crates/ui-egui/src/send_receive.rs
+msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs

@@ -141,6 +141,7 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+mod send_receive;
 mod sender_images;
 pub mod server_search;
 pub mod settings_notice;
@@ -1758,6 +1759,8 @@ impl MailApp {
             return false;
         }
         match self.session.registry.get(id) {
+            // Cancel All, while the window has a Send/Receive under way.
+            Some(_) if id == "sync.cancel" => self.syncing(),
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed
@@ -1875,6 +1878,8 @@ impl MailApp {
                 }
             }
         }
+        // Help's pages, and Feedback's window, for the owner's click.
+        send_receive::after_owner(self, id, &r);
         // And closing a conversation, which may select its row (#503).
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
@@ -1938,10 +1943,15 @@ impl MailApp {
         if let Some(r) = self.through_saver(id, &params) {
             return r;
         }
+        if let Some(r) = send_receive::before(self, id) {
+            return r;
+        }
         let r = self.session.run(id, &params);
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
+        // Work Offline, File › Account.
+        send_receive::after(self, id, &r);
         // Asked for the reminders: their window comes up, due or not.
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
@@ -2518,6 +2528,9 @@ impl MailApp {
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(sign_in) = &self.services.sign_in else {
             return Err(tl!("This build can't sign in to this kind of account. Use the desktop app.").to_string());
         };
@@ -2620,6 +2633,10 @@ impl MailApp {
         }
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
+        }
+        // Work Offline: nothing goes to a server; what is sent waits in the Outbox.
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         // The Inbox checked by itself gives way to a run (#276).
         self.give_up_inbox_check();
@@ -2784,6 +2801,9 @@ impl MailApp {
     /// due, brings the calendar and the contacts; no IMAP, no SMTP. Its token is always renewed
     /// for the job, with `Mail.ReadWrite`.
     fn start_graph_mail(&mut self, account: Id, quiet: bool) -> Result<Value, String> {
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         if self.services.graph.is_none() {
             return Err(tl!("This build can't connect to Microsoft").to_string());
         }
@@ -2976,7 +2996,8 @@ impl MailApp {
             }
         }
         let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if !self.services.can_sync() || busy || self.dialog.is_some() {
+        // (Working offline, nothing starts by itself either: mail waits in the Outbox.)
+        if !self.services.can_sync() || busy || self.dialog.is_some() || self.offline() {
             return;
         }
         // The round's Inbox passes come before anything else of it (#276); neither starts while
