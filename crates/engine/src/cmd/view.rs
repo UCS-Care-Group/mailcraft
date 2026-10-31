@@ -11,8 +11,10 @@ use super::{bad, done, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
+pub mod display;
+
 pub fn specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         CommandSpec::new("view.reminders", "Reminders Window", "View › Window", reminders)
             .pure()
             .params("{} — answers the reminders that are due now: events inside their reminder time, or that ended less than a day ago"),
@@ -54,7 +56,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).pure(),
-    ]
+    ];
+    specs.extend(display::specs());
+    specs
 }
 
 const TOGGLE: &str = r#"{"value"?: bool} (default: toggle)"#;
@@ -134,8 +138,14 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 /// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
 /// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
 /// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
-/// window's list and `view.searchSuggestions` both ask this.
+/// window's list and `view.searchSuggestions` both ask this. With nothing typed, the searches run
+/// lately (`view.recentSearches`).
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
+    // An empty box offers the searches run lately, to run again.
+    if query.trim().is_empty() {
+        let recent = s.prefs.recent_searches();
+        return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
+    }
     mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
         let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
         if let Some(typed) = super::compose::Typed::new(typed) {

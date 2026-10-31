@@ -257,6 +257,14 @@ const SAFE: &[&str] = &[
     "view.frontCalendar",
     "view.workHours",
     "view.timeZone",
+    "view.changeView",
+    "view.density",
+    "view.zoom",
+    "view.zoomIn",
+    "view.zoomOut",
+    "view.zoomReset",
+    // The owner's searches, kept on this computer: an agent reads mail anyway.
+    "view.recentSearches",
     // Calendar ("send": true is asked about, `classify`).
     "calendar.freeBusy",
     "calendar.new",

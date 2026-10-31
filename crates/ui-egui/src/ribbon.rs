@@ -16,6 +16,8 @@ use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
 use crate::widgets::{CONTENT_H, LABEL_H, bg, big_frame, command_tooltip, group, mi, mi_check, shortcut_text, small_frame, stack};
 use crate::{MailApp, icons};
 
+mod view_menus;
+
 /// The height of the tab strip, and the size of the tabs' names (10 pt).
 const TAB_H: f32 = 30.0;
 const TAB_SIZE: f32 = 13.333;
@@ -135,6 +137,9 @@ pub(crate) enum Menu {
     Theme,
     RibbonLayout,
     TimeScale,
+    ChangeView,
+    Zoom,
+    RecentSearches,
     FontSize,
     Font,
     FontColor,
@@ -879,18 +884,22 @@ fn view(app: &MailApp) -> Tab {
         let over = mailcraft_engine::cmd::calendar_settings::overlaid(&app.session);
         let overlay = Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3);
         let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
-        tab.groups.retain(|group| group.title != "Messages" && group.title != "Arrangement");
+        tab.groups.retain(|group| !["Current View", "Messages", "Arrangement", "Search"].contains(&group.title));
         let after_layout = tab.groups.len().min(1);
         tab.groups.splice(after_layout..after_layout, [g("Arrangement", calendar_views(v.calendar, 1)), g("Calendar", vec![scale, overlay, beside])]);
     }
     tab
 }
 
-/// The View tab as every module has it: Layout, then the messages' two groups (which the calendar
-/// replaces with its own, by their titles), then Window.
+/// The View tab as every module has it: the list's ready-made views, Layout, then the messages'
+/// two groups (which the calendar replaces with its own, by their titles), the recent searches,
+/// then Window. The calendar drops the ready-made views and the recent searches, which are the
+/// mail's.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
+    let tight = app.session.prefs.tight_spacing;
     Tab::of(vec![
+        g("Current View", vec![Item::big_menu("changeView", "changeView", "Change\nView", "Change View", Menu::ChangeView).at(0, 1)]),
         g(
             "Layout",
             vec![
@@ -904,6 +913,7 @@ fn view_of_any(app: &MailApp) -> Tab {
             vec![
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
+                Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
             ],
         ),
         g(
@@ -913,10 +923,12 @@ fn view_of_any(app: &MailApp) -> Tab {
                 Item::big("reverseSort", "Reverse\nSort", "view.reverseSort", no()).at(2, 3),
             ],
         ),
+        g("Search", vec![Item::big_menu("recentSearches", "recentSearches", "Recent\nSearches", "Recent Searches", Menu::RecentSearches).at(2, 4)]),
         g(
             "Window",
             vec![
                 Item::big_menu("theme", "theme", "Theme", "Interface Theme", Menu::Theme).at(3, 3),
+                Item::big_menu("zoom", "zoom", "Zoom", "Zoom the Message", Menu::Zoom).at(3, 4),
                 Item::big("bell", "Reminders\nWindow", "view.reminders", no()).at(3, 4),
                 Item::big("reset", "Reset\nView", "view.reset", no()).at(3, 5),
             ],
@@ -1311,6 +1323,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::TimeScale => crate::calendar_view::time_scale_menu(ui, app),
+        Menu::ChangeView | Menu::Zoom | Menu::RecentSearches => view_menus::show(ui, app, menu),
         Menu::Font => font_menu(ui, app),
         Menu::FontColor => color_menu(ui, app),
         Menu::Highlight => highlight_menu(ui, app),

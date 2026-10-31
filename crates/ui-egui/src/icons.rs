@@ -880,6 +880,37 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(7.0, y), (17.5, y)]);
             }
         }
+        // Change View: a window with the list's rows on the left, the pane beside them.
+        "changeView" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            for y in [7.0, 10.0, 13.0] {
+                pen.line(&[(5.0, y), (8.0, y)]);
+            }
+            pen.line_c(&[(10.5, 3.5), (10.5, 16.5)], a);
+        }
+        // Tighter Spacing: rows close together, pressed from above and below.
+        "density" => {
+            for y in [7.5, 10.0, 12.5] {
+                pen.line(&[(8.0, y), (17.5, y)]);
+            }
+            pen.line_c(&[(4.5, 2.5), (4.5, 7.0)], a);
+            pen.head(4.5, 7.0, 90.0, 2.5, a);
+            pen.line_c(&[(4.5, 17.5), (4.5, 13.0)], a);
+            pen.head(4.5, 13.0, 270.0, 2.5, a);
+        }
+        // Zoom: a glass with a plus in it.
+        "zoom" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(6.0, 8.5), (11.0, 8.5)], a);
+            pen.line_c(&[(8.5, 6.0), (8.5, 11.0)], a);
+        }
+        // Recent Searches: a glass with a clock's hands in it.
+        "recentSearches" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(8.5, 5.5), (8.5, 8.5), (10.5, 10.0)], a);
+        }
         "reset" => {
             // Back the other way round, the head at the top.
             let ring = pen.path().a(&pen, 10.0, 10.5, 6.5, 240.0, -60.0);
@@ -1311,6 +1342,10 @@ pub const NAMES: &[&str] = &[
     "reverseSort",
     "previewLines",
     "list",
+    "changeView",
+    "density",
+    "zoom",
+    "recentSearches",
     "reset",
     "undo",
     "redo",

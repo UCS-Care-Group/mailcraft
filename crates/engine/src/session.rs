@@ -782,6 +782,16 @@ pub struct Prefs {
     /// computer's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_zones: Vec<String>,
+    /// The rows of the message list stand closer together (`view.density`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub tight_spacing: bool,
+    /// How large the text of the message being read is, in percent (`view.zoom`): read through
+    /// [`Prefs::zoom_percent`], which keeps it in range whatever the settings file says.
+    pub zoom: u16,
+    /// The searches run lately, the latest first (`view.recentSearches`): kept in this computer's
+    /// settings and never sent anywhere. Read through [`Prefs::recent_searches`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent_searches: Vec<String>,
     /// Work Offline (`sync.offline`): nothing goes to or comes from a server while it is on;
     /// mail that is sent waits in the Outbox. Off unless the owner turns it on; kept between runs.
     #[serde(skip_serializing_if = "is_false")]
@@ -817,12 +827,34 @@ impl Default for Prefs {
             zone_label: String::new(),
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
+            tight_spacing: false,
+            zoom: Prefs::ZOOM_DEFAULT,
+            recent_searches: Vec::new(),
             offline: false,
         }
     }
 }
 
 impl Prefs {
+    /// The zoom of the message being read, in percent: the least, the most, and as it comes.
+    pub const ZOOM_MIN: u16 = 50;
+    pub const ZOOM_MAX: u16 = 300;
+    pub const ZOOM_DEFAULT: u16 = 100;
+    /// The most searches the list of recent ones keeps, and the most characters of each.
+    pub const RECENT_SEARCHES: usize = 10;
+    pub const RECENT_SEARCH_CHARS: usize = 200;
+
+    /// The zoom of the message being read, in percent, in range (a settings file may say anything).
+    pub fn zoom_percent(&self) -> u16 {
+        self.zoom.clamp(Self::ZOOM_MIN, Self::ZOOM_MAX)
+    }
+
+    /// The searches run lately, the latest first: at most [`Prefs::RECENT_SEARCHES`], none empty,
+    /// each cut to [`Prefs::RECENT_SEARCH_CHARS`] (a settings file may say anything).
+    pub fn recent_searches(&self) -> impl Iterator<Item = &str> {
+        self.recent_searches.iter().map(|q| cut_chars(q, Self::RECENT_SEARCH_CHARS)).filter(|q| !q.trim().is_empty()).take(Self::RECENT_SEARCHES)
+    }
+
     /// The clock and the first day of the week that the owner never chose follow the interface
     /// language (French: 24-hour, Monday); the ones they chose are kept. Settings saved before
     /// this was kept count what differs from the old defaults (12-hour, Sunday) as chosen, so
@@ -839,6 +871,11 @@ impl Prefs {
             self.week_start = Weekday::from_index(i64::from(own.week_start));
         }
     }
+}
+
+/// The first `max` characters of `text`.
+fn cut_chars(text: &str, max: usize) -> &str {
+    text.char_indices().nth(max).and_then(|(at, _)| text.get(..at)).unwrap_or(text)
 }
 
 fn is_false(b: &bool) -> bool {

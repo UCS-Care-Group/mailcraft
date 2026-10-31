@@ -462,6 +462,11 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Actual Size"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 msgid "Add"
@@ -1484,6 +1489,13 @@ msgstr ""
 msgid "Cc: {names}"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Change\n"
+"View"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Change Recurring Item"
@@ -1492,6 +1504,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Change This Meeting?"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Change View"
 msgstr ""
 
 #. interface
@@ -1732,6 +1749,11 @@ msgid "Clear Formatting"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Clear Recent Searches"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Clear filters"
 msgstr ""
@@ -1824,6 +1846,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 msgid "Communicate"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/view/display.rs
+msgid "Compact"
 msgstr ""
 
 #. interface
@@ -2081,7 +2108,7 @@ msgid "Current Mailbox"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Current View"
 msgstr ""
 
@@ -4821,7 +4848,7 @@ msgid "Message Preview"
 msgstr ""
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 msgid "Messages"
 msgstr ""
 
@@ -5506,6 +5533,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "No new version is ready to install."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "No recent searches"
 msgstr ""
 
 #. interface
@@ -6460,8 +6492,8 @@ msgstr ""
 msgid "Press Send/Receive to download your mail."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/signatures.rs
+#. interface, name
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/signatures.rs
 msgid "Preview"
 msgstr ""
 
@@ -6640,6 +6672,18 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Recent"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Recent\n"
+"Searches"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Recent Searches"
 msgstr ""
 
 #. interface
@@ -7331,8 +7375,8 @@ msgstr ""
 msgid "Scripts and agents"
 msgstr ""
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
 msgid "Search"
 msgstr ""
 
@@ -8219,8 +8263,8 @@ msgstr ""
 msgid "Simplified Ribbon"
 msgstr ""
 
-#. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Single Line"
 msgstr ""
 
@@ -10087,6 +10131,18 @@ msgstr ""
 msgid "Tidying the mailbox's content folder…"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tighter\n"
+"Spacing"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Tighter Spacing"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Time"
@@ -10522,7 +10578,7 @@ msgid "Version {version} is ready:"
 msgstr ""
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "View"
 msgstr ""
 
@@ -11079,9 +11135,24 @@ msgstr ""
 msgid "Z on top"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/menubar.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom In"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom Out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Zoom the Message"
 msgstr ""
 
 #. interface

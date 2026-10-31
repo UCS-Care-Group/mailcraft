@@ -553,6 +553,11 @@ msgstr "Acties"
 msgid "Active"
 msgstr "Actief"
 
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Actual Size"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 #, fuzzy
@@ -1768,6 +1773,13 @@ msgstr "CC:"
 msgid "Cc: {names}"
 msgstr "CC: {names}"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Change\n"
+"View"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -1779,6 +1791,11 @@ msgstr "Terugkerend item wijzigen"
 #, fuzzy
 msgid "Change This Meeting?"
 msgstr "Deze vergadering wijzigen?"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Change View"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2065,6 +2082,11 @@ msgid "Clear Formatting"
 msgstr "Opmaak wissen"
 
 #. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Clear Recent Searches"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Clear filters"
@@ -2177,6 +2199,11 @@ msgstr "Kleur"
 #, fuzzy
 msgid "Communicate"
 msgstr "Communiceren"
+
+#. name
+#: crates/engine/src/cmd/view/display.rs
+msgid "Compact"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -2480,7 +2507,7 @@ msgid "Current Mailbox"
 msgstr "Huidig postvak"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Current View"
 msgstr "Huidige weergave"
@@ -5747,7 +5774,7 @@ msgid "Message Preview"
 msgstr "Berichtvoorbeeld"
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Berichten"
@@ -6581,6 +6608,11 @@ msgstr "Er wordt daar geen bericht gelezen"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Er staat geen nieuwe versie klaar om te installeren."
+
+#. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "No recent searches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -7716,8 +7748,8 @@ msgstr ""
 msgid "Press Send/Receive to download your mail."
 msgstr "Druk op Verzenden/ontvangen om uw e-mail te downloaden."
 
-#. interface
-#: crates/ui-egui/src/signatures.rs
+#. interface, name
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Preview"
 msgstr "Voorbeeld"
@@ -7934,6 +7966,18 @@ msgstr "Bezig met ontvangen van {name}: {read} van {total} · map {number} van {
 #, fuzzy
 msgid "Recent"
 msgstr "Recent"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Recent\n"
+"Searches"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Recent Searches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8766,8 +8810,8 @@ msgstr "Schermopname"
 msgid "Scripts and agents"
 msgstr "Scripts en agenten"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search"
 msgstr "Zoeken"
@@ -9820,8 +9864,8 @@ msgstr ""
 msgid "Simplified Ribbon"
 msgstr "Vereenvoudigd lint"
 
-#. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Single Line"
 msgstr "Eén regel"
@@ -12026,6 +12070,18 @@ msgstr "Vink de agenda van dit gedeelde postvak aan in het mappenvenster van de 
 msgid "Tidying the mailbox's content folder…"
 msgstr "Inhoudsmap van het postvak wordt opgeruimd…"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tighter\n"
+"Spacing"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Tighter Spacing"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -12555,7 +12611,7 @@ msgid "Version {version} is ready:"
 msgstr "Versie {version} is gereed:"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Beeld"
@@ -13212,11 +13268,26 @@ msgstr "Uw rapport staat klaar in een nieuw bericht: controleer het en druk daar
 msgid "Z on top"
 msgstr "Z bovenaan"
 
-#. interface
-#: crates/ui-egui/src/menubar.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Zoom"
 msgstr "Zoom"
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom In"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom Out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Zoom the Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs

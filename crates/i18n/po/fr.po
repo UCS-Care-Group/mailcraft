@@ -536,6 +536,11 @@ msgstr "Actions"
 msgid "Active"
 msgstr "Actives"
 
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Actual Size"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 #, fuzzy
@@ -1715,6 +1720,13 @@ msgstr "Cc :"
 msgid "Cc: {names}"
 msgstr "Cc : {names}"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Change\n"
+"View"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -1726,6 +1738,11 @@ msgstr "Modifier un élément périodique"
 #, fuzzy
 msgid "Change This Meeting?"
 msgstr "Modifier cette réunion ?"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Change View"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2005,6 +2022,11 @@ msgid "Clear Formatting"
 msgstr "Effacer la mise en forme"
 
 #. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Clear Recent Searches"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Clear filters"
 msgstr ""
@@ -2116,6 +2138,11 @@ msgstr "Couleur"
 #, fuzzy
 msgid "Communicate"
 msgstr "Communiquer"
+
+#. name
+#: crates/engine/src/cmd/view/display.rs
+msgid "Compact"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -2414,7 +2441,7 @@ msgid "Current Mailbox"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Current View"
 msgstr "Affichage actuel"
@@ -5581,7 +5608,7 @@ msgid "Message Preview"
 msgstr "Aperçu du message"
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Messages"
@@ -6400,6 +6427,11 @@ msgstr "Aucun message n'y est en cours de lecture"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Aucune nouvelle version n'est prête à être installée."
+
+#. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+msgid "No recent searches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -7495,8 +7527,8 @@ msgstr ""
 msgid "Press Send/Receive to download your mail."
 msgstr "Cliquez sur Envoyer/Recevoir pour télécharger votre courrier."
 
-#. interface
-#: crates/ui-egui/src/signatures.rs
+#. interface, name
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Preview"
 msgstr "Aperçu"
@@ -7706,6 +7738,18 @@ msgstr "Réception de {name} : {read} sur {total} · dossier {number} sur {fol
 #, fuzzy
 msgid "Recent"
 msgstr "Récent"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Recent\n"
+"Searches"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+msgid "Recent Searches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8519,8 +8563,8 @@ msgstr ""
 msgid "Scripts and agents"
 msgstr "Scripts et agents"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search"
 msgstr "Rechercher"
@@ -9549,8 +9593,8 @@ msgstr ""
 msgid "Simplified Ribbon"
 msgstr "Ruban simplifié"
 
-#. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Single Line"
 msgstr "Une seule ligne"
 
@@ -11653,6 +11697,18 @@ msgstr ""
 msgid "Tidying the mailbox's content folder…"
 msgstr "Rangement du dossier de contenu de la boîte aux lettres…"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tighter\n"
+"Spacing"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Tighter Spacing"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -12163,7 +12219,7 @@ msgid "Version {version} is ready:"
 msgstr "La version {version} est prête :"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Affichage"
@@ -12798,10 +12854,25 @@ msgstr ""
 msgid "Z on top"
 msgstr "Z en haut"
 
-#. interface
-#: crates/ui-egui/src/menubar.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
 msgstr "Réduire/agrandir"
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom In"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+msgid "Zoom Out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Zoom the Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
