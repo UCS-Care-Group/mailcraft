@@ -239,6 +239,12 @@ fn what_a_script_or_an_agent_selects_in_the_body_stays_out_of_the_primary_select
 fn a_selection_that_undo_brings_back_is_not_the_owners() {
     for agent in [false, true] {
         let mut h = writing_lines();
+        if agent {
+            // A message the agent wrote: one the owner wrote in isn't the agent's to type in (#577).
+            if let Some(c) = h.state_mut().session.compose.as_mut() {
+                c.owner_changed = false;
+            }
+        }
         // Somebody else's selection, typed over.
         request(&mut h, "engine.execute", json!({"command": "compose.select", "params": {"from": 0, "to": 5}}), agent);
         request(&mut h, "engine.execute", json!({"command": "compose.type", "params": {"text": "X"}}), agent);

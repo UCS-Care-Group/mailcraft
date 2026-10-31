@@ -38,6 +38,11 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
+    ReplyTo {
+        text: String,
+        error: String,
+    },
     /// The address of a shared mailbox to open under a Microsoft account (#70): it only collects
     /// the address, then runs `account.addSharedMailbox`.
     SharedMailbox {
@@ -135,6 +140,15 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
+    /// runs `compose.attachItem` or `insert.businessCard`.
+    Pick(Box<crate::pick_item::Pick>),
+    /// View Source: a message's source as plain text ([`crate::view_source`]).
+    ViewSource(Box<crate::view_source::Source>),
+    /// Find and Replace in the message being written ([`crate::find_replace`]).
+    FindReplace(crate::find_replace::FindReplace),
+    /// Insert › Symbol ([`crate::symbol`]).
+    Symbol(crate::symbol::Symbol),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -208,6 +222,7 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
@@ -228,6 +243,19 @@ impl Dialog {
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::ImportTree(_) => "importTree",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::Pick(p) => match p.kind {
+                crate::pick_item::PickKind::Message => "attachItem",
+                crate::pick_item::PickKind::Contact => "businessCard",
+            },
+            Dialog::ViewSource(_) => "viewSource",
+            Dialog::Symbol(_) => "symbol",
+            Dialog::FindReplace(d) => {
+                if d.replace {
+                    "replace"
+                } else {
+                    "find"
+                }
+            }
         }
     }
 
@@ -262,6 +290,7 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
                 let can = |a: &&mailcraft_model::Account| crate::shared_mailboxes::can_open_shared(a);
@@ -330,6 +359,24 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         let n = |k: &str| answer.get(k).and_then(Value::as_u64).unwrap_or(0);
         let counts = [n("words"), n("characters"), n("charactersWithSpaces"), n("paragraphs")];
         return Some(Dialog::WordCount { counts, selection: answer.get("selection").and_then(Value::as_bool) == Some(true) });
+    }
+    if name == "viewSource" {
+        // (The engine reads the source; when it refuses, there is no dialog.)
+        let named = params.get("id").map_or_else(|| json!({}), |id| json!({"id": id}));
+        let answer = app.session.run("mail.viewSource", &named).ok()?;
+        return crate::view_source::Source::from_answer(&answer).map(|s| Dialog::ViewSource(Box::new(s)));
+    }
+    if name == "symbol" {
+        app.session.doc()?;
+        return Some(Dialog::Symbol(crate::symbol::Symbol::default()));
+    }
+    if matches!(name, "find" | "replace") {
+        return crate::find_replace::FindReplace::open(app, name == "replace").map(Dialog::FindReplace);
+    }
+    if matches!(name, "attachItem" | "businessCard") {
+        app.session.compose.as_ref()?;
+        let kind = if name == "attachItem" { crate::pick_item::PickKind::Message } else { crate::pick_item::PickKind::Contact };
+        return Some(Dialog::Pick(Box::new(crate::pick_item::Pick::new(kind))));
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
@@ -794,9 +841,16 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
 /// Whether running `id` as the owner asks first (#442): it closes the message being written, or
 /// puts another in its place, and that message has changes that aren't saved, or its saved draft
-/// is gone (#494). A caller that already let them go (`discard`) isn't asked.
+/// is gone (#494). A caller that already let them go (`discard`) isn't asked. Another mailbox in
+/// view closes it too (#470): File › Open asks once the file is chosen, so a cancelled picker
+/// leaves the message alone, and a file read in the background asks once it is read, as it takes
+/// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
-    mailcraft_engine::cmd::compose::LEAVING.contains(&id)
+    let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
+    // (One that first asks which days asks this once they are chosen.)
+    (mailcraft_engine::cmd::compose::leaves(id) || (mailcraft_engine::cmd::calendar::share::starts_message(id) && input_dialog(id, params).is_none()))
+        && !choosing
+        && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
         && app.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&app.session, c))
         && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
@@ -817,6 +871,15 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
         _ => false,
     };
     if !left {
+        // A mailbox file read in the background that the owner then didn't open isn't kept.
+        crate::opening::forget_unopened(then, &params);
+        return;
+    }
+    // A mailbox file asked about once it was read (#470) opens what was read, not read again.
+    if then == "file.open" {
+        let was = std::mem::replace(&mut app.swapping, true);
+        let _ = app.run(then, params);
+        app.swapping = was;
         return;
     }
     // Saved, it closes without another word; it is saved as it is now.
@@ -1030,6 +1093,17 @@ fn from_form(id: &str, params: &Value) -> bool {
 /// and the owner said whether one occurrence or the whole series was meant, what its form saves
 /// (`calendar.edit` with everything the form has) is saved for that, without asking again.
 pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
+    // People › Meeting opens the meeting's form with the contact invited (what the form saves is
+    // `calendar.newMeeting`, which says what goes to whom).
+    if id == "people.meeting" && input_dialog(id, &params) == Some("meeting") {
+        let contact = params.get("id").and_then(Value::as_u64).or(app.session.sel.contact).and_then(|c| app.session.mailbox.contact(c));
+        let mut params = params;
+        if let (Some(to), Some(map)) = (contact.and_then(mailcraft_model::Contact::address), params.as_object_mut()) {
+            map.remove("id");
+            map.entry("attendees").or_insert_with(|| json!(to.full()));
+        }
+        return params;
+    }
     // Opened anew, with nothing said of which is meant: what was said the last time no longer
     // holds. (What is said now, when the question is asked, is noted by [`go_ahead`].)
     if (id == "ui.openWindow" || input_dialog(id, &params) == Some("editEvent")) && params.get("scope").is_none() {
@@ -1065,7 +1139,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
-        "calendar.newMeeting" if !has("title") => Some("meeting"),
+        "calendar.newMeeting" | "people.meeting" if !has("title") => Some("meeting"),
         // (Which of a series is meant says nothing of what to change: the form is still to come.)
         "calendar.edit" if empty || params.as_object().is_some_and(|m| m.keys().all(|key| matches!(key.as_str(), "scope" | "occurrence"))) => {
             Some("editEvent")
@@ -1075,6 +1149,12 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.propose" if !has("start") => Some("proposeTime"),
         "calendar.forward" if !has("to") => Some("forwardMeeting"),
         "calendar.proposals" => Some("proposals"),
+        // Which days of the calendar, and how much of each; what was answered, a list to look at;
+        // what to look for.
+        "calendar.email" if empty => Some("emailCalendar"),
+        "insert.calendar" if empty => Some("insertCalendar"),
+        "calendar.tracking" => Some("tracking"),
+        "calendar.search" if !has("query") => Some("searchCalendar"),
         "people.new" if empty => Some("contact"),
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
@@ -1082,9 +1162,15 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        "compose.attachItem" if !has("id") => Some("attachItem"),
+        "insert.businessCard" if !has("id") => Some("businessCard"),
+        "compose.replyTo" if !has("value") => Some("replyTo"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
+        "insert.symbol" if !has("char") && !has("code") => Some("symbol"),
+        "edit.find" if !has("text") => Some("find"),
+        "edit.replace" if !has("text") => Some("replace"),
         // (What it answers is counts to look at.)
         "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
@@ -1391,6 +1477,30 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
+        Dialog::ReplyTo { text, error } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Direct Replies To"), 420.0, |ui| {
+                ui.label(tl!("Have replies sent to"));
+                let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.label(egui::RichText::new(tl!("Addresses separated by ; (leave empty for replies to come to you)")).color(t.text_dim));
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("OK"), true);
+                submit = ok || enter;
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("compose.replyTo", json!({"value": text.trim()})) {
+                    Ok(_) => close = true,
+                    Err(e) => *error = e,
+                }
+            }
+        }
         Dialog::SharedMailbox { account, address, error, checking } => {
             let mut submit = false;
             let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
@@ -1654,6 +1764,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             close |= !open;
         }
+        Dialog::ViewSource(source) => {
+            let title = crate::i18n::fmt(tl!("Source of {subject}"), &[("subject", &source.subject)]);
+            let open = window(ctx, &title, 720.0, |ui| close |= crate::view_source::show(ui, source, &t));
+            close |= !open;
+        }
         Dialog::Refused { text } => {
             let open = window(ctx, "MailCraft", 420.0, |ui| {
                 ui.horizontal_top(|ui| {
@@ -1841,10 +1956,29 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
         // keyboard is that button's.
+        Dialog::Pick(dialog) => {
+            let mut done = false;
+            let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
         Dialog::MergeContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
+        }
+        Dialog::Symbol(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+            app.body_focus_wanted |= close;
+        }
+        Dialog::FindReplace(dialog) => {
+            let mut done = false;
+            let title = if dialog.replace { tl!("Replace") } else { tl!("Find") };
+            let open = window(ctx, title, crate::find_replace::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+            // The keyboard goes back to the text.
+            app.body_focus_wanted |= close;
         }
         Dialog::ImportTree(dialog) => {
             let mut done = false;

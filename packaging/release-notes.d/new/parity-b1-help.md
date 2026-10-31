@@ -1,0 +1,1 @@
+- The Help tab has Help, Get Support, Feedback and What's New: Help, Get Support and What's New open MailCraft's own pages on GitHub (the read-me, the issues, this version's release notes) in your browser, with nothing about you in the address, and Feedback opens Report a Problem. Account, found with Search Commands, opens File › About with the version and updates.

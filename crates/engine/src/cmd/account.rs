@@ -1388,6 +1388,7 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
                     continue;
                 }
                 m.uid = uid;
+                m.placed.clear();
                 on_server.by_uid.insert((folder, uid), done.message);
                 // The folder's mailbox may be new: its UIDs are good for this life of it.
                 if let Ok(f) = mb.folder_mut(folder)

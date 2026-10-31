@@ -384,6 +384,14 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
+    /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
+    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451).
+    pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
+        (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
+        self.placed.clear();
+    }
+
     /// Every recipient: To, Cc, Bcc.
     pub fn recipients(&self) -> impl Iterator<Item = &Address> {
         self.to.iter().chain(&self.cc).chain(&self.bcc)

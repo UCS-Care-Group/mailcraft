@@ -631,6 +631,9 @@ pub struct Compose {
     pub to: String,
     pub cc: String,
     pub bcc: String,
+    /// Direct Replies To: where replies go (the `Reply-To` line), as typed; empty for the sender.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reply_to: String,
     pub subject: String,
     /// What the owner writes, in rich text, with its selection and its own undo. Stored as plain
     /// text before rich text; that still reads.
@@ -666,6 +669,43 @@ pub struct Compose {
     pub owner_changed: bool,
 }
 
+impl Compose {
+    /// Whether the signature in the message is still the one that went in.
+    pub fn signature_unedited(&self) -> bool {
+        self.signature.as_ref().is_some_and(|inserted| self.body.text().signature().as_ref() == Some(&inserted.text))
+    }
+
+    /// The owner's own HTML of the signature, while that is what goes out: an HTML signature
+    /// that is unedited and not chosen to be edited as text.
+    pub fn signature_html(&self) -> Option<&str> {
+        let inserted = self.signature.as_ref().filter(|i| !i.as_text)?;
+        inserted.html.as_deref().filter(|_| self.signature_unedited())
+    }
+
+    /// The owner's own HTML of the signature while the composer shows it as it goes out, under
+    /// the text and out of the keyboard's reach: an HTML message that ends with it, with text
+    /// before it.
+    pub fn signature_html_shown(&self) -> Option<&str> {
+        let paragraphs = self.body.text().paragraphs();
+        let ends = paragraphs.first().is_some_and(|p| !p.signature) && paragraphs.last().is_some_and(|p| p.signature);
+        self.signature_html().filter(|_| self.format == BodyFormat::Html && ends)
+    }
+
+    /// Take the caret and the selection out of a signature shown as it goes out, to the end of
+    /// the owner's text before it, so that typing never edits what isn't shown (#614).
+    pub fn keep_out_of_signature(&mut self) {
+        if self.signature_html_shown().is_none() {
+            return;
+        }
+        let Some(end) = self.body.text().signature_start().map(|s| s.saturating_sub(1)) else { return };
+        let sel = self.body.selection();
+        if sel.anchor.max(sel.head) > end {
+            // Within the text: `end` is before the signature.
+            let _ = self.body.select(sel.anchor.min(end), sel.head.min(end));
+        }
+    }
+}
+
 fn is_zero_u32(n: &u32) -> bool {
     *n == 0
 }
@@ -683,6 +723,10 @@ pub struct InsertedSignature {
     /// The owner's own HTML, for an HTML signature: what goes out while the text is unedited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
+    /// The owner chose to edit an HTML signature as text: its simpler copy is shown in the
+    /// message and goes out in place of the HTML (`compose.signatureAsText`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub as_text: bool,
 }
 
 /// A signature open in File › Signatures (R4.5.3): edited as a message's body is, by the
@@ -779,6 +823,20 @@ pub struct Prefs {
     /// computer's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_zones: Vec<String>,
+    /// The rows of the message list stand closer together (`view.density`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub tight_spacing: bool,
+    /// How large the text of the message being read is, in percent (`view.zoom`): read through
+    /// [`Prefs::zoom_percent`], which keeps it in range whatever the settings file says.
+    pub zoom: u16,
+    /// The searches run lately, the latest first (`view.recentSearches`): kept in this computer's
+    /// settings and never sent anywhere. Read through [`Prefs::recent_searches`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recent_searches: Vec<String>,
+    /// Work Offline (`sync.offline`): nothing goes to or comes from a server while it is on;
+    /// mail that is sent waits in the Outbox. Off unless the owner turns it on; kept between runs.
+    #[serde(skip_serializing_if = "is_false")]
+    pub offline: bool,
 }
 
 impl Default for Prefs {
@@ -810,11 +868,34 @@ impl Default for Prefs {
             zone_label: String::new(),
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
+            tight_spacing: false,
+            zoom: Prefs::ZOOM_DEFAULT,
+            recent_searches: Vec::new(),
+            offline: false,
         }
     }
 }
 
 impl Prefs {
+    /// The zoom of the message being read, in percent: the least, the most, and as it comes.
+    pub const ZOOM_MIN: u16 = 50;
+    pub const ZOOM_MAX: u16 = 300;
+    pub const ZOOM_DEFAULT: u16 = 100;
+    /// The most searches the list of recent ones keeps, and the most characters of each.
+    pub const RECENT_SEARCHES: usize = 10;
+    pub const RECENT_SEARCH_CHARS: usize = 200;
+
+    /// The zoom of the message being read, in percent, in range (a settings file may say anything).
+    pub fn zoom_percent(&self) -> u16 {
+        self.zoom.clamp(Self::ZOOM_MIN, Self::ZOOM_MAX)
+    }
+
+    /// The searches run lately, the latest first: at most [`Prefs::RECENT_SEARCHES`], none empty,
+    /// each cut to [`Prefs::RECENT_SEARCH_CHARS`] (a settings file may say anything).
+    pub fn recent_searches(&self) -> impl Iterator<Item = &str> {
+        self.recent_searches.iter().map(|q| cut_chars(q, Self::RECENT_SEARCH_CHARS)).filter(|q| !q.trim().is_empty()).take(Self::RECENT_SEARCHES)
+    }
+
     /// The clock and the first day of the week that the owner never chose follow the interface
     /// language (French: 24-hour, Monday); the ones they chose are kept. Settings saved before
     /// this was kept count what differs from the old defaults (12-hour, Sunday) as chosen, so
@@ -831,6 +912,11 @@ impl Prefs {
             self.week_start = Weekday::from_index(i64::from(own.week_start));
         }
     }
+}
+
+/// The first `max` characters of `text`.
+fn cut_chars(text: &str, max: usize) -> &str {
+    text.char_indices().nth(max).and_then(|(at, _)| text.get(..at)).unwrap_or(text)
 }
 
 fn is_false(b: &bool) -> bool {
@@ -2490,16 +2576,21 @@ impl Session {
     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
+        // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).
+        if self.prefs.offline && crate::cmd::send_receive::ASKS_A_SERVER.contains(&id) {
+            return Err(CmdError::Disabled(crate::cmd::send_receive::OFFLINE.to_string()));
+        }
         if let Some(reason) = (spec.enabled)(self) {
-            // A command that only lacks a selection still runs on what the caller names.
-            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null()));
+            // A command that only lacks a selection still runs on what the caller names, and on
+            // what it names wrongly, which the command refuses for what it is (#553).
+            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some());
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
         }
         // A message being written isn't let go of with what isn't saved of it (#442): it goes to
         // Drafts first, in a step of its own, and a save that fails stops here.
-        if crate::cmd::compose::saves_first(self, id, params) {
+        if crate::cmd::compose::saves_first(self, id, params) || crate::cmd::calendar::share::saves_first(self, id, params) {
             self.run("compose.saveDraft", &Value::Null)?;
         }
         // Undo and redo manage the history themselves.
@@ -2544,6 +2635,11 @@ impl Session {
             (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
                 "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
             ))),
+            // What is written in the message the owner is writing is theirs until it is closed
+            // (#494): an agent doesn't change it, nor empty it and save that over its draft (#577).
+            (Ok(_), Some(_)) if changes_owners_message(compose.as_ref(), self.compose.as_ref()) => Err(CmdError::Failed(format!(
+                "`{id}` would change the message the owner is writing, which is theirs until they close it; nothing was changed. Ask the owner to make the change, or to close the message first"
+            ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
                 Err(CmdError::Failed(crate::agent::needs_owner(id, c, false, "do more than an agent is allowed to; nothing was changed")))
             }
@@ -2551,6 +2647,10 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // Whatever put the caret there (a format, an account, a signature, an undo, an agent).
+                if let Some(c) = self.compose.as_mut() {
+                    c.keep_out_of_signature();
+                }
                 // A message being written that the owner (or a script of theirs) changed is theirs
                 // until it is closed (#494); an agent's own changes don't make it the agent's.
                 if self.agent.is_none()
@@ -2632,6 +2732,20 @@ fn as_it_was(before: &Compose, now: &Compose) -> bool {
     let at = now.body.selection();
     let mut moved = before.clone();
     moved.body.select(at.anchor, at.head).is_ok() && moved == *now
+}
+
+/// Whether `now` is the message the owner was writing in `before` (#494), still open, with what
+/// is written in it changed: its text, its recipients, its attachments, anything but where the
+/// cursor is, whether it is saved and the draft it was saved as (#577). A message put in its
+/// place (which the owner was asked about) is nobody's yet, so it isn't.
+fn changes_owners_message(before: Option<&Compose>, now: Option<&Compose>) -> bool {
+    let (Some(before), Some(now)) = (before, now) else { return false };
+    if !before.owner_changed || !now.owner_changed {
+        return false;
+    }
+    let mut saved = before.clone();
+    (saved.dirty, saved.draft) = (now.dirty, now.draft);
+    saved != *now && !as_it_was(&saved, now)
 }
 
 /// Commands that remove what is kept of an account on this computer (#177): they leave nothing

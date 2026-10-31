@@ -255,8 +255,14 @@ pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
 
 /// A message the destination wouldn't take: a move back to where its original still is, as that
 /// server message, or to the folder on this computer it came from (`from`); a copy taken away;
-/// a move whose original is gone kept on this computer.
+/// a move whose original is gone kept on this computer. In an Outbox again it is held, and
+/// anywhere else it no longer is.
 pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
+    goes_back(mb, id, copy, from);
+    mb.hold_if_in_outbox(id);
+}
+
+fn goes_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
     let Some(m) = mb.message(id) else { return };
     let out = m.moving_out.clone().filter(|out| mb.is_graph(out.account) && !out.id.is_empty() && !out.left);
     match out {
@@ -275,7 +281,7 @@ pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
                 ..Default::default()
             };
             (m.server, m.moving_out, m.returned) = (Some(server), None, RETURNED_LISTINGS);
-            (m.folder, m.account, m.uid, m.synced) = (folder, out.account, 0, None);
+            m.lies_in(folder, out.account, 0, None);
         }
         None if copy => {
             let _ = mb.forget_message(id);
@@ -292,7 +298,7 @@ pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
                 && let Some(account) = mb.folder(folder).map(|f| f.account)
                 && let Ok(m) = mb.message_mut(id)
             {
-                (m.folder, m.account, m.uid, m.synced) = (folder, account, 0, None);
+                m.lies_in(folder, account, 0, None);
             }
         }
     }
@@ -332,7 +338,7 @@ fn back_on_imap(mb: &mut Mailbox, id: Id) -> bool {
         }
     };
     let Ok(m) = mb.message_mut(id) else { return true };
-    (m.folder, m.account, m.uid, m.synced) = (folder, owner, uid, synced);
+    m.lies_in(folder, owner, uid, synced);
     m.returned = if uid != 0 { RETURNED_LISTINGS } else { 0 };
     true
 }
@@ -347,7 +353,7 @@ pub(crate) fn kept_instead(mb: &mut Mailbox, id: Id) -> bool {
     let Ok(folder) = mb.imported_folder(false) else { return false };
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return false };
     let Ok(m) = mb.message_mut(id) else { return false };
-    (m.folder, m.account, m.uid, m.synced) = (folder, account, 0, None);
+    m.lies_in(folder, account, 0, None);
     (m.server, m.moving_out, m.returned) = (None, None, 0);
     true
 }

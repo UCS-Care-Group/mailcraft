@@ -1,1 +1,0 @@
-- A picture pasted into a signature with Ctrl+V or the right-click menu is made smaller when it is too big as it is, as Paste Picture does, rather than refused; and in a dialog such as Search Commands or Go to Date, the right-click menu's items can be reached with the keyboard or a screen reader ([#557](https://github.com/GITHUB_REPOSITORY/issues/557)).

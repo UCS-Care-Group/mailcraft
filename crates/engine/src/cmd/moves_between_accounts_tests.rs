@@ -1165,6 +1165,257 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
 }
 
 #[test]
+fn a_message_put_in_an_outbox_by_mistake_moves_into_another_account_as_any_other() {
+    let (mut s, a, _) = imap();
+    let (b, ms) = (second_imap(&mut s), microsoft(&mut s, OWNER));
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    let (two, three) = (titled(&s, "Two"), titled(&s, "Three"));
+    s.run("mail.move", &json!({"ids": [two, three], "folder": outbox})).unwrap();
+    for (id, to) in [(two, b), (three, ms)] {
+        let inbox = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+        s.run("mail.move", &json!({"ids": [id], "folder": inbox})).unwrap();
+        assert_eq!(at(&s, id), (to, inbox, 0));
+        assert!(s.mailbox.message(id).unwrap().held.is_empty());
+    }
+    // Its original goes from the first server once the copy is there, as any other's.
+    assert!(ops(&s, a).is_empty(), "{:?}", ops(&s, a));
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, two, 50, 9)], ..Default::default() }).unwrap();
+    placed(&mut s, ms, OWNER, &[made("M1")]);
+    assert_eq!(ops(&s, a), [delete(2), delete(3)]);
+}
+
+#[test]
+fn a_message_put_in_an_outbox_by_mistake_is_copied_into_another_account_and_stays_held() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": outbox})).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    assert!(s.mailbox.message(copy).unwrap().held.is_empty());
+    assert_eq!(s.mailbox.message(two).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    assert_eq!(sync_request(&s, b).unwrap().places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [copy]);
+}
+
+#[test]
+fn a_draft_and_mail_a_server_wouldnt_send_stay_in_their_own_mailbox() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let (two, three) = (titled(&s, "Two"), titled(&s, "Three"));
+    s.mailbox.message_mut(two).unwrap().draft = true;
+    s.mailbox.message_mut(three).unwrap().held = "The server wouldn't send it.".into();
+    s.run("mail.move", &json!({"ids": [two, three], "folder": outbox})).unwrap();
+    for (id, subject) in [(two, "Two"), (three, "Three")] {
+        for command in ["mail.move", "mail.copy"] {
+            let refused = s.run(command, &json!({"ids": [id], "folder": theirs})).unwrap_err().to_string();
+            assert!(refused.contains(&format!("The draft \"{subject}\" stays in its own mailbox")), "{refused}");
+        }
+    }
+}
+
+#[test]
+fn a_message_refused_after_leaving_an_outbox_comes_back_held_and_isnt_sent() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    // A copy: no server has it, so the Outbox is all it can go back to.
+    let two = titled(&s, "Two");
+    let copy = s.run("mail.copy", &json!({"ids": [two], "folder": outbox})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.move", &json!({"ids": [copy], "folder": theirs})).unwrap();
+    assert!(s.mailbox.message(copy).unwrap().held.is_empty());
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![copy], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, copy), (a, outbox, 0));
+    assert_eq!(s.mailbox.message(copy).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    assert!(sync_request(&s, a).unwrap().outbox.is_empty(), "it would go to everybody it names");
+}
+
+#[test]
+fn a_message_queued_with_send_and_moved_out_comes_back_held_when_refused() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Queued", "account": a})).unwrap();
+    let queued = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(sync_request(&s, a).unwrap().outbox.iter().map(|m| m.id).collect::<Vec<_>>(), [queued]);
+    s.run("mail.move", &json!({"ids": [queued], "folder": theirs})).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![queued], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, queued), (a, outbox, 0));
+    assert_eq!(s.mailbox.message(queued).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    assert!(sync_request(&s, a).unwrap().outbox.is_empty(), "taken out of the queue, it goes only by Send Again");
+}
+
+#[test]
+fn a_move_out_of_an_outbox_undone_leaves_it_held_and_isnt_sent() {
+    for into_microsoft in [false, true] {
+        let (mut s, a, _) = imap();
+        let to = if into_microsoft { microsoft(&mut s, OWNER) } else { second_imap(&mut s) };
+        let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap());
+        let two = titled(&s, "Two");
+        let copy = s.run("mail.copy", &json!({"ids": [two], "folder": outbox})).unwrap()["copies"][0].as_u64().unwrap();
+        s.run("mail.move", &json!({"ids": [two], "folder": outbox})).unwrap();
+        s.run("mail.move", &json!({"ids": [two, copy], "folder": theirs})).unwrap();
+        s.run("edit.undo", &json!({})).unwrap();
+        for id in [two, copy] {
+            let m = s.mailbox.message(id).unwrap();
+            assert_eq!((m.account, m.folder, m.held.as_str()), (a, outbox, mailcraft_model::MOVED_INTO_OUTBOX), "{into_microsoft}");
+        }
+        assert!(sync_request(&s, a).unwrap().outbox.is_empty(), "{into_microsoft}");
+    }
+}
+
+#[test]
+fn a_move_into_an_outbox_undone_leaves_it_no_longer_held() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap());
+    let server = ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() };
+    let rota = Message { folder: theirs, subject: "Rota".into(), server: Some(server), ..Default::default() };
+    let rota = s.mailbox.add_message(rota).unwrap();
+    s.run("mail.move", &json!({"ids": [rota], "folder": outbox})).unwrap();
+    assert_eq!(s.mailbox.message(rota).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = s.mailbox.message(rota).unwrap();
+    assert_eq!((m.account, m.folder, m.held.as_str()), (ms, theirs, ""));
+}
+
+#[test]
+fn a_message_held_in_an_outbox_isnt_put_on_a_server_again_there() {
+    let (mut s, a, _) = imap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": outbox})).unwrap();
+    s.mailbox.place_again(two);
+    assert!(!s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { .. })), "Send Again would file it twice");
+}
+
+#[test]
+fn a_message_with_its_original_on_a_server_goes_back_there_when_refused_after_an_outbox() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": outbox})).unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![two], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, two), (a, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), 2));
+    assert!(s.mailbox.message(two).unwrap().held.is_empty());
+}
+
+#[test]
+fn a_message_put_back_from_an_outbox_is_no_longer_held() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Outbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    assert_eq!(s.mailbox.message(two).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    s.run("account.remove", &json!({"id": b})).unwrap();
+    assert_eq!(at(&s, two), (a, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), 2));
+    assert!(s.mailbox.message(two).unwrap().held.is_empty());
+}
+
+#[test]
+fn a_message_held_in_an_account_now_microsofts_comes_back_held_when_refused() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    let copy = s.run("mail.copy", &json!({"ids": [two], "folder": outbox})).unwrap()["copies"][0].as_u64().unwrap();
+    // As `account.graphSwitch` leaves it: the Outbox and what is held in it stay.
+    s.mailbox.accounts.iter_mut().find(|account| account.id == a).unwrap().kind = mailcraft_model::AccountKind::Microsoft;
+    s.run("mail.move", &json!({"ids": [copy], "folder": theirs})).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![copy], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, copy), (a, outbox, 0));
+    assert_eq!(s.mailbox.message(copy).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
+    assert_eq!(super::graph_send::waiting(&s.mailbox, a), 0, "it would go to everybody it names");
+}
+
+/// "Two" moved into the Inbox of a second IMAP account, whose server took it and didn't say
+/// where: the session, the first account, the second, the message and what the server was asked.
+fn waiting_for_its_copy() -> (Session, Id, Id, Id, SyncRequest) {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, two, 0, 0)], ..Default::default() }).unwrap();
+    assert!(!marker(&s, two).is_empty());
+    (s, a, b, two, asked)
+}
+
+fn marker(s: &Session, id: Id) -> String {
+    s.mailbox.message(id).unwrap().placed.clone()
+}
+
+#[test]
+fn a_message_that_moves_on_leaves_the_marker_of_the_copy_it_waited_for() {
+    // On in the account.
+    let (mut s, _, b, two, _) = waiting_for_its_copy();
+    let later = s.mailbox.add_folder(b, None, "Later").unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": later})).unwrap();
+    assert!(marker(&s, two).is_empty());
+    // Into a third account.
+    let (mut s, _, _, two, _) = waiting_for_its_copy();
+    let ms = microsoft(&mut s, OWNER);
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    assert!(marker(&s, two).is_empty());
+    // Back to where its original is, with the account it went to.
+    let (mut s, a, b, two, _) = waiting_for_its_copy();
+    s.run("account.remove", &json!({"id": b})).unwrap();
+    assert_eq!(at(&s, two), (a, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), 2));
+    assert!(marker(&s, two).is_empty());
+    // A copy of it never waited for that copy.
+    let (mut s, _, b, two, _) = waiting_for_its_copy();
+    let later = s.mailbox.add_folder(b, None, "Later").unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [two], "folder": later})).unwrap()["copies"][0].as_u64().unwrap();
+    assert!(marker(&s, copy).is_empty() && !marker(&s, two).is_empty());
+}
+
+#[test]
+fn a_later_copy_with_a_uid_leaves_no_marker_to_lose_the_server_message_by() {
+    let (mut s, _, b, two, _) = waiting_for_its_copy();
+    s.mailbox.place_again(two);
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, two, 60, 9)], ..Default::default() }).unwrap();
+    assert!(marker(&s, two).is_empty());
+    // The server numbers the mailbox anew, with a change here still to go up: the message is
+    // found again by its Message-ID, and isn't here twice.
+    let m = s.mailbox.message_mut(two).unwrap();
+    m.read = !m.read;
+    let renumbered = FolderDelta {
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 10,
+        uid_seen: 70,
+        new: vec![from_server(70, "Two")],
+        ..Default::default()
+    };
+    apply_sync(&mut s, SyncResult { account: b, folders: vec![renumbered], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Two").count(), 1);
+    assert_eq!(s.mailbox.message(two).unwrap().uid, 70);
+}
+
+#[test]
+fn a_move_on_undone_waits_for_its_copy_by_its_marker_again() {
+    let (mut s, _, b, two, asked) = waiting_for_its_copy();
+    let waited = marker(&s, two);
+    let ms = microsoft(&mut s, OWNER);
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(marker(&s, two), waited);
+    let copy = carrying(&asked, two, from_server(52, "Two"));
+    let news = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, uid_seen: 52, new: vec![copy], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: b, folders: vec![news], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Two").count(), 1);
+    assert_eq!(s.mailbox.message(two).unwrap().uid, 52);
+}
+
+#[test]
 fn removing_the_account_mail_was_moved_into_lets_its_original_go_or_brings_it_back() {
     let delete_asked =
         |s: &Session, ms: Id| graph_mail_request(s, ms).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkA2"));
