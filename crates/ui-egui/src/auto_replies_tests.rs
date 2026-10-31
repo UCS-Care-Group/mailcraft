@@ -227,7 +227,7 @@ fn a_read_that_keeps_failing_backs_off_up_to_an_hour() {
     answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, setting: Some(away()), ..Default::default() });
     assert!(app.auto_replies_tick_at(at));
     app.poll_auto_replies();
-    assert!(app.auto_replies.trouble.get(&owner).is_none());
+    assert!(!app.auto_replies.trouble.contains_key(&owner));
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn a_new_sign_in_of_any_kind_lets_them_be_read_again() {
     answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, setting: Some(away()), ..Default::default() });
     assert!(app.auto_replies_tick_at(24.0 * 3_600_000.0 + 1.0));
     app.poll_auto_replies();
-    assert!(app.auto_replies.trouble.get(&owner).is_none());
+    assert!(!app.auto_replies.trouble.contains_key(&owner));
     assert_eq!(jobs.lock().unwrap().len(), 2);
     // The same for a sign-in that doesn't read the settings.
     answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, consent_needed: true, ..Default::default() });
