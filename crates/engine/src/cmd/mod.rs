@@ -9,6 +9,9 @@ mod agent_leaves_compose_tests;
 mod agent_owners_message_tests;
 #[cfg(test)]
 mod answered_tests;
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod calendar;
 pub mod calendar_extra;
 pub mod calendar_opened;
@@ -143,6 +146,7 @@ pub fn registry() -> Registry {
     v.extend(junk::specs());
     v.extend(category::specs());
     v.extend(account::specs());
+    v.extend(auto_replies::specs());
     v.extend(offline::specs());
     v.extend(send_receive::specs());
     v.extend(signature::specs());
