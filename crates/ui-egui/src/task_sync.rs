@@ -558,7 +558,7 @@ impl ForAccount for TasksUploaded {
 
 /// A refresh token, told apart from another without being kept: whether the account has signed
 /// in again since a job's was refused.
-fn fingerprint(refresh: &str) -> u64 {
+pub(crate) fn fingerprint(refresh: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     refresh.hash(&mut hasher);

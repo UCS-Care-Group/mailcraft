@@ -552,7 +552,15 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
             }
         }
     }
-    back!(subject, from, reply_to, to, cc, bcc, date, body, attachments, in_reply_to, references);
+    back!(subject, from, reply_to, to, cc, bcc, date, attachments, in_reply_to, references);
+    // The body goes back as one with where it is kept and what the sender hid (#688): a body only
+    // brought in from disk while the change ran differs from the one there before, which named
+    // its text on disk; put back without that name, it would be no text at all.
+    if t.body != a.body || t.kept != a.kept || t.hidden_text != a.hidden_text {
+        m.body = t.body.clone();
+        m.kept = t.kept.clone();
+        m.hidden_text = t.hidden_text.clone();
+    }
     if t.account != c.account {
         m.folder = t.folder;
     }

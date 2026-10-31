@@ -353,6 +353,11 @@ msgstr ""
 msgid "A series that the account's server keeps can't be moved to another calendar from here: the server has no way of moving one, and days of it that were changed on their own could be lost in making it again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "A shared mailbox's automatic replies are set by whoever manages it; MailCraft sets only your own account's"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -721,9 +726,19 @@ msgstr ""
 msgid "Allow"
 msgstr ""
 
+#. command label, interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
+msgid "Allow Changing Automatic Replies"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Allow Keeping Tasks in Step with Microsoft To Do"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
 msgstr ""
 
 #. interface
@@ -896,6 +911,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Apply"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "Apply Downloaded Automatic Replies"
 msgstr ""
 
 #. command label
@@ -1092,6 +1112,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
 msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
 msgstr ""
 
@@ -1225,6 +1250,111 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Automatic"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
+msgid "Automatic Replies"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic Replies - {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic Replies for {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies are being sent for {address}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies are off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies are on"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies are set for the time range you chose"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: MailCraft needs you to sign in again to read them"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: asking for your permission to change them…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: changing them not allowed ({why})"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: changing them waits for your permission"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: couldn't be read ({why})"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: during a time range"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: from {start} to {end}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: not read yet"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: on, until you turn them off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: reading…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: your organisation doesn't let MailCraft change them"
 msgstr ""
 
 #. interface
@@ -1541,6 +1671,11 @@ msgid ""
 "View"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "Change Automatic Replies"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Change Recurring Item"
@@ -1594,6 +1729,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Changing your automatic replies needs your permission, once: when you press OK, Microsoft's page opens in your browser to ask you. Reading them doesn't need it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask again: Microsoft's page opens in your browser."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Changing your automatic replies…"
 msgstr ""
 
 #. interface
@@ -1991,7 +2141,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "Continue"
 msgstr ""
 
@@ -2547,6 +2697,11 @@ msgid "Don't send"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Don't send automatic replies"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Done"
 msgstr ""
@@ -2733,6 +2888,11 @@ msgstr ""
 msgid "E-mail"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Each sender gets one automatic reply, with the message below:"
+msgstr ""
+
 #. interface, name
 #: crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "Edit"
@@ -2867,6 +3027,11 @@ msgid "End"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "End time:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Ends"
 msgstr ""
@@ -2924,6 +3089,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Every {n} minutes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Everyone outside my organization"
 msgstr ""
 
 #. interface
@@ -3096,7 +3266,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "File"
 msgstr ""
 
@@ -3986,7 +4156,7 @@ msgid "Indexing mail: {percent}%"
 msgstr ""
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Info"
 msgstr ""
 
@@ -4013,6 +4183,11 @@ msgstr ""
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 msgid "Insert Picture"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Inside My Organization"
 msgstr ""
 
 #. command label
@@ -4390,6 +4565,11 @@ msgstr ""
 msgid "Let me set up my account manually"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/theme.rs
 msgid "Light"
@@ -4668,6 +4848,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
 msgstr ""
 
 #. interface
@@ -4995,6 +5185,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Microsoft needs an application ID"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
 msgstr ""
 
 #. interface
@@ -5876,7 +6071,7 @@ msgid "Numbering"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -6001,6 +6196,11 @@ msgid "Only confirm if you know these servers."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Only my contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Only on"
 msgstr ""
@@ -6008,6 +6208,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Only on this computer: not in your Outlook calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Only send during this time range:"
 msgstr ""
 
 #. interface
@@ -6310,6 +6515,16 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "Outlook.com"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Outside My Organization (Off)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Outside My Organization (On)"
 msgstr ""
 
 #. name
@@ -6720,8 +6935,18 @@ msgid "Reading shared mailboxes needs your permission: use Send/Receive"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Reading the automatic replies stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Reading the calendar from Microsoft…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Reading your automatic replies from the server…"
 msgstr ""
 
 #. name
@@ -7042,6 +7267,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Reply to"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Reply to people outside my organization"
 msgstr ""
 
 #. command label, ribbon
@@ -7615,7 +7845,7 @@ msgid "Send & Receive"
 msgstr ""
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr ""
 
@@ -7674,6 +7904,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Send and receive automatically"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Send automatic replies"
 msgstr ""
 
 #. interface
@@ -8189,6 +8424,16 @@ msgid "Sign In"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs
+msgid "Sign In Again"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Sign In Again for Automatic Replies"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Sign in again"
 msgstr ""
@@ -8206,6 +8451,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Sign in again, once an administrator has approved"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
 msgstr ""
 
 #. interface
@@ -8261,6 +8511,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/nav.rs
 msgid "Sign in with Microsoft once more to let MailCraft read the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr ""
 
 #. interface
@@ -8476,6 +8731,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Start over"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Start time:"
 msgstr ""
 
 #. interface
@@ -9695,7 +9955,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "This account has no sign-in with Microsoft"
 msgstr ""
 
@@ -9787,6 +10047,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
 msgid "This build can't reach the account's server."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr ""
 
 #. interface
@@ -10301,6 +10566,14 @@ msgid ""
 "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid ""
+"To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
 msgstr ""
 
 #. interface
@@ -11091,6 +11364,51 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies couldn't be read: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: you are working offline."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your automatic replies weren't changed: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Your calendar: {day}"
 msgstr ""
@@ -11126,6 +11444,11 @@ msgid "Your mailbox has: {days} · {from} – {to}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your mailbox is sending automatic replies. Click to change them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Your mailbox was repaired"
 msgstr ""
@@ -11148,6 +11471,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your organisation doesn't let MailCraft change automatic replies"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
 msgstr ""
 
 #. interface
@@ -11183,6 +11516,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
 msgstr ""
 
 #. interface
@@ -11358,6 +11696,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/picture.rs
 msgid "a picture in a message is at most {mb} MB"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "a reply may be {most} characters long at most"
 msgstr ""
 
 #. what a command says
@@ -11770,6 +12113,11 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "no account with id {account}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
@@ -12140,6 +12488,11 @@ msgid "the attachments are larger than {mb} MB together: save them in a folder"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "the browser can't keep a copy of the mailbox beside it: switch in the desktop app"
 msgstr ""
@@ -12187,6 +12540,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 msgid "the end is before the start"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+msgid "the end of the time range must be after its start"
 msgstr ""
 
 #. what a command says
@@ -12612,6 +12970,11 @@ msgid "year"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "you signed in as somebody else"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "you@example.org"
 msgstr ""
@@ -12816,6 +13179,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
 msgid "{large} large messages download when opened"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "{line} · MailCraft may change them"
 msgstr ""
 
 #. interface
