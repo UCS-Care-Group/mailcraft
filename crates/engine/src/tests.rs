@@ -774,6 +774,14 @@ fn accounts_that_sign_in_on_the_providers_page() {
     // The provider's own domain needs nobody's exchangers.
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@outlook.com", "mx": ["aspmx.l.google.com"]}))["service"], "Outlook.com");
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@gmail.com"}))["incoming"]["host"], "imap.gmail.com");
+    // An existing Gmail account stays on the app-password path until its owner opts in.
+    assert_eq!(run(&mut s, "account.preset", json!({"email": "a@gmail.com"}))["auth"], "password");
+    // Explicit OAuth selects Google mail servers and never silently chooses Microsoft Graph.
+    let chosen = run(&mut s, "account.preset", json!({"email": "a@gmail.com", "provider": "google"}));
+    assert_eq!((chosen["auth"].as_str(), chosen["provider"].as_str()), (Some("oauth2"), Some("google")));
+    assert_eq!((chosen["service"].as_str(), chosen["incoming"]["host"].as_str()), (Some("Gmail"), Some("imap.gmail.com")));
+    let workspace = run(&mut s, "account.preset", json!({"email": "a@workspace.example", "provider": "google", "service": "google"}));
+    assert_eq!((workspace["service"].as_str(), workspace["auth"].as_str()), (Some("Google Workspace"), Some("oauth2")));
     for bad in [
         json!({}),
         json!({"email": "nobody"}),
