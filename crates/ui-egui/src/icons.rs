@@ -1137,6 +1137,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.head(2.5, 10.0, 180.0, 2.5, a);
             }
         }
+        // Format Text › Replace: one letter, a turn, another in its place.
+        "replace" => {
+            pen.text(6.0, 6.0, 10.0, "a", c, 0.0);
+            pen.text(14.5, 14.0, 10.0, "b", c, 0.0);
+            pen.line_c(&[(4.5, 11.0), (4.5, 14.5), (9.5, 14.5)], a);
+            pen.head(9.5, 14.5, 0.0, 2.0, a);
+        }
         "formatPlain" => {
             pen.line(&[(3.5, 5.5), (16.5, 5.5)]);
             pen.line(&[(3.5, 10.0), (16.5, 10.0)]);
@@ -1345,6 +1352,7 @@ pub const NAMES: &[&str] = &[
     "clearFormatting",
     "formatHtml",
     "formatPlain",
+    "replace",
     "increaseIndent",
     "decreaseIndent",
     "showPassword",

@@ -680,6 +680,13 @@ fn message(app: &MailApp) -> Tab {
             ],
         ),
         g(
+            "Editing",
+            vec![
+                Item::small("find", "Find", "Find", "edit.find", no()).at(5, 4).plain(),
+                Item::small("replace", "Replace", "Replace", "edit.replace", no()).at(5, 5).plain(),
+            ],
+        ),
+        g(
             "Draft",
             vec![
                 Item::big("saveDraft", "Save\nDraft", "compose.saveDraft", no()).at(6, 2),

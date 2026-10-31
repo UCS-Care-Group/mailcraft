@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use super::find::{Place, moved};
 use super::{Format, ListKind, MAX_CHARS, RichText, Style};
 use crate::ModelError;
 
@@ -337,6 +338,19 @@ impl RichBody {
             let end = t.insert(at, text, style)?;
             let shift = |p: usize| if p >= at { p + (end - at) } else { p };
             *s = Selection { anchor: shift(s.anchor), head: shift(s.head) };
+            Ok(())
+        })?;
+        self.typing = None;
+        Ok(())
+    }
+
+    /// Put `with` in place of each of `places` ([`RichText::find`]), as one step: what goes in
+    /// looks as the first character of its place did. The selection stays on the text it was on.
+    pub fn replace_places(&mut self, places: &[Place], with: &str) -> Result<(), ModelError> {
+        let with_chars = super::clean_line(with).chars().count();
+        self.edit(false, |t, s| {
+            t.replace_places(places, with)?;
+            *s = Selection { anchor: moved(s.anchor, places, with_chars), head: moved(s.head, places, with_chars) };
             Ok(())
         })?;
         self.typing = None;

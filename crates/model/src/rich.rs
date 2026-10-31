@@ -27,8 +27,10 @@ use serde::{Deserialize, Serialize};
 use crate::ModelError;
 
 mod body;
+mod find;
 
 pub use body::{MAX_UNDO, RichBody, Selection};
+pub use find::{MAX_FIND, Place};
 
 /// Most characters one body holds (counting one for each paragraph break).
 pub const MAX_CHARS: usize = 1 << 20;
@@ -966,3 +968,6 @@ pub fn numbers(paragraphs: &[Paragraph]) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod find_tests;
