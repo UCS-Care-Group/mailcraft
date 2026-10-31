@@ -77,6 +77,7 @@ pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
 pub mod files;
+mod find_replace;
 mod folder_properties;
 pub mod forms;
 #[cfg(test)]
