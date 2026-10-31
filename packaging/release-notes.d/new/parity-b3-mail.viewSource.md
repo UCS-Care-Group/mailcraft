@@ -1,0 +1,1 @@
+- View Source shows a message's header lines and the source of its body as plain text, to read and copy: nothing in it runs, opens or is downloaded, and characters that would hide or turn text are shown by their codes.

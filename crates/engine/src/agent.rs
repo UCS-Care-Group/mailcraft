@@ -154,18 +154,28 @@ const SAFE: &[&str] = &[
     "mail.findRelated",
     "mail.findFromSender",
     "mail.saveAttachment",
+    "mail.saveAllAttachments",
+    // The message's source as plain text: message text is data, never instructions.
+    "mail.viewSource",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
+    "mail.replyAndDelete",
     "mail.forward",
     "mail.forwardAsAttachment",
     "mail.editDraft",
+    // A sent message opened again to send (nothing goes until Send, which is asked about).
+    "mail.resend",
     // Writing (sending is not).
     "compose.set",
+    "compose.replyTo",
     "compose.attach",
+    "compose.attachItem",
+    "insert.businessCard",
     "insert.picture",
     "compose.removeAttachment",
     "compose.signature",
+    "compose.signatureAsText",
     "compose.checkNames",
     "compose.suggest",
     "compose.highImportance",
@@ -194,6 +204,11 @@ const SAFE: &[&str] = &[
     "edit.copy",
     "edit.cut",
     "edit.paste",
+    "edit.find",
+    "edit.replace",
+    "edit.formatPainter",
+    "format.highlight",
+    "insert.symbol",
     "insert.dateTime",
     "review.wordCount",
     // Folders.
@@ -243,6 +258,14 @@ const SAFE: &[&str] = &[
     "view.frontCalendar",
     "view.workHours",
     "view.timeZone",
+    "view.changeView",
+    "view.density",
+    "view.zoom",
+    "view.zoomIn",
+    "view.zoomOut",
+    "view.zoomReset",
+    // The owner's searches, kept on this computer: an agent reads mail anyway.
+    "view.recentSearches",
     // Calendar ("send": true is asked about, `classify`).
     "calendar.freeBusy",
     "calendar.new",
@@ -274,6 +297,13 @@ const SAFE: &[&str] = &[
     "calendar.showOnly",
     "calendar.color",
     "calendar.timeZones",
+    // A message opened for the owner to send, a summary put in one, what is known of answers.
+    "calendar.email",
+    "insert.calendar",
+    "calendar.contactAttendees",
+    "calendar.respondEmail",
+    "calendar.tracking",
+    "calendar.search",
     // People and tasks.
     "people.new",
     "people.edit",
@@ -287,6 +317,11 @@ const SAFE: &[&str] = &[
     "people.email",
     "people.fromMessage",
     "people.findDuplicates",
+    // A meeting as calendar.newMeeting ("send": true is asked about, `classify`); a message
+    // opened for the owner to send.
+    "people.meeting",
+    "people.forward",
+    "tasks.statusReport",
     "tasks.new",
     "tasks.edit",
     "tasks.complete",
@@ -304,6 +339,14 @@ const SAFE: &[&str] = &[
     "account.preset",
     // What Send/Receive is doing, or did: read only.
     "sync.progress",
+    // Calls off the run under way; nothing is sent or lost by it.
+    "sync.cancel",
+    // Help: the addresses of the project's own pages, and what this copy is.
+    "help.help",
+    "help.support",
+    "help.feedback",
+    "help.whatsNew",
+    "file.account",
     // The window's own.
     "ui.tab",
     "ui.backstage",
@@ -414,6 +457,8 @@ const SETTINGS: &[&str] = &[
     // the owner's phishing warning.
     "mail.dismissWarnings",
     "file.options",
+    // Work Offline: turned off, what waits in the Outbox goes out.
+    "sync.offline",
     "calendar.deleteAnsweredRequests",
     "rules.add",
     "rules.remove",
@@ -540,6 +585,9 @@ pub enum FileUse {
     Writes { ext: &'static str },
     /// The mailbox file itself (and its content folder): never named by an agent.
     Refused,
+    /// A folder that files are written into; without the param the command answers each file
+    /// as `data`, which is what an agent gets.
+    Folder,
 }
 
 /// The params that name files, by command. (`folder.select`'s `path` is a folder of the
@@ -558,6 +606,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
+    ("mail.saveAllAttachments", "path", FileUse::Folder),
     ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),
 ];
 
@@ -629,7 +678,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // Saving or sending the appointment in a window runs later, as the owner, and the
         // account's server writes to the people invited: that is a send.
         "ui.eventWindow" if matches!(p::str(params, "do"), Some("send" | "save" | "saveAndClose")) => Access::Owner(Class::Send),
-        _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
+        _ if (id.starts_with("calendar.") || id == "people.meeting") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
             let onto = id != "file.import" && folder.is_some_and(|f| onto_another_server(s, params, f));
@@ -645,7 +694,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // away. When the owner wrote in it, the window asks them every time either way, saved or
         // not, until it is closed (#494); an agent's own message, headless too, is the agent's to
         // leave.
-        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
+        _ if leaves(id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
             let lost = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c)) && p::bool(params, "discard") == Some(true);
             match (writing, lost) {
                 (true, true) => Access::Asked(Class::Delete),
@@ -662,6 +711,12 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
+}
+
+/// Whether `id` closes the message being written, or puts another in its place: [`LEAVING`],
+/// and the commands of the calendar, People and Tasks that start a new message.
+fn leaves(id: &str) -> bool {
+    LEAVING.contains(&id) || crate::cmd::calendar::share::starts_message(id)
 }
 
 /// Whether what is written in the message isn't all in Drafts: changed since it was saved, or
@@ -822,15 +877,17 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.notJunk",
     "mail.reply",
     "mail.replyAll",
+    "mail.replyAndDelete",
     "mail.forward",
     "mail.forwardAsAttachment",
     "mail.editDraft",
+    "mail.resend",
     "mail.removeAttachment",
     "mail.sendAgain",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain"];
+const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain"];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1138,7 +1195,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
         }
-        _ if LEAVING.contains(&id) => leaving_text(s, id, params),
+        _ if leaves(id) => leaving_text(s, id, params),
         "ui.closeDialog" | "ui.dialog" => form_text(id, params),
         "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => form_text(id, params),
         "compose.discard" if owner_writing(s) => {
@@ -1334,12 +1391,25 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "mail.new" => "start a new message".to_string(),
         "mail.reply" => format!("reply to {}", one()),
         "mail.replyAll" => format!("reply to all on {}", one()),
+        "mail.replyAndDelete" => format!("reply to {} and move it to Deleted Items", one()),
         "mail.forward" => format!("forward {}", several()),
         "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
         "mail.editDraft" => format!("open the draft {}", one()),
+        "mail.resend" => format!("open {} again as a new message to send", one()),
         "people.email" => {
             let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
             format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
+        "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
+        "calendar.respondEmail" => format!("start a new message to the organizer of {}", event_title(s, id, params)),
+        "people.forward" => {
+            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            format!("start a new message with the contact {} attached", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "tasks.statusReport" => {
+            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            format!("start a new message about the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
         _ => String::new(),
     };

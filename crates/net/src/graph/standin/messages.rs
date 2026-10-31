@@ -102,6 +102,8 @@ pub struct Message {
     pub draft: bool,
     pub cc: Vec<String>,
     pub bcc: Vec<String>,
+    /// Where replies go (a draft's `replyTo`).
+    pub reply_to: Vec<String>,
     /// Its body, and whether that is HTML (else text). Empty: the preview is its text.
     pub body: String,
     pub html: bool,

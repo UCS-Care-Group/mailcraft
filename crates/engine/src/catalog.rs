@@ -190,7 +190,7 @@ Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
 Message|Send|Open Draft|mail.editDraft
-Insert|Include|Item|insert.outlookItem
+Insert|Include|Item|compose.attachItem
 Insert|Include|Business Card|insert.businessCard
 Insert|Include|Calendar|insert.calendar
 Insert|Tables|Table|insert.table
@@ -251,7 +251,7 @@ Calendar|New|New Meeting|calendar.newMeeting
 Calendar|New|New All Day Event|calendar.new
 Calendar|New|New Recurring Appointment|calendar.new
 Calendar|Go To|Today|view.today
-Calendar|Go To|Next 7 Days|view.next7
+Calendar|Go To|Next 7 Days|view.next7Days
 Calendar|Go To|Back|view.previous
 Calendar|Go To|Forward|view.next
 Calendar|Go To|Go to Date|view.goToDate
@@ -282,7 +282,7 @@ Appointment|Actions|Copy to My Calendar|calendar.copy
 Appointment|Show|Find a Time|calendar.freeBusy
 Appointment|Show|Tracking|calendar.tracking
 Appointment|Attendees|Invite Attendees|calendar.edit
-Appointment|Attendees|Cancel Meeting|calendar.cancel
+Appointment|Attendees|Cancel Meeting|calendar.delete
 Appointment|Attendees|Contact Attendees|calendar.contactAttendees
 Appointment|Options|Show As|calendar.showAs
 Appointment|Options|Reminder|calendar.reminder

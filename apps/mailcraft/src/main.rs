@@ -167,6 +167,12 @@ impl eframe::App for App {
             bar.pump(&mut self.0, ctx);
         }
         self.0.logic(ctx);
+        // Another mailbox file opened in the window (or File › New): the lock follows it (#517).
+        if let Some(guard) = &self.4
+            && !self.0.is_opening()
+        {
+            guard.follow(self.0.session.path.as_deref());
+        }
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
@@ -1794,7 +1800,8 @@ fn main() -> eframe::Result {
         log::debug!("the settings folder was not made private: {e}");
     }
     // One window per mailbox file: started again, MailCraft hands what it was started with to
-    // the window that has the mailbox and exits. The sample keeps no file, so it isn't guarded.
+    // the window that has the mailbox and exits. The sample keeps no file, so nothing is locked at the
+    // start; a mailbox file it opens later is (#517).
     let kept = if sample { None } else { mailbox_path.clone().or_else(|| default_mailbox_path().filter(|_| prefs_enabled())) };
     let guard = match kept {
         Some(path) => match single_instance::start(&path, &files) {
@@ -1806,7 +1813,8 @@ fn main() -> eframe::Result {
                 return Ok(());
             }
         },
-        None => None,
+        // Nothing held yet: a mailbox file opened later in the window is locked all the same.
+        None => Some(single_instance::none()),
     };
     // The log file lives in the settings directory, next to the preferences; opened after the
     // arguments, so `--version` leaves no file behind. Runs without preferences (agents' test
@@ -1850,6 +1858,8 @@ fn main() -> eframe::Result {
     let apple_events = apple_events::AppleEvents::install();
     #[cfg(target_os = "macos")]
     let apple_events = &apple_events;
+    // For the window, to take the lock of another mailbox file before it opens it (#517).
+    let claimer = guard.as_ref().map(single_instance::Guard::claimer);
     run_window(
         options,
         Box::new(move |cc| {
@@ -1886,6 +1896,8 @@ fn main() -> eframe::Result {
                 services.window_identity =
                     Some(mailcraft_ui_egui::windows::WindowIdentity { icon: app_icon().map(std::sync::Arc::new), app_id: Some(APP_ID.into()) });
                 services.update_start = update_start;
+                services.claim_mailbox =
+                    claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
                 let mut app = MailApp::new(session, services);
                 // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
                 app.autosave = kept;

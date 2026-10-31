@@ -186,6 +186,20 @@ fn one_line_sender_width(room: f32) -> f32 {
     (room / 3.0).clamp(ONE_LINE_SENDER_MIN, 220.0).min(room.max(0.0))
 }
 
+/// What a row gives up with tighter spacing (`view.density`): a single-line row stays centred on
+/// its line, a taller one gives half of it up above the sender and half under its last line.
+const TIGHTER_ONE_LINE: f32 = 6.0;
+const TIGHTER_ROWS: f32 = 10.0;
+
+/// How much shorter a row is with tighter spacing on (`tight`): nothing when it is off.
+fn tightening(tight: bool, one_line: bool) -> f32 {
+    match (tight, one_line) {
+        (false, _) => 0.0,
+        (true, true) => TIGHTER_ONE_LINE,
+        (true, false) => TIGHTER_ROWS,
+    }
+}
+
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
 /// names the catalogue has, and so is the heading of what is pinned.
 /// The owner's category names are drawn as they are spelt, never through the catalogue.
@@ -549,6 +563,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // The rows of a search on the server keep the height the preview lines ask for.
     let server_h = row_height(app.session.prefs.preview_lines);
     let row_h = if one_line { ONE_LINE_H } else { server_h };
+    let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
     let local: std::collections::HashSet<Id> =
@@ -854,6 +869,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let one = app.session.prefs.one_line;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
+    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
+    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0;
+    let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
     let conversation = row.conversation();
@@ -924,6 +942,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     }
     let rule = if t.dark { t.border_strong } else { t.border };
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
+    // What is in the row is laid out from its top as in a row of the full height, moved up with
+    // its lines (the background and the line under it are the row's own, above).
+    let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
     if let Some(arrow) = &arrow {
         let at = Rect::from_center_size(arrow_rect.center(), vec2(12.0, 12.0));
         icons::paint(p, at, if row.open { "expanded" } else { "collapsed" }, if arrow.hovered() { t.text } else { t.icon }, t.accent);
@@ -1163,6 +1184,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
+    let sent = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Sent);
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::mi;
@@ -1171,10 +1193,14 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             ui.separator();
         } else {
             mi(ui, app, "Open in a Window", "ui.openWindow", json!({"message": id}));
+            if sent {
+                mi(ui, app, "Resend Message", "mail.resend", json!({}));
+            }
             ui.separator();
         }
         mi(ui, app, "Reply", "mail.reply", json!({}));
         mi(ui, app, "Reply All", "mail.replyAll", json!({}));
+        mi(ui, app, "Reply and Delete", "mail.replyAndDelete", json!({}));
         mi(ui, app, "Forward", "mail.forward", json!({}));
         mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
@@ -1210,9 +1236,12 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
         mi(ui, app, "Messages from Sender", "mail.findFromSender", json!({"id": id}));
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
+        mi(ui, app, "View Source", "mail.viewSource", json!({}));
     });
 }
 
+#[cfg(test)]
+mod density_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
