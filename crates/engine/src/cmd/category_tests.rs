@@ -240,8 +240,46 @@ fn a_list_read_since_the_step_stays_after_an_undo() {
     s.run("edit.undo", &json!({})).unwrap();
     assert!(s.mailbox.category("Shared").is_none());
     assert_eq!(s.mailbox.category_list_owner(a), Some(a));
-    // What the read brought across stays with the list, as the read isn't what is undone.
+    // The read isn't what is undone, the owner's step is, and what it made goes from this list too.
+    assert_eq!(names(&s, a), ["Red"]);
+    s.run("edit.redo", &json!({})).unwrap();
     assert_eq!(names(&s, a), ["Shared", "Red"]);
+}
+
+#[test]
+fn a_name_that_left_a_list_stays_off_it_after_an_undo() {
+    let (mut s, a, b) = rig();
+    s.mailbox.set_category(0, "Invoices", WINE).unwrap();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    read(&mut s, b, vec![tag("Invoices", RED)]);
+    assert_eq!(names(&s, a), ["Red", "Mine"]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(names(&s, a), ["Red"]);
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(names(&s, a), ["Red", "Mine"]);
+}
+
+#[test]
+fn an_undo_that_takes_an_account_away_takes_its_servers_list_with_it() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let c = add(&mut s, "c@example.org");
+    read(&mut s, c, vec![tag("Teal", RED)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.account(c).is_none());
+    assert!(!s.mailbox.server_categories.contains_key(&c));
+    assert_eq!(s.mailbox.server_categories[&a], ["Red"]);
+}
+
+#[test]
+fn the_colour_a_read_gave_stays_after_an_undo() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    read(&mut s, a, vec![tag("Red", WINE)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.category_color_of(a, "Red"), WINE);
 }
 
 #[test]

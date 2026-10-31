@@ -201,20 +201,26 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     (out, said.lines())
 }
 
-/// Each account's list of categories in `out` with what reads have done to it since kept: one
-/// read since stays, a name its server stopped listing stays gone, and one it added stays (#633).
+/// Each account's list of categories in `out` with what reads have done to it since kept: a name
+/// its server stopped listing stays gone, one it added stays, and so does the colour it gave. A
+/// first read since is made again on what `out` holds, for what comes across from the shared list
+/// and what leaves the other lists (#633). An account on one side of the step alone keeps what
+/// `out` has of it.
 fn server_lists(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
-    let then = std::mem::replace(&mut out.server_categories, now.server_categories.clone());
+    let then = out.server_categories.clone();
+    out.server_categories.retain(|account, _| !g.contains(account));
+    out.server_categories
+        .extend(now.server_categories.iter().filter(|(account, _)| g.contains(account)).map(|(account, names)| (*account, names.clone())));
     let on = |list: Option<&Vec<String>>, name: &str| list.is_some_and(|names| names.iter().any(|n| same_category(n, name)));
     for (account, list) in now.account_categories.iter().filter(|(account, _)| g.contains(account)) {
-        let Some(own) = out.account_categories.get_mut(account) else {
-            out.account_categories.insert(*account, list.clone());
-            continue;
-        };
         let (was, is) = (then.get(account), now.server_categories.get(account));
+        out.start_account_categories(*account, is.map(Vec::as_slice).unwrap_or_default());
+        let Some(own) = out.account_categories.get_mut(account) else { continue };
         own.retain(|c| !on(was, &c.name) || on(is, &c.name));
-        for c in list.iter().filter(|c| on(is, &c.name) && !on(was, &c.name)) {
-            if !own.iter().any(|o| same_category(&o.name, &c.name)) {
+        for c in list.iter().filter(|c| on(is, &c.name)) {
+            if let Some(kept) = own.iter_mut().find(|o| same_category(&o.name, &c.name)) {
+                *kept = c.clone();
+            } else if !on(was, &c.name) {
                 own.push(c.clone());
             }
         }

@@ -23,7 +23,7 @@ pub fn specs() -> Vec<CommandSpec> {
 /// The account whose list a call is about: `account`, and with none the list that accounts
 /// without their own share (0, as [`mailcraft_model::Mailbox::categories_of`] takes it). Anything
 /// but an account's id is refused, and never taken for that shared list.
-fn list_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
+pub fn list_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
     match v.get("account") {
         None | Some(Value::Null) => Ok(0),
         Some(_) => s.mailbox.account(p::req_id(v, "account")?).map(|a| a.id).ok_or_else(|| bad("`account` isn't an account")),
