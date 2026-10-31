@@ -87,7 +87,7 @@ fn needs_event(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     s.mailbox.event(id).map(|e| e.id).ok_or_else(|| failed!("no event with id {id}", id))
 }
 
@@ -593,7 +593,7 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
         let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
         return (served(s, calendar) && !e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
     }
-    let before = s.mailbox.event(p::id(v, "id").or(s.sel.event)?)?.clone();
+    let before = s.mailbox.event(p::id_strict(v, "id").ok()?.or(s.sel.event)?)?.clone();
     let one = part(s, &before, v).ok()?;
     if id == "calendar.delete" {
         // (One that isn't on the server yet has invited nobody yet.)
@@ -834,7 +834,8 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 
 fn respond(s: &mut Session, v: &Value) -> CmdResult {
     // An invitation in the mail is answered through what it says (`calendar.invitation`).
-    if p::id(v, "message").is_some() {
+    // (Named wrongly, it is refused there, never taken for the selected appointment, #553.)
+    if v.get("message").is_some() {
         return invitation::respond(s, v);
     }
     let before = changing(s, v)?;

@@ -63,8 +63,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const SOURCE: &str =
-    r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first)"#;
+const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
 
 const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first, unless discard). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
@@ -73,15 +72,22 @@ const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], 
 pub const LEAVING: [&str; 8] =
     ["compose.close", "mail.new", "mail.reply", "mail.replyAll", "mail.forward", "mail.forwardAsAttachment", "mail.editDraft", "people.email"];
 
+/// The commands that put another mailbox in place of this one, and close the message being
+/// written with it (#470): it is saved to Drafts first, or the owner asked, as for [`LEAVING`].
+pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
+
+/// Whether `id` closes the message being written: [`LEAVING`] or [`REPLACING`].
+pub fn leaves(id: &str) -> bool {
+    LEAVING.contains(&id) || REPLACING.contains(&id)
+}
+
 /// Whether running `id` saves the message being written to Drafts first (#442): it leaves the
 /// message, which has changes that aren't saved, and the caller didn't let them go (`discard`).
 /// Nobody who calls a command (an agent, a script) is asked, so [`Session::run`] runs Save Draft
 /// first, as a step of its own: undoing what the command did never takes the draft away. A save
 /// that fails fails the command, and nothing changes. (The window asks the owner first.)
 pub fn saves_first(s: &Session, id: &str, params: &Value) -> bool {
-    LEAVING.contains(&id)
-        && p::bool(params, "discard") != Some(true)
-        && s.compose.as_ref().is_some_and(|c| c.dirty || (s.agent.is_some() && draft_gone(s, c)))
+    leaves(id) && p::bool(params, "discard") != Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty || (s.agent.is_some() && draft_gone(s, c)))
 }
 
 /// Whether the draft the message being written was last saved as is no longer there (#494): an
@@ -172,7 +178,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 /// The message a command answers, forwards or opens again, whole: its body and its files in
 /// memory, fetched from where the mailbox keeps them when they weren't (`Session::content`).
 fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -182,7 +188,7 @@ fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
 /// The message a reply answers, with what the reply quotes of it in memory: its body and the
 /// pictures its HTML shows (`Session::loaded_for_reply`); its other files stay where they are.
 fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -1035,7 +1041,8 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
-    let saved = c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.is_graph(d.account));
+    let saved =
+        c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.keeps_drafts_on_server(d.account));
     let mut m = build_as(s, &c, true, saved.as_ref().map(|d| d.message_id.as_str()).filter(|id| !id.is_empty()))?;
     if let Some(d) = saved.as_ref().filter(|d| d.account == m.account) {
         (m.server, m.server_draft) = (d.server.clone(), d.server_draft.clone());
@@ -1125,7 +1132,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
-    let graph = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Microsoft);
+    let graph = s.mailbox.keeps_drafts_on_server(m.account);
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
         // Not a forward as an attachment: made as a forward, it would have the source's files

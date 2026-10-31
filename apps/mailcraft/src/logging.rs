@@ -263,9 +263,17 @@ impl AppLogger {
     }
 }
 
+/// The system verifier's own line ("failed to verify TLS certificate", at error level) about a
+/// certificate it doesn't trust, while that is looked at for a connection to a server whose
+/// certificate the owner trusted by its fingerprint: the refusal is expected there, and what
+/// comes of it is reported by the connection (E8). Nothing else of the verifier is left out.
+fn quiet_verifier(target: &str) -> bool {
+    target.starts_with("rustls_platform_verifier") && mailcraft_net::pin_check_under_way()
+}
+
 impl log::Log for AppLogger {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.level() <= self.filter.level_for(metadata.target())
+        metadata.level() <= self.filter.level_for(metadata.target()) && !quiet_verifier(metadata.target())
     }
 
     fn log(&self, record: &log::Record<'_>) {
@@ -721,5 +729,15 @@ mod tests {
         );
         assert_eq!(panic_report(None, None, None), "panic at an unknown place: (no message)");
         assert_eq!(panic_report(Some("a.rs:1:1"), Some("boom"), Some("   0: main\n")), "panic at a.rs:1:1: boom\n   0: main");
+    }
+
+    #[test]
+    fn the_verifiers_line_is_left_out_only_while_a_pinned_certificate_is_checked() {
+        // (That it is left out while one is, is the net crate's test: the mark is set there.)
+        assert!(!quiet_verifier("rustls_platform_verifier::verification::others"));
+        assert!(!quiet_verifier("mailcraft_net::https"));
+        let logger = AppLogger::new(Filter::parse(DEFAULT_FILTER), false);
+        let line = log::Metadata::builder().level(log::Level::Error).target("rustls_platform_verifier::verification::others").build();
+        assert!(log::Log::enabled(&logger, &line), "an error of the verifier is logged when no pinned certificate is being checked");
     }
 }

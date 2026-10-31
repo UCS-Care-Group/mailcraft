@@ -94,8 +94,9 @@ fn window_commands_validate() {
     assert_eq!(a.ui.language, "en");
     assert!(a.execute("ui.language", json!({"language": "xx"})).is_err());
     assert!(a.execute("ui.language", json!({})).is_err());
-    // Dutch is a preview. Automatic in the Netherlands follows it. English is put back: the
-    // window's language is shared by the tests alongside.
+    // Dutch is a preview. Automatic in the Netherlands follows it. The guard holds the
+    // process-wide language until this ends, and puts the previous one back if an assertion fails.
+    let _language = crate::i18n::RestoreLanguage::hold();
     assert_eq!(a.execute("ui.language", json!({"language": "nl"})).unwrap()["inForce"], "nl");
     a.services.system_locale = Some("nl-NL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");

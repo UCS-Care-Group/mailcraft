@@ -16,7 +16,7 @@
 //! never sent from the owner's own address instead.
 
 use mailcraft_model::sync::{MAX_SENDS, SEND_AS_DENIED, SendDone, SendOutcome, SendUp};
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::{FolderKind, Id, Mailbox, Queued};
 use serde_json::{Value, json};
 
 use super::{bad, fail};
@@ -25,7 +25,7 @@ use crate::{CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.sendAgain", "Send Again", "Mail", send_again)
-            .params(r#"{"id"?: number} (default: the selected message) — a held message in the Outbox goes with the next Send/Receive"#)
+            .params(r#"{"id"?: number} (default: the selected message; an `id` that is null or isn't an id is refused) — a held message in the Outbox goes with the next Send/Receive"#)
             .selection(super::needs_message),
         CommandSpec::new("sync.holdSends", "Hold Unsent Mail", "Send / Receive", hold_sends)
             .params(r#"{"account": number (a shared mailbox), "why": "declined"|"approval"|"organisation"} — what waits in a shared mailbox's Outbox is held, with that reason: sending from shared mailboxes was not allowed on Microsoft's page ("declined"), waits on an administrator's approval ("approval"), or the organisation doesn't allow it ("organisation"). Nothing is sent from another address. Send Again puts a held message back. Answers {"held": [ids]}"#),
@@ -45,6 +45,7 @@ pub fn from_server(m: &mailcraft_model::Message) -> bool {
 pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
     let mb = &s.mailbox;
     let Some(outbox) = mb.folder_of_kind(account, FolderKind::Outbox) else { return Vec::new() };
+    let exchange = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange);
     let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
     waiting.sort_unstable();
     waiting
@@ -58,6 +59,11 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
             }
         })
         .map(|m| match m.server_draft.as_ref().and(super::graph_drafts::draft_up_whole(&m)) {
+            // An Exchange server account's message always goes as its MIME, with the server filing
+            // the copy in Sent Items (not every server files one when a saved draft is sent); the
+            // draft it was saved as is named so that the run takes it away once the send is clear
+            // (E8).
+            Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.as_ref().clone())) },
             // Sent as it is here, every field and attachment written over what the server has:
             // whatever was changed on the server meanwhile is the owner's to lose (AU2-14).
             Some(draft) => SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None },
@@ -79,6 +85,7 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         changed |= super::graph_drafts::draft_done(mb, account, draft, lang, said);
     }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
+    let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) { "the server" } else { "Microsoft" };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
     let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
     let couldnt = |why: &str| {
@@ -89,6 +96,16 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         // Gone: the server files it in Sent Items, and that copy comes down. What it answers or
         // forwards is marked so now (#154).
         SendOutcome::Sent => {
+            // An Exchange server account's draft the run could not take away after the send: the
+            // takeaway goes up with the next run as any other delete, and the send is never made
+            // again (E8).
+            if !done.draft_left.is_empty() {
+                let queued = Queued::DeleteMessage { account, id: done.draft_left.clone(), kept: None };
+                if !mb.queued.contains(&queued) {
+                    mb.queued.push(queued);
+                }
+                changed = true;
+            }
             mb.mark_answered(done.message);
             mb.forget_message(done.message).is_ok() || changed
         }
@@ -106,7 +123,7 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         }
         SendOutcome::Held { lost, why } => {
             let held = if *lost {
-                "It may have been sent: the answer from Microsoft was lost. Look in Sent Items before you send it again.".to_string()
+                format!("It may have been sent: the answer from {server} was lost. Look in Sent Items before you send it again.")
             } else {
                 format!("It wasn't sent: {why}. Change it, or send it again.")
             };
@@ -144,7 +161,8 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).take(MAX_SENDS).collect();
     let mut said = Vec::new();
     for id in &waiting {
-        let done = SendDone { message: *id, outcome: SendOutcome::Held { lost: false, why: why.to_string() }, draft: None };
+        let done =
+            SendDone { message: *id, outcome: SendOutcome::Held { lost: false, why: why.to_string() }, draft: None, draft_left: String::new() };
         send_done(&mut s.mailbox, account, &done, s.interface_language, &mut said);
     }
     if let Some(first) = said.first() {
@@ -155,7 +173,7 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn send_again(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));

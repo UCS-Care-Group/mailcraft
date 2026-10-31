@@ -1473,7 +1473,7 @@ impl Mailbox {
     /// server allows them, and its folders are known by their server ids, never by a path. Any
     /// other account's folders are named by their path on an IMAP server, where `/` parts them.
     pub fn names_may_hold_slashes(&self, account: Id) -> bool {
-        self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft)
+        self.keeps_changes_for_server(account)
     }
 
     /// The folder of `account` that its server calls `id` ([`Folder::server`]).
@@ -1962,6 +1962,20 @@ impl Mailbox {
         self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
+    /// Whether a draft saved in `account` is kept on its server, field by field, with MailCraft's
+    /// marker: a Microsoft account's, and an Exchange server account's (#252).
+    pub fn keeps_drafts_on_server(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange))
+    }
+
+    /// Whether the changes made in `account` are queued for its server to make (a message or folder
+    /// deleted for good, a copy), and its folders are known by server ids: a Microsoft account's
+    /// and an Exchange server account's (#252). Moves between accounts stay Graph's
+    /// ([`Mailbox::is_graph`], [`Mailbox::puts_on_server`]).
+    pub fn keeps_changes_for_server(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange))
+    }
+
     /// Whether `account` is kept in step through Microsoft Graph.
     pub fn is_graph(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft)
@@ -2295,10 +2309,10 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.is_graph(from_account) && m.unfetched {
+        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
-        let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.is_graph(from_account));
+        let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));
         let mut copy = m.clone();
         copy.id = 0;
         copy.folder = folder;
@@ -2327,7 +2341,7 @@ impl Mailbox {
     fn queue_graph_delete(&mut self, id: Id, own: bool) {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.is_graph(m.account)) {
+        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
             deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
         }
         if let Some(out) = &m.moving_out {

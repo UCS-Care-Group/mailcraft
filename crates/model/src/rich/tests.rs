@@ -46,8 +46,19 @@ fn plain_text_is_one_paragraph_per_line() {
 }
 
 #[test]
-fn links_are_web_mail_and_phone_only() {
-    for ok in ["https://example.org", "HTTP://example.org/a?b=c#d", "mailto:ada@example.org", "tel:+15550100", " https://example.org/x "] {
+fn links_are_any_well_formed_scheme_but_the_unsafe_ones() {
+    for ok in [
+        "https://example.org",
+        "HTTP://example.org/a?b=c#d",
+        "mailto:ada@example.org",
+        "tel:+15550100",
+        " https://example.org/x ",
+        "ms-settings:network-vpn",
+        "MS-Settings:network-vpn",
+        "slack://channel?id=1",
+        "x-apple.systempreferences:com.apple.preference.network",
+        "git+ssh://host/repo",
+    ] {
         assert!(safe_link(ok).is_some(), "{ok}");
     }
     for bad in [
@@ -57,6 +68,22 @@ fn links_are_web_mail_and_phone_only() {
         "data:text/html,x",
         "cid:logo@example.org",
         "file:///etc/passwd",
+        "FILE:///etc/passwd",
+        "vbscript:msgbox(1)",
+        "VBScript:msgbox(1)",
+        "DATA:text/html,x",
+        "  javascript:alert(1)",
+        "\tjavascript:alert(1)",
+        "java\tscript:alert(1)",
+        "java\r\nscript:alert(1)",
+        "\u{a0}javascript:alert(1)",
+        "javascript:",
+        "ms-settings:",
+        "1abc:x",
+        "-abc:x",
+        "ab_c:x",
+        "ab c:x",
+        ":x",
         "https://exa mple.org",
         "https://example.org/\n",
         "java\nscript:x",

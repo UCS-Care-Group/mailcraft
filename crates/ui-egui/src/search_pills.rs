@@ -77,6 +77,11 @@ pub(crate) fn layout(text: &str, pills: &[Pill], font: FontId, t: &Tokens) -> La
         lead = PAD;
     }
     add(part(at..chars.len()), lead, &plain);
+    // An empty query still needs a section: a job without one lays out a row with no height, so
+    // the caret, which stands on the galley's row, would hang from the middle of the box (#652).
+    if job.sections.is_empty() {
+        job.append("", 0.0, plain);
+    }
     job
 }
 

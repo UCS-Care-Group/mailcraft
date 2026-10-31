@@ -251,3 +251,57 @@ fn the_question_opened_by_name_runs_nothing_after_it() {
         }
     }
 }
+
+/// #470: another mailbox in view (File › New, File › Open, a recent or dropped mailbox file)
+/// asks as the other actions do: Cancel stays in the message and the mailbox; Save Draft and
+/// Discard go on to open the other mailbox.
+#[test]
+fn another_mailbox_asks_first() {
+    let file = std::env::temp_dir().join(format!("mc-470-{}.mailcraft", std::process::id()));
+    mailcraft_engine::store::save(&file, &mailcraft_model::Mailbox::with_local_account("", "")).unwrap();
+    let open = json!({"path": file.to_string_lossy()});
+    for (id, params) in [("file.new", json!({})), ("file.open", open)] {
+        for answer in ["cancel", "save", "discard"] {
+            let mut a = app();
+            written(&mut a, "Mine");
+            let before = (a.session.compose.clone(), a.session.mailbox.clone());
+            let r = a.run(id, params.clone()).unwrap();
+            assert_eq!(r["pending"], "discardDraft", "{id}");
+            let (then, waiting) = asked(&a).unwrap();
+            assert_eq!(a.session.compose, before.0, "{id}: nothing happens before the answer");
+            a.dialog = None;
+            leave_message(&mut a, answer, &then, waiting);
+            if answer == "cancel" {
+                assert_eq!(subject(&a).as_deref(), Some("Mine"), "{id}: Cancel stays in the message");
+                assert!(a.session.mailbox == before.1, "{id}: and in the mailbox");
+            } else {
+                assert!(a.session.compose.is_none(), "{id} {answer}");
+                assert!(a.session.mailbox.messages.is_empty(), "{id} {answer}: the other mailbox is in view");
+                assert!(a.dialog.is_none(), "{id} {answer}: asked once");
+            }
+        }
+    }
+    let _ = std::fs::remove_file(&file);
+}
+
+/// File › Open with no file named yet opens the picker without asking: the question comes once
+/// a file is chosen, so a cancelled picker leaves the message alone.
+#[test]
+fn open_asks_once_a_file_is_chosen() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    assert!(!crate::dialogs::leaves_message(&a, "file.open", &json!({})));
+    assert!(crate::dialogs::leaves_message(&a, "file.open", &json!({"path": "/somewhere/Archive.mailcraft"})));
+    assert!(crate::dialogs::leaves_message(&a, "file.open", &json!({"name": "a.mailcraft", "data": ""})));
+    assert!(crate::dialogs::leaves_message(&a, "file.new", &json!({})));
+}
+
+/// A script is never asked: what was written goes to Drafts of the mailbox left (the engine's
+/// `another_mailbox_saves_the_message_being_written_to_drafts_first` follows it into the file).
+#[test]
+fn a_script_opening_another_mailbox_is_not_asked() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.execute("file.new", json!({})).unwrap();
+    assert!(a.dialog.is_none() && a.session.compose.is_none());
+}

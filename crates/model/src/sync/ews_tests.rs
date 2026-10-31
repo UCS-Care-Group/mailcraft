@@ -49,7 +49,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         url: URL.into(),
         folders: Some(EwsFolderDeltas { changed: vec![inbox], deleted: vec!["F0".into()], afresh: true }),
         hierarchy: "H1".into(),
-        states: vec![EwsFolderState { folder: "F1".into(), state: "S1".into() }],
+        pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
         errors: vec!["one".into()],
         partial: true,
         ..Default::default()
@@ -57,7 +57,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     let last = EwsMailResult {
         account: 3,
         folders: Some(EwsFolderDeltas { deleted: vec!["F9".into()], ..Default::default() }),
-        states: vec![EwsFolderState { folder: "F1".into(), state: "S2".into() }],
+        pages: vec![EwsMessagePage { folder: "F1".into(), from: "S1".into(), state: "S2".into(), ..Default::default() }],
         whole: true,
         ..Default::default()
     };
@@ -66,7 +66,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     all.absorb(first);
     all.absorb(last);
     assert_eq!((all.account, all.email.as_str(), all.hierarchy.as_str()), (3, ME, "H1"));
-    assert_eq!(all.states.iter().map(|s| s.state.as_str()).collect::<Vec<_>>(), ["S1", "S2"]);
+    assert_eq!(all.pages.iter().map(|p| p.state.as_str()).collect::<Vec<_>>(), ["S1", "S2"]);
     assert_eq!(all.errors.len(), 1);
     assert!(all.whole && !all.partial);
     let folders = all.folders.unwrap();
@@ -85,6 +85,8 @@ fn page() -> EwsMessagePage {
         read: vec![ReadState { id: "M2".into(), read: true }],
         last: true,
         afresh: false,
+        from: String::new(),
+        state: String::new(),
     }
 }
 
@@ -106,8 +108,7 @@ fn whole_result() -> EwsMailResult {
             ..Default::default()
         }),
         hierarchy: "H1".into(),
-        pages: vec![page()],
-        states: vec![EwsFolderState { folder: "F1".into(), state: "S1".into() }],
+        pages: vec![EwsMessagePage { from: "S0".into(), state: "S1".into(), ..page() }],
         errors: vec!["one".into()],
         untrusted: "ab".repeat(32),
         ..Default::default()
@@ -121,13 +122,14 @@ fn a_result_beyond_the_caps_is_refused() {
     assert_eq!(EwsMailResult::default().check(), Ok(()));
     let long = "x".repeat(MAX_EWS_STATE + 1);
     let long_id = "x".repeat(MAX_EWS_ID + 1);
-    let states = |n: usize| (0..n).map(|i| EwsFolderState { folder: format!("F{i}"), state: "S".into() }).collect::<Vec<_>>();
     let refused: Vec<(&str, Box<dyn Fn(&mut EwsMailResult)>)> = vec![
-        ("too many states", Box::new(|r| r.states = states(MAX_EWS_STATES + 1))),
-        ("a long state", Box::new(|r| r.states[0].state = long.clone())),
-        ("a long folder id in a state", Box::new(|r| r.states[0].folder = long_id.clone())),
-        ("an empty folder id in a state", Box::new(|r| r.states[0].folder = String::new())),
-        ("a control character in a state", Box::new(|r| r.states[0].state = "a\nb".into())),
+        ("a long state", Box::new(|r| r.pages[0].state = long.clone())),
+        ("a long state it began from", Box::new(|r| r.pages[0].from = long.clone())),
+        ("a control character in a state", Box::new(|r| r.pages[0].state = "a\nb".into())),
+        (
+            "more state bytes than are taken in",
+            Box::new(|r| r.pages = vec![EwsMessagePage { folder: "F".into(), state: "s".repeat(MAX_EWS_STATE), ..Default::default() }; 40]),
+        ),
         ("a long hierarchy state", Box::new(|r| r.hierarchy = long.clone())),
         ("too many pages", Box::new(|r| r.pages = vec![EwsMessagePage { folder: "F".into(), ..Default::default() }; MAX_EWS_PAGES + 1])),
         ("too many messages in a page", Box::new(|r| r.pages[0].messages = vec![GraphMessage::default(); MAX_EWS_PAGE_MESSAGES + 1])),
@@ -169,7 +171,7 @@ fn debug_output_is_counts_only() {
     let result = EwsMailResult {
         email: ME.into(),
         url: URL.into(),
-        states: vec![EwsFolderState { folder: "F-ONE".into(), state: "S-ONE".into() }],
+        pages: vec![EwsMessagePage { folder: "F-ONE".into(), state: "S-ONE".into(), ..Default::default() }],
         hierarchy: "H-STATE".into(),
         untrusted: "ab".repeat(32),
         ..Default::default()

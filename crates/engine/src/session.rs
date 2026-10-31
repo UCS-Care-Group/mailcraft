@@ -900,6 +900,11 @@ pub struct Session {
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
     /// Messages kept in step by server id (through Graph, over JMAP): kept between the pages of a run.
     pub(crate) graph_index: crate::cmd::graph_down::ServerIndex,
+    /// The Exchange server accounts whose run now under way has had a piece refused, cut or left
+    /// out, or a folder blocked: the run's end removes nothing for them (a piece lost earlier in
+    /// the run is not made good by one that says all went well). Set by any such piece, cleared
+    /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
+    pub(crate) ews_run_cut: std::collections::HashSet<Id>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
     /// (opening one still asks). Never saved.
@@ -1065,6 +1070,7 @@ impl Session {
             sync_status: String::new(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
+            ews_run_cut: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
@@ -2367,6 +2373,7 @@ impl Session {
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
+        self.ews_run_cut.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;
@@ -2484,8 +2491,9 @@ impl Session {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         if let Some(reason) = (spec.enabled)(self) {
-            // A command that only lacks a selection still runs on what the caller names.
-            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null()));
+            // A command that only lacks a selection still runs on what the caller names, and on
+            // what it names wrongly, which the command refuses for what it is (#553).
+            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some());
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
@@ -2536,6 +2544,11 @@ impl Session {
         let result = match (result, &self.agent) {
             (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
                 "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+            ))),
+            // What is written in the message the owner is writing is theirs until it is closed
+            // (#494): an agent doesn't change it, nor empty it and save that over its draft (#577).
+            (Ok(_), Some(_)) if changes_owners_message(compose.as_ref(), self.compose.as_ref()) => Err(CmdError::Failed(format!(
+                "`{id}` would change the message the owner is writing, which is theirs until they close it; nothing was changed. Ask the owner to make the change, or to close the message first"
             ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
                 Err(CmdError::Failed(crate::agent::needs_owner(id, c, false, "do more than an agent is allowed to; nothing was changed")))
@@ -2625,6 +2638,20 @@ fn as_it_was(before: &Compose, now: &Compose) -> bool {
     let at = now.body.selection();
     let mut moved = before.clone();
     moved.body.select(at.anchor, at.head).is_ok() && moved == *now
+}
+
+/// Whether `now` is the message the owner was writing in `before` (#494), still open, with what
+/// is written in it changed: its text, its recipients, its attachments, anything but where the
+/// cursor is, whether it is saved and the draft it was saved as (#577). A message put in its
+/// place (which the owner was asked about) is nobody's yet, so it isn't.
+fn changes_owners_message(before: Option<&Compose>, now: Option<&Compose>) -> bool {
+    let (Some(before), Some(now)) = (before, now) else { return false };
+    if !before.owner_changed || !now.owner_changed {
+        return false;
+    }
+    let mut saved = before.clone();
+    (saved.dirty, saved.draft) = (now.dirty, now.draft);
+    saved != *now && !as_it_was(&saved, now)
 }
 
 /// Commands that remove what is kept of an account on this computer (#177): they leave nothing

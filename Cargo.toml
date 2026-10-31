@@ -4,7 +4,7 @@ members = ["crates/*", "apps/*", "xtask"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.8.2"
+version = "0.9.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -24,6 +24,7 @@ mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-jmap = { path = "crates/jmap" }
+mailcraft-ews = { path = "crates/ews" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-mcp = { path = "crates/mcp" }
@@ -73,6 +74,12 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # `mailcraft-net`'s `graph::favorites`). MIT, Rust throughout, and nothing but `memchr` under it. It reads no DTD and expands no entity: a reference in the text is handed over as such.
 # Already in the tree (a build tool of the Linux windowing crates uses it); desktop and CLI only.
 quick-xml = { version = "0.42", default-features = false }
+# NTLMv2 sign-in to Exchange servers (#252, E4), written from MS-NLMP: MD4 (the hash of the
+# password), MD5 and HMAC. RustCrypto, pure Rust, MIT OR Apache-2.0, and wasm-clean; `hmac` is
+# already in the tree. Used by `mailcraft-ews` only.
+md4 = { version = "0.11", default-features = false }
+md-5 = { version = "0.11", default-features = false }
+hmac = { version = "0.13", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO

@@ -153,6 +153,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             crate::reading::show(app, ui);
         }
     });
+    // Enter on a selected draft goes on writing it (#651). Only a new press that is the main
+    // window's, with nothing focused: not a text field's, nor a dialog's.
+    if !composing && app.session.sel.messages.len() == 1 {
+        let draft = app.session.sel.focus().and_then(|id| app.session.mailbox.messages.get(&id)).is_some_and(|m| m.draft);
+        if draft && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
+            let _ = app.run("mail.editDraft", json!({}));
+        }
+    }
 }
 
 /// A row and the line under it: 72 with one line of preview (15 clear above the sender's

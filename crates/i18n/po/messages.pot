@@ -245,6 +245,11 @@ msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
+msgid "A mail server your organisation runs itself"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
 msgid "A mailbox kept here, with no mail server"
 msgstr ""
 
@@ -333,6 +338,11 @@ msgstr ""
 msgid "A save of the mailbox is still running: try again in a moment"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "A series that the account's server keeps can't be moved to another calendar from here: the server has no way of moving one, and days of it that were changed on their own could be lost in making it again."
@@ -340,7 +350,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
 
 #. date and time, interface
@@ -537,6 +547,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Add another phone number"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Add as a Microsoft account"
 msgstr ""
 
 #. interface
@@ -839,6 +854,11 @@ msgid "Apply Downloaded Contacts"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Apply Downloaded Exchange Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Favorites"
 msgstr ""
@@ -1118,13 +1138,23 @@ msgid "Automatic"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Automatic setup can't sign in to this server. Type its address in Server settings and MailCraft will sign in with NTLM."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Available formats:"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 msgid "Back"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Basic (user name and password over a secure connection)"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -1520,7 +1550,7 @@ msgid "Checking the account stopped unexpectedly"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "Checking the account…"
 msgstr ""
 
@@ -1655,7 +1685,7 @@ msgid "Clipboard"
 msgstr ""
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 msgid "Close"
 msgstr ""
 
@@ -1755,7 +1785,7 @@ msgid "Confirm servers"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
 msgid "Connect"
 msgstr ""
 
@@ -1800,8 +1830,13 @@ msgid "Contacts don't go to Deleted Items."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "Continue"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
 msgstr ""
 
 #. interface
@@ -1959,6 +1994,11 @@ msgstr ""
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 msgid "Cut"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr ""
 
 #. name
@@ -2326,6 +2366,11 @@ msgid "Don't ask again for this account"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Don't send"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Done"
 msgstr ""
@@ -2686,19 +2731,29 @@ msgstr ""
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Exchange server"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Exchange server (your organisation's own)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-msgid "Exchange server accounts can't be sent and received yet: that part is not built"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
-msgid "Exchange server {host} · not kept in step yet: this part is not built"
+msgid "Exchange server {host}"
 msgstr ""
 
 #. interface
@@ -3014,13 +3069,28 @@ msgid "Font Size"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Forget"
 msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Forget Downloaded Calendar and Contacts"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Forget Trusted Certificate"
 msgstr ""
 
 #. interface
@@ -3452,6 +3522,16 @@ msgid "If that page says you need admin approval"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "If you go on, your user name and password are sent to {host}. Go on only if you know it is your organisation's."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "If you have an administrator account of your own, the first choice lets you sign in with it on Microsoft's page."
 msgstr ""
@@ -3689,6 +3769,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Invite attendees"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Issued by"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Issued to"
 msgstr ""
 
 #. interface
@@ -3982,6 +4072,11 @@ msgid "Leave empty to keep the one in use"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Leave it empty to look for the server from your address. It must begin with https://."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Leave this account out of this Send/Receive"
 msgstr ""
@@ -4056,6 +4151,11 @@ msgstr ""
 msgid "Look Again"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Look at the certificate the server shows now. Nothing is signed in while you decide."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Look for This Meeting on the Calendar"
@@ -4067,8 +4167,18 @@ msgid "Lookalike address."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Looking at the server's certificate…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "Looking for this meeting on your calendar…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Looking for your Exchange server…"
 msgstr ""
 
 #. interface
@@ -4189,6 +4299,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr ""
 
 #. interface
@@ -4515,6 +4630,16 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Messages on a Light Background"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
 msgid "Messages to download per folder"
 msgstr ""
 
@@ -4526,6 +4651,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "Microsoft 365"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Microsoft 365 mail is added as a Microsoft account: you sign in on Microsoft's own page in your browser, and MailCraft never sees your password."
 msgstr ""
 
 #. command label
@@ -5162,6 +5292,11 @@ msgid "No senders are remembered. \"Always download pictures from\" above a mess
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "No server answered at the usual places for this address. Check the network connection, or type the server's address in Server settings."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs
 msgid "No sign-in with Microsoft is under way"
 msgstr ""
@@ -5356,6 +5491,11 @@ msgstr ""
 msgid "Nothing to do here."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Nothing was sent to Microsoft, and your password isn't kept."
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "Nov"
@@ -5514,6 +5654,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Only the meeting's organizer can change its time."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr ""
 
 #. interface
@@ -6569,6 +6714,11 @@ msgstr ""
 msgid "Review"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Review certificate…"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 msgid "Ribbon"
@@ -6626,6 +6776,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Run this rule on mail as it arrives"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "SHA-256 fingerprint"
 msgstr ""
 
 #. interface
@@ -7045,6 +7200,11 @@ msgid "Send from a Shared Mailbox"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Send my sign-in"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
 msgid "Send the Response Now"
 msgstr ""
@@ -7087,6 +7247,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
 msgid "Send your answer to the organizer? You can write a note to go with it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Send your sign-in to another server?"
 msgstr ""
 
 #. interface
@@ -7134,7 +7299,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 msgid "Send/Receive stopped unexpectedly"
 msgstr ""
 
@@ -7159,7 +7324,7 @@ msgid "Sending"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "Sending and receiving…"
 msgstr ""
 
@@ -7225,6 +7390,26 @@ msgstr ""
 msgid "September"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Server Certificate"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Server address (Exchange Web Services)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Server settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Server: {address}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Set importance"
@@ -7233,6 +7418,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Set up manually"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Setting up the account stopped unexpectedly"
 msgstr ""
 
 #. interface
@@ -7382,6 +7572,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show in the time bar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show messages on a light background in the dark theme"
 msgstr ""
 
 #. interface
@@ -7612,6 +7807,11 @@ msgid "Signs in on the {provider} page in your browser"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Signs in to an Exchange server with a user name and password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Signs in with Microsoft · folders kept in step through Microsoft Graph (testing)"
 msgstr ""
@@ -7624,6 +7824,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Signs in with {provider}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Signs in with: {how}"
 msgstr ""
 
 #. name
@@ -7801,6 +8006,11 @@ msgstr ""
 msgid "Stop this Send/Receive; what has arrived stays"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 msgid "Stopped"
@@ -7812,7 +8022,7 @@ msgid "Stopped ({line})"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "Stopped; carries on from here next time"
 msgstr ""
 
@@ -8122,8 +8332,13 @@ msgid "The Entire Series"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "The account couldn't be added"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr ""
 
 #. interface
@@ -8290,6 +8505,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "The categories couldn't be taken in: {error}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "The certificate of the server of {name} needs your say"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The certificate the server at {host} shows is not the one you trusted for this account, and this computer doesn't trust it. Trust it only if your administrator has changed it."
 msgstr ""
 
 #. what a command says
@@ -8543,6 +8768,16 @@ msgid "The proposed end has to be after the proposed start."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The search for your Exchange server was sent on to {host}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
 msgstr ""
@@ -8563,6 +8798,21 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server answered without the address of Exchange Web Services. Ask your administrator for it and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "The server didn't say when other people are busy"
 msgstr ""
@@ -8573,13 +8823,68 @@ msgid "The server didn't send the messages. Try again in a few minutes."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "The server shows a certificate that needs your say."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "The server turned down the sign-in for {name}: sign in again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's address must begin with https:// and name the server (https://mail.example.org/EWS/Exchange.asmx)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's address or the user name can't be used. Check them in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's answer for automatic setup couldn't be read. Type the server's address in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's certificate"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's certificate has changed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's certificate has expired, so MailCraft won't connect to it. Ask your administrator to renew it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's certificate is for another server's name, so MailCraft won't connect to it. Check the address in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
 msgstr ""
 
 #. interface
@@ -8600,6 +8905,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
 msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. The old file was renamed {file}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The settings the server gave name {host}, which isn't in your address's own domain, as the mail server."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The setup was sent from one server to another too many times. Type the server's address in Server settings."
 msgstr ""
 
 #. interface
@@ -8685,6 +9000,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "The to-dos sent couldn't be noted: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The user name is too long or has a character in it that a name can't have"
 msgstr ""
 
 #. interface
@@ -8848,7 +9168,7 @@ msgid "This build can't connect to Microsoft"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 msgid "This build can't connect to mail servers"
 msgstr ""
 
@@ -8865,6 +9185,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "This build can't connect to mail servers. The account can still be added."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This build can't connect to mail servers. Use the desktop app to add an Exchange server account."
 msgstr ""
 
 #. interface
@@ -8915,6 +9240,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr ""
 
 #. interface
@@ -8987,6 +9317,11 @@ msgstr[1] ""
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "This device only"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This domain's servers have no automatic setup. Type the server's address in Server settings."
 msgstr ""
 
 #. what a command says
@@ -9067,6 +9402,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/view.rs
 msgid "This link goes somewhere other than its text says."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This mailbox is in Microsoft 365"
 msgstr ""
 
 #. interface
@@ -9182,6 +9522,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "This message has pictures on the web. This build can't download them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
 msgstr ""
 
 #. what a command says
@@ -9406,6 +9751,11 @@ msgid ""
 "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "To use another server or user name, remove the account and add it again."
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "To-do Changes to Send"
@@ -9469,6 +9819,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Trouble on that page? Sign in for mail only"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Trust this certificate for this account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Trust this server's certificate?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "Trusted certificate (SHA-256 fingerprint):"
 msgstr ""
 
 #. command label
@@ -9614,7 +9979,7 @@ msgid "Up to 50 MB"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
 msgid "Up to date"
 msgstr ""
 
@@ -9669,8 +10034,13 @@ msgid "Use {address}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "User name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "User name: {name}"
 msgstr ""
 
 #. name
@@ -9681,6 +10051,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Usually the whole address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Valid"
 msgstr ""
 
 #. name
@@ -9993,6 +10368,11 @@ msgid "You declined this meeting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "You didn't agree to send your sign-in to the server the setup led to. Type the server's address in Server settings."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "You don't have access to the calendar of {address}. They need to share it with you; if they just did, try again in an hour."
 msgstr ""
@@ -10100,6 +10480,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Your name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your organisation doesn't allow Exchange Web Services for this account. Ask your administrator."
 msgstr ""
 
 #. interface
@@ -10284,7 +10669,7 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-msgid "a link goes to an http, https, mailto or tel address"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
 msgstr ""
 
 #. what a command says
@@ -10365,6 +10750,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "add at least one recipient"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is"
 msgstr ""
 
 #. what a command says
@@ -10509,6 +10899,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "folders are nested too deeply"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "from {from} to {to}"
 msgstr ""
 
 #. interface
@@ -10762,7 +11157,7 @@ msgid "no message with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "no message with id {id} in {name}"
 msgstr ""
 
@@ -10829,6 +11224,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "no {folder} folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+msgid "not known until the first Send/Receive"
 msgstr ""
 
 #. what a command says
@@ -11017,6 +11417,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the Inbox of this account hasn't been read yet"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 msgid "the account is gone"
 msgstr ""
@@ -11143,7 +11548,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
-msgid "the result is for another account"
+msgid "the result would make this account keep more sync state than is taken in"
 msgstr ""
 
 #. what a command says
@@ -11307,12 +11712,17 @@ msgid "these settings are for another account, not for {who}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs
+msgid "this Exchange server account has no server settings"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "this Send/Receive was for the server {name} named before"
 msgstr ""
 
@@ -11616,6 +12026,11 @@ msgid "{folder} and its subfolders"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "{folder} couldn't be read from the server"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/sync/progress.rs
 msgid "{folder}: {done} of {total}"
 msgstr ""
@@ -11653,6 +12068,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
 msgid "{large} large messages download when opened"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "{line} · couldn't be read in the last run: {folders}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "{line} · the server's certificate needs your say"
 msgstr ""
 
 #. date and time
@@ -11796,7 +12221,7 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr ""
 

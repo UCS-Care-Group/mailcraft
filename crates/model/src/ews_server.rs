@@ -59,7 +59,11 @@ impl EwsServer {
     /// this computer only, for tests), no control character, space or backslash, no user name in
     /// front of the server, a plausible server name and port.
     pub fn check_url(address: &str) -> Result<(), &'static str> {
-        crate::jmap_server::accepted(address).map(|_| ())
+        let host = crate::jmap_server::accepted(address)?;
+        if is_exchange_online(host) {
+            return Err("is on a Microsoft server: Microsoft 365 and Outlook.com mail is added as a Microsoft account, not as an Exchange server");
+        }
+        Ok(())
     }
 
     /// Whether `name` may be a user name: not too long and no control character. `DOMAIN\user`
@@ -96,6 +100,62 @@ impl EwsServer {
     pub fn host(&self) -> Option<&str> {
         crate::jmap_server::accepted(&self.url).ok()
     }
+}
+
+/// Hosts that are Microsoft's own mail: Exchange Online (Microsoft 365) and Outlook.com: a name
+/// and every name under it. Fixed; nothing is guessed from a pattern, so an organisation's own
+/// server called `outlook.abc.com` is not taken for Microsoft's.
+const EXCHANGE_ONLINE: [&str; 12] = [
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "msn.com",
+    "office365.com",
+    "office365.us",
+    "office.com",
+    "onmicrosoft.com",
+    "microsoftonline.com",
+    "outlook.cn",
+    "partner.outlook.cn",
+    "office365.cn",
+];
+
+/// Whether `host` (lower case, no port) is, or is under, one of [`EXCHANGE_ONLINE`]'s hosts.
+/// Used for every host the search is sent to or told about: a redirect, an SRV target, the
+/// addresses in an answer. A mailbox there is a Microsoft account, never an Exchange server
+/// account, and no sign-in is ever sent there.
+pub fn is_exchange_online(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    EXCHANGE_ONLINE.iter().any(|online| is_within(&host, online))
+}
+
+/// Whether the domain of an e-mail address (lower case) is one of Microsoft's consumer mail
+/// domains, in the forms Microsoft has them in: `outlook.com` and `msn.com`; `hotmail` and
+/// `live` and `outlook` with `com`, a country (`hotmail.fr`, `live.it`, `outlook.de`), or `co` or
+/// `com` and a country (`hotmail.co.uk`, `live.com.au`, `outlook.com.br`). Only the domain of
+/// the address itself: a name that merely starts so (`outlook.abc.com`, `live.bbc.com`,
+/// `msn.xy.org`) is somebody else's.
+fn is_microsoft_consumer_domain(domain: &str) -> bool {
+    let labels: Vec<&str> = domain.split('.').collect();
+    let country = |label: &&str| label.len() == 2 && label.bytes().all(|b| b.is_ascii_lowercase());
+    match labels.as_slice() {
+        ["msn", "com"] | ["outlook" | "hotmail" | "live", "com"] => true,
+        ["outlook" | "hotmail" | "live", cc] => country(cc),
+        ["outlook" | "hotmail" | "live", "co" | "com", cc] => country(cc),
+        _ => false,
+    }
+}
+
+/// Whether an address in `domain` is Microsoft's: Exchange Online's hosts or Outlook.com's
+/// consumer domains. Nothing is sent to it.
+pub fn is_microsoft_domain(domain: &str) -> bool {
+    is_exchange_online(domain) || is_microsoft_consumer_domain(domain)
+}
+
+/// Whether `host` is `domain` or a name under it (`mail.example.org` is within `example.org`;
+/// `evil-example.org` is not).
+pub fn is_within(host: &str, domain: &str) -> bool {
+    host == domain || host.strip_suffix(domain).is_some_and(|front| front.ends_with('.'))
 }
 
 #[cfg(test)]

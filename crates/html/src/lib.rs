@@ -39,7 +39,7 @@ mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use media::{Env, verdicts as media_verdicts};

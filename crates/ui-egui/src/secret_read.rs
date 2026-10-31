@@ -77,8 +77,11 @@ impl MailApp {
             .accounts
             .iter()
             .flat_map(|a| {
-                ["password", "refresh"]
-                    .map(|kind| Ask { key: Self::secret_key(kind, a), old: migrate.then(|| Self::legacy_secret_key(kind, &a.email)) })
+                ["password", "refresh"].map(|kind| Ask {
+                    key: Self::secret_key(kind, a),
+                    // (An Exchange server account is newer than the old names: nothing moves to it.)
+                    old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange).then(|| Self::legacy_secret_key(kind, &a.email)),
+                })
             })
             .collect();
         let (send, receive) = mpsc::channel();
@@ -156,9 +159,9 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        // (A JMAP account's secret is never with the store, and an Exchange server account's is
-        // not yet: nothing of it is kept before it is synchronised, #252.)
-        if matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange) {
+        // (A JMAP account's secret is never with the store; an Exchange server account's is, under
+        // the name that holds its server's address and its user name, #252.)
+        if a.kind == mailcraft_model::AccountKind::Jmap {
             return false;
         }
         if a.oauth.is_some() {

@@ -38,6 +38,8 @@ const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
 const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+/// Most messages of one mailbox downloaded again in one run (#650).
+const MAX_AGAIN: usize = 100;
 /// Most new messages handed over in one piece, and most bytes of them...
 const BATCH_MESSAGES: usize = 50;
 const BATCH_BYTES: usize = 4 * 1024 * 1024;
@@ -802,6 +804,8 @@ impl FolderSync<'_> {
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
             complete: false,
+            refetched: Vec::new(),
+            refetch_done: Vec::new(),
         };
         let mut alive = true;
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -872,6 +876,9 @@ impl FolderSync<'_> {
                 missed = Some(missed.map_or(lowest, |missed| missed.min(lowest)));
             }
         }
+        if alive && !reset && !run.cancelled() {
+            self.read_again(imap, &present, run, &mut delta, &mut alive);
+        }
         delta.uid_seen = match missed {
             Some(missed) => missed.saturating_sub(1).max(below),
             None => highest.unwrap_or(uid_seen),
@@ -889,6 +896,57 @@ impl FolderSync<'_> {
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
+    }
+
+    /// Download again, whole, the messages the mailbox asks to read anew (#650: kept with U+FFFD
+    /// before character sets beyond UTF-8 were read): `UID FETCH … BODY.PEEK[]` by UID, which
+    /// never sets `\Seen`. At most [`MAX_AGAIN`] per mailbox per run, within the run's limits;
+    /// what is left comes with the next run. A message the server no longer lists is not asked
+    /// for (its removal reaches the mailbox as any other); one too large to take is settled
+    /// without a new copy, so that it is not asked for at every run.
+    fn read_again(&self, imap: &mut Imap<Stream<'_>>, present: &BTreeMap<u32, &Fetched>, run: &mut Run, delta: &mut FolderDelta, alive: &mut bool) {
+        let Some(state) = self.state else { return };
+        let mut wanted: Vec<u32> = state.again.iter().copied().filter(|uid| present.contains_key(uid)).collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        wanted.truncate(MAX_AGAIN);
+        if wanted.is_empty() {
+            return;
+        }
+        let sizes = self.sizes(imap, &wanted, run, alive);
+        for uid in wanted {
+            if !*alive || run.cancelled() || run.limits.messages == 0 || run.limits.bytes == 0 {
+                return;
+            }
+            let size = sizes.get(&uid).copied().unwrap_or(0);
+            if size > run.limits.largest {
+                delta.refetch_done.push(uid);
+                continue;
+            }
+            if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
+                continue;
+            }
+            match imap.uid_fetch_message(uid) {
+                Ok(Some(fetched)) => {
+                    let bytes = fetched.body.as_ref().map_or(0, Vec::len);
+                    run.limits.messages = run.limits.messages.saturating_sub(1);
+                    run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
+                    delta.refetched.push(message_from(fetched));
+                }
+                // Gone since the listing: the next run's listing says so.
+                Ok(None) => {}
+                // Said once: a refusal settles the message, which is not asked for again. A lost
+                // connection settles nothing, and the next run tries again.
+                Err(e) => {
+                    let e = NetError::from(e);
+                    let fatal = e.is_fatal();
+                    *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
+                    if !fatal && !run.cancelled() {
+                        delta.refetch_done.push(uid);
+                    }
+                }
+            }
+        }
     }
 
     /// Which of the messages that were asked for and not handed over (`silent`) the mailbox

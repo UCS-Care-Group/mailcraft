@@ -362,6 +362,29 @@ fn an_old_single_file_opens_and_becomes_the_split_form_on_the_next_save() {
     assert!(crate::io::read_mailbox(br#"{"version":3}"#).unwrap_err().contains("newer MailCraft"));
 }
 
+/// #649: Save As onto the file the mailbox is kept in (the dialog suggests its name) must be a
+/// save, not the one-file form written over it.
+#[test]
+fn save_as_onto_the_mailbox_in_use_never_writes_the_one_file_form() {
+    let tmp = Temp::new("saveas-home");
+    let home = tmp.file();
+    let mut s = Session::new(mailbox(12));
+    s.run("file.save", &json!({"path": home})).unwrap();
+    assert!(blob_dir(&home).is_dir());
+    // The same file under another spelling, too.
+    let dotted = tmp.0.join(".").join(home.file_name().unwrap());
+    for target in [home.clone(), dotted] {
+        let r = s.run("file.saveAs", &json!({"path": target})).unwrap();
+        assert_eq!((r["copy"].as_bool(), s.path.as_deref()), (Some(false), Some(home.as_path())));
+        let head = fs::read(&home).unwrap();
+        assert!(!head.starts_with(b"{"), "the one-file form was written over the mailbox");
+        assert!(blob_dir(&home).is_dir());
+        let mut t = Session::empty();
+        t.run("file.open", &json!({"path": home})).unwrap();
+        assert!(t.loaded_mailbox().unwrap() == s.mailbox);
+    }
+}
+
 #[test]
 fn one_self_contained_file_still_works_everywhere() {
     // What the browser keeps and what Save Mailbox As writes: one file, attachments inside.
@@ -1233,6 +1256,43 @@ fn a_save_that_fails_is_reported_leaves_the_file_and_works_when_tried_again() {
     let nowhere = tmp.0.join("no such folder").join("mailbox.mailcraft");
     assert!(save(&nowhere, &new).is_err() && save_single(&nowhere, &new).is_err());
     assert!(!nowhere.parent().unwrap().exists());
+}
+
+/// #470: File › New and File › Open, run by a script, save the message being written to Drafts
+/// first, as #442's commands do, and that draft is in the file of the mailbox left behind;
+/// `discard` lets it go.
+#[test]
+fn another_mailbox_saves_the_message_being_written_to_drafts_first() {
+    let tmp = Temp::new("replace-compose");
+    let (home, other) = (tmp.file(), tmp.0.join("other.mailcraft"));
+    save_single(&other, &mailbox(4)).unwrap();
+    let saver = Saver::spawn(|| {}).unwrap();
+    saver.follow(&home);
+    let draft = |subject: &str| {
+        let mb = open(&home).unwrap().mailbox;
+        mb.messages.values().any(|m| m.draft && m.subject == subject)
+    };
+    for (n, (id, params)) in [("file.new", json!({})), ("file.open", json!({"path": other}))].into_iter().enumerate() {
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        let subject = format!("Half written {n}");
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"to": "ada@example.org", "subject": subject, "body": "Not done yet"})).unwrap();
+        s.run(id, &params).unwrap();
+        assert!(s.compose.is_none(), "{id}");
+        assert!(draft(&subject), "{id}: saved to Drafts in the mailbox left");
+        // Let go of when the caller says so.
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"subject": "Let go"})).unwrap();
+        let mut params = params.clone();
+        params["discard"] = json!(true);
+        s.run(id, &params).unwrap();
+        assert!(!draft("Let go"), "{id}: discarded");
+    }
 }
 
 #[test]

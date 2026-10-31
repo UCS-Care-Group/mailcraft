@@ -349,7 +349,7 @@ fn proposal_json(from: &Address, start: DateTime, end: DateTime, from_message: b
 
 fn proposals(s: &mut Session, v: &Value) -> CmdResult {
     // From a message that proposes another time: the meeting it is about, and what it proposes.
-    let from_message = match p::id(v, "message") {
+    let from_message = match v.get("message") {
         Some(_) => Some(super::invitation::counter(s, v)?.ok_or_else(|| fail("This message doesn't propose another time for a meeting."))?),
         None => None,
     };

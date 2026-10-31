@@ -246,7 +246,12 @@ fn a_send_exchange_wont_let_go_as_a_shared_mailbox_is_held_and_says_its_address(
     s.run("mail.new", &json!({"to": "bob@example.org", "subject": "Hello"})).unwrap();
     let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
     let mut result = GraphMailResult { account: shared, email: SHARED.into(), ..Default::default() };
-    result.sent = vec![SendDone { message: id, outcome: SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() }, draft: None }];
+    result.sent = vec![SendDone {
+        message: id,
+        outcome: SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() },
+        draft: None,
+        draft_left: String::new(),
+    }];
     apply_graph_mail(&mut s, result).unwrap();
     let m = s.mailbox.message(id).unwrap();
     assert!(m.held.contains(&format!("permission to send as {SHARED}")) && m.held.contains("Nothing was sent from another address"), "{}", m.held);

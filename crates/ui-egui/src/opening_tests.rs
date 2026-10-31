@@ -671,3 +671,65 @@ fn a_damaged_mailbox_marks_what_is_missing_without_saying_the_count() {
     let m = h.state().session.mailbox.message(id).unwrap();
     assert!(m.kept.as_ref().unwrap().failed && m.body.text == mailcraft_engine::store_placeholder());
 }
+
+#[test]
+fn imap_mail_damaged_only_in_a_body_that_comes_later_is_marked_once_it_has_come() {
+    let (mut mb, id, r, _) = kept_text();
+    // A message of an IMAP account whose subject and sender are plain and whose text, kept on
+    // disk for now, holds U+FFFD where an s with a caron was (#650).
+    let text = "Spo\u{FFFD}tovani partner, v znesku 155,81.".as_bytes().to_vec();
+    let account = mb.message(id).unwrap().account;
+    mb.account_mut(account).unwrap().kind = mailcraft_model::AccountKind::Imap;
+    mb.message_mut(id).unwrap().uid = 5;
+    // The opening looks first: the body is not in memory yet, so there is nothing to see.
+    assert_eq!(mailcraft_engine::cmd::imap_again::mark_unreadable(&mut mb), 0);
+    let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    app.autosave = false;
+    let (missing_tx, missing_rx) = channel();
+    let (tx, rx) = channel();
+    app.check_parts_later(missing_rx, 0, true);
+    app.take_bodies_later(rx);
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None, hidden: None }]).unwrap();
+    missing_tx.send(mailcraft_engine::Missing::default()).unwrap();
+    drop(tx);
+    let mut h = harness(app);
+    h.run_steps(3);
+    let m = h.state().session.mailbox.message(id).unwrap();
+    assert!(m.body.text.contains('\u{FFFD}') && m.refetch && !m.refetched);
+}
+
+/// #470: a mailbox file read in the background asks about the message being written once it is
+/// read, as it takes this mailbox's place; the answer opens what was read without reading it
+/// again, and Cancel leaves the message and the mailbox open.
+#[test]
+fn a_message_being_written_is_asked_about_when_the_read_mailbox_takes_over() {
+    let tmp = Temp::new("swap-compose");
+    let file = tmp.0.join("Archive.mailcraft");
+    mailcraft_engine::store::save(&file, &mailbox(7)).unwrap();
+    for answer in ["cancel", "discard"] {
+        let (services, held) = held_host();
+        let mut h = harness(sample_app(services));
+        let app = h.state_mut();
+        assert_eq!(app.run("file.open", json!({"path": file.to_string_lossy()})).unwrap()["pending"], "opening");
+        assert!(app.dialog.is_none(), "not asked before the file is read");
+        app.execute("mail.new", json!({})).unwrap();
+        app.execute("compose.set", json!({"subject": "Mine", "body": "Half"})).unwrap();
+        held.lock().unwrap()[0].2.send(Ok(())).unwrap();
+        h.run_steps(2);
+        let app = h.state_mut();
+        let Some(crate::dialogs::Dialog::DiscardDraft { then, params }) = app.dialog.take() else { panic!("{answer}: not asked") };
+        assert_eq!(then, "file.open");
+        assert_ne!(app.session.path.as_deref(), Some(file.as_path()), "nothing opens before the answer");
+        crate::dialogs::leave_message(app, answer, &then, params);
+        assert_eq!(held.lock().unwrap().len(), 1, "{answer}: read once");
+        assert!(app.reading_ahead.is_none(), "{answer}");
+        if answer == "cancel" {
+            assert_eq!(app.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
+            assert_ne!(app.session.path.as_deref(), Some(file.as_path()));
+        } else {
+            assert!(app.session.compose.is_none());
+            assert_eq!(app.session.path.as_deref(), Some(file.as_path()));
+            assert_eq!(app.session.mailbox.messages.len(), 7);
+        }
+    }
+}

@@ -6,6 +6,8 @@ pub mod account;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
 #[cfg(test)]
+mod agent_owners_message_tests;
+#[cfg(test)]
 mod answered_tests;
 pub mod calendar;
 pub mod calendar_extra;
@@ -16,7 +18,9 @@ pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
 pub mod edit;
+mod ews_down;
 pub mod ews_mail;
+mod ews_up;
 #[cfg(test)]
 mod favorites_tests;
 pub mod file;
@@ -43,6 +47,7 @@ pub mod graph_switch;
 pub mod graph_up;
 #[cfg(test)]
 mod hidden_selection_tests;
+pub mod imap_again;
 #[cfg(test)]
 mod imap_outbox_tests;
 mod jmap_down;

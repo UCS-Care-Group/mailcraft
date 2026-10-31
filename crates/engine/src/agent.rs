@@ -311,6 +311,7 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
     "ui.focusSearch",
@@ -373,6 +374,8 @@ const ACCOUNTS: &[&str] = &[
     "account.add",
     "account.edit",
     "account.remove",
+    // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
+    "account.forgetEwsCertificate",
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
@@ -462,6 +465,7 @@ const NEVER: &[&str] = &[
     "sync.ewsRequest",
     "sync.applyEws",
     "sync.ewsFetchRequest",
+    "sync.applyEwsFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
@@ -652,6 +656,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // An appointment, a contact or a task with changes that aren't saved, in the dialog that
         // this closes or opens another in place of: the changes are lost. The window says which
         // (`unsaved`, from `agent_gate`, never from the agent).
+        // The page that reviews an Exchange server's certificate looks at the server over the network.
+        "ui.dialog" if p::str(params, "page") == Some("certificate") => Access::Owner(Class::Accounts),
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
@@ -822,6 +828,9 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.sendAgain",
 ];
 
+/// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
+const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain"];
+
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
     format!(
@@ -847,8 +856,19 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
     }
-    if NEEDS_IDS.contains(&id) && p::ids(params).is_none_or(|ids| ids.is_empty()) {
-        return Verdict::Refuse(needs_ids(id));
+    // Named as the command reads them (#451, #503, #553): ids named wrongly are refused, never asked about as
+    // the selection or as some of what was named.
+    if NEEDS_IDS.contains(&id) {
+        match p::ids_strict(params) {
+            Ok(Some(_)) => {}
+            Ok(None) => return Verdict::Refuse(needs_ids(id)),
+            Err(e) => return Verdict::Refuse(format!("{} ({e})", needs_ids(id))),
+        }
+        if ONE_MESSAGE.contains(&id)
+            && let Err(e) = p::message_strict(params)
+        {
+            return Verdict::Refuse(format!("`{id}`: {e}"));
+        }
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
@@ -858,16 +878,6 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         && let Err(e) = crate::cmd::junk::list_account(s, params)
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
-    }
-    // Params the command would read as none, and ids it refuses, aren't asked about as the
-    // selection it would take without them (#503, #451).
-    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move" | "mail.copy") {
-        if !(params.is_object() || params.is_null()) {
-            return Verdict::Refuse(format!("`{id}`: the parameters are an object"));
-        }
-        if let Err(e) = p::ids_strict(params) {
-            return Verdict::Refuse(format!("`{id}`: {e}"));
-        }
     }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
@@ -956,17 +966,30 @@ fn event_title(s: &Session, id: &str, params: &Value) -> String {
         let at = if start.is_empty() { String::new() } else { format!(" at {}", clip(start, 40)) };
         return format!("the new event {}{at}", quoted(title));
     }
-    match p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+    // An answer to a meeting request in the mail is about the request (#553).
+    if params.get("message").is_some() {
+        return match p::id_strict(params, "message").ok().flatten().and_then(|m| s.mailbox.message(m)) {
+            Some(m) => format!("the meeting request {}", quoted(&m.subject)),
+            None => "a meeting request".to_string(),
+        };
+    }
+    match named_event(s, params) {
         Some(e) => quoted(&e.title),
         None => "an item of the calendar".to_string(),
     }
+}
+
+/// The event a call names, or else the selected one, as the command finds it ([`p::id_strict`],
+/// #553): one named wrongly is none, never the selected one.
+fn named_event<'a>(s: &'a Session, params: &Value) -> Option<&'a mailcraft_model::Event> {
+    p::id_strict(params, "id").ok()?.or(s.sel.event).and_then(|e| s.mailbox.event(e))
 }
 
 /// The people a calendar call writes to: those it names and those the event already has.
 fn invitees(s: &Session, params: &Value) -> Vec<String> {
     let mut who = addresses(params.get("attendees"));
     who.extend(addresses(params.get("optional")));
-    if let Some(e) = p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+    if let Some(e) = named_event(s, params) {
         who.extend(e.attendees.iter().map(|a| a.address.email.clone()));
     }
     who.dedup();
@@ -986,10 +1009,15 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         fields.remove("unsaved");
     }
     let mut what = what_it_does(s, id, &bare);
-    // Another mailbox in view closes the message the owner is writing, unsaved (#494).
+    // Another mailbox in view closes the message the owner is writing (#494); what isn't saved of
+    // it goes to Drafts first, unless it is let go of (`discard`, #470).
     if matches!(id, "file.new" | "file.open") && owner_writing(s) {
         let unsaved = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c));
-        let how = if unsaved { " without being saved" } else { "" };
+        let how = match (unsaved, p::bool(params, "discard") == Some(true)) {
+            (true, true) => " without being saved",
+            (true, false) => "; what isn't saved of it goes to Drafts first",
+            (false, _) => "",
+        };
         what.push_str(&format!("; the message {} that the owner is writing is closed{how}", writing(s)));
     }
     // And the windows of appointments with changes that aren't saved, as does taking the
@@ -1295,8 +1323,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
 /// and what becomes of that message (#494).
 fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
     let message = |m: Option<Id>| m.and_then(|m| s.mailbox.message(m)).map(|m| quoted(&m.subject)).unwrap_or_else(|| "(none selected)".to_string());
-    let one = || message(p::id(params, "id").or(s.sel.focus()));
-    let several = || messages_text(s, &p::ids(params).unwrap_or_else(|| s.sel.messages.clone()));
+    let one = || message(p::message_strict(params).ok().and_then(|m| m.or(s.sel.focus())));
+    let several = || messages_text(s, &p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default());
     let instead = match id {
         "mail.new" => "start a new message".to_string(),
         "mail.reply" => format!("reply to {}", one()),
@@ -1488,6 +1516,9 @@ mod tests {
         }
         assert_eq!(classify(&s, "calendar.respond", &json!({"response": "accept", "send": true})), Access::Owner(Class::Send));
         assert_eq!(classify(&s, "calendar.respond", &json!({"response": "accept"})), Access::Safe);
+        // The review of a server's certificate makes a network contact; the Exchange page waits for Connect.
+        assert_eq!(classify(&s, "ui.dialog", &json!({"name": "account", "id": 3, "page": "certificate"})), Access::Owner(Class::Accounts));
+        assert_eq!(classify(&s, "ui.dialog", &json!({"name": "account", "page": "exchange", "email": "ada@example.org"})), Access::Safe);
         let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id);
         if let Some(outbox) = outbox {
             assert_eq!(classify(&s, "mail.move", &json!({"folder": outbox, "ids": [1]})), Access::Owner(Class::Send));

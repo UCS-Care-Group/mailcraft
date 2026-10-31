@@ -26,6 +26,8 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
+        CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
+            .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}. Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
@@ -462,14 +464,17 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("an account becomes a JMAP account, or stops being one, only by being removed and added again"));
     }
     // And once its mail is here, those ids are one account's at one server and mailbox.
+    let url = |x: &Account| x.ews.as_ref().filter(|server| server.problem().is_none()).map(|server| server.url.trim().to_string());
+    // (The name that signs in, with the e-mail address when none is given: another name may
+    // open another mailbox, and these ids are one mailbox's.)
+    let login = |x: &Account| {
+        let name = x.ews.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
+        name.to_lowercase()
+    };
+    // Another server or another user name is another mailbox: where the folder list and the
+    // folders went on from is the old one's, and is forgotten with it (below).
+    let other_mailbox = a.kind == AccountKind::Exchange && (url(&before) != url(&a) || login(&before) != login(&a));
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
-        let url = |x: &Account| x.ews.as_ref().filter(|server| server.problem().is_none()).map(|server| server.url.trim().to_string());
-        // (The name that signs in, with the e-mail address when none is given: another name may
-        // open another mailbox, and these ids are one mailbox's.)
-        let login = |x: &Account| {
-            let name = x.ews.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
-            name.to_lowercase()
-        };
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
             return Err(fail(
@@ -508,7 +513,40 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("{address} is already set up", address = a.email));
     }
     *s.mailbox.account_mut(id)? = a;
+    if other_mailbox {
+        forget_ews_states(&mut s.mailbox, id);
+    }
     Ok(json!({"id": id}))
+}
+
+/// `account.forgetEwsCertificate`: the account no longer trusts the certificate it was told to trust (#252).
+fn forget_ews_certificate(s: &mut Session, v: &Value) -> CmdResult {
+    if !s.ews {
+        return Err(fail(super::ews_mail::SWITCHED_OFF));
+    }
+    let id = p::req_id(v, "id")?;
+    let a = s.mailbox.account_mut(id)?;
+    if a.kind != AccountKind::Exchange {
+        return Err(failed!("{name} isn't an Exchange server account", name = a.name));
+    }
+    let server = a.ews.as_mut().ok_or_else(|| fail("this Exchange server account has no server settings"))?;
+    let forgotten = !server.trusted.is_empty();
+    server.trusted.clear();
+    Ok(json!({"id": id, "forgotten": forgotten}))
+}
+
+/// An Exchange server account's sync states belong to the mailbox they were given for: forgotten,
+/// where the account's folder list went on from and where each of its folders did, so that the
+/// next run reads from the start (#252).
+fn forget_ews_states(mb: &mut mailcraft_model::Mailbox, account: Id) {
+    if let Some(server) = mb.account_mut(account).ok().and_then(|a| a.ews.as_mut()) {
+        server.hierarchy.clear();
+    }
+    for f in mb.folders.iter_mut().filter(|f| f.account == account) {
+        if let Some(server) = f.server.as_mut() {
+            server.sync_state.clear();
+        }
+    }
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
@@ -676,6 +714,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             known.entry(f.id).or_default().push(uid);
         }
     }
+    let mut again = super::imap_again::wanted(&s.mailbox, account);
     let folders = s
         .mailbox
         .folders
@@ -689,6 +728,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_seen: f.uid_seen,
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
+            again: again.remove(&f.id).unwrap_or_default(),
         })
         .collect();
     let (ops, _) = remote_ops(s, account, MAX_OPS);
@@ -708,9 +748,10 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         return super::graph_mail::unpushed(s, account);
     }
-    // (Nothing of an Exchange server account goes up yet, #252.)
+    // An Exchange server account's changes are counted as a Microsoft account's (#252): folders,
+    // messages, drafts. (Nothing is counted while the switch is off: nothing would go.)
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
-        return 0;
+        return if s.ews { super::graph_mail::unpushed(s, account) } else { 0 };
     }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
@@ -1674,7 +1715,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 }
 
 /// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: FolderDelta, counts: &mut Counts) {
+fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1752,6 +1793,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         if let Some(id) = on_server.by_uid.get(&(folder, theirs.uid)) {
             counts.updated += usize::from(merge_flags(mb, *id, *theirs));
         }
+    }
+    // Mail downloaded again to be read anew (#650); a mailbox numbered anew has no UID to find it by.
+    if reset {
+        delta.refetched.clear();
+        delta.refetch_done.clear();
+    } else {
+        super::imap_again::take_in(mb, &mut delta, |uid| on_server.by_uid.get(&(folder, uid)).copied());
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;

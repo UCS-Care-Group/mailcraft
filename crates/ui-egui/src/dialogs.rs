@@ -782,9 +782,15 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
 /// Whether running `id` as the owner asks first (#442): it closes the message being written, or
 /// puts another in its place, and that message has changes that aren't saved, or its saved draft
-/// is gone (#494). A caller that already let them go (`discard`) isn't asked.
+/// is gone (#494). A caller that already let them go (`discard`) isn't asked. Another mailbox in
+/// view closes it too (#470): File › Open asks once the file is chosen, so a cancelled picker
+/// leaves the message alone, and a file read in the background asks once it is read, as it takes
+/// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
-    mailcraft_engine::cmd::compose::LEAVING.contains(&id)
+    let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
+    mailcraft_engine::cmd::compose::leaves(id)
+        && !choosing
+        && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
         && app.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&app.session, c))
         && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
@@ -805,6 +811,15 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
         _ => false,
     };
     if !left {
+        // A mailbox file read in the background that the owner then didn't open isn't kept.
+        crate::opening::forget_unopened(then, &params);
+        return;
+    }
+    // A mailbox file asked about once it was read (#470) opens what was read, not read again.
+    if then == "file.open" {
+        let was = std::mem::replace(&mut app.swapping, true);
+        let _ = app.run(then, params);
+        app.swapping = was;
         return;
     }
     // Saved, it closes without another word; it is saved as it is now.
@@ -1092,8 +1107,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
 /// may be a link).
 pub(crate) fn link_address(typed: &str) -> String {
     let typed = typed.trim();
-    if typed.contains(':') {
+    if typed.contains(':') && !host_and_port(typed) {
         typed.to_string()
+    } else if typed.contains(':') {
+        format!("https://{typed}")
     } else if typed.contains('@') && !typed.contains('/') {
         format!("mailto:{typed}")
     } else if typed.contains('.') && !typed.contains(char::is_whitespace) {
@@ -1101,6 +1118,19 @@ pub(crate) fn link_address(typed: &str) -> String {
     } else {
         typed.to_string()
     }
+}
+
+/// A host and a port typed without a scheme (`www.example.org:8443/x`, `intranet:8080/wiki`):
+/// what follows the colon is a port number (1 to 5 digits, then the end or a `/`, `?` or `#`).
+/// Schemes whose address is a number (`tel:`, `sip:911`, `sms:12345`…) are schemes whatever follows.
+fn host_and_port(typed: &str) -> bool {
+    const NUMERIC: [&str; 9] = ["tel", "mailto", "sip", "sips", "sms", "callto", "fax", "xmpp", "im"];
+    let Some((scheme, rest)) = typed.split_once(':') else { return false };
+    if NUMERIC.iter().any(|n| scheme.eq_ignore_ascii_case(n)) {
+        return false;
+    }
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    (1..=5).contains(&digits) && rest.get(digits..).is_some_and(|after| after.is_empty() || after.starts_with(['/', '?', '#']))
 }
 
 /// Every command (engine and window) as `(id, label, location, shortcut, enabled)`, for search.
@@ -1474,7 +1504,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 ui.label(
                     egui::RichText::new(tl!(
-                        "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+                        "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
                     ))
                     .color(t.text_dim)
                     .size(11.0),
@@ -1496,7 +1526,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             } else if submit {
                 match app.execute("compose.link", json!({"url": link_address(url)})) {
                     Ok(_) => close = true,
-                    Err(e) => *error = e,
+                    Err(e) => *error = tl!(&e).to_string(),
                 }
             }
             // The keyboard goes back to the text.

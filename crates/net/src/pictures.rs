@@ -1638,7 +1638,7 @@ mod tests {
             b"HTTP/1.1 302 Found\r\nLocation: http://\r\n\r\n".to_vec(),
             format!("HTTP/1.1 302 Found\r\nLocation: /{}\r\n\r\n", "a".repeat(12_000)).into_bytes(),
             format!("HTTP/1.1 200 OK\r\n{}\r\npng", "X-Filler: yes\r\n".repeat(400)).into_bytes(),
-            format!("HTTP/1.1 200 OK\r\nX-Filler: {}\r\n\r\npng", "x".repeat(40_000)).into_bytes(),
+            format!("HTTP/1.1 200 OK\r\nX-Filler: {}\r\n\r\npng", "x".repeat(60_000)).into_bytes(),
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\npng\r\n0\r\n\r\n".to_vec(),
             b"HTTP/1.1 999 What\r\n\r\n".to_vec(),
         ];

@@ -257,3 +257,28 @@ fn removing_an_account_forgets_both_names() {
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert!(store.get(OLD).is_none() && store.get("password:avery@mail.example").is_none());
 }
+
+#[test]
+fn an_exchange_servers_password_is_for_that_address_and_that_user_name() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    a.session.ews = true;
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let added =
+        a.execute("account.add", json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ada"}})).unwrap();
+    let id = added["id"].as_u64().unwrap();
+    let key = |a: &MailApp| MailApp::secret_key("password", a.session.mailbox.account(id).unwrap());
+    let before = key(&a);
+    // The same server and name: kept.
+    a.passwords.insert(id, "pw".into());
+    a.execute("account.edit", json!({"id": id, "displayName": "Ada"})).unwrap();
+    assert!(a.passwords.contains_key(&id));
+    // Another user name on the same address: the password typed for the first is not sent as the second's.
+    a.execute("account.edit", json!({"id": id, "ews": {"url": url, "username": "CORP\\bob"}})).unwrap();
+    assert_ne!(key(&a), before);
+    assert!(!a.passwords.contains_key(&id));
+    // Another server with the same user name, likewise.
+    a.passwords.insert(id, "pw".into());
+    a.execute("account.edit", json!({"id": id, "ews": {"url": "https://other.example.org/EWS/Exchange.asmx", "username": "CORP\\bob"}})).unwrap();
+    assert!(!a.passwords.contains_key(&id));
+}
