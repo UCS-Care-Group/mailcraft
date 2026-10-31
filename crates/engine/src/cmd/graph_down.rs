@@ -92,6 +92,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
     // shared mailbox: the rules, like the lists, are the owner's.
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
+    let sent_items = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
     let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
@@ -149,6 +150,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         if there.server.id.is_empty() {
             continue;
         }
+        // What is in Sent Items was sent: Exchange files the copy of a message sent as MIME
+        // (`sendMail`, how a message never saved as a draft goes) with `isDraft` still true, and
+        // it would be shown as a draft for ever.
+        let sent_copy;
+        let there = if sent_items && there.draft != Some(false) {
+            sent_copy = GraphMessage { draft: Some(false), ..there.clone() };
+            &sent_copy
+        } else {
+            there
+        };
         match index.find(mb, account, &there.server.id) {
             Some(m) => {
                 if update(mb, account, m, folder, &page.folder, there) {
@@ -562,6 +573,10 @@ fn keeps_whole(mb: &Mailbox, account: Id) -> Option<u64> {
 #[cfg(test)]
 #[path = "graph_down_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "graph_sent_not_draft_tests.rs"]
+mod sent_not_draft_tests;
 
 #[cfg(test)]
 mod tests {

@@ -2960,6 +2960,19 @@ impl Mailbox {
                 }
             }
         }
+        // A Microsoft account's Sent Items hold what was sent. Exchange files the copy of a
+        // message sent as MIME with `isDraft` still true, and a mailbox kept before that was
+        // known took it for a draft; the server never says it again, so it is put right here.
+        // Not said as a repair: nothing in the mailbox was damaged, and the owner isn't told
+        // that it was.
+        let sent_items: HashSet<Id> =
+            self.folders.iter().filter(|f| f.kind == FolderKind::Sent && self.keeps_drafts_on_server(f.account)).map(|f| f.id).collect();
+        for m in self.messages.values_mut() {
+            if m.draft && sent_items.contains(&m.folder) && !m.server_draft.as_ref().is_some_and(|d| d.pending) {
+                let m = Arc::make_mut(m);
+                (m.draft, m.server_draft) = (false, None);
+            }
+        }
         // What is kept about the server's copies must hang together: a UID names one message of
         // its folder, and the flags the server is said to have are those of that UID.
         let mut on_server: HashSet<(Id, u32)> = HashSet::new();
