@@ -13,7 +13,7 @@
 //!   whose answer was lost is looked for again before anything else is done; not found, it waits
 //!   for the next run. A make is never asked twice in a run.
 //! - **Changed in place** (`PATCH /me/messages/{id}`) in the fields that differ from what the
-//!   server last had: subject, body, To, Cc, Bcc, importance.
+//!   server last had: subject, body, To, Cc, Bcc, Reply-To, importance.
 //! - **Its attachments** brought in step with those here: the server's are listed, those it
 //!   should keep are matched by what was put there before (or, for those that came from
 //!   elsewhere, a copy of a forwarded message's, by name, type **and content**: a name alone
@@ -311,7 +311,7 @@ fn fields(d: &DraftUp) -> Map<String, Value> {
     if let Some(body) = &d.body {
         out.insert("body".into(), json!({"contentType": if body.html { "html" } else { "text" }, "content": body.content}));
     }
-    for (name, list) in [("toRecipients", &d.to), ("ccRecipients", &d.cc), ("bccRecipients", &d.bcc)] {
+    for (name, list) in [("toRecipients", &d.to), ("ccRecipients", &d.cc), ("bccRecipients", &d.bcc), ("replyTo", &d.reply_to)] {
         if let Some(list) = list {
             out.insert(name.into(), recipients(list));
         }

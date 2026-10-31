@@ -25,7 +25,7 @@ use crate::{CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.sendAgain", "Send Again", "Mail", send_again)
-            .params(r#"{"id"?: number} (default: the selected message) — a held message in the Outbox goes with the next Send/Receive"#)
+            .params(r#"{"id"?: number} (default: the selected message; an `id` that is null or isn't an id is refused) — a held message in the Outbox goes with the next Send/Receive"#)
             .selection(super::needs_message),
         CommandSpec::new("sync.holdSends", "Hold Unsent Mail", "Send / Receive", hold_sends)
             .params(r#"{"account": number (a shared mailbox), "why": "declined"|"approval"|"organisation"} — what waits in a shared mailbox's Outbox is held, with that reason: sending from shared mailboxes was not allowed on Microsoft's page ("declined"), waits on an administrator's approval ("approval"), or the organisation doesn't allow it ("organisation"). Nothing is sent from another address. Send Again puts a held message back. Answers {"held": [ids]}"#),
@@ -173,7 +173,7 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn send_again(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));

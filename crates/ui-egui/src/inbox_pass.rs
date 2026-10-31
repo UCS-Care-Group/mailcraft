@@ -167,6 +167,9 @@ impl MailApp {
     /// itself (`check`).
     pub(crate) fn start_inbox_pass(&mut self, account: Id, quiet: bool, check: bool) -> Option<Value> {
         self.services.graph.as_ref()?;
+        if self.offline() {
+            return None;
+        }
         if self.sync_rx.is_some() || self.graph_rx.is_some() || (quiet && !self.can_sync_quietly(account)) {
             return None;
         }

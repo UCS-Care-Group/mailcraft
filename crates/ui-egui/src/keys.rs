@@ -579,6 +579,9 @@ pub fn key_name(k: Key) -> Option<&'static str> {
         Key::X => "X",
         Key::Y => "Y",
         Key::Z => "Z",
+        // `=` is where `+` is on most keyboards: Mod with either zooms in.
+        Key::Plus | Key::Equals => "Plus",
+        Key::Minus => "Minus",
         _ => return None,
     })
 }
@@ -764,6 +767,8 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
                 continue;
             }
         }
+        // A `+` typed with Shift is the same key as one without.
+        let modifiers = if name == "Plus" { Modifiers { shift: false, ..modifiers } } else { modifiers };
         let k = combo(modifiers, name);
         if k == "Delete"
             && let Some(id) = module_delete(app)

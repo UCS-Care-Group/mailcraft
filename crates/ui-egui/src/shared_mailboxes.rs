@@ -118,6 +118,9 @@ impl MailApp {
             cancel: self.services.sync_cancel.clone(),
         };
         self.resume_fetch();
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
         self.graph_pieces = Some(taken);

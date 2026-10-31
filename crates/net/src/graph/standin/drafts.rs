@@ -89,11 +89,12 @@ pub(super) struct Written {
     pub to: Option<Vec<String>>,
     pub cc: Option<Vec<String>>,
     pub bcc: Option<Vec<String>>,
+    pub reply_to: Option<Vec<String>>,
 }
 
 impl Written {
     pub(super) fn any(&self) -> bool {
-        self.subject.is_some() || self.body.is_some() || self.to.is_some() || self.cc.is_some() || self.bcc.is_some()
+        self.subject.is_some() || self.body.is_some() || self.to.is_some() || self.cc.is_some() || self.bcc.is_some() || self.reply_to.is_some()
     }
 
     /// Take `name` when it is one of a draft's own parts: whether it was.
@@ -107,6 +108,7 @@ impl Written {
             "toRecipients" => self.to = Some(recipients(value, name)?),
             "ccRecipients" => self.cc = Some(recipients(value, name)?),
             "bccRecipients" => self.bcc = Some(recipients(value, name)?),
+            "replyTo" => self.reply_to = Some(recipients(value, name)?),
             _ => return Ok(false),
         }
         Ok(true)
@@ -128,6 +130,9 @@ impl Written {
         }
         if let Some(bcc) = self.bcc {
             m.bcc = bcc;
+        }
+        if let Some(reply_to) = self.reply_to {
+            m.reply_to = reply_to;
         }
     }
 }
@@ -192,6 +197,9 @@ pub(super) fn mime_of(m: &Message) -> String {
     }
     if !m.bcc.is_empty() {
         head.push_str(&format!("Bcc: {}\r\n", m.bcc.join(", ")));
+    }
+    if !m.reply_to.is_empty() {
+        head.push_str(&format!("Reply-To: {}\r\n", m.reply_to.join(", ")));
     }
     head.push_str(&format!("Subject: {}\r\nDate: {}\r\nMessage-ID: {}\r\n", m.subject, date.iso(), m.internet_id));
     if !m.in_reply_to.is_empty() {

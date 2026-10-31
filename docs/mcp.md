@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -33,13 +33,14 @@ A command without a class is refused; every command MailCraft has carries one, a
 new commands choose.
 
 What a command does is checked too: a command run for an agent that would put mail in an Outbox
-(which sends it) or remove messages for good, without that being allowed, is undone and refused,
-whichever way it got there.
+(which sends it, or, an IMAP account's, holds it unsent until Send Again) or remove messages for
+good, without that being allowed, is undone and refused, whichever way it got there.
 
 **Files.** An agent never names a file on this computer. A param that does (`path` of
 `file.open`, `file.import`, `file.save`, `file.saveAs`, the `file.export…` commands,
 `mail.saveAttachment`, `compose.attach`, `signature.picture.add`; `ui.screenshot`'s `path`) is
-refused. Content goes in as base64 `data` (with `name`), and comes out as `data` when no path is
+refused, and so is the folder `mail.saveAllAttachments` would save into, `--files` or not: without
+it, every file comes back as `data` in `files`. Content goes in as base64 `data` (with `name`), and comes out as `data` when no path is
 given. With `--files DIR`, an agent may name files inside DIR: the server reads and writes them
 itself and hands the command `data`. A path is taken relative to DIR (an absolute one must lie in
 it); `..` is refused; a link that leads out of DIR is not followed; files are written as new files
@@ -61,8 +62,8 @@ changing without the owner's yes in the window, every time: no `--allow` skips t
 (#494). A message being written that the owner has typed in is theirs until it is closed, saved or
 not (a save by the owner, by the window every few minutes or by an agent doesn't change that;
 moving the cursor in a message only the agent wrote isn't writing in it). Closing it or putting
-another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`, `mail.forward`,
-`mail.forwardAsAttachment`, `mail.editDraft`, `people.email`, `ui.openWindow` of a draft) asks
+another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`, `mail.replyAndDelete`, `mail.forward`,
+`mail.forwardAsAttachment`, `mail.editDraft`, `mail.resend`, `people.email`, `ui.openWindow` of a draft) asks
 Allow, and what isn't saved goes to Drafts first (all of it when its saved draft is gone
 meanwhile); with `"discard": true` and changes that aren't saved it asks Delete, and nothing is
 saved. `compose.discard` (the message and its draft) asks Delete; `file.new` and `file.open`, which
@@ -81,7 +82,11 @@ Appointment Recurrence dialog the owner has changed something in (`ui.eventWindo
 `"recurrence": false`, or `"do": "close"` with the window); for the questions above, that dialog
 counts as changes that aren't saved. While the owner is writing a message, an `edit.undo` or
 `edit.redo` that would put back an earlier saved version of its draft, or take the draft away, is
-refused too. Any other undo or redo that would take away a draft, or put back an earlier version of
+refused too, and so is any command that would change what is written in it (its text, recipients,
+subject, attachments, importance or formatting: `compose.set`, `compose.type`, `compose.delete`,
+`compose.undo`, `edit.cut` and the rest), so that an agent can't empty it and save that over its
+draft (#577); `compose.saveDraft` saves what the owner wrote, and moving the cursor is no change.
+Any other undo or redo that would take away a draft, or put back an earlier version of
 one, is `delete`, the owner's own drafts included. `file.new` or `file.open` that would wait for
 the mailbox to be saved first (and run later, when the owner may be writing) is refused: the agent
 tries again in a moment. A command that would open a dialog in such a form's place runs, but that
@@ -90,6 +95,12 @@ types as the owner does, and what it does by hand in the window (the composer's 
 to Unsaved Message) is not asked about. A message only the agent wrote in is the agent's: leaving
 it saves it to Drafts without a question, and discarding it is `delete`. Headless, nothing is the
 owner's.
+
+**Naming what a command acts on.** An `id`, `ids` or `message` that names nothing (`null`, an id
+as text, zero, a fraction) is refused, never taken for what the owner selected, by Reply, Reply
+All, Open Draft, Send Again, Forward, Delete, Move and the appointment commands (#553; the list is
+in the [control protocol](control-protocol.md)). Reply, Reply All, Open Draft and Send Again take
+one message: `id`, or `ids` naming one.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what
@@ -175,6 +186,10 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |
+| 2026-10-31 | minor | `mail.replyAndDelete` (safe; names its message, never deletes for good), `mail.viewSource` (safe; message content, framed as untrusted) and `mail.saveAllAttachments` (safe; a folder is never taken from an agent, the files come back as `data`) |
+| 2026-10-31 | minor | `mail.resend` (safe; names its message, opens it again as a new one that is sent only by Send) and `compose.replyTo` (safe; each address checked, at most 20, line breaks dropped) |
+| 2026-10-30 | minor | #553: Reply, Reply All, Open Draft, Send Again, the answers to meeting requests and the appointment commands refuse an `id`, `ids` or `message` that names nothing, rather than take the selection; the four one-message commands take `ids` naming one |
 | 2026-10-29 | minor | #599: `read_message` and `mail.get` answer `hiddenText` (what the sender hid), framed as untrusted message content |
 | 2026-10-28 | minor | #620: an agent names the messages (`ids` or `id`) for delete, delete for good, move, copy, archive, junk, not junk, reply, reply all, forward, forward as attachment, open draft, remove attachment and send again; the window's selection is the owner's. `list_messages` reads a folder and search without moving the window to them |
 | 2026-10-27 | minor | #508: `mail.dismissWarnings` (hiding a message's sender-warning banner) needs the owner (class settings) |
@@ -194,3 +209,5 @@ parameters.
 | 2026-10-26 | minor | Sender warnings (#508): `read_message` and `mail.get` answer `warnings`, their kinds and levels as data, what they are about framed as untrusted |
 | 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` doesn't cover throwing away a message the owner typed in; any other command of an agent's that would take away an appointment being changed, overwrite what the owner typed in its window, or put back an earlier draft of the message the owner is writing, is refused; any other undo or redo that would take away a draft or put back an earlier version of one is `delete` |
 | 2026-10-28 | minor | #451: moving or copying mail onto another account's server (from another account or from this computer) is `send`; `mail.move` and `mail.copy` refuse an `id` or `ids` named wrongly rather than take the selection |
+| 2026-10-30 | patch | #577: an agent's command that would change what is written in a message the owner has typed in (its text, recipients, subject, attachments, importance, formatting) is refused, and nothing is changed; Save Draft saves only what the owner wrote |
+| 2026-10-30 | patch | #451 follow-up: an IMAP account's Outbox holds what is put there, and the question to the owner says so |

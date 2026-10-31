@@ -262,6 +262,7 @@ pub mod p {
     /// that isn't a list or names no message or has an entry that isn't an id, or more than
     /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection, as [`ids`] takes it.
     pub fn ids_strict(v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
+        object(v)?;
         let null = |k: &str| CmdError::Params(format!("`{k}` is null, which names no message"));
         match (v.get("id"), v.get("ids")) {
             (None, None) => Ok(None),
@@ -278,6 +279,33 @@ pub mod p {
                 list.iter().map(|x| whole(x).filter(|i| *i != 0).ok_or_else(wrong)).collect::<Result<_, _>>().map(Some)
             }
         }
+    }
+    /// The one message a command acts on, named by `id` (or by `ids` naming one), read as
+    /// [`ids_strict`] reads them (#553): `None` when neither is given, which takes the selection.
+    /// Anything else, `ids` naming more than one message too, is refused.
+    pub fn message_strict(v: &Value) -> Result<Option<Id>, CmdError> {
+        match ids_strict(v)?.as_deref() {
+            None => Ok(None),
+            Some([one]) => Ok(Some(*one)),
+            Some(_) => Err(CmdError::Params("this command acts on one message: name it by `id`".into())),
+        }
+    }
+    /// One item named by `k` (an appointment's `id`, a meeting request's `message`), read as
+    /// [`ids_strict`] reads messages (#553): `None` when `k` is left out, which takes the
+    /// selection; anything else under it that isn't a whole number above 0 (`null`, an id as
+    /// text, zero, a fraction) is refused, never taken to mean the selection.
+    pub fn id_strict(v: &Value, k: &str) -> Result<Option<Id>, CmdError> {
+        object(v)?;
+        match v.get(k) {
+            None => Ok(None),
+            Some(Value::Null) => Err(CmdError::Params(format!("`{k}` is null, which names nothing"))),
+            Some(x) => whole(x).filter(|i| *i != 0).map(Some).ok_or_else(|| CmdError::Params(format!("`{k}` is an id: a whole number above 0"))),
+        }
+    }
+    /// Parameters that aren't an object (or none) name nothing, and aren't taken for the
+    /// selection either.
+    fn object(v: &Value) -> Result<(), CmdError> {
+        if v.is_object() || v.is_null() { Ok(()) } else { Err(CmdError::Params("the parameters are an object".into())) }
     }
     /// Refuses any parameter but `known`: a caller that names what the command doesn't take
     /// means something by it that the command would not do.
@@ -343,5 +371,7 @@ mod import_tree_progress_tests;
 mod import_tree_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod strict_ids_tests;
 #[cfg(test)]
 mod tests;
