@@ -178,19 +178,6 @@ impl Count {
     }
 }
 
-/// How many messages each folder holds and how many of those are unread, in one pass over the mail.
-fn tallies(mailbox: &Mailbox) -> HashMap<Id, (usize, usize)> {
-    let mut out: HashMap<Id, (usize, usize)> = HashMap::new();
-    for m in mailbox.messages.values() {
-        let entry = out.entry(m.folder).or_default();
-        entry.0 = entry.0.saturating_add(1);
-        if !m.read {
-            entry.1 = entry.1.saturating_add(1);
-        }
-    }
-    out
-}
-
 /// A chevron centred on `c`, `half` its half-width when it points down (what is under it shows);
 /// it points right when that is folded away.
 fn chevron(painter: &Painter, c: Pos2, half: f32, open: bool, color: Color32) {
@@ -532,10 +519,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         pane_top(app, ui, &t);
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            let counts = tallies(&app.session.mailbox);
+            // (Counted once per change to the mailbox, not at every frame: `Session::folder_counts`.)
+            let counts = app.session.folder_counts();
             let count = |f: &Folder| {
-                let (total, unread) = counts.get(&f.id).copied().unwrap_or_default();
-                Count::of(f.kind, total, unread)
+                let held = counts.folder(f.id);
+                Count::of(f.kind, held.total, held.unread)
             };
             // What is listed: the favourites, and under each account what isn't folded away.
             let folded = app.ui.collapsed_folders.clone();
@@ -834,12 +822,14 @@ mod tests {
         assert_eq!(Count::of(FolderKind::Sent, 5, 5), Count::Nothing);
         assert_eq!(Count::of(FolderKind::Deleted, 5, 5), Count::Nothing);
 
-        // The tallies behind them, against the mailbox's own counting.
-        let mb = mailcraft_engine::sample::mailbox(NOW, 0);
-        let counts = tallies(&mb);
+        // The counts behind them, against the mailbox's own counting.
+        let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+        let counts = s.folder_counts();
+        let mb = &s.mailbox;
         assert!(mb.folders.iter().any(|f| mb.unread_count(f.id) > 0));
         for f in &mb.folders {
-            assert_eq!(counts.get(&f.id).copied().unwrap_or_default(), (mb.count(f.id), mb.unread_count(f.id)), "{}", f.name);
+            let held = counts.folder(f.id);
+            assert_eq!((held.total, held.unread), (mb.count(f.id), mb.unread_count(f.id)), "{}", f.name);
         }
     }
 

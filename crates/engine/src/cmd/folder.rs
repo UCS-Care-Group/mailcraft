@@ -13,10 +13,10 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
-            .pure()
+            .reads()
             .key("Mod+Y")
             .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
-        CommandSpec::new("folder.list", "List Folders", "Folder", list).pure().params(
+        CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
@@ -200,18 +200,14 @@ fn tree(s: &Session, account: Id, parent: Option<Id>, depth: usize) -> Vec<Value
 }
 
 fn list(s: &mut Session, _: &Value) -> CmdResult {
-    // Each account's unread, in one pass over the mail: its own messages alone.
-    let mut unread: std::collections::HashMap<Id, usize> = std::collections::HashMap::new();
-    for m in s.mailbox.messages.values().filter(|m| !m.read) {
-        let n = unread.entry(m.account).or_default();
-        *n = n.saturating_add(1);
-    }
+    // Each account's unread: its own messages alone (counted once per change to the mailbox).
+    let counts = s.folder_counts();
     let accounts: Vec<Value> = s
         .mailbox
         .accounts
         .iter()
         .map(|a| {
-            let unread = unread.get(&a.id).copied().unwrap_or(0);
+            let unread = counts.account(a.id).unread;
             let mut entry = json!({
                 "id": a.id, "name": a.name, "email": a.email, "kind": a.kind, "unread": unread,
                 "favoritesFrom": if favorites_from_server(s, a.id) { "server" } else { "mailbox" },
