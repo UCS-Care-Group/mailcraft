@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-01 | Themes, part 2 ([#703](https://github.com/UCS-Care-Group/mailcraft/issues/703)): MailCraft's own look replaces the borrowed one, light and dark. One cool grey ramp (no navy chrome beside grey panes), a blue accent, an unread dot, folder counts as pills, one selection treatment (fill, accent edge, focused and unfocused) with a flag's tint kept under it, group headings as plain text, the ribbon as a card, a neutral File view column, outlines at 3:1 or better, egui's buttons, combo boxes and check boxes restyled once, and the app mark in the title bar. The contrast test has no expected failures left |
 | 2026-10-31 | A new app icon: an envelope that is also a calendar page, with ring tabs, in front of two tilted sheets, on a blue rounded tile (design: Martin Ball). Its source is one SVG drawn by hand for MailCraft (`assets/app-icon/source/mailcraft.svg`), and `cargo xtask icon` renders every size from it with `resvg`, which only xtask depends on; the carrier pigeon and the script that drew it are gone. The same drawing in five other colours is kept in `assets/app-icon/alternates/`, not used yet. The web build has the icon as its favicon ([assets/app-icon/README.md](assets/app-icon/README.md)) |
 | 2026-10-31 | Parity B6: Request a Read Receipt (`compose.readReceipt`, Message › Tags: `Disposition-Notification-To` naming the sender over IMAP/SMTP, JMAP and Exchange's MIME sends, `isReadReceiptRequested` and `IsReadReceiptRequested` on Graph and Exchange drafts; kept with the draft; a request in incoming mail is never answered) and Show Training (`help.training`, the project's `docs` folder). Catalog rows Edit Message, Send/Receive Groups, the contact's Follow Up and Private, and the task's Private are marked out of scope with a reason, listed apart in the parity checklist |
 | 2026-10-31 | Automatic Replies ([#692](https://github.com/UCS-Care-Group/mailcraft/issues/692); `account.automaticReplies`, `account.setAutomaticReplies`): File › Info › Automatic Replies for an account that signs in with Microsoft, read and changed through Graph's mailbox settings; reading takes the `MailboxSettings.Read` a sign-in already has, and changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time the owner changes them (`ui.allowAutomaticReplies`, never with a sign-in; File › Info shows it, with Ask again); nothing is changed before the server's setting is read; the replies are shown as plain text and written as simple HTML; Automatic Replies in the status bar while they go out; agents may read them, and changing them is the owner's, like Send |
@@ -402,6 +403,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | #703: MailCraft's own look, in the progress log |
 | 2026-10-31 | The new app icon, in the progress log |
 | 2026-10-31 | Parity B6: Request a Read Receipt, Show Training and the out-of-scope catalog rows, in the progress log |
 | 2026-10-31 | Automatic Replies for Microsoft accounts, in the progress log and step 11 |

@@ -44,9 +44,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             for (code, label, icon) in PAGES {
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
                 let active = app.ui.backstage_page == *code;
-                if active || resp.hovered() {
-                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 5.0, ink.linear_multiply(if active { 0.22 } else { 0.12 }));
+                if active {
+                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 6.0, t.accent_soft);
+                } else if resp.hovered() {
+                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 6.0, t.hover);
                 }
+                let ink = if active { t.accent_soft_text } else { ink };
                 if active {
                     ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x + 8.0, r.center().y - 9.0), vec2(3.0, 18.0)), 1.5, t.backstage_mark);
                 }

@@ -788,7 +788,7 @@ pub(crate) mod kit {
     /// The one button of a dialog that only manages things. `true` when it was clicked.
     pub fn close_button(ui: &mut Ui) -> bool {
         let mut close = false;
-        strip(ui, |ui| close = primary_button(ui, tl!("Close"), true).clicked());
+        strip(ui, |ui| close = crate::widgets::plain_button(ui, tl!("Close")).clicked());
         close
     }
 

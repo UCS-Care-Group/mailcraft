@@ -130,6 +130,10 @@ impl From<InterfaceSize> for u16 {
     }
 }
 
+fn c(r: u8, g: u8, b: u8) -> Color32 {
+    Color32::from_rgb(r, g, b)
+}
+
 /// Every colour the UI uses; widgets never hard-code colours.
 #[derive(Clone, Copy, Debug)]
 pub struct Tokens {
@@ -198,8 +202,18 @@ pub struct Tokens {
     pub text_selection: Color32,
     /// A selected row in a list that does not have the keyboard's focus.
     pub selection_unfocused: Color32,
-    /// The box of a group heading in the message list.
+    /// The fill of a group heading in the message list (none: the heading is text on the list).
     pub group_header: Color32,
+    /// The accent edge of a selected row, and its quieter form when the list has no focus.
+    pub selection_edge: Color32,
+    pub selection_edge_unfocused: Color32,
+    /// The wash behind a selected folder and a count pill, and the ink on it; the quiet pill of
+    /// a total count (Drafts).
+    pub accent_soft: Color32,
+    pub accent_soft_text: Color32,
+    pub pill_quiet: Color32,
+    /// The faintest line: between rows, between the lines of a calendar hour.
+    pub border_faint: Color32,
     /// The fill of a search pill.
     pub selection_pill: Color32,
     /// A row under the pointer in a list, and in the folder pane.
@@ -249,22 +263,22 @@ pub struct Tokens {
 }
 
 impl Tokens {
-    /// The light palette: white and very light neutral greys, with a blue accent.
+    /// The light palette: a cool grey window, white and near-white sheets, a blue accent.
     ///
     /// The window's own background (title bar, tab strip, module bar, status bar, and what shows
-    /// between the panes) is one grey; the ribbon and the panes sit on it as lighter sheets.
+    /// between the panes) is one grey; the ribbon is a card on it and the panes sit beside it.
     pub fn light() -> Self {
-        let window = Color32::from_rgb(0xF3, 0xF3, 0xF3);
-        let panel = Color32::from_rgb(0xFA, 0xFA, 0xFA);
+        let window = c(0xF2, 0xF4, 0xF7);
+        let panel = c(0xF8, 0xF9, 0xFB);
         let surface = Color32::WHITE;
-        let border = Color32::from_rgb(0xE0, 0xE0, 0xE0);
-        let border_strong = Color32::from_rgb(0xC4, 0xC4, 0xC4);
-        let text = Color32::from_rgb(0x24, 0x24, 0x24);
-        let hover = Color32::from_rgb(0xE9, 0xE9, 0xE9);
-        let accent = Color32::from_rgb(0x0F, 0x6C, 0xBD);
+        let border = c(0xDD, 0xE2, 0xEA);
+        let text = c(0x1D, 0x23, 0x30);
+        let hover = c(0xE8, 0xEC, 0xF2);
+        let accent = c(0x0F, 0x68, 0xF0);
         let on_accent = Color32::WHITE;
-        let selection = Color32::from_rgb(0xDE, 0xDE, 0xDE);
-        let group_label = Color32::from_rgb(0x70, 0x70, 0x70);
+        let soft = c(0xE3, 0xED, 0xFF);
+        let selection = c(0xEE, 0xF4, 0xFF);
+        let input_border = c(0x7F, 0x8A, 0x9E);
         Tokens {
             dark: false,
             sender_dark: false,
@@ -276,56 +290,62 @@ impl Tokens {
             panel,
             surface,
             border,
-            border_strong,
+            border_strong: c(0xB8, 0xC0, 0xCD),
             text,
-            text_dim: Color32::from_rgb(0x61, 0x61, 0x61),
-            text_disabled: Color32::from_rgb(0xA6, 0xA6, 0xA6),
-            icon: Color32::from_rgb(0x42, 0x42, 0x42),
+            text_dim: c(0x5A, 0x62, 0x73),
+            text_disabled: c(0x7F, 0x88, 0x99),
+            icon: c(0x3A, 0x42, 0x52),
             hover,
-            pressed: Color32::from_rgb(0xD6, 0xD6, 0xD6),
-            checked: Color32::from_rgb(0xD6, 0xE8, 0xF8),
+            pressed: c(0xD6, 0xDC, 0xE6),
+            checked: soft,
             accent,
-            accent_text: Color32::from_rgb(0x11, 0x5E, 0xA3),
+            accent_text: c(0x06, 0x34, 0xC4),
             on_accent,
             input: Color32::WHITE,
-            input_border: Color32::from_rgb(0xC4, 0xC4, 0xC4),
-            group_label,
+            input_border,
+            group_label: c(0x5A, 0x62, 0x73),
             status_bar: window,
             selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xFF, 0xE0, 0x3D, 0x90),
-            flagged_row: Color32::from_rgb(0xFC, 0xF0, 0xF1),
-            overdue: Color32::from_rgb(0xB4, 0x23, 0x18),
-            off_hours: Color32::from_rgb(0xF5, 0xF5, 0xF5),
-            today: Color32::from_rgb(0xEB, 0xF3, 0xFC),
+            flagged_row: c(0xFC, 0xF0, 0xF2),
+            overdue: c(0xB4, 0x23, 0x18),
+            off_hours: c(0xF5, 0xF7, 0xFA),
+            today: c(0xEA, 0xF1, 0xFF),
             menu: Color32::WHITE,
-            blue: Color32::from_rgb(0x2F, 0x6F, 0xD0),
-            red: Color32::from_rgb(0xD1, 0x3B, 0x3B),
-            green: Color32::from_rgb(0x2E, 0x8B, 0x57),
-            orange: Color32::from_rgb(0xE0, 0x7B, 0x1F),
-            icon_red: Color32::from_rgb(0xC4, 0x31, 0x4B),
-            icon_yellow: Color32::from_rgb(0x9C, 0x67, 0x00),
-            icon_green: Color32::from_rgb(0x2B, 0x7A, 0x4B),
-            icon_purple: Color32::from_rgb(0x7B, 0x4F, 0xB8),
+            blue: c(0x2F, 0x6F, 0xD0),
+            red: c(0xD1, 0x3B, 0x3B),
+            green: c(0x1F, 0x7A, 0x4D),
+            orange: c(0xB8, 0x5C, 0x08),
+            icon_red: c(0xC4, 0x31, 0x4B),
+            icon_yellow: c(0x9C, 0x67, 0x00),
+            icon_green: c(0x2B, 0x7A, 0x4B),
+            icon_purple: c(0x7B, 0x4F, 0xB8),
             scrim: Color32::from_black_alpha(60),
             shadow_popup: Color32::from_black_alpha(40),
             shadow_window: Color32::from_black_alpha(50),
             text_selection: accent.linear_multiply(0.30),
-            selection_unfocused: selection.linear_multiply(0.7),
-            group_header: surface.lerp_to_gamma(selection, 0.45),
-            selection_pill: selection.gamma_multiply(0.7),
+            selection_unfocused: c(0xF1, 0xF3, 0xF7),
+            selection_edge: accent,
+            selection_edge_unfocused: c(0xA9, 0xB6, 0xCC),
+            group_header: Color32::TRANSPARENT,
+            selection_pill: soft,
+            accent_soft: soft,
+            accent_soft_text: c(0x06, 0x34, 0xC4),
+            pill_quiet: c(0xEC, 0xEF, 0xF4),
             hover_subtle: hover.linear_multiply(0.6),
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: border,
-            track: border_strong.linear_multiply(0.6),
+            rule: c(0xE6, 0xE9, 0xEF),
+            border_faint: c(0xEC, 0xEF, 0xF4),
+            track: c(0xD6, 0xDC, 0xE6),
             lane: window,
-            ribbon_edge: Stroke::new(1.0, border),
+            ribbon_edge: Stroke::new(1.0, c(0xE3, 0xE7, 0xEE)),
             pane_rule: true,
-            field_edge: border_strong,
-            backstage_column: accent,
-            backstage_ink: on_accent,
-            backstage_mark: Color32::TRANSPARENT,
+            field_edge: input_border,
+            backstage_column: panel,
+            backstage_ink: text,
+            backstage_mark: accent,
             data_tint: 0.22,
             data_soft: 0.20,
             data_mix: 0.3,
@@ -341,81 +361,84 @@ impl Tokens {
             avatar_shade: 1.0,
         }
     }
-    /// The dark palette: near-black neutral greys, with a light blue accent.
-    ///
-    /// The window's own background is the darkest, and one colour everywhere it shows; the ribbon
-    /// is a lighter band on it, the folder pane nearly as dark as the window, the lists a step up.
+    /// The dark palette: one cool ramp, window to folder pane to list to ribbon, and a lighter
+    /// blue accent.
     pub fn dark() -> Self {
-        let window = Color32::from_rgb(0x0F, 0x16, 0x1F);
-        let panel = Color32::from_rgb(0x14, 0x14, 0x14);
-        let surface = Color32::from_rgb(0x26, 0x26, 0x26);
-        let border = Color32::from_rgb(0x44, 0x44, 0x44);
-        let border_strong = Color32::from_rgb(0x66, 0x66, 0x66);
-        let text = Color32::WHITE;
-        let hover = Color32::from_rgb(0x38, 0x38, 0x38);
-        let accent = Color32::from_rgb(0x58, 0xB8, 0xFE);
-        let on_accent = Color32::from_rgb(0x0A, 0x18, 0x26);
-        let selection = Color32::from_rgb(0x44, 0x44, 0x44);
-        let group_label = Color32::from_rgb(0xAD, 0xAD, 0xAD);
+        let window = c(0x12, 0x16, 0x1D);
+        let panel = c(0x16, 0x1B, 0x23);
+        let surface = c(0x1B, 0x21, 0x2B);
+        let border = c(0x2C, 0x34, 0x42);
+        let text = c(0xF1, 0xF4, 0xF9);
+        let hover = c(0x2A, 0x32, 0x40);
+        let accent = c(0x5A, 0xA2, 0xFF);
+        let on_accent = c(0x08, 0x13, 0x2B);
+        let soft = c(0x1F, 0x33, 0x58);
+        let selection = c(0x1F, 0x2B, 0x40);
+        let input_border = c(0x7D, 0x88, 0x9C);
         Tokens {
             dark: true,
             sender_dark: false,
             title_bar: window,
-            ribbon: Color32::from_rgb(0x29, 0x29, 0x29),
+            ribbon: c(0x20, 0x27, 0x33),
             tab_strip: window,
             nav: window,
             canvas: window,
             panel,
             surface,
             border,
-            border_strong,
+            border_strong: c(0x4A, 0x55, 0x68),
             text,
-            text_dim: Color32::from_rgb(0xC8, 0xC8, 0xC8),
-            text_disabled: Color32::from_rgb(0x70, 0x70, 0x70),
-            // A shade off white: line drawings in pure white glare on the dark panes.
-            icon: Color32::from_rgb(0xE0, 0xE0, 0xE0),
+            text_dim: c(0xB4, 0xBC, 0xCB),
+            text_disabled: c(0x6E, 0x78, 0x8C),
+            icon: c(0xDF, 0xE4, 0xEC),
             hover,
-            pressed: Color32::from_rgb(0x4A, 0x4A, 0x4A),
-            checked: Color32::from_rgb(0x1F, 0x3B, 0x57),
+            pressed: c(0x36, 0x40, 0x52),
+            checked: soft,
             accent,
-            accent_text: Color32::from_rgb(0x82, 0xC7, 0xFF),
+            accent_text: c(0x8F, 0xBF, 0xFF),
             on_accent,
-            input: Color32::from_rgb(0x1F, 0x1F, 0x1F),
-            input_border: Color32::from_rgb(0x66, 0x66, 0x66),
-            group_label,
+            input: surface,
+            input_border,
+            group_label: c(0xB4, 0xBC, 0xCB),
             status_bar: window,
             selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xC8, 0xA8, 0x00, 0x70),
-            flagged_row: Color32::from_rgb(0x3A, 0x2B, 0x2E),
-            overdue: Color32::from_rgb(0xFF, 0x99, 0x99),
-            off_hours: Color32::from_rgb(0x1F, 0x1F, 0x1F),
-            today: Color32::from_rgb(0x1F, 0x32, 0x46),
-            menu: Color32::from_rgb(0x29, 0x29, 0x29),
-            blue: Color32::from_rgb(0x6C, 0x9B, 0xEA),
-            red: Color32::from_rgb(0xEE, 0x6A, 0x6A),
-            green: Color32::from_rgb(0x5B, 0xC0, 0x8A),
-            orange: Color32::from_rgb(0xF0, 0xA0, 0x50),
-            icon_red: Color32::from_rgb(0xF0, 0x7A, 0x7A),
-            icon_yellow: Color32::from_rgb(0xE8, 0xB7, 0x4A),
-            icon_green: Color32::from_rgb(0x5B, 0xC0, 0x8A),
-            icon_purple: Color32::from_rgb(0xB6, 0x9B, 0xEE),
+            flagged_row: c(0x34, 0x26, 0x2C),
+            overdue: c(0xFF, 0x99, 0x99),
+            off_hours: c(0x17, 0x1C, 0x24),
+            today: c(0x1B, 0x2B, 0x45),
+            menu: c(0x20, 0x27, 0x33),
+            blue: c(0x6C, 0x9B, 0xEA),
+            red: c(0xEE, 0x6A, 0x6A),
+            green: c(0x5B, 0xC0, 0x8A),
+            orange: c(0xF0, 0xA0, 0x50),
+            icon_red: c(0xF0, 0x7A, 0x7A),
+            icon_yellow: c(0xE8, 0xB7, 0x4A),
+            icon_green: c(0x5B, 0xC0, 0x8A),
+            icon_purple: c(0xB6, 0x9B, 0xEE),
             scrim: Color32::from_black_alpha(110),
             shadow_popup: Color32::from_black_alpha(120),
             shadow_window: Color32::from_black_alpha(140),
             text_selection: accent.linear_multiply(0.45),
-            selection_unfocused: selection.linear_multiply(0.7),
-            group_header: surface.lerp_to_gamma(selection, 1.0),
-            selection_pill: selection,
+            selection_unfocused: c(0x1A, 0x22, 0x30),
+            selection_edge: accent,
+            selection_edge_unfocused: c(0x4A, 0x58, 0x72),
+            group_header: Color32::TRANSPARENT,
+            selection_pill: soft,
+            accent_soft: soft,
+            accent_soft_text: c(0xCF, 0xE0, 0xFF),
+            pill_quiet: c(0x26, 0x2E, 0x3B),
             hover_subtle: hover.linear_multiply(0.6),
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: border_strong,
-            track: border,
+            rule: c(0x25, 0x2C, 0x38),
+            border_faint: c(0x22, 0x29, 0x34),
+            track: c(0x36, 0x40, 0x52),
             lane: panel,
-            ribbon_edge: Stroke::NONE,
-            pane_rule: false,
-            field_edge: group_label,
+            ribbon_edge: Stroke::new(1.0, c(0x2A, 0x32, 0x40)),
+            pane_rule: true,
+            field_edge: input_border,
             backstage_column: panel,
             backstage_ink: text,
             backstage_mark: accent,
@@ -479,7 +502,7 @@ pub struct Palette {
 }
 
 impl Palette {
-    /// Today's look.
+    /// MailCraft's own look.
     pub fn builtin() -> Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
@@ -1186,18 +1209,20 @@ fn visuals(t: &Tokens) -> Visuals {
     v.widgets.inactive.weak_bg_fill = t.input;
     v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.input_border);
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.inactive.corner_radius = CornerRadius::same(4);
+    v.widgets.inactive.corner_radius = CornerRadius::same(6);
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.weak_bg_fill = t.hover;
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.border_strong);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.text_dim);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.hovered.corner_radius = CornerRadius::same(4);
+    v.widgets.hovered.corner_radius = CornerRadius::same(6);
     v.widgets.active.bg_fill = t.pressed;
     v.widgets.active.weak_bg_fill = t.pressed;
     v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.active.corner_radius = CornerRadius::same(4);
-    v.widgets.open.bg_fill = t.pressed;
-    v.widgets.open.weak_bg_fill = t.pressed;
+    v.widgets.active.bg_stroke = Stroke::new(1.0, t.text_dim);
+    v.widgets.active.corner_radius = CornerRadius::same(6);
+    v.widgets.open.bg_fill = t.hover;
+    v.widgets.open.weak_bg_fill = t.hover;
+    v.widgets.open.corner_radius = CornerRadius::same(6);
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: t.shadow_popup };
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: t.shadow_window };
     v
@@ -1497,12 +1522,6 @@ mod tests {
             }
             assert!([t.tab_strip, t.nav, t.canvas, t.status_bar].iter().all(|c| *c == t.title_bar), "{theme}: the window's own colour");
             assert_ne!(t.ribbon, t.title_bar, "{theme}: the ribbon is a band on the window");
-        }
-        // No cast in the greys: the panes are neutral in both palettes.
-        for t in [Tokens::light(), Tokens::dark()] {
-            for c in [t.ribbon, t.panel, t.surface, t.border, t.border_strong, t.hover, t.pressed, t.selection, t.menu, t.input] {
-                assert!(c.r() == c.g() && c.g() == c.b(), "{c:?}");
-            }
         }
     }
 
