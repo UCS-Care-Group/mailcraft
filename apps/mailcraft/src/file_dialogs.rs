@@ -17,13 +17,13 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use mailcraft_ui_egui::FileDialogRequest;
 
 /// A dialog the app asked for, with the channel its answer goes back through.
-type Request = (FileDialogRequest, Sender<Option<String>>);
+type Request = (FileDialogRequest, Sender<Option<Vec<String>>>);
 
 /// The `Services::file_dialog` hook.
-pub type Hook = Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>;
+pub type Hook = Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>;
 
-/// A picker's answer, waited for off the UI thread.
-type Picking = Pin<Box<dyn Future<Output = Option<rfd::FileHandle>> + Send>>;
+/// A picker's answer, waited for off the UI thread: the files picked, none when cancelled.
+type Picking = Pin<Box<dyn Future<Output = Option<Vec<rfd::FileHandle>>> + Send>>;
 
 /// Shows the dialogs the app queued; lives in the eframe app, which has the window.
 pub struct Launcher {
@@ -51,14 +51,28 @@ impl Launcher {
         while let Ok((req, answer)) = self.queue.try_recv() {
             // Built here, on the UI thread: macOS shows the panel as a sheet on the window now.
             let dialog = rfd::AsyncFileDialog::new().set_parent(parent);
+            let one = |f: Option<rfd::FileHandle>| f.map(|f| vec![f]);
             let picking: Picking = match req {
-                FileDialogRequest::Open { purpose } => Box::pin(open_filters(dialog, &purpose).pick_file()),
-                FileDialogRequest::Folder => Box::pin(dialog.pick_folder()),
-                FileDialogRequest::Save { name } => Box::pin(dialog.set_file_name(name).save_file()),
+                // Files to attach, several at once (Ctrl or Shift and click).
+                FileDialogRequest::Open { ref purpose } if req.picks_many() => Box::pin(open_filters(dialog, purpose).pick_files()),
+                FileDialogRequest::Open { purpose } => {
+                    let picking = open_filters(dialog, &purpose).pick_file();
+                    Box::pin(async move { one(picking.await) })
+                }
+                FileDialogRequest::Folder => {
+                    let picking = dialog.pick_folder();
+                    Box::pin(async move { one(picking.await) })
+                }
+                FileDialogRequest::Save { name } => {
+                    let picking = dialog.set_file_name(name).save_file();
+                    Box::pin(async move { one(picking.await) })
+                }
             };
             let ctx = self.ctx.clone();
             let waiting = std::thread::Builder::new().name("file dialog".into()).spawn(move || {
-                let picked = crate::block_on::block_on(picking).map(|f| f.path().to_string_lossy().to_string());
+                let picked = crate::block_on::block_on(picking)
+                    .map(|files| files.iter().map(|f| f.path().to_string_lossy().to_string()).collect::<Vec<_>>())
+                    .filter(|paths| !paths.is_empty());
                 let _ = answer.send(picked);
                 ctx.request_repaint();
             });

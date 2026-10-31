@@ -21,7 +21,7 @@ fn save_message_as_suggests_the_name_of_the_message_it_saves() {
     let (tx, asked) = mpsc::channel();
     app.services.file_dialog = Some(Box::new(move |request| {
         let _ = tx.send(request);
-        mpsc::channel::<Option<String>>().1
+        mpsc::channel::<Option<Vec<String>>>().1
     }));
     let mut subjects = app.session.mailbox.messages.values().filter(|m| !m.subject.is_empty()).map(|m| (m.id, m.subject.clone()));
     let (saved, subject) = subjects.next().unwrap();

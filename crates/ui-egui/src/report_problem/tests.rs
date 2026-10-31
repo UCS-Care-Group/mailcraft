@@ -229,7 +229,7 @@ fn opened(h: &egui_kittest::Harness<'static, MailApp>) -> Vec<String> {
 fn a_cancelled_save_keeps_the_window_and_what_was_typed() {
     let mut a = app();
     // A save dialog the test answers when it likes, as the owner would.
-    let (answers_tx, answers) = std::sync::mpsc::channel::<std::sync::mpsc::Sender<Option<String>>>();
+    let (answers_tx, answers) = std::sync::mpsc::channel::<std::sync::mpsc::Sender<Option<Vec<String>>>>();
     a.services.file_dialog = Some(Box::new(move |_| {
         let (tx, rx) = std::sync::mpsc::channel();
         let _ = answers_tx.send(tx);
@@ -258,7 +258,7 @@ fn a_cancelled_save_keeps_the_window_and_what_was_typed() {
     let path = std::env::temp_dir().join(format!("mailcraft-report-test-{}.txt", std::process::id()));
     h.get_by_label("Open on GitHub").click();
     h.step();
-    answers.try_recv().unwrap().send(Some(path.to_string_lossy().to_string())).unwrap();
+    answers.try_recv().unwrap().send(Some(vec![path.to_string_lossy().to_string()])).unwrap();
     h.step();
     let urls = opened(&h);
     assert!(h.state().dialog.is_none());

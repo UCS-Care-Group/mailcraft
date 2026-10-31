@@ -1183,6 +1183,13 @@ msgid "Attach the same as an iCalendar file"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "Attached {n} file"
+msgid_plural "Attached {n} files"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Attachment keywords"
 msgstr ""

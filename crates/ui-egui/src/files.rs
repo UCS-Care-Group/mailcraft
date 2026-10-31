@@ -20,7 +20,8 @@ use crate::MailApp;
 /// A native file dialog the host is asked to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileDialogRequest {
-    /// Pick a file to open; `purpose` says what for (`mailbox`, `import`, `attach`).
+    /// Pick a file to open; `purpose` says what for (`mailbox`, `import`, `attach`). Files to
+    /// attach may be picked several at once ([`FileDialogRequest::picks_many`]).
     Open { purpose: String },
     /// Pick a folder (to import the mbox files under it).
     Folder,
@@ -39,8 +40,15 @@ pub(crate) enum AfterPick {
     Tree,
 }
 
+impl FileDialogRequest {
+    /// Whether the dialog lets the owner pick several files: only to attach them, each in turn.
+    pub fn picks_many(&self) -> bool {
+        matches!(self, FileDialogRequest::Open { purpose } if purpose == "attach")
+    }
+}
+
 pub struct PendingDialog {
-    rx: Receiver<Option<String>>,
+    rx: Receiver<Option<Vec<String>>>,
     after: AfterPick,
 }
 
@@ -187,7 +195,17 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         Some(Err(TryRecvError::Disconnected)) => None,
     };
     let d = app.file_dialog.take()?;
-    let Some(path) = picked else { return Some(Ok(json!({"cancelled": true}))) };
+    let mut picked = picked.unwrap_or_default();
+    // Several files to attach: each in turn, and one that can't be (too large, unreadable) doesn't
+    // keep the others out.
+    if let AfterPick::Open(purpose, asking) = &d.after {
+        if purpose == "attach" && picked.len() > 1 {
+            return Some(attach_all(app, &picked, *asking));
+        }
+    }
+    // A dialog for one file answers with one; anything more is not taken.
+    picked.truncate(1);
+    let Some(path) = picked.pop() else { return Some(Ok(json!({"cancelled": true}))) };
     let r = match d.after {
         AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),
@@ -216,6 +234,32 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         app.status(e.clone());
     }
     Some(r)
+}
+
+/// The most files attached from one pick: a person picks a handful, a stuck key a great many.
+const MOST_ATTACHED: usize = 100;
+
+/// Attach each of `paths`, in the order picked, to the message being written `asking` (#286).
+/// Said once: how many went in, and why one didn't.
+fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
+    let (mut attached, mut failed) = (0usize, None);
+    for path in paths.iter().take(MOST_ATTACHED) {
+        match app.run("compose.attach", on_message(json!({"path": path}), asking)) {
+            Ok(_) => attached += 1,
+            Err(e) => failed = failed.or(Some(e)),
+        }
+    }
+    app.ui.backstage = false;
+    match failed {
+        Some(e) => {
+            app.status(e.clone());
+            if attached == 0 { Err(e) } else { Ok(json!({"attached": attached})) }
+        }
+        None => {
+            app.status(tln!(attached, "Attached {n} file", "Attached {n} files"));
+            Ok(json!({"attached": attached}))
+        }
+    }
 }
 
 /// What a file is for when nobody said: a mailbox opens, a message/calendar/contact file is
@@ -467,6 +511,9 @@ pub(crate) mod base64_lite {
         Some(out)
     }
 }
+
+#[cfg(test)]
+mod attach_many_tests;
 
 #[cfg(test)]
 mod export_name_tests;

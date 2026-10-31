@@ -233,12 +233,18 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                 // Anything can be attached.
                 _ => rfd::AsyncFileDialog::new(),
             };
+            // Files to attach may be picked several at once; anything else is one file.
+            let many = purpose == "attach";
             wasm_bindgen_futures::spawn_local(async move {
-                let Some(file) = dialog.pick_file().await else {
+                let picked = if many { dialog.pick_files().await } else { dialog.pick_file().await.map(|f| vec![f]) };
+                let Some(files) = picked else {
                     return;
                 };
-                let bytes = file.read().await;
-                inbox.lock().unwrap_or_else(|e| e.into_inner()).push((file.file_name(), bytes));
+                let mut read = Vec::with_capacity(files.len());
+                for file in files {
+                    read.push((file.file_name(), file.read().await));
+                }
+                inbox.lock().unwrap_or_else(|e| e.into_inner()).extend(read);
                 ctx.request_repaint();
             });
         })),

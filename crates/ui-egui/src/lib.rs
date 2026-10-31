@@ -201,9 +201,10 @@ pub struct Services {
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
     /// Desktop: show a native file dialog without blocking the UI thread. The host sends the
-    /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
-    /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
-    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
+    /// picked paths (`None` when cancelled; several only for files to attach, one otherwise)
+    /// through the returned channel and wakes the UI; a dropped sender counts as cancelled. The
+    /// app shows one dialog at a time ([`files`]).
+    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>>,
     /// Web: open a file picker; the file arrives later through `inbox`. The argument says what
     /// for (`mailbox`, `import`, `attach`).
     pub open_async: Option<Box<dyn Fn(&str)>>,
