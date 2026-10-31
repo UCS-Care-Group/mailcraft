@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | Parity B6: Request a Read Receipt (`compose.readReceipt`, Message › Tags: `Disposition-Notification-To` naming the sender over IMAP/SMTP, JMAP and Exchange's MIME sends, `isReadReceiptRequested` and `IsReadReceiptRequested` on Graph and Exchange drafts; kept with the draft; a request in incoming mail is never answered) and Show Training (`help.training`, the project's `docs` folder). Catalog rows Edit Message, Send/Receive Groups, the contact's Follow Up and Private, and the task's Private are marked out of scope with a reason, listed apart in the parity checklist |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
 | 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
 | 2026-10-31 | Parity B3b: Resend Message (`mail.resend`: a message the owner sent opened again as a new one, sent only by Send) and Direct Replies To (`compose.replyTo`: the Reply-To line, each address checked; carried by IMAP, EWS and Graph drafts) |
@@ -399,6 +400,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | Parity B6: Request a Read Receipt, Show Training and the out-of-scope catalog rows, in the progress log |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
 | 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |
 | 2026-10-31 | Parity B3b: Resend Message, Direct Replies To, in the progress log |

@@ -1237,6 +1237,11 @@ msgstr "Nicht heruntergeladene Bilder noch einmal anfordern."
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Den Server des Kontos jetzt nach dem Kalender rund um diese Besprechung fragen."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Ask to be told when the message is read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -8114,6 +8119,11 @@ msgstr ""
 msgid "Request Responses"
 msgstr "Antworten anfordern"
 
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+msgid "Request a Read Receipt"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -9169,6 +9179,13 @@ msgstr ""
 "Status\n"
 "anzeigen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Training"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9220,6 +9237,11 @@ msgstr "Status von Senden/Empfangen anzeigen"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Show Sender Images"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+msgid "Show Training"
 msgstr ""
 
 #. interface
@@ -11906,8 +11928,8 @@ msgstr "Nachrichten gesamt"
 msgid "Total size"
 msgstr "Gesamtgröße"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Tracking"
 msgstr ""
 
