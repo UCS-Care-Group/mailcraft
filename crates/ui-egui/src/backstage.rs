@@ -24,7 +24,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let top = if app.integrated_titlebar { crate::chrome::MAC_TITLE_BAR } else { 0.0 };
     // The column of pages: the accent with its ink on a light window; in the dark a neutral
     // column, where the accent only marks the page in view.
-    let (column, ink) = if t.dark { (t.panel, t.text) } else { (t.accent, t.on_accent) };
+    let (column, ink) = (t.backstage_column, t.backstage_ink);
     egui::Panel::left("backstage_nav").exact_size(210.0).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(column)).show(
         ui,
         |ui| {
@@ -47,8 +47,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                 if active || resp.hovered() {
                     ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 5.0, ink.linear_multiply(if active { 0.22 } else { 0.12 }));
                 }
-                if active && t.dark {
-                    ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x + 8.0, r.center().y - 9.0), vec2(3.0, 18.0)), 1.5, t.accent);
+                if active {
+                    ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x + 8.0, r.center().y - 9.0), vec2(3.0, 18.0)), 1.5, t.backstage_mark);
                 }
                 icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 28.0, r.center().y), vec2(16.0, 16.0)), icon, ink, ink);
                 ui.painter().text(

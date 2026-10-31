@@ -233,7 +233,7 @@ fn large_newsletter() -> Message {
 fn in_frame<R>(dark: bool, f: impl FnOnce(&egui::Context) -> R) -> R {
     let ctx = egui::Context::default();
     ctx.set_fonts(crate::theme::font_definitions());
-    crate::theme::apply(&ctx, if dark { Appearance::Dark } else { Appearance::Light }.preference(None));
+    crate::theme::apply(&ctx, if dark { Appearance::Dark } else { Appearance::Light }.preference(None), &crate::theme::ThemeChoice::default());
     ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
     let mut out = None;
     let mut f = Some(f);

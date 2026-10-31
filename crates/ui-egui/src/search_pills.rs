@@ -88,7 +88,7 @@ pub(crate) fn layout(text: &str, pills: &[Pill], font: FontId, t: &Tokens) -> La
 /// The pills' shapes for `galley`, drawn at `at`: rounded, in a tint of the selection's colour,
 /// under the text.
 pub(crate) fn shapes(galley: &Arc<Galley>, at: Pos2, pills: &[Pill], t: &Tokens) -> Vec<Shape> {
-    let fill = if t.dark { t.selection } else { t.selection.gamma_multiply(0.7) };
+    let fill = t.selection_pill;
     let total = galley.text().chars().count();
     pills
         .iter()

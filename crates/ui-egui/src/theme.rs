@@ -189,6 +189,63 @@ pub struct Tokens {
     pub icon_yellow: Color32,
     pub icon_green: Color32,
     pub icon_purple: Color32,
+    /// The wash behind a modal dialog.
+    pub scrim: Color32,
+    /// The colour of a menu's shadow and a window's.
+    pub shadow_popup: Color32,
+    pub shadow_window: Color32,
+    /// The background of selected text in an edit box.
+    pub text_selection: Color32,
+    /// A selected row in a list that does not have the keyboard's focus.
+    pub selection_unfocused: Color32,
+    /// The box of a group heading in the message list.
+    pub group_header: Color32,
+    /// The fill of a search pill.
+    pub selection_pill: Color32,
+    /// A row under the pointer in a list, and in the folder pane.
+    pub hover_subtle: Color32,
+    pub hover_nav: Color32,
+    /// An empty slot in a calendar (a free hour of the scheduling grid, a day's past events).
+    pub surface_sunken: Color32,
+    /// The ring round a control that has the keyboard's focus in a box that has no stroke of its own.
+    pub focus_ring: Color32,
+    /// The line under a row of the message list.
+    pub rule: Color32,
+    /// The groove a progress bar runs in.
+    pub track: Color32,
+    /// The groove a scroll bar runs in.
+    pub lane: Color32,
+    /// The line round the ribbon's sheet (none, in the dark).
+    pub ribbon_edge: Stroke,
+    /// Whether a line parts the folder pane from the list beside it.
+    pub pane_rule: bool,
+    /// The edge of the search box at rest.
+    pub field_edge: Color32,
+    /// The column of pages in File view, the ink on it, and the mark of the page in view.
+    pub backstage_column: Color32,
+    pub backstage_ink: Color32,
+    pub backstage_mark: Color32,
+    /// How strongly a mailbox colour (a category's, a calendar's) tints a chip, an event block
+    /// and the block that shows where an event is dragged: see [`Tokens::data_fill`].
+    pub data_tint: f32,
+    pub data_soft: f32,
+    pub data_mix: f32,
+    /// The band that shows the time chosen for a meeting, in the dialogs and in an invitation,
+    /// and the band across the people in the scheduling grid.
+    pub band_chosen: Color32,
+    pub band_meeting: Color32,
+    /// The opacity of a notice's wash and edge ([`Tokens::notice`]).
+    pub notice_wash_alpha: u8,
+    pub notice_edge_alpha: u8,
+    /// The initials on an avatar, the disc behind a site's icon, and a tick on a colour swatch.
+    pub on_avatar: Color32,
+    pub avatar_backdrop: Color32,
+    pub on_swatch: Color32,
+    /// The ink for text on a dark and on a light mailbox colour.
+    pub ink_on_dark: Color32,
+    pub ink_on_light: Color32,
+    /// How much an avatar's colour is dimmed.
+    pub avatar_shade: f32,
 }
 
 impl Tokens {
@@ -198,6 +255,16 @@ impl Tokens {
     /// between the panes) is one grey; the ribbon and the panes sit on it as lighter sheets.
     pub fn light() -> Self {
         let window = Color32::from_rgb(0xF3, 0xF3, 0xF3);
+        let panel = Color32::from_rgb(0xFA, 0xFA, 0xFA);
+        let surface = Color32::WHITE;
+        let border = Color32::from_rgb(0xE0, 0xE0, 0xE0);
+        let border_strong = Color32::from_rgb(0xC4, 0xC4, 0xC4);
+        let text = Color32::from_rgb(0x24, 0x24, 0x24);
+        let hover = Color32::from_rgb(0xE9, 0xE9, 0xE9);
+        let accent = Color32::from_rgb(0x0F, 0x6C, 0xBD);
+        let on_accent = Color32::WHITE;
+        let selection = Color32::from_rgb(0xDE, 0xDE, 0xDE);
+        let group_label = Color32::from_rgb(0x70, 0x70, 0x70);
         Tokens {
             dark: false,
             sender_dark: false,
@@ -206,25 +273,25 @@ impl Tokens {
             tab_strip: window,
             nav: window,
             canvas: window,
-            panel: Color32::from_rgb(0xFA, 0xFA, 0xFA),
-            surface: Color32::WHITE,
-            border: Color32::from_rgb(0xE0, 0xE0, 0xE0),
-            border_strong: Color32::from_rgb(0xC4, 0xC4, 0xC4),
-            text: Color32::from_rgb(0x24, 0x24, 0x24),
+            panel,
+            surface,
+            border,
+            border_strong,
+            text,
             text_dim: Color32::from_rgb(0x61, 0x61, 0x61),
             text_disabled: Color32::from_rgb(0xA6, 0xA6, 0xA6),
             icon: Color32::from_rgb(0x42, 0x42, 0x42),
-            hover: Color32::from_rgb(0xE9, 0xE9, 0xE9),
+            hover,
             pressed: Color32::from_rgb(0xD6, 0xD6, 0xD6),
             checked: Color32::from_rgb(0xD6, 0xE8, 0xF8),
-            accent: Color32::from_rgb(0x0F, 0x6C, 0xBD),
+            accent,
             accent_text: Color32::from_rgb(0x11, 0x5E, 0xA3),
-            on_accent: Color32::WHITE,
+            on_accent,
             input: Color32::WHITE,
             input_border: Color32::from_rgb(0xC4, 0xC4, 0xC4),
-            group_label: Color32::from_rgb(0x70, 0x70, 0x70),
+            group_label,
             status_bar: window,
-            selection: Color32::from_rgb(0xDE, 0xDE, 0xDE),
+            selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xFF, 0xE0, 0x3D, 0x90),
             flagged_row: Color32::from_rgb(0xFC, 0xF0, 0xF1),
             overdue: Color32::from_rgb(0xB4, 0x23, 0x18),
@@ -239,6 +306,39 @@ impl Tokens {
             icon_yellow: Color32::from_rgb(0x9C, 0x67, 0x00),
             icon_green: Color32::from_rgb(0x2B, 0x7A, 0x4B),
             icon_purple: Color32::from_rgb(0x7B, 0x4F, 0xB8),
+            scrim: Color32::from_black_alpha(60),
+            shadow_popup: Color32::from_black_alpha(40),
+            shadow_window: Color32::from_black_alpha(50),
+            text_selection: accent.linear_multiply(0.30),
+            selection_unfocused: selection.linear_multiply(0.7),
+            group_header: surface.lerp_to_gamma(selection, 0.45),
+            selection_pill: selection.gamma_multiply(0.7),
+            hover_subtle: hover.linear_multiply(0.6),
+            hover_nav: panel.lerp_to_gamma(hover, 0.7),
+            surface_sunken: surface.linear_multiply(0.55),
+            focus_ring: accent.linear_multiply(0.5),
+            rule: border,
+            track: border_strong.linear_multiply(0.6),
+            lane: window,
+            ribbon_edge: Stroke::new(1.0, border),
+            pane_rule: true,
+            field_edge: border_strong,
+            backstage_column: accent,
+            backstage_ink: on_accent,
+            backstage_mark: Color32::TRANSPARENT,
+            data_tint: 0.22,
+            data_soft: 0.20,
+            data_mix: 0.3,
+            band_chosen: accent.linear_multiply(0.16),
+            band_meeting: accent.linear_multiply(0.16),
+            notice_wash_alpha: 30,
+            notice_edge_alpha: 90,
+            on_avatar: Color32::WHITE,
+            avatar_backdrop: Color32::WHITE,
+            on_swatch: Color32::WHITE,
+            ink_on_dark: surface,
+            ink_on_light: text,
+            avatar_shade: 1.0,
         }
     }
     /// The dark palette: near-black neutral greys, with a light blue accent.
@@ -247,6 +347,16 @@ impl Tokens {
     /// is a lighter band on it, the folder pane nearly as dark as the window, the lists a step up.
     pub fn dark() -> Self {
         let window = Color32::from_rgb(0x0F, 0x16, 0x1F);
+        let panel = Color32::from_rgb(0x14, 0x14, 0x14);
+        let surface = Color32::from_rgb(0x26, 0x26, 0x26);
+        let border = Color32::from_rgb(0x44, 0x44, 0x44);
+        let border_strong = Color32::from_rgb(0x66, 0x66, 0x66);
+        let text = Color32::WHITE;
+        let hover = Color32::from_rgb(0x38, 0x38, 0x38);
+        let accent = Color32::from_rgb(0x58, 0xB8, 0xFE);
+        let on_accent = Color32::from_rgb(0x0A, 0x18, 0x26);
+        let selection = Color32::from_rgb(0x44, 0x44, 0x44);
+        let group_label = Color32::from_rgb(0xAD, 0xAD, 0xAD);
         Tokens {
             dark: true,
             sender_dark: false,
@@ -255,26 +365,26 @@ impl Tokens {
             tab_strip: window,
             nav: window,
             canvas: window,
-            panel: Color32::from_rgb(0x14, 0x14, 0x14),
-            surface: Color32::from_rgb(0x26, 0x26, 0x26),
-            border: Color32::from_rgb(0x44, 0x44, 0x44),
-            border_strong: Color32::from_rgb(0x66, 0x66, 0x66),
-            text: Color32::WHITE,
+            panel,
+            surface,
+            border,
+            border_strong,
+            text,
             text_dim: Color32::from_rgb(0xC8, 0xC8, 0xC8),
             text_disabled: Color32::from_rgb(0x70, 0x70, 0x70),
             // A shade off white: line drawings in pure white glare on the dark panes.
             icon: Color32::from_rgb(0xE0, 0xE0, 0xE0),
-            hover: Color32::from_rgb(0x38, 0x38, 0x38),
+            hover,
             pressed: Color32::from_rgb(0x4A, 0x4A, 0x4A),
             checked: Color32::from_rgb(0x1F, 0x3B, 0x57),
-            accent: Color32::from_rgb(0x58, 0xB8, 0xFE),
+            accent,
             accent_text: Color32::from_rgb(0x82, 0xC7, 0xFF),
-            on_accent: Color32::from_rgb(0x0A, 0x18, 0x26),
+            on_accent,
             input: Color32::from_rgb(0x1F, 0x1F, 0x1F),
             input_border: Color32::from_rgb(0x66, 0x66, 0x66),
-            group_label: Color32::from_rgb(0xAD, 0xAD, 0xAD),
+            group_label,
             status_bar: window,
-            selection: Color32::from_rgb(0x44, 0x44, 0x44),
+            selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xC8, 0xA8, 0x00, 0x70),
             flagged_row: Color32::from_rgb(0x3A, 0x2B, 0x2E),
             overdue: Color32::from_rgb(0xFF, 0x99, 0x99),
@@ -289,10 +399,120 @@ impl Tokens {
             icon_yellow: Color32::from_rgb(0xE8, 0xB7, 0x4A),
             icon_green: Color32::from_rgb(0x5B, 0xC0, 0x8A),
             icon_purple: Color32::from_rgb(0xB6, 0x9B, 0xEE),
+            scrim: Color32::from_black_alpha(110),
+            shadow_popup: Color32::from_black_alpha(120),
+            shadow_window: Color32::from_black_alpha(140),
+            text_selection: accent.linear_multiply(0.45),
+            selection_unfocused: selection.linear_multiply(0.7),
+            group_header: surface.lerp_to_gamma(selection, 1.0),
+            selection_pill: selection,
+            hover_subtle: hover.linear_multiply(0.6),
+            hover_nav: panel.lerp_to_gamma(hover, 0.7),
+            surface_sunken: surface.linear_multiply(0.55),
+            focus_ring: accent.linear_multiply(0.5),
+            rule: border_strong,
+            track: border,
+            lane: panel,
+            ribbon_edge: Stroke::NONE,
+            pane_rule: false,
+            field_edge: group_label,
+            backstage_column: panel,
+            backstage_ink: text,
+            backstage_mark: accent,
+            data_tint: 0.45,
+            data_soft: 0.36,
+            data_mix: 0.5,
+            band_chosen: accent.linear_multiply(0.35),
+            band_meeting: accent.linear_multiply(0.28),
+            notice_wash_alpha: 46,
+            notice_edge_alpha: 110,
+            on_avatar: Color32::WHITE,
+            avatar_backdrop: Color32::WHITE,
+            on_swatch: Color32::WHITE,
+            ink_on_dark: text,
+            ink_on_light: surface,
+            avatar_shade: 0.9,
         }
     }
+    /// The tokens in force: the palette last installed in `ctx` ([`apply`]), its dark half or its
+    /// light half by the theme egui is on; the built-in palette before any is installed.
     pub fn get(ctx: &egui::Context) -> Tokens {
-        if ctx.global_style().visuals.dark_mode { Tokens::dark() } else { Tokens::light() }
+        let dark = ctx.global_style().visuals.dark_mode;
+        let palette = ctx.data(|d| d.get_temp::<Palette>(Palette::slot())).unwrap_or_else(Palette::builtin);
+        palette.tokens(dark)
+    }
+
+    /// A chip's fill, from a colour of the mailbox (a category's, a calendar's).
+    pub fn data_fill(&self, rgb: Color32) -> Color32 {
+        rgb.linear_multiply(self.data_tint)
+    }
+
+    /// The edge of a chip.
+    pub fn data_edge(&self, rgb: Color32) -> Color32 {
+        rgb.linear_multiply(0.8)
+    }
+
+    /// The strength with which a mailbox colour tints an event block over `surface`.
+    pub fn data_soft(&self, hovered: bool) -> f32 {
+        if hovered { self.data_soft + 0.08 } else { self.data_soft }
+    }
+
+    /// An event being dragged: nearly solid, so it reads over whatever it crosses.
+    pub fn data_ghost(&self, rgb: Color32) -> Color32 {
+        self.surface.lerp_to_gamma(rgb, self.data_mix).gamma_multiply(0.94)
+    }
+
+    /// The wash and the edge of a notice above a message, in `hue`.
+    pub fn notice(&self, hue: Color32) -> (Color32, Color32) {
+        (
+            Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), self.notice_wash_alpha),
+            Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), self.notice_edge_alpha),
+        )
+    }
+}
+
+/// The two sets of tokens a theme is made of: one for a light window, one for a dark one.
+#[derive(Clone, Copy, Debug)]
+pub struct Palette {
+    pub light: Tokens,
+    pub dark: Tokens,
+}
+
+impl Palette {
+    /// Today's look.
+    pub fn builtin() -> Palette {
+        Palette { light: Tokens::light(), dark: Tokens::dark() }
+    }
+
+    fn slot() -> egui::Id {
+        egui::Id::unique("mailcraft-theme-palette")
+    }
+
+    pub fn tokens(&self, dark: bool) -> Tokens {
+        if dark { self.dark } else { self.light }
+    }
+}
+
+/// The accent colour of a theme.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Accent {
+    #[default]
+    Blue,
+}
+
+/// What the owner picked for the look of the window.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ThemeChoice {
+    pub appearance: Appearance,
+    pub accent: Accent,
+}
+
+impl ThemeChoice {
+    /// The palette this choice shows.
+    pub fn palette(&self) -> Palette {
+        match self.accent {
+            Accent::Blue => Palette::builtin(),
+        }
     }
 }
 
@@ -924,9 +1144,11 @@ pub fn main_system_theme(ctx: &egui::Context) -> Option<egui::Theme> {
 /// Apply the interface theme to egui. Both palettes go in, our light one as egui's light style
 /// and our dark one as its dark style, and `preference` ([`Appearance::preference`]) pins egui
 /// (and the window decorations) to one of them.
-pub fn apply(ctx: &egui::Context, preference: egui::ThemePreference) {
-    ctx.set_visuals_of(egui::Theme::Light, visuals(&Tokens::light()));
-    ctx.set_visuals_of(egui::Theme::Dark, visuals(&Tokens::dark()));
+pub fn apply(ctx: &egui::Context, preference: egui::ThemePreference, choice: &ThemeChoice) {
+    let palette = choice.palette();
+    ctx.data_mut(|d| d.insert_temp(Palette::slot(), palette));
+    ctx.set_visuals_of(egui::Theme::Light, visuals(&palette.light));
+    ctx.set_visuals_of(egui::Theme::Dark, visuals(&palette.dark));
     ctx.all_styles_mut(|s| {
         s.spacing.item_spacing = egui::vec2(6.0, 4.0);
         s.spacing.button_padding = egui::vec2(8.0, 3.0);
@@ -955,7 +1177,7 @@ fn visuals(t: &Tokens) -> Visuals {
     v.window_stroke = Stroke::new(1.0, t.border_strong);
     v.window_corner_radius = CornerRadius::same(8);
     v.menu_corner_radius = CornerRadius::same(6);
-    v.selection.bg_fill = t.accent.linear_multiply(if t.dark { 0.45 } else { 0.30 });
+    v.selection.bg_fill = t.text_selection;
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.border);
@@ -976,14 +1198,30 @@ fn visuals(t: &Tokens) -> Visuals {
     v.widgets.active.corner_radius = CornerRadius::same(4);
     v.widgets.open.bg_fill = t.pressed;
     v.widgets.open.weak_bg_fill = t.pressed;
-    v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark { 120 } else { 40 }) };
-    v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark { 140 } else { 50 }) };
+    v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: t.shadow_popup };
+    v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: t.shadow_window };
     v
 }
 
 pub fn c32(c: mailcraft_model::Rgb) -> Color32 {
     Color32::from_rgb(c.0, c.1, c.2)
 }
+
+/// The colours a category can take: our own twelve, mid-tones that read in both themes.
+pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = [
+    mailcraft_model::Rgb(0xD1, 0x3B, 0x3B),
+    mailcraft_model::Rgb(0xE0, 0x7B, 0x1F),
+    mailcraft_model::Rgb(0xD9, 0xA4, 0x0C),
+    mailcraft_model::Rgb(0x2E, 0x8B, 0x57),
+    mailcraft_model::Rgb(0x1A, 0x9B, 0xA6),
+    mailcraft_model::Rgb(0x2F, 0x6F, 0xD0),
+    mailcraft_model::Rgb(0x7E, 0x57, 0xC2),
+    mailcraft_model::Rgb(0xC2, 0x4E, 0x9A),
+    mailcraft_model::Rgb(0x8A, 0x5A, 0x44),
+    mailcraft_model::Rgb(0x6B, 0x7A, 0x1F),
+    mailcraft_model::Rgb(0x4F, 0x6D, 0x8F),
+    mailcraft_model::Rgb(0x7A, 0x7A, 0x7A),
+];
 
 /// A stable colour for a person's avatar, from their address.
 pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
@@ -1001,8 +1239,12 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
     let hash = key.to_lowercase().bytes().fold(0x811C_9DC5u32, |h, b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193));
     let (r, g, b) = PALETTE.get(hash as usize % PALETTE.len()).copied().unwrap_or((0x0B, 0x7F, 0xAB));
     let c = Color32::from_rgb(r, g, b);
-    if t.dark { c.linear_multiply(0.9) } else { c }
+    c.linear_multiply(t.avatar_shade)
 }
+
+#[cfg(test)]
+#[path = "theme_contrast_tests.rs"]
+mod theme_contrast_tests;
 
 #[cfg(test)]
 #[path = "theme_font_tests.rs"]
@@ -1352,7 +1594,7 @@ mod tests {
     #[test]
     fn a_window_of_its_own_has_the_main_windows_theme() {
         let ctx = egui::Context::default();
-        super::apply(&ctx, super::Appearance::System.preference(Some(egui::Theme::Dark)));
+        super::apply(&ctx, super::Appearance::System.preference(Some(egui::Theme::Dark)), &super::ThemeChoice::default());
         ctx.run_ui(egui::RawInput { system_theme: None, ..Default::default() }, |_| {}).textures_delta.clear();
         assert_eq!(ctx.theme(), egui::Theme::Dark);
         assert_eq!(super::Appearance::System.preference(None), egui::ThemePreference::Light);

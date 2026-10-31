@@ -656,13 +656,13 @@ pub(crate) mod kit {
         let text_w = ui.painter().layout_no_wrap(label.to_string(), regular(11.5), t.text).size().x.min(180.0);
         let (r, resp) = ui.allocate_exact_size(vec2(text_w + 32.0, 22.0), Sense::click());
         let fill = if on {
-            color.linear_multiply(if t.dark { 0.45 } else { 0.22 })
+            t.data_fill(color)
         } else if resp.hovered() {
             t.hover
         } else {
             t.input
         };
-        ui.painter().rect(r, 11.0, fill, Stroke::new(1.0, if on { color.linear_multiply(0.8) } else { t.input_border }), StrokeKind::Inside);
+        ui.painter().rect(r, 11.0, fill, Stroke::new(1.0, if on { t.data_edge(color) } else { t.input_border }), StrokeKind::Inside);
         let mark = pos2(r.min.x + 12.0, r.center().y);
         if on {
             ui.painter().text(mark, Align2::CENTER_CENTER, "✓", regular(11.0), t.text);
@@ -966,7 +966,7 @@ pub(crate) mod kit {
             ui.painter().rect_filled(strip, 0.0, t.tab_strip);
             let sheet = Rect::from_min_max(pos2(strip.min.x + SIDE, strip.min.y + OVER), pos2(strip.max.x - SIDE, strip.min.y + OVER + BAND_H));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
-            let line = if t.dark { Stroke::NONE } else { Stroke::new(1.0, t.border) };
+            let line = t.ribbon_edge;
             ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
             let edge = (BAND_H - BUTTON_H) / 2.0;
             let area = Rect::from_min_max(pos2(sheet.min.x + SIDE, sheet.min.y + edge), pos2(sheet.max.x - SIDE, sheet.max.y - edge));
@@ -1825,118 +1825,114 @@ mod event {
             let width = (ctx.content_rect().width() - 48.0).clamp(160.0, 540.0);
             let week_start = s.prefs.week_start;
             let mut enter = false;
-            egui::Modal::new(kit::field_id("recurrence_dialog"))
-                .frame(frame)
-                .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
-                .show(ctx, |ui| {
-                    ui.set_width(width);
-                    ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-                    ui.label(egui::RichText::new(tl!("Appointment Recurrence")).font(semibold(14.0)));
-                    let mut pass = Pass::new(ui, s, &mut self.focus);
-                    let twelve = pass.twelve;
-                    let heading = |ui: &mut Ui, text: &str| {
-                        ui.add_space(2.0);
-                        ui.label(egui::RichText::new(text).font(semibold(12.0)).color(t.text_dim));
-                    };
-                    egui::ScrollArea::vertical().max_height((ui.ctx().content_rect().height() - 160.0).max(120.0)).show(ui, |ui| {
-                        heading(ui, tl!("Time"));
-                        if self.all_day {
-                            row(ui, tl!("Start"), |ui| {
-                                ui.label(tl!("All day"));
-                            });
-                        } else {
-                            row(ui, tl!("Start"), |ui| {
-                                if pass.time(ui, "recurrence_start_time", &mut self.start_time, true, None) {
-                                    self.start_time_moved(twelve);
-                                }
-                            });
-                            row(ui, tl!("End"), |ui| {
-                                let after = parse_clock(&self.start_time).map(|(h, m)| u32::from(h) * 60 + u32::from(m));
-                                if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
-                                    self.end_time_moved();
-                                }
-                                ui.label(egui::RichText::new(format!("· {}", crate::dates::duration(self.minutes))).color(t.text_dim));
-                            });
-                        }
-                        heading(ui, tl!("Pattern"));
-                        row(ui, tl!("Repeats"), |ui| {
-                            let mut freq = self.freq();
-                            let options = [Freq::Daily, Freq::Weekly, Freq::Monthly, Freq::Yearly].map(|f| (f, tl!(freq_label(f))));
-                            segmented(ui, &mut freq, &options);
-                            self.set_freq(freq);
+            egui::Modal::new(kit::field_id("recurrence_dialog")).frame(frame).backdrop_color(t.scrim).show(ctx, |ui| {
+                ui.set_width(width);
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                ui.label(egui::RichText::new(tl!("Appointment Recurrence")).font(semibold(14.0)));
+                let mut pass = Pass::new(ui, s, &mut self.focus);
+                let twelve = pass.twelve;
+                let heading = |ui: &mut Ui, text: &str| {
+                    ui.add_space(2.0);
+                    ui.label(egui::RichText::new(text).font(semibold(12.0)).color(t.text_dim));
+                };
+                egui::ScrollArea::vertical().max_height((ui.ctx().content_rect().height() - 160.0).max(120.0)).show(ui, |ui| {
+                    heading(ui, tl!("Time"));
+                    if self.all_day {
+                        row(ui, tl!("Start"), |ui| {
+                            ui.label(tl!("All day"));
                         });
-                        self.pattern(ui, week_start);
-                        heading(ui, tl!("Range"));
-                        row(ui, tl!("Starts"), |ui| {
-                            pass.date(ui, "recurrence_start", &mut self.start, true);
-                            date_note(ui, &self.start, true);
-                        });
-                        tall_row(ui, tl!("Ends"), |ui| {
-                            if ui.radio(self.repeat.ends == Ends::Never, tl!("No end date")).clicked() {
-                                self.repeat.ends = Ends::Never;
+                    } else {
+                        row(ui, tl!("Start"), |ui| {
+                            if pass.time(ui, "recurrence_start_time", &mut self.start_time, true, None) {
+                                self.start_time_moved(twelve);
                             }
-                            ui.horizontal(|ui| {
-                                if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
-                                    self.repeat.ends = Ends::After;
-                                }
-                                if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05))).changed()
-                                {
-                                    self.repeat.ends = Ends::After;
-                                }
-                                // (The number is in the box before it: only the word follows it.)
-                                ui.label(tln!(self.repeat.count, "time", "times"));
-                            });
-                            ui.horizontal(|ui| {
-                                if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
-                                    self.repeat.ends = Ends::Until;
-                                }
-                                // A series that ends on a date starts with three months to run.
-                                if self.repeat.ends == Ends::Until && self.repeat.until.trim().is_empty() {
-                                    self.repeat.until = Date::parse_iso(&self.start).unwrap_or(pass.today).add_months(3).iso();
-                                }
-                                if self.repeat.ends == Ends::Until {
-                                    pass.date(ui, "recurrence_until", &mut self.repeat.until, true);
-                                    date_note(ui, &self.repeat.until, true);
-                                }
-                            });
                         });
-                        // The rule in words, and the day the series starts on when that is not
-                        // the day the range does.
-                        let from = Date::parse_iso(&self.start);
-                        if let Some((from, first)) = from.and_then(|from| Some((from, self.first_day(from)?)))
-                            && let Some(rule) = self.as_repeat().rule(first)
-                        {
-                            let words = rule.describe(first);
-                            let words = if first == from {
-                                words
-                            } else {
-                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::dates::medium(first))])
-                            };
-                            ui.label(egui::RichText::new(words).color(t.text_dim));
-                        }
-                    });
-                    let wrong = self.wrong();
-                    if let Some(wrong) = wrong {
-                        ui.label(egui::RichText::new(tl!(wrong)).color(t.red));
+                        row(ui, tl!("End"), |ui| {
+                            let after = parse_clock(&self.start_time).map(|(h, m)| u32::from(h) * 60 + u32::from(m));
+                            if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
+                                self.end_time_moved();
+                            }
+                            ui.label(egui::RichText::new(format!("· {}", crate::dates::duration(self.minutes))).color(t.text_dim));
+                        });
                     }
-                    enter = pass.submit;
-                    ui.add_space(4.0);
-                    ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
-                            left = Some(Left::Cancel);
-                        }
-                        if crate::widgets::primary_button(ui, tl!("OK"), wrong.is_none()).clicked() {
-                            left = Some(Left::Ok);
-                        }
-                        if self.had_rule {
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                if ui.add(egui::Button::new(tl!("Remove Recurrence")).min_size(vec2(72.0, 26.0))).clicked() {
-                                    left = Some(Left::Remove);
-                                }
-                            });
-                        }
+                    heading(ui, tl!("Pattern"));
+                    row(ui, tl!("Repeats"), |ui| {
+                        let mut freq = self.freq();
+                        let options = [Freq::Daily, Freq::Weekly, Freq::Monthly, Freq::Yearly].map(|f| (f, tl!(freq_label(f))));
+                        segmented(ui, &mut freq, &options);
+                        self.set_freq(freq);
                     });
+                    self.pattern(ui, week_start);
+                    heading(ui, tl!("Range"));
+                    row(ui, tl!("Starts"), |ui| {
+                        pass.date(ui, "recurrence_start", &mut self.start, true);
+                        date_note(ui, &self.start, true);
+                    });
+                    tall_row(ui, tl!("Ends"), |ui| {
+                        if ui.radio(self.repeat.ends == Ends::Never, tl!("No end date")).clicked() {
+                            self.repeat.ends = Ends::Never;
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
+                                self.repeat.ends = Ends::After;
+                            }
+                            if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05))).changed() {
+                                self.repeat.ends = Ends::After;
+                            }
+                            // (The number is in the box before it: only the word follows it.)
+                            ui.label(tln!(self.repeat.count, "time", "times"));
+                        });
+                        ui.horizontal(|ui| {
+                            if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
+                                self.repeat.ends = Ends::Until;
+                            }
+                            // A series that ends on a date starts with three months to run.
+                            if self.repeat.ends == Ends::Until && self.repeat.until.trim().is_empty() {
+                                self.repeat.until = Date::parse_iso(&self.start).unwrap_or(pass.today).add_months(3).iso();
+                            }
+                            if self.repeat.ends == Ends::Until {
+                                pass.date(ui, "recurrence_until", &mut self.repeat.until, true);
+                                date_note(ui, &self.repeat.until, true);
+                            }
+                        });
+                    });
+                    // The rule in words, and the day the series starts on when that is not
+                    // the day the range does.
+                    let from = Date::parse_iso(&self.start);
+                    if let Some((from, first)) = from.and_then(|from| Some((from, self.first_day(from)?)))
+                        && let Some(rule) = self.as_repeat().rule(first)
+                    {
+                        let words = rule.describe(first);
+                        let words = if first == from {
+                            words
+                        } else {
+                            crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::dates::medium(first))])
+                        };
+                        ui.label(egui::RichText::new(words).color(t.text_dim));
+                    }
                 });
+                let wrong = self.wrong();
+                if let Some(wrong) = wrong {
+                    ui.label(egui::RichText::new(tl!(wrong)).color(t.red));
+                }
+                enter = pass.submit;
+                ui.add_space(4.0);
+                ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
+                        left = Some(Left::Cancel);
+                    }
+                    if crate::widgets::primary_button(ui, tl!("OK"), wrong.is_none()).clicked() {
+                        left = Some(Left::Ok);
+                    }
+                    if self.had_rule {
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            if ui.add(egui::Button::new(tl!("Remove Recurrence")).min_size(vec2(72.0, 26.0))).clicked() {
+                                left = Some(Left::Remove);
+                            }
+                        });
+                    }
+                });
+            });
             // Escape leaves it as it was (when it is on top: a list open in it closes first, #406);
             // Enter in one of its fields, or with none, is OK.
             let escape = crate::keys::escape(ctx, crate::keys::modal_layer(kit::field_id("recurrence_dialog")));
@@ -3030,7 +3026,13 @@ mod event {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(r.shrink(1.0), 3.0, *color);
                             if on {
-                                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "✓", crate::theme::medium(10.0), egui::Color32::WHITE);
+                                ui.painter().text(
+                                    r.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "✓",
+                                    crate::theme::medium(10.0),
+                                    Tokens::get(ui.ctx()).on_swatch,
+                                );
                             }
                             if ui.add(egui::Button::new(kit::shown(name, 60)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
                                 self.categories.retain(|c| !c.eq_ignore_ascii_case(name));
@@ -5347,21 +5349,8 @@ mod categories {
     use crate::theme::{Tokens, c32};
     use crate::widgets::icon_button;
 
-    /// The colours a category can take: our own twelve, mid-tones that read in both themes.
-    pub const PALETTE: [Rgb; 12] = [
-        Rgb(0xD1, 0x3B, 0x3B),
-        Rgb(0xE0, 0x7B, 0x1F),
-        Rgb(0xD9, 0xA4, 0x0C),
-        Rgb(0x2E, 0x8B, 0x57),
-        Rgb(0x1A, 0x9B, 0xA6),
-        Rgb(0x2F, 0x6F, 0xD0),
-        Rgb(0x7E, 0x57, 0xC2),
-        Rgb(0xC2, 0x4E, 0x9A),
-        Rgb(0x8A, 0x5A, 0x44),
-        Rgb(0x6B, 0x7A, 0x1F),
-        Rgb(0x4F, 0x6D, 0x8F),
-        Rgb(0x7A, 0x7A, 0x7A),
-    ];
+    /// The colours a category can take: the theme's twelve.
+    pub const PALETTE: [Rgb; 12] = crate::theme::CATEGORY_PALETTE;
 
     /// The first palette colour no category has yet; the first one when all are taken.
     pub fn unused_color(list: &[Category]) -> Rgb {
