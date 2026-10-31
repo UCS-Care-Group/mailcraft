@@ -10,6 +10,7 @@
 
 mod address;
 pub mod auth_results;
+pub mod auto_replies;
 mod calendar;
 pub mod confusables;
 mod contact;
@@ -130,6 +131,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod account_categories_tests;
+#[cfg(test)]
+mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]

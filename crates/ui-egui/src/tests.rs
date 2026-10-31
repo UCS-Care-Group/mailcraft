@@ -45,6 +45,29 @@ fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
 }
 
 #[test]
+fn rename_folder_without_a_name_asks_for_the_folder_s_new_name() {
+    use crate::dialogs::{Dialog, FolderMode};
+    let mut a = app();
+    let account = a.session.mailbox.accounts[0].id;
+    let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let reports = a.session.run("folder.new", &json!({"name": "Quarterly reports", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    a.session.run("folder.select", &json!({"id": reports})).unwrap();
+    // As the ribbon's Rename Folder and F2 run it: with no name, and with no parameters at all.
+    for params in [json!({}), Value::Null] {
+        a.dialog = None;
+        assert_eq!(a.run("folder.rename", params).unwrap()["pending"], "folder");
+        match a.dialog.as_ref() {
+            Some(Dialog::Folder { mode: FolderMode::Rename { id }, name, .. }) => assert_eq!((*id, name.as_str()), (reports, "Quarterly reports")),
+            _ => panic!("Rename Folder opened something else than the folder's rename"),
+        }
+    }
+    // New Folder still asks for a folder in the one in view.
+    a.dialog = None;
+    assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
+    assert!(matches!(a.dialog, Some(Dialog::Folder { mode: FolderMode::New { parent: Some(p) }, .. }) if p == reports));
+}
+
+#[test]
 fn commands_missing_input_open_their_dialog() {
     let mut a = app();
     assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
@@ -94,11 +117,14 @@ fn window_commands_validate() {
     assert_eq!(a.ui.language, "en");
     assert!(a.execute("ui.language", json!({"language": "xx"})).is_err());
     assert!(a.execute("ui.language", json!({})).is_err());
-    // Dutch has no catalogue: it can't be chosen, and Automatic in the Netherlands is English.
-    assert!(a.execute("ui.language", json!({"language": "nl"})).is_err());
+    // Dutch is a preview. Automatic in the Netherlands follows it. The guard holds the
+    // process-wide language until this ends, and puts the previous one back if an assertion fails.
+    let _language = crate::i18n::RestoreLanguage::hold();
+    assert_eq!(a.execute("ui.language", json!({"language": "nl"})).unwrap()["inForce"], "nl");
     a.services.system_locale = Some("nl-NL".into());
-    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "en");
-    assert_eq!(a.session.interface_language, crate::i18n::Lang::English);
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Dutch);
+    assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
     assert!(a.execute("ui.backstage", json!({"page": "nowhere"})).is_err());

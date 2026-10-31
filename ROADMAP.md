@@ -140,12 +140,12 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
-11. Focused Inbox kept in step with Outlook; Automatic Replies; rules kept on the server (gap 17).
+11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); rules kept on the server (gap 17).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish and Italian
-    previews, more languages, right-to-left layout (gap 14). Partly done: the four ship as previews.
+15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
+    Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
 
 ## The browser build
 
@@ -179,12 +179,13 @@ follows:
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
 | M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: five preview languages |
 
 ## Progress log
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | Automatic Replies ([#692](https://github.com/UCS-Care-Group/mailcraft/issues/692); `account.automaticReplies`, `account.setAutomaticReplies`): File › Info › Automatic Replies for an account that signs in with Microsoft, read and changed through Graph's mailbox settings; reading takes the `MailboxSettings.Read` a sign-in already has, and changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time the owner changes them (`ui.allowAutomaticReplies`, never with a sign-in; File › Info shows it, with Ask again); nothing is changed before the server's setting is read; the replies are shown as plain text and written as simple HTML; Automatic Replies in the status bar while they go out; agents may read them, and changing them is the owner's, like Send |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
 | 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
 | 2026-10-31 | Parity B3b: Resend Message (`mail.resend`: a message the owner sent opened again as a new one, sent only by Send) and Direct Replies To (`compose.replyTo`: the Reply-To line, each address checked; carried by IMAP, EWS and Graph drafts) |
@@ -400,6 +401,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | Automatic Replies for Microsoft accounts, in the progress log and step 11 |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
 | 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |
 | 2026-10-31 | Parity B3b: Resend Message, Direct Replies To, in the progress log |
@@ -411,6 +413,7 @@ follows:
 | 2026-10-30 | #252 E8: the trial against Grommunio, in the progress log |
 | 2026-10-30 | #252 E8: the three faults the trial found are fixed, in the progress log |
 | 2026-10-30 | #252 E8 review: a ghost draft after a send, the log line's scope, in the progress log |
+| 2026-10-29 | Dutch as a preview language: Nederlands (voorbeeld) in File › Options; Automatic follows `nl-NL`; after beta item 15 names five preview languages |
 | 2026-10-29 | #252 E7: Add Account and File › Info for an Exchange server account, in the progress log |
 | 2026-10-29 | #252 E6: NTLMv2 sign-in for Exchange servers and the held connection it needs, in the progress log |
 | 2026-10-29 | #599: the rendering row and the progress log: `@media` and what the sender hid (gap 6, step 3b) |

@@ -533,6 +533,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);
+                    // Automatic replies are on for an account: said, and a click opens them.
+                    crate::auto_replies::status_item(app, ui, &t, STATUS_TEXT);
                     // The last Send/Receive had problems: one click shows them, in Send/Receive
                     // Progress under their accounts.
                     if app.has_sync_problems() {

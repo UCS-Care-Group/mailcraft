@@ -17,7 +17,7 @@ body:
       label: When can you test?
       options:
         - label: Now, as much or as little as I like
-        - label: The beta run: 14 working days (about three weeks) on at least 2 devices
+        - label: "The beta run: 14 working days (about three weeks) on at least 2 devices"
   - type: checkboxes
     id: platforms
     attributes:
