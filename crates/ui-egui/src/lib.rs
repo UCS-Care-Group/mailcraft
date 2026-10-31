@@ -46,6 +46,9 @@ mod agent_names_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
@@ -239,6 +242,10 @@ pub struct Services {
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
+    /// Read and change the automatic replies of a Microsoft account on its server
+    /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
+    /// browser: File › Info then has no Automatic Replies.
+    pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -1001,6 +1008,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"account"?: number} — signs in for sending, calendar and contacts through Microsoft"#,
     ),
     (
+        "ui.automaticRepliesSignIn",
+        "Sign In Again for Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account)} — signs in again on Microsoft's page in the browser, which asks for permission to read and change the mailbox's settings (MailboxSettings.ReadWrite), for an account whose sign-in is from before that was asked and so reads its automatic replies but can't change them; they are read again once it is done. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
         "ui.checkCalendar",
         "Check Calendar Connection",
         "File › Info",
@@ -1336,6 +1349,8 @@ pub struct MailApp {
     shared_calendars_next: bool,
     tasks_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
+    /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
+    pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
@@ -1618,6 +1633,7 @@ impl MailApp {
             shared_calendars_next: false,
             tasks_next: false,
             tasks: Default::default(),
+            auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
@@ -1956,6 +1972,8 @@ impl MailApp {
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
         }
+        // Automatic replies (File › Info): read on the server, or changed there, by the host.
+        let r = self.auto_replies_after(id, r);
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -1993,6 +2011,7 @@ impl MailApp {
             self.graph_tokens.remove(&account);
             self.graph_checked.remove(&account);
             self.graph_consent_needed.remove(&account);
+            self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
@@ -2242,6 +2261,13 @@ impl MailApp {
                 } else {
                     self.begin_opened_calendars_sign_in(shared)
                 }
+            }
+            "ui.automaticRepliesSignIn" => {
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                if let Err(e) = mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account) {
+                    return Some(Err(e.to_string()));
+                }
+                self.auto_replies_sign_in(account)
             }
             "ui.allowTasks" => {
                 if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
@@ -3832,6 +3858,7 @@ impl MailApp {
         }
         self.poll_calendar();
         self.poll_tasks();
+        self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
@@ -3853,6 +3880,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
+            // The automatic replies, read now and then so that the status bar can say they are on.
+            self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {

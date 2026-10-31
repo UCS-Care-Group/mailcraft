@@ -292,6 +292,20 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
+        // Whether MailCraft may change the automatic replies, with a way to sign in again for it.
+        if let Some((line, again)) = app.auto_replies_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Sign in again: Microsoft's page opens in your browser and asks to let MailCraft read and change your mailbox settings, which hold your automatic replies. Mail and your calendar work as they are meanwhile."
+                );
+                if again && ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
+                    let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
@@ -330,6 +344,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ) {
         let _ = app.run("ui.dialog", json!({"name": "account"}));
     }
+    crate::auto_replies::info_tiles(app, ui, t);
     // The calendar of an account that signs in with Microsoft is kept on its server: the owner
     // can see for himself that what is changed here arrives there.
     let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);

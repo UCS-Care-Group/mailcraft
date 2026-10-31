@@ -106,10 +106,17 @@ const MICROSOFT_SCOPE: &str =
 /// token for this ([`NetError::ConsentNeeded`]) until the owner agrees on the provider's page.
 const MICROSOFT_GRAPH: &str =
     "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read";
-/// What Graph is asked for on top of that when it can be had: reading the mailbox's settings,
-/// which is where its list of categories and their colours is. Nothing that works without it
-/// depends on it: a sign-in that doesn't cover it keeps everything it had ([`refresh_graph`]).
-const MICROSOFT_GRAPH_EXTRAS: &str = "https://graph.microsoft.com/MailboxSettings.Read";
+/// What Graph is asked for on top of that when it can be had: the mailbox's settings, which is
+/// where its list of categories and their colours and its working hours are (only ever read),
+/// and its automatic replies (read, and changed when the owner changes them in File › Info ›
+/// Automatic Replies). Nothing that works without it depends on it: a sign-in that doesn't cover
+/// it keeps everything it had ([`refresh_graph`]).
+const MICROSOFT_GRAPH_EXTRAS: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
+/// What a sign-in from before the automatic replies could be changed agreed to instead: reading
+/// the mailbox's settings only. Never asked for on a page any more; a token is asked for with it
+/// when the sign-in doesn't cover [`MICROSOFT_GRAPH_EXTRAS`], so that the categories and the
+/// working hours stay until the owner signs in again ([`refresh_graph`], [`refresh_graph_settings`]).
+const MICROSOFT_GRAPH_SETTINGS_READ: &str = "https://graph.microsoft.com/MailboxSettings.Read";
 /// What keeping a Microsoft account's folders and mail in step through Graph takes (R3): reading
 /// and changing them. Asked for only for an account that is kept in step that way
 /// ([`Resource::GraphMail`]).
@@ -974,6 +981,15 @@ pub fn refresh_graph_at(all: &Endpoints, plain: &Endpoints, mail: &Endpoints, oa
         Err(error) if about_scope(&error) && plain.scope != all.scope => error,
         Err(error) => return Err(error),
     };
+    // A sign-in from before the automatic replies could be changed covers reading the settings:
+    // the categories and the working hours stay.
+    if let Some(older) = reading_settings(all) {
+        match refresh_for_at(&older, oauth, refresh_token, Resource::Graph) {
+            Ok(tokens) => return Ok(GraphTokens { tokens, extras_missing: false, covers_favorites: false }),
+            Err(error) if about_scope(&error) => {}
+            Err(error) => return Err(error),
+        }
+    }
     log::debug!("the sign-in doesn't cover everything Microsoft Graph is asked for; asking without the extras");
     match refresh_for_at(plain, oauth, refresh_token, Resource::Graph) {
         Ok(tokens) => Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false }),
@@ -1013,13 +1029,87 @@ pub fn refresh_graph_with_favorites_at(
     oauth: &OAuth,
     refresh_token: &str,
 ) -> Result<GraphTokens, NetError> {
+    let about_scope = |error: &NetError| error.is_consent_needed() || error.is_refused_sign_in();
     match refresh_for_at(most, oauth, refresh_token, Resource::Graph) {
         Ok(tokens) => Ok(GraphTokens { tokens, extras_missing: false, covers_favorites: true }),
         // A no that could be about what was asked for rather than about who asked.
-        Err(error) if (error.is_consent_needed() || error.is_refused_sign_in()) && most.scope != all.scope => {
+        Err(error) if about_scope(&error) && most.scope != all.scope => {
+            // The Favorites with the settings read only, as a sign-in from before the automatic
+            // replies could be changed has them.
+            if let Some(older) = reading_settings(most) {
+                match refresh_for_at(&older, oauth, refresh_token, Resource::Graph) {
+                    Ok(tokens) => return Ok(GraphTokens { tokens, extras_missing: false, covers_favorites: true }),
+                    Err(error) if about_scope(&error) => {}
+                    Err(error) => return Err(error),
+                }
+            }
             log::debug!("the sign-in doesn't cover the Favorites; asking for what Microsoft Graph was asked for before them");
             refresh_graph_at(all, plain, mail, oauth, refresh_token)
         }
+        Err(error) => Err(error),
+    }
+}
+
+/// `endpoints` asking to read the mailbox's settings where they ask to change them: what a
+/// sign-in from before the automatic replies could be changed agreed to. `None` when they don't
+/// ask for the settings.
+fn reading_settings(endpoints: &Endpoints) -> Option<Endpoints> {
+    let asked: Vec<&str> = endpoints.scope.split(' ').collect();
+    if !asked.contains(&MICROSOFT_GRAPH_EXTRAS) {
+        return None;
+    }
+    let scope: Vec<&str> = asked.iter().map(|scope| if *scope == MICROSOFT_GRAPH_EXTRAS { MICROSOFT_GRAPH_SETTINGS_READ } else { scope }).collect();
+    Some(Endpoints { scope: scope.join(" "), ..endpoints.clone() })
+}
+
+/// The tokens [`refresh_graph_settings`] got: Graph's, and whether they are good for changing
+/// the mailbox's settings (its automatic replies) or for reading them only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SettingsTokens {
+    pub tokens: Tokens,
+    /// The sign-in covers `MailboxSettings.ReadWrite`: the automatic replies may be changed. When
+    /// not, they can be read, and changing them takes a new sign-in, whose page asks for it.
+    pub can_write: bool,
+}
+
+/// Tokens for reading the automatic replies of the mailbox and, when the sign-in covers it,
+/// changing them: asked for with `MailboxSettings.ReadWrite` first, and with
+/// `MailboxSettings.Read` when the sign-in is from before that was asked for. `mail` is how the
+/// account's mail is had ([`Resource::Mail`] or [`Resource::GraphMail`]): a sign-in that covers
+/// neither gets [`NetError::ConsentNeeded`] when mail still takes its refresh token (the owner is
+/// to sign in again), and the provider's no when it doesn't (the sign-in is over).
+pub fn refresh_graph_settings(oauth: &OAuth, refresh_token: &str, mail: Resource) -> Result<SettingsTokens, NetError> {
+    let graph = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_settings_at(&graph, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_settings`] at endpoints other than the provider's usual ones: `mail` for the
+/// account's mail, and how it is had.
+pub fn refresh_graph_settings_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<SettingsTokens, NetError> {
+    let about_scope = |error: &NetError| error.is_consent_needed() || error.is_refused_sign_in();
+    let write = Endpoints { scope: format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {SIGN_IN_SCOPE}"), ..endpoints.clone() };
+    let first = match refresh_for_at(&write, oauth, refresh_token, Resource::Graph) {
+        Ok(tokens) => return Ok(SettingsTokens { tokens, can_write: true }),
+        Err(error) if about_scope(&error) => error,
+        Err(error) => return Err(error),
+    };
+    let read = Endpoints { scope: format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SETTINGS_READ} {SIGN_IN_SCOPE}"), ..endpoints.clone() };
+    match refresh_for_at(&read, oauth, refresh_token, Resource::Graph) {
+        Ok(tokens) => Ok(SettingsTokens { tokens, can_write: false }),
+        // "No longer good": for anything at all, or only for the settings?
+        Err(error) if about_scope(&error) => match refresh_for_at(mail.0, oauth, refresh_token, mail.1) {
+            Ok(_) => Err(NetError::ConsentNeeded("the sign-in doesn't cover the mailbox's settings".into())),
+            Err(mail) if mail.is_refused_sign_in() => Err(error),
+            Err(mail) => {
+                log::debug!("asking for mail came to nothing (the answer for the settings was: {first})");
+                Err(mail)
+            }
+        },
         Err(error) => Err(error),
     }
 }

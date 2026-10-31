@@ -1316,6 +1316,52 @@ fn tasks_job_with(
     out
 }
 
+/// File › Info › Automatic Replies: a token of its own for the mailbox's settings (a sign-in
+/// from before changing them was asked for reads them only), the change told to the server when
+/// there is one and the token may, then the setting read back. Nothing of a reply is logged.
+fn auto_replies_job(job: mailcraft_ui_egui::auto_replies::AutoRepliesJob) -> mailcraft_ui_egui::auto_replies::AutoRepliesResult {
+    use mailcraft_net::{NetError, graph, oauth};
+    let mut out = mailcraft_ui_egui::auto_replies::AutoRepliesResult { account: job.account.id, ..Default::default() };
+    let access = match oauth::refresh_graph_settings(&job.oauth, &job.refresh, tasks_mail(&job.account)) {
+        Ok(got) => {
+            out.can_write = got.can_write;
+            let access = got.tokens.access.clone();
+            out.tokens = Some(got.tokens);
+            access
+        }
+        Err(e) => {
+            out.consent_needed = e.is_consent_needed();
+            out.sign_in_refused = !out.consent_needed && e.is_refused_sign_in();
+            if !out.consent_needed && !out.sign_in_refused {
+                out.error = format!("Couldn't sign in to Microsoft for the automatic replies: {e}");
+            }
+            return out;
+        }
+    };
+    if let Some(change) = &job.change {
+        if !out.can_write {
+            out.write_refused = true;
+        } else {
+            match graph::set_automatic_replies(&access, change) {
+                Ok(()) => out.changed = true,
+                Err(NetError::Forbidden(_)) => out.write_refused = true,
+                Err(e) if e.is_refused_sign_in() => {
+                    out.sign_in_refused = true;
+                    return out;
+                }
+                Err(e) => out.error = format!("Couldn't change the automatic replies: {e}"),
+            }
+        }
+    }
+    match graph::automatic_replies(&access) {
+        Ok(setting) => out.setting = Some(setting),
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) if out.error.is_empty() => out.error = format!("Couldn't read the automatic replies: {e}"),
+        Err(_) => {}
+    }
+    out
+}
+
 /// File › Info › Check Calendar Connection: on the account's real server, and only because the
 /// owner asked for it and said yes to what it does. One appointment is made a year from today
 /// in the main calendar, read back, changed (once as an instant, once said in this computer's
@@ -1455,6 +1501,7 @@ fn services(
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
+    let replies_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
@@ -1509,6 +1556,10 @@ fn services(
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
             background(&tasks_ctx, "microsoft to do", move || tasks_job(job))
+        })),
+        // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
+        graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
+            background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))

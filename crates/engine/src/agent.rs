@@ -119,6 +119,8 @@ const SAFE: &[&str] = &[
     "file.exportCalendar",
     "file.exportContacts",
     "file.info",
+    // Reads what is known of the automatic replies (and has the window read them again).
+    "account.automaticReplies",
     "edit.undo",
     "edit.redo",
     // Mail.
@@ -385,6 +387,8 @@ const SAFE: &[&str] = &[
 
 const SEND: &[&str] = &[
     "compose.send",
+    // The server answers mail on the owner's behalf with what it says.
+    "account.setAutomaticReplies",
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
@@ -435,6 +439,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.keepOffline",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
+    "ui.automaticRepliesSignIn",
     "ui.connectFavorites",
     "ui.allowSharedSend",
     "ui.allowSharedCalendars",
@@ -528,6 +533,7 @@ const NEVER: &[&str] = &[
     "sync.applyCategories",
     "sync.applyFavorites",
     "sync.applyMailboxSettings",
+    "sync.applyAutomaticReplies",
     "sync.forgetRemote",
     // File pickers are the owner's; agents pass `data`.
     "ui.open",
@@ -1135,6 +1141,20 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let n = s.mailbox.count(f);
             let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
             format!("{verb} {name} and the {} in it, for good", plural(n, "{n} message", "{n} messages"))
+        }
+        "account.setAutomaticReplies" => {
+            let account = p::id(params, "account")
+                .and_then(|a| s.mailbox.account(a))
+                .map_or_else(|| "the first Microsoft account".to_string(), |a| clip(&a.email, 80));
+            match st("status") {
+                "disabled" => format!("turn off the automatic replies of {account}"),
+                status => {
+                    let when =
+                        if status == "scheduled" { format!(" from {} to {}", clip(st("start"), 20), clip(st("end"), 20)) } else { String::new() };
+                    let reply = |k: &str| p::str(params, k).map(|t| format!(", {k}: {}", quoted(&clip(t, 200)))).unwrap_or_default();
+                    format!("have the server of {account} answer mail on the owner's behalf{when}{}{}", reply("internal"), reply("external"))
+                }
+            }
         }
         "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
