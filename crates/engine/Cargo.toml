@@ -16,6 +16,8 @@ mailcraft-html = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
+# A line of an appointment put into a message (`cmd::calendar::share`): no format characters.
+mailcraft-names = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -788,7 +788,8 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
     let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
-    mailcraft_engine::cmd::compose::leaves(id)
+    // (One that first asks which days asks this once they are chosen.)
+    (mailcraft_engine::cmd::compose::leaves(id) || (mailcraft_engine::cmd::calendar::share::starts_message(id) && input_dialog(id, params).is_none()))
         && !choosing
         && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
@@ -1078,6 +1079,12 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.propose" if !has("start") => Some("proposeTime"),
         "calendar.forward" if !has("to") => Some("forwardMeeting"),
         "calendar.proposals" => Some("proposals"),
+        // Which days of the calendar, and how much of each; what was answered, a list to look at;
+        // what to look for.
+        "calendar.email" if empty => Some("emailCalendar"),
+        "insert.calendar" if empty => Some("insertCalendar"),
+        "calendar.tracking" => Some("tracking"),
+        "calendar.search" if !has("query") => Some("searchCalendar"),
         "people.new" if empty => Some("contact"),
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).

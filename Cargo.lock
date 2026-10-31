@@ -2293,6 +2293,7 @@ dependencies = [
  "mailcraft-ical",
  "mailcraft-mime",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-time",
  "mailcraft-vcard",
  "proptest",
