@@ -2101,6 +2101,24 @@ impl Session {
         self.resident_bytes = self.resident_bytes.saturating_sub(freed);
     }
 
+    /// The mailbox was `was` and is now another (an undo or a redo): what is counted as brought
+    /// into a message that holds less of it now (its body named on disk again, #688) is let go
+    /// of by as much, so that the count is never more than what is held.
+    fn recount(&mut self, was: &Mailbox) {
+        let mut freed = 0u64;
+        for (id, bytes) in &mut self.resident {
+            let (Some(then), Some(now)) = (was.messages.get(id), self.mailbox.messages.get(id)) else { continue };
+            if Arc::ptr_eq(then, now) {
+                continue;
+            }
+            let less = in_memory(then).saturating_sub(in_memory(now)).min(*bytes);
+            *bytes = bytes.saturating_sub(less);
+            freed = freed.saturating_add(less);
+        }
+        self.resident.retain(|(_, bytes)| *bytes > 0);
+        self.resident_bytes = self.resident_bytes.saturating_sub(freed);
+    }
+
     /// How many bytes brought into messages this session keeps there now.
     pub fn resident_bytes(&self) -> u64 {
         self.resident_bytes
@@ -2456,6 +2474,7 @@ impl Session {
         // Undone, the step is to be done again from here: what that does is the way back.
         let touched = crate::undo::touched(&now, &back);
         self.mailbox = back;
+        self.recount(&now);
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
