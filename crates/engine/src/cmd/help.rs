@@ -20,6 +20,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("help.help", "Help", "Help › Help", help).pure().params(
             r#"{} — answers {"url"}: MailCraft's own help pages (the project's read-me). The window opens it in the system's browser; nothing about the owner is in the address"#,
         ),
+        CommandSpec::new("help.training", "Show Training", "Help › Help", training).pure().params(
+            r#"{} — answers {"url"}: MailCraft's documentation (the `docs` folder of the project's repository: how it is put together, the parity checklists, driving it from scripts and agents). The window opens it in the system's browser; nothing about the owner is in the address"#,
+        ),
         CommandSpec::new("help.support", "Get Support", "Help › Help", support).pure().params(
             r#"{} — answers {"url"}: the project's list of issues, where questions are asked and answered in public. The window opens it in the system's browser; nothing about the owner is in the address"#,
         ),
@@ -42,6 +45,10 @@ fn page(path: &str) -> String {
 
 fn help(_: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"url": page("#readme")}))
+}
+
+fn training(_: &mut Session, _: &Value) -> CmdResult {
+    Ok(json!({"url": page("tree/main/docs")}))
 }
 
 fn support(_: &mut Session, _: &Value) -> CmdResult {

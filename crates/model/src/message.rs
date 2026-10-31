@@ -206,6 +206,11 @@ pub struct Message {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag_due: Option<Timestamp>,
     pub importance: Importance,
+    /// Written here with Request a Read Receipt on: it goes with `Disposition-Notification-To`
+    /// naming its sender (RFC 8098), or Exchange's own flag for one. Only ever set by the owner's
+    /// own message; a request in mail that comes in is never read into it, and never answered.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_receipt: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     pub answered: bool,
