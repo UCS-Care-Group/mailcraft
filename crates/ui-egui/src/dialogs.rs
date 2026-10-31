@@ -135,6 +135,9 @@ pub enum Dialog {
     /// A folder's or an account's Properties, with Folder Size… over them
     /// ([`crate::folder_properties`]).
     FolderProperties(Box<crate::folder_properties::FolderProperties>),
+    /// File › Info › Automatic Replies ([`crate::auto_replies`]): it only collects what the owner
+    /// wants, then runs `account.setAutomaticReplies`.
+    AutomaticReplies(Box<crate::auto_replies::Draft>),
     /// What is in a folder of mbox files, before it is imported ([`crate::import_tree`]).
     ImportTree(Box<crate::import_tree::ImportTree>),
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
@@ -241,6 +244,7 @@ impl Dialog {
             Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
             Dialog::FolderProperties(_) => "folderProperties",
+            Dialog::AutomaticReplies(_) => "automaticReplies",
             Dialog::ImportTree(_) => "importTree",
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::Pick(p) => match p.kind {
@@ -352,6 +356,10 @@ impl Dialog {
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
     if name == "folderProperties" {
         return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
+    if name == "automaticReplies" {
+        // (The engine says whose they are; when it refuses, there is no dialog and why is said.)
+        return crate::auto_replies::Draft::open(app, params).map(|d| Dialog::AutomaticReplies(Box::new(d)));
     }
     if name == "wordCount" {
         // (The engine counts; when it refuses, there is no dialog and the refusal is said.)
@@ -1971,6 +1979,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::ImportTree(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        // (Enter is the date and time fields' to say OK with; the replies have lines of their own.)
+        Dialog::AutomaticReplies(dialog) => {
+            let mut done = false;
+            let title = dialog.title();
+            let open = window(ctx, &title, crate::auto_replies::WIDTH, |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
         Dialog::FolderProperties(dialog) => {

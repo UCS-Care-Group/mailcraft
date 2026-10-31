@@ -1041,6 +1041,9 @@ pub struct Session {
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
+    /// The automatic replies of each account that signs in with Microsoft, as its server last
+    /// said (`sync.applyAutomaticReplies`). The server's, read again each session: never saved.
+    pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
@@ -1172,6 +1175,7 @@ impl Session {
             ews: false,
             staged_tree: None,
             server_search: Default::default(),
+            auto_replies: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
             undo_said: Vec::new(),
@@ -2101,6 +2105,24 @@ impl Session {
         self.resident_bytes = self.resident_bytes.saturating_sub(freed);
     }
 
+    /// The mailbox was `was` and is now another (an undo or a redo): what is counted as brought
+    /// into a message that holds less of it now (its body named on disk again, #688) is let go
+    /// of by as much, so that the count is never more than what is held.
+    fn recount(&mut self, was: &Mailbox) {
+        let mut freed = 0u64;
+        for (id, bytes) in &mut self.resident {
+            let (Some(then), Some(now)) = (was.messages.get(id), self.mailbox.messages.get(id)) else { continue };
+            if Arc::ptr_eq(then, now) {
+                continue;
+            }
+            let less = in_memory(then).saturating_sub(in_memory(now)).min(*bytes);
+            *bytes = bytes.saturating_sub(less);
+            freed = freed.saturating_add(less);
+        }
+        self.resident.retain(|(_, bytes)| *bytes > 0);
+        self.resident_bytes = self.resident_bytes.saturating_sub(freed);
+    }
+
     /// How many bytes brought into messages this session keeps there now.
     pub fn resident_bytes(&self) -> u64 {
         self.resident_bytes
@@ -2398,6 +2420,7 @@ impl Session {
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
+        self.auto_replies.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();
@@ -2456,6 +2479,7 @@ impl Session {
         // Undone, the step is to be done again from here: what that does is the way back.
         let touched = crate::undo::touched(&now, &back);
         self.mailbox = back;
+        self.recount(&now);
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
