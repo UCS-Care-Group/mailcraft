@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | A new app icon: an envelope that is also a calendar page, with ring tabs, in front of two tilted sheets, on a blue rounded tile (design: Martin Ball). Its source is one SVG drawn by hand for MailCraft (`assets/app-icon/source/mailcraft.svg`), and `cargo xtask icon` renders every size from it with `resvg`, which only xtask depends on; the carrier pigeon and the script that drew it are gone. The same drawing in five other colours is kept in `assets/app-icon/alternates/`, not used yet. The web build has the icon as its favicon ([assets/app-icon/README.md](assets/app-icon/README.md)) |
 | 2026-10-31 | Parity B6: Request a Read Receipt (`compose.readReceipt`, Message › Tags: `Disposition-Notification-To` naming the sender over IMAP/SMTP, JMAP and Exchange's MIME sends, `isReadReceiptRequested` and `IsReadReceiptRequested` on Graph and Exchange drafts; kept with the draft; a request in incoming mail is never answered) and Show Training (`help.training`, the project's `docs` folder). Catalog rows Edit Message, Send/Receive Groups, the contact's Follow Up and Private, and the task's Private are marked out of scope with a reason, listed apart in the parity checklist |
 | 2026-10-31 | Automatic Replies ([#692](https://github.com/UCS-Care-Group/mailcraft/issues/692); `account.automaticReplies`, `account.setAutomaticReplies`): File › Info › Automatic Replies for an account that signs in with Microsoft, read and changed through Graph's mailbox settings; reading takes the `MailboxSettings.Read` a sign-in already has, and changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time the owner changes them (`ui.allowAutomaticReplies`, never with a sign-in; File › Info shows it, with Ask again); nothing is changed before the server's setting is read; the replies are shown as plain text and written as simple HTML; Automatic Replies in the status bar while they go out; agents may read them, and changing them is the owner's, like Send |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
@@ -401,6 +402,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | The new app icon, in the progress log |
 | 2026-10-31 | Parity B6: Request a Read Receipt, Show Training and the out-of-scope catalog rows, in the progress log |
 | 2026-10-31 | Automatic Replies for Microsoft accounts, in the progress log and step 11 |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
