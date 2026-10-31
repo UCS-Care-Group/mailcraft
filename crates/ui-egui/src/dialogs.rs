@@ -782,9 +782,15 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
 /// Whether running `id` as the owner asks first (#442): it closes the message being written, or
 /// puts another in its place, and that message has changes that aren't saved, or its saved draft
-/// is gone (#494). A caller that already let them go (`discard`) isn't asked.
+/// is gone (#494). A caller that already let them go (`discard`) isn't asked. Another mailbox in
+/// view closes it too (#470): File › Open asks once the file is chosen, so a cancelled picker
+/// leaves the message alone, and a file read in the background asks once it is read, as it takes
+/// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
-    mailcraft_engine::cmd::compose::LEAVING.contains(&id)
+    let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
+    mailcraft_engine::cmd::compose::leaves(id)
+        && !choosing
+        && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
         && app.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&app.session, c))
         && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
@@ -805,6 +811,15 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
         _ => false,
     };
     if !left {
+        // A mailbox file read in the background that the owner then didn't open isn't kept.
+        crate::opening::forget_unopened(then, &params);
+        return;
+    }
+    // A mailbox file asked about once it was read (#470) opens what was read, not read again.
+    if then == "file.open" {
+        let was = std::mem::replace(&mut app.swapping, true);
+        let _ = app.run(then, params);
+        app.swapping = was;
         return;
     }
     // Saved, it closes without another word; it is saved as it is now.

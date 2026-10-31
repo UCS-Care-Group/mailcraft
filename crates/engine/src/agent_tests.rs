@@ -111,6 +111,27 @@ fn a_question_is_shown_in_full_or_refused() {
 }
 
 #[test]
+fn the_question_about_an_outbox_says_what_that_outbox_does() {
+    let mut s = sample();
+    let m = *s.mailbox.messages.keys().next().unwrap();
+    let sends = folder_of(&s, FolderKind::Outbox);
+    let imap =
+        s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let holds = s.mailbox.folder_of_kind(imap, FolderKind::Outbox).unwrap();
+    for (id, verb) in [("mail.move", "move"), ("mail.copy", "copy")] {
+        let d = describe(&s, id, &json!({"ids": [m], "folder": sends}));
+        assert!(d.ends_with("in the Outbox, which sends them"), "{d}");
+        let d = describe(&s, id, &json!({"ids": [m], "folder": holds}));
+        assert!(d.starts_with(verb) && d.ends_with("into the Outbox of ada@mail.example, held there unsent until Send Again"), "{d}");
+    }
+    // Imported mail never lies in an Outbox, of whichever kind.
+    for folder in [sends, holds] {
+        let d = describe(&s, "file.import", &json!({"folder": folder}));
+        assert_eq!(d, "import a file with an Outbox chosen: no mail goes in it, and none is sent");
+    }
+}
+
+#[test]
 fn the_calendar_question_names_the_event_and_the_invitees() {
     let mut s = sample();
     let e = *s.mailbox.events.keys().next().unwrap();

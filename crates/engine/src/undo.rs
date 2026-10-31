@@ -520,7 +520,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
             })*
         };
     }
-    back!(folder, read, flag, flag_due, importance, pinned, answered, forwarded, draft);
+    back!(folder, read, flag, flag_due, importance, pinned, answered, forwarded, draft, held, placed);
     // Categories as a list that others add to too (R3 spec S17): what the change added is taken
     // off and what it took off is put back; one added in Outlook meanwhile stays.
     if t.categories != a.categories {
