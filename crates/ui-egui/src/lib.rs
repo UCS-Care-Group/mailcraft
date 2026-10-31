@@ -307,6 +307,12 @@ pub struct Services {
     /// channel and the host wakes the UI; `file.open` then takes what was read. Absent in the
     /// browser and the tests: `file.open` reads the file there and then.
     pub read_ahead: Option<Box<dyn Fn(std::path::PathBuf, std::sync::Arc<mailcraft_engine::io::OpenProgress>) -> Receiver<Result<(), String>>>>,
+    /// Desktop: take the lock of another mailbox file for this window (#517), before the window
+    /// opens it or saves to it, keeping the lock of the one open until that one is let go of (the
+    /// host then lets go of whichever the window no longer has open). `false`: another MailCraft
+    /// has that file open, and the window leaves it alone ([`opening::OPEN_ELSEWHERE`]). Absent in
+    /// the browser and the tests, where nothing is locked.
+    pub claim_mailbox: Option<Box<dyn Fn(&std::path::Path) -> bool>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes
@@ -1780,6 +1786,11 @@ impl MailApp {
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
         }
+        // Another window's mailbox is refused before anything is asked or read (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
@@ -1897,6 +1908,11 @@ impl MailApp {
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
+        }
+        // Another window's mailbox is neither opened nor written over, and what is under way here
+        // stays as it is (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            return Err(e);
         }
         // Whatever replaces the mailbox gives up one being read in the background, which would
         // otherwise take the place of this one later.
