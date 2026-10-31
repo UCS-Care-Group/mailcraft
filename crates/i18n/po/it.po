@@ -1499,6 +1499,11 @@ msgid "Automatic replies: reading…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Automatic replies: your organisation doesn't let MailCraft change them"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Automatic setup can't sign in to this server. Type its address in Server settings and MailCraft will sign in with NTLM."
 msgstr ""
@@ -5519,6 +5524,11 @@ msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
 msgstr ""
 
 #. interface
@@ -13111,6 +13121,11 @@ msgid "Your organisation doesn't let MailCraft change automatic replies"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Your organisation has approved MailCraft"
@@ -14818,11 +14833,6 @@ msgstr ""
 #, fuzzy
 msgid "you@example.org"
 msgstr "nome@example.org"
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "your organisation doesn't let MailCraft change them"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

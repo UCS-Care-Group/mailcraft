@@ -247,13 +247,131 @@ fn a_new_sign_in_of_any_kind_lets_them_be_read_again() {
     app.poll_auto_replies();
     assert!(!app.auto_replies.trouble.contains_key(&owner));
     assert_eq!(jobs.lock().unwrap().len(), 2);
-    // The same for a sign-in that doesn't read the settings.
+    // A sign-in that doesn't read the settings needs one on Microsoft's page: its refresh token
+    // turning over (as every renewal does) isn't one.
     answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, consent_needed: true, ..Default::default() });
     app.auto_replies_read_now(owner);
     app.poll_auto_replies();
-    assert!(matches!(app.auto_replies.trouble.get(&owner), Some(Trouble::SignInToRead(_))));
+    assert!(matches!(app.auto_replies.trouble.get(&owner), Some(Trouble::SignInToRead)));
     app.tokens.insert(owner, tokens("ref-10"));
-    assert!(app.auto_replies_tick_at(48.0 * 3_600_000.0));
+    assert!(!app.auto_replies_tick_at(48.0 * 3_600_000.0));
+}
+
+/// Re-review A: a sign-in without the settings turned its refresh token over at each job, and
+/// each new token looked like a new sign-in: a token request and a credential-store write at
+/// every round.
+#[test]
+fn a_sign_in_without_the_settings_costs_one_job_however_its_token_turns_over() {
+    let (mut app, owner, answers, jobs, _) = window();
+    for n in 0..5 {
+        let fresh = tokens(&format!("ref-turned-{n}"));
+        answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, tokens: Some(fresh), consent_needed: true, ..Default::default() });
+    }
+    for n in 0..5 {
+        app.auto_replies_tick_at(f64::from(n) * 3_600_000.0);
+        app.poll_auto_replies();
+    }
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    assert_eq!(app.auto_replies.trouble.get(&owner), Some(&Trouble::SignInToRead));
+    // A sign-in on Microsoft's page (Connect Microsoft, here) lets them be read again, once.
+    app.run("ui.connectMicrosoft", json!({"account": owner})).unwrap();
+    app.poll_sign_in();
+    assert!(!app.auto_replies.trouble.contains_key(&owner));
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, setting: Some(away()), ..Default::default() });
+    assert!(app.auto_replies_tick_at(6.0 * 3_600_000.0));
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+}
+
+/// Re-review B: a change waiting, and a read on its way, went to the next mailbox's account with
+/// the same id.
+#[test]
+fn another_mailbox_forgets_what_waited_and_what_was_on_its_way() {
+    for noticed_first in [false, true] {
+        let (mut app, owner, answers, jobs, _) = window();
+        read(&mut app, owner, &answers);
+        // A read on its way, and a change waiting for it.
+        answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, setting: Some(away()), ..Default::default() });
+        app.auto_replies_read_now(owner);
+        app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+        let before = jobs.lock().unwrap().len();
+        // Another mailbox, whose account has the same id.
+        app.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+        if noticed_first {
+            app.drop_secrets_if_replaced();
+        }
+        app.session.run("account.add", &json!({"email": "cy@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
+        assert!(app.session.mailbox.account(owner).is_some_and(|a| a.email == "cy@example.org"));
+        app.tokens.insert(owner, tokens("cy-1"));
+        // What was on its way isn't taken in for it.
+        app.poll_auto_replies();
+        assert!(app.auto_replies_known(owner).is_none());
+        // And the change never goes: only a read of its own.
+        app.auto_replies_tick_at(0.0);
+        let after: Vec<_> = jobs.lock().unwrap().iter().skip(before).cloned().collect();
+        assert!(after.iter().all(|(_, change)| change.is_none()), "{noticed_first}: {after:?}");
+    }
+}
+
+/// Re-review C: while the owner was being asked, a second change waited and then lost to the
+/// first.
+#[test]
+fn a_change_made_while_the_owner_is_asked_is_the_one_that_goes() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Asking));
+    let before = jobs.lock().unwrap().len();
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "alwaysEnabled"})).unwrap();
+    assert_eq!(jobs.lock().unwrap().len(), before, "nothing goes before the answer");
+    app.dialog = None;
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, changed: true, setting: Some(away()), ..Default::default() });
+    app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let sent: Vec<_> = jobs.lock().unwrap().iter().skip(before).filter_map(|(_, change)| change.as_ref().and_then(|c| c.status)).collect();
+    assert_eq!(sent, [AutoReplyStatus::AlwaysEnabled]);
+}
+
+/// Re-review D: after the server's no, the dialog offered to ask again.
+#[test]
+fn the_organisations_no_is_said_without_asking_again() {
+    let (mut app, owner, answers, _, _) = window();
+    read(&mut app, owner, &answers);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_denied: true, setting: Some(away()), ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Denied));
+    let (line, again) = app.auto_replies_line(owner).unwrap();
+    assert!(again.is_none() && line.contains("organisation"), "{line}");
+    assert!(app.dialog.is_none());
+}
+
+/// Re-review D: the question was put in place of a window that was open.
+#[test]
+fn the_question_is_not_put_over_another_window() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    app.auto_replies.perm.insert(owner, Permission::Declined);
+    app.dialog = Some(Dialog::Confirm {
+        command: "ui.nothing".into(),
+        params: json!({}),
+        ask: crate::dialogs::Question {
+            title: String::new(),
+            text: String::new(),
+            action: String::new(),
+            with: serde_json::Value::Null,
+            more: Vec::new(),
+            note: None,
+            cancel: None,
+            tick: None,
+        },
+    });
+    let before = jobs.lock().unwrap().len();
+    let refused = app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap_err();
+    assert!(refused.contains("Ask again"), "{refused}");
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.nothing"));
+    assert_eq!(jobs.lock().unwrap().len(), before);
 }
 
 #[test]

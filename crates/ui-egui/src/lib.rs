@@ -2968,6 +2968,8 @@ impl MailApp {
             }
             // An agent's too.
             agent_gate::forget(self);
+            // The automatic replies' jobs and what waits to go up are the old mailbox's too.
+            self.auto_replies_forget_if_replaced();
             self.passwords.clear();
             self.secret_cache.clear();
             self.secret_read = None;
@@ -3403,6 +3405,7 @@ impl MailApp {
         let for_tasks = waiting.tasks;
         let for_replies = waiting.replies;
         let started_under = waiting.opening;
+        let on_the_page = waiting.browser;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
         // whatever their ids, and this answer is nobody's.
@@ -3424,6 +3427,10 @@ impl MailApp {
             self.session.sync_status.clear();
             self.setup_sign_in = Some(answer);
             return;
+        }
+        // Signed in on the page: what it now covers may let the automatic replies be read.
+        if on_the_page && answer.is_ok() {
+            self.auto_replies_signed_in_on_page(account);
         }
         // For reading a shared mailbox (#70): it is read now, or why not is said.
         if let Some(shared) = for_shared {

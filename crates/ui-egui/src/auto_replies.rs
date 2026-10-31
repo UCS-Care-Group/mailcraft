@@ -6,19 +6,25 @@
 //!
 //! **Jobs.** The engine says what to ask (`account.automaticReplies`, `account.setAutomaticReplies`)
 //! and takes what came back in (`sync.applyAutomaticReplies`); the host does the asking on a
-//! background thread ([`crate::Services::graph_auto_replies`]): a token of its own
-//! (`mailcraft_net::oauth::refresh_graph_settings`), then Graph's `GET` and `PATCH` of the
-//! mailbox settings' automatic replies. They are read when the dialog opens, when File › Info
+//! background thread ([`crate::Services::graph_auto_replies`]): a token of its own (the
+//! calendar's to read them, `mailcraft_net::oauth::refresh_graph`; one for changing the
+//! mailbox's settings to change them, `mailcraft_net::oauth::refresh_graph_replies`), then
+//! Graph's `GET` and `PATCH` of the mailbox settings' automatic replies. They are read when the dialog opens, when File › Info
 //! is shown, and every so often while the window is open, so that the status bar can say they
 //! are on; never while working offline, and never while something else of the account's is
 //! being asked (a Send/Receive, a sign-in, the calendar's job).
 //!
-//! **The permission.** Changing them takes `MailboxSettings.ReadWrite`, which every page of a
-//! sign-in asks for now; a sign-in from before that agreed to reading them only. Such a sign-in
-//! reads them as ever, and the dialog and File › Info say plainly that changing them needs the
-//! owner to sign in again, with a button that does it ([`MailApp::auto_replies_sign_in`]).
-//! Nothing else waits on it: mail, the calendar, the categories and the working hours go on as
-//! they were.
+//! **The permission.** Reading them takes the `MailboxSettings.Read` a sign-in asks for.
+//! Changing them takes `MailboxSettings.ReadWrite`, which no sign-in page asks for: the first
+//! change that finds the sign-in without it is held, the window asks the owner, and Microsoft's
+//! page asks for that permission alone (`ui.allowAutomaticReplies`); the change goes once it is
+//! given and is dropped, and said, when it isn't. File › Info shows whether it was given, with
+//! Ask again. Nothing else waits on it: mail, the calendar, the categories and the working
+//! hours go on as they were.
+//!
+//! **Another mailbox.** Everything here is about the accounts of the mailbox that is open (by
+//! id): when another takes its place, all of it is forgotten, and an answer still on its way is
+//! thrown away.
 //!
 //! **What a server says** is the engine's to make text of: the replies are shown as plain text in
 //! plain text fields, never as a page, and what the owner types goes up as simple HTML.
@@ -106,14 +112,17 @@ pub struct AutoRepliesSync {
     pub(crate) trouble: HashMap<Id, Trouble>,
     /// Where the permission to change them stands, per account.
     pub(crate) perm: HashMap<Id, Permission>,
+    /// The mailbox opening all of this is about ([`mailcraft_engine::Session::openings`]).
+    opening: u64,
 }
 
 /// Why an account's automatic replies can't be had just now.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Trouble {
-    /// The sign-in covers none of the mailbox's settings (the [`fingerprint`] of its refresh
-    /// token): a new sign-in asks for them.
-    SignInToRead(u64),
+    /// The sign-in covers none of the mailbox's settings: a new sign-in on Microsoft's page asks
+    /// for them. (Not the refresh token's turning over, which the sign-in does by itself on every
+    /// renewal: only a sign-in on the page, of any kind, lets them be read again.)
+    SignInToRead,
     /// Microsoft no longer takes the sign-in (the same): a new one is wanted.
     SignInOver(u64),
     /// The job failed: why, in a few words.
@@ -126,6 +135,9 @@ pub(crate) enum Trouble {
 pub(crate) enum Permission {
     /// A change went through with it.
     Given,
+    /// Changing them was tried with it and the server said no: the organisation keeps them.
+    /// Asking again wouldn't change that.
+    Denied,
     /// A change found the sign-in doesn't cover it: the owner is to be asked.
     Needed,
     /// The owner is being asked: the question, or Microsoft's page.
@@ -185,7 +197,8 @@ impl MailApp {
     /// them be read again.
     fn auto_replies_blocked(&self, account: Id) -> bool {
         let over = match self.auto_replies.trouble.get(&account) {
-            Some(Trouble::SignInToRead(over) | Trouble::SignInOver(over)) => *over,
+            Some(Trouble::SignInToRead) => return true,
+            Some(Trouble::SignInOver(over)) => *over,
             _ => return false,
         };
         !self.tokens.get(&account).is_some_and(|t| !t.refresh.is_empty() && fingerprint(&t.refresh) != over)
@@ -194,6 +207,7 @@ impl MailApp {
     /// Read every account's automatic replies when they are due. Called every frame. (Public for
     /// a host's tests.)
     pub fn auto_replies_tick_at(&mut self, now: f64) -> bool {
+        self.auto_replies_forget_if_replaced();
         self.auto_replies_ask_tick();
         if self.offline() {
             // Nothing goes up later that the owner asked for before working offline.
@@ -221,7 +235,7 @@ impl MailApp {
             if self.auto_replies_blocked(account) {
                 continue;
             }
-            if matches!(self.auto_replies.trouble.get(&account), Some(Trouble::SignInToRead(_) | Trouble::SignInOver(_))) {
+            if matches!(self.auto_replies.trouble.get(&account), Some(Trouble::SignInOver(_))) {
                 // Signed in again since: a read finds out where they stand, now.
                 self.auto_replies.trouble.remove(&account);
                 self.auto_replies.checked.remove(&account);
@@ -316,9 +330,16 @@ impl MailApp {
         if matches!(self.auto_replies.trouble.get(&account), Some(Trouble::Failed(_))) {
             self.auto_replies.trouble.remove(&account);
         }
-        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+        // The owner is being asked already: this change is the one that goes once he allows it.
+        if self.auto_replies.perm.get(&account) == Some(&Permission::Asking) {
             self.auto_replies.held.insert(account, change);
-            self.ask_replies(account);
+            return Ok(());
+        }
+        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+            if self.dialog.is_some() || self.signing_in.is_some() || !self.ask_replies(account) {
+                return Err(tl!("MailCraft needs your permission to change your automatic replies first: File › Info › Ask again.").to_string());
+            }
+            self.auto_replies.held.insert(account, change);
             return Ok(());
         }
         self.auto_replies.waiting = Some((account, change));
@@ -329,6 +350,7 @@ impl MailApp {
     /// The job answered: keep the refresh token, take in what the server has, and say how a
     /// change went. (Public for a host's tests.)
     pub fn poll_auto_replies(&mut self) {
+        self.auto_replies_forget_if_replaced();
         let Some((account, change, given, rx)) = &self.auto_replies.rx else { return };
         let (account, given) = (*account, *given);
         let result = match rx.try_recv() {
@@ -366,7 +388,7 @@ impl MailApp {
             trouble = Some(Trouble::SignInOver(given));
         } else if result.consent_needed {
             log::info!("automatic replies, account {account}: the sign-in doesn't cover the mailbox's settings");
-            trouble = Some(Trouble::SignInToRead(given));
+            trouble = Some(Trouble::SignInToRead);
         } else if result.write_consent_needed {
             // The owner is asked, once, by itself; the change goes when he allows it.
             log::info!("automatic replies, account {account}: changing them needs the owner's permission");
@@ -376,8 +398,7 @@ impl MailApp {
             }
             asked = self.dialog.is_none() && self.ask_replies(account);
         } else if result.write_denied {
-            let said = tl!("your organisation doesn't let MailCraft change them").to_string();
-            self.auto_replies.perm.insert(account, Permission::Refused(said));
+            self.auto_replies.perm.insert(account, Permission::Denied);
         } else if !result.error.is_empty() {
             let why: String = result.error.chars().filter(|c| !c.is_control()).take(300).collect();
             trouble = trouble.or(Some(Trouble::Failed(why)));
@@ -416,7 +437,7 @@ impl MailApp {
             tl!("Your automatic replies weren't changed: your organisation doesn't let MailCraft change them.").to_string()
         } else {
             match &trouble {
-                Some(Trouble::SignInToRead(_)) => {
+                Some(Trouble::SignInToRead) => {
                     tl!("Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info).").to_string()
                 }
                 Some(Trouble::SignInOver(_)) => tl!("Your automatic replies weren't changed: Microsoft no longer takes your sign-in.").to_string(),
@@ -450,6 +471,26 @@ impl MailApp {
         self.auto_replies.perm.insert(account, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowAutomaticReplies".to_string(), params: json!({"account": account}), ask });
         true
+    }
+
+    /// Forget everything about the mailbox that was open when another has taken its place: its
+    /// accounts are other accounts, whatever their ids. A job's answer still on its way is
+    /// thrown away, and a change that waited never goes.
+    pub(crate) fn auto_replies_forget_if_replaced(&mut self) {
+        let opening = self.session.openings();
+        if self.auto_replies.opening != opening {
+            self.auto_replies = AutoRepliesSync { opening, ..Default::default() };
+        }
+    }
+
+    /// A sign-in on Microsoft's page went through for `account` (any kind: Send/Receive's,
+    /// Connect Microsoft, a permission's): a sign-in that didn't read the mailbox's settings may
+    /// now, so they are read again.
+    pub(crate) fn auto_replies_signed_in_on_page(&mut self, account: Id) {
+        if self.auto_replies.trouble.get(&account) == Some(&Trouble::SignInToRead) {
+            self.auto_replies.trouble.remove(&account);
+            self.auto_replies.checked.remove(&account);
+        }
     }
 
     /// File › Info's "Ask again".
@@ -546,7 +587,7 @@ impl MailApp {
     pub(crate) fn auto_replies_sign_in(&mut self, account: Id) -> Result<Value, String> {
         let answer = self.run("ui.connectMicrosoft", json!({"account": account}))?;
         self.auto_replies.checked.remove(&account);
-        if matches!(self.auto_replies.trouble.get(&account), Some(Trouble::SignInOver(_) | Trouble::SignInToRead(_))) {
+        if matches!(self.auto_replies.trouble.get(&account), Some(Trouble::SignInOver(_) | Trouble::SignInToRead)) {
             self.auto_replies.trouble.remove(&account);
         }
         Ok(answer)
@@ -561,7 +602,7 @@ impl MailApp {
         }
         let shown = |why: &str| kit::shown(why, 90);
         Some(match self.auto_replies.trouble.get(&account) {
-            Some(Trouble::SignInToRead(_)) => {
+            Some(Trouble::SignInToRead) => {
                 (tl!("Automatic replies: MailCraft needs you to sign in again to read them").to_string(), Some(Again::SignIn))
             }
             Some(Trouble::SignInOver(_)) => (tl!("Automatic replies: Microsoft no longer takes the sign-in").to_string(), Some(Again::SignIn)),
@@ -573,6 +614,7 @@ impl MailApp {
                     (tl!("Automatic replies: changing them waits for your permission").to_string(), Some(Again::Ask))
                 }
                 Some(Permission::Asking) => (tl!("Automatic replies: asking for your permission to change them…").to_string(), None),
+                Some(Permission::Denied) => (tl!("Automatic replies: your organisation doesn't let MailCraft change them").to_string(), None),
                 Some(Permission::Refused(why)) => {
                     (crate::i18n::fmt(tl!("Automatic replies: changing them not allowed ({why})"), &[("why", shown(why).as_str())]), Some(Again::Ask))
                 }
@@ -773,7 +815,7 @@ impl Draft {
         // What stands in the way, and the way past it.
         if let Some(trouble) = &trouble {
             let (text, sign_in) = match trouble {
-                Trouble::SignInToRead(_) => (
+                Trouble::SignInToRead => (
                     tl!(
                         "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
                     )
@@ -794,6 +836,8 @@ impl Draft {
                     }
                 }
             });
+        } else if perm == Some(Permission::Denied) {
+            notice(ui, &t, tl!("Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."), |_| {});
         } else if let Some(Permission::Needed | Permission::Declined | Permission::Refused(_)) = &perm {
             let text = match &perm {
                 Some(Permission::Refused(why)) => crate::i18n::fmt(
@@ -901,7 +945,7 @@ impl Draft {
     pub(crate) fn editable(&self, app: &MailApp) -> bool {
         let trouble = app.auto_replies.trouble.get(&self.account);
         let asking = app.auto_replies.perm.get(&self.account) == Some(&Permission::Asking);
-        self.filled && !matches!(trouble, Some(Trouble::SignInToRead(_) | Trouble::SignInOver(_))) && !asking && !app.offline()
+        self.filled && !matches!(trouble, Some(Trouble::SignInToRead | Trouble::SignInOver(_))) && !asking && !app.offline()
     }
 
     /// The dialog's title: whose replies they are.
