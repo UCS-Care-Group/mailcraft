@@ -1808,7 +1808,18 @@ impl MailApp {
             if let Some(opened) = windows::open_form(self, name, &params) {
                 return opened;
             }
-            self.dialog = dialogs::open_dialog(self, name, &params);
+            // Rename Folder without a name (the ribbon's button, F2) asks for the new name of the folder
+            // in view: the folder dialog opens as New Folder unless it is told to rename (the folder
+            // pane's own Rename Folder… says so already).
+            let asked = match (id, params.clone()) {
+                ("folder.rename", Value::Object(mut map)) => {
+                    map.insert("mode".into(), json!("rename"));
+                    Value::Object(map)
+                }
+                ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                (_, asked) => asked,
+            };
+            self.dialog = dialogs::open_dialog(self, name, &asked);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
             if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
