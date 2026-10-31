@@ -63,8 +63,8 @@ go when a row has several (files, importance, categories) is ours, the reference
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish and Italian as preview languages (named
-  "Français (aperçu)", "Deutsch (Vorschau)" and so on in File › Options, every text translated, not
+- **Languages:** English, and French, German, Spanish, Italian and Dutch as preview languages (named
+  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)" and so on in File › Options, every text translated, not
   yet reviewed by a native speaker; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named
   places for what fills it, and a standard folder still called by its default name is shown in the
@@ -175,6 +175,7 @@ be shown when they can't.
 | 2026-10-27 | minor | #494: an agent asks the owner before it leaves a message they typed in or a form or window with their unsaved changes; People › Email asks Unsaved Message too, and so does closing a message whose saved draft is gone |
 | 2026-10-27 | minor | #513: a command that waited for a download waits for a form with unsaved changes to be closed |
 | 2026-10-27 | minor | #503: Message list: a conversation opens in place, its messages under its row, those in other folders too; Delete on a conversation's row takes the messages it shows and asks first, per account |
+| 2026-10-29 | minor | Dutch as a preview language: Nederlands (voorbeeld) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-10-29 | minor | #634: in the dark theme, messages can be kept on a light page in their own colours |
 | 2026-10-31 | minor | Parity B2: View › Change View (Compact, Single Line, Preview), Tighter Spacing, Zoom of the message being read, and Recent Searches (under the empty search box and in the View tab) |
 | 2026-10-31 | minor | Parity B1: Send / Receive › Cancel All and Work Offline (Working Offline in the status bar); Help › Help, Get Support, Feedback, What's New |

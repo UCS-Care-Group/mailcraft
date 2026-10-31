@@ -94,11 +94,14 @@ fn window_commands_validate() {
     assert_eq!(a.ui.language, "en");
     assert!(a.execute("ui.language", json!({"language": "xx"})).is_err());
     assert!(a.execute("ui.language", json!({})).is_err());
-    // Dutch has no catalogue: it can't be chosen, and Automatic in the Netherlands is English.
-    assert!(a.execute("ui.language", json!({"language": "nl"})).is_err());
+    // Dutch is a preview. Automatic in the Netherlands follows it. The guard holds the
+    // process-wide language until this ends, and puts the previous one back if an assertion fails.
+    let _language = crate::i18n::RestoreLanguage::hold();
+    assert_eq!(a.execute("ui.language", json!({"language": "nl"})).unwrap()["inForce"], "nl");
     a.services.system_locale = Some("nl-NL".into());
-    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "en");
-    assert_eq!(a.session.interface_language, crate::i18n::Lang::English);
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Dutch);
+    assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
     assert!(a.execute("ui.backstage", json!({"page": "nowhere"})).is_err());
