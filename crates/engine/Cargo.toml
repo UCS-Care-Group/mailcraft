@@ -3,6 +3,7 @@ name = "mailcraft-engine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft engine: session, selection, undo, the command registry (every action is a command), Outlook's command catalog, the sample mailbox, file I/O dispatch"
 
 [lints]
@@ -12,7 +13,9 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
+mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
+# Format characters made visible in View Source (`cmd::source`).
 mailcraft-mime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }

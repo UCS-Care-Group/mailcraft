@@ -45,6 +45,7 @@ pub mod graph_place;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+pub mod help;
 #[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
@@ -81,12 +82,15 @@ mod picture_tests;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;
+#[cfg(test)]
+mod resend_reply_to_tests;
 pub mod rules;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;
+pub mod send_receive;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
@@ -118,6 +122,7 @@ use crate::{CmdError, CmdResult, Registry, Session, p};
 pub fn registry() -> Registry {
     let mut v = Vec::new();
     v.extend(file::specs());
+    v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
     v.extend(compose::specs());
@@ -139,6 +144,7 @@ pub fn registry() -> Registry {
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(offline::specs());
+    v.extend(send_receive::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());

@@ -16,10 +16,10 @@ and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 
 | Number | Value | Kind |
 |---|---|---|
-| Ribbon/menu catalog coverage | **205 / 328 (62.5%)** | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Ribbon/menu catalog coverage | **227 / 328 (69.2%)** | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
-| Commands / crates | 276 commands · 18 crates, 3 apps, `xtask` | measured (source) |
+| Commands / crates | 295 commands · 18 crates, 3 apps, `xtask` | measured (source) |
 | Tests | 5,140 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
@@ -144,8 +144,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish and Italian
-    previews, more languages, right-to-left layout (gap 14). Partly done: the four ship as previews.
+15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
+    Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
 
 ## The browser build
 
@@ -179,12 +179,16 @@ follows:
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
 | M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: five preview languages |
 
 ## Progress log
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
+| 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
+| 2026-10-31 | Parity B3b: Resend Message (`mail.resend`: a message the owner sent opened again as a new one, sent only by Send) and Direct Replies To (`compose.replyTo`: the Reply-To line, each address checked; carried by IMAP, EWS and Graph drafts) |
+| 2026-10-31 | Parity B1: Send / Receive › Work Offline (`sync.offline`, a preference kept between runs and never an undo step: the engine refuses every command that says what to ask a server for, and the window starts no Send/Receive, fetch, sign-in, picture, sender image, look-up, calendar or tasks job, server search or update check by itself while it is on; sent mail waits in the Outbox and goes with the Send/Receive that starts when it is turned off; Working Offline in the status bar) and Cancel All (`sync.cancel`); Help › Help, Get Support, Feedback, What's New (`help.*`, the project's own pages, nothing of the owner in them; Feedback opens Report a Problem); `file.account` (File › About); catalog rows Next 7 Days and Cancel Meeting mapped to `view.next7Days` and `calendar.delete`, Insert › Item to `compose.attachItem` |
 | 2026-10-30 | #451 follow-up, the last points of the review of #561: a message moved into an IMAP account's Outbox moves or is copied into another account as any other mail does (it was refused as a draft). Refused there, it goes back to its original, or, when no server has it, into its Outbox, of whatever kind, held, so the next Send/Receive doesn't send it. An agent's question says that such an Outbox holds what is put there, and that imported mail never goes into an Outbox. A copy's marker goes once the message moves on or a later copy gets its UID, so a stale one no longer lingers. |
 | 2026-10-30 | #634: File › Options › General, *Show messages on a light background in the dark theme* (`ui.lightMessages`, off by default): in the dark theme a message's body, in the reading pane and in a message's own window, is laid out in the light theme's colours on a light page, as its sender made it; its header and the rest of the window stay dark, and the original under a reply being written keeps the window's colours; a message's `@media` is tested against the page's theme, so one with its own design for dark windows (#599) shows its light design there |
 | 2026-10-30 | #252 E8 review (behind `MAILCRAFT_EWS=1`): a draft of an Exchange account whose make was never answered is found by its marker when its message is sent, and taken away (if it cannot be found or deleted, the next run deletes it by the marker, and sends nothing); the verifier's log line is left out only for the pinned certificate; a move into a folder waiting for its place in the listing is not counted as a change to send |
@@ -198,6 +202,7 @@ follows:
 | 2026-10-29 | #252, first step (behind `MAILCRAFT_EWS=1`, for testing): Exchange server accounts, for an organisation's own Exchange Server, Grommunio or SmarterMail through Exchange Web Services, are a kind of account (`AccountKind::Exchange`, with the server's address, a user name and a trusted certificate's fingerprint as `Account::ews`), added with `account.add` and `kind: "exchange"` only while the switch is on. Nothing connects to a server yet: `sync.ewsRequest`, `sync.applyEws` and `sync.ewsFetchRequest` refuse while it is off and say the part is not built while it is on; Add Account does not offer the kind; an Exchange server account already in a mailbox opens and shows its mail, and File › Info says why it isn't kept in step |
 | 2026-10-29 | #599 (gap 6, step 3b of #595): `@media` and `<style media>` in a message are tested against the width the body is laid out at (to the pixel) and the window's theme, and a message's blocks are worked out again only when either flips one of its own conditions (kept per combination of answers beside the message in the reading pane); a sender's palette for dark windows is used in a dark window, and the readability adjustment only changes a pair of colours whose contrast falls short; the words of what a sender hid are kept apart (`Message::hidden_text`) for search, rules and agents, and are not shown or quoted |
 | 2026-10-28 | #598 (gap 6, step 3a of #595): a message's `<style>` blocks are read for the same whitelist as a `style` attribute, by our own capped reader (`crates/html/src/sheet.rs`: tag, class, id and attribute selectors, descendant, child, adjacent and general sibling combinators, `:first-child`, `:last-child`, `:nth-child()`, `:nth-of-type()`, `:not()`, specificity, order, `!important`; `:visited`, `:hover` and `::before` never match; `@import`, `@font-face`, `url()` and `@media` do nothing; 64 KB of sheet, 4,000 rules, 16 parts, bounded matching steps; fuzz target `sheet`). What a rule hides is not shown, in the pane, in plain text and in a reply's original |
+| 2026-10-28 | #614: an HTML signature is shown in an HTML message being written as it goes out: read-only under the owner's text, drawn by the reading pane's renderer with its tables, dividers and placeholders for its pictures on the web (which are not fetched), in place of the simpler rich-text copy, which Edit signature as text brings back (`compose.signatureAsText`, a command an agent may run too; Show signature as it is sent goes back while that copy is unedited). The choice is the message's own, and a signature edited as text now really goes out as that copy, unedited or not. The keyboard stays in the owner's text: whatever puts the caret in a signature shown as it goes out (switching to HTML, another account or signature, an undo, an agent's selection) leaves it at the end of the owner's text, and Delete there no longer reaches into the signature. Also fixed: a border shorthand with no style (`border-bottom: medium`) drew a 3 px line; as in CSS, it draws nothing. Tests in `compose/tests.rs`, `signature_tests.rs` and `style.rs` |
 | 2026-10-27 | #344: an optional message-list column view, with a choice of fields, saved widths and order, and sortable headings. Local messages and server search results share the column layout; attachment and follow-up flag sorting are available. |
 | 2026-10-28 | M6 (#226): JMAP accounts are read in the browser build, which reaches them over `fetch`; [docs/jmap.md](docs/jmap.md) says what works, how an account comes in, what its server has to allow, and how a site that serves MailCraft names accounts and holds their credential. Read only: nothing goes up and nothing is sent yet. The four JMAP commands are in the control protocol |
 | 2026-10-28 | #567: new mail in the Inbox of a Microsoft account kept in step through Microsoft Graph goes through the rules, as IMAP mail does: after the Safe and Blocked Senders lists (mail a list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through them), only once the folder's first round has ended (never its first download, nor a folder read afresh) and then on every page of a later round, which each folder now remembers (`ServerFolder::round_ended`, read from `caught_up` in a file from before), and a rule's move or change goes up to the server as the owner's own does. A shared mailbox's mail stays as its server has it, as the lists leave it. Before, only Run Rules Now ran them on that mail. A rule that moves new mail out of the account (into a folder of another account) clears the undo history, as an IMAP Send/Receive that moved mail on the server does: an undo of an earlier step would otherwise lose that mail for good once the server's copy is removed, until undo leaves alone what arrived after its step (#605). Also fixed: the Safe and Blocked Senders lists sorted only the first page of a later round (100 changes), so after a busy while the rest of a Microsoft account's new mail stayed where it arrived. Tests in `junk_tests.rs` |
@@ -395,12 +400,17 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
+| 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |
+| 2026-10-31 | Parity B3b: Resend Message, Direct Replies To, in the progress log |
+| 2026-10-31 | Parity B1 in the progress log; headline parity 227/328 and 295 commands, with B3 and B4 |
 | 2026-10-31 | Headline numbers and the assessment by area brought up to date (parity 205/328, 276 commands, 18 crates, 5,140 tests, 17 releases; shared calendars, Exchange servers behind a switch, Advanced Search, agents naming what they act on); two #70 progress-log rows moved out of the headline table into the log |
 | 2026-10-30 | #451 follow-up: mail held in an IMAP Outbox moves on into another account, in the progress log; two #451 rows put in date order |
 | 2026-10-30 | #634: the progress log: messages on a light page in the dark theme |
 | 2026-10-30 | #252 E8: the trial against Grommunio, in the progress log |
 | 2026-10-30 | #252 E8: the three faults the trial found are fixed, in the progress log |
 | 2026-10-30 | #252 E8 review: a ghost draft after a send, the log line's scope, in the progress log |
+| 2026-10-29 | Dutch as a preview language: Nederlands (voorbeeld) in File › Options; Automatic follows `nl-NL`; after beta item 15 names five preview languages |
 | 2026-10-29 | #252 E7: Add Account and File › Info for an Exchange server account, in the progress log |
 | 2026-10-29 | #252 E6: NTLMv2 sign-in for Exchange servers and the held connection it needs, in the progress log |
 | 2026-10-29 | #599: the rendering row and the progress log: `@media` and what the sender hid (gap 6, step 3b) |
@@ -411,6 +421,8 @@ follows:
 | 2026-10-28 | #451 review: the copy on an IMAP server is known by MailCraft's own line; rules into another account (progress log) |
 | 2026-10-28 | #567 review: the undo guard (#605), and the lists and the rules on every page of a later round (progress log) |
 | 2026-10-27 | #503: a conversation opens in place in the message list; Delete on its row asks first, per account (progress log) |
+| 2026-10-28 | #614: an HTML signature shown as it goes out in the message being written (progress log) |
+| 2026-10-28 | #614 review: `compose.signatureAsText`, the copy sent, the caret kept out of a signature not shown (progress log) |
 | 2026-10-27 | #512: Forward refuses an `id` or `ids` of `null` (progress log) |
 | 2026-10-27 | #519 slice 2: a large mailbox opens faster; measured numbers (progress log) |
 | 2026-10-27 | #519 slice 2 review: missing bodies marked, the rest of the bodies in the background, measured again (progress log) |

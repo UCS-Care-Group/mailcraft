@@ -16,6 +16,8 @@ use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
 use crate::widgets::{CONTENT_H, LABEL_H, bg, big_frame, command_tooltip, group, mi, mi_check, shortcut_text, small_frame, stack};
 use crate::{MailApp, icons};
 
+mod view_menus;
+
 /// The height of the tab strip, and the size of the tabs' names (10 pt).
 const TAB_H: f32 = 30.0;
 const TAB_SIZE: f32 = 13.333;
@@ -135,9 +137,13 @@ pub(crate) enum Menu {
     Theme,
     RibbonLayout,
     TimeScale,
+    ChangeView,
+    Zoom,
+    RecentSearches,
     FontSize,
     Font,
     FontColor,
+    Highlight,
     Junk,
 }
 
@@ -350,6 +356,8 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big("replyAll", "Reply\nAll", "mail.replyAll", no()).at(2, 2).plain(),
                 Item::big("forward", "Forward", "mail.forward", no()).at(2, 2).plain(),
                 Item::small("forwardAsAttachment", "Forward as Attachment", "", "mail.forwardAsAttachment", no()).under("mail.forward"),
+                Item::small("delete", "Reply and Delete", "", "mail.replyAndDelete", no()).under("mail.reply"),
+                Item::small("open", "View Source", "", "mail.viewSource", no()).under("mail.forward"),
                 Item::small("meeting", "Meeting", "Reply with Meeting", "calendar.fromMessage", no()).at(5, 6),
                 Item::small("newContact", "Add Sender", "Add to Contacts", "people.fromMessage", no()).at(5, 7),
             ],
@@ -359,6 +367,7 @@ fn home_mail(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("moveMessages", "move", "Move", "Move to Folder", Menu::MoveMessages).at(1, 2).plain(),
                 Item::big_menu("rules", "rules", "Rules", "Rules", Menu::Rules).at(4, 4),
+                Item::small("send", "Resend Message", "Open a message you sent as a new one", "mail.resend", no()).at(5, 7),
             ],
         ),
         g(
@@ -453,6 +462,11 @@ fn home_calendar(app: &MailApp) -> Tab {
         if event.join_link().is_some() {
             items.insert(2, Item::small("joinMeeting", "Join", "Join Online Meeting", "ui.joinMeeting", no()).at(3, 4));
         }
+        // A meeting: a message to its people, and how they have answered.
+        if !event.attendees.is_empty() {
+            items.push(Item::small("people", "Contact Attendees", "Email the people of this meeting", "calendar.contactAttendees", no()).at(3, 7));
+            items.push(Item::small("list", "Tracking", "Who has answered, and how", "calendar.tracking", no()).at(3, 7));
+        }
         groups.push(g("Appointment", items));
         if crate::calendar_view::invitation(app, event).0 {
             let mut answers = vec![
@@ -466,12 +480,20 @@ fn home_calendar(app: &MailApp) -> Tab {
             if kept && event.origin.guest && event.response_options.allow_proposals {
                 answers.push(Item::small("proposeTime", "Propose New Time", "Propose New Time", "calendar.propose", no()).at(4, 5));
             }
+            answers.push(Item::small("reply", "Reply by Email", "Write to the organizer without answering", "calendar.respondEmail", no()).at(4, 6));
             groups.push(g("Respond", answers));
         }
     }
     // Somebody else's calendar, by their address (#70).
     groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
-    groups.push(g("Share", vec![Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6)]));
+    groups.push(g(
+        "Share",
+        vec![
+            Item::big("email", "Email\nCalendar", "calendar.email", no()).at(5, 5),
+            Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6),
+        ],
+    ));
+    groups.push(g("Find", vec![Item::big("search", "Search\nCalendar", "calendar.search", no()).at(4, 6)]));
     Tab::of(groups)
 }
 
@@ -486,7 +508,10 @@ fn home_people(app: &MailApp) -> Tab {
             ],
         ),
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
-        g("Communicate", vec![Item::big("mail", "Email", "people.email", no()).at(2, 2)]),
+        g(
+            "Communicate",
+            vec![Item::big("mail", "Email", "people.email", no()).at(2, 2), Item::big("meeting", "Meeting", "people.meeting", no()).at(2, 3)],
+        ),
         g(
             "Actions",
             vec![
@@ -501,6 +526,7 @@ fn home_people(app: &MailApp) -> Tab {
         g(
             "Share",
             vec![
+                Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
                 Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
@@ -539,6 +565,7 @@ fn home_tasks(app: &MailApp) -> Tab {
             vec![
                 Item::big("complete", "Mark\nComplete", "tasks.complete", no()).checked(done).at(2, 2),
                 Item::big("edit", "Edit\nTask", "tasks.edit", no()).at(2, 3),
+                Item::big("mail", "Send Status\nReport", "tasks.statusReport", no()).at(2, 4),
             ],
         ),
         g(
@@ -576,6 +603,7 @@ pub(crate) struct Look {
     /// The font and the colour all of it has, the same way.
     pub font: Option<Option<mailcraft_model::rich::Font>>,
     pub color: Option<Option<String>>,
+    pub highlight: Option<Option<String>>,
     pub bullets: bool,
     pub numbering: bool,
     pub link: bool,
@@ -603,6 +631,7 @@ pub(crate) fn look(body: &mailcraft_model::RichBody, plain: bool) -> Look {
         size: all(&|s| s.size == first.size).then_some(first.size),
         font: all(&|s| s.font == first.font).then_some(first.font),
         color: all(&|s| s.color == first.color).then(|| first.color.clone()),
+        highlight: all(&|s| s.highlight == first.highlight).then(|| first.highlight.clone()),
         bullets: text.all_lists(from, to, ListKind::Bullet).unwrap_or(false),
         numbering: text.all_lists(from, to, ListKind::Numbered).unwrap_or(false),
         link: if sel.is_empty() { text.link_span(sel.head).is_some() } else { text.all(from, to, |s| s.link.is_some()).unwrap_or(false) },
@@ -616,14 +645,20 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let look = look_now(app);
+    let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
         g("Send", vec![Item::big("send", "Send", "compose.send", no()).at(0, 1)]),
+        g(
+            "Clipboard",
+            vec![Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain()],
+        ),
         g(
             "Basic Text",
             vec![
                 Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
                 Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
                 Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
+                Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
                 Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
                 Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
                 Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
@@ -652,6 +687,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("lowImportance", "Low Importance", "Low Importance", "compose.lowImportance", no())
                     .checked(importance == Some(Importance::Low))
                     .at(4, 4),
+                Item::small("reply", "Direct Replies To", "Have replies sent to other addresses", "compose.replyTo", no()).at(4, 6),
             ],
         ),
         g(
@@ -659,6 +695,13 @@ fn message(app: &MailApp) -> Tab {
             vec![
                 Item::small("formatHtml", "HTML", "Format as HTML", "compose.formatHtml", no()).checked(!look.plain).at(5, 5),
                 Item::small("formatPlain", "Plain Text", "Format as Plain Text", "compose.formatPlain", no()).checked(look.plain).at(5, 5),
+            ],
+        ),
+        g(
+            "Editing",
+            vec![
+                Item::small("find", "Find", "Find", "edit.find", no()).at(5, 4).plain(),
+                Item::small("replace", "Replace", "Replace", "edit.replace", no()).at(5, 5).plain(),
             ],
         ),
         g(
@@ -680,9 +723,9 @@ fn insert() -> Tab {
             "Include",
             vec![
                 Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
-                Item::pending("insert.outlookItem", "Item", 0),
-                Item::pending("insert.businessCard", "Business Card", 0),
-                Item::pending("insert.calendar", "Calendar", 0),
+                Item::big("open", "Item", "compose.attachItem", no()).at(0, 3),
+                Item::big("people", "Contact\nCard", "insert.businessCard", no()).at(0, 4),
+                Item::small("calendar", "Calendar", "Insert Calendar", "insert.calendar", no()).at(0, 4),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
             ],
         ),
@@ -715,7 +758,7 @@ fn insert() -> Tab {
             "Symbols",
             vec![
                 Item::pending("insert.equation", "Equation", 5),
-                Item::pending("insert.symbol", "Symbol", 5),
+                Item::big("symbol", "Symbol", "insert.symbol", no()).at(5, 4),
                 Item::pending("insert.rule", "Horizontal Line", 5),
                 Item::pending("insert.emoji", "Emoji", 5),
             ],
@@ -767,6 +810,7 @@ fn send_receive(app: &MailApp) -> Tab {
                 vec![
                     Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(0, 1),
                     Item::big("syncProgress", "Show\nProgress", "ui.dialog", json!({"name": "syncProgress"})).key("sync.progress").at(0, 3),
+                    Item::big("close", "Cancel\nAll", "sync.cancel", no()).at(0, 4),
                 ],
             ),
             g(
@@ -776,6 +820,7 @@ fn send_receive(app: &MailApp) -> Tab {
                     Item::big("info", "Account\nSettings", "ui.backstage", json!({"value": true, "page": "info"})).key("account.settings").at(1, 2),
                 ],
             ),
+            g("Preferences", vec![Item::big("device", "Work\nOffline", "sync.offline", no()).checked(app.offline()).at(2, 2)]),
         ],
         note,
         note_width: 360.0,
@@ -839,18 +884,22 @@ fn view(app: &MailApp) -> Tab {
         let over = mailcraft_engine::cmd::calendar_settings::overlaid(&app.session);
         let overlay = Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3);
         let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
-        tab.groups.retain(|group| group.title != "Messages" && group.title != "Arrangement");
+        tab.groups.retain(|group| !["Current View", "Messages", "Arrangement", "Search"].contains(&group.title));
         let after_layout = tab.groups.len().min(1);
         tab.groups.splice(after_layout..after_layout, [g("Arrangement", calendar_views(v.calendar, 1)), g("Calendar", vec![scale, overlay, beside])]);
     }
     tab
 }
 
-/// The View tab as every module has it: Layout, then the messages' two groups (which the calendar
-/// replaces with its own, by their titles), then Window.
+/// The View tab as every module has it: the list's ready-made views, Layout, then the messages'
+/// two groups (which the calendar replaces with its own, by their titles), the recent searches,
+/// then Window. The calendar drops the ready-made views and the recent searches, which are the
+/// mail's.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
+    let tight = app.session.prefs.tight_spacing;
     Tab::of(vec![
+        g("Current View", vec![Item::big_menu("changeView", "changeView", "Change\nView", "Change View", Menu::ChangeView).at(0, 1)]),
         g(
             "Layout",
             vec![
@@ -864,6 +913,7 @@ fn view_of_any(app: &MailApp) -> Tab {
             vec![
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
+                Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
             ],
         ),
         g(
@@ -873,10 +923,12 @@ fn view_of_any(app: &MailApp) -> Tab {
                 Item::big("reverseSort", "Reverse\nSort", "view.reverseSort", no()).at(2, 3),
             ],
         ),
+        g("Search", vec![Item::big_menu("recentSearches", "recentSearches", "Recent\nSearches", "Recent Searches", Menu::RecentSearches).at(2, 4)]),
         g(
             "Window",
             vec![
                 Item::big_menu("theme", "theme", "Theme", "Interface Theme", Menu::Theme).at(3, 3),
+                Item::big_menu("zoom", "zoom", "Zoom", "Zoom the Message", Menu::Zoom).at(3, 4),
                 Item::big("bell", "Reminders\nWindow", "view.reminders", no()).at(3, 4),
                 Item::big("reset", "Reset\nView", "view.reset", no()).at(3, 5),
             ],
@@ -889,6 +941,10 @@ fn help() -> Tab {
         groups: vec![g(
             "Help",
             vec![
+                Item::big("help", "Help", "help.help", no()).at(0, 1),
+                Item::big("web", "Get\nSupport", "help.support", no()).at(0, 3),
+                Item::big("notes", "Feedback", "help.feedback", no()).at(0, 4),
+                Item::big("favorite", "What's\nNew", "help.whatsNew", no()).at(0, 3),
                 Item::big("search", "Search\nCommands", "ui.dialog", json!({"name": "commands"})).key("help.commands").at(0, 1),
                 Item::big("about", "About\nMailCraft", "ui.dialog", json!({"name": "about"})).key("help.about").at(0, 2),
                 Item::big("copy", "Copy\nDiagnostics", "ui.copyDiagnostics", no()).at(0, 3),
@@ -1270,8 +1326,10 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::TimeScale => crate::calendar_view::time_scale_menu(ui, app),
+        Menu::ChangeView | Menu::Zoom | Menu::RecentSearches => view_menus::show(ui, app, menu),
         Menu::Font => font_menu(ui, app),
         Menu::FontColor => color_menu(ui, app),
+        Menu::Highlight => highlight_menu(ui, app),
         Menu::FontSize => size_menu(ui, app),
     }
 }
@@ -1351,6 +1409,42 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
             ui.close();
         }
         ui.data_mut(|d| d.insert_temp(key, typed));
+    });
+}
+
+/// Highlights offered behind text: an original palette of light colours, which dark text reads on.
+pub(crate) const HIGHLIGHTS: [(&str, &str); 8] = [
+    ("Yellow", "#fff176"),
+    ("Lime", "#c5e1a5"),
+    ("Aqua", "#80deea"),
+    ("Sky", "#90caf9"),
+    ("Pink", "#f8bbd0"),
+    ("Lavender", "#d1c4e9"),
+    ("Peach", "#ffcc80"),
+    ("Grey", "#d9d9d9"),
+];
+
+/// The highlights (`format.highlight`): No Color, and the palette as swatches.
+pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
+    let now = look_now(app).highlight;
+    let enabled = app.enabled("format.highlight");
+    mi_check(ui, app, "No Color", now == Some(None), "format.highlight", json!({"value": null}));
+    ui.horizontal_wrapped(|ui| {
+        ui.set_max_width(190.0);
+        for (name, hex) in HIGHLIGHTS {
+            let Ok(c) = egui::Color32::from_hex(hex) else { continue };
+            let chosen = now.as_ref().is_some_and(|n| n.as_deref() == Some(hex));
+            let (r, resp) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::click());
+            ui.painter().rect_filled(r, 2.0, c);
+            if chosen || resp.hovered() {
+                ui.painter().rect_stroke(r.expand(1.5), 2.0, egui::Stroke::new(1.5, ui.visuals().text_color()), egui::StrokeKind::Outside);
+            }
+            app.hit.add("highlightSwatch", hit_id(hex), r);
+            if resp.on_hover_text(tl!(name)).clicked() && enabled {
+                let _ = app.run("format.highlight", json!({"value": hex}));
+                ui.close();
+            }
+        }
     });
 }
 
@@ -2503,8 +2597,11 @@ mod tests {
             [
                 ("New", vec!["New\nEmail", "New\nItems"]),
                 ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
-                ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Meeting", "Add Sender"]),
-                ("Move", vec!["Move", "Rules"]),
+                (
+                    "Respond",
+                    vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Reply and Delete", "View Source", "Meeting", "Add Sender"]
+                ),
+                ("Move", vec!["Move", "Rules", "Resend Message"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
                 ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),

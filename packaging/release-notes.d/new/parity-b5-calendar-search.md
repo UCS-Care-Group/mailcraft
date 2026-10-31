@@ -1,0 +1,1 @@
+- Home › Find › Search Calendar finds appointments with the search box's words: what they are called, who organizes them or is invited, where they are, their notes, their categories and their days.

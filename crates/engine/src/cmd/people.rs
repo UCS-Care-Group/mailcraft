@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! People: contacts.
 
-use mailcraft_model::{Contact, Id, Labeled, PostalAddress, clean_name};
+use mailcraft_model::{Address, Contact, Id, Labeled, PostalAddress, clean_name};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
 use super::{bad, done, fail, needs_message};
 use crate::session::parse_enum;
 use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
+
+#[cfg(test)]
+mod share_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -31,6 +34,13 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.email", "Email", "Home › Communicate", email)
             .pure()
             .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .selection(needs_contact),
+        CommandSpec::new("people.meeting", "Meeting", "Home › Communicate", meeting)
+            .params(r#"{"id"?: number (the contact; default: the selected one), …the fields of calendar.newMeeting} — a new meeting with the contact invited, beside anyone "attendees" names: calendar.newMeeting, with its rules ("send": true invites them by mail from an account's calendar)"#)
+            .selection(needs_contact),
+        CommandSpec::new("people.forward", "Forward Contact", "Home › Share", forward)
+            .pure()
+            .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
             .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one)"#)
@@ -295,4 +305,58 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     s.sel.contact = Some(id);
     s.view.module = Module::People;
     Ok(json!({"id": id, "existing": false}))
+}
+
+/// The contact a command that writes to other people about it names: `id`, read strictly (named
+/// wrongly, it is refused, never taken to mean the selection), else the selected one.
+fn named(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = p::id_strict(v, "id")?.or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
+    s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
+}
+
+/// A new meeting with the contact invited: `calendar.newMeeting`, which says what goes to whom.
+fn meeting(s: &mut Session, v: &Value) -> CmdResult {
+    let id = named(s, v)?;
+    let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
+    let mut fields = match v {
+        Value::Object(m) => m.clone(),
+        Value::Null => serde_json::Map::new(),
+        _ => return Err(bad("the parameters are an object")),
+    };
+    fields.remove("id");
+    let more = match fields.get("attendees") {
+        None | Some(Value::Null) => String::new(),
+        Some(Value::String(t)) => t.clone(),
+        Some(_) => return Err(bad("`attendees` is text: \"a@x; b@y\"")),
+    };
+    let listed = Address::parse_list(&more).iter().any(|a| a.same_mailbox(&to));
+    let attendees = if listed {
+        more
+    } else if more.trim().is_empty() {
+        to.full()
+    } else {
+        format!("{}; {more}", to.full())
+    };
+    fields.insert("attendees".into(), json!(attendees));
+    s.run("calendar.newMeeting", &Value::Object(fields))
+}
+
+/// A file name for a contact's card: its name, without what a file name can't have.
+fn card_name(c: &Contact) -> String {
+    let name: String =
+        c.name().chars().filter(|ch| !ch.is_control() && !matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')).take(80).collect();
+    let name = name.trim().trim_matches('.').trim();
+    if name.is_empty() { "contact.vcf".to_string() } else { format!("{name}.vcf") }
+}
+
+/// Forward Contact: a new message with the contact's card attached, for the owner to send.
+fn forward(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["id", "discard"])?;
+    let id = named(s, v)?;
+    let c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
+    let card = mailcraft_vcard::write(&[&c]);
+    let subject = mailcraft_names::shown(&c.name(), 200);
+    s.run("mail.new", &json!({"subject": subject, "discard": p::bool(v, "discard") == Some(true)}))?;
+    s.run("compose.attach", &json!({"name": card_name(&c), "data": super::base64_encode(card.as_bytes()), "mime": "text/vcard"}))?;
+    Ok(json!({"composing": true, "contact": id}))
 }

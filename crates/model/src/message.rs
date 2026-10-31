@@ -502,13 +502,13 @@ impl Message {
 }
 
 /// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `Re[2]:`; German `AW:`, `WG:`;
-/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`), however many there are.
+/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`; Dutch `Antw:`, `Doorst:`), however many there are.
 pub fn normalize_subject(subject: &str) -> String {
     let mut s = subject.trim();
     while let Some((prefix, rest)) = s.split_once(':') {
         let p = prefix.trim().to_ascii_lowercase();
         let p = p.split('[').next().unwrap_or("").trim();
-        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i") {
+        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i" | "antw" | "doorst") {
             s = rest.trim();
         } else {
             break;
@@ -537,6 +537,7 @@ mod tests {
         assert_eq!(normalize_subject("AW: WG: Mittagessen"), "Mittagessen");
         assert_eq!(normalize_subject("RE: RV: Almuerzo"), "Almuerzo");
         assert_eq!(normalize_subject("R: I: Pranzo"), "Pranzo");
+        assert_eq!(normalize_subject("Antw: Doorst: Lunch"), "Lunch");
         assert_eq!(normalize_subject("Ristorante: Pranzo"), "Ristorante: Pranzo");
     }
 
