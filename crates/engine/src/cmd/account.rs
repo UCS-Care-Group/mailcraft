@@ -624,17 +624,8 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     // which of their calendars is kept as the mailbox's own, when only theirs are left, doesn't
     // depend on a hash.
     let accounts: Vec<Id> = s.mailbox.accounts.iter().filter(|a| going.contains(&a.id)).map(|a| a.id).collect();
-    // Outlook's list of categories, which is the mailbox's, from whichever Microsoft account read
-    // it last: one that stays reads its own again with its contacts, which the window brings
-    // every quarter of an hour.
-    // (A shared mailbox reads no list of categories of its own: the owner's sign-in reads the
-    // owner's.)
-    let microsoft = s.mailbox.accounts.iter().any(|a| going.contains(&a.id) && a.kind == AccountKind::Microsoft && !a.is_shared());
     for account in accounts {
         super::remote::forget(s, account)?;
-    }
-    if microsoft {
-        s.mailbox.outlook_categories.clear();
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;

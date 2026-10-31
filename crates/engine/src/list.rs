@@ -124,10 +124,13 @@ pub fn fold(name: &str) -> String {
 }
 
 /// One spelling for each category name however it was written, by its [`fold`]: the mailbox's
-/// list of categories first, then the first spelling met among `items`' categories. One map per
+/// lists of categories first, then the first spelling met among `items`' categories. One map per
 /// list build, so no name is searched for item by item.
 pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = &'a [String]>) -> HashMap<String, &'a str> {
-    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
+    let mut spelling: HashMap<String, &str> = HashMap::new();
+    for k in s.mailbox.all_categories() {
+        spelling.entry(fold(&k.name)).or_insert(k.name.as_str());
+    }
     for categories in items {
         for c in categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
             spelling.entry(fold(c)).or_insert(c);

@@ -14,6 +14,8 @@ pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod category;
+#[cfg(test)]
+mod category_tests;
 pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
