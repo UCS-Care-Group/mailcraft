@@ -384,16 +384,16 @@ impl MailApp {
         }
         let mut asked = false;
         if result.sign_in_refused && result.tokens.is_none() {
-            log::warn!("automatic replies, account {account}: the sign-in was refused; waiting for a new one");
+            log::warn!("automatic replies: the sign-in was refused; waiting for a new one");
             trouble = Some(Trouble::SignInOver(given));
         } else if result.consent_needed {
-            log::info!("automatic replies, account {account}: the sign-in doesn't cover the mailbox's settings");
+            log::info!("automatic replies: the sign-in doesn't cover the mailbox's settings");
             trouble = Some(Trouble::SignInToRead);
         } else if result.write_consent_needed {
             // The owner is asked, once, by itself; the change goes when he allows it. When he can't
             // be asked now (another window, a sign-in under way), the change is dropped and said:
             // a later Ask again never sends a change made long before.
-            log::info!("automatic replies, account {account}: changing them needs the owner's permission");
+            log::info!("automatic replies: changing them needs the owner's permission");
             self.auto_replies.perm.insert(account, Permission::Needed);
             asked = self.dialog.is_none() && self.signing_in.is_none() && self.ask_replies(account);
             if let Some(change) = change.clone().filter(|_| asked) {
@@ -562,7 +562,7 @@ impl MailApp {
                     }
                 }
                 // Allowed, as far as is known: the change that waited finds out.
-                log::info!("automatic replies, account {account}: the owner allowed changing them");
+                log::info!("automatic replies: the owner allowed changing them");
                 self.auto_replies.perm.remove(&account);
                 if let Some(change) = self.auto_replies.held.remove(&account) {
                     self.auto_replies.waiting = Some((account, change));
