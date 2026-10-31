@@ -144,8 +144,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish and Italian
-    previews, more languages, right-to-left layout (gap 14). Partly done: the four ship as previews.
+15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
+    Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
 
 ## The browser build
 
@@ -179,7 +179,7 @@ follows:
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
 | M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: five preview languages |
 
 ## Progress log
 
@@ -411,6 +411,7 @@ follows:
 | 2026-10-30 | #252 E8: the trial against Grommunio, in the progress log |
 | 2026-10-30 | #252 E8: the three faults the trial found are fixed, in the progress log |
 | 2026-10-30 | #252 E8 review: a ghost draft after a send, the log line's scope, in the progress log |
+| 2026-10-29 | Dutch as a preview language: Nederlands (voorbeeld) in File › Options; Automatic follows `nl-NL`; after beta item 15 names five preview languages |
 | 2026-10-29 | #252 E7: Add Account and File › Info for an Exchange server account, in the progress log |
 | 2026-10-29 | #252 E6: NTLMv2 sign-in for Exchange servers and the held connection it needs, in the progress log |
 | 2026-10-29 | #599: the rendering row and the progress log: `@media` and what the sender hid (gap 6, step 3b) |
