@@ -749,3 +749,19 @@ fn two_drafts_with_one_marker_go_on_with_the_newest_and_a_third_is_never_made() 
     assert_eq!(standin.state().item(&newer).unwrap().subject, "Hello again");
     assert_eq!(standin.state().item(&older).unwrap().subject, "Hello");
 }
+
+#[test]
+fn a_draft_asks_for_a_read_receipt_where_the_schema_puts_it() {
+    use crate::changes::{ItemUpdate, UpdateItem};
+    use crate::compose::{CreateDraft, DraftContent};
+    let who = Address::new("Zoe", "zoe@example.org");
+    let draft = DraftContent { to: vec![who.clone()], reply_to: vec![who], read_receipt: true, ..Default::default() };
+    let xml = CreateDraft::new(None, draft).element().write();
+    let (bcc_or_to, asked, reply) =
+        (xml.find("t:ToRecipients").unwrap(), xml.find("<t:IsReadReceiptRequested>true<").unwrap(), xml.find("t:ReplyTo").unwrap());
+    assert!(bcc_or_to < asked && asked < reply, "{xml}");
+    assert!(!CreateDraft::new(None, DraftContent::default()).element().write().contains("IsReadReceiptRequested"));
+    let update = ItemUpdate { read_receipt: Some(false), ..ItemUpdate::default() };
+    let xml = UpdateItem::draft("ID1", "CK", update).element().write();
+    assert!(xml.contains("message:IsReadReceiptRequested") && xml.contains("<t:IsReadReceiptRequested>false<"), "{xml}");
+}

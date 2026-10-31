@@ -644,6 +644,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
+    let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
@@ -688,6 +689,9 @@ fn message(app: &MailApp) -> Tab {
                     .checked(importance == Some(Importance::Low))
                     .at(4, 4),
                 Item::small("reply", "Direct Replies To", "Have replies sent to other addresses", "compose.replyTo", no()).at(4, 6),
+                Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
+                    .checked(read_receipt)
+                    .at(4, 6),
             ],
         ),
         g(
@@ -942,6 +946,7 @@ fn help() -> Tab {
             "Help",
             vec![
                 Item::big("help", "Help", "help.help", no()).at(0, 1),
+                Item::big("info", "Show\nTraining", "help.training", no()).at(0, 3),
                 Item::big("web", "Get\nSupport", "help.support", no()).at(0, 3),
                 Item::big("notes", "Feedback", "help.feedback", no()).at(0, 4),
                 Item::big("favorite", "What's\nNew", "help.whatsNew", no()).at(0, 3),
