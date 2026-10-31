@@ -3002,12 +3002,19 @@ mod event {
             s.mailbox.calendar(self.calendar).map_or(0, |c| c.origin.account)
         }
 
+        /// What the window's Categorize menu offers: the list of the event's account, then in
+        /// grey what the event has off it, as its chips do.
+        pub(crate) fn offered_categories(&self, s: &Session) -> Vec<(String, egui::Color32)> {
+            let account = self.category_account(s);
+            let listed = s.mailbox.categories_of(account).iter().map(|c| (c.name.clone(), c32(c.color)));
+            let off_list = self.categories.iter().filter(|name| s.mailbox.category_of(account, name).is_none());
+            listed.chain(off_list.map(|name| (name.clone(), c32(mailcraft_model::GREY_CATEGORY)))).take(200).collect()
+        }
+
         /// The window's own bar. The key of the button that was clicked.
         fn bar(&mut self, app: &mut MailApp, ui: &mut Ui) -> Option<&'static str> {
             let items = self.bar_items();
-            let account = self.category_account(&app.session);
-            let categories: Vec<(String, egui::Color32)> =
-                app.session.mailbox.categories_of(account).iter().map(|c| (c.name.clone(), c32(c.color))).take(200).collect();
+            let categories = self.offered_categories(&app.session);
             let mut menu = |ui: &mut Ui, key: &'static str| match key {
                 "showAs" => {
                     for x in ShowAs::ALL {
@@ -5502,6 +5509,7 @@ mod categories {
         fn show_list(&mut self, mailbox: &Mailbox, account: Id) {
             self.account = account;
             self.editing = None;
+            self.new_name.clear();
             self.error.clear();
             self.new_color = unused_color(mailbox.categories_of(account));
         }

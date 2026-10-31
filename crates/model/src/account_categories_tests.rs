@@ -294,3 +294,36 @@ fn what_isnt_a_list_costs_that_much_and_not_the_file() {
     let back: Mailbox = serde_json::from_value(value).unwrap();
     assert!(back.server_categories.is_empty() && back.account_categories.is_empty());
 }
+
+#[test]
+fn a_list_goes_with_an_account_whose_id_is_corrected() {
+    let (mut mb, a, b) = two_accounts();
+    let id_of = |mb: &Mailbox, email: &str| mb.accounts.iter().find(|x| x.email == email).unwrap().id;
+    let shared = mb.categories.clone();
+    for (account, id, name) in [(a, 0, "Mine"), (b, u64::MAX, "Theirs")] {
+        mb.accounts.iter_mut().find(|x| x.id == account).unwrap().id = id;
+        mb.account_categories.insert(id, vec![tagged(name, RED)]);
+        mb.server_categories.insert(id, vec![name.to_string()]);
+    }
+    mb.repair();
+    let (a, b) = (id_of(&mb, "a@example.org"), id_of(&mb, "b@example.org"));
+    assert_eq!(mb.categories_of(a), [tagged("Mine", RED)]);
+    assert_eq!(mb.categories_of(b), [tagged("Theirs", RED)]);
+    assert_eq!(mb.server_categories[&a], ["Mine"]);
+    // Nothing is left under the old ids, where 0 would stand for the shared list.
+    assert_eq!(mb.categories_of(0), shared.as_slice());
+    assert_eq!(mb.account_categories.keys().copied().collect::<Vec<_>>(), [a, b]);
+    assert_eq!(mb.server_categories.keys().copied().collect::<Vec<_>>(), [a, b]);
+}
+
+#[test]
+fn a_second_account_with_an_id_doesnt_take_the_firsts_list() {
+    let (mut mb, a, b) = two_accounts();
+    mb.accounts.iter_mut().find(|x| x.id == b).unwrap().id = a;
+    mb.account_categories.insert(a, vec![tagged("Mine", RED)]);
+    mb.repair();
+    let other = mb.accounts.iter().find(|x| x.email == "b@example.org").unwrap().id;
+    assert_ne!(other, a);
+    assert_eq!(mb.categories_of(a), [tagged("Mine", RED)]);
+    assert!(!mb.account_categories.contains_key(&other));
+}
