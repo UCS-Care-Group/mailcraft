@@ -344,8 +344,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // forward in HTML, as the reading pane shows it.
     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("compose_body").show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 16, top: 10, bottom: 16 }).show(ui, |ui| {
-            let room = if c.quote { 8.0 * 19.0 } else { (ui.available_height() - 26.0).max(8.0 * 19.0) };
+            let below = c.quote || editor::unedited_html_signature(app).is_some();
+            let room = if below { 8.0 * 19.0 } else { (ui.available_height() - 26.0).max(8.0 * 19.0) };
             editor::show(app, ui, room, fresh && !focus_to);
+            signature(app, ui);
             if c.quote {
                 ui.add_space(8.0);
                 // The original senses the pointer over all of the view it is drawn in: kept to
@@ -359,6 +361,50 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             }
         });
     });
+}
+
+/// An HTML signature as it goes out, under the owner's text in place of its simpler copy
+/// ([`editor::html_signature`]): read-only, its pictures on the web not fetched, with a way to
+/// edit it as text instead, and back while that copy is unedited.
+fn signature(app: &mut MailApp, ui: &mut Ui) {
+    let ctx = ui.ctx().clone();
+    let Some(html) = editor::unedited_html_signature(app).map(str::to_string) else { return };
+    if editor::html_signature(app).is_none() {
+        let back = ui
+            .link(tl!("Show signature as it is sent"))
+            .on_hover_text(tl!("Shows the signature as it was designed again, as long as its text is unchanged"));
+        app.hit.add("composeSignatureAsHtml", 0, back.rect);
+        if back.clicked() {
+            let _ = app.run("compose.signatureAsText", json!({"value": false}));
+        }
+        return;
+    }
+    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
+    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
+        Some(m) => m,
+        None => {
+            // As it is sent: cleaned.
+            let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
+            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            m
+        }
+    };
+    let top = ui.cursor().min.y;
+    // Kept to below where it begins, as the quote is, so that it takes no click meant for the text.
+    let below = Rect::everything_below(top);
+    ui.scope(|ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(below));
+        crate::reading::show_plain_view(app, ui, &message, crate::reading::Place::Preview);
+    });
+    let shown = Rect::from_min_max(pos2(ui.min_rect().min.x, top), pos2(ui.min_rect().max.x, ui.cursor().min.y));
+    app.hit.add("composeSignature", 0, shown);
+    let edit = ui
+        .link(tl!("Edit signature as text"))
+        .on_hover_text(tl!("The signature is then sent as the simpler text shown here, not as it was designed"));
+    app.hit.add("composeSignatureAsText", 0, edit.rect);
+    if edit.clicked() {
+        let _ = app.run("compose.signatureAsText", json!({"value": true}));
+    }
 }
 
 #[cfg(test)]

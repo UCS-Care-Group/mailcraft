@@ -3114,10 +3114,20 @@ msgid "Edit Signature"
 msgstr "Modifica firma"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Signature as Text"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Edit Task"
 msgstr "Modifica attività"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Edit signature as text"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -9124,6 +9134,11 @@ msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Show signature as it is sent"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Show the Copy under Shared Calendars"
 msgstr ""
@@ -9196,6 +9211,11 @@ msgstr "Se vuoto, viene mostrato come Nome Cognome"
 #. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Shows the signature as it was designed again, as long as its text is unchanged"
 msgstr ""
 
 #. interface
@@ -10669,6 +10689,11 @@ msgstr "L'accesso dell'account tramite cui è aperta questa cassetta postale con
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "The signature is then sent as the simpler text shown here, not as it was designed"
 msgstr ""
 
 #. interface
@@ -13760,6 +13785,11 @@ msgid "the message can't hold that much text"
 msgstr "il messaggio non può contenere così tanto testo"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the message has no HTML signature"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "the message has no attachment {index}"
@@ -13884,6 +13914,11 @@ msgstr "la firma contiene modifiche: salvarla, oppure chiuderla con discard"
 #, fuzzy
 msgid "the signature is no longer there"
 msgstr "la firma non c'è più"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the signature was edited as text: its copy is what goes out"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs

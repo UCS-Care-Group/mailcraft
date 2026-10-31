@@ -669,6 +669,43 @@ pub struct Compose {
     pub owner_changed: bool,
 }
 
+impl Compose {
+    /// Whether the signature in the message is still the one that went in.
+    pub fn signature_unedited(&self) -> bool {
+        self.signature.as_ref().is_some_and(|inserted| self.body.text().signature().as_ref() == Some(&inserted.text))
+    }
+
+    /// The owner's own HTML of the signature, while that is what goes out: an HTML signature
+    /// that is unedited and not chosen to be edited as text.
+    pub fn signature_html(&self) -> Option<&str> {
+        let inserted = self.signature.as_ref().filter(|i| !i.as_text)?;
+        inserted.html.as_deref().filter(|_| self.signature_unedited())
+    }
+
+    /// The owner's own HTML of the signature while the composer shows it as it goes out, under
+    /// the text and out of the keyboard's reach: an HTML message that ends with it, with text
+    /// before it.
+    pub fn signature_html_shown(&self) -> Option<&str> {
+        let paragraphs = self.body.text().paragraphs();
+        let ends = paragraphs.first().is_some_and(|p| !p.signature) && paragraphs.last().is_some_and(|p| p.signature);
+        self.signature_html().filter(|_| self.format == BodyFormat::Html && ends)
+    }
+
+    /// Take the caret and the selection out of a signature shown as it goes out, to the end of
+    /// the owner's text before it, so that typing never edits what isn't shown (#614).
+    pub fn keep_out_of_signature(&mut self) {
+        if self.signature_html_shown().is_none() {
+            return;
+        }
+        let Some(end) = self.body.text().signature_start().map(|s| s.saturating_sub(1)) else { return };
+        let sel = self.body.selection();
+        if sel.anchor.max(sel.head) > end {
+            // Within the text: `end` is before the signature.
+            let _ = self.body.select(sel.anchor.min(end), sel.head.min(end));
+        }
+    }
+}
+
 fn is_zero_u32(n: &u32) -> bool {
     *n == 0
 }
@@ -686,6 +723,10 @@ pub struct InsertedSignature {
     /// The owner's own HTML, for an HTML signature: what goes out while the text is unedited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
+    /// The owner chose to edit an HTML signature as text: its simpler copy is shown in the
+    /// message and goes out in place of the HTML (`compose.signatureAsText`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub as_text: bool,
 }
 
 /// A signature open in File › Signatures (R4.5.3): edited as a message's body is, by the
@@ -2606,6 +2647,10 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // Whatever put the caret there (a format, an account, a signature, an undo, an agent).
+                if let Some(c) = self.compose.as_mut() {
+                    c.keep_out_of_signature();
+                }
                 // A message being written that the owner (or a script of theirs) changed is theirs
                 // until it is closed (#494); an agent's own changes don't make it the agent's.
                 if self.agent.is_none()
