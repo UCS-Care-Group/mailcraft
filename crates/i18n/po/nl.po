@@ -14065,6 +14065,11 @@ msgstr "dat is geen e-mailadres"
 msgid "that isn't on the list"
 msgstr "dat staat niet op de lijst"
 
+#. interface
+#: crates/ui-egui/src
+msgid "that mailbox is open in another MailCraft window; close it there first"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "that message is a draft: open it to send it"

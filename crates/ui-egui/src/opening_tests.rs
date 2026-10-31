@@ -733,3 +733,59 @@ fn a_message_being_written_is_asked_about_when_the_read_mailbox_takes_over() {
         }
     }
 }
+
+/// A host whose locks are given as the test says, and the files it was asked to lock.
+fn locking_host(give: bool) -> (Services, Arc<Mutex<Vec<PathBuf>>>) {
+    let (mut services, _) = held_host();
+    let asked: Arc<Mutex<Vec<PathBuf>>> = Default::default();
+    let seen = asked.clone();
+    services.claim_mailbox = Some(Box::new(move |p: &Path| {
+        seen.lock().unwrap().push(p.to_path_buf());
+        give
+    }));
+    (services, asked)
+}
+
+/// #517: a mailbox file another MailCraft window has open is neither opened nor written over, by
+/// the owner or an agent; the mailbox open stays as it was.
+#[test]
+fn a_mailbox_another_window_has_open_is_refused_and_the_one_open_stays() {
+    let tmp = Temp::new("elsewhere");
+    let (mine, theirs) = (tmp.0.join("Mine.mailcraft"), tmp.0.join("Theirs.mailcraft"));
+    mailcraft_engine::store::save(&mine, &mailbox(3)).unwrap();
+    mailcraft_engine::store::save(&theirs, &mailbox(5)).unwrap();
+    let (services, asked) = locking_host(false);
+    let mut app = sample_app(services);
+    app.session.path = Some(mine.clone());
+    let messages = app.session.mailbox.messages.len();
+    let other = json!({"path": theirs.to_string_lossy()});
+    // Before anything is read or asked.
+    assert_eq!(app.run("file.open", other.clone()).unwrap_err(), OPEN_ELSEWHERE);
+    assert!(app.reading_ahead.is_none() && app.dialog.is_none());
+    assert_eq!(app.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(OPEN_ELSEWHERE));
+    assert_eq!(app.execute("file.open", other.clone()).unwrap_err(), OPEN_ELSEWHERE);
+    assert_eq!(app.execute("file.saveAs", other.clone()).unwrap_err(), OPEN_ELSEWHERE);
+    assert_eq!(app.execute("file.save", other).unwrap_err(), OPEN_ELSEWHERE);
+    assert_eq!(app.session.path.as_deref(), Some(mine.as_path()));
+    assert_eq!(app.session.mailbox.messages.len(), messages);
+    assert_eq!(mailcraft_engine::store::open(&theirs).unwrap().mailbox.messages.len(), 5, "not written over");
+    assert_eq!(asked.lock().unwrap().len(), 4);
+    // The mailbox open now isn't asked for, however its path is spelt; nor is one with no file.
+    let spelt = tmp.0.join(".").join("Mine.mailcraft");
+    assert!(app.execute("file.save", json!({"path": spelt.to_string_lossy()})).is_ok());
+    assert!(app.execute("file.new", json!({})).is_ok());
+    assert_eq!(asked.lock().unwrap().len(), 4);
+}
+
+#[test]
+fn a_mailbox_whose_lock_is_given_opens_as_before() {
+    let tmp = Temp::new("given");
+    let file = tmp.0.join("Archive.mailcraft");
+    mailcraft_engine::store::save(&file, &mailbox(5)).unwrap();
+    let (services, asked) = locking_host(true);
+    let mut app = sample_app(services);
+    assert!(app.execute("file.open", json!({"path": file.to_string_lossy()})).is_ok());
+    assert_eq!(app.session.path.as_deref(), Some(file.as_path()));
+    assert_eq!(app.session.mailbox.messages.len(), 5);
+    assert_eq!(*asked.lock().unwrap(), vec![file]);
+}

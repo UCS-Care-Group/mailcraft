@@ -24,11 +24,18 @@
 //! start on the same file never opens it again, so a run for a test that names the owner's mailbox
 //! hands over and exits); one on the sample mailbox, and one without preferences
 //! (`MAILCRAFT_NO_PREFS`) that names no `--mailbox`, keep nothing in a file and neither take a
-//! lock nor listen, so they never meet the owner's window. A run without preferences that names a
-//! mailbox file is guarded for that file. The lock is taken for the mailbox a run starts with
-//! only: a `.mailcraft` file opened later in the window (File › Open, a drop, or handed over
-//! here) is opened with `file.open` without its own lock, and another window may have that one
-//! open.
+//! lock nor listen at the start, so they never meet the owner's window. A run without preferences
+//! that names a mailbox file is guarded for that file.
+//!
+//! Another mailbox in the same window (#517): a `.mailcraft` file the window opens later (File ›
+//! Open, a recent one, a drop, one handed over here) or saves to has its lock taken first
+//! ([`Claimer::claim`]); when another MailCraft has it, the window refuses and its own mailbox
+//! stays open and locked. Once the window has the other file open ([`Guard::follow`], once a
+//! frame), that file is the one later starts are told of (its `.instance`, with the same port and
+//! key), and then the lock of the one before is let go of, so a start on that one opens it. After
+//! File › New, which keeps nothing in a file, nothing is held. A run that started without a lock
+//! (the sample) takes one the same way but doesn't listen: a later start on that file says it is
+//! open elsewhere.
 //! A lock left by a run that crashed was let go of by the system; its `.instance` file names a
 //! port nobody answers on and is replaced by the next first start.
 
@@ -77,11 +84,76 @@ pub struct Handed {
 
 /// The first instance's hold on a mailbox, and what later starts hand to it.
 pub struct Guard {
-    /// Held, not read: the lock goes when the file is closed.
-    _lock: Option<File>,
-    info: Option<PathBuf>,
+    held: Arc<Mutex<Held>>,
     rx: Receiver<Handed>,
     wake: Arc<Mutex<Option<egui::Context>>>,
+}
+
+/// The locks a window holds: the mailbox it has open, and any it is about to open or save to.
+#[derive(Default)]
+struct Held {
+    /// The mailbox the window has open (its whole path), and its lock: held, not read, the lock
+    /// goes when the file is closed. No lock where the file system has none.
+    open: Option<(PathBuf, Option<File>)>,
+    /// Locks taken for another mailbox ([`Claimer::claim`]) that the window hasn't opened yet.
+    claimed: Vec<(PathBuf, Option<File>)>,
+    /// The `.instance` file later starts read, while there is one.
+    info: Option<PathBuf>,
+    /// What it says (the port and the key), where this window listens.
+    told: Option<String>,
+}
+
+/// Lets the window take the lock of another mailbox ([`Self::claim`]).
+#[derive(Clone)]
+pub struct Claimer(Arc<Mutex<Held>>);
+
+impl Claimer {
+    /// Take the lock of the mailbox file at `path` as well as what is held: `false` when another
+    /// MailCraft has it. A file whose lock can't be had for want of locks is guarded as at the
+    /// start: not at all.
+    pub fn claim(&self, path: &Path) -> bool {
+        let path = whole_path(path);
+        let mut held = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if held.open.as_ref().is_some_and(|(p, _)| *p == path) || held.claimed.iter().any(|(p, _)| *p == path) {
+            return true;
+        }
+        match lock(&path) {
+            Ok(file) => {
+                held.claimed.push((path, file));
+                true
+            }
+            Err(Taken) => false,
+        }
+    }
+}
+
+/// Another MailCraft holds the lock.
+struct Taken;
+
+/// `path` whole, as two spellings of one file are compared.
+fn whole_path(path: &Path) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// The lock beside `mailbox`: `Ok(None)` when there is no lock to be had (no lock file, a file
+/// system without locks).
+fn lock(mailbox: &Path) -> Result<Option<File>, Taken> {
+    let lock_path = beside(mailbox, "lock");
+    let file = match OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path) {
+        Ok(f) => f,
+        Err(e) => {
+            log::warn!("no lock file {} ({e}): not guarding against a second window", lock_path.display());
+            return Ok(None);
+        }
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Err(Taken),
+        Err(TryLockError::Error(e)) => {
+            log::warn!("{} can't be locked ({e}): not guarding against a second window", lock_path.display());
+            Ok(None)
+        }
+    }
 }
 
 impl Guard {
@@ -104,10 +176,73 @@ impl Guard {
 
     /// The window is closing: later starts have nobody to reach from here on.
     pub fn close(&self) {
-        if let Some(info) = &self.info {
+        if let Some(info) = &self.held().info {
             let _ = std::fs::remove_file(info);
         }
     }
+
+    fn held(&self) -> std::sync::MutexGuard<'_, Held> {
+        self.held.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// For the window, to take the lock of another mailbox before it opens it or saves to it.
+    pub fn claimer(&self) -> Claimer {
+        Claimer(self.held.clone())
+    }
+
+    /// Once a frame: `now` is the mailbox file the window has open (`None`: one kept in no file).
+    /// When it is another than before, its lock (taken by [`Claimer::claim`], or now) becomes the
+    /// one held and later starts are told of it, and then the one before is let go of. Locks taken
+    /// for a mailbox the window didn't open (it couldn't be read, it was a copy, the owner changed
+    /// their mind) are let go of too.
+    pub fn follow(&self, now: Option<&Path>) {
+        let mut held = self.held();
+        let now = now.map(whole_path);
+        if held.open.as_ref().map(|(p, _)| p) == now.as_ref() {
+            held.claimed.clear();
+            return;
+        }
+        let taken = now.map(|path| match held.claimed.iter().position(|(p, _)| *p == path) {
+            Some(i) => {
+                let (_, file) = held.claimed.swap_remove(i);
+                (path, file)
+            }
+            // Not asked for first: taken now if it can be (the window has it open already).
+            None => {
+                let file = lock(&path).unwrap_or_else(|Taken| {
+                    log::warn!("another MailCraft holds the lock of the mailbox this window now has open");
+                    None
+                });
+                (path, file)
+            }
+        });
+        held.claimed.clear();
+        // Later starts on the new one reach this window, and on the old one nobody.
+        let info = match (&taken, &held.told) {
+            (Some((path, _)), Some(told)) => {
+                let info = beside(path, "instance");
+                match write_key_file(&info, told) {
+                    Ok(()) => Some(info),
+                    Err(e) => {
+                        log::error!("a second MailCraft won't be able to reach this one: {e}");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        if let Some(old) = std::mem::replace(&mut held.info, info) {
+            let _ = std::fs::remove_file(old);
+        }
+        // Last, the lock of the one before goes.
+        held.open = taken;
+    }
+}
+
+/// A window with nothing held yet (the sample, a run without preferences that names no mailbox):
+/// it takes the lock of a mailbox file it opens later, and listens for nobody.
+pub fn none() -> Guard {
+    unguarded(None)
 }
 
 /// `<mailbox>.<what>`, beside the mailbox.
@@ -133,30 +268,34 @@ pub(crate) fn start_within(mailbox: &Path, args: &[String], reach: Duration) -> 
         // Nowhere to keep a lock: there is nothing to guard with, so start as if alone.
         Err(e) => {
             log::warn!("no lock file {} ({e}): not guarding against a second window", lock_path.display());
-            return Start::First(unguarded());
+            return Start::First(unguarded(Some(mailbox)));
         }
     };
     match lock.try_lock() {
-        Ok(()) => Start::First(first(lock, info_path)),
+        Ok(()) => Start::First(first(mailbox, lock, info_path)),
         Err(TryLockError::WouldBlock) => hand_over(&info_path, args, reach),
         // A file system without locks: start as if alone, as before there was a guard.
         Err(TryLockError::Error(e)) => {
             log::warn!("{} can't be locked ({e}): not guarding against a second window", lock_path.display());
-            Start::First(unguarded())
+            Start::First(unguarded(Some(mailbox)))
         }
     }
 }
 
-fn unguarded() -> Guard {
-    Guard { _lock: None, info: None, rx: channel().1, wake: Default::default() }
+/// A guard that holds no lock, of `mailbox` (when there is one) all the same, so that a window
+/// that moves from it to another file takes that one's lock.
+fn unguarded(mailbox: Option<&Path>) -> Guard {
+    let held = Held { open: mailbox.map(|m| (whole_path(m), None)), ..Default::default() };
+    Guard { held: Arc::new(Mutex::new(held)), rx: channel().1, wake: Default::default() }
 }
 
 /// Listen for later starts. Without a port, a key or the file that tells them, the lock is still
 /// held: a later start can't reach this one and says so instead of opening the mailbox twice.
-fn first(lock: File, info_path: PathBuf) -> Guard {
+fn first(mailbox: &Path, lock: File, info_path: PathBuf) -> Guard {
     let (tx, rx) = channel();
     let wake: Arc<Mutex<Option<egui::Context>>> = Default::default();
-    let mut guard = Guard { _lock: Some(lock), info: None, rx, wake: wake.clone() };
+    let held = Held { open: Some((whole_path(mailbox), Some(lock))), ..Default::default() };
+    let guard = Guard { held: Arc::new(Mutex::new(held)), rx, wake: wake.clone() };
     // A file left by a run that didn't end cleanly names a port nobody answers on.
     let _ = std::fs::remove_file(&info_path);
     let listening = TcpListener::bind(("127.0.0.1", 0)).and_then(|l| l.local_addr().map(|a| (l, a.port()))).map_err(|e| e.to_string());
@@ -167,11 +306,14 @@ fn first(lock: File, info_path: PathBuf) -> Guard {
             return guard;
         }
     };
-    if let Err(e) = write_key_file(&info_path, &json!({"port": port, "key": key}).to_string()) {
+    let told = json!({"port": port, "key": key}).to_string();
+    // (Told again beside another mailbox the window opens later.)
+    guard.held().told = Some(told.clone());
+    if let Err(e) = write_key_file(&info_path, &told) {
         log::error!("a second MailCraft won't be able to reach this one: {e}");
         return guard;
     }
-    guard.info = Some(info_path);
+    guard.held().info = Some(info_path);
     let key: Arc<str> = key.into();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
