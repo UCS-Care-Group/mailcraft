@@ -45,6 +45,29 @@ fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
 }
 
 #[test]
+fn rename_folder_without_a_name_asks_for_the_folder_s_new_name() {
+    use crate::dialogs::{Dialog, FolderMode};
+    let mut a = app();
+    let account = a.session.mailbox.accounts[0].id;
+    let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let reports = a.session.run("folder.new", &json!({"name": "Quarterly reports", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    a.session.run("folder.select", &json!({"id": reports})).unwrap();
+    // As the ribbon's Rename Folder and F2 run it: with no name, and with no parameters at all.
+    for params in [json!({}), Value::Null] {
+        a.dialog = None;
+        assert_eq!(a.run("folder.rename", params).unwrap()["pending"], "folder");
+        match a.dialog.as_ref() {
+            Some(Dialog::Folder { mode: FolderMode::Rename { id }, name, .. }) => assert_eq!((*id, name.as_str()), (reports, "Quarterly reports")),
+            _ => panic!("Rename Folder opened something else than the folder's rename"),
+        }
+    }
+    // New Folder still asks for a folder in the one in view.
+    a.dialog = None;
+    assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
+    assert!(matches!(a.dialog, Some(Dialog::Folder { mode: FolderMode::New { parent: Some(p) }, .. }) if p == reports));
+}
+
+#[test]
 fn commands_missing_input_open_their_dialog() {
     let mut a = app();
     assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
