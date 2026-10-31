@@ -1328,7 +1328,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let verb = if id == "rules.remove" { "delete" } else { "switch on or off" };
             match r {
-                Some(r) => format!("{verb} the rule {}: {}", quoted(&r.name), rule_words(s, r)),
+                Some(r) => {
+                    // A rule the server has, or may have (sent with no answer yet), changes there too.
+                    let there = s
+                        .mailbox
+                        .account(r.account)
+                        .filter(|_| r.on_server() || r.unanswered)
+                        .map(|a| format!(", on the server of {} too", quoted(&plain(&a.email))))
+                        .unwrap_or_default();
+                    format!("{verb} the rule {}{there}: {}", quoted(&r.name), rule_words(s, r))
+                }
                 None => format!("{verb} a rule that isn't there"),
             }
         }

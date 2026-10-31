@@ -248,7 +248,7 @@ impl MailApp {
         let given = fingerprint(&refresh);
         let sent = upload.clone();
         let job = RulesJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, folders, cancel: Default::default() };
-        let Some(graph) = &self.services.graph_rules else { return false };
+        let Some(graph) = self.services.graph_rules.as_ref().filter(|_| !self.offline()) else { return false };
         let rx = graph(job);
         // What goes to be made is not sent again until an answer, or the server's rules read
         // whole, say what became of it: an answer lost would make it twice.
@@ -374,7 +374,8 @@ impl MailApp {
                 self.rules.perm.insert(account, Permission::Declined);
             }
         }
-        if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() {
+        // (Working offline, Microsoft's page can't be had: the question waits.)
+        if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() || self.offline() {
             return;
         }
         if let Some(account) = self.rules.perm.iter().find(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a) {

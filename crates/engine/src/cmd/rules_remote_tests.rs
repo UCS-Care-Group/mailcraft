@@ -356,6 +356,22 @@ fn undo_after_the_server_took_a_lost_rule_in_doesnt_make_it_twice() {
     assert!(rule_upload(&s.mailbox, account).unwrap().ops.iter().all(|op| op.kind != RuleOpKind::Create));
 }
 
+/// A deletion that has gone to the server can't be undone here: Undo would bring the rule back
+/// here alone, and the next read would take it away again without a word.
+#[test]
+fn undo_after_a_deletion_went_to_the_server_doesnt_bring_the_rule_back_here_alone() {
+    let (mut s, account, _, _) = session();
+    apply_rules(&mut s, &download(account, vec![remote("r1", "Invoices", 1)])).unwrap();
+    let id = s.mailbox.rules.iter().find(|r| r.name == "Invoices").unwrap().id;
+    run(&mut s, "rules.remove", json!({"id": id}));
+    // The job sends the deletion, and before its answer the owner presses Undo.
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    assert_eq!(upload.ops.iter().map(|op| op.kind).collect::<Vec<_>>(), [RuleOpKind::Delete]);
+    mark_sent(&mut s, &upload);
+    let _ = s.run("edit.undo", &json!({}));
+    assert!(s.mailbox.rules.iter().all(|r| r.id != id), "the server is deleting it");
+}
+
 #[test]
 fn a_rule_deleted_elsewhere_isnt_made_again() {
     let setup = || {
@@ -467,6 +483,12 @@ fn an_agent_asks_the_owner_before_it_deletes_a_rule_the_server_has_and_says_wher
     mark_sent(&mut s, &upload);
     assert!(rule(&s, sent).unanswered);
     assert_eq!(classify(&s, "rules.remove", &json!({"id": sent})), Access::Owner(Class::Delete));
+    // The question says the server's rule is deleted or switched there too.
+    for (command, rule) in [("rules.remove", there), ("rules.remove", sent), ("rules.enable", there)] {
+        let asked = describe(&s, command, &json!({"id": rule}));
+        assert!(asked.contains(&format!("on the server of “{EMAIL}” too")), "{asked}");
+    }
+    assert!(!describe(&s, "rules.remove", &json!({"id": here})).contains("server"));
     // A rule from a message goes to the account's server, and the question says so.
     let m = arriving(&mut s, account, "digest@news.example", "x");
     let asked = describe(&s, "rules.fromMessage", &json!({"folder": news, "id": m}));

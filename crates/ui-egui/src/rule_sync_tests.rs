@@ -173,6 +173,26 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert_eq!(app.auto_replies.perm.get(&owner), None);
 }
 
+/// Working offline, nothing of the rules goes to the server or is read from it, and the owner
+/// isn't asked for the permission meanwhile: the rules wait here.
+#[test]
+fn working_offline_the_rules_wait_and_nobody_is_asked() {
+    let (mut app, owner, _, jobs, sign_ins) = window();
+    let rule = add_rule(&mut app, owner);
+    app.execute("sync.offline", json!({"value": true})).unwrap();
+    assert!(!app.rules_tick_at(0.0));
+    assert!(jobs.lock().unwrap().is_empty());
+    assert!(!app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().unanswered);
+    // A permission found missing before: not asked for while offline.
+    app.rules.perm.insert(owner, Permission::Needed);
+    assert!(!app.rules_tick_at(6_000.0));
+    assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
+    // Back online: the owner is asked.
+    app.execute("sync.offline", json!({"value": false})).unwrap();
+    app.rules_tick_at(7_000.0);
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.allowRules"));
+}
+
 #[test]
 fn a_server_that_refuses_changes_is_said_and_the_rules_stay_here() {
     let (mut app, owner, answers, _, _) = window();

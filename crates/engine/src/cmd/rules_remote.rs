@@ -147,9 +147,12 @@ pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
             rule.unanswered = true;
         }
     }
-    // Going back to a mailbox from before would have it made again (#566).
-    if marked {
+    // Going back to a mailbox from before would have a rule made again, or bring a deleted one
+    // back here alone, to be taken away again by the next read (#566).
+    if marked || upload.ops.iter().any(|op| op.kind == RuleOpKind::Delete) {
         s.forget_history();
+    }
+    if marked {
         s.mailbox_changed();
     }
 }
