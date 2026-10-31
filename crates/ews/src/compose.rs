@@ -88,6 +88,8 @@ pub struct DraftContent {
     pub reply_to: Vec<Address>,
     /// The importance.
     pub importance: Importance,
+    /// It asks for a read receipt (`IsReadReceiptRequested`).
+    pub read_receipt: bool,
     /// The files.
     pub attachments: Vec<AttachmentUp>,
     /// MailCraft's marker, a value used once.
@@ -142,7 +144,10 @@ impl CreateDraft {
                 message = message.child(recipients(name, list));
             }
         }
-        // (`ReplyTo` comes after the recipients in a message.)
+        // (`IsReadReceiptRequested` comes after the recipients, `ReplyTo` after that.)
+        if c.read_receipt {
+            message = message.child(Element::new("t:IsReadReceiptRequested").text("true"));
+        }
         if c.reply_to.iter().any(|a| !a.email.trim().is_empty()) {
             message = message.child(recipients("t:ReplyTo", &c.reply_to));
         }
