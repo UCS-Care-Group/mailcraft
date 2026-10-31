@@ -269,7 +269,7 @@ impl MailApp {
             Ok(result) => (result, false),
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                log::warn!("rules, account {account}: the job ended without an answer (its thread ended early)");
+                log::warn!("rules: the job ended without an answer (its thread ended early)");
                 let errors = vec![tl!("The rules on the server couldn't be read: the job stopped unexpectedly").to_string()];
                 (RulesResult { account, errors, ..Default::default() }, true)
             }
@@ -278,7 +278,7 @@ impl MailApp {
         let sending = std::mem::take(&mut self.rules.sending);
         // For a mailbox that has been closed since: its ids may name other things in this one.
         if self.rules.opening != self.session.openings() {
-            log::info!("rules, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            log::info!("rules: the answer is for a mailbox that is no longer open; let go of");
             return;
         }
         // What was to be made and went nowhere goes with the next job: all of it when nothing went
@@ -304,13 +304,13 @@ impl MailApp {
             self.rules.settling.remove(&account);
         }
         if result.consent_needed && settling > 0 {
-            log::info!("rules, account {account}: refused just after the owner allowed them; trying again ({settling} more)");
+            log::info!("rules: refused just after the owner allowed them; trying again ({settling} more)");
             self.rules.settling.insert(account, settling - 1);
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.rules.failures.insert(account, (n.saturating_add(1), started));
             self.rules.checked.remove(&account);
         } else if result.consent_needed {
-            log::info!("rules, account {account}: the sign-in doesn't cover changing the rules; the owner is to be asked");
+            log::info!("rules: the sign-in doesn't cover changing the rules; the owner is to be asked");
             if !matches!(self.rules.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
                 self.rules.perm.insert(account, Permission::Needed);
             }
@@ -463,7 +463,7 @@ impl MailApp {
                         kept.refresh = tokens.refresh.clone();
                     }
                 }
-                log::info!("rules, account {account}: the owner allowed changing the rules; the next job finds out");
+                log::info!("rules: the owner allowed changing the rules; the next job finds out");
                 self.rules_allowed(account);
                 self.auto_replies_allowed(account);
             }
