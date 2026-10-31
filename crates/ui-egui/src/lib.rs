@@ -46,6 +46,9 @@ mod agent_names_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
@@ -244,6 +247,10 @@ pub struct Services {
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
     pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
+    /// Read and change the automatic replies of a Microsoft account on its server
+    /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
+    /// browser: File › Info then has no Automatic Replies.
+    pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -577,6 +584,10 @@ pub struct SignInRequest {
     /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
     /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
     pub rules: bool,
+    /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
+    /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
+    /// the sign-in doesn't cover it, and the owner said go ahead.
+    pub replies: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -741,6 +752,8 @@ struct SigningIn {
     tasks: bool,
     /// And for changing the rules on the server (#566).
     rules: bool,
+    /// And for changing the automatic replies.
+    replies: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -911,7 +924,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
@@ -1016,6 +1029,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Connect Calendar and Contacts",
         "File › Info",
         r#"{"account"?: number} — signs in for sending, calendar and contacts through Microsoft"#,
+    ),
+    (
+        "ui.automaticRepliesSignIn",
+        "Sign In Again for Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account)} — signs in again on Microsoft's page in the browser, for an account whose sign-in doesn't read its mailbox's settings or is over; its automatic replies are read again once it is done. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowAutomaticReplies",
+        "Allow Changing Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the mailbox's settings (MailboxSettings.ReadWrite) for its automatic replies, by itself: never with a sign-in. The window asks first, when a change finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the change that waited goes; refused, or when an administrator has to approve first, it is dropped and the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.checkCalendar",
@@ -1352,9 +1377,13 @@ pub struct MailApp {
     /// without it, for reading the calendars opened by address (#70).
     shared_calendars_next: bool,
     tasks_next: bool,
+    /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
+    replies_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
     rules_next: bool,
     pub(crate) rules: rule_sync::RuleSync,
+    /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
+    pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
@@ -1637,8 +1666,10 @@ impl MailApp {
             shared_calendars_next: false,
             tasks_next: false,
             rules_next: false,
+            replies_next: false,
             tasks: Default::default(),
             rules: Default::default(),
+            auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
@@ -1829,7 +1860,18 @@ impl MailApp {
             if let Some(opened) = windows::open_form(self, name, &params) {
                 return opened;
             }
-            self.dialog = dialogs::open_dialog(self, name, &params);
+            // Rename Folder without a name (the ribbon's button, F2) asks for the new name of the folder
+            // in view: the folder dialog opens as New Folder unless it is told to rename (the folder
+            // pane's own Rename Folder… says so already).
+            let asked = match (id, params.clone()) {
+                ("folder.rename", Value::Object(mut map)) => {
+                    map.insert("mode".into(), json!("rename"));
+                    Value::Object(map)
+                }
+                ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                (_, asked) => asked,
+            };
+            self.dialog = dialogs::open_dialog(self, name, &asked);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
             if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
@@ -1977,6 +2019,8 @@ impl MailApp {
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
         }
+        // Automatic replies (File › Info): read on the server, or changed there, by the host.
+        let r = self.auto_replies_after(id, r);
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -2014,6 +2058,7 @@ impl MailApp {
             self.graph_tokens.remove(&account);
             self.graph_checked.remove(&account);
             self.graph_consent_needed.remove(&account);
+            self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
@@ -2270,6 +2315,20 @@ impl MailApp {
                 } else {
                     self.begin_opened_calendars_sign_in(shared)
                 }
+            }
+            "ui.automaticRepliesSignIn" => {
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                if let Err(e) = mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account) {
+                    return Some(Err(e.to_string()));
+                }
+                self.auto_replies_sign_in(account)
+            }
+            "ui.allowAutomaticReplies" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_replies_sign_in(account)
             }
             "ui.allowTasks" => {
                 if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
@@ -2560,7 +2619,8 @@ impl MailApp {
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
         let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
-        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none();
+        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none() && !tasks;
+        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks && !rules;
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2591,11 +2651,26 @@ impl MailApp {
             shared_calendars,
             tasks,
             rules,
+            replies,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in =
-            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, rules, browser, opening, rx, cancel });
+        self.signing_in = Some(SigningIn {
+            graph,
+            favorites,
+            quiet,
+            account,
+            shared,
+            shared_send,
+            shared_calendars,
+            tasks,
+            rules,
+            replies,
+            browser,
+            opening,
+            rx,
+            cancel,
+        });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -2955,6 +3030,8 @@ impl MailApp {
             }
             // An agent's too.
             agent_gate::forget(self);
+            // The automatic replies' jobs and what waits to go up are the old mailbox's too.
+            self.auto_replies_forget_if_replaced();
             self.passwords.clear();
             self.secret_cache.clear();
             self.secret_read = None;
@@ -3392,7 +3469,9 @@ impl MailApp {
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
         let for_rules = waiting.rules;
+        let for_replies = waiting.replies;
         let started_under = waiting.opening;
+        let on_the_page = waiting.browser;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
         // whatever their ids, and this answer is nobody's.
@@ -3415,6 +3494,10 @@ impl MailApp {
             self.setup_sign_in = Some(answer);
             return;
         }
+        // Signed in on the page: what it now covers may let the automatic replies be read.
+        if on_the_page && answer.is_ok() {
+            self.auto_replies_signed_in_on_page(account);
+        }
         // For reading a shared mailbox (#70): it is read now, or why not is said.
         if let Some(shared) = for_shared {
             // (And for reading its calendars: they are read now, or why not is said.)
@@ -3434,6 +3517,10 @@ impl MailApp {
         // For keeping rules on the server (#566): those waiting go now, or why not is said.
         if for_rules {
             return self.rules_signed_in(account, answer);
+        }
+        // For changing the automatic replies: the change that waited goes now, or why not is said.
+        if for_replies {
+            return self.replies_signed_in(account, answer);
         }
         // For reading the calendars opened by address (#70): they are read now, or why not is said.
         if for_shared_calendars {
@@ -3878,6 +3965,7 @@ impl MailApp {
         self.poll_calendar();
         self.poll_tasks();
         self.poll_rules();
+        self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
@@ -3901,6 +3989,8 @@ impl MailApp {
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
             self.rules_tick(ctx);
+            // The automatic replies, read now and then so that the status bar can say they are on.
+            self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {

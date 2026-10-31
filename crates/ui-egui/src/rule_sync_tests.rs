@@ -138,6 +138,41 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert_eq!(jobs.lock().unwrap().last(), Some(&(owner, 1)));
 }
 
+/// The rules and the automatic replies are changed with one permission: a yes to either question
+/// is a yes to both, so the owner is never asked for it twice.
+#[test]
+fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
+    let (mut app, owner, answers, jobs, sign_ins) = window();
+    add_rule(&mut app, owner);
+    answers.lock().unwrap().push_back(RulesResult { account: owner, consent_needed: true, ..Default::default() });
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    // Not now.
+    assert!(!app.rules_tick_at(6_000.0));
+    app.dialog = None;
+    assert!(!app.rules_tick_at(7_000.0));
+    assert_eq!(app.rules.perm.get(&owner), Some(&Permission::Declined));
+    // The owner allows changing the automatic replies, on Microsoft's page.
+    app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert_eq!(app.rules.perm.get(&owner), None);
+    let (line, again) = app.rules_line(owner).unwrap();
+    assert!(!again, "{line}");
+    // The rule goes with the next look, and nobody is asked again.
+    assert!(app.rules_tick_at(8_000.0));
+    assert_eq!(jobs.lock().unwrap().last(), Some(&(owner, 1)));
+    app.poll_rules();
+    assert!(app.dialog.is_none());
+    assert_eq!(sign_ins.lock().unwrap().len(), 1);
+    // And back: a yes for the rules is one for the automatic replies.
+    app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
+    app.ask_rules_again(owner);
+    app.dialog = None;
+    app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert_eq!(app.auto_replies.perm.get(&owner), None);
+}
+
 #[test]
 fn a_server_that_refuses_changes_is_said_and_the_rules_stay_here() {
     let (mut app, owner, answers, _, _) = window();

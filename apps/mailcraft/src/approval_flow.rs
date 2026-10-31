@@ -101,6 +101,7 @@ fn sign_in_request(cancel: &Arc<AtomicBool>) -> SignInRequest {
         shared_calendars: false,
         tasks: false,
         rules: false,
+        replies: false,
     }
 }
 

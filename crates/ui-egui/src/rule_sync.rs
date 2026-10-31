@@ -152,10 +152,11 @@ impl MailApp {
         if !self.auto_sync || self.services.graph_rules.is_none() || self.rules.rx.is_some() {
             return false;
         }
-        // One thing at a time: the calendar's job, the to-dos', a Send/Receive and a sign-in go
-        // first (the jobs renew the same sign-in).
+        // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
+        // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
         if self.calendar.rx.is_some()
             || self.tasks.busy()
+            || self.auto_replies.busy()
             || self.graph_rx.is_some()
             || self.sync_rx.is_some()
             || self.signing_in.is_some()
@@ -463,10 +464,8 @@ impl MailApp {
                     }
                 }
                 log::info!("rules, account {account}: the owner allowed changing the rules; the next job finds out");
-                self.rules.perm.remove(&account);
-                self.rules.settling.insert(account, SETTLING_TRIES);
-                self.rules.failures.remove(&account);
-                self.rules.checked.remove(&account);
+                self.rules_allowed(account);
+                self.auto_replies_allowed(account);
             }
             Err(e) if e == NEEDS_APPROVAL => {
                 let said = tl!("Your organisation's administrator has to approve keeping rules on the server once: File › Info");
@@ -489,6 +488,16 @@ impl MailApp {
                 self.status(said);
             }
         }
+    }
+
+    /// The owner allowed changing the mailbox's settings on Microsoft's page, for the rules or for
+    /// the automatic replies: one permission for both, so the rules that waited for it go with the
+    /// next job.
+    pub(crate) fn rules_allowed(&mut self, account: Id) {
+        self.rules.perm.remove(&account);
+        self.rules.settling.insert(account, SETTLING_TRIES);
+        self.rules.failures.remove(&account);
+        self.rules.checked.remove(&account);
     }
 
     /// Why a rule of `account` that is to go to the server is still only on this computer, as the

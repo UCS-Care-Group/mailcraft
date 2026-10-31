@@ -306,6 +306,34 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             });
             ui.add_space(4.0);
         }
+        // Where the automatic replies stand, and whether MailCraft may change them, with a way
+        // to sign in again or to ask for that permission again.
+        if let Some((line, again)) = app.auto_replies_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                match again {
+                    Some(crate::auto_replies::Again::SignIn) => {
+                        let tip = tl!(
+                            "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+                        );
+                        if ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
+                            let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
+                        }
+                    }
+                    Some(crate::auto_replies::Again::Ask) => {
+                        let tip = tl!(
+                            "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+                        );
+                        if ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                            app.auto_replies_ask_again(a.id);
+                        }
+                    }
+                    None => {}
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
@@ -344,6 +372,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ) {
         let _ = app.run("ui.dialog", json!({"name": "account"}));
     }
+    crate::auto_replies::info_tiles(app, ui, t);
     // The calendar of an account that signs in with Microsoft is kept on its server: the owner
     // can see for himself that what is changed here arrives there.
     let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);

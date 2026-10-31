@@ -318,6 +318,9 @@ enum Doing {
     Mail,
     Tasks,
     Rules,
+    /// Reading the automatic replies, and changing them.
+    Replies,
+    ChangingReplies,
 }
 
 impl Doing {
@@ -333,6 +336,7 @@ impl Doing {
             Doing::Mail => "mail",
             Doing::Tasks => "tasks",
             Doing::Rules => "rules",
+            Doing::Replies | Doing::ChangingReplies => "automatic replies",
         }
     }
 }
@@ -799,6 +803,8 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Mail => "this account may not read its mail through Microsoft Graph",
                 Doing::Tasks => "this account may not read or change its to-dos through Microsoft Graph",
                 Doing::Rules => "this account may not read or change its rules through Microsoft Graph",
+                Doing::Replies => "this account may not read its automatic replies through Microsoft Graph",
+                Doing::ChangingReplies => "this account may not change its automatic replies through Microsoft Graph",
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
@@ -2224,6 +2230,9 @@ pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
+mod auto_replies;
+pub use auto_replies::{automatic_replies, set_automatic_replies};
+
 mod favorites;
 pub use favorites::favorites;
 
@@ -2238,6 +2247,8 @@ pub use check::{CHECK_TITLE, CalendarCheck, CheckStep, STEPS as CHECK_STEPS, che
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;
 
+#[cfg(test)]
+mod auto_replies_tests;
 #[cfg(test)]
 mod people_tests;
 #[cfg(test)]

@@ -652,6 +652,12 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         let asked = mailcraft_net::oauth::sign_in_for_rules(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
+    // A change of the automatic replies found the sign-in doesn't cover changing the mailbox's
+    // settings, and the owner said go ahead: the page comes up for that permission alone.
+    if request.graph && request.replies {
+        let asked = mailcraft_net::oauth::sign_in_for_replies(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
     // Calendars are opened by address for the first time (#70): the page comes up for the same
     // one permission, without what reading shared mailboxes' mail takes, by itself.
     if request.graph && request.shared_calendars {
@@ -1407,6 +1413,63 @@ fn rules_job_with(
     out
 }
 
+/// File › Info › Automatic Replies: a read takes the calendar's tokens, which read the
+/// mailbox's settings (no more token requests than any Graph job makes); a change takes a token
+/// for changing them, which a sign-in doesn't carry until the owner allowed it by itself (then
+/// the answer says he is to be asked, and nothing is sent). The setting is read back after a
+/// change. Nothing of a reply is logged.
+fn auto_replies_job(job: mailcraft_ui_egui::auto_replies::AutoRepliesJob) -> mailcraft_ui_egui::auto_replies::AutoRepliesResult {
+    use mailcraft_net::{NetError, graph, oauth};
+    let mut out = mailcraft_ui_egui::auto_replies::AutoRepliesResult { account: job.account.id, ..Default::default() };
+    let renewed = match &job.change {
+        Some(_) => oauth::refresh_graph_replies(&job.oauth, &job.refresh, tasks_mail(&job.account)).map(|got| (got.tokens, true)),
+        None => oauth::refresh_graph(&job.oauth, &job.refresh).map(|got| (got.tokens, !got.extras_missing)),
+    };
+    let access = match renewed {
+        Ok((tokens, covered)) => {
+            let access = tokens.access.clone();
+            out.tokens = Some(tokens);
+            if !covered {
+                // The sign-in doesn't read the mailbox's settings: the owner is to sign in again.
+                out.consent_needed = true;
+                return out;
+            }
+            access
+        }
+        Err(e) if e.is_consent_needed() && job.change.is_some() => {
+            out.write_consent_needed = true;
+            return out;
+        }
+        Err(e) => {
+            out.consent_needed = e.is_consent_needed();
+            out.sign_in_refused = !out.consent_needed && e.is_refused_sign_in();
+            if !out.consent_needed && !out.sign_in_refused {
+                out.error = format!("Couldn't sign in to Microsoft for the automatic replies: {e}");
+            }
+            return out;
+        }
+    };
+    if let Some(change) = &job.change {
+        match graph::set_automatic_replies(&access, change) {
+            Ok(()) => out.changed = true,
+            // The token covers the permission and Graph still says no: the organisation keeps them.
+            Err(NetError::Forbidden(_)) => out.write_denied = true,
+            Err(e) if e.is_refused_sign_in() => {
+                out.sign_in_refused = true;
+                return out;
+            }
+            Err(e) => out.error = format!("Couldn't change the automatic replies: {e}"),
+        }
+    }
+    match graph::automatic_replies(&access) {
+        Ok(setting) => out.setting = Some(setting),
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) if out.error.is_empty() => out.error = format!("Couldn't read the automatic replies: {e}"),
+        Err(_) => {}
+    }
+    out
+}
+
 /// File › Info › Check Calendar Connection: on the account's real server, and only because the
 /// owner asked for it and said yes to what it does. One appointment is made a year from today
 /// in the main calendar, read back, changed (once as an instant, once said in this computer's
@@ -1547,6 +1610,7 @@ fn services(
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
+    let replies_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
@@ -1605,6 +1669,10 @@ fn services(
         // The rules a Microsoft account's server keeps (#566).
         graph_rules: Some(Box::new(move |job: mailcraft_ui_egui::rule_sync::RulesJob| {
             background(&rules_ctx, "server rules", move || rules_job(job))
+        })),
+        // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
+        graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
+            background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
