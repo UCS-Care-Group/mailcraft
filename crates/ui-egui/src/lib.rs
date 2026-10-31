@@ -1422,7 +1422,7 @@ pub struct MailApp {
     pub(crate) asking: agent_gate::Questions,
     styled: bool,
     /// The interface theme last installed in egui ([`theme::apply`]).
-    applied_theme: Option<egui::ThemePreference>,
+    applied_theme: Option<(egui::ThemePreference, theme::ThemeChoice)>,
     /// The interface language last told the host ([`Services::on_language`]).
     applied_language: Option<i18n::Lang>,
     fonts_frames: u32,
@@ -3854,9 +3854,10 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        if self.applied_theme != Some(preference) {
-            theme::apply(ctx, preference);
-            self.applied_theme = Some(preference);
+        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: theme::Accent::default() };
+        if self.applied_theme != Some((preference, choice)) {
+            theme::apply(ctx, preference, &choice);
+            self.applied_theme = Some((preference, choice));
         }
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {

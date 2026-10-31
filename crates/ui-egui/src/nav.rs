@@ -251,7 +251,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         ui.painter().rect_filled(row, 0.0, t.selection);
     } else if resp.hovered() {
         // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
-        ui.painter().rect_filled(row, 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(row, 0.0, t.hover_nav);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     // The chevron has its own click target, only on a folder with something under it.
@@ -352,7 +352,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
     };
     app.hit.add(kind, account, r);
     if resp.hovered() {
-        ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
     paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
@@ -391,7 +391,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
             let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_offer", account)), Sense::click());
             app.hit.add("favoritesOffer", account, r);
             if resp.hovered() {
-                ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+                ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
             }
             paint_clipped(ui.painter(), pos2(left, y), width, tl!("Show Outlook's Favorites"), font, t.accent_text);
             // Signing in with Microsoft once more, for that alone.
@@ -502,7 +502,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         // In the dark the pane and the list beside it are told apart by their own colours; on a
         // light window they are nearly one white, and a line parts them.
-        .show_separator_line(!t.dark)
+        .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.canvas));
     let shown = panel.show(ui, |ui| {
         sheet(ui.painter(), ui.max_rect(), &t);

@@ -402,7 +402,7 @@ fn progress(ui: &mut Ui, t: &Tokens, progress: &OpenProgress) {
     let read = progress.read().min(total);
     let fraction = (read as f64 / total as f64) as f32;
     let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width().min(320.0), 6.0), egui::Sense::hover());
-    ui.painter().rect_filled(bar, 3.0, if t.dark { t.border } else { t.border_strong.linear_multiply(0.6) });
+    ui.painter().rect_filled(bar, 3.0, t.track);
     if fraction > 0.0 {
         let filled = Rect::from_min_max(bar.min, pos2(bar.min.x + (bar.width() * fraction).max(6.0), bar.max.y));
         ui.painter().rect_filled(filled, 3.0, t.accent);

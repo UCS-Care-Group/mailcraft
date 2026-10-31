@@ -90,7 +90,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
-    let edge = if t.dark { t.group_label } else { t.border_strong };
+    let edge = t.field_edge;
     ui.painter().rect(
         rect,
         4.0,
@@ -638,7 +638,7 @@ fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) 
     }
     let track = Rect::from_min_size(pos2(r.max.x - bar_w, r.center().y - SYNC_BAR.y / 2.0), vec2(bar_w, SYNC_BAR.y));
     let radius = SYNC_BAR.y / 2.0;
-    ui.painter().rect_filled(track, radius, if t.dark { t.border } else { t.border_strong.linear_multiply(0.6) });
+    ui.painter().rect_filled(track, radius, t.track);
     if shown > 0.0 {
         let fill = Rect::from_min_max(track.min, pos2(track.min.x + (bar_w * shown).max(SYNC_BAR.y), track.max.y));
         ui.painter().rect_filled(fill, radius, t.accent);

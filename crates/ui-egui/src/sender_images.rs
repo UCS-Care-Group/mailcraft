@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use egui::{Color32, Rect, Ui, vec2};
+use egui::{Rect, Ui, vec2};
 use mailcraft_model::{Address, Message};
 use serde_json::{Value, json};
 
@@ -206,7 +206,7 @@ pub fn avatar(app: &mut MailApp, ui: &Ui, center: egui::Pos2, radius: f32, m: &M
         return;
     };
     // On white, as a browser shows an icon: one with see-through parts stays readable in the dark.
-    ui.painter().circle_filled(center, radius, Color32::WHITE);
+    ui.painter().circle_filled(center, radius, crate::theme::Tokens::get(ui.ctx()).avatar_backdrop);
     egui::Image::from_texture(egui::load::SizedTexture::from_handle(&texture))
         .corner_radius(radius)
         .paint_at(ui, Rect::from_center_size(center, vec2(radius * 2.0, radius * 2.0)));

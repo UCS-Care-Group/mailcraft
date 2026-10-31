@@ -95,7 +95,7 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
             Line::Link(link) => link_line(app, ui, rect, link),
             Line::Heading => {
                 let gr = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), rect.max);
-                ui.painter().rect_filled(gr, 0.0, t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 }));
+                ui.painter().rect_filled(gr, 0.0, t.group_header);
                 ui.painter().rect_stroke(gr, 0.0, Stroke::new(1.0, t.border_strong), egui::StrokeKind::Inside);
                 let said = if app.server_link() == Link::Searching { tl!("On the server · Searching…") } else { tl!("On the server") };
                 paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, said, semibold(GROUP_TEXT), t.text);
@@ -166,13 +166,13 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     if selected {
         p.rect_filled(body, 0.0, t.selection);
     } else if resp.hovered() {
-        p.rect_filled(body, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(body, 0.0, t.hover_subtle);
     }
     let unread = !m.read;
     if unread {
         p.rect_filled(Rect::from_min_max(body.min, pos2(body.min.x + 4.0, body.max.y)), 0.0, t.accent);
     }
-    let rule = if t.dark { t.border_strong } else { t.border };
+    let rule = t.rule;
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
     let left = rect.min.x + TEXT_LEFT;
     let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);

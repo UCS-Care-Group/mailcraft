@@ -381,7 +381,7 @@ fn day_strip(app: &MailApp, ui: &Ui, rect: Rect, day: Date, span: Option<(DateTi
     }
     if span.is_some() {
         let r = block(starts, ends, lane.min.x, half - 1.0);
-        p.rect(r, 2.0, t.accent.linear_multiply(if t.dark { 0.35 } else { 0.16 }), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        p.rect(r, 2.0, t.band_chosen, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
         if r.height() >= 13.0 {
             paint_clipped(&p, pos2(r.min.x + 6.0, r.min.y + 7.0), r.width() - 9.0, tl!("Proposed time"), semibold(10.5), t.text);
         }

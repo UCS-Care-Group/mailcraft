@@ -619,7 +619,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
     if scrolls && !overlay {
-        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, if t.dark { t.panel } else { t.canvas });
+        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, t.lane);
     }
     // The handle keeps clear of the arrows at the ends of its lane (a lane too short for them
     // has none).
@@ -663,7 +663,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             if let Some(group) = &row.group {
                 // A box a step lighter than the list (a step darker on a light one), with a line round it.
                 let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                let fill = t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 });
+                let fill = t.group_header;
                 let line = Stroke::new(1.0, t.border_strong);
                 ui.painter().rect_filled(gr, 0.0, fill);
                 // The line under the row above is this box's top edge, except for the first box.
@@ -823,7 +823,7 @@ impl FollowUp {
 /// one's tint, or nothing (the list shows through).
 pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: bool) -> Option<Color32> {
     match (selected, follow_up) {
-        (true, _) => Some(if focus { t.selection } else { t.selection.linear_multiply(0.7) }),
+        (true, _) => Some(if focus { t.selection } else { t.selection_unfocused }),
         (false, FollowUp::Flagged | FollowUp::Overdue) => Some(t.flagged_row),
         (false, FollowUp::None) => None,
     }
@@ -921,7 +921,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     }
     if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
         // The pointer's shade goes over a flagged row's tint.
-        p.rect_filled(body, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(body, 0.0, t.hover_subtle);
     }
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
@@ -940,7 +940,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         // The message the keys act on has a line of dots round it.
         dotted_frame(p, body, t.text_dim);
     }
-    let rule = if t.dark { t.border_strong } else { t.border };
+    let rule = t.rule;
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
     // What is in the row is laid out from its top as in a row of the full height, moved up with
     // its lines (the background and the line under it are the row's own, above).

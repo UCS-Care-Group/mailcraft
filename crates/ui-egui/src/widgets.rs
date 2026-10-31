@@ -68,7 +68,7 @@ pub(crate) fn bg(ui: &Ui, r: Rect, resp: &Response, checked: bool, t: &Tokens) {
     };
     ui.painter().rect_filled(r, CornerRadius::same(4), fill);
     if checked {
-        ui.painter().rect_stroke(r, CornerRadius::same(4), Stroke::new(1.0, t.accent.linear_multiply(0.5)), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(r, CornerRadius::same(4), Stroke::new(1.0, t.focus_ring), egui::StrokeKind::Inside);
     }
 }
 
@@ -248,7 +248,7 @@ pub fn avatar(ui: &Ui, center: egui::Pos2, radius: f32, address: &mailcraft_mode
         Align2::CENTER_CENTER,
         if initials.is_empty() { "?".to_string() } else { initials },
         semibold(radius * 0.78),
-        Color32::WHITE,
+        t.on_avatar,
     );
 }
 
@@ -257,8 +257,8 @@ pub fn category_chip(ui: &Ui, left_center: egui::Pos2, name: &str, color: Color3
     let t = Tokens::get(ui.ctx());
     let w = text_w(ui, name, 10.5) + 12.0;
     let r = Rect::from_min_size(pos2(left_center.x, left_center.y - 8.0), vec2(w, 16.0));
-    ui.painter().rect_filled(r, 8.0, color.linear_multiply(if t.dark { 0.45 } else { 0.22 }));
-    ui.painter().rect_stroke(r, 8.0, Stroke::new(1.0, color.linear_multiply(0.8)), egui::StrokeKind::Inside);
+    ui.painter().rect_filled(r, 8.0, t.data_fill(color));
+    ui.painter().rect_stroke(r, 8.0, Stroke::new(1.0, t.data_edge(color)), egui::StrokeKind::Inside);
     ui.painter().text(r.center(), Align2::CENTER_CENTER, name, regular(10.5), t.text);
     w
 }
