@@ -140,7 +140,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
-11. Focused Inbox kept in step with Outlook; Automatic Replies; rules kept on the server (gap 17).
+11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); rules kept on the server (gap 17).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | Automatic Replies ([#692](https://github.com/UCS-Care-Group/mailcraft/issues/692); `account.automaticReplies`, `account.setAutomaticReplies`): File › Info › Automatic Replies for an account that signs in with Microsoft, read and changed through Graph's mailbox settings; reading takes the `MailboxSettings.Read` a sign-in already has, and changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time the owner changes them (`ui.allowAutomaticReplies`, never with a sign-in; File › Info shows it, with Ask again); nothing is changed before the server's setting is read; the replies are shown as plain text and written as simple HTML; Automatic Replies in the status bar while they go out; agents may read them, and changing them is the owner's, like Send |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
 | 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
 | 2026-10-31 | Parity B3b: Resend Message (`mail.resend`: a message the owner sent opened again as a new one, sent only by Send) and Direct Replies To (`compose.replyTo`: the Reply-To line, each address checked; carried by IMAP, EWS and Graph drafts) |
@@ -399,6 +400,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | Automatic Replies for Microsoft accounts, in the progress log and step 11 |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
 | 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |
 | 2026-10-31 | Parity B3b: Resend Message, Direct Replies To, in the progress log |
