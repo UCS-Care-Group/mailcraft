@@ -26,8 +26,8 @@
 //! that order, so a whole read that comes with it is later than what it sent.
 //!
 //! **Conflicts.** A download is the server's word on everything but what was changed here and not
-//! sent yet. A rule the server no longer has goes from here too, unless it was changed here
-//! since: then it is made again. A rule deleted here is remembered ([`mailcraft_model::RuleGone`])
+//! sent yet. A rule the server no longer has goes from here too, even one switched or moved here
+//! since: a deletion elsewhere wins, and that is said. A rule deleted here is remembered ([`mailcraft_model::RuleGone`])
 //! until the server has been told, and is not brought back by a download that still shows it.
 //!
 //! Everything from outside is hostile: ids and text are cut by [`RemoteRule::tidy`], counts are
@@ -147,7 +147,9 @@ pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
             rule.unanswered = true;
         }
     }
+    // Going back to a mailbox from before would have it made again (#566).
     if marked {
+        s.forget_history();
         s.mailbox_changed();
     }
 }
@@ -218,6 +220,11 @@ fn same_words(here: &[Condition], there: &[Condition]) -> bool {
 }
 
 /// The same with the categories it gives.
+/// What is said of a rule deleted on the server while it was switched or moved here.
+fn deleted_elsewhere(name: &str) -> String {
+    format!("The rule \"{name}\" was deleted in Outlook or on the web, so it is deleted here too, with the change made to it here")
+}
+
 /// A rule made here that went to the server and the server's `remote` (its actions as the
 /// mailbox has them) are the same one, as far as can be told.
 fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action]) -> bool {
@@ -309,7 +316,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         if let Some(i) = twin
             && let Some(rule) = mailbox.rules.get_mut(i)
         {
-            rule.enabled = remote.enabled;
+            // Switched on or off here meanwhile: that stays, and the difference goes up.
             rule.server = Some(fresh(remote.sequence));
             rule.unanswered = false;
             merged.updated += 1;
@@ -348,17 +355,12 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         let missing: Vec<Id> = known.iter().filter(|(remote, _)| !seen.contains(*remote)).map(|(_, id)| *id).collect();
         for id in missing {
             let Some(i) = mailbox.rules.iter().position(|r| r.id == id) else { continue };
-            let again = mailbox.rules.get(i).is_some_and(|r| r.changed_here() && r.known());
-            if again {
-                // Changed here since: made again rather than lost.
-                if let Some(rule) = mailbox.rules.get_mut(i) {
-                    rule.server = None;
-                    merged.updated += 1;
-                }
-            } else {
-                mailbox.rules.remove(i);
-                merged.removed += 1;
+            // Deleted elsewhere: that wins over a switch or a move here, which is said.
+            let rule = mailbox.rules.remove(i);
+            if rule.changed_here() {
+                merged.say(deleted_elsewhere(&rule.name));
             }
+            merged.removed += 1;
         }
     }
     in_server_order(mailbox, account);
@@ -437,17 +439,13 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     merged.updated += 1;
                 }
             }
-            // The server no longer has it: made again, as it is here, when all of it is known.
+            // The server no longer has it: deleted elsewhere, which wins over the change made here,
+            // and is said.
             (RuleOpKind::Update, RuleResult::Gone) => {
                 if let Some(i) = at {
-                    if mailbox.rules.get(i).is_some_and(Rule::known) {
-                        if let Some(rule) = mailbox.rules.get_mut(i) {
-                            rule.server = None;
-                        }
-                    } else {
-                        mailbox.rules.remove(i);
-                    }
-                    merged.updated += 1;
+                    mailbox.rules.remove(i);
+                    merged.say(deleted_elsewhere(&name));
+                    merged.removed += 1;
                 }
             }
             // Refused: the rule is as the server has it again, and that is said.
@@ -504,7 +502,13 @@ fn download_of<T: serde::de::DeserializeOwned>(v: &Value, name: &str) -> Result<
 
 /// Take in the rules a host downloaded ([`merge_rules`]). Not an undo step, as `sync.applyTasks`.
 pub fn apply_rules(s: &mut Session, download: &RulesDownload) -> Result<Merged, CmdError> {
+    let lost: Vec<Id> = s.mailbox.rules.iter().filter(|r| r.unanswered && r.waiting()).map(|r| r.id).collect();
     let merged = merge_rules(&mut s.mailbox, download)?;
+    // A rule whose answer was lost, taken as the server's: going back to a mailbox from before
+    // would have it made again.
+    if s.mailbox.rules.iter().any(|r| lost.contains(&r.id) && r.on_server()) {
+        s.forget_history();
+    }
     if merged.changed() {
         s.mailbox_changed();
     }
@@ -515,8 +519,11 @@ pub fn apply_rules(s: &mut Session, download: &RulesDownload) -> Result<Merged, 
 pub fn apply_rule_changes(s: &mut Session, uploaded: &RulesUploaded) -> Result<Merged, CmdError> {
     let merged = apply_rule_outcomes(&mut s.mailbox, uploaded)?;
     // What a server was told can't be undone there: going back to a mailbox from before would
-    // undo it here only (the to-dos do the same).
-    if uploaded.outcomes.iter().any(|o| matches!(o.result, RuleResult::Done | RuleResult::Gone)) {
+    // undo it here only (the to-dos do the same), and one that may have made a rule would have it
+    // made again.
+    let told =
+        |o: &RuleOutcome| matches!(o.result, RuleResult::Done | RuleResult::Gone) || (o.kind == RuleOpKind::Create && o.result == RuleResult::Failed);
+    if uploaded.outcomes.iter().any(told) {
         s.forget_history();
     }
     s.mailbox_changed();

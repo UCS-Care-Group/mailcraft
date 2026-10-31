@@ -326,6 +326,92 @@ fn a_rule_deleted_while_the_server_was_making_it_is_deleted_there_too() {
     assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
 }
 
+/// The server's copy of the rule `add` made as "Receipts", looking for "receipt".
+fn receipts_there() -> RemoteRule {
+    let mut made = remote("made-1", "Receipts", 1);
+    made.conditions = vec![Condition::SubjectContains("receipt".into())];
+    made
+}
+
+fn receipts_here(s: &mut Session, account: Id) -> Id {
+    add(s, account, "Receipts", json!([{"type": "subjectContains", "value": "receipt"}]), json!([{"type": "markRead"}]))
+}
+
+#[test]
+fn undo_after_the_server_took_a_lost_rule_in_doesnt_make_it_twice() {
+    let (mut s, account, _, _) = session();
+    let id = receipts_here(&mut s, account);
+    let m = arriving(&mut s, account, "shop@example.org", "Hello");
+    run(&mut s, "mail.flag", json!({"id": m}));
+    // The job sends the rule and no answer comes; its read takes the server's copy as this rule.
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    let lost = RuleOutcome { kind: RuleOpKind::Create, rule: id, result: RuleResult::Failed, error: "timed out".into(), ..Default::default() };
+    apply_rule_changes(&mut s, &answered(account, vec![lost])).unwrap();
+    apply_rules(&mut s, &download(account, vec![receipts_there()])).unwrap();
+    assert!(rule(&s, id).on_server());
+    // Undoing the flag doesn't make the rule wait to be made again.
+    let _ = s.run("edit.undo", &json!({}));
+    assert!(rule(&s, id).on_server());
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.iter().all(|op| op.kind != RuleOpKind::Create));
+}
+
+#[test]
+fn a_rule_deleted_elsewhere_isnt_made_again() {
+    let setup = || {
+        let (mut s, account, _, _) = session();
+        merge_rules(&mut s.mailbox, &download(account, vec![remote("a", "A", 1), remote("b", "B", 2)])).unwrap();
+        let a = s.mailbox.rules.iter().find(|r| r.name == "A").unwrap().id;
+        // Moving A below B changes where B stands too.
+        run(&mut s, "rules.move", json!({"id": a, "direction": "down"}));
+        let b = s.mailbox.rules.iter().find(|r| r.name == "B").unwrap();
+        assert!(b.changed_here());
+        let b = b.id;
+        (s, account, b)
+    };
+    let creates = |s: &Session, account: Id| rule_upload(&s.mailbox, account).unwrap().ops.iter().filter(|op| op.kind == RuleOpKind::Create).count();
+    // B was deleted in Outlook on the web: told of its new place, the server has no B.
+    let (mut s, account, b) = setup();
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    let outcomes = upload
+        .ops
+        .iter()
+        .map(|op| RuleOutcome {
+            kind: op.kind,
+            rule: op.rule,
+            id: op.id.clone(),
+            result: if op.id == "b" { RuleResult::Gone } else { RuleResult::Done },
+            enabled: op.enabled,
+            sequence: op.sequence,
+            ..Default::default()
+        })
+        .collect();
+    let merged = apply_rule_changes(&mut s, &answered(account, outcomes)).unwrap();
+    assert!(s.mailbox.rules.iter().all(|r| r.id != b), "deleted here too");
+    assert!(merged.messages.iter().any(|m| m.contains("\"B\"") && m.contains("deleted")), "{:?}", merged.messages);
+    assert_eq!(creates(&s, account), 0);
+    // Or a full read shows it gone before the change is told.
+    let (mut s, account, b) = setup();
+    let merged = merge_rules(&mut s.mailbox, &download(account, vec![remote("a", "A", 1)])).unwrap();
+    assert!(s.mailbox.rules.iter().all(|r| r.id != b), "deleted here too");
+    assert!(merged.messages.iter().any(|m| m.contains("\"B\"") && m.contains("deleted")), "{:?}", merged.messages);
+    assert_eq!(creates(&s, account), 0);
+}
+
+#[test]
+fn a_rule_switched_off_while_its_creation_had_no_answer_stays_off() {
+    let (mut s, account, _, _) = session();
+    let id = receipts_here(&mut s, account);
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    run(&mut s, "rules.enable", json!({"id": id, "value": false}));
+    // The server made it, switched on, and its read takes that as this rule: the switch goes up.
+    merge_rules(&mut s.mailbox, &download(account, vec![receipts_there()])).unwrap();
+    assert!(rule(&s, id).on_server() && !rule(&s, id).enabled);
+    let ops = rule_upload(&s.mailbox, account).unwrap().ops;
+    assert_eq!(ops.iter().map(|op| (op.kind, op.id.as_str(), op.enabled)).collect::<Vec<_>>(), [(RuleOpKind::Update, "made-1", Some(false))]);
+}
+
 #[test]
 fn moving_a_rule_among_the_servers_sends_where_each_stands() {
     let (mut s, account, _, _) = session();
@@ -396,14 +482,15 @@ fn a_deleted_rule_is_deleted_on_the_server_and_not_brought_back_meanwhile() {
     assert_eq!((upload.ops.len(), upload.ops[0].kind, upload.ops[0].id.as_str()), (1, RuleOpKind::Delete, "r1"));
     all_taken(&mut s, account);
     assert!(s.mailbox.rule_gone.is_empty());
-    // Deleted on the web: gone here too, unless it was changed here since.
+    // Deleted on the web: gone here too, even when it was changed here since, which is said.
     merge_rules(&mut s.mailbox, &download(account, vec![remote("r2", "Two", 1), remote("r3", "Three", 2)])).unwrap();
     let three = s.mailbox.rules.iter().find(|r| r.name == "Three").unwrap().id;
     run(&mut s, "rules.enable", json!({"id": three, "value": false}));
     let merged = merge_rules(&mut s.mailbox, &download(account, vec![])).unwrap();
-    assert_eq!(merged.removed, 1);
-    assert!(s.mailbox.rules.iter().all(|r| r.name != "Two"));
-    assert!(rule(&s, three).waiting() && !rule(&s, three).enabled);
+    assert_eq!(merged.removed, 2);
+    assert!(s.mailbox.rules.iter().all(|r| r.account != account));
+    assert_eq!(merged.messages.len(), 1, "{:?}", merged.messages);
+    assert!(merged.messages[0].contains("\"Three\""), "{:?}", merged.messages);
     // A download that doesn't say it is whole removes nothing.
     let mut partial = download(account, vec![]);
     partial.complete = false;
