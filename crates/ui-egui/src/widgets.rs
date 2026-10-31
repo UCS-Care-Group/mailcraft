@@ -230,10 +230,28 @@ pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     } else {
         t.accent
     };
-    ui.painter().rect_filled(r, 4.0, fill);
+    ui.painter().rect_filled(r, 6.0, fill);
     ui.painter().text(r.center(), Align2::CENTER_CENTER, label, crate::theme::medium(12.5), if enabled { t.on_accent } else { t.text_disabled });
     // (Named for screen readers, as a button.)
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
+    resp
+}
+
+/// A button with an outline, for what leaves a dialog without committing anything (Close).
+pub fn plain_button(ui: &mut Ui, label: &str) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let w = text_w(ui, label, 12.5).max(44.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(w + 26.0, 26.0), Sense::click());
+    let fill = if resp.is_pointer_button_down_on() {
+        t.pressed
+    } else if resp.hovered() {
+        t.hover
+    } else {
+        t.input
+    };
+    ui.painter().rect(r, 6.0, fill, Stroke::new(1.0, t.input_border), egui::StrokeKind::Inside);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, label, crate::theme::medium(12.5), t.text);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     resp
 }
 

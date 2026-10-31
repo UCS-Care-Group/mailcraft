@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use crate::forms::Form;
 use crate::theme::{Tokens, regular, semibold};
-use crate::widgets::primary_button;
+use crate::widgets::{plain_button, primary_button};
 use crate::{MailApp, UI_COMMANDS};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1701,7 +1701,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 });
                 ui.add_space(4.0);
                 button_row(ui, |ui| {
-                    close |= primary_button(ui, tl!("Close"), true).clicked();
+                    close |= plain_button(ui, tl!("Close")).clicked();
                 });
             });
             close |= !open || enter;
@@ -1894,7 +1894,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     }
                     ui.add_space(4.0);
                     button_row(ui, |ui| {
-                        if primary_button(ui, tl!("Close"), true).clicked() || enter {
+                        if plain_button(ui, tl!("Close")).clicked() || enter {
                             close = true;
                         }
                     });
@@ -1917,7 +1917,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 );
                 ui.add_space(4.0);
                 button_row(ui, |ui| {
-                    if primary_button(ui, tl!("Close"), true).clicked() || enter {
+                    if plain_button(ui, tl!("Close")).clicked() || enter {
                         close = true;
                     }
                 });

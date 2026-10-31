@@ -95,10 +95,8 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
             Line::Link(link) => link_line(app, ui, rect, link),
             Line::Heading => {
                 let gr = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), rect.max);
-                ui.painter().rect_filled(gr, 0.0, t.group_header);
-                ui.painter().rect_stroke(gr, 0.0, Stroke::new(1.0, t.border_strong), egui::StrokeKind::Inside);
                 let said = if app.server_link() == Link::Searching { tl!("On the server · Searching…") } else { tl!("On the server") };
-                paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, said, semibold(GROUP_TEXT), t.text);
+                paint_clipped(ui.painter(), pos2(gr.min.x + 16.0, gr.center().y + 3.0), gr.width() - 22.0, said, semibold(GROUP_TEXT), t.group_label);
                 app.hit.add("onTheServer", 0, gr);
             }
             Line::Note(text) => {

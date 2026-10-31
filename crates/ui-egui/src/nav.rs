@@ -160,6 +160,15 @@ impl Count {
         }
     }
 
+    /// The number alone, as the pill shows it.
+    fn digits(self) -> String {
+        match self {
+            Count::Nothing => String::new(),
+            Count::Unread(n) | Count::Total(n) => n.to_string(),
+        }
+    }
+
+    #[cfg(test)]
     fn text(self) -> String {
         match self {
             Count::Nothing => String::new(),
@@ -248,10 +257,11 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     app.hit.add("folder", f.id, r);
     let row = highlight(r);
     if selected {
-        ui.painter().rect_filled(row, 0.0, t.selection);
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
     } else if resp.hovered() {
         // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
-        ui.painter().rect_filled(row, 0.0, t.hover_nav);
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     // The chevron has its own click target, only on a folder with something under it.
@@ -265,15 +275,28 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     let y = r.center().y - TEXT_RISE;
-    // The count, flush right: unread in bold, a total in brackets, both in the accent.
+    // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
+    // (Drafts, Junk) in a quiet grey one.
     let mut name_end = r.max.x - COUNT_RIGHT;
     if count != Count::Nothing {
-        let font = if matches!(count, Count::Unread(_)) { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-        let shown = ui.painter().text(pos2(r.max.x - COUNT_RIGHT, y), Align2::RIGHT_CENTER, count.text(), font, t.accent);
-        name_end = shown.min.x - 8.0;
+        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+        let w = (galley.size().x + 12.0).max(20.0);
+        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+        ui.painter().rect_filled(pill, 9.0, fill);
+        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
+        name_end = pill.min.x - 6.0;
     }
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-    paint_clipped(ui.painter(), pos2(x + NAME_LEFT, y), (name_end - x - NAME_LEFT).max(0.0), &name, font, t.text);
+    paint_clipped(
+        ui.painter(),
+        pos2(x + NAME_LEFT, y),
+        (name_end - x - NAME_LEFT).max(0.0),
+        &name,
+        font,
+        if selected { t.accent_soft_text } else { t.text },
+    );
     if resp.clicked() {
         ui.data_mut(|d| d.insert_temp(egui::Id::unique("folder_picked_in_list"), key == "tree"));
         let _ = app.run("folder.select", json!({"id": f.id}));

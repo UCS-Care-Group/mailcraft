@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The contrast of the colours the interface sets against each other (WCAG 2.x relative
 //! luminance): text 4.5:1, icons and the outlines of controls 3:1. Disabled controls are exempt
-//! from the rule but listed so that they are watched.
+//! from the rule (checked at 3:1 so that they stay legible).
 
 use egui::Color32;
 
@@ -63,44 +63,31 @@ const PAIRS: &[Pair] = &[
     ("icon_yellow on surface", |t| t.icon_yellow, |t| t.surface, GRAPHIC),
     ("icon_green on surface", |t| t.icon_green, |t| t.surface, GRAPHIC),
     ("icon_purple on surface", |t| t.icon_purple, |t| t.surface, GRAPHIC),
-];
-
-/// What falls short today, as (pair, dark). Each is asserted to still fall short, so that the
-/// slice that fixes one has to take it off this list.
-const KNOWN_FAILURES: &[(&str, bool)] = &[
-    ("text_disabled on surface", false),
-    ("text_disabled on ribbon", false),
-    ("text_disabled on ribbon", true),
-    ("group_label on window", false),
-    ("input_border on surface", false),
-    ("input_border on surface", true),
-    ("green on surface", false),
-    ("orange on surface", false),
+    ("input_border on ribbon", |t| t.input_border, |t| t.ribbon, GRAPHIC),
+    ("field_edge on window", |t| t.field_edge, |t| t.canvas, GRAPHIC),
+    ("accent on surface", |t| t.accent, |t| t.surface, GRAPHIC),
+    ("accent on panel", |t| t.accent, |t| t.panel, GRAPHIC),
+    ("accent_soft_text on accent_soft", |t| t.accent_soft_text, |t| t.accent_soft, TEXT),
+    ("text on accent_soft", |t| t.text, |t| t.accent_soft, TEXT),
+    ("text_dim on pill_quiet", |t| t.text_dim, |t| t.pill_quiet, TEXT),
+    ("text_dim on accent_soft", |t| t.text_dim, |t| t.accent_soft, TEXT),
+    ("backstage_ink on column", |t| t.backstage_ink, |t| t.backstage_column, TEXT),
+    ("text_disabled on window", |t| t.text_disabled, |t| t.canvas, GRAPHIC),
 ];
 
 #[test]
-fn token_pairs_meet_their_contrast_or_are_known_not_to() {
+fn token_pairs_meet_their_contrast() {
     let palette = Palette::builtin();
     let mut wrong = Vec::new();
     for dark in [false, true] {
         let t = palette.tokens(dark);
         for (name, fg, bg, min) in PAIRS {
             let got = ratio(fg(&t), bg(&t));
-            let known = KNOWN_FAILURES.contains(&(*name, dark));
             let mode = if dark { "dark" } else { "light" };
-            if known && got >= *min {
-                wrong.push(format!("{name} ({mode}) is {got:.2}, now passes {min}: take it off the list"));
-            } else if !known && got < *min {
+            if got < *min {
                 wrong.push(format!("{name} ({mode}) is {got:.2}, needs {min}"));
             }
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-}
-
-#[test]
-fn the_known_failures_name_real_pairs() {
-    for (name, _) in KNOWN_FAILURES {
-        assert!(PAIRS.iter().any(|p| p.0 == *name), "{name}");
-    }
 }
