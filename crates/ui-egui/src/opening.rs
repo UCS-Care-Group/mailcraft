@@ -40,6 +40,10 @@ use crate::{MailApp, i18n};
 /// What every command and control request is answered while the mailbox opens.
 pub const STILL_OPENING: &str = "the mailbox is still opening";
 
+/// What opening (or saving to) a mailbox file that another MailCraft window has open is refused
+/// with (#517).
+pub const OPEN_ELSEWHERE: &str = "that mailbox is open in another MailCraft window; close it there first";
+
 /// How long opening may take before the opening screen shows (a quick open never shows it).
 pub const SHOW_AFTER_MS: f64 = 300.0;
 
@@ -486,6 +490,22 @@ pub(crate) fn reads_ahead(app: &MailApp, params: &Value) -> bool {
     // Never the mailbox open now, however its path is spelt.
     let whole = |p: &std::path::Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
     app.session.path.as_deref().map(whole) != Some(whole(std::path::Path::new(path)))
+}
+
+/// The mailbox file `id` with `params` would open or write, when it isn't the one open, has its
+/// lock taken for this window first (#517): `Some(why)` when another MailCraft has it open. The
+/// lock of the one open is let go of by the host once the window no longer has it.
+pub(crate) fn claim_refused(app: &MailApp, id: &str, params: &Value) -> Option<String> {
+    let claim = app.services.claim_mailbox.as_ref()?;
+    if !matches!(id, "file.open" | "file.save" | "file.saveAs") || params.get("data").is_some_and(|d| !d.is_null()) {
+        return None;
+    }
+    let path = std::path::Path::new(params.get("path").and_then(Value::as_str)?);
+    let whole = |p: &std::path::Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+    if app.session.path.as_deref().map(whole) == Some(whole(path)) {
+        return None;
+    }
+    (!claim(path)).then(|| OPEN_ELSEWHERE.to_string())
 }
 
 /// Start reading the file `params` names in the background, in place of any other being read.

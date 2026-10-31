@@ -93,6 +93,7 @@ fn is_known(app: &mut MailApp, address: &str) -> bool {
 /// Take in what the host found, and hand it the addresses rows wanted a frame ago. Once a frame.
 fn tick(app: &mut MailApp, ctx: &egui::Context) {
     let frame = images::frame(ctx);
+    let offline = app.offline();
     let state = &mut app.sender_images;
     if state.ticked == Some(frame) {
         return;
@@ -114,7 +115,8 @@ fn tick(app: &mut MailApp, ctx: &egui::Context) {
         };
         ctx.request_repaint();
     }
-    if let Some(look_up) = &app.services.sender_images {
+    // (Working offline, nobody is asked: senders keep their initials.)
+    if !offline && let Some(look_up) = &app.services.sender_images {
         // The rest is wanted again by its row, for as long as that is on screen.
         for address in std::mem::take(&mut state.wanted).into_iter().take(AT_A_TIME.saturating_sub(flying)) {
             if state.looks.contains_key(&address) {

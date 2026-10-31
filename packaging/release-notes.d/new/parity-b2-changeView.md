@@ -1,0 +1,1 @@
+- **Change View.** View › Change View switches the message list between three ready-made views in one click: Compact (two-line rows with a line of the message's text, reading pane on the right), Single Line (one line a message, reading pane on the right) and Preview (three lines of each message's text, no reading pane). Scripts and agents use `view.changeView`.

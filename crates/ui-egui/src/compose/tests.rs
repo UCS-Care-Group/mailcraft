@@ -874,3 +874,50 @@ fn the_body_takes_typing_after_an_address_was_picked() {
 // ---- the primary selection ----
 
 mod primary;
+
+/// A signature laid out in a table, as a signature generator makes one.
+const HTML_SIGNATURE: &str = r#"<table cellpadding="0" cellspacing="0" width="600px"><tr><td><b>Lumen Studio</b></td>
+<td style="border-left:1px solid #0e968e;border-bottom:medium"></td><td><a href="https://lumen.example">lumen.example</a></td></tr></table>"#;
+
+fn unedited(h: &Window) -> bool {
+    h.state().session.compose.as_ref().unwrap().signature_unedited()
+}
+
+/// An HTML signature is shown in the message as it goes out, under the text and out of the
+/// keyboard's reach, until the owner chooses to edit it as text.
+#[test]
+fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
+    let mut a = app();
+    a.execute("signature.html", json!({"name": "Standard", "html": HTML_SIGNATURE})).unwrap();
+    a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hello"})).unwrap();
+    a.execute("compose.formatHtml", json!({})).unwrap();
+    a.execute("compose.select", json!({"from": 0})).unwrap();
+    a.body_focus_wanted = true;
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("composeSignature", 0).is_some());
+    // The end of the text is the end of what the owner wrote; Delete there takes nothing of the signature.
+    key_with(&mut h, Modifiers::COMMAND, Key::End);
+    type_in(&mut h, "Ada");
+    key(&mut h, Key::Delete);
+    assert!(plain(&h).starts_with("Hello\nAda\n"), "{:?}", plain(&h));
+    assert!(unedited(&h));
+    // Edited as text, its simpler copy is in the text, where the keyboard reaches it.
+    let link = h.state().hit.rect("composeSignatureAsText", 0).unwrap();
+    click(&mut h, link.center());
+    assert!(h.state().hit.rect("composeSignature", 0).is_none());
+    // And back, while the copy is unedited.
+    let back = h.state().hit.rect("composeSignatureAsHtml", 0).unwrap();
+    click(&mut h, back.center());
+    assert!(h.state().hit.rect("composeSignature", 0).is_some());
+    let link = h.state().hit.rect("composeSignatureAsText", 0).unwrap();
+    click(&mut h, link.center());
+    let body = h.state().hit.rect("composeBody", 0).unwrap();
+    click(&mut h, body.min + egui::vec2(1.0, 8.0));
+    key_with(&mut h, Modifiers::COMMAND, Key::End);
+    type_in(&mut h, "!");
+    assert!(plain(&h).ends_with("lumen.example!"), "{:?}", plain(&h));
+    assert!(!unedited(&h));
+    // Edited, it is the copy that goes out: there is no way back to the HTML.
+    assert!(h.state().hit.rect("composeSignatureAsHtml", 0).is_none());
+}

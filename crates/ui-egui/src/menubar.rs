@@ -202,13 +202,16 @@ const FOLDER: &[Row] = &[
 const MESSAGE: &[Row] = &[
     Cmd("mail.reply"),
     Cmd("mail.replyAll"),
+    Cmd("mail.replyAndDelete"),
     Cmd("mail.forward"),
     Cmd("mail.forwardAsAttachment"),
+    Cmd("mail.viewSource"),
     Sep,
     Cmd("mail.delete"),
     Cmd("mail.archive"),
     Cmd("mail.move"),
     Cmd("mail.copy"),
+    Cmd("mail.resend"),
     Sep,
     Cmd("mail.markRead"),
     Cmd("mail.markUnread"),
@@ -228,6 +231,8 @@ const MESSAGE: &[Row] = &[
     Cmd("compose.send"),
     Cmd("compose.saveDraft"),
     Cmd("compose.attach"),
+    Cmd("compose.attachItem"),
+    Cmd("insert.businessCard"),
     Cmd("compose.checkNames"),
 ];
 

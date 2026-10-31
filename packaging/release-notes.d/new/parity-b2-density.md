@@ -1,0 +1,1 @@
+- **Tighter Spacing.** View › Tighter Spacing puts the rows of the message list closer together, so more messages fit on the screen; it is kept between runs (`view.density`).

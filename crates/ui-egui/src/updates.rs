@@ -320,7 +320,8 @@ impl MailApp {
         self.updates_at_start();
         self.poll_update_check();
         self.poll_update_download();
-        if self.ui.update_check != UpdateCheck::On || !may_check_by_itself(&self.services) || self.updates.pending.is_some() {
+        // (Working offline, nothing is checked by itself: the check is due again once it is off.)
+        if self.ui.update_check != UpdateCheck::On || !may_check_by_itself(&self.services) || self.updates.pending.is_some() || self.offline() {
             return;
         }
         let now = self.session.now();

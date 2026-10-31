@@ -1,0 +1,1 @@
+- Insert › Contact Card attaches one of your contacts to the message you're writing, as a vCard (.vcf) file the recipient can add to their address book.

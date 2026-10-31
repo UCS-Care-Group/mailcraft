@@ -13,13 +13,89 @@ static CURRENT: AtomicU8 = AtomicU8::new(0);
 
 /// The window's language from now on.
 pub fn set_current(lang: Lang) {
-    let i = Lang::ALL.iter().position(|l| *l == lang).unwrap_or(0);
-    CURRENT.store(u8::try_from(i).unwrap_or(0), Ordering::Relaxed);
+    let _held = hold_language();
+    store_current(lang);
 }
 
 /// The window's language.
 pub fn current() -> Lang {
+    let _held = hold_language();
+    load_current()
+}
+
+fn store_current(lang: Lang) {
+    let i = Lang::ALL.iter().position(|l| *l == lang).unwrap_or(0);
+    CURRENT.store(u8::try_from(i).unwrap_or(0), Ordering::Relaxed);
+}
+
+fn load_current() -> Lang {
     Lang::ALL.get(usize::from(CURRENT.load(Ordering::Relaxed))).copied().unwrap_or_default()
+}
+
+/// In tests the language is one value for the whole process. A test that changes it holds this
+/// lock for the whole change, so a test running alongside waits instead of reading the other
+/// language, and the previous language is put back when the guard goes, including when an
+/// assertion fails.
+#[cfg(test)]
+pub(crate) struct RestoreLanguage {
+    previous: Lang,
+    _hold: LanguageHold,
+}
+
+#[cfg(test)]
+impl RestoreLanguage {
+    pub(crate) fn hold() -> Self {
+        let hold = LanguageHold::acquire();
+        Self { previous: load_current(), _hold: hold }
+    }
+}
+
+#[cfg(test)]
+impl Drop for RestoreLanguage {
+    fn drop(&mut self) {
+        store_current(self.previous);
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static LANGUAGE_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+struct LanguageHold {
+    /// Held for the whole change. Read nowhere: the lock is the point.
+    _guard: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl LanguageHold {
+    fn acquire() -> Self {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        LANGUAGE_HELD.with(|held| held.set(true));
+        Self { _guard: guard }
+    }
+}
+
+#[cfg(test)]
+impl Drop for LanguageHold {
+    fn drop(&mut self) {
+        LANGUAGE_HELD.with(|held| held.set(false));
+    }
+}
+
+#[cfg(test)]
+fn hold_language() -> Option<LanguageHold> {
+    if LANGUAGE_HELD.with(|held| held.get()) { None } else { Some(LanguageHold::acquire()) }
+}
+
+#[cfg(not(test))]
+struct LanguageHold;
+
+#[cfg(not(test))]
+fn hold_language() -> LanguageHold {
+    LanguageHold
 }
 
 /// `s` in the interface language.

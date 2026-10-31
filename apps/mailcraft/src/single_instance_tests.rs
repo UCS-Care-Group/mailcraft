@@ -267,3 +267,66 @@ fn a_pipe_where_a_file_was_named_is_refused_at_once() {
     }
     let _ = std::fs::remove_dir_all(mailbox.parent().unwrap());
 }
+
+/// #517: a window that opens another mailbox file takes its lock before it lets go of its own; one
+/// another MailCraft has open is refused, and the window keeps its own. Once it has moved, a start
+/// on the new file reaches it and a start on the old one opens that.
+#[test]
+fn another_mailbox_in_the_window_takes_its_lock_before_the_old_one_goes() {
+    let a = temp_mailbox("switch");
+    let b = a.with_file_name("other.mailcraft");
+    let mine = first_of(start(&a, &[]));
+    let theirs = first_of(start(&b, &[]));
+    let claimer = mine.claimer();
+
+    // B is another window's: refused, and A stays this window's, with its lock and `.instance`.
+    assert!(!claimer.claim(&b));
+    mine.follow(Some(&a));
+    assert!(matches!(start_within(&a, &[], Duration::from_millis(500)), Start::Handed));
+    assert_eq!(mine.handed_over(), Some(Handed::default()));
+
+    // That window closes: B is had; while it is only being opened, A is still held.
+    theirs.close();
+    drop(theirs);
+    assert!(claimer.claim(&b));
+    assert!(claimer.claim(&b), "asked twice, it is held already");
+    assert!(matches!(start_within(&a, &[], Duration::from_millis(500)), Start::Handed));
+    assert_eq!(mine.handed_over(), Some(Handed::default()));
+    assert!(matches!(start_within(&b, &[], Duration::from_millis(300)), Start::Unreachable(_)), "nobody opens B meanwhile");
+
+    // The window has B open: later starts on B reach it, and A is free.
+    mine.follow(Some(&b));
+    assert!(beside(&b, "instance").exists() && !beside(&a, "instance").exists());
+    assert!(matches!(start_within(&b, &[], Duration::from_millis(500)), Start::Handed));
+    assert_eq!(mine.handed_over(), Some(Handed::default()));
+    drop(first_of(start(&a, &[])));
+
+    // File › New keeps nothing in a file: nothing is held.
+    mine.follow(None);
+    assert!(!beside(&b, "instance").exists());
+    drop(first_of(start(&b, &[])));
+    drop(mine);
+    let _ = std::fs::remove_dir_all(a.parent().unwrap());
+}
+
+/// A lock taken for a mailbox the window then didn't open (it couldn't be read, the owner changed
+/// their mind) is let go of; and one taken by a window that started on no file (the sample) is
+/// held without a listener, so a later start says the file is open elsewhere.
+#[test]
+fn a_lock_for_a_mailbox_not_opened_goes_and_the_sample_holds_one_without_listening() {
+    let a = temp_mailbox("claimed");
+    let b = a.with_file_name("other.mailcraft");
+    let mine = first_of(start(&a, &[]));
+    assert!(mine.claimer().claim(&b));
+    mine.follow(Some(&a));
+    first_of(start(&b, &[])).close();
+
+    let sample = none();
+    assert!(sample.claimer().claim(&b));
+    sample.follow(Some(&b));
+    assert!(!beside(&b, "instance").exists());
+    assert!(matches!(start_within(&b, &[], Duration::from_millis(300)), Start::Unreachable(_)));
+    assert!(!sample.claimer().claim(&a), "the first window's");
+    drop((mine, sample));
+    let _ = std::fs::remove_dir_all(a.parent().unwrap());
+}

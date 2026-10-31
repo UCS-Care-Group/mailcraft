@@ -98,6 +98,20 @@ pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<R
             return Some(Ok(json!({"pending": purpose})));
         }
     }
+    // Save All Attachments: into a folder the owner picks (the browser downloads each file).
+    // (Of the message named, which a window of its own names whatever is selected; one with no
+    // files to save says so without a folder being asked for.)
+    let has_files = || {
+        let named = params.get("id").and_then(Value::as_u64).or(app.session.sel.focus());
+        named.and_then(|m| app.session.mailbox.message(m)).is_some_and(|m| m.listed_attachments().next().is_some())
+    };
+    if id == "mail.saveAllAttachments" && params.get("path").is_none() && has_files() {
+        if app.services.download.is_some() {
+            return Some(download_all(app, params.clone()));
+        }
+        app.services.file_dialog.as_ref()?;
+        return Some(ask(app, FileDialogRequest::Folder, AfterPick::Export { command: id.to_string(), params: params.clone() }));
+    }
     if params.get("path").is_some() || !app.enabled(id) {
         return None;
     }
@@ -119,6 +133,21 @@ fn download(app: &mut MailApp, id: &str, params: Value) -> Result<Value, String>
     save(name, &bytes)?;
     app.status(crate::i18n::fmt(tl!("Downloaded {name}"), &[("name", name)]));
     Ok(json!({"name": name, "bytes": bytes.len(), "downloaded": true}))
+}
+
+/// Save All Attachments in the browser: each file handed over as a download of its own.
+fn download_all(app: &mut MailApp, params: Value) -> Result<Value, String> {
+    let r = app.execute("mail.saveAllAttachments", params)?;
+    let Some(save) = &app.services.download else { return Ok(r) };
+    let mut n = 0usize;
+    for f in r.get("files").and_then(Value::as_array).into_iter().flatten() {
+        let (Some(name), Some(data)) = (f.get("name").and_then(Value::as_str), f.get("data").and_then(Value::as_str)) else { continue };
+        let bytes = base64_lite::decode(data).ok_or_else(|| "the attachment wasn't readable".to_string())?;
+        save(name, &bytes)?;
+        n += 1;
+    }
+    app.status(tln!(n, "Downloaded {n} attachment", "Downloaded {n} attachments"));
+    Ok(json!({"saved": n, "downloaded": true}))
 }
 
 /// Pick a file to open (`mailbox`), bring in (`import`) or attach (`attach`).
@@ -171,6 +200,9 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
                 if matches!(app.dialog, Some(crate::dialogs::Dialog::ReportProblem(_))) {
                     app.dialog = None;
                 }
+            } else if let (Ok(v), "mail.saveAllAttachments") = (&r, command.as_str()) {
+                let n = v.get("saved").and_then(Value::as_u64).unwrap_or(0) as usize;
+                app.status(tln!(n, "Saved {n} attachment", "Saved {n} attachments"));
             } else if r.is_ok() {
                 let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                 app.status(crate::i18n::fmt(tl!("Saved {name}"), &[("name", &name)]));

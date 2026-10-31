@@ -293,6 +293,7 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     let state = &mut app.remote_pictures;
     if let Some(download) = &app.services.pictures
         && !waiting.is_empty()
+        && !app.session.prefs.offline
     {
         let pictures = Pictures::of(ctx);
         let pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());

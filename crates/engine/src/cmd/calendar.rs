@@ -16,6 +16,9 @@ mod invitation;
 mod invitation_tests;
 pub(crate) use invitation::{same_organizer, tidy_imported};
 mod meeting;
+pub mod share;
+#[cfg(test)]
+mod share_tests;
 
 pub use meeting::teams_refusal;
 
@@ -23,6 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
     let mut specs = own_specs();
     specs.extend(invitation::specs());
     specs.extend(meeting::specs());
+    specs.extend(share::specs());
     specs
 }
 

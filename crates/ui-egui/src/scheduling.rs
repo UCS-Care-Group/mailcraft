@@ -198,6 +198,9 @@ impl MailApp {
         if self.services.free_busy.is_none() {
             return Err(tl!("This build can't ask a server when other people are busy: only your own calendar is shown.").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         if self.graph_consent_needed.contains(&account.id) {
             return Err(tl!("Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts").to_string());
         }

@@ -256,13 +256,20 @@ pub struct Laid {
     joined: usize,
     /// Per top-level block: `Some` when it goes on in the paragraph of the block before.
     cuts: Arc<[Option<Glue>]>,
+    /// How large the text is set, 1.0 as it comes (`view.zoom`).
+    zoom: f32,
 }
 
 impl Laid {
     /// Nothing laid out yet, for a pane `width` points wide.
     pub fn new(width: f32) -> Laid {
         let width = if width.is_finite() { width.clamp(MIN_WIDTH, WIDE) } else { MIN_WIDTH };
-        Laid { width, size: vec2(width, 0.0), ..Laid::default() }
+        Laid { width, size: vec2(width, 0.0), zoom: 1.0, ..Laid::default() }
+    }
+
+    /// The same, its text `zoom` times as large (`view.zoom`; kept to 0.5–3).
+    pub fn zoomed(self, zoom: f32) -> Laid {
+        Laid { zoom: if zoom.is_finite() { zoom.clamp(0.5, 3.0) } else { 1.0 }, ..self }
     }
 
     /// The same, showing the pictures from the web that have been downloaded: for a message
@@ -322,6 +329,8 @@ impl Laid {
             work: 0,
             stats: self.stats,
             right: self.size.x,
+            // (A layout that was never made with `new` has no zoom: as it comes.)
+            zoom: if self.zoom > 0.0 { self.zoom } else { 1.0 },
         };
         let mut flow = Flow { x: 0.0, width: self.width, y: self.y, paper: Paper::window(&t), prev: self.prev.take() };
         while self.next < blocks.len() && cx.work < budget {
@@ -363,6 +372,8 @@ struct Cx<'a> {
     stats: Stats,
     /// The right edge of the widest thing so far.
     right: f32,
+    /// How large the text is set ([`Laid::zoomed`]).
+    zoom: f32,
 }
 
 impl Cx<'_> {
@@ -608,6 +619,11 @@ fn font(span: &Span, kind: &BlockKind) -> egui::FontId {
     }
 }
 
+/// `font` `zoom` times as large.
+fn zoomed(font: egui::FontId, zoom: f32) -> egui::FontId {
+    egui::FontId { size: font.size * zoom, ..font }
+}
+
 /// The spans of a block as text to lay out: formatted, coloured for the paper they are on, wrapped
 /// at `wrap`. With it, the parts that are links and the number of characters.
 fn text_job(
@@ -619,6 +635,7 @@ fn text_job(
     wrap: f32,
     align: Align,
     line_height: Option<LineHeight>,
+    zoom: f32,
 ) -> (LayoutJob, Vec<(Range<usize>, Arc<str>)>, usize) {
     let (base, line) = type_scale(kind);
     let pre = matches!(kind, BlockKind::Preformatted);
@@ -629,8 +646,8 @@ fn text_job(
         if span.text.is_empty() {
             continue;
         }
-        let size = span.size.map_or(base, f32::from);
-        let font = font(span, kind);
+        let size = span.size.map_or(base, f32::from) * zoom;
+        let font = zoomed(font(span, kind), zoom);
         // A highlight is the paper its text is read on.
         let behind = span.background.map_or(paper, |bg| Paper::of(bg, t));
         let ink = behind.ink(t, span.color, span.link.is_some(), quoted);
@@ -735,7 +752,7 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
     if let BlockKind::ListItem { marker, .. } = &block.kind
         && let Some(label) = marker_label(marker)
     {
-        let size = block.spans.first().and_then(|s| s.size).map_or(BASE_SIZE, f32::from);
+        let size = block.spans.first().and_then(|s| s.size).map_or(BASE_SIZE, f32::from) * cx.zoom;
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
@@ -745,7 +762,7 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
     let mut begun = false;
     for (n, (piece, glue)) in cut(&block.spans).iter().enumerate() {
-        let (mut job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align, block.line_height);
+        let (mut job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align, block.line_height, cx.zoom);
         if chars == 0 {
             continue;
         }
@@ -762,7 +779,7 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
         {
             let row = galley.rows.first().map_or(height, |r| r.height());
             let first = piece.first();
-            let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from);
+            let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from) * cx.zoom;
             let ink = paper.ink(&cx.t, first.and_then(|s| s.color).filter(|_| first.is_some_and(|s| s.link.is_none())), false, quoted);
             list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
         }
@@ -1013,7 +1030,7 @@ fn line_length(blocks: &[Block], index: usize) -> usize {
 
 /// The size of a short text set in one line.
 fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
-    let (job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, f32::INFINITY, Align::Left, block.line_height);
+    let (job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
     let size = cx.measure(job).size();
     vec2(size.x.ceil() + 1.0, size.y)
 }
@@ -1021,7 +1038,7 @@ fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
 /// How far a text starts and how tall its first row is, and how tall it is in all, when it
 /// starts `lead` points in and wraps at `width`.
 fn tail_metrics(cx: &mut Cx<'_>, block: &Block, paper: Paper, width: f32, lead: f32) -> (f32, f32) {
-    let (mut job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height);
+    let (mut job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height, cx.zoom);
     if let Some(first) = job.sections.first_mut() {
         first.leading_space = lead;
     }
@@ -1300,7 +1317,7 @@ fn text_extent(cx: &mut Cx<'_>, block: &Block) -> Extent {
     let (word, line) = cx.ctx.fonts_mut(|fonts| {
         let (mut word, mut widest_word, mut line, mut longest_line) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
         for span in &block.spans {
-            let font = font(span, &block.kind);
+            let font = zoomed(font(span, &block.kind), cx.zoom);
             for c in span.text.chars() {
                 if c == '\n' {
                     (word, line) = (0.0, 0.0);
@@ -1317,7 +1334,8 @@ fn text_extent(cx: &mut Cx<'_>, block: &Block) -> Extent {
     });
     let max = if chars <= MEASURED_CHARS {
         // Short enough to shape: a cell's text must not wrap for want of half a point.
-        let (job, ..) = text_job(&cx.t, &block.spans, &block.kind, Paper::window(&cx.t), false, f32::INFINITY, Align::Left, block.line_height);
+        let (job, ..) =
+            text_job(&cx.t, &block.spans, &block.kind, Paper::window(&cx.t), false, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
         cx.measure(job).size().x.max(line) + 1.0
     } else {
         line + 2.0

@@ -28,7 +28,7 @@ use mailcraft_i18n::po::{self, Entry};
 const NAME_FNS: &[&str] = &["label", "title", "detail", "about", "default_name", "notice", "said", "what", "unit"];
 
 /// Window constants that reach `tl!` through a variable (`tl!(error)`), not by name.
-const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH"];
+const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH", "OPEN_ELSEWHERE"];
 
 pub fn run(root: &Path, check: bool) -> Result<(), String> {
     let found = gather(root)?;

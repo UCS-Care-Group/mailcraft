@@ -221,6 +221,7 @@ impl State {
                     "message:ToRecipients" => item.to = value("ToRecipients").map(people_of).unwrap_or_default(),
                     "message:CcRecipients" => item.cc = value("CcRecipients").map(people_of).unwrap_or_default(),
                     "message:BccRecipients" => item.bcc = value("BccRecipients").map(people_of).unwrap_or_default(),
+                    "message:ReplyTo" => item.reply_to = value("ReplyTo").map(people_of).unwrap_or_default(),
                     other => return Err(invalid(format!("{other} is no property this stand-in updates"))),
                 }
             }
@@ -365,6 +366,7 @@ impl State {
             from: ("Ada".into(), "ada@example.org".into()),
             to: Vec::new(),
             cc: Vec::new(),
+            reply_to: Vec::new(),
             received: "2026-10-14T16:00:00Z".into(),
             sent: "2026-10-14T16:00:00Z".into(),
             read: true,
@@ -394,7 +396,8 @@ impl State {
             item.message_id = header("Message-ID");
             item.mime = bytes;
         } else {
-            let order = ["Subject", "Body", "Attachments", "Importance", "ExtendedProperty", "ToRecipients", "CcRecipients", "BccRecipients"];
+            let order =
+                ["Subject", "Body", "Attachments", "Importance", "ExtendedProperty", "ToRecipients", "CcRecipients", "BccRecipients", "ReplyTo"];
             let parts = Check::children(message, TYPES, &order)?;
             item.subject = parts.first().copied().flatten().map(|n| n.text.clone()).unwrap_or_default();
             if let Some(body) = parts.get(1).copied().flatten() {
@@ -422,6 +425,7 @@ impl State {
             item.to = parts.get(5).copied().flatten().map(people_of).unwrap_or_default();
             item.cc = parts.get(6).copied().flatten().map(people_of).unwrap_or_default();
             item.bcc = parts.get(7).copied().flatten().map(people_of).unwrap_or_default();
+            item.reply_to = parts.get(8).copied().flatten().map(people_of).unwrap_or_default();
             item.preview = item.body.1.chars().take(200).collect();
             item.message_id = format!("<{}@example.org>", self.issued.saturating_add(1));
         }

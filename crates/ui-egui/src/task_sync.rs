@@ -213,7 +213,7 @@ impl MailApp {
         let Ok(upload) = tasks_remote::task_upload(&self.session.mailbox, account) else { return false };
         let given = fingerprint(&refresh);
         let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, cancel: Default::default() };
-        let Some(graph) = &self.services.graph_tasks else { return false };
+        let Some(graph) = self.services.graph_tasks.as_ref().filter(|_| !self.offline()) else { return false };
         self.tasks.rx = Some((account, now, given, graph(job)));
         self.tasks.checked.insert(account, now);
         true

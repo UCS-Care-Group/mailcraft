@@ -398,7 +398,7 @@ impl MailApp {
             mail_pieces: None,
             cancel: Default::default(),
         };
-        let Some(graph) = &self.services.graph else { return false };
+        let Some(graph) = self.services.graph.as_ref().filter(|_| !self.offline()) else { return false };
         if settings {
             self.calendar.settings_asked.insert(account, now);
         }
@@ -682,6 +682,9 @@ impl MailApp {
         let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
         if access.is_empty() && refresh.is_empty() {
             return Err(tl!("This account's calendar can't be asked yet: Send/Receive signs it in first.").to_string());
+        }
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         let request = CalendarCheckRequest { account: owner, oauth: self.effective_oauth(oauth), refresh, access };
         let Some(check) = &self.services.check_calendar else { return Err(tl!("This build can't reach the account's calendar.").to_string()) };

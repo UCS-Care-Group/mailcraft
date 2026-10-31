@@ -1,0 +1,1 @@
+- Direct Replies To (Message › Tags) has replies to the message you're writing go to other addresses; each address is checked, and the Reply to line shows above the subject.

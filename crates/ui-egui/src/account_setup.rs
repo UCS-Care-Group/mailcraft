@@ -902,7 +902,8 @@ impl AccountSetup {
         // unless the domain's mail exchangers say whose it is.
         (self.guessed, self.settings_open) = (true, true);
         let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase());
-        match (&app.services.lookup_mx, domain) {
+        // (Working offline, nobody is asked: the servers are a guess to check.)
+        match (app.services.lookup_mx.as_ref().filter(|_| !app.offline()), domain) {
             (Some(lookup), Some(domain)) => {
                 self.lookup = Some(lookup(domain));
                 self.go(Page::Detecting);
@@ -1013,7 +1014,8 @@ impl AccountSetup {
         if let Some(ctx) = &self.ctx {
             forget_field(ctx);
         }
-        match &app.services.test_account {
+        // (Working offline, it is added untried.)
+        match app.services.test_account.as_ref().filter(|_| !app.offline()) {
             Some(test) => {
                 self.check = Some(test(account, self.password.0.clone()));
                 self.go(Page::Checking);

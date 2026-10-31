@@ -195,6 +195,10 @@ impl AccountSetup {
 
     /// Give the host a job and wait for it on the checking page.
     fn exchange_run(&mut self, app: &mut MailApp, url: String, trusted: String, certificate_only: bool) {
+        if app.offline() {
+            self.error = crate::send_receive::said();
+            return;
+        }
         let Some(start) = &app.services.ews_setup else {
             self.error = tl!("This build can't connect to mail servers. Use the desktop app to add an Exchange server account.").to_string();
             return;

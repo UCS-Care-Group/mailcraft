@@ -880,6 +880,37 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(7.0, y), (17.5, y)]);
             }
         }
+        // Change View: a window with the list's rows on the left, the pane beside them.
+        "changeView" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            for y in [7.0, 10.0, 13.0] {
+                pen.line(&[(5.0, y), (8.0, y)]);
+            }
+            pen.line_c(&[(10.5, 3.5), (10.5, 16.5)], a);
+        }
+        // Tighter Spacing: rows close together, pressed from above and below.
+        "density" => {
+            for y in [7.5, 10.0, 12.5] {
+                pen.line(&[(8.0, y), (17.5, y)]);
+            }
+            pen.line_c(&[(4.5, 2.5), (4.5, 7.0)], a);
+            pen.head(4.5, 7.0, 90.0, 2.5, a);
+            pen.line_c(&[(4.5, 17.5), (4.5, 13.0)], a);
+            pen.head(4.5, 13.0, 270.0, 2.5, a);
+        }
+        // Zoom: a glass with a plus in it.
+        "zoom" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(6.0, 8.5), (11.0, 8.5)], a);
+            pen.line_c(&[(8.5, 6.0), (8.5, 11.0)], a);
+        }
+        // Recent Searches: a glass with a clock's hands in it.
+        "recentSearches" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(8.5, 5.5), (8.5, 8.5), (10.5, 10.0)], a);
+        }
         "reset" => {
             // Back the other way round, the head at the top.
             let ring = pen.path().a(&pen, 10.0, 10.5, 6.5, 240.0, -60.0);
@@ -1137,6 +1168,27 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.head(2.5, 10.0, 180.0, 2.5, a);
             }
         }
+        // Text Highlight Color: a marker's slanted tip over the band it draws.
+        "highlight" => {
+            pen.closed(&[(9.0, 3.0), (14.0, 6.0), (10.5, 12.0), (5.5, 9.0)], c);
+            pen.line(&[(5.5, 9.0), (5.0, 12.5), (7.0, 13.5), (10.5, 12.0)]);
+            pen.frect_r(3.5, 14.5, 16.5, 17.5, 1.0, a);
+        }
+        // Format Painter: a brush, its bristles the accent.
+        "formatPainter" => {
+            pen.rect(3.5, 3.0, 15.5, 7.5, c);
+            pen.line(&[(15.5, 5.25), (17.0, 5.25), (17.0, 10.0), (10.0, 10.0), (10.0, 12.0)]);
+            pen.frect_r(8.5, 12.0, 11.5, 17.5, 1.0, a);
+        }
+        // Insert › Symbol: an omega, drawn as a letter of the window's own face.
+        "symbol" => pen.text(10.0, 10.0, 16.0, "\u{3a9}", c, 0.0),
+        // Format Text › Replace: one letter, a turn, another in its place.
+        "replace" => {
+            pen.text(6.0, 6.0, 10.0, "a", c, 0.0);
+            pen.text(14.5, 14.0, 10.0, "b", c, 0.0);
+            pen.line_c(&[(4.5, 11.0), (4.5, 14.5), (9.5, 14.5)], a);
+            pen.head(9.5, 14.5, 0.0, 2.0, a);
+        }
         "formatPlain" => {
             pen.line(&[(3.5, 5.5), (16.5, 5.5)]);
             pen.line(&[(3.5, 10.0), (16.5, 10.0)]);
@@ -1290,6 +1342,10 @@ pub const NAMES: &[&str] = &[
     "reverseSort",
     "previewLines",
     "list",
+    "changeView",
+    "density",
+    "zoom",
+    "recentSearches",
     "reset",
     "undo",
     "redo",
@@ -1345,6 +1401,10 @@ pub const NAMES: &[&str] = &[
     "clearFormatting",
     "formatHtml",
     "formatPlain",
+    "replace",
+    "highlight",
+    "formatPainter",
+    "symbol",
     "increaseIndent",
     "decreaseIndent",
     "showPassword",

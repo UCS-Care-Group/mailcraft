@@ -228,6 +228,8 @@ struct Key {
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
     line: u32,
+    /// The zoom of the message being read, as bits (`view.zoom`).
+    zoom: u32,
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
@@ -474,8 +476,11 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let pictures = Pictures::of(&ctx);
     let mut pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());
     let showing = access == Access::Allowed && !entry.doc.remote.is_empty();
+    // The zoom is the owner's for the message being read (`view.zoom`), not for a quote or a preview.
+    let zoom = if matches!(place, Place::Pane | Place::Window(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
     let key = Key {
         width: width as u32,
+        zoom: zoom.to_bits(),
         dark: t.dark,
         light: light && Tokens::get(&ctx).dark,
         scale: ctx.pixels_per_point().to_bits(),
@@ -489,7 +494,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         if entry.next.as_ref().is_none_or(|(next, _)| *next != key) {
             entry.next = Some((
                 key,
-                Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone()),
+                Laid::new(width)
+                    .showing_remote(showing)
+                    .on_light_page(light)
+                    .sender_dark(entry.doc.sender_dark)
+                    .cut(entry.doc.cuts.clone())
+                    .zoomed(zoom),
             ));
             #[cfg(test)]
             {
@@ -498,7 +508,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         }
     } else {
         entry.key = Some(key);
-        entry.laid = Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone());
+        entry.laid =
+            Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone()).zoomed(zoom);
         entry.next = None;
         #[cfg(test)]
         {
@@ -536,6 +547,33 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     for action in due.into_iter().chain(asked) {
         select::act(app, place, action);
     }
+    if matches!(place, Place::Pane | Place::Window(_)) {
+        wheel_zoom(app, ui);
+    }
+}
+
+/// Ctrl (⌘ on a Mac) with the wheel over the message being read zooms its text a step at a time
+/// (`view.zoom`): a wheel that turns smoothly makes a step of every tenth it turns.
+fn wheel_zoom(app: &mut MailApp, ui: &Ui) {
+    let delta = ui.input(|i| i.zoom_delta());
+    if delta == 1.0 || !delta.is_finite() || delta <= 0.0 || !ui.rect_contains_pointer(ui.clip_rect()) {
+        return;
+    }
+    let id = egui::Id::unique("reading_wheel_zoom");
+    let turned = ui.data_mut(|d| {
+        let turned = d.get_temp_mut_or(id, 1.0f32);
+        *turned *= delta;
+        *turned
+    });
+    let step = if turned >= 1.1 {
+        "in"
+    } else if turned <= 1.0 / 1.1 {
+        "out"
+    } else {
+        return;
+    };
+    ui.data_mut(|d| d.insert_temp(id, 1.0f32));
+    let _ = app.run("view.zoom", serde_json::json!({"step": step}));
 }
 
 /// Whether a message's body is shown on a light page in the light theme's colours, whatever the
@@ -989,3 +1027,7 @@ mod tip_tests {
         assert_eq!(clipped("abc", 0), "…");
     }
 }
+
+#[cfg(test)]
+#[path = "zoom_tests.rs"]
+mod zoom_tests;

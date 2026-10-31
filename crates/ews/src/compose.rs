@@ -84,6 +84,8 @@ pub struct DraftContent {
     pub cc: Vec<Address>,
     /// See `to`.
     pub bcc: Vec<Address>,
+    /// Where replies go (`Reply-To`).
+    pub reply_to: Vec<Address>,
     /// The importance.
     pub importance: Importance,
     /// The files.
@@ -139,6 +141,10 @@ impl CreateDraft {
             if list.iter().any(|a| !a.email.trim().is_empty()) {
                 message = message.child(recipients(name, list));
             }
+        }
+        // (`ReplyTo` comes after the recipients in a message.)
+        if c.reply_to.iter().any(|a| !a.email.trim().is_empty()) {
+            message = message.child(recipients("t:ReplyTo", &c.reply_to));
         }
         Element::new("m:CreateItem")
             .attr("MessageDisposition", "SaveOnly")

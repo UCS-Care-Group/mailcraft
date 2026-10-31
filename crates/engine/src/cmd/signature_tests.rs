@@ -376,6 +376,8 @@ fn an_html_signature_edited_in_the_message_goes_out_as_edited() {
     run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
     run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
     run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    // Shown as it goes out, it is out of reach until the owner chooses to edit it as text.
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
     let end = s.compose.as_ref().unwrap().body.text().len();
     run(&mut s, "compose.select", json!({"from": end}));
     run(&mut s, "compose.type", json!({"text": " PhD"}));
@@ -389,6 +391,79 @@ fn an_html_signature_edited_in_the_message_goes_out_as_edited() {
     let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
     let m = s.mailbox.message(id).unwrap();
     assert!(m.body.html.is_none() && m.body.text.contains("Avery Quinn") && !m.body.text.contains('<'), "{:?}", m.body.text);
+}
+
+/// Chosen to be edited as text, an HTML signature goes out as its simpler copy, though unedited;
+/// going back to the HTML takes the caret out of the copy, which is then no longer shown.
+#[test]
+fn an_html_signature_chosen_as_text_goes_out_as_text_and_back_leaves_the_caret_in_the_text() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_unedited() && c.signature_html().is_none());
+    // Back to the HTML, with the caret at the end of the text, in the copy.
+    let end = c.body.text().len();
+    let start = c.body.text().signature_start().unwrap();
+    run(&mut s, "compose.select", json!({"from": 2, "to": end}));
+    run(&mut s, "compose.signatureAsText", json!({"value": false}));
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!((c.body.selection().anchor, c.body.selection().head), (2, start - 1));
+    assert!(c.signature_html().is_some());
+    run(&mut s, "compose.type", json!({"text": "!"}));
+    assert!(s.compose.as_ref().unwrap().signature_unedited());
+    // As text, it goes out as the copy.
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("Avery Quinn") && !html.contains("padding-right:12px"), "{html}");
+    // Once the copy is edited, there is no way back to the HTML; without one, nothing to choose.
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": " PhD"}));
+    assert!(s.run("compose.signatureAsText", &json!({"value": false})).is_err());
+    run(&mut s, "signature.set", json!({"name": "Plain", "text": "Avery", "default": true}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+    assert!(s.run("compose.signatureAsText", &json!({"value": true})).is_err());
+}
+
+/// The caret never stays in an HTML signature shown as it goes out, however it got there: the
+/// next key typed would edit the signature, and its simpler copy would go out in its place.
+#[test]
+fn a_caret_never_stays_in_an_html_signature_that_is_not_shown() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    let caret = |s: &Session| {
+        let sel = s.compose.as_ref().unwrap().body.selection();
+        (sel.anchor, sel.head)
+    };
+    // In Plain the signature is text, and Ctrl+End goes to its end; then HTML.
+    run(&mut s, "compose.formatPlain", json!({}));
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_html_shown().is_some());
+    let text_end = c.body.text().signature_start().unwrap() - 1;
+    assert_eq!(caret(&s), (text_end, text_end));
+    // An agent's selection into it, and typing after it.
+    run(&mut s, "compose.select", json!({"from": 2, "to": end}));
+    assert_eq!(caret(&s), (2, text_end));
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": "!"}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_unedited() && c.body.text().text().starts_with("Hello\n!\nAvery Quinn"), "{:?}", c.body.text().text());
+    // Nor does an undo put it back there.
+    run(&mut s, "edit.undo", json!({}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(caret(&s).1 < c.body.text().signature_start().unwrap());
 }
 
 #[test]

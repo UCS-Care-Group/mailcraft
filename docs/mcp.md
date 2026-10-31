@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-30 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -39,7 +39,8 @@ good, without that being allowed, is undone and refused, whichever way it got th
 **Files.** An agent never names a file on this computer. A param that does (`path` of
 `file.open`, `file.import`, `file.save`, `file.saveAs`, the `file.export…` commands,
 `mail.saveAttachment`, `compose.attach`, `signature.picture.add`; `ui.screenshot`'s `path`) is
-refused. Content goes in as base64 `data` (with `name`), and comes out as `data` when no path is
+refused, and so is the folder `mail.saveAllAttachments` would save into, `--files` or not: without
+it, every file comes back as `data` in `files`. Content goes in as base64 `data` (with `name`), and comes out as `data` when no path is
 given. With `--files DIR`, an agent may name files inside DIR: the server reads and writes them
 itself and hands the command `data`. A path is taken relative to DIR (an absolute one must lie in
 it); `..` is refused; a link that leads out of DIR is not followed; files are written as new files
@@ -61,8 +62,8 @@ changing without the owner's yes in the window, every time: no `--allow` skips t
 (#494). A message being written that the owner has typed in is theirs until it is closed, saved or
 not (a save by the owner, by the window every few minutes or by an agent doesn't change that;
 moving the cursor in a message only the agent wrote isn't writing in it). Closing it or putting
-another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`, `mail.forward`,
-`mail.forwardAsAttachment`, `mail.editDraft`, `people.email`, `ui.openWindow` of a draft) asks
+another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`, `mail.replyAndDelete`, `mail.forward`,
+`mail.forwardAsAttachment`, `mail.editDraft`, `mail.resend`, `people.email`, `ui.openWindow` of a draft) asks
 Allow, and what isn't saved goes to Drafts first (all of it when its saved draft is gone
 meanwhile); with `"discard": true` and changes that aren't saved it asks Delete, and nothing is
 saved. `compose.discard` (the message and its draft) asks Delete; `file.new` and `file.open`, which
@@ -185,6 +186,9 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |
+| 2026-10-31 | minor | `mail.replyAndDelete` (safe; names its message, never deletes for good), `mail.viewSource` (safe; message content, framed as untrusted) and `mail.saveAllAttachments` (safe; a folder is never taken from an agent, the files come back as `data`) |
+| 2026-10-31 | minor | `mail.resend` (safe; names its message, opens it again as a new one that is sent only by Send) and `compose.replyTo` (safe; each address checked, at most 20, line breaks dropped) |
 | 2026-10-30 | minor | #553: Reply, Reply All, Open Draft, Send Again, the answers to meeting requests and the appointment commands refuse an `id`, `ids` or `message` that names nothing, rather than take the selection; the four one-message commands take `ids` naming one |
 | 2026-10-29 | minor | #599: `read_message` and `mail.get` answer `hiddenText` (what the sender hid), framed as untrusted message content |
 | 2026-10-28 | minor | #620: an agent names the messages (`ids` or `id`) for delete, delete for good, move, copy, archive, junk, not junk, reply, reply all, forward, forward as attachment, open draft, remove attachment and send again; the window's selection is the owner's. `list_messages` reads a folder and search without moving the window to them |

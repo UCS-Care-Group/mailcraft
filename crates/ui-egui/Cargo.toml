@@ -21,6 +21,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # The host a link really goes to, for its tip.
 mailcraft-link = { workspace = true }
+# A subject shown in a title: one line, nothing that hides or turns text (View Source).
+mailcraft-names = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
 

@@ -77,6 +77,7 @@ pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
 pub mod files;
+mod find_replace;
 mod folder_properties;
 pub mod forms;
 #[cfg(test)]
@@ -115,6 +116,9 @@ mod opened_message;
 mod opened_message_tests;
 pub mod opening;
 pub mod people_view;
+mod pick_item;
+#[cfg(test)]
+mod pick_item_tests;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -137,6 +141,7 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+mod send_receive;
 mod sender_images;
 pub mod server_search;
 pub mod settings_notice;
@@ -145,6 +150,7 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+mod symbol;
 mod sync_panel;
 pub mod task_sync;
 #[cfg(test)]
@@ -158,6 +164,9 @@ mod text_menu_tests;
 pub mod theme;
 pub mod unconfirmed;
 pub mod updates;
+mod view_source;
+#[cfg(test)]
+mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
 pub mod windows;
@@ -299,6 +308,12 @@ pub struct Services {
     /// channel and the host wakes the UI; `file.open` then takes what was read. Absent in the
     /// browser and the tests: `file.open` reads the file there and then.
     pub read_ahead: Option<Box<dyn Fn(std::path::PathBuf, std::sync::Arc<mailcraft_engine::io::OpenProgress>) -> Receiver<Result<(), String>>>>,
+    /// Desktop: take the lock of another mailbox file for this window (#517), before the window
+    /// opens it or saves to it, keeping the lock of the one open until that one is let go of (the
+    /// host then lets go of whichever the window no longer has open). `false`: another MailCraft
+    /// has that file open, and the window leaves it alone ([`opening::OPEN_ELSEWHERE`]). Absent in
+    /// the browser and the tests, where nothing is locked.
+    pub claim_mailbox: Option<Box<dyn Fn(&std::path::Path) -> bool>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes
@@ -885,7 +900,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
@@ -1745,6 +1760,8 @@ impl MailApp {
             return false;
         }
         match self.session.registry.get(id) {
+            // Cancel All, while the window has a Send/Receive under way.
+            Some(_) if id == "sync.cancel" => self.syncing(),
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed
@@ -1773,6 +1790,11 @@ impl MailApp {
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
         }
+        // Another window's mailbox is refused before anything is asked or read (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
@@ -1787,7 +1809,18 @@ impl MailApp {
             if let Some(opened) = windows::open_form(self, name, &params) {
                 return opened;
             }
-            self.dialog = dialogs::open_dialog(self, name, &params);
+            // Rename Folder without a name (the ribbon's button, F2) asks for the new name of the folder
+            // in view: the folder dialog opens as New Folder unless it is told to rename (the folder
+            // pane's own Rename Folder… says so already).
+            let asked = match (id, params.clone()) {
+                ("folder.rename", Value::Object(mut map)) => {
+                    map.insert("mode".into(), json!("rename"));
+                    Value::Object(map)
+                }
+                ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                (_, asked) => asked,
+            };
+            self.dialog = dialogs::open_dialog(self, name, &asked);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
             if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
@@ -1828,6 +1861,10 @@ impl MailApp {
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => self.execute(id, params),
         };
+        // View Source pressed by the owner: its window, with what it answered.
+        if let (Ok(v), "mail.viewSource") = (&r, id) {
+            self.show_source(v);
+        }
         // Sent from a shared mailbox (#70): pressing Send is the owner asking for it to go.
         if id == "compose.send"
             && let Ok(v) = &r
@@ -1853,6 +1890,8 @@ impl MailApp {
                 }
             }
         }
+        // Help's pages, and Feedback's window, for the owner's click.
+        send_receive::after_owner(self, id, &r);
         // And closing a conversation, which may select its row (#503).
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
@@ -1887,6 +1926,11 @@ impl MailApp {
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
         }
+        // Another window's mailbox is neither opened nor written over, and what is under way here
+        // stays as it is (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            return Err(e);
+        }
         // Whatever replaces the mailbox gives up one being read in the background, which would
         // otherwise take the place of this one later.
         if matches!(id, "file.open" | "file.new") {
@@ -1911,10 +1955,15 @@ impl MailApp {
         if let Some(r) = self.through_saver(id, &params) {
             return r;
         }
+        if let Some(r) = send_receive::before(self, id) {
+            return r;
+        }
         let r = self.session.run(id, &params);
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
+        // Work Offline, File › Account.
+        send_receive::after(self, id, &r);
         // Asked for the reminders: their window comes up, due or not.
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
@@ -2491,6 +2540,9 @@ impl MailApp {
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(sign_in) = &self.services.sign_in else {
             return Err(tl!("This build can't sign in to this kind of account. Use the desktop app.").to_string());
         };
@@ -2593,6 +2645,10 @@ impl MailApp {
         }
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
+        }
+        // Work Offline: nothing goes to a server; what is sent waits in the Outbox.
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         // The Inbox checked by itself gives way to a run (#276).
         self.give_up_inbox_check();
@@ -2757,6 +2813,9 @@ impl MailApp {
     /// due, brings the calendar and the contacts; no IMAP, no SMTP. Its token is always renewed
     /// for the job, with `Mail.ReadWrite`.
     fn start_graph_mail(&mut self, account: Id, quiet: bool) -> Result<Value, String> {
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         if self.services.graph.is_none() {
             return Err(tl!("This build can't connect to Microsoft").to_string());
         }
@@ -2949,7 +3008,8 @@ impl MailApp {
             }
         }
         let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if !self.services.can_sync() || busy || self.dialog.is_some() {
+        // (Working offline, nothing starts by itself either: mail waits in the Outbox.)
+        if !self.services.can_sync() || busy || self.dialog.is_some() || self.offline() {
             return;
         }
         // The round's Inbox passes come before anything else of it (#276); neither starts while

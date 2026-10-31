@@ -67,6 +67,9 @@ pub struct DraftState {
     pub cc: Vec<Address>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bcc: Vec<Address>,
+    /// Where replies go (`Reply-To`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub reply_to: Vec<Address>,
     pub importance: Importance,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SyncedAttachment>,
@@ -81,6 +84,7 @@ impl DraftState {
             to: m.to.clone(),
             cc: m.cc.clone(),
             bcc: m.bcc.clone(),
+            reply_to: m.reply_to.clone(),
             importance: m.importance,
             attachments: m
                 .attachments
@@ -221,6 +225,9 @@ pub struct DraftUp {
     pub cc: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bcc: Option<Vec<Address>>,
+    /// Where replies go (`Reply-To`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub importance: Option<Importance>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -230,7 +237,13 @@ pub struct DraftUp {
 impl DraftUp {
     /// Whether it changes anything of the message itself (rather than its attachments).
     pub fn has_fields(&self) -> bool {
-        self.subject.is_some() || self.body.is_some() || self.to.is_some() || self.cc.is_some() || self.bcc.is_some() || self.importance.is_some()
+        self.subject.is_some()
+            || self.body.is_some()
+            || self.to.is_some()
+            || self.cc.is_some()
+            || self.bcc.is_some()
+            || self.reply_to.is_some()
+            || self.importance.is_some()
     }
 
     /// The same without what its attachments hold, for an answer.

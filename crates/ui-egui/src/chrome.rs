@@ -200,6 +200,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if resp.lost_focus() && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {
         suggesting.clear();
     }
+    // A search the box is left with (Enter, a click away) is one of the recent searches.
+    if resp.lost_focus() && mail_search && !app.session.view.search.trim().is_empty() {
+        let query = app.session.view.search.clone();
+        let _ = app.execute("view.recentSearches", json!({"remember": query}));
+    }
     if std::mem::take(&mut app.search_focus) {
         resp.request_focus();
     }
@@ -513,6 +518,18 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         ui.add_space(10.0);
                     } else {
                         ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
+                    }
+                    // Work Offline is on: said for as long as it is, and a click turns it off.
+                    if app.offline() {
+                        let offline = st(ui, tl!("Working Offline"), t.text)
+                            .interact(Sense::click())
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .on_hover_text(tl!("Nothing is sent or received. Click to connect again."));
+                        app.hit.add("workingOffline", 0, offline.rect);
+                        if offline.clicked() {
+                            let _ = app.run("sync.offline", json!({"value": false}));
+                        }
+                        ui.add_space(10.0);
                     }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);

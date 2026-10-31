@@ -1,0 +1,1 @@
+- In the message you are writing: Text Highlight Color puts a highlight behind text (sent in the message's HTML), Format Painter copies the look of one piece of text onto the next one you select, and Insert › Symbol puts in a common symbol, or any character by its code.

@@ -1,0 +1,1 @@
+- Send / Receive › Cancel All calls off every Send/Receive under way; what has arrived stays.

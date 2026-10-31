@@ -609,9 +609,10 @@ fn line_shorthand(value: &str) -> Option<RawLine> {
     if out.width.is_none() && out.style.is_none() && out.hue.is_none() {
         return None;
     }
-    // (What the shorthand leaves out is what a bare `border` has: a solid line of medium width.)
+    // (What the shorthand leaves out is reset as CSS has it: a medium width and no line, so that
+    // `border-bottom: medium` with no style draws nothing.)
     out.width = Some(out.width.unwrap_or(MEDIUM_LINE_PX));
-    out.style = Some(out.style.unwrap_or(Some(LineStyle::Solid)));
+    out.style = Some(out.style.unwrap_or(None));
     Some(out)
 }
 
@@ -1538,6 +1539,10 @@ mod tests {
         assert!(!Css::parse("border-color:red").lines[0].is_set());
         assert!(Css::parse("border-width:2px").lines[0].is_set());
         assert!(Css::parse("border-style:dashed").lines[0].is_set());
+        // A shorthand with no style is no line, as in CSS; a style set after it makes one.
+        assert!(!Css::parse("border-bottom:medium").lines[2].is_set());
+        assert!(!Css::parse("border:1px red").lines[0].is_set());
+        assert!(Css::parse("border:1px red;border-style:solid").lines[0].is_set());
         assert!(!Css::parse("border:1px solid;border-bottom:none").framed());
     }
 
