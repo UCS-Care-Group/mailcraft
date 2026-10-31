@@ -197,7 +197,8 @@ impl Tracking {
                 ui.label(egui::RichText::new(tl!("Response")).font(semibold(11.5)));
                 ui.end_row();
                 for person in &self.people {
-                    ui.add(egui::Label::new(person.who.as_str()).truncate());
+                    // (Cut to size when it was read: a label that truncates has no width in a grid.)
+                    ui.label(person.who.as_str());
                     ui.label(if person.optional { tl!("Optional") } else { tl!("Required") });
                     ui.label(person.response);
                     ui.end_row();
