@@ -2016,6 +2016,9 @@ mod format3;
 #[path = "store_session_tests.rs"]
 mod in_session;
 
+#[path = "store_undo_body_tests.rs"]
+mod undo_body;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
