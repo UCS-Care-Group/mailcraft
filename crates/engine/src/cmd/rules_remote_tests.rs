@@ -461,6 +461,12 @@ fn an_agent_asks_the_owner_before_it_deletes_a_rule_the_server_has_and_says_wher
     let here = add(&mut s, account, "Here", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
     assert_eq!(classify(&s, "rules.remove", &json!({"id": there})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.remove", &json!({"id": here})), Access::Owner(Class::Settings));
+    // One that went to be made there, with no answer, may be there: deleted, it is deleted there.
+    let sent = receipts_here(&mut s, account);
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    assert!(rule(&s, sent).unanswered);
+    assert_eq!(classify(&s, "rules.remove", &json!({"id": sent})), Access::Owner(Class::Delete));
     // A rule from a message goes to the account's server, and the question says so.
     let m = arriving(&mut s, account, "digest@news.example", "x");
     let asked = describe(&s, "rules.fromMessage", &json!({"folder": news, "id": m}));

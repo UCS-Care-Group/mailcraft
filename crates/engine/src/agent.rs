@@ -661,8 +661,10 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         return Access::Owner(Class::Send);
     }
     // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
-    // able to make it again (#566), as `tasks.delete`.
-    if id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && x.on_server())) {
+    // able to make it again (#566), as `tasks.delete`; so is one that went to be made there and
+    // had no answer, which the server may have.
+    let there = |x: &mailcraft_model::Rule| x.on_server() || x.unanswered;
+    if id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x))) {
         return Access::Owner(Class::Delete);
     }
     // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
