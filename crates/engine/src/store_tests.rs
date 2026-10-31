@@ -1258,6 +1258,43 @@ fn a_save_that_fails_is_reported_leaves_the_file_and_works_when_tried_again() {
     assert!(!nowhere.parent().unwrap().exists());
 }
 
+/// #470: File › New and File › Open, run by a script, save the message being written to Drafts
+/// first, as #442's commands do, and that draft is in the file of the mailbox left behind;
+/// `discard` lets it go.
+#[test]
+fn another_mailbox_saves_the_message_being_written_to_drafts_first() {
+    let tmp = Temp::new("replace-compose");
+    let (home, other) = (tmp.file(), tmp.0.join("other.mailcraft"));
+    save_single(&other, &mailbox(4)).unwrap();
+    let saver = Saver::spawn(|| {}).unwrap();
+    saver.follow(&home);
+    let draft = |subject: &str| {
+        let mb = open(&home).unwrap().mailbox;
+        mb.messages.values().any(|m| m.draft && m.subject == subject)
+    };
+    for (n, (id, params)) in [("file.new", json!({})), ("file.open", json!({"path": other}))].into_iter().enumerate() {
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        let subject = format!("Half written {n}");
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"to": "ada@example.org", "subject": subject, "body": "Not done yet"})).unwrap();
+        s.run(id, &params).unwrap();
+        assert!(s.compose.is_none(), "{id}");
+        assert!(draft(&subject), "{id}: saved to Drafts in the mailbox left");
+        // Let go of when the caller says so.
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"subject": "Let go"})).unwrap();
+        let mut params = params.clone();
+        params["discard"] = json!(true);
+        s.run(id, &params).unwrap();
+        assert!(!draft("Let go"), "{id}: discarded");
+    }
+}
+
 #[test]
 fn replacing_a_mailbox_a_host_keeps_saved_writes_its_last_changes_first() {
     let tmp = Temp::new("replace");

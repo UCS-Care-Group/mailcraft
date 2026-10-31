@@ -56,7 +56,7 @@ pub fn days_shown(s: &Session) -> i64 {
 /// own, which doesn't repeat and to which nobody is invited, in the original's calendar unless
 /// another is named. In a calendar that a server keeps, the server is to have it too.
 fn copy(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     let source = s.mailbox.event(id).cloned().ok_or_else(|| failed!("no event with id {id}", id))?;
     let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
     let end = p::datetime(v, "end")?;

@@ -14,7 +14,8 @@
 //!   [`check`] refuses them. (`mailcraft-cli mcp --files DIR` reads and writes inside DIR itself
 //!   and hands the command `data`.)
 //! - [`Session::run`](crate::Session::run) checks what a command did while [`Session::agent`] is
-//!   set: mail put in an Outbox (which sends it) or gone for good without the grant is undone.
+//!   set: mail put in an Outbox (which sends it, or, an IMAP account's, holds it for Send Again)
+//!   or gone for good without the grant is undone.
 
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -829,6 +830,9 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.sendAgain",
 ];
 
+/// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
+const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain"];
+
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
     format!(
@@ -854,8 +858,19 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
     }
-    if NEEDS_IDS.contains(&id) && p::ids(params).is_none_or(|ids| ids.is_empty()) {
-        return Verdict::Refuse(needs_ids(id));
+    // Named as the command reads them (#451, #503, #553): ids named wrongly are refused, never asked about as
+    // the selection or as some of what was named.
+    if NEEDS_IDS.contains(&id) {
+        match p::ids_strict(params) {
+            Ok(Some(_)) => {}
+            Ok(None) => return Verdict::Refuse(needs_ids(id)),
+            Err(e) => return Verdict::Refuse(format!("{} ({e})", needs_ids(id))),
+        }
+        if ONE_MESSAGE.contains(&id)
+            && let Err(e) = p::message_strict(params)
+        {
+            return Verdict::Refuse(format!("`{id}`: {e}"));
+        }
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
@@ -865,16 +880,6 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         && let Err(e) = crate::cmd::junk::list_account(s, params)
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
-    }
-    // Params the command would read as none, and ids it refuses, aren't asked about as the
-    // selection it would take without them (#503, #451).
-    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move" | "mail.copy") {
-        if !(params.is_object() || params.is_null()) {
-            return Verdict::Refuse(format!("`{id}`: the parameters are an object"));
-        }
-        if let Err(e) = p::ids_strict(params) {
-            return Verdict::Refuse(format!("`{id}`: {e}"));
-        }
     }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
@@ -963,17 +968,30 @@ fn event_title(s: &Session, id: &str, params: &Value) -> String {
         let at = if start.is_empty() { String::new() } else { format!(" at {}", clip(start, 40)) };
         return format!("the new event {}{at}", quoted(title));
     }
-    match p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+    // An answer to a meeting request in the mail is about the request (#553).
+    if params.get("message").is_some() {
+        return match p::id_strict(params, "message").ok().flatten().and_then(|m| s.mailbox.message(m)) {
+            Some(m) => format!("the meeting request {}", quoted(&m.subject)),
+            None => "a meeting request".to_string(),
+        };
+    }
+    match named_event(s, params) {
         Some(e) => quoted(&e.title),
         None => "an item of the calendar".to_string(),
     }
+}
+
+/// The event a call names, or else the selected one, as the command finds it ([`p::id_strict`],
+/// #553): one named wrongly is none, never the selected one.
+fn named_event<'a>(s: &'a Session, params: &Value) -> Option<&'a mailcraft_model::Event> {
+    p::id_strict(params, "id").ok()?.or(s.sel.event).and_then(|e| s.mailbox.event(e))
 }
 
 /// The people a calendar call writes to: those it names and those the event already has.
 fn invitees(s: &Session, params: &Value) -> Vec<String> {
     let mut who = addresses(params.get("attendees"));
     who.extend(addresses(params.get("optional")));
-    if let Some(e) = p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+    if let Some(e) = named_event(s, params) {
         who.extend(e.attendees.iter().map(|a| a.address.email.clone()));
     }
     who.dedup();
@@ -993,10 +1011,15 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         fields.remove("unsaved");
     }
     let mut what = what_it_does(s, id, &bare);
-    // Another mailbox in view closes the message the owner is writing, unsaved (#494).
+    // Another mailbox in view closes the message the owner is writing (#494); what isn't saved of
+    // it goes to Drafts first, unless it is let go of (`discard`, #470).
     if matches!(id, "file.new" | "file.open") && owner_writing(s) {
         let unsaved = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c));
-        let how = if unsaved { " without being saved" } else { "" };
+        let how = match (unsaved, p::bool(params, "discard") == Some(true)) {
+            (true, true) => " without being saved",
+            (true, false) => "; what isn't saved of it goes to Drafts first",
+            (false, _) => "",
+        };
         what.push_str(&format!("; the message {} that the owner is writing is closed{how}", writing(s)));
     }
     // And the windows of appointments with changes that aren't saved, as does taking the
@@ -1031,17 +1054,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "mail.move" | "mail.copy" => {
             // What the agent names (#620), read as the command reads them (#503, #451).
             let ids = taken(params);
-            let into = p::id(params, "folder").filter(|f| !is_outbox(&s.mailbox, *f)).and_then(|f| s.mailbox.folder(f));
-            match into {
-                Some(f) => {
-                    let account = s.mailbox.account(f.account).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
-                    let verb = if id == "mail.move" { "move" } else { "copy" };
-                    format!("{verb} {} onto the server of {account}, into {}", messages_text(s, &ids), quoted(&f.name))
+            let verb = if id == "mail.move" { "move" } else { "copy" };
+            let account = |id| s.mailbox.account(id).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+            match p::id(params, "folder").and_then(|f| s.mailbox.folder(f)) {
+                Some(f) if !is_outbox(&s.mailbox, f.id) => {
+                    format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                None => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
+                // An IMAP account's holds what is put there (#607).
+                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                    format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
+                }
+                _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
             }
         }
-        "file.import" => "import messages into the Outbox, which sends them".to_string(),
+        // (Never into the Outbox itself: `import` puts mail elsewhere, or refuses it.)
+        "file.import" => "import a file with an Outbox chosen: no mail goes in it, and none is sent".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
             let ids = taken(params);
             format!("delete {} for good", messages_text(s, &ids))
@@ -1302,8 +1329,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
 /// and what becomes of that message (#494).
 fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
     let message = |m: Option<Id>| m.and_then(|m| s.mailbox.message(m)).map(|m| quoted(&m.subject)).unwrap_or_else(|| "(none selected)".to_string());
-    let one = || message(p::id(params, "id").or(s.sel.focus()));
-    let several = || messages_text(s, &p::ids(params).unwrap_or_else(|| s.sel.messages.clone()));
+    let one = || message(p::message_strict(params).ok().and_then(|m| m.or(s.sel.focus())));
+    let several = || messages_text(s, &p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default());
     let instead = match id {
         "mail.new" => "start a new message".to_string(),
         "mail.reply" => format!("reply to {}", one()),

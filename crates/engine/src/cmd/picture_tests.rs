@@ -361,6 +361,8 @@ fn agents_give_the_picture_as_data_never_as_a_path() {
     let mut s = message();
     assert!(matches!(check(&s, "insert.picture", &json!({"path": "/home/me/.ssh/id_ed25519"}), &Class::ALL), Verdict::Refuse(_)));
     assert_eq!(check(&s, "insert.picture", &json!({"data": b64(&png_bytes(8))}), &[]), Verdict::Run);
+    // A message the agent wrote: the owner's isn't the agent's to change (#577).
+    s.compose.as_mut().unwrap().owner_changed = false;
     s.agent = Some(Vec::new());
     assert!(s.run("insert.picture", &json!({"path": "/etc/hostname"})).is_err());
     assert!(s.run("insert.picture", &json!({"data": b64(&png_bytes(8))})).is_ok());

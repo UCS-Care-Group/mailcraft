@@ -697,3 +697,39 @@ fn imap_mail_damaged_only_in_a_body_that_comes_later_is_marked_once_it_has_come(
     let m = h.state().session.mailbox.message(id).unwrap();
     assert!(m.body.text.contains('\u{FFFD}') && m.refetch && !m.refetched);
 }
+
+/// #470: a mailbox file read in the background asks about the message being written once it is
+/// read, as it takes this mailbox's place; the answer opens what was read without reading it
+/// again, and Cancel leaves the message and the mailbox open.
+#[test]
+fn a_message_being_written_is_asked_about_when_the_read_mailbox_takes_over() {
+    let tmp = Temp::new("swap-compose");
+    let file = tmp.0.join("Archive.mailcraft");
+    mailcraft_engine::store::save(&file, &mailbox(7)).unwrap();
+    for answer in ["cancel", "discard"] {
+        let (services, held) = held_host();
+        let mut h = harness(sample_app(services));
+        let app = h.state_mut();
+        assert_eq!(app.run("file.open", json!({"path": file.to_string_lossy()})).unwrap()["pending"], "opening");
+        assert!(app.dialog.is_none(), "not asked before the file is read");
+        app.execute("mail.new", json!({})).unwrap();
+        app.execute("compose.set", json!({"subject": "Mine", "body": "Half"})).unwrap();
+        held.lock().unwrap()[0].2.send(Ok(())).unwrap();
+        h.run_steps(2);
+        let app = h.state_mut();
+        let Some(crate::dialogs::Dialog::DiscardDraft { then, params }) = app.dialog.take() else { panic!("{answer}: not asked") };
+        assert_eq!(then, "file.open");
+        assert_ne!(app.session.path.as_deref(), Some(file.as_path()), "nothing opens before the answer");
+        crate::dialogs::leave_message(app, answer, &then, params);
+        assert_eq!(held.lock().unwrap().len(), 1, "{answer}: read once");
+        assert!(app.reading_ahead.is_none(), "{answer}");
+        if answer == "cancel" {
+            assert_eq!(app.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
+            assert_ne!(app.session.path.as_deref(), Some(file.as_path()));
+        } else {
+            assert!(app.session.compose.is_none());
+            assert_eq!(app.session.path.as_deref(), Some(file.as_path()));
+            assert_eq!(app.session.mailbox.messages.len(), 7);
+        }
+    }
+}

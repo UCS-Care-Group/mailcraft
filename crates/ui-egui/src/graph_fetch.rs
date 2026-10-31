@@ -123,8 +123,14 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
         [one] => Some(*one),
         _ => None,
     };
-    let message = params.get("id").and_then(Value::as_u64).or(selected)?;
-    to_fetch(app, id, message)
+    // Read as the command reads it (#553): `7.0` is message 7, and a message named wrongly is
+    // refused by the command, so nothing is fetched for it.
+    use mailcraft_engine::p;
+    let named = match id {
+        "mail.reply" | "mail.replyAll" | "mail.editDraft" => p::message_strict(params).ok()?,
+        _ => p::id(params, "id"),
+    };
+    to_fetch(app, id, named.or(selected)?)
 }
 
 /// `message`, when command `id` waits for it to be fetched whole first.
