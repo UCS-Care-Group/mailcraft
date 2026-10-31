@@ -308,6 +308,7 @@ impl<E: HttpExchange> Run<'_, E> {
             to: up.to.clone(),
             cc: up.cc.clone(),
             bcc: up.bcc.clone(),
+            reply_to: up.reply_to.clone(),
             importance: up.importance,
             ..ItemUpdate::default()
         };
@@ -357,6 +358,7 @@ impl<E: HttpExchange> Run<'_, E> {
             to: up.to.clone().unwrap_or_default(),
             cc: up.cc.clone().unwrap_or_default(),
             bcc: up.bcc.clone().unwrap_or_default(),
+            reply_to: up.reply_to.clone().unwrap_or_default(),
             importance: up.importance.unwrap_or_default(),
             attachments: here.clone(),
             marker: up.marker.clone(),

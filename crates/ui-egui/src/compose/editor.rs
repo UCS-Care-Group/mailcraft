@@ -113,8 +113,11 @@ pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&
         crate::theme::document_font(style.font, style.bold, size, has).unwrap_or_else(|| if style.bold { semibold(size) } else { regular(size) });
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
+    // A highlight is drawn as it is chosen, and the text over it kept readable on it.
+    let background = style.highlight.as_deref().and_then(|c| egui::Color32::from_hex(c).ok());
+    let color = background.map_or(color, |paper| crate::reading::colors::readable(color, paper));
     let underline = if style.underline || style.link.is_some() { Stroke::new(1.0, color) } else { Stroke::NONE };
-    TextFormat { font_id: font, color, italics: style.italic, underline, ..Default::default() }
+    TextFormat { font_id: font, color, italics: style.italic, underline, background: background.unwrap_or_default(), ..Default::default() }
 }
 
 /// What a layout was made for: when any of it changes, every paragraph is laid out again.
@@ -637,6 +640,11 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             let _ = app.execute(command, params);
             st.column = None;
             own(app, which, &mut st, Some(command));
+        }
+        // Format Painter: the look it copied goes on what the pointer has just selected.
+        if (resp.drag_stopped() || resp.clicked()) && body(app, which).is_some_and(|(b, _)| b.painter().is_some() && !b.selection().is_empty()) {
+            let _ = app.run("edit.formatPainter", json!({"apply": true}));
+            own(app, which, &mut st, Some("edit.formatPainter"));
         }
     }
     // A middle click on X11 and Wayland pastes the primary selection where the pointer is, as

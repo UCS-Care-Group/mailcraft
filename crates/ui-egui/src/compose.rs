@@ -171,6 +171,7 @@ struct Shown {
     to: String,
     cc: String,
     bcc: String,
+    reply_to: String,
     subject: String,
     /// Each attachment's name, as it is written to a file (a forward carries the sender's), and size.
     attachments: Vec<(String, String)>,
@@ -188,6 +189,7 @@ impl Shown {
             to: c.to.clone(),
             cc: c.cc.clone(),
             bcc: c.bcc.clone(),
+            reply_to: c.reply_to.clone(),
             subject: c.subject.clone(),
             attachments: c
                 .attachments
@@ -282,6 +284,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             continue;
         }
         recipient_field(app, ui, key, tl!(label), text, hint, key == "to" && focus_to);
+    }
+    // (Shown once Direct Replies To has set it.)
+    if !c.reply_to.is_empty() {
+        recipient_field(app, ui, "replyTo", tl!("Reply to"), &c.reply_to, hint, false);
     }
     if let Some(new) = field(ui, tl!("Subject"), &c.subject, "", false) {
         let _ = app.execute("compose.set", json!({"subject": new}));
