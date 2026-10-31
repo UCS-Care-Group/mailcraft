@@ -46,7 +46,7 @@ impl Form {
             "task" => Form::Task(Box::new(task::TaskForm::new(s, params))),
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
-            "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s, params))),
+            "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s, params)?)),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
             "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
@@ -5493,16 +5493,21 @@ mod categories {
 
     impl CategoriesForm {
         /// The dialog, on the list of `params.account`, else of the selected message's account,
-        /// else of the first, with a colour no category has yet ready for a new one.
-        pub fn new(s: &Session, params: &Value) -> CategoriesForm {
-            let account = params
-                .get("account")
-                .and_then(Value::as_u64)
+        /// else of the first, with a colour no category has yet ready for a new one. An `account`
+        /// of 0 is the shared list, as an item of no account says it. `None` when `params.account`
+        /// is anything else that isn't an account.
+        pub fn new(s: &Session, params: &Value) -> Option<CategoriesForm> {
+            let named = match params.get("account") {
+                None | Some(Value::Null) => None,
+                Some(a) if a.as_u64() == Some(0) => Some(0),
+                Some(_) => Some(mailcraft_engine::cmd::category::list_account(s, params).ok()?),
+            };
+            let account = named
                 .or_else(|| s.sel.messages.last().and_then(|m| s.mailbox.message(*m)).map(|m| m.account))
                 .or_else(|| s.mailbox.default_account().map(|a| a.id))
                 .and_then(|a| s.mailbox.category_list_owner(a))
                 .unwrap_or(0);
-            CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() }
+            Some(CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() })
         }
 
         /// Put the list of `account` in view; nothing begun on the last one carries over.
@@ -5658,7 +5663,7 @@ mod categories {
             let all: Vec<Category> = PALETTE.iter().map(|c| Category { name: c.hex(), color: *c }).collect();
             assert_eq!(unused_color(&all), PALETTE[0]);
             // The row at the bottom adds a category in that colour.
-            let mut f = CategoriesForm::new(&s, &json!({}));
+            let mut f = CategoriesForm::new(&s, &json!({})).unwrap();
             f.new_name = "Travel".into();
             assert_eq!(f.add_command(), ("category.set", json!({"name": "Travel", "color": "#1A9BA6"})));
             let (command, params) = f.add_command();

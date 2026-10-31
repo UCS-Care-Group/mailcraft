@@ -75,6 +75,15 @@ fn dialog(mut app: MailApp, params: serde_json::Value) -> Harness<'static, MailA
 const REMARK: &str = "Not in Outlook's list: no colour there";
 
 #[test]
+fn an_account_that_isnt_one_opens_no_list() {
+    let (mut app, a, _) = rig();
+    for junk in [json!(a.to_string()), json!("\u{0}nonsense"), json!(-1), json!(true), json!([a]), json!(u64::MAX)] {
+        assert!(app.execute("ui.dialog", json!({"name": "categories", "account": junk})).is_err(), "{junk}");
+    }
+    assert!(app.execute("ui.dialog", json!({"name": "categories", "account": null})).is_ok());
+}
+
+#[test]
 fn categorize_offers_the_list_of_the_items_account() {
     let (app, a, b) = rig();
     let h = menu(app, vec![a]);
@@ -121,19 +130,18 @@ fn the_dialog_opens_on_the_list_of_what_it_was_opened_for() {
         _ => panic!("no dialog"),
     };
     assert_eq!(account(&app, json!({"account": b})), Some(b));
-    // A selected message's account; a shared mailbox of no list, or junk, the shared list.
+    // A selected message's account, and the shared list when that is what was asked for.
     let m = message_of(&mut app, a);
     app.session.sel.messages = vec![m];
     assert_eq!(account(&app, json!({})), Some(a));
+    assert_eq!(account(&app, json!({"account": null})), Some(a));
     assert_eq!(account(&app, json!({"account": 0})), None);
-    assert_eq!(account(&app, json!({"account": u64::MAX})), None);
-    assert_eq!(account(&app, json!({"account": "\u{0}nonsense"})), Some(a));
 }
 
 #[test]
 fn what_the_dialog_does_goes_to_the_list_in_view() {
     let (mut app, a, b) = rig();
-    let mut f = CategoriesForm::new(&app.session, &json!({"account": b}));
+    let mut f = CategoriesForm::new(&app.session, &json!({"account": b})).unwrap();
     f.new_name = "Travel".into();
     let (command, params) = f.add_command();
     app.execute(command, params).unwrap();
@@ -194,10 +202,10 @@ fn categorize_shows_what_the_items_carry_off_the_list_and_takes_it_off() {
 #[test]
 fn a_list_that_goes_leaves_the_dialog_on_the_shared_list() {
     let (mut app, a, _) = rig();
-    let mut form = CategoriesForm::new(&app.session, &json!({"account": a}));
+    let mut form = CategoriesForm::new(&app.session, &json!({"account": a})).unwrap();
     form.new_name = "Meant for that list".into();
     app.session.run("account.remove", &json!({"id": a})).unwrap();
-    let shared = CategoriesForm::new(&app.session, &json!({"account": 0}));
+    let shared = CategoriesForm::new(&app.session, &json!({"account": 0})).unwrap();
     let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(600.0, 600.0)).build_ui_state(
         |ui, (app, form): &mut (MailApp, CategoriesForm)| {
             form.show(app, ui);
