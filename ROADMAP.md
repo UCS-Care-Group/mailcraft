@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-31 | A new app icon: an envelope that is also a calendar page, with ring tabs, in front of two tilted sheets, on a blue rounded tile (design: Martin Ball). Its source is one SVG drawn by hand for MailCraft (`assets/app-icon/source/mailcraft.svg`), and `cargo xtask icon` renders every size from it with `resvg`, which only xtask depends on; the carrier pigeon and the script that drew it are gone. The same drawing in five other colours is kept in `assets/app-icon/alternates/`, not used yet. The web build has the icon as its favicon ([assets/app-icon/README.md](assets/app-icon/README.md)) |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
 | 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
 | 2026-10-31 | Parity B3b: Resend Message (`mail.resend`: a message the owner sent opened again as a new one, sent only by Send) and Direct Replies To (`compose.replyTo`: the Reply-To line, each address checked; carried by IMAP, EWS and Graph drafts) |
@@ -399,6 +400,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | The new app icon, in the progress log |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
 | 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |
 | 2026-10-31 | Parity B3b: Resend Message, Direct Replies To, in the progress log |
