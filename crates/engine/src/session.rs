@@ -1041,6 +1041,9 @@ pub struct Session {
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
+    /// The automatic replies of each account that signs in with Microsoft, as its server last
+    /// said (`sync.applyAutomaticReplies`). The server's, read again each session: never saved.
+    pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
@@ -1172,6 +1175,7 @@ impl Session {
             ews: false,
             staged_tree: None,
             server_search: Default::default(),
+            auto_replies: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
             undo_said: Vec::new(),
@@ -2416,6 +2420,7 @@ impl Session {
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
+        self.auto_replies.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();
