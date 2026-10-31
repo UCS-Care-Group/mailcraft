@@ -543,7 +543,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
     }
     // With its attachments, what stood for them (#575), whether or not the change changed that:
     // the server's answer then, if it has said otherwise since.
-    if t.attachments != a.attachments {
+    if t.attachments != a.attachments && !m.draft {
         m.attachments_changed_here = match t.attachments_changed_here {
             None if m.server_attachments != t.server_attachments => t.server_attachments,
             kept => kept,

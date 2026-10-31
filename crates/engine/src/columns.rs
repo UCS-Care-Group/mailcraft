@@ -174,8 +174,9 @@ pub fn has_files(m: &mailcraft_model::Message) -> bool {
 /// meeting mail is not one (the row wears the meeting's mark for it), any other calendar file
 /// is, and a message not fetched yet goes by the server.
 pub(crate) fn by_parts(m: &mailcraft_model::Message) -> bool {
-    match m.attachments.iter().position(crate::session::is_calendar_part) {
-        Some(index) if is_meeting_mail(&m.attachments[index].data) => m.listed_attachments().any(|(other, _)| other != index),
+    let index = m.attachments.iter().position(crate::session::is_calendar_part);
+    match index.and_then(|i| Some((i, m.attachments.get(i)?))) {
+        Some((index, a)) if is_meeting_mail(&a.data) => m.listed_attachments().any(|(other, _)| other != index),
         _ => m.has_attachments(),
     }
 }

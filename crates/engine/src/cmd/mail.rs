@@ -955,14 +955,17 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     // (#575). One waiting to be fetched again has its parts here: they say, not the hint kept
     // for it. A draft goes by its own files anyway.
     if !m.draft {
-        // A calendar file left says whether it is meeting mail by its bytes; ones that can't be
-        // read are taken for a file.
-        if let Err(e) = s.load_where(id, crate::session::is_calendar_part) {
-            log::warn!("message {id}: its calendar part couldn't be read ({e})");
-        }
-        let m = s.mailbox.message_mut(id)?;
         m.attachments_on_server = false;
-        let has = crate::columns::by_parts(m);
+        // What is left is judged as it reads whole: a calendar file by its bytes (meeting mail or
+        // not), a picture by whether the HTML shows it. Both are read from where they are kept
+        // into a copy, without bringing them, or the body, into the message (#575 review); what
+        // can't be read is judged as the message stands.
+        let whole = s
+            .loaded_message_where(id, crate::session::is_calendar_part)
+            .map_err(|e| log::warn!("message {id}: its content couldn't be read ({e})"))
+            .ok();
+        let m = s.mailbox.message_mut(id)?;
+        let has = crate::columns::by_parts(whole.as_deref().unwrap_or(m));
         m.attachments_changed_here = Some(has);
         m.attachments_on_server = has && m.unfetched;
     }
