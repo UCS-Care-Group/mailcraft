@@ -146,6 +146,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
     Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
+16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
+17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
 ## The browser build
 
@@ -406,6 +408,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | After beta items 16 (combined folders #625, attachments dragged out #626, Quick Look #627) and 17 (colour schemes of the owner's own) |
 | 2026-11-01 | #252: Exchange server accounts on for everyone, in the progress log and the assessment by area |
 | 2026-11-01 | #709: the classic ribbon fits its window, in the progress log |
 | 2026-11-01 | #703 part 3: accents and high contrast, in the progress log |
