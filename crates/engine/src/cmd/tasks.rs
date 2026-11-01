@@ -16,7 +16,7 @@ mod status_tests;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("tasks.new", "New Task", "Home › New", new).key("Mod+Shift+K").params(TASK),
-        CommandSpec::new("tasks.edit", "Edit Task", "Task", edit).params(r#"{"id"?: number, …the fields of tasks.new}"#).selection(needs_task),
+        CommandSpec::new("tasks.edit", "Edit Task", "Task", edit).params(r#"{"id"?: number, "stepsBase"?: [step] (when sending steps, refuse if the current checklist differs), …the fields of tasks.new}"#).selection(needs_task),
         CommandSpec::new("tasks.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_task),
         CommandSpec::new("tasks.complete", "Mark Complete", "Home › Manage Task", complete)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -25,7 +25,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
         CommandSpec::new("tasks.statusReport", "Send Status Report", "Home › Manage Task", status::report)
             .pure()
-            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_task),
         CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all"}"#),
@@ -56,6 +56,12 @@ fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
         t.title = title.replace(['\r', '\n'], " ").trim().chars().take(500).collect();
     }
     if let Some(value) = v.get("steps") {
+        if let Some(base) = v.get("stepsBase") {
+            let base: Vec<mailcraft_model::TaskStep> = serde_json::from_value(base.clone()).map_err(|_| bad("`stepsBase` must be a checklist"))?;
+            if base != t.steps {
+                return Err(fail("The task steps changed while this editor was open. Reopen the task to edit its current steps."));
+            }
+        }
         let mut steps: Vec<mailcraft_model::TaskStep> =
             serde_json::from_value(value.clone()).map_err(|_| bad("`steps` must be a list of {id?, title, completed?}"))?;
         let limit = mailcraft_model::MAX_TASK_STEPS.max(t.steps.len().min(mailcraft_model::MAX_MERGED_TASK_STEPS));

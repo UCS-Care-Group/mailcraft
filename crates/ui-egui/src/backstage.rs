@@ -612,6 +612,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));
     }
+    let mut in_window = app.ui.replies_in_window;
+    let switch = ui
+        .checkbox(&mut in_window, tl!("Open replies and forwards in a new window"))
+        .on_hover_text(tl!("Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."));
+    app.hit.add("optionRepliesInWindow", 0, switch.rect);
+    if switch.changed() {
+        let _ = app.run("ui.repliesInWindow", json!({"value": in_window}));
+    }
     row(ui, tl!("Preview lines in the message list"), |ui| {
         egui::ComboBox::from_id_salt("opt_preview").selected_text(prefs.preview_lines.to_string()).show_ui(ui, |ui| {
             for n in 0u8..=3 {

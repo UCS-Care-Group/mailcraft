@@ -5104,6 +5104,9 @@ mod task {
             match self.id {
                 Some(id) => {
                     m.insert("id".into(), json!(id));
+                    if m.contains_key("steps") {
+                        m.insert("stepsBase".into(), self.baseline["steps"].clone());
+                    }
                     ("tasks.edit", Value::Object(m))
                 }
                 None => ("tasks.new", Value::Object(m)),

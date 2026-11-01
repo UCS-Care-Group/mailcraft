@@ -418,14 +418,17 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
         }
         "read_message" => wrap(exec(b, "mail.get", pick(a, &["id"]))),
         "send_message" => {
-            if let Err(e) = exec(b, "mail.new", pick(a, &["to", "cc", "bcc", "subject", "body"])) {
-                return ToolResult::error(e);
-            }
+            let compose = match exec(b, "mail.new", pick(a, &["to", "cc", "bcc", "subject", "body"])) {
+                Ok(r) => r.get("compose").cloned().unwrap_or(Value::Null),
+                Err(e) => return ToolResult::error(e),
+            };
+            // That message, whatever else is being written (#286).
+            let this = if compose.is_null() { json!({}) } else { json!({"compose": compose}) };
             // The signature a new message starts with stays; the body goes before it.
-            let r = exec(b, "compose.send", json!({}));
+            let r = exec(b, "compose.send", this.clone());
             if r.is_err() {
                 // Nothing half-written is left open.
-                let _ = exec(b, "compose.close", json!({}));
+                let _ = exec(b, "compose.close", this);
             }
             wrap(r)
         }

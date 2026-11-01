@@ -1,15 +1,16 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Leaving a message being written (#442): nobody who calls a command is asked, so a message
-//! with changes that aren't saved goes to Drafts before a command closes or replaces it; an empty
-//! one is let go of; and a save that fails leaves everything as it was.
+//! with changes that aren't saved goes to Drafts before a command closes it; an empty one is let
+//! go of; and a save that fails leaves everything as it was. (A command that starts another
+//! message opens it beside this one, which stays open, saved first: #286, `composing_tests`.)
 
 use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
 use crate::agent::{Access, Class, classify};
-use crate::{ComposeMode, Session, sample};
+use crate::{Session, sample};
 
 fn session() -> Session {
     let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
@@ -50,18 +51,9 @@ fn draft_with(s: &Session, subject: &str) -> Option<Id> {
     s.mailbox.messages.values().find(|m| m.folder == d && m.draft && m.subject == subject).map(|m| m.id)
 }
 
-/// Every command that closes or replaces the message being written, with its params.
-fn leaving(s: &Session, draft: Id) -> Vec<(&'static str, Value)> {
-    let other = received(s);
-    vec![
-        ("compose.close", json!({})),
-        ("mail.new", json!({})),
-        ("mail.reply", json!({"id": other})),
-        ("mail.replyAll", json!({"id": other})),
-        ("mail.forward", json!({"id": other})),
-        ("mail.forwardAsAttachment", json!({"id": other})),
-        ("mail.editDraft", json!({"id": draft})),
-    ]
+/// Every command that closes the message being written, with its params.
+fn leaving(_: &Session, _: Id) -> Vec<(&'static str, Value)> {
+    vec![("compose.close", json!({}))]
 }
 
 /// A draft kept in Drafts to open, and the session with nothing being written.
@@ -126,11 +118,7 @@ fn every_command_that_leaves_a_message_with_changes_saves_it_to_drafts_first() {
         let m = s.mailbox.message(kept).unwrap();
         assert!(m.body.text.contains("Half a thought"), "{id}");
         // What the command was for happened.
-        match id {
-            "compose.close" => assert!(s.compose.is_none()),
-            "mail.editDraft" => assert_eq!(s.compose.as_ref().unwrap().draft, Some(draft)),
-            _ => assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && c.subject != subject), "{id}"),
-        }
+        assert!(s.compose.is_none(), "{id}");
         // The save is a step of its own, Save Draft, and the command added none: undoing what
         // the command did never takes the draft away.
         assert_eq!(s.undo_label(), Some("Save Draft"), "{id}");
@@ -146,10 +134,10 @@ fn a_reply_with_changes_is_saved_as_a_reply() {
     run(&mut s, "compose.type", json!({"text": "Thanks, "}));
     assert!(s.compose.as_ref().unwrap().dirty);
     let subject = s.compose.as_ref().unwrap().subject.clone();
-    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.close", json!({}));
     let kept = draft_with(&s, &subject).expect("the reply is in Drafts");
     assert!(s.mailbox.message(kept).unwrap().body.text.contains("Thanks,"));
-    assert_eq!(s.compose.as_ref().unwrap().mode, ComposeMode::New);
+    assert_eq!(s.mailbox.message(kept).unwrap().answers.as_ref().map(|a| a.message), Some(original));
 }
 
 #[test]
@@ -210,5 +198,6 @@ fn an_agent_needs_the_owner_to_throw_away_what_the_owner_wrote() {
     assert!(crate::agent::describe(&s, "compose.close", &discard).contains("without saving"));
     // Closing it as it is saves it first; the owner is asked even so (#494).
     assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    // Another message opens beside it, and nothing of this one is let go of (#286).
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
 }
