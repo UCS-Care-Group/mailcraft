@@ -2778,12 +2778,8 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
-        // An Exchange server account is kept in step through Exchange Web Services (#252), where the
-        // switch is on and the host runs it.
+        // An Exchange server account is kept in step through Exchange Web Services (#252).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
-            if !self.session.ews {
-                return Err(mailcraft_engine::cmd::ews_mail::SWITCHED_OFF.to_string());
-            }
             return self.start_ews_mail(account, quiet, p);
         }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
@@ -2962,8 +2958,8 @@ impl MailApp {
         // at all, to be told so.
         let runs = |a: &&mailcraft_model::Account| match a.kind {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
-            // (Where the switch is on and the host runs it, #252.)
-            mailcraft_model::AccountKind::Exchange => self.session.ews && self.services.ews.is_some(),
+            // (Where the host runs it, #252.)
+            mailcraft_model::AccountKind::Exchange => self.services.ews.is_some(),
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()

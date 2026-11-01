@@ -262,9 +262,7 @@ pub enum AccountKind {
     /// (Exchange Server, Grommunio, SmarterMail), kept in step over HTTPS alone, never by IMAP or
     /// SMTP (#252). Never a Microsoft 365 mailbox: that is a [`AccountKind::Microsoft`] account.
     /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
-    /// is never written anywhere. Works only while its switch is on
-    /// ([`AccountKind::needs_switch`]): switched off, an account of this kind in a mailbox opens
-    /// and shows its mail, but is not kept in step.
+    /// is never written anywhere.
     Exchange,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
@@ -289,13 +287,6 @@ impl AccountKind {
     /// would wait for ever.
     pub fn sends_mail(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
-    }
-
-    /// Whether the kind is kept in step only while its feature switch is on (`MAILCRAFT_EWS=1`,
-    /// #252: [`Session::ews`] in the engine). Switched off, an account of the kind opens and
-    /// shows its mail, and nothing is synchronised or sent for it.
-    pub fn needs_switch(self) -> bool {
-        matches!(self, AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server

@@ -3121,19 +3121,9 @@ msgstr ""
 msgid "Exchange server account"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Exchange server {host}"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
 msgstr ""
 
 #. interface
@@ -11773,11 +11763,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "add at least one recipient"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-msgid "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is"
 msgstr ""
 
 #. what a command says
