@@ -670,10 +670,29 @@ pub struct Compose {
     /// is closed. Never read from a file: only [`Session::run`] sets it.
     #[serde(skip)]
     pub owner_changed: bool,
+    /// It is in Drafts only because it was saved in the background (`compose.saveDraft` with
+    /// `background`) and wasn't a draft when it was opened (#286): closing it with `discard`
+    /// (Don't Save) takes that copy out of Drafts again. A draft opened from Drafts never is.
+    #[serde(skip)]
+    pub autosaved: bool,
     /// Which message being written this is, among those open at once (#286): given when it opens
     /// ([`Session::open_compose`]), never read from a file.
     #[serde(skip)]
     pub id: u64,
+}
+
+/// Who a Save Draft is for ([`Session::saving`]), which says whether the copy it makes is one
+/// Don't Save takes out of Drafts again ([`Compose::autosaved`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Saving {
+    /// Somebody asked for it (Save Draft, Save, closing with changes, quitting): a draft for good.
+    #[default]
+    Asked,
+    /// The five-minute timer ([`Session::save_in_background`]): no step to undo, and a message
+    /// that was no draft before is one Don't Save takes out of Drafts again.
+    Background,
+    /// A message put aside for another, unasked: it stays as the timer left it.
+    Unasked,
 }
 
 impl Compose {
@@ -1039,6 +1058,9 @@ pub struct Session {
     /// set by the window while an agent's command runs: a command that takes one away is undone,
     /// as the owner wasn't asked about it (#494). Never saved.
     pub owner_changing: Vec<Id>,
+    /// Who the Save Draft that is running is for (#286): the five-minute timer, a message put
+    /// aside unasked, or anybody's asking for it. Never a command's parameter.
+    pub(crate) saving: Saving,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
@@ -1182,6 +1204,7 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             owner_changing: Vec::new(),
+            saving: Saving::Asked,
             graph_switch_backup: None,
             staged_tree: None,
             server_search: Default::default(),
@@ -1229,6 +1252,20 @@ impl Session {
     }
 
     // ---- time ----
+
+    /// Save the message being written `compose` to Drafts as the five-minute timer does (#286),
+    /// as Save Draft saves it but as no step to undo: one that wasn't a draft before is marked
+    /// ([`Compose::autosaved`]) so that Don't Save takes it out of Drafts again. For the host's
+    /// timer alone, never a command: refused while an agent's command runs.
+    pub fn save_in_background(&mut self, compose: u64) -> Result<Value, CmdError> {
+        if self.agent.is_some() {
+            return Err(CmdError::Failed("a message is saved in the background by the window's own timer alone".into()));
+        }
+        let was = std::mem::replace(&mut self.saving, Saving::Background);
+        let r = self.run("compose.saveDraft", &serde_json::json!({"compose": compose}));
+        self.saving = was;
+        r
+    }
 
     pub fn now(&self) -> Timestamp {
         self.clock.now.unwrap_or_else(mailcraft_time::now)
@@ -2637,10 +2674,15 @@ impl Session {
         // A message being written isn't let go of with what isn't saved of it (#442): it goes to
         // Drafts first, in a step of its own, and a save that fails stops here.
         for unsaved in crate::cmd::compose::saves_first(self, id, params) {
-            self.run("compose.saveDraft", &serde_json::json!({"compose": unsaved}))?;
+            // (Nobody chose to keep it: one only the background saves had put in Drafts still is.)
+            let was = std::mem::replace(&mut self.saving, Saving::Unasked);
+            let saved = self.run("compose.saveDraft", &serde_json::json!({"compose": unsaved}));
+            self.saving = was;
+            saved?;
         }
-        // Undo and redo manage the history themselves.
-        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo");
+        // Undo and redo manage the history themselves; a save in the background is no step.
+        let background = self.saving == Saving::Background;
+        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background;
         // The computer may have been carried to another zone since the last command: the
         // mailbox is put by that zone's clock first, and that is not this command's to undo.
         self.settle_zone();
@@ -2746,6 +2788,9 @@ impl Session {
                             self.history.remove(0);
                         }
                         self.redo.clear();
+                    } else if background {
+                        // Not to undo, but to keep: the file is written.
+                        self.dirty = true;
                     }
                 }
                 self.normalize();
@@ -2795,7 +2840,7 @@ fn changes_owners_message(before: Option<&Compose>, now: Option<&Compose>) -> bo
         return false;
     }
     let mut saved = before.clone();
-    (saved.dirty, saved.draft) = (now.dirty, now.draft);
+    (saved.dirty, saved.draft, saved.autosaved) = (now.dirty, now.draft, now.autosaved);
     saved != *now && !as_it_was(&saved, now)
 }
 
