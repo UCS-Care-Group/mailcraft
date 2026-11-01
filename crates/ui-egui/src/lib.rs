@@ -165,6 +165,8 @@ mod text_menu_gesture_tests;
 #[cfg(test)]
 mod text_menu_tests;
 pub mod theme;
+#[cfg(test)]
+mod theme_choice_tests;
 pub mod unconfirmed;
 pub mod updates;
 mod view_source;
@@ -764,6 +766,11 @@ pub struct UiState {
     pub ribbon_mode: ribbon::Mode,
     /// Interface theme: light, dark, or follow the OS appearance.
     pub theme: theme::Appearance,
+    /// High contrast: a stronger version of whichever theme is in use.
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub high_contrast: bool,
+    /// The accent colour of the window.
+    pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
@@ -852,6 +859,8 @@ impl Default for UiState {
             ribbon_collapsed: false,
             ribbon_mode: ribbon::Mode::default(),
             theme: theme::Appearance::default(),
+            high_contrast: false,
+            accent: theme::Accent::default(),
             light_messages: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
@@ -907,6 +916,8 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
+    ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
+    ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
     (
         "ui.lightMessages",
         "Messages on a Light Background",
@@ -2173,6 +2184,20 @@ impl MailApp {
                 }
                 None => Err("`value` is light, dark or system".into()),
             },
+            "ui.highContrast" => match p.get("on").and_then(Value::as_bool) {
+                Some(on) => {
+                    self.ui.high_contrast = on;
+                    Ok(json!({"on": on}))
+                }
+                None => Err("`on` is true or false".into()),
+            },
+            "ui.accent" => match s("accent").and_then(theme::Accent::from_code) {
+                Some(a) => {
+                    self.ui.accent = a;
+                    Ok(json!({"accent": a.code()}))
+                }
+                None => Err("`accent` is blue, teal, violet or graphite".into()),
+            },
             "ui.language" => {
                 let code = s("language").unwrap_or_default();
                 let lang = i18n::Lang::from_code(code);
@@ -2753,12 +2778,8 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
-        // An Exchange server account is kept in step through Exchange Web Services (#252), where the
-        // switch is on and the host runs it.
+        // An Exchange server account is kept in step through Exchange Web Services (#252).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
-            if !self.session.ews {
-                return Err(mailcraft_engine::cmd::ews_mail::SWITCHED_OFF.to_string());
-            }
             return self.start_ews_mail(account, quiet, p);
         }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
@@ -2937,8 +2958,8 @@ impl MailApp {
         // at all, to be told so.
         let runs = |a: &&mailcraft_model::Account| match a.kind {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
-            // (Where the switch is on and the host runs it, #252.)
-            mailcraft_model::AccountKind::Exchange => self.session.ews && self.services.ews.is_some(),
+            // (Where the host runs it, #252.)
+            mailcraft_model::AccountKind::Exchange => self.services.ews.is_some(),
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
@@ -3854,7 +3875,7 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: theme::Accent::default() };
+        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: self.ui.accent, high_contrast: self.ui.high_contrast };
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));

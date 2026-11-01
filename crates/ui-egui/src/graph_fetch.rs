@@ -142,7 +142,7 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     let named = match id {
         "mail.reply" | "mail.replyAll" | "mail.replyAndDelete" | "mail.editDraft" | "mail.resend" => p::message_strict(params).ok()?,
         "mail.viewSource" | "mail.saveAllAttachments" | "compose.attachItem" => p::id_strict(params, "id").ok()?,
-        _ => p::id(params, "id"),
+        _ => p::message_strict(params).ok()?,
     };
     to_fetch(app, id, named.or(selected)?)
 }
@@ -207,9 +207,7 @@ fn way(app: &MailApp, account: Id) -> Option<Way> {
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
-        AccountKind::Exchange if app.services.ews_fetch.is_some() && app.session.ews && !app.jmap_refused.contains(&account) => {
-            app.ews_secret(account).map(Way::Ews)
-        }
+        AccountKind::Exchange if app.services.ews_fetch.is_some() && !app.jmap_refused.contains(&account) => app.ews_secret(account).map(Way::Ews),
         _ => None,
     }
 }
@@ -219,7 +217,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
     match kind {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
-        AccountKind::Exchange => app.services.ews_fetch.is_some() && app.session.ews,
+        AccountKind::Exchange => app.services.ews_fetch.is_some(),
         _ => false,
     }
 }

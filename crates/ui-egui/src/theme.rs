@@ -7,6 +7,9 @@ use std::sync::Arc;
 use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Stroke, Visuals};
 use mailcraft_model::rich::Font;
 
+mod accent;
+pub use accent::{Accent, AccentInk, lenient_bool};
+
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
 pub const APP_COLOR: Color32 = Color32::from_rgb(0x0B, 0x7F, 0xAB);
@@ -138,6 +141,8 @@ fn c(r: u8, g: u8, b: u8) -> Color32 {
 #[derive(Clone, Copy, Debug)]
 pub struct Tokens {
     pub dark: bool,
+    /// High contrast is on: the colours of a message are raised to 7:1 against its paper.
+    pub high_contrast: bool,
     /// Set only while a message is laid out: the message brings its own design for dark windows
     /// (`@media (prefers-color-scheme: dark)`), so its backgrounds are painted as it asks.
     pub sender_dark: bool,
@@ -281,6 +286,7 @@ impl Tokens {
         let input_border = c(0x7F, 0x8A, 0x9E);
         Tokens {
             dark: false,
+            high_contrast: false,
             sender_dark: false,
             title_bar: window,
             ribbon: Color32::WHITE,
@@ -377,6 +383,7 @@ impl Tokens {
         let input_border = c(0x7D, 0x88, 0x9C);
         Tokens {
             dark: true,
+            high_contrast: false,
             sender_dark: false,
             title_bar: window,
             ribbon: c(0x20, 0x27, 0x33),
@@ -507,6 +514,11 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
+    /// The built-in look in `accent`, with high contrast on or off.
+    pub fn for_choice(accent: Accent, high_contrast: bool) -> Palette {
+        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build(true, accent, high_contrast) }
+    }
+
     fn slot() -> egui::Id {
         egui::Id::unique("mailcraft-theme-palette")
     }
@@ -516,26 +528,18 @@ impl Palette {
     }
 }
 
-/// The accent colour of a theme.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Accent {
-    #[default]
-    Blue,
-}
-
 /// What the owner picked for the look of the window.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
+    pub high_contrast: bool,
 }
 
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        match self.accent {
-            Accent::Blue => Palette::builtin(),
-        }
+        Palette::for_choice(self.accent, self.high_contrast)
     }
 }
 

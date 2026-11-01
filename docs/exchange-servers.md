@@ -1,9 +1,9 @@
 # Exchange servers other than Microsoft's
 
-> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-10-30 · **Change:** major
+> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-01 · **Change:** minor
 
 An Exchange server account (#252) reaches an organisation's own mail server through Exchange Web
-Services. It is behind `MAILCRAFT_EWS=1` while it is tested. This page says what has been seen
+Services, for mail (its calendar and contacts are not kept in step yet). This page says what has been seen
 working on servers other than Microsoft's, one at a time, and what has not. Everything here was
 tried with made-up mail on a server running on the same computer; no real mailbox was used.
 
@@ -42,7 +42,7 @@ This does not close every window. If MailCraft is killed, or the computer loses 
 
 ### Not fixed
 
-- A Calendar (or Contacts, Tasks) folder taken in as a mail folder by the earlier trial build stays in the folder list as an empty stub on a delta run, until the next fresh read of the folders. It only affects accounts added with that build, and the whole is behind the switch.
+- A Calendar (or Contacts, Tasks) folder taken in as a mail folder by the earlier trial build stays in the folder list as an empty stub on a delta run, until the next fresh read of the folders. It only affects accounts added with that build, which needed a testing switch to add one.
 
 ## Not yet tried
 
@@ -56,3 +56,4 @@ and modern sign-in (not built), a shared mailbox, and Autodiscover from an addre
 | 2026-10-30 | major | First version: what was seen on Grommunio (#252, E8) |
 | 2026-10-30 | minor | Sending a saved draft, the Archive folder, the folder class and the log line, fixed and tried again on Grommunio |
 | 2026-10-30 | patch | Review: a draft whose make was lost is found by its marker; the log line is left out only for the pinned certificate; the "never twice" wording; one stale stub noted |
+| 2026-11-01 | minor | #252: Exchange server accounts are on for everyone, for mail; the testing switch is gone |

@@ -187,13 +187,12 @@ impl MailApp {
 
 /// File › Info under an Exchange server account's card (#252): where it connects, as whom, how the
 /// last run signed in, the certificate it trusts (with Forget), and a certificate that needs the
-/// owner's say again (with a way to answer). Only while Exchange server accounts are on: switched
-/// off, the card says so and there is nothing to change.
+/// owner's say again (with a way to answer).
 pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::Tokens, a: &mailcraft_model::Account) {
     use crate::forms::kit::shown;
     use crate::theme::regular;
     use serde_json::json;
-    let Some(server) = a.ews.as_ref().filter(|_| app.session.ews) else { return };
+    let Some(server) = a.ews.as_ref() else { return };
     // (Close together: they belong to the card above.)
     ui.spacing_mut().item_spacing.y = 2.0;
     let line = |ui: &mut egui::Ui, text: String| {

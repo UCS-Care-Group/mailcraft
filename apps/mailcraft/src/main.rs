@@ -102,7 +102,7 @@ use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
     GraphRequest, GraphResult, MailApp, Services, SettingsUnread, SignInRequest, UiState,
-    window_geometry::{WindowGeometry, take_rescue},
+    window_geometry::{self, WindowGeometry, take_rescue},
 };
 
 /// The app, the restored window geometry until the first frame has checked it, the control
@@ -176,8 +176,13 @@ impl eframe::App for App {
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
-        if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport())) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        // A window restored onto a monitor that is gone is moved onto the main one (#719): the
+        // monitors are asked for only until that check is done.
+        if self.1.is_some() {
+            let monitors = connected_monitors(ctx, frame);
+            if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport(), &monitors)) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+            }
         }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
@@ -299,19 +304,6 @@ fn opened_files() -> Option<&'static opened_files::Opened> {
 /// Where the log files live: `logs` in the preferences folder (see `logging`).
 fn log_dir() -> Option<PathBuf> {
     Some(prefs_path()?.parent()?.join("logs"))
-}
-
-/// The switch for testing Exchange server accounts (#252): `MAILCRAFT_EWS=1`. Off, `account.add`
-/// with `kind: "exchange"` and every `sync.ews*` command refuse, and an Exchange server account
-/// already in a mailbox opens, shows its mail and isn't kept in step. (Add Account doesn't offer
-/// them either way yet: its page for them comes later, and will be shown only while this is on.)
-fn ews_switch() -> bool {
-    let on = std::env::var("MAILCRAFT_EWS").is_ok_and(|value| value.trim() == "1");
-    static SAID: std::sync::Once = std::sync::Once::new();
-    if on {
-        SAID.call_once(|| log::info!("Exchange server accounts may be added and kept in step (MAILCRAFT_EWS=1, for testing)"));
-    }
-    on
 }
 
 /// Runs without preferences (`MAILCRAFT_NO_PREFS`, agents' test runs) neither read nor write them,
@@ -479,6 +471,19 @@ fn open_in_browser(url: &str) -> bool {
 /// set once as the window is made.
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 static DESKTOP_THEME: std::sync::OnceLock<desktop_theme::DesktopTheme> = std::sync::OnceLock::new();
+
+/// The monitors connected now, in the points the window's place is in, from the window eframe made
+/// (egui doesn't list them). None while there is no window; where the system lists none, none.
+fn connected_monitors(ctx: &egui::Context, frame: &eframe::Frame) -> Vec<egui::Rect> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    // As egui turns the window's own rect into points (`egui_winit::pixels_per_point`).
+    let pixels_per_point = ctx.zoom_factor() * window.scale_factor() as f32;
+    let listed = window.available_monitors().map(|m| {
+        let (at, size) = (m.position(), m.size());
+        ([at.x, at.y], [size.width, size.height])
+    });
+    window_geometry::monitors_in_points(listed, pixels_per_point)
+}
 
 /// The pages waiting for the window's activation token (`browser`), set once before the window opens.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -1952,7 +1957,6 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
-                session.ews = ews_switch();
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the

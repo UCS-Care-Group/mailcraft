@@ -249,18 +249,12 @@ pub mod p {
     pub fn req_id(v: &Value, k: &str) -> Result<Id, CmdError> {
         id(v, k).ok_or_else(|| CmdError::Params(format!("`{k}` (id) is required")))
     }
-    /// `ids` (an array) or `id` (one), when either is given.
-    pub fn ids(v: &Value) -> Option<Vec<Id>> {
-        if let Some(a) = v.get("ids").and_then(Value::as_array) {
-            return Some(a.iter().take(MAX_IDS).filter_map(|x| x.as_u64()).filter(|i| *i != 0).collect());
-        }
-        id(v, "id").map(|i| vec![i])
-    }
     /// `ids` (an array of ids) or `id` (one), read strictly, for a command whose mistake reaches
     /// other people (#360): `None` when neither is given. Anything else under those names (`null`,
     /// which a look-up that found nothing gives (#512), an id as text, zero, a fraction, `ids`
     /// that isn't a list or names no message or has an entry that isn't an id, or more than
-    /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection, as [`ids`] takes it.
+    /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection. Every command that
+    /// takes messages by `id` / `ids` reads them this way (#553).
     pub fn ids_strict(v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
         object(v)?;
         let null = |k: &str| CmdError::Params(format!("`{k}` is null, which names no message"));
@@ -360,7 +354,7 @@ mod agent_tests;
 #[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
-mod ews_switch_tests;
+mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
@@ -371,6 +365,8 @@ mod import_tree_progress_tests;
 mod import_tree_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
 #[cfg(test)]

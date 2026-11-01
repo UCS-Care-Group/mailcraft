@@ -2404,9 +2404,8 @@ fn hostile_params_never_panic() {
     }}));
     junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
     junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
-    // And an Exchange server account (#252), with the switch on, so that its commands get past the
-    // door too: answers that name it with nothing that makes sense, and settings that are none.
-    s.ews = true;
+    // And an Exchange server account (#252), so that its commands get past the door too: answers
+    // that name it with nothing that makes sense, and settings that are none.
     let url = "https://exchange.example.org/EWS/Exchange.asmx";
     let ews = json!({"email": "ews@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ews"}});
     let ews = s.run("account.add", &ews).unwrap()["id"].as_u64().unwrap();

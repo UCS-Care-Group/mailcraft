@@ -404,7 +404,8 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
 /// folder, removing an account. `None` for everything else. Scripts and agents are not asked: they said what they meant.
 pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question> {
     let mb = &app.session.mailbox;
-    let folder = |key: &str| params.get(key).and_then(Value::as_u64).or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
+    // Read as the command reads it (#553): one named wrongly asks nothing, and the command refuses it.
+    let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
     // (Not a JMAP account's yet, nor an Exchange server account's: nothing done here goes up to
     // its server until the engine sends its changes, so nothing is removed there.)
     let on_server = |account: u64| {
@@ -475,7 +476,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
         "people.delete" => {
-            let c = mb.contact(params.get("id").and_then(Value::as_u64).or(app.session.sel.contact)?)?;
+            let c = mb.contact(mailcraft_engine::p::id_strict(params, "id").ok()?.or(app.session.sel.contact)?)?;
             if mailcraft_engine::cmd::remote::keeper(mb, &c.origin).is_some() {
                 return None;
             }
@@ -793,7 +794,8 @@ fn list_rows(s: &mailcraft_engine::Session) -> std::sync::Arc<Vec<mailcraft_engi
 /// question writes in the messages it counted itself ([`pinned`]), what a conversation's row stands
 /// for and not only its selected message (#503).
 pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
-    let named = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
+    // Named at all, even wrongly (`null`), it is the command's to read, and to refuse (#553).
+    let named = |k: &str| params.get(k).is_some();
     let sel = &app.session.sel;
     let pin = match id {
         "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
@@ -977,8 +979,9 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         return Some(Question::new(tl!("Send This Invitation?"), text, tl!("Send"), json!({"send": true})).or(keep, json!({"send": false})));
     }
     let opening = id == "ui.openWindow";
-    let named = if opening { params.get("event") } else { params.get("id") };
-    let e = mb.event(named.and_then(Value::as_u64).or(app.session.sel.event)?)?;
+    // `id` read as the command reads it (#553): named wrongly, nothing is asked and the command refuses it.
+    let named = if opening { params.get("event").and_then(Value::as_u64) } else { mailcraft_engine::p::id_strict(params, "id").ok()? };
+    let e = mb.event(named.or(app.session.sel.event)?)?;
     // 1. Just this one, or the entire series? Asked of the occurrence that is selected (the
     // grid selects the one it acts on); nothing is asked about what is the same for both.
     // (An occurrence is named by the day it starts on here, whatever zone its series repeats in.)
@@ -1092,7 +1095,11 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
     // People › Meeting opens the meeting's form with the contact invited (what the form saves is
     // `calendar.newMeeting`, which says what goes to whom).
     if id == "people.meeting" && input_dialog(id, &params) == Some("meeting") {
-        let contact = params.get("id").and_then(Value::as_u64).or(app.session.sel.contact).and_then(|c| app.session.mailbox.contact(c));
+        // One named wrongly invites nobody, never the selected contact (#553).
+        let contact = mailcraft_engine::p::id_strict(&params, "id")
+            .ok()
+            .and_then(|c| c.or(app.session.sel.contact))
+            .and_then(|c| app.session.mailbox.contact(c));
         let mut params = params;
         if let (Some(to), Some(map)) = (contact.and_then(mailcraft_model::Contact::address), params.as_object_mut()) {
             map.remove("id");

@@ -76,6 +76,21 @@ fn text_w(ui: &Ui, text: &str, size: f32) -> f32 {
     ui.ctx().fonts_mut(|f| f.layout_no_wrap(text.to_string(), regular(size), Color32::WHITE).size().x)
 }
 
+/// How wide a large button is whose widest line of label is `text` wide.
+pub(crate) fn big_width(text: f32, menu: bool) -> f32 {
+    (text + if menu { 20.0 } else { 12.0 }).max(46.0)
+}
+
+/// How wide a small button is whose label (if it has one) is `text` wide.
+pub(crate) fn small_width(text: Option<f32>, menu: bool) -> f32 {
+    24.0 + text.map_or(0.0, |t| t + 6.0) + if menu { 10.0 } else { 0.0 }
+}
+
+/// The width of `text` set as a label of the classic ribbon (`size` 11.5) or a group's name (11).
+pub(crate) fn label_width(ui: &Ui, text: &str, size: f32) -> f32 {
+    text_w(ui, text, size)
+}
+
 /// Lay out and paint a large button of the classic ribbon: the icon over its label (of one line or
 /// two), greyed when it isn't `on`, pressed-looking when `checked`, with a `▾` when it opens a menu.
 /// Gives back where its label was painted too. One that is greyed and opens no menu can't be
@@ -83,7 +98,7 @@ fn text_w(ui: &Ui, text: &str, size: f32) -> f32 {
 pub(crate) fn big_frame(ui: &mut Ui, icon: &str, label: &str, on: bool, checked: bool, menu: bool) -> (Response, Rect) {
     let t = Tokens::get(ui.ctx());
     let galley_w = label.split('\n').map(|l| text_w(ui, l, 11.5)).fold(0.0, f32::max);
-    let w = (galley_w + if menu { 20.0 } else { 12.0 }).max(46.0);
+    let w = big_width(galley_w, menu);
     let (r, resp) = ui.allocate_exact_size(vec2(w, CONTENT_H), frame_sense(on, menu));
     if on {
         bg(ui, r, &resp, checked, &t);
@@ -112,8 +127,7 @@ fn frame_sense(on: bool, menu: bool) -> Sense {
 /// Lay out and paint a small button of the classic ribbon: a 16 pt icon with its label beside it.
 pub(crate) fn small_frame(ui: &mut Ui, icon: &str, label: Option<&str>, on: bool, checked: bool, menu: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let text_width = label.map(|l| text_w(ui, l, 11.5) + 6.0).unwrap_or(0.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(24.0 + text_width + if menu { 10.0 } else { 0.0 }, 22.0), frame_sense(on, menu));
+    let (r, resp) = ui.allocate_exact_size(vec2(small_width(label.map(|l| text_w(ui, l, 11.5)), menu), 22.0), frame_sense(on, menu));
     if on {
         bg(ui, r, &resp, checked, &t);
     }
@@ -156,10 +170,29 @@ pub fn group(ui: &mut Ui, title: &str, app: &mut MailApp, add: impl FnOnce(&mut 
     // The group's name, with room above it under the buttons' labels.
     let at = ui.painter().text(pos2(r.center().x, r.max.y - 8.0), Align2::CENTER_CENTER, title, regular(11.0), t.group_label);
     app.hit.add("ribbonGroup", key, at);
+    group_end(ui, start.y);
+}
+
+/// The divider after a group that started at `top`, and the room round it.
+pub(crate) fn group_end(ui: &mut Ui, top: f32) {
+    let t = Tokens::get(ui.ctx());
     ui.add_space(5.0);
     let x = ui.cursor().min.x;
-    ui.painter().line_segment([pos2(x, start.y + 4.0), pos2(x, start.y + CONTENT_H + LABEL_H - 4.0)], Stroke::new(1.0, t.border));
+    ui.painter().line_segment([pos2(x, top + 4.0), pos2(x, top + CONTENT_H + LABEL_H - 4.0)], Stroke::new(1.0, t.border));
     ui.add_space(6.0);
+}
+
+/// A group folded into one button: its first icon over its name and a `▾`, the height of the
+/// whole group. It opens the group, so it is never greyed.
+pub(crate) fn fold_frame(ui: &mut Ui, icon: &str, title: &str) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let w = big_width(text_w(ui, title, 11.5), true);
+    let (r, resp) = ui.allocate_exact_size(vec2(w, CONTENT_H + LABEL_H), Sense::click());
+    bg(ui, r, &resp, false, &t);
+    let ic = Rect::from_center_size(pos2(r.center().x, r.min.y + 26.0), vec2(32.0, 32.0));
+    icons::paint(ui.painter(), ic, icon, t.icon, t.accent);
+    ui.painter().text(pos2(r.center().x, r.min.y + 48.0), Align2::CENTER_TOP, format!("{title} ▾"), regular(11.5), t.text);
+    resp
 }
 
 /// A menu item that runs a command; shows its shortcut and greys out when it can't run.
@@ -198,11 +231,15 @@ pub fn icon_button(ui: &mut Ui, icon: &str, tip: &str, size: f32, enabled: bool)
     resp.on_hover_text(tip)
 }
 
+/// How wide [`icon_text_button`] is with `label`.
+pub(crate) fn icon_text_width(ui: &Ui, label: &str) -> f32 {
+    text_w(ui, label, 12.0) + 34.0
+}
+
 /// An icon with a label beside it, as a flat button.
 pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let w = text_w(ui, label, 12.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w + 34.0, 24.0), Sense::click());
+    let (r, resp) = ui.allocate_exact_size(vec2(icon_text_width(ui, label), 24.0), Sense::click());
     if resp.hovered() && enabled {
         ui.painter().rect_filled(r, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
     }

@@ -456,14 +456,14 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
-/// strictly ([`targets_strict`](super::targets_strict)): a forward goes to other people, so what a
+/// strictly ([`targets`](super::targets)): a forward goes to other people, so what a
 /// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
 /// selection. Each once, in the message list's order (those it doesn't show after them, as
 /// named), and the one in focus, the last named, as for a selection. How many it may be is
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
     p::only(v, &["id", "ids", "discard"])?;
-    let mut ids = super::targets_strict(s, v)?;
+    let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
     ids.reverse();
@@ -1228,17 +1228,15 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
     // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
     // gone. It stays as it is being written.
-    // (An Exchange server account sends nothing either, #252, with its switch on or off, until
-    // its sending is built: `can_queue_mail` says.)
-    if account.kind.has_server() && !super::ews_mail::can_queue_mail(s, account.kind) {
+    if account.kind.has_server() && !account.kind.sends_mail() {
         return Err(failed!(
             "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(super::ews_mail::not_sending_text(s, account.kind))
+            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
         ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
-    let queued = super::ews_mail::can_queue_mail(s, account.kind);
+    let queued = account.kind.sends_mail();
     let kind = if queued { FolderKind::Outbox } else { FolderKind::Sent };
     m.folder = s
         .mailbox
