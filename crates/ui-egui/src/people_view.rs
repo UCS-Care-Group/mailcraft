@@ -757,6 +757,10 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
             card_actions(app, ui, &c);
             card_contact(app, ui, &c);
             card_account(app, ui, &c);
+            if !c.book.trim().is_empty() {
+                section(ui, tl!("Address Book"));
+                field(ui, "people", &one_line(&c.book, 120), "", false);
+            }
             card_places(ui, &c);
             card_birthday(app, ui, &c);
             if !c.notes.trim().is_empty() {

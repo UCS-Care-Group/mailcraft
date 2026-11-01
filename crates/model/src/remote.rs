@@ -304,6 +304,9 @@ pub struct RemoteContact {
     /// The server's mark of this version of it ([`Origin::change_key`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub change_key: String,
+    /// Its vCard `UID`, when the server gives one.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub uid: String,
     pub display_name: String,
     pub first: String,
     pub middle: String,
@@ -320,6 +323,11 @@ pub struct RemoteContact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birthday: Option<Date>,
     pub notes: String,
+    /// The address book it is in, as its server names it (Linchange's personal book, a book
+    /// shared with the owner, or the organization directory); empty when the server has one
+    /// list.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book: String,
     /// When it was last changed on the server (Unix seconds); 0 when the server didn't say.
     pub modified: Timestamp,
 }
@@ -330,6 +338,8 @@ impl RemoteContact {
     pub fn tidy(&mut self) {
         self.id = key(&self.id);
         self.change_key = key(&self.change_key);
+        self.uid = line(&self.uid, MAX_KEY);
+        self.book = line(&self.book, MAX_NAME);
         for name in [
             &mut self.display_name,
             &mut self.first,
@@ -343,6 +353,7 @@ impl RemoteContact {
             *name = line(name, MAX_LINE);
         }
         self.notes = text(&self.notes, MAX_TEXT);
+        self.book = line(&self.book, MAX_NAME);
         // A day that no calendar has is no birthday.
         self.birthday = self.birthday.and_then(|day| Date::new(day.year, day.month, day.day));
         // Entries with nothing in them go before the count is taken: they are how a server says

@@ -7,7 +7,7 @@
 //! passes the answer in, which is how an address at a company's own domain is recognised as
 //! (say) Microsoft 365. The server names are the ones each provider publishes.
 
-use crate::{OAuthProvider, Security, Server};
+use crate::{DavServer, OAuthProvider, Security, Server};
 
 /// What an account at a provider usually takes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,19 +18,23 @@ pub struct Preset {
     pub oauth: Option<OAuthProvider>,
     pub incoming: Server,
     pub outgoing: Server,
+    /// Where the provider keeps calendars and contacts when that is not IMAP and SMTP
+    /// (Linchange's CalDAV and CardDAV, on the same listener as its web application).
+    pub dav: Option<DavServer>,
     /// Something the owner should know before connecting; may be empty.
     pub note: &'static str,
 }
 
 const APP_PASSWORD: &str = "This provider wants an app password (made in the account's security settings), not the everyday one.";
 const MICROSOFT: &str = "Microsoft accounts sign in on Microsoft's own page; no password is typed here.";
+const LINCHANGE: &str = "MailCraft found a Linchange server: mail uses IMAP and SMTP, and the calendar and address books use CalDAV and CardDAV.";
 
 fn server(host: &str, port: u16, security: Security) -> Server {
     Server { host: host.to_string(), port, security }
 }
 
 fn with_password(service: &'static str, imap: &str, smtp: (&str, u16, Security), note: &'static str) -> Preset {
-    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), note }
+    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), dav: None, note }
 }
 
 /// Outlook.com (`consumer`) or Microsoft 365 work and school mail.
@@ -42,6 +46,7 @@ pub fn microsoft(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Microsoft),
         incoming: server("outlook.office365.com", 993, Security::Tls),
         outgoing: server(smtp, 587, Security::StartTls),
+        dav: None,
         note: MICROSOFT,
     }
 }
@@ -56,6 +61,7 @@ pub fn google(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Google),
         incoming: server("imap.gmail.com", 993, Security::Tls),
         outgoing: server("smtp.gmail.com", 465, Security::Tls),
+        dav: None,
         note: "Google sign-in opens the provider's page; MailCraft does not ask for your Google password.",
     }
 }
@@ -243,7 +249,40 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     if under("zoho.com") {
         return Some(with_password("Zoho", "imap.zoho.com", ("smtp.zoho.com", 465, tls), ""));
     }
+    // A deployment that names its mail exchanger after the server it runs: the name alone is a
+    // hint, and the host still asks the server before an account is set up.
+    if host.split('.').any(|label| label.eq_ignore_ascii_case("linchange")) {
+        return linchange(&host);
+    }
     None
+}
+
+/// A Linchange server at `host`: its mail exchangers are its own host name, and its web
+/// application serves CalDAV and CardDAV on the same listener. This is what the domain's mail
+/// exchangers give when the host at their head is a Linchange server (the host says which by
+/// asking it, never by trusting its name alone).
+pub fn linchange(host: &str) -> Option<Preset> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let dav = DavServer::for_host(&host)?;
+    Some(Preset {
+        service: "Linchange",
+        oauth: None,
+        incoming: server(&host, 993, Security::Tls),
+        outgoing: server(&host, 587, Security::StartTls),
+        dav: Some(dav),
+        note: LINCHANGE,
+    })
+}
+
+/// A Linchange server at the usual address for `domain` (`mail.example.org`), for an owner who
+/// picked Linchange by hand before anything was looked up. The host may be right; a detection
+/// that found the server replaces it with the mail exchanger's own name.
+pub fn linchange_for_domain(domain: &str) -> Option<Preset> {
+    let domain = domain.trim().to_ascii_lowercase();
+    if !is_domain(&domain) {
+        return None;
+    }
+    linchange(&format!("mail.{domain}"))
 }
 
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
@@ -271,6 +310,7 @@ pub fn guess(domain: &str) -> Preset {
         oauth: None,
         incoming: server(&format!("imap.{domain}"), 993, Security::Tls),
         outgoing: server(&format!("smtp.{domain}"), 587, Security::StartTls),
+        dav: None,
         note: "",
     }
 }
@@ -311,10 +351,25 @@ mod tests {
         assert_eq!(by_mx("aspmx.l.google.com").unwrap().service, "Google Workspace");
         assert_eq!(by_mx("in1-smtp.messagingengine.com").unwrap().service, "Fastmail");
         assert_eq!(by_mx("mx01.mail.icloud.com").unwrap().service, "iCloud");
+        assert_eq!(by_mx("mail.linchange.example").unwrap().service, "Linchange");
         // A look-alike is not the provider, nor is a host that isn't one.
         for host in ["evilgoogle.com", "mail.protection.outlook.com.evil.example", "mx.lumen.example", "", "a b", "x/../mx.microsoft"] {
             assert_eq!(by_mx(host), None, "{host}");
         }
+    }
+
+    #[test]
+    fn a_linchange_server_is_known_by_its_mail_exchanger() {
+        let found = linchange("Mail.Example.org.").unwrap();
+        assert_eq!((found.service, found.oauth), ("Linchange", None));
+        assert_eq!((found.incoming.host.as_str(), found.incoming.port), ("mail.example.org", 993));
+        assert_eq!((found.outgoing.host.as_str(), found.outgoing.port), ("mail.example.org", 587));
+        let dav = found.dav.unwrap();
+        assert_eq!((dav.caldav.as_str(), dav.carddav.as_str()), ("https://mail.example.org/caldav/", "https://mail.example.org/carddav/"));
+        let by_hand = linchange_for_domain("Example.org").unwrap();
+        assert_eq!(by_hand.incoming.host, "mail.example.org");
+        assert_eq!(linchange_for_domain("not a domain"), None);
+        assert_eq!(linchange("not a host"), None);
     }
 
     #[test]

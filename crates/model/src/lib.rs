@@ -48,6 +48,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
+pub use dav::DavServer;
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use jmap_server::JmapServer;
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};

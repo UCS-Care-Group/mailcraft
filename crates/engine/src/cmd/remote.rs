@@ -735,6 +735,8 @@ pub fn contact_from_remote(remote: &RemoteContact) -> Contact {
         websites: remote.websites.clone(),
         birthday: remote.birthday,
         notes: remote.notes.clone(),
+        uid: remote.uid.clone(),
+        book: remote.book.clone(),
         origin: Origin { account: 0, id: remote.id.clone(), change_key: remote.change_key.clone(), ..Default::default() },
         ..Default::default()
     }
@@ -3420,10 +3422,16 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         match known.get(&remote.id).and_then(|id| mailbox.contact(*id)) {
             Some(old) => {
                 fresh.id = old.id;
-                // What is only kept here stays as it is here.
+                // What is only kept here stays as it is here; a server's own vCard UID and book
+                // win when it gives them.
                 fresh.categories = old.categories.clone();
                 fresh.favorite = old.favorite;
-                fresh.uid = old.uid.clone();
+                if fresh.uid.is_empty() {
+                    fresh.uid = old.uid.clone();
+                }
+                if fresh.book.is_empty() {
+                    fresh.book = old.book.clone();
+                }
                 if *old == fresh {
                     merged.unchanged += 1;
                 } else if let Ok(contact) = mailbox.contact_mut(fresh.id) {

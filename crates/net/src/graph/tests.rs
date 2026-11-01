@@ -893,6 +893,8 @@ fn contacts_come_page_by_page() {
         RemoteContact {
             id: "AAMkAGI1-ada=".into(),
             change_key: "EQAAABYAAAC".into(),
+            uid: String::new(),
+            book: String::new(),
             display_name: "Ada Lovelace".into(),
             first: "Ada".into(),
             middle: "King".into(),

@@ -829,6 +829,44 @@ fn accounts_that_sign_in_on_the_providers_page() {
 }
 
 #[test]
+fn a_linchange_account_keeps_its_calendars_and_address_books_beside_its_mail() {
+    use mailcraft_model::{AccountKind, DavServer};
+    let mut s = session();
+    // The exchanger says which host, and the owner says it is Linchange (the host has already
+    // asked it, without a password, and got its CalDAV and CardDAV realm).
+    let preset = run(&mut s, "account.preset", json!({"email": "ada@example.org", "service": "linchange", "mx": ["mail.example.org"]}));
+    assert_eq!((preset["known"].as_bool(), preset["service"].as_str(), preset["auth"].as_str()), (Some(true), Some("Linchange"), Some("password")));
+    assert_eq!((preset["incoming"]["host"].as_str(), preset["outgoing"]["host"].as_str()), (Some("mail.example.org"), Some("mail.example.org")));
+    assert_eq!(
+        (preset["dav"]["caldav"].as_str(), preset["dav"]["carddav"].as_str()),
+        (Some("https://mail.example.org/caldav/"), Some("https://mail.example.org/carddav/"))
+    );
+    // Picked by hand before anything was looked up: the usual name at the domain.
+    let by_hand = run(&mut s, "account.preset", json!({"email": "ada@example.org", "service": "linchange"}));
+    assert_eq!(by_hand["incoming"]["host"], "mail.example.org");
+    assert_eq!(by_hand["dav"]["caldav"], "https://mail.example.org/caldav/");
+
+    let mut added = preset.clone();
+    added["email"] = json!("ada@example.org");
+    let id = run(&mut s, "account.add", added)["id"].as_u64().unwrap();
+    let account = s.mailbox.account(id).unwrap().clone();
+    assert_eq!((account.kind, account.is_linchange()), (AccountKind::Imap, true));
+    assert_eq!(
+        account.dav,
+        Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() })
+    );
+    // What is not an https service root is refused, and changes nothing.
+    for bad in [
+        json!({"id": id, "dav": {"caldav": "http://mail.example.org/caldav/", "carddav": "https://mail.example.org/carddav/"}}),
+        json!({"id": id, "dav": {"caldav": "https://mail.example.org/caldav/", "carddav": "mail.example.org/carddav/"}}),
+        json!({"id": id, "dav": {"caldav": "https://ada@mail.example.org/caldav/", "carddav": "https://mail.example.org/carddav/"}}),
+    ] {
+        assert!(s.run("account.edit", &bad).is_err(), "{bad}");
+    }
+    assert!(s.mailbox.account(id).unwrap().is_linchange());
+}
+
+#[test]
 fn a_sync_result_lands_in_the_right_folders() {
     use mailcraft_model::sync::{FolderDelta, RemoteFlags, SyncResult};
     use mailcraft_model::{Address, Message};
