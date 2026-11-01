@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Exchange server accounts, the skeleton (#252, E1): the switch, what the commands refuse, and a
-//! mailbox that holds one opening whether the switch is on or off.
+//! Exchange server accounts, the skeleton (#252, E1): what the commands refuse, and a mailbox that
+//! holds one opening.
 
 use std::path::PathBuf;
 
@@ -9,7 +9,6 @@ use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox, 
 use serde_json::{Value, json};
 
 use crate::Session;
-use crate::cmd::ews_mail::SWITCHED_OFF;
 
 const URL: &str = "https://exchange.example.org/EWS/Exchange.asmx";
 
@@ -39,12 +38,6 @@ fn exchange(email: &str) -> Value {
     json!({"email": email, "kind": "exchange", "ews": {"url": URL, "username": "CORP\\ada"}})
 }
 
-fn session(ews: bool) -> Session {
-    let mut s = Session::empty();
-    s.ews = ews;
-    s
-}
-
 fn said(result: Result<Value, crate::CmdError>) -> String {
     let said = result.expect_err("should have been refused").to_string();
     // (A command that is out of reach says so first.)
@@ -54,7 +47,7 @@ fn said(result: Result<Value, crate::CmdError>) -> String {
 /// A mailbox with an Exchange server account whose Inbox has a message, as a later step's first
 /// download will leave one.
 fn mailbox_with_exchange() -> (Mailbox, Id) {
-    let mut s = session(true);
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     let mut mb = s.mailbox.clone();
     mb.account_mut(id).unwrap().ews.as_mut().unwrap().trusted = "ab".repeat(32);
@@ -64,25 +57,8 @@ fn mailbox_with_exchange() -> (Mailbox, Id) {
 }
 
 #[test]
-fn switched_off_an_exchange_account_cannot_be_added_and_no_command_runs() {
-    let mut s = session(false);
-    assert_eq!(said(s.run("account.add", &exchange("ada@example.org"))), SWITCHED_OFF);
-    // Any spelling of the kind, and nothing in the params turns the switch on.
-    let sneaky = json!({"email": "ada@example.org", "kind": " Exchange ", "ews": {"url": URL}, "switch": true, "ewsEnabled": true});
-    assert_eq!(said(s.run("account.add", &sneaky)), SWITCHED_OFF);
-    assert!(!s.ews);
-    assert!(s.mailbox.accounts.iter().all(|a| a.kind != AccountKind::Exchange));
-    for command in ["sync.ewsRequest", "sync.applyEws", "sync.ewsFetchRequest"] {
-        for params in [json!({}), json!({"account": 1}), json!({"result": {"account": 1}}), json!({"ews": true})] {
-            assert_eq!(said(s.run(command, &params)), SWITCHED_OFF, "{command} {params}");
-        }
-    }
-}
-
-#[test]
-fn switched_on_an_exchange_account_is_added_and_its_commands_answer() {
-    let mut s = session(true);
-    assert!(s.ews);
+fn an_exchange_account_is_added_and_its_commands_answer() {
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     let a = s.mailbox.account(id).unwrap();
     assert_eq!(a.kind, AccountKind::Exchange);
@@ -113,7 +89,7 @@ fn mailcraft_engine_text(s: &Session, id: Id) -> String {
 
 #[test]
 fn the_commands_refuse_what_is_not_theirs_and_change_nothing() {
-    let mut s = session(true);
+    let mut s = Session::empty();
     let local = s.run("account.add", &json!({"email": "local@example.org"})).unwrap()["id"].as_u64().unwrap();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     let before = s.mailbox.clone();
@@ -136,7 +112,7 @@ fn the_commands_refuse_what_is_not_theirs_and_change_nothing() {
 
 #[test]
 fn settings_that_cannot_be_used_are_refused_when_the_account_is_added_or_edited() {
-    let mut s = session(true);
+    let mut s = Session::empty();
     for ews in [
         json!({"url": "http://exchange.example.org/EWS/Exchange.asmx"}),
         json!({"url": "https://user:pw@exchange.example.org/EWS/Exchange.asmx"}),
@@ -162,31 +138,6 @@ fn settings_that_cannot_be_used_are_refused_when_the_account_is_added_or_edited(
 }
 
 #[test]
-fn switched_off_an_account_already_there_keeps_its_mail_and_its_settings_and_does_not_sync() {
-    let (mb, id) = mailbox_with_exchange();
-    let mut s = session(false);
-    s.mailbox = mb;
-    // Its mail is shown.
-    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
-    s.view.folder = inbox;
-    assert_eq!(s.rows().len(), 1);
-    // It is not synchronised, and the reason is the switch.
-    assert_eq!(said(s.run("sync.request", &json!({"account": id}))), SWITCHED_OFF);
-    assert_eq!(said(s.run("sync.ewsRequest", &json!({"account": id}))), SWITCHED_OFF);
-    assert_eq!(crate::cmd::account::unpushed(&s, id), 0);
-    // Its settings are not changed meanwhile, but its name can be.
-    assert_eq!(said(s.run("account.edit", &json!({"id": id, "ews": {"url": URL}}))), SWITCHED_OFF);
-    assert!(s.run("account.edit", &json!({"id": id, "displayName": "Ada"})).is_ok());
-    assert_eq!(s.mailbox.account(id).unwrap().kind, AccountKind::Exchange);
-    assert!(s.mailbox.account(id).unwrap().ews.is_some());
-    // Nothing is written for it to send: a message from it stays as it is being written.
-    s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Hello"})).unwrap();
-    let refused = said(s.run("compose.send", &json!({})));
-    assert!(refused.contains(SWITCHED_OFF), "{refused}");
-    assert!(s.compose.is_some(), "the message stays as it is being written");
-}
-
-#[test]
 fn a_mailbox_with_an_exchange_account_round_trips_through_save_and_load() {
     let (mb, id) = mailbox_with_exchange();
     let tmp = Temp::new("round-trip");
@@ -203,13 +154,11 @@ fn a_mailbox_with_an_exchange_account_round_trips_through_save_and_load() {
     assert_eq!(opened.mailbox.accounts, mb.accounts);
     // Saved again as it is, nothing is written.
     assert!(crate::store::save(&path, &opened.mailbox).unwrap().unchanged);
-    // It opens with the switch off and with it on, with its mail either way.
-    for on in [false, true] {
-        let mut s = session(on);
-        s.mailbox = crate::store::open(&path).unwrap().mailbox;
-        let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
-        assert_eq!(s.mailbox.count(inbox), 1);
-    }
+    // It opens with its mail.
+    let mut s = Session::empty();
+    s.mailbox = crate::store::open(&path).unwrap().mailbox;
+    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    assert_eq!(s.mailbox.count(inbox), 1);
 }
 
 #[test]
@@ -239,7 +188,7 @@ fn an_account_of_a_kind_this_version_does_not_know_still_loads_beside_an_exchang
 /// is not. The state the server gave is no setting, and an edit leaves it.
 #[test]
 fn an_exchange_accounts_server_address_and_user_name_are_fixed_once_its_mail_is_here() {
-    let mut s = session(true);
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap().hierarchy = "HIER".into();
     let edits = [
@@ -273,7 +222,7 @@ fn an_exchange_accounts_server_address_and_user_name_are_fixed_once_its_mail_is_
 /// forgotten with the folder list's.
 #[test]
 fn putting_a_server_address_right_forgets_where_its_folders_went_on_from() {
-    let mut s = session(true);
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
     s.mailbox.folder_mut(inbox).unwrap().server =
@@ -296,22 +245,14 @@ fn putting_a_server_address_right_forgets_where_its_folders_went_on_from() {
     assert_eq!(s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().sync_state, "S2");
 }
 
-/// Mail is queued in an Exchange server account's Outbox with the switch on (its sending is built),
-/// and with the switch off nothing is: the message stays as it is being written.
+/// Mail is queued in an Exchange server account's Outbox.
 #[test]
-fn mail_is_queued_for_an_exchange_account_with_the_switch_on_and_refused_with_it_off() {
-    let mut s = session(true);
+fn mail_is_queued_for_an_exchange_account() {
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Hello"})).unwrap();
     assert_eq!(s.run("compose.send", &json!({})).unwrap()["queued"], true);
     let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
-    assert_eq!(s.mailbox.messages_in(outbox).count(), 1);
-    // The switch off: a message being written is refused, queued nowhere.
-    s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Again"})).unwrap();
-    s.ews = false;
-    let refused = said(s.run("compose.send", &json!({})));
-    assert!(refused.contains(SWITCHED_OFF) && refused.contains("send this message from another account"), "{refused}");
-    assert!(s.compose.is_some());
     assert_eq!(s.mailbox.messages_in(outbox).count(), 1);
 }
 
@@ -319,7 +260,7 @@ fn mail_is_queued_for_an_exchange_account_with_the_switch_on_and_refused_with_it
 /// by `sync.applyEws` with the reason.
 #[test]
 fn a_result_with_too_much_in_it_is_refused_before_anything_else_is_asked() {
-    let mut s = session(true);
+    let mut s = Session::empty();
     let id = s.run("account.add", &exchange("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     let pages: Vec<Value> = (0..=mailcraft_model::sync::MAX_EWS_PAGES).map(|i| json!({"folder": format!("F{i}")})).collect();
     let too_many = json!({"result": {"account": id, "email": "ada@example.org", "pages": pages}});
@@ -333,15 +274,9 @@ fn a_result_with_too_much_in_it_is_refused_before_anything_else_is_asked() {
 }
 
 #[test]
-fn forgetting_a_trusted_certificate_is_refused_with_the_switch_off_and_works_with_it_on() {
+fn forgetting_a_trusted_certificate_works() {
     let (mb, id) = mailbox_with_exchange();
-    let mut off = session(false);
-    off.mailbox = mb.clone();
-    let before = off.mailbox.account(id).unwrap().ews.clone();
-    let why = said(off.run("account.forgetEwsCertificate", &json!({"id": id})));
-    assert!(why.contains(SWITCHED_OFF) || !why.is_empty(), "{why}");
-    assert_eq!(off.mailbox.account(id).unwrap().ews, before, "a refused command changes nothing");
-    let mut on = session(true);
+    let mut on = Session::empty();
     on.mailbox = mb;
     assert_eq!(on.run("account.forgetEwsCertificate", &json!({"id": id})).unwrap()["forgotten"], json!(true));
     assert!(on.mailbox.account(id).unwrap().ews.as_ref().unwrap().trusted.is_empty());
@@ -350,7 +285,7 @@ fn forgetting_a_trusted_certificate_is_refused_with_the_switch_off_and_works_wit
 #[test]
 fn an_address_on_a_microsoft_host_is_refused_by_add_and_edit() {
     for url in ["https://outlook.office365.com/EWS/Exchange.asmx", "https://outlook.office.com/EWS/Exchange.asmx"] {
-        let mut s = session(true);
+        let mut s = Session::empty();
         let before = s.mailbox.accounts.len();
         let why = said(s.run("account.add", &json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": url}})));
         assert!(why.contains("Microsoft"), "{why}");

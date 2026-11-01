@@ -1034,10 +1034,6 @@ pub struct Session {
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
-    /// Exchange server accounts may be added and kept in step through Exchange Web Services
-    /// (#252): the switch for testing, off until a tester has confirmed it on a server of their
-    /// own. Set by the host (`MAILCRAFT_EWS=1`), never by a command's params. Never saved.
-    pub ews: bool,
     /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
     /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
     pub staged_tree: Option<crate::import_tree::Parsed>,
@@ -1175,7 +1171,6 @@ impl Session {
             agent: None,
             owner_changing: Vec::new(),
             graph_switch_backup: None,
-            ews: false,
             staged_tree: None,
             server_search: Default::default(),
             auto_replies: Default::default(),
