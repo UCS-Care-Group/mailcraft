@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A message being written in a window of its own (#286), as the window draws it: New Email opens
-//! one, Pop Out moves the reading pane's into one, each types and runs its ribbon on its own
-//! message, closing asks about changes, quitting saves them all, an agent's opens behind, and at
-//! the bound of windows a reply stays in the reading pane.
+//! A message being written in a window of its own (#286), as the window draws it: New Email starts
+//! in the reading pane, as a reply does, and Pop Out moves the reading pane's into one (New Email
+//! opens one when File › Options says so); each types and runs its ribbon on its own message,
+//! closing asks about changes, quitting saves them all, an agent's opens behind, and at the bound
+//! of windows New Email or a reply stays in the reading pane.
 
 use egui::Key;
 use egui_kittest::kittest::Queryable as _;
@@ -63,6 +64,16 @@ fn owner(harness: &mut Harness, command: &str, params: Value) -> Value {
     let answer = harness.state_mut().run(command, params).unwrap_or_else(|e| panic!("{command}: {e}"));
     harness.run_steps(3);
     answer
+}
+
+/// A New Email of the owner's in a window of its own, as File › Options › Mail › Open new
+/// messages, replies and forwards in a new window opens one: its message's id.
+fn new_window(harness: &mut Harness) -> u64 {
+    let was = std::mem::replace(&mut harness.state_mut().ui.replies_in_window, true);
+    let compose = owner(harness, "mail.new", json!({}))["compose"].as_u64().unwrap_or_default();
+    harness.state_mut().ui.replies_in_window = was;
+    assert!(harness.state().windows.of_compose(compose).is_some(), "message {compose} has no window");
+    compose
 }
 
 /// Run `command` as a script does.
@@ -136,11 +147,17 @@ fn agent(a: &mut MailApp, command: &str, params: Value, allow: Vec<Class>) -> Op
 }
 
 #[test]
-fn new_email_opens_in_a_window_of_its_own() {
+fn new_email_starts_in_the_reading_pane_and_pops_out_into_a_window() {
     let mut h = window(app());
-    // As the ribbon's New Email runs it: a window, its message current, the reading pane free and
-    // the main window's ribbon as it was.
+    // As the ribbon's New Email runs it: in the reading pane, as a reply starts, its message
+    // current, no window, and Pop Out at its top right.
     let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    assert_eq!((pane(&h), h.state().windows.of_compose(compose), h.state().session.compose_id()), (Some(compose), None, Some(compose)));
+    assert!(windows(&mut h).is_empty());
+    let pop = h.state().hit.rect_in(0, "composePopOut", 0).expect("Pop Out at the top right of the new message");
+    click(&mut h, pop.center());
+    // Popped out: a window, its message current, the reading pane free and the main window's
+    // ribbon as it was.
     let w = window_of(&h, compose);
     assert_eq!((pane(&h), h.state().session.compose_id(), h.state().ui.tab.as_str()), (None, Some(compose), "Home"));
     let shown = windows(&mut h);
@@ -168,12 +185,17 @@ fn new_email_opens_in_a_window_of_its_own() {
     ribbon(&mut h, w, "ribbonTab", "Format Text");
     assert_eq!((windows(&mut h)[0]["tab"].as_str(), h.state().ui.tab.as_str()), (Some("Format Text"), "Home"));
     assert!(h.state().hit.rect_in(w, "ribbon", crate::ribbon::hit_id("compose.formatPlain")).is_some());
-    // Ctrl+N, as the owner presses it in the main window: another window.
+    // Ctrl+N, as the owner presses it in the main window: another, in the reading pane.
     h.state_mut().ui.tab = "Home".into();
     let before = h.state().windows.len();
-    h.state_mut().run("mail.new", json!({})).unwrap();
-    h.run_steps(3);
+    let second = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    assert_eq!((h.state().windows.len(), pane(&h)), (before, Some(second)));
+    // File › Options › Mail › Open new messages, replies and forwards in a new window: a window.
+    h.state_mut().ui.replies_in_window = true;
+    let third = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
     assert_eq!(h.state().windows.len(), before + 1);
+    assert!(h.state().windows.of_compose(third).is_some());
+    h.state_mut().ui.replies_in_window = false;
     // A script's New Email starts in the reading pane, as it always has.
     let scripted = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
     assert_eq!((pane(&h), h.state().windows.of_compose(scripted)), (Some(scripted), None));
@@ -214,8 +236,8 @@ fn pop_out_moves_the_reading_panes_message_into_a_window() {
 #[test]
 fn two_windows_are_written_in_apart() {
     let mut h = window(app());
-    let a = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
-    let b = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let a = new_window(&mut h);
+    let b = new_window(&mut h);
     assert_ne!(window_of(&h, a), window_of(&h, b));
     into_body(&mut h, a);
     type_text(&mut h, "For the first");
@@ -231,7 +253,7 @@ fn the_ribbon_of_a_window_acts_on_its_own_message() {
     // (The classic layout, where Importance is in view in the window's width.)
     script(&mut h, "ui.ribbonMode", json!({"value": "classic"}));
     let inline = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
-    let popped = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let popped = new_window(&mut h);
     let w = window_of(&h, popped);
     let importance = |h: &Harness, c: u64| h.state().session.composing_by_id(c).map(|c| c.importance);
     ribbon(&mut h, w, "ribbon", "compose.highImportance");
@@ -266,7 +288,7 @@ fn the_ribbon_of_a_window_acts_on_its_own_message() {
 fn closing_a_window_with_changes_asks_save_dont_save_or_cancel() {
     for (said, kept, open) in [("unsavedSave", 1, false), ("unsavedDiscard", 0, false), ("unsavedCancel", 0, true)] {
         let mut h = window(app());
-        let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+        let compose = new_window(&mut h);
         script(&mut h, "compose.set", json!({"compose": compose, "subject": "Asked about", "body": "Something"}));
         let w = window_of(&h, compose);
         h.get_by_label("Close window").click();
@@ -278,12 +300,12 @@ fn closing_a_window_with_changes_asks_save_dont_save_or_cancel() {
     }
     // Without changes, it closes at once, and its message with it.
     let mut h = window(app());
-    let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let compose = new_window(&mut h);
     h.get_by_label("Close window").click();
     h.run_steps(3);
     assert!(h.state().windows.is_empty() && h.state().session.composing_by_id(compose).is_none());
     // Sent, its window goes.
-    let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let compose = new_window(&mut h);
     script(&mut h, "compose.set", json!({"compose": compose, "to": "maya@lumen.example", "subject": "Off it goes"}));
     script(&mut h, "compose.send", json!({"compose": compose}));
     assert!(h.state().windows.is_empty());
@@ -292,7 +314,7 @@ fn closing_a_window_with_changes_asks_save_dont_save_or_cancel() {
 #[test]
 fn ui_close_window_says_save_or_discard_for_a_message_being_written() {
     let mut h = window(app());
-    let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let compose = new_window(&mut h);
     script(&mut h, "compose.set", json!({"compose": compose, "subject": "By command", "body": "Words"}));
     let w = window_of(&h, compose);
     for bad in [
@@ -310,7 +332,7 @@ fn ui_close_window_says_save_or_discard_for_a_message_being_written() {
     assert_eq!(drafts(&h, "By command"), 1);
     assert!(h.state().session.composing_by_id(compose).is_none());
     // Discard: closed as it was last saved (here, never).
-    let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let compose = new_window(&mut h);
     script(&mut h, "compose.set", json!({"compose": compose, "subject": "Thrown away", "body": "Words"}));
     let w = window_of(&h, compose);
     script(&mut h, "ui.closeWindow", json!({"window": w, "discard": true}));
@@ -323,7 +345,7 @@ fn closing_the_main_window_saves_every_message_being_written_unasked() {
     let inline = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
     script(&mut h, "compose.set", json!({"compose": inline, "subject": "In the pane", "body": "One"}));
     for subject in ["Window one", "Window two"] {
-        let compose = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+        let compose = new_window(&mut h);
         script(&mut h, "compose.set", json!({"compose": compose, "subject": subject, "body": "Two"}));
     }
     assert!(h.state_mut().close_requested(), "nothing is asked");
@@ -365,23 +387,26 @@ fn an_agents_message_opens_behind_without_the_keyboard() {
 }
 
 #[test]
-fn at_the_bound_a_reply_stays_in_the_reading_pane_and_new_email_is_refused() {
+fn at_the_bound_new_email_and_a_reply_stay_in_the_reading_pane() {
     let mut h = window(app());
     let messages: Vec<Id> = h.state().session.mailbox.messages.values().filter(|m| !m.draft).map(|m| m.id).take(3).collect();
     for _ in 0..MAX_WINDOWS {
-        owner(&mut h, "mail.new", json!({}));
+        new_window(&mut h);
     }
     assert_eq!(h.state().windows.len(), MAX_WINDOWS);
     // Twelve windows and the reading pane are the most the engine holds.
     assert_eq!(MAX_WINDOWS + 1, mailcraft_engine::composing::MAX_COMPOSING);
-    // New Email is refused, said in the status bar; nothing opened.
-    let count = h.state().session.composing_count();
-    let refused = h.state_mut().run("mail.new", json!({})).unwrap_err();
+    // New Email, even with the switch to open it in a window, goes to the reading pane.
+    h.state_mut().ui.replies_in_window = true;
+    let new = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    assert_eq!((pane(&h), h.state().windows.of_compose(new)), (Some(new), None));
+    // Pop Out has no room: refused, said in the status bar; nothing moved.
+    let refused = h.state_mut().run("compose.popOut", json!({"compose": new})).unwrap_err();
     assert!(refused.contains("Too many windows"), "{refused}");
     assert!(h.state().status_msg.as_ref().is_some_and(|(said, _)| said.contains("Too many windows")));
-    assert_eq!(h.state().session.composing_count(), count);
-    // A reply, even with the switch to open them in windows, goes to the reading pane.
-    h.state_mut().ui.replies_in_window = true;
+    assert_eq!((pane(&h), h.state().windows.of_compose(new)), (Some(new), None));
+    script(&mut h, "compose.close", json!({"compose": new, "discard": true}));
+    // A reply too.
     let reply = owner(&mut h, "mail.reply", json!({"id": messages[0]}))["compose"].as_u64().unwrap();
     assert_eq!((pane(&h), h.state().windows.of_compose(reply)), (Some(reply), None));
     // And the engine agrees that is all there can be.
@@ -477,7 +502,7 @@ fn a_double_clicked_draft_opens_in_a_window_ready_to_write_in() {
 fn what_an_agent_opens_behind_never_takes_what_the_menu_bar_and_keys_act_on() {
     let mut h = window(app());
     // The owner writes in a window of their own, which has the keyboard.
-    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let mine = new_window(&mut h);
     script(&mut h, "compose.set", json!({"compose": mine, "subject": "The owner's"}));
     into_body(&mut h, mine);
     let said = agent(h.state_mut(), "mail.new", json!({"subject": "The agent's"}), Class::ALL.to_vec()).expect("done at once");
@@ -496,7 +521,7 @@ fn what_an_agent_opens_behind_never_takes_what_the_menu_bar_and_keys_act_on() {
 #[test]
 fn from_the_main_window_without_a_message_in_the_reading_pane_nothing_acts_on_a_window_behind() {
     let mut h = window(app());
-    let theirs = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let theirs = new_window(&mut h);
     // The owner goes back to the main window, whose reading pane has no message.
     assert!(h.state().windows.of_compose(theirs).is_some());
     h.state_mut().windows.focus = None;
@@ -521,7 +546,7 @@ fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
         rx
     }));
     let mut h = window(a);
-    let asking = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let asking = new_window(&mut h);
     // Attach, in the window: the file dialog opens.
     assert_eq!(owner(&mut h, "compose.attach", json!({}))["pending"], "attach");
     // Meanwhile the owner goes to the main window, where another message is in the reading pane.
@@ -541,7 +566,7 @@ fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
 #[test]
 fn an_agents_discard_of_every_window_asks_once_naming_the_message_and_counting_the_form() {
     let mut h = window(app());
-    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let mine = new_window(&mut h);
     into_body(&mut h, mine);
     type_text(&mut h, "Mine");
     let event = h.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| e.id).unwrap();
@@ -565,7 +590,7 @@ fn at_the_bound_an_agents_message_is_refused_and_the_owners_reading_pane_stays_t
     into_body(&mut h, mine);
     type_text(&mut h, "Mine, not saved");
     for _ in 0..MAX_WINDOWS {
-        owner(&mut h, "mail.new", json!({}));
+        new_window(&mut h);
     }
     assert!(h.state().windows.full());
     let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
@@ -585,7 +610,7 @@ fn at_the_bound_a_double_clicked_draft_in_the_reading_pane_stays_there() {
     let compose = script(&mut h, "mail.editDraft", json!({"id": draft}))["compose"].as_u64().unwrap();
     assert_eq!(pane(&h), Some(compose));
     for _ in 0..MAX_WINDOWS {
-        owner(&mut h, "mail.new", json!({}));
+        new_window(&mut h);
     }
     let said = script(&mut h, "ui.openWindow", json!({"message": draft}));
     assert_eq!(said["compose"], compose, "{said}");
@@ -597,7 +622,7 @@ fn a_message_a_script_starts_stays_current_for_its_next_call_while_the_owner_is_
     let mut h = window(app());
     // The owner wrote in a window of their own, then went to another program: the window keeps
     // the keyboard as far as MailCraft knows.
-    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let mine = new_window(&mut h);
     script(&mut h, "compose.set", json!({"compose": mine, "subject": "Half written"}));
     // A script starts a message, and goes on with it without naming it.
     let theirs = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
@@ -616,7 +641,7 @@ fn an_agents_command_never_takes_the_reading_pane_from_the_owners_message() {
     script(&mut h, "compose.set", json!({"compose": aside, "body": "Earlier"}));
     let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
     let mine = owner(&mut h, "mail.reply", json!({"id": message}))["compose"].as_u64().unwrap();
-    let new = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let new = new_window(&mut h);
     let w = window_of(&h, new);
     assert_eq!((pane(&h), h.state().session.compose_id()), (Some(mine), Some(new)));
     assert_eq!(h.state().windows.of_compose(aside), None);
@@ -639,7 +664,7 @@ fn an_agents_command_never_takes_the_reading_pane_from_the_owners_message() {
 fn a_message_an_agent_is_writing_saved_by_itself_stays_the_agents() {
     let mut h = window(app());
     // The owner writes in a window of their own; an agent writes another, behind it.
-    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let mine = new_window(&mut h);
     into_body(&mut h, mine);
     type_text(&mut h, "Mine");
     let said = agent(h.state_mut(), "mail.new", json!({"subject": "The agent's"}), Class::ALL.to_vec()).expect("done at once");
@@ -670,7 +695,7 @@ fn a_message_an_agent_is_writing_saved_by_itself_stays_the_agents() {
 #[test]
 fn an_agents_pop_out_opens_behind() {
     let mut h = window(app());
-    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let mine = new_window(&mut h);
     into_body(&mut h, mine);
     let inline = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
     let said = agent(h.state_mut(), "compose.popOut", json!({"compose": inline}), Class::ALL.to_vec()).expect("done at once");

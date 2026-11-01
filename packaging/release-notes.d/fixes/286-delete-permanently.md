@@ -1,0 +1,1 @@
+- **Delete for Good is now called Delete Permanently**, on the ribbon, in command search and in the question asked before a message is gone ([#286](https://github.com/GITHUB_REPOSITORY/issues/286)).

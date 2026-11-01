@@ -41,9 +41,8 @@ msgstr "„{name}” maakt deel uit van een reeks. Bedoelt u alleen het exemplaa
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "\"{name}\" will be deleted for good."
-msgstr "„{name}” wordt definitief verwijderd."
+msgid "\"{name}\" will be permanently deleted."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -2954,6 +2953,11 @@ msgstr "Vergaderverzoeken verwijderen na het reageren"
 msgid "Delete My Copy"
 msgstr "Mijn exemplaar verwijderen"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Delete Permanently"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2989,12 +2993,6 @@ msgstr "Dit exemplaar verwijderen"
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Uw exemplaar van deze vergadering verwijderen?"
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Delete for Good"
-msgstr "Definitief verwijderen"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3742,9 +3740,8 @@ msgstr "Alles hier in één .mailcraft-bestand"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Everything in \"{folder}\" will be deleted for good."
-msgstr "Alles in „{folder}” wordt definitief verwijderd."
+msgid "Everything in \"{folder}\" will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7637,15 +7634,15 @@ msgid "Open in a Window of Its Own"
 msgstr "In een eigen venster openen"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Open on GitHub"
 msgstr "Openen op GitHub"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Open replies and forwards in a new window"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7998,12 +7995,6 @@ msgstr "In ontwikkeling"
 #, fuzzy
 msgid "People"
 msgstr "Personen"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Permanently Delete"
-msgstr "Definitief verwijderen"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -12253,9 +12244,8 @@ msgstr "Die van deze computer, waar die ook naartoe gaat"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "This contact will be deleted for good."
-msgstr "Deze contactpersoon wordt definitief verwijderd."
+msgid "This contact will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -12613,9 +12603,8 @@ msgstr "Dit bericht is verzonden met Laag belang."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "This message will be deleted for good."
-msgstr "Dit bericht wordt definitief verwijderd."
+msgid "This message will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -16588,11 +16577,10 @@ msgstr[1] "{n} berichten verwijderd"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
-msgstr[0] "{n} bericht wordt definitief verwijderd."
-msgstr[1] "{n} berichten worden definitief verwijderd."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17038,6 +17026,36 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "\"{name}\" will be deleted for good."
+#~ msgstr "„{name}” wordt definitief verwijderd."
+
+#, fuzzy
+#~ msgid "Delete for Good"
+#~ msgstr "Definitief verwijderen"
+
+#, fuzzy
+#~ msgid "Everything in \"{folder}\" will be deleted for good."
+#~ msgstr "Alles in „{folder}” wordt definitief verwijderd."
+
+#, fuzzy
+#~ msgid "Permanently Delete"
+#~ msgstr "Definitief verwijderen"
+
+#, fuzzy
+#~ msgid "This contact will be deleted for good."
+#~ msgstr "Deze contactpersoon wordt definitief verwijderd."
+
+#, fuzzy
+#~ msgid "This message will be deleted for good."
+#~ msgstr "Dit bericht wordt definitief verwijderd."
+
+#, fuzzy
+#~ msgid "{n} message will be deleted for good."
+#~ msgid_plural "{n} messages will be deleted for good."
+#~ msgstr[0] "{n} bericht wordt definitief verwijderd."
+#~ msgstr[1] "{n} berichten worden definitief verwijderd."
 
 #, fuzzy
 #~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"

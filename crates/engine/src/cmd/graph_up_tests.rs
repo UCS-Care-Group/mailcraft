@@ -414,7 +414,7 @@ fn a_refused_delete_for_good_is_put_back_at_once_with_all_that_was_fetched() {
     s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
     assert!(s.mailbox.message(m).is_none());
     let answer = delete_answered(&mut s, account, MessageOutcome::Refused { status: 403 }, None);
-    assert_eq!(answer["errors"], json!(["Couldn't delete 'Invoice 42' for good: the server doesn't allow it."]));
+    assert_eq!(answer["errors"], json!(["Couldn't permanently delete 'Invoice 42': the server doesn't allow it."]));
     // Back as the server has it (unread, in the Inbox), with its text, and nothing to send.
     let back = s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap();
     assert_eq!((back.folder, back.read, back.body.text.as_str()), (inbox, false, "Please pay by Friday."));
@@ -429,7 +429,7 @@ fn a_refused_delete_for_good_is_put_back_at_once_with_all_that_was_fetched() {
     let mut there = GraphMessage { subject: "Invoice 42".into(), ..Default::default() };
     there.server = ServerMessage { id: "M-1".into(), folder: "F-ar".into(), read: true, importance: Importance::High, ..Default::default() };
     let answer = delete_answered(&mut s, account, MessageOutcome::Refused { status: 400 }, Some(there.clone()));
-    assert_eq!(answer["errors"], json!(["Couldn't delete 'Invoice 42' for good: the server says it can't make that change."]));
+    assert_eq!(answer["errors"], json!(["Couldn't permanently delete 'Invoice 42': the server says it can't make that change."]));
     let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
     let back = s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap();
     assert_eq!((back.folder, back.read, back.importance, back.body.text.as_str()), (archive, true, Importance::High, "Kept"));

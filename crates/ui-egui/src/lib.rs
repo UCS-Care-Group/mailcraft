@@ -778,9 +778,9 @@ pub struct UiState {
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
-    /// File › Options › Mail, "Open replies and forwards in a new window" (#286): a reply or a
-    /// forward the owner starts opens in a window of its own rather than in the reading pane.
-    /// Off unless the owner turns it on.
+    /// File › Options › Mail, "Open new messages, replies and forwards in a new window" (#286):
+    /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
+    /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,

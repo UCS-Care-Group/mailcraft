@@ -35,7 +35,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "\"{name}\" will be deleted for good."
+msgid "\"{name}\" will be permanently deleted."
 msgstr ""
 
 #. what a command says
@@ -2446,6 +2446,11 @@ msgstr ""
 msgid "Delete My Copy"
 msgstr ""
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Delete Permanently"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Delete Recurring Item"
@@ -2474,11 +2479,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Delete Your Copy of This Meeting?"
-msgstr ""
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-msgid "Delete for Good"
 msgstr ""
 
 #. interface
@@ -3098,7 +3098,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "Everything in \"{folder}\" will be deleted for good."
+msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -6313,13 +6313,13 @@ msgid "Open in a Window of Its Own"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Open on GitHub"
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Open replies and forwards in a new window"
+#: crates/ui-egui/src/report_problem.rs
+msgid "Open on GitHub"
 msgstr ""
 
 #. interface
@@ -6615,11 +6615,6 @@ msgstr ""
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 msgid "People"
-msgstr ""
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-msgid "Permanently Delete"
 msgstr ""
 
 #. interface, name
@@ -10137,7 +10132,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This contact will be deleted for good."
+msgid "This contact will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -10439,7 +10434,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This message will be deleted for good."
+msgid "This message will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -13747,8 +13742,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] ""
 msgstr[1] ""
 

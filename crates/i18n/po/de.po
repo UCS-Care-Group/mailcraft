@@ -40,9 +40,8 @@ msgstr "„{name}“ gehört zu einer Serie. Meinen Sie nur das Element am {day}
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "\"{name}\" will be deleted for good."
-msgstr "„{name}“ wird endgültig gelöscht."
+msgid "\"{name}\" will be permanently deleted."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -2805,6 +2804,11 @@ msgstr "Besprechungsanfragen nach dem Antworten löschen"
 msgid "Delete My Copy"
 msgstr "Meine Kopie löschen"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Delete Permanently"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2840,12 +2844,6 @@ msgstr "Dieses Vorkommen löschen"
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Ihre Kopie dieser Besprechung löschen?"
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Delete for Good"
-msgstr "Endgültig löschen"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3561,9 +3559,8 @@ msgstr "Alles hier in einer .mailcraft-Datei"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Everything in \"{folder}\" will be deleted for good."
-msgstr "Alles in „{folder}“ wird endgültig gelöscht."
+msgid "Everything in \"{folder}\" will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7282,13 +7279,13 @@ msgid "Open in a Window of Its Own"
 msgstr "In eigenem Fenster öffnen"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Open on GitHub"
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Open replies and forwards in a new window"
+#: crates/ui-egui/src/report_problem.rs
+msgid "Open on GitHub"
 msgstr ""
 
 #. interface
@@ -7623,12 +7620,6 @@ msgstr ""
 #, fuzzy
 msgid "People"
 msgstr "Kontakte"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Permanently Delete"
-msgstr "Endgültig löschen"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -11626,9 +11617,8 @@ msgstr "Die dieses Computers, wo immer er ist"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "This contact will be deleted for good."
-msgstr "Dieser Kontakt wird endgültig gelöscht."
+msgid "This contact will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11975,9 +11965,8 @@ msgstr "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "This message will be deleted for good."
-msgstr "Diese Nachricht wird endgültig gelöscht."
+msgid "This message will be permanently deleted."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15745,11 +15734,10 @@ msgstr[1] "{n} Nachrichten entfernt"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
-msgstr[0] "{n} Nachricht wird endgültig gelöscht."
-msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16183,6 +16171,36 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "\"{name}\" will be deleted for good."
+#~ msgstr "„{name}“ wird endgültig gelöscht."
+
+#, fuzzy
+#~ msgid "Delete for Good"
+#~ msgstr "Endgültig löschen"
+
+#, fuzzy
+#~ msgid "Everything in \"{folder}\" will be deleted for good."
+#~ msgstr "Alles in „{folder}“ wird endgültig gelöscht."
+
+#, fuzzy
+#~ msgid "Permanently Delete"
+#~ msgstr "Endgültig löschen"
+
+#, fuzzy
+#~ msgid "This contact will be deleted for good."
+#~ msgstr "Dieser Kontakt wird endgültig gelöscht."
+
+#, fuzzy
+#~ msgid "This message will be deleted for good."
+#~ msgstr "Diese Nachricht wird endgültig gelöscht."
+
+#, fuzzy
+#~ msgid "{n} message will be deleted for good."
+#~ msgid_plural "{n} messages will be deleted for good."
+#~ msgstr[0] "{n} Nachricht wird endgültig gelöscht."
+#~ msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
 
 #, fuzzy
 #~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"

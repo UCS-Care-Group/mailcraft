@@ -1149,7 +1149,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "file.import" => "import a file with an Outbox chosen: no mail goes in it, and none is sent".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
             let ids = taken(params);
-            format!("delete {} for good", messages_text(s, &ids))
+            format!("permanently delete {}", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {
             let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
@@ -1197,7 +1197,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "people.delete" => {
             let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!(
-                "delete the contact {} for good; contacts don't go to Deleted Items",
+                "permanently delete the contact {}; contacts don't go to Deleted Items",
                 c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
             )
         }
@@ -1206,7 +1206,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let others: Vec<String> =
                 params.get("others").and_then(Value::as_array).into_iter().flatten().take(100).map(|o| name(o.as_u64())).collect();
             format!(
-                "merge {} into the contact {} and delete them for good; contacts don't go to Deleted Items",
+                "merge {} into the contact {} and permanently delete them; contacts don't go to Deleted Items",
                 if others.is_empty() {
                     "(no contacts)".to_string()
                 } else {
@@ -1218,7 +1218,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "tasks.delete" => {
             let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             let shared = if shared_task(s, id, params).is_some() { SHARED_TASK } else { "" };
-            format!("delete the task {} for good{shared}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
+            format!("permanently delete the task {}{shared}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
         "tasks.edit" | "tasks.complete" | "tasks.categorize" if shared_task(s, id, params).is_some() => {
             let t = shared_task(s, id, params).map(|t| quoted(&t.title)).unwrap_or_default();
