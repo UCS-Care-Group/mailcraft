@@ -30,7 +30,6 @@ fn piece(account: Id) -> mailcraft_model::sync::EwsMailResult {
 /// An Exchange server account with its folders listed and two messages in its Inbox.
 fn setup() -> (Session, Id, Id, Id) {
     let mut s = Session::empty();
-    s.ews = true;
     let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": URL}})).unwrap()["id"].as_u64().unwrap();
     let list = vec![
         folder("F1", "Inbox", FolderKind::Inbox),
@@ -97,9 +96,6 @@ fn read_flag_category_importance_and_a_move_go_up_and_are_counted() {
     assert!(all.iter().any(|c| matches!(c, MessageChange::Move { id, to, .. } if id == "A2" && to == "F5")), "{all:?}");
     assert!(all.iter().any(|c| matches!(c, MessageChange::Update { id, categories: Some(_), .. } if id == "A2")), "{all:?}");
     assert_eq!(crate::cmd::account::unpushed(&s, account), 3);
-    // Switched off, nothing would go: nothing is counted.
-    s.ews = false;
-    assert_eq!(crate::cmd::account::unpushed(&s, account), 0);
 }
 
 #[test]
