@@ -19,7 +19,7 @@ use mailcraft_model::remote_tasks::{
     MAX_TASK_LISTS, MAX_TASK_OPS, MAX_TASKS, MAX_TASKS_PER_LIST, RemoteTask, RemoteTaskList, TaskOpKind, TaskOutcome, TaskResult, TasksDownload,
     TasksUpload, TasksUploaded,
 };
-use mailcraft_model::{Importance, TaskPatch};
+use mailcraft_model::{Importance, MAX_TASK_STEPS, TaskPatch, TaskStep};
 use mailcraft_time::{DateTime, Timestamp};
 use serde_json::{Value, json};
 
@@ -94,6 +94,42 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
             Err(e) => return Err(e),
         }
     }
+    // Steps are a navigation collection, not fields in the task response. Read them
+    // even when the parent did not change: a checklist-only edit must come down too.
+    for task in &mut download.tasks {
+        let path = format!("{LISTS}/{}/tasks/{}/checklistItems", http::encode(&task.list), http::encode(&task.id));
+        let mut steps = Vec::new();
+        let mut seen = HashSet::new();
+        let mut malformed = false;
+        let read = graph.list(Doing::Tasks, graph.url(&path), &[], MAX_TASK_STEPS, &mut |entry| {
+            let id = text(entry, "id");
+            if !valid_id(id)
+                || !seen.insert(id.to_string())
+                || entry.get("displayName").and_then(Value::as_str).is_none()
+                || entry.get("isChecked").and_then(Value::as_bool).is_none()
+            {
+                malformed = true;
+                return;
+            }
+            let mut step = TaskStep {
+                id: id.into(),
+                title: text(entry, "displayName").into(),
+                completed: entry.get("isChecked").and_then(Value::as_bool).unwrap_or(false),
+            };
+            step.tidy();
+            steps.push(step);
+        });
+        task.steps = match read {
+            Ok(whole) => (whole && !malformed).then_some(steps),
+            // A task can disappear between the list and its checklist request. As for
+            // a list that disappears above, keep the rest of the download usable.
+            Err(NetError::Proto(mailcraft_proto::ProtoError::Rejected(_))) => {
+                log::warn!("tasks: a checklist could not be read; existing steps will be kept");
+                None
+            }
+            Err(e) => return Err(e),
+        };
+    }
     log::debug!("tasks: {} of them in {} lists, complete: {}", download.tasks.len(), download.lists.len(), download.complete);
     Ok(download)
 }
@@ -150,6 +186,7 @@ pub(super) fn task_of(entry: &Value, list: &str) -> Option<RemoteTask> {
         change_key: text(entry, "@odata.etag").to_string(),
         title: text(entry, "title").to_string(),
         notes,
+        steps: None,
         start: day_of(entry.get("startDateTime")),
         due: day_of(entry.get("dueDateTime")),
         completed,
@@ -251,11 +288,27 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         } else {
             op.list.clone()
         };
+        let step_kind = matches!(op.kind, TaskOpKind::StepCreate | TaskOpKind::StepUpdate | TaskOpKind::StepDelete);
+        let step = op.patch.steps.as_ref().filter(|steps| steps.len() == 1).and_then(|steps| steps.first());
+        if step_kind && step.is_none_or(|step| !valid_id(&step.id) || step.title.chars().count() > MAX_TITLE) {
+            uploaded.outcomes.push(outcome(TaskResult::Refused, "that isn't a checklist change the server could take"));
+            continue;
+        }
         let lists = format!("{LISTS}/{}/tasks", http::encode(&list));
         let (method, path, body) = match op.kind {
             TaskOpKind::Create => ("POST", lists, Some(task_body(&op.patch).to_string())),
             TaskOpKind::Update => ("PATCH", format!("{lists}/{}", http::encode(&op.id)), Some(task_body(&op.patch).to_string())),
             TaskOpKind::Delete => ("DELETE", format!("{lists}/{}", http::encode(&op.id)), None),
+            TaskOpKind::StepCreate | TaskOpKind::StepUpdate | TaskOpKind::StepDelete => {
+                let Some(step) = step else { continue };
+                let path = format!("{lists}/{}/checklistItems", http::encode(&op.id));
+                let body = json!({"displayName": step.title, "isChecked": step.completed}).to_string();
+                match op.kind {
+                    TaskOpKind::StepCreate => ("POST", path, Some(body)),
+                    TaskOpKind::StepDelete => ("DELETE", format!("{path}/{}", http::encode(&step.id)), None),
+                    _ => ("PATCH", format!("{path}/{}", http::encode(&step.id)), Some(body)),
+                }
+            }
         };
         let headers: &[(&str, &str)] = if body.is_some() { &[("Content-Type", "application/json")] } else { &[] };
         let reply = match graph.ask(&graph.url(&path), method, headers, body.as_deref(), WRITE_TIMEOUT, MAX_WRITTEN) {
@@ -284,6 +337,13 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                     if !valid_id(&done.id) {
                         done.result = TaskResult::Refused;
                         done.error = "the server made it and didn't say what it is called".into();
+                    }
+                } else if op.kind == TaskOpKind::StepCreate {
+                    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+                    done.step_id = text(&json, "id").to_string();
+                    if !valid_id(&done.step_id) {
+                        done.result = TaskResult::Refused;
+                        done.error = "the server made a checklist item and didn't say what it is called".into();
                     }
                 } else if op.kind == TaskOpKind::Update {
                     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);

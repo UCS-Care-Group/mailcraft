@@ -41,6 +41,8 @@ pub struct RemoteTask {
     pub change_key: String,
     pub title: String,
     pub notes: String,
+    /// None means the checklist could not be read whole. Never interpret that as deletion.
+    pub steps: Option<Vec<crate::TaskStep>>,
     pub start: Option<Date>,
     pub due: Option<Date>,
     pub completed: Option<Timestamp>,
@@ -57,6 +59,19 @@ impl RemoteTask {
         self.change_key = key(&self.change_key);
         self.title = line(&self.title, MAX_LINE);
         self.notes = text(&self.notes, MAX_NOTES);
+        if let Some(steps) = &mut self.steps {
+            if steps.len() > crate::MAX_TASK_STEPS {
+                self.steps = None;
+            } else {
+                let mut seen = std::collections::HashSet::new();
+                for step in steps.iter_mut() {
+                    step.tidy();
+                }
+                if steps.iter().any(|step| step.id.is_empty() || !seen.insert(step.id.clone())) {
+                    self.steps = None;
+                }
+            }
+        }
         self.start = self.start.and_then(|d| Date::new(d.year, d.month, d.day));
         self.due = self.due.and_then(|d| Date::new(d.year, d.month, d.day));
         self.categories = std::mem::take(&mut self.categories).into_iter().map(|name| line(&name, MAX_NAME)).filter(|name| !name.is_empty()).fold(
@@ -122,6 +137,9 @@ pub enum TaskOpKind {
     /// Change the fields of the patch.
     Update,
     Delete,
+    StepCreate,
+    StepUpdate,
+    StepDelete,
 }
 
 /// One change to tell a server.
@@ -182,6 +200,8 @@ pub struct TaskOutcome {
     pub list: String,
     pub change_key: String,
     pub result: TaskResult,
+    /// The server id of a checklist item just made.
+    pub step_id: String,
     /// What the change said, as it was sent: what the server has of the to-do now, when `result`
     /// is [`TaskResult::Done`].
     pub patch: TaskPatch,
@@ -196,6 +216,7 @@ impl TaskOutcome {
         self.id = key(&self.id);
         self.list = key(&self.list);
         self.change_key = key(&self.change_key);
+        self.step_id = key(&self.step_id);
         self.error = line(&self.error, MAX_WHY);
     }
 }

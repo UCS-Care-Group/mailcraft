@@ -4938,6 +4938,8 @@ mod contact {
 
 /// The task form.
 mod task {
+    #[cfg(test)]
+    mod steps_tests;
     use egui::Ui;
     use mailcraft_engine::Session;
     use mailcraft_model::{Id, Importance};
@@ -4981,6 +4983,7 @@ mod task {
         remind_time: String,
         categories: Vec<String>,
         notes: String,
+        steps: Vec<mailcraft_model::TaskStep>,
         completed: bool,
         /// The task was complete when the form opened.
         was_completed: bool,
@@ -5023,6 +5026,7 @@ mod task {
                 remind_time: reminder.map(|r| r.time_short(s.prefs.twelve_hour)).unwrap_or_default(),
                 categories: t.categories.clone(),
                 notes: t.notes.clone(),
+                steps: t.steps.iter().take(mailcraft_model::MAX_TASK_STEPS).cloned().collect(),
                 completed: t.is_complete(),
                 was_completed: t.is_complete(),
                 day_start: s.prefs.work_start.min(23),
@@ -5076,6 +5080,7 @@ mod task {
             object(json!({
                 "title": self.title,
                 "notes": self.notes,
+                "steps": self.steps,
                 "due": date_value(&self.due),
                 "start": date_value(&self.start),
                 "importance": self.importance.code(),
@@ -5108,6 +5113,7 @@ mod task {
         fn ready(&self) -> bool {
             let timed = !self.remind_time.trim().is_empty();
             !self.title.trim().is_empty()
+                && self.steps.iter().all(|step| !step.title.trim().is_empty())
                 && date_ok(&self.due, false)
                 && date_ok(&self.start, false)
                 && date_ok(&self.remind_date, timed)
@@ -5159,6 +5165,28 @@ mod task {
                         ui.checkbox(&mut self.completed, tl!("Completed"));
                     });
                 }
+                tall_row(ui, tl!("Steps"), |ui| {
+                    ui.vertical(|ui| {
+                        let mut remove = None;
+                        for (index, step) in self.steps.iter_mut().enumerate() {
+                            ui.push_id(index, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.checkbox(&mut step.completed, "");
+                                    ui.add(egui::TextEdit::singleline(&mut step.title).desired_width(220.0).char_limit(255));
+                                    if ui.small_button(tl!("Remove")).clicked() {
+                                        remove = Some(index);
+                                    }
+                                });
+                            });
+                        }
+                        if let Some(index) = remove {
+                            self.steps.remove(index);
+                        }
+                        if self.steps.len() < mailcraft_model::MAX_TASK_STEPS && ui.small_button(tl!("Add step")).clicked() {
+                            self.steps.push(mailcraft_model::TaskStep::default());
+                        }
+                    });
+                });
                 tall_row(ui, tl!("Notes"), |ui| {
                     multiline(ui, "notes", &mut self.notes, 4);
                 });

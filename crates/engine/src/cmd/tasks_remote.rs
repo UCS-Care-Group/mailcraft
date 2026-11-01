@@ -44,7 +44,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"account": number | null} — the owner's answer to "Send your local tasks to <account>'s To Do?": a Microsoft account sends the to-dos that exist only on this computer, and every one made from now on, to its default list at the next Send/Receive of tasks; null ("Not now") keeps them here. Until it is answered nothing local is sent. Answers {"sent": number (how many are to go), "keptHere": number}"#),
         CommandSpec::new("sync.taskChanges", "To-do Changes to Send", "Send / Receive", task_changes_command)
             .pure()
-            .params(r#"{"account": number} — what that Microsoft account's server (Microsoft To Do) is to be told of to-dos made, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "task": number, "id"?: string, "list"?: string, "patch": {title?, notes?, start?, due?, completed?, importance?, categories?, reminder?}}]}"#),
+            .params(r#"{"account": number} — what that Microsoft account's server (Microsoft To Do) is to be told of to-dos made, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete"|"stepCreate"|"stepUpdate"|"stepDelete", "task": number, "id"?: string, "list"?: string, "patch": {title?, notes?, start?, due?, completed?, importance?, categories?, reminder?, steps?}}]} — a step operation names the parent in id/list and exactly one step in patch.steps; a stepCreate outcome names its server id in stepId"#),
         CommandSpec::new("sync.applyTaskChanges", "Apply Sent To-do Changes", "Send / Receive", apply_task_changes_command)
             .pure()
             .params(r#"{"result": TasksUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "task": number, "id"?: string, "list"?: string, "changeKey"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "patch": {…}, "error"?: string}]} — answers {"done", "failed", "denied", "refused", "messages": [string]}"#),
@@ -102,17 +102,64 @@ fn task_upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<TaskOp>, CmdErro
         ops.push(TaskOp { kind: TaskOpKind::Delete, task: 0, id: gone.id.clone(), list: gone.list.clone(), patch: Default::default() });
     }
     for task in mailbox.tasks.values().filter(|t| t.origin.account == account && !t.origin.id.is_empty() && !t.local_only) {
-        if let Some(patch) = task.patch() {
-            ops.push(TaskOp { kind: TaskOpKind::Update, task: task.id, id: task.origin.id.clone(), list: task.list.clone(), patch });
+        if ops.len() >= MAX_TASK_OPS {
+            break;
         }
+        if let Some(mut patch) = task.patch() {
+            patch.steps = None;
+            if !patch.is_empty() {
+                ops.push(TaskOp { kind: TaskOpKind::Update, task: task.id, id: task.origin.id.clone(), list: task.list.clone(), patch });
+            }
+        }
+        step_changes(task, &mut ops);
     }
     let waiting =
         |t: &&std::sync::Arc<Task>| !t.local_only && t.origin.id.is_empty() && (t.origin.account == account || (home && t.origin.account == 0));
     for task in mailbox.tasks.values().filter(waiting).take(MAX_TASK_CREATES) {
-        ops.push(TaskOp { kind: TaskOpKind::Create, task: task.id, id: String::new(), list: String::new(), patch: task.fields().whole() });
+        ops.push(TaskOp {
+            kind: TaskOpKind::Create,
+            task: task.id,
+            id: String::new(),
+            list: String::new(),
+            patch: {
+                let mut patch = task.fields().whole();
+                patch.steps = None;
+                patch
+            },
+        });
     }
     ops.truncate(MAX_TASK_OPS);
     Ok(ops)
+}
+
+/// Each checklist write has its own acknowledgement, so a partial upload cannot mark
+/// an unsent step as synced. A new parent is made first; its steps follow next run.
+fn step_changes(task: &Task, ops: &mut Vec<TaskOp>) {
+    let Some(base) = &task.synced else { return };
+    let mut push = |kind, step: &mailcraft_model::TaskStep| {
+        if ops.len() >= MAX_TASK_OPS {
+            return;
+        }
+        ops.push(TaskOp {
+            kind,
+            task: task.id,
+            id: task.origin.id.clone(),
+            list: task.list.clone(),
+            patch: mailcraft_model::TaskPatch { steps: Some(vec![step.clone()]), ..Default::default() },
+        });
+    };
+    for step in &base.steps {
+        if !task.steps.iter().any(|here| here.id == step.id) {
+            push(TaskOpKind::StepDelete, step);
+        }
+    }
+    for step in task.steps.iter().take(mailcraft_model::MAX_TASK_STEPS) {
+        match base.steps.iter().find(|base| base.id == step.id) {
+            None => push(TaskOpKind::StepCreate, step),
+            Some(base) if base != step => push(TaskOpKind::StepUpdate, step),
+            _ => {}
+        }
+    }
 }
 
 /// What `account`'s server is to be told.
@@ -141,6 +188,7 @@ fn from_remote(remote: &RemoteTask) -> TaskFields {
         importance: remote.importance,
         categories: remote.categories.clone(),
         reminder: remote.reminder,
+        steps: remote.steps.clone().unwrap_or_default(),
     }
 }
 
@@ -168,13 +216,34 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
             merged.skipped += 1;
             continue;
         }
-        let there = from_remote(&remote);
+        let mut there = from_remote(&remote);
         let origin = Origin { account, id: remote.id.clone(), change_key: remote.change_key.clone(), ..Default::default() };
         match known.get(&remote.id).and_then(|id| mailbox.task(*id)) {
             Some(old) => {
                 // The fields changed here since stay; the rest are the server's.
                 let base = old.synced.clone().unwrap_or_else(|| old.fields());
-                let fields = base.merged(&old.fields(), &there);
+                if remote.steps.is_none() {
+                    there.steps = base.steps.clone();
+                }
+                let mut here = old.fields();
+                // A POST can reach the service even if its response is lost. Adopt each
+                // matching new server item once rather than creating that step twice.
+                let mut used: HashSet<String> = here.steps.iter().map(|step| step.id.clone()).collect();
+                for local in &mut here.steps {
+                    if base.steps.iter().any(|step| step.id == local.id) {
+                        continue;
+                    }
+                    if let Some(remote) = there.steps.iter().find(|remote| {
+                        !used.contains(&remote.id)
+                            && !base.steps.iter().any(|step| step.id == remote.id)
+                            && remote.title == local.title
+                            && remote.completed == local.completed
+                    }) {
+                        local.id = remote.id.clone();
+                        used.insert(remote.id.clone());
+                    }
+                }
+                let fields = base.merged(&here, &there);
                 let mut fresh = old.clone();
                 fresh.set_fields(fields);
                 fresh.synced = Some(there);
@@ -283,6 +352,54 @@ pub fn apply_task_outcomes(mailbox: &mut Mailbox, uploaded: &TasksUploaded) -> R
         let mut outcome = outcome.clone();
         outcome.tidy();
         let why = || if outcome.error.is_empty() { String::new() } else { format!(": {}", outcome.error) };
+        if matches!(outcome.kind, TaskOpKind::StepCreate | TaskOpKind::StepUpdate | TaskOpKind::StepDelete) {
+            if !mailbox.task(outcome.task).is_some_and(|task| task.origin.account == account && task.origin.id == outcome.id) {
+                continue;
+            }
+            if !matches!(outcome.result, TaskResult::Done | TaskResult::Gone) {
+                failed += 1;
+                if outcome.result == TaskResult::Refused {
+                    if let Ok(task) = mailbox.task_mut(outcome.task) {
+                        task.local_only = true;
+                    }
+                    merged.say("Microsoft To Do refused a task step; it stays here until the task is edited".into());
+                }
+                continue;
+            }
+            let Some(sent) = outcome.patch.steps.as_ref().filter(|steps| steps.len() == 1).and_then(|steps| steps.first()) else { continue };
+            let mut sent = sent.clone();
+            sent.tidy();
+            if sent.id.is_empty() {
+                continue;
+            }
+            let Ok(task) = mailbox.task_mut(outcome.task) else { continue };
+            if task.origin.account != account || task.origin.id != outcome.id {
+                continue;
+            }
+            let base = task.synced.get_or_insert_with(TaskFields::default);
+            if outcome.kind == TaskOpKind::StepCreate && outcome.result == TaskResult::Done && outcome.step_id.is_empty() {
+                continue;
+            }
+            if outcome.kind == TaskOpKind::StepDelete || outcome.result == TaskResult::Gone {
+                base.steps.retain(|step| step.id != sent.id);
+            }
+            if outcome.kind != TaskOpKind::StepDelete && outcome.result == TaskResult::Done {
+                let mut synced = sent.clone();
+                if outcome.kind == TaskOpKind::StepCreate {
+                    synced.id = outcome.step_id.clone();
+                    if let Some(here) = task.steps.iter_mut().find(|step| step.id == sent.id) {
+                        here.id = synced.id.clone();
+                    }
+                }
+                if let Some(old) = base.steps.iter_mut().find(|step| step.id == synced.id) {
+                    *old = synced;
+                } else if base.steps.len() < mailcraft_model::MAX_TASK_STEPS {
+                    base.steps.push(synced);
+                }
+            }
+            merged.updated += 1;
+            continue;
+        }
         match (outcome.kind, outcome.result) {
             (TaskOpKind::Delete, TaskResult::Done | TaskResult::Gone | TaskResult::Refused) => {
                 mailbox.task_gone.retain(|g| !(g.account == account && g.id == outcome.id));

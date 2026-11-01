@@ -39,7 +39,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected task)"#;
-const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
+const TASK: &str = r#"{"title": string, "notes"?: string, "steps"?: [{"id"?: string (existing step only), "title": string, "completed"?: bool}] (whole checklist), "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
     if s.sel.task.is_none() { Some("select a task first") } else { None }
@@ -50,9 +50,30 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
-fn apply(s: &Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
+fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
     if let Some(title) = p::str(v, "title") {
         t.title = title.replace(['\r', '\n'], " ").trim().chars().take(500).collect();
+    }
+    if let Some(value) = v.get("steps") {
+        let mut steps: Vec<mailcraft_model::TaskStep> =
+            serde_json::from_value(value.clone()).map_err(|_| bad("`steps` must be a list of {id?, title, completed?}"))?;
+        if steps.len() > mailcraft_model::MAX_TASK_STEPS {
+            return Err(bad("too many task steps"));
+        }
+        let mut seen = std::collections::HashSet::new();
+        for step in &mut steps {
+            if !step.id.is_empty() && !t.steps.iter().any(|old| old.id == step.id) {
+                return Err(bad("a step id must belong to this task; omit the id for a new step"));
+            }
+            if step.id.is_empty() {
+                step.id = format!("local:{}", s.mailbox.alloc_id());
+            }
+            step.tidy();
+            if step.title.is_empty() || !seen.insert(step.id.clone()) {
+                return Err(bad("steps need titles and unique ids"));
+            }
+        }
+        t.steps = steps;
     }
     if let Some(n) = p::str(v, "notes") {
         t.notes = n.to_string();
@@ -144,7 +165,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 
 fn task_json(s: &Session, t: &Task) -> Value {
     json!({
-        "id": t.id, "title": t.title, "notes": t.notes, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
+        "id": t.id, "title": t.title, "notes": t.notes, "steps": t.steps, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
         "complete": t.is_complete(), "completed": t.completed.map(mailcraft_time::format_iso_utc), "overdue": t.is_overdue(s.today()),
         "dueLabel": t.due_label(s.today()), "importance": t.importance, "categories": t.categories, "message": t.message,
         "reminder": t.reminder.map(|r| s.local(r).iso()),

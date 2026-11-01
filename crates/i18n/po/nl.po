@@ -690,6 +690,11 @@ msgstr "Toevoegen als Microsoft-account"
 msgid "Add filters"
 msgstr "Filters toevoegen"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Add step"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8349,7 +8354,7 @@ msgid "Reminders Window"
 msgstr "Herinneringenvenster"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Verwijderen"
@@ -10405,6 +10410,11 @@ msgstr "Statusbalk · Bestand"
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "Status:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+msgid "Steps"
 msgstr ""
 
 #. interface

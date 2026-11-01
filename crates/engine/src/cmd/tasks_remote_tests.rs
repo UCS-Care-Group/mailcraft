@@ -690,3 +690,147 @@ fn a_to_do_taken_out_of_a_shared_list_by_another_way_is_an_overstep() {
     after.task_mut(ours).unwrap().list = "L1".into();
     assert_eq!(overstep(&s.mailbox, &after, &[]), Some(Class::Send));
 }
+
+#[test]
+fn steps_survive_download_edit_upload_and_a_mailbox_roundtrip() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Pack tea".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let task = titled(&s, "Trip");
+    assert_eq!(task.steps, there.steps.clone().unwrap());
+    run(
+        &mut s,
+        "tasks.edit",
+        json!({"id": task.id, "steps": [
+            {"id": "S1", "title": "Pack tea", "completed": true}, {"title": "Pack cake"}
+        ]}),
+    );
+    let upload = task_upload(&s.mailbox, account).unwrap();
+    let ops: Vec<_> = upload.ops.iter().filter(|op| op.task == task.id).collect();
+    assert_eq!(ops.iter().map(|op| op.kind).collect::<Vec<_>>(), [TaskOpKind::StepUpdate, TaskOpKind::StepCreate]);
+    // A failed create is not acknowledged by a successful update to the other step.
+    let uploaded = TasksUploaded {
+        account,
+        outcomes: vec![TaskOutcome {
+            kind: ops[0].kind,
+            task: task.id,
+            id: "T1".into(),
+            result: TaskResult::Done,
+            patch: ops[0].patch.clone(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    super::tasks_remote::apply_task_outcomes(&mut s.mailbox, &uploaded).unwrap();
+    let pending = task_upload(&s.mailbox, account).unwrap();
+    assert_eq!(pending.ops.iter().filter(|op| op.task == task.id).map(|op| op.kind).collect::<Vec<_>>(), [TaskOpKind::StepCreate]);
+    let create = pending.ops.iter().find(|op| op.task == task.id).unwrap().clone();
+    // An edit made while the create is in flight stays pending under the server's new id.
+    let mut steps = s.mailbox.task(task.id).unwrap().steps.clone();
+    steps[1].title = "Pack more cake".into();
+    run(&mut s, "tasks.edit", json!({"id": task.id, "steps": steps}));
+    super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome {
+                kind: TaskOpKind::StepCreate,
+                task: task.id,
+                id: "T1".into(),
+                step_id: "S2".into(),
+                result: TaskResult::Done,
+                patch: create.patch,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let now = s.mailbox.task(task.id).unwrap();
+    assert_eq!((now.steps[1].id.as_str(), now.steps[1].title.as_str()), ("S2", "Pack more cake"));
+    let saved = serde_json::to_value(&s.mailbox).unwrap();
+    let restored: mailcraft_model::Mailbox = serde_json::from_value(saved).unwrap();
+    assert_eq!(restored.task(task.id).unwrap(), now);
+    let waiting = task_upload(&restored, account).unwrap();
+    let op = waiting.ops.iter().find(|op| op.task == task.id).unwrap();
+    assert_eq!(op.kind, TaskOpKind::StepUpdate);
+    assert_eq!(op.patch.steps.as_ref().unwrap()[0].title, "Pack more cake");
+}
+
+#[test]
+fn checklist_merge_keeps_independent_remote_changes_and_incomplete_reads() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    let step = |id: &str, title: &str| mailcraft_model::TaskStep { id: id.into(), title: title.into(), completed: false };
+    there.steps = Some(vec![step("S1", "Tea"), step("S2", "Cake")]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let id = titled(&s, "Trip").id;
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": [{"id": "S1", "title": "Tea", "completed": true}]}));
+    there.steps = Some(vec![step("S1", "Green tea"), step("S2", "More cake"), step("S3", "Cups")]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let task = s.mailbox.task(id).unwrap();
+    assert_eq!(
+        task.steps.iter().map(|step| (step.id.as_str(), step.title.as_str(), step.completed)).collect::<Vec<_>>(),
+        [("S1", "Green tea", true), ("S3", "Cups", false)]
+    );
+    let before = task.steps.clone();
+    there.steps = None; // capped, malformed, or an older host that doesn't read steps
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps, before);
+    let ops = task_upload(&s.mailbox, account).unwrap().ops;
+    assert!(ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepDelete));
+    assert!(ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepUpdate));
+}
+
+#[test]
+fn new_parent_is_acknowledged_before_its_steps_are_sent() {
+    let (mut s, account) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": account}));
+    let made = run(&mut s, "tasks.new", json!({"title": "New trip", "steps": [{"title": "Tea"}]}));
+    let id = made["id"].as_u64().unwrap();
+    let up = task_upload(&s.mailbox, account).unwrap();
+    let op = up.ops.iter().find(|op| op.task == id).unwrap();
+    assert_eq!(op.kind, TaskOpKind::Create);
+    assert!(op.patch.steps.is_none());
+    super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome {
+                kind: TaskOpKind::Create,
+                task: id,
+                id: "T1".into(),
+                list: "L1".into(),
+                result: TaskResult::Done,
+                patch: op.patch.clone(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let up = task_upload(&s.mailbox, account).unwrap();
+    let op = up.ops.iter().find(|op| op.task == id).unwrap();
+    assert_eq!((op.kind, op.id.as_str()), (TaskOpKind::StepCreate, "T1"));
+    // An old mailbox without the new fields still opens.
+    let old: Task = serde_json::from_value(json!({"id": 1, "title": "Old"})).unwrap();
+    assert!(old.steps.is_empty());
+}
+
+#[test]
+fn a_step_created_without_its_reply_is_adopted_once() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(Vec::new());
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let id = titled(&s, "Trip").id;
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": [{"title": "Tea"}, {"title": "Tea"}]}));
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let task = s.mailbox.task(id).unwrap();
+    assert_eq!(task.steps.len(), 2);
+    assert_eq!(task.steps.iter().filter(|step| step.id == "S1").count(), 1);
+    let up = task_upload(&s.mailbox, account).unwrap();
+    assert_eq!(up.ops.iter().filter(|op| op.task == id && op.kind == TaskOpKind::StepCreate).count(), 1);
+}

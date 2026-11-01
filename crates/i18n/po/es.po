@@ -667,6 +667,11 @@ msgstr ""
 msgid "Add filters"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Add step"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8086,7 +8091,7 @@ msgid "Reminders Window"
 msgstr "Ventana de avisos"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Quitar"
@@ -10083,6 +10088,11 @@ msgstr "Barra de estado · Archivo"
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "Status:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+msgid "Steps"
 msgstr ""
 
 #. interface
