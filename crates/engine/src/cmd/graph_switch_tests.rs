@@ -342,3 +342,17 @@ fn a_message_whose_draft_went_with_the_switch_counts_as_not_saved() {
     assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
     assert_eq!(c.subject, "Written elsewhere");
 }
+
+#[test]
+fn a_message_put_aside_whose_draft_went_with_the_switch_counts_as_not_saved_too() {
+    let (mut s, ids) = mailbox();
+    s.path = Some(scratch("switch-draft-aside").join("mailbox.mailcraft"));
+    let aside = s.run("mail.editDraft", &json!({"id": ids.server_draft})).unwrap()["compose"].as_u64().unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    assert_ne!(s.compose_id(), Some(aside));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    // The one put aside is saved nowhere now as well (#286, #573).
+    let c = s.composing_by_id(aside).unwrap();
+    assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
+    assert_eq!(c.subject, "Written elsewhere");
+}

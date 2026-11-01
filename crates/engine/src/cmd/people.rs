@@ -283,7 +283,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn email(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
-    // (Beside a message being written, which stays open as it is: #286.)
+    // (Beside a message being written, which stays open, saved first: #286.)
     s.run("mail.new", &json!({"to": to.full()}))
 }
 

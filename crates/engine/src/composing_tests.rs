@@ -52,10 +52,18 @@ fn two_are_open_at_once_and_the_last_opened_is_current() {
     assert_eq!(s.composing_count(), 2);
     assert_eq!(s.compose_id(), Some(second));
     assert_eq!(s.compose.as_ref().unwrap().subject, "Second");
-    // The first is still open as it was, with its changes, saved nowhere: nothing was let go of.
+    // The first is still open as it was, and was saved to Drafts first, unasked, so that what
+    // the owner wrote isn't only in memory while they write the other.
     let c = s.composing_by_id(first).unwrap();
-    assert!(c.dirty && c.subject == "First" && text(&s, first).contains("First"));
-    assert_eq!(drafts_with(&s, "First"), 0);
+    assert!(!c.dirty && c.subject == "First" && text(&s, first).contains("First"));
+    assert_eq!(drafts_with(&s, "First"), 1);
+    // Saved once: opening another while it has no new changes saves nothing again.
+    assert!(s.show_compose(first));
+    let steps = s.history.len();
+    run(&mut s, "mail.new", json!({}));
+    assert_eq!((drafts_with(&s, "First"), s.history.len()), (1, steps));
+    run(&mut s, "compose.close", json!({"discard": true}));
+    assert!(s.show_compose(second));
     // Replies, forwards and opened drafts open beside them too, each with an id of its own.
     let inbox = s.mailbox.folder_of_kind(s.mailbox.default_account().unwrap().id, FolderKind::Inbox).unwrap();
     let received = s.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft && !m.unfetched && !m.incomplete).unwrap().id;
@@ -192,8 +200,10 @@ fn each_is_saved_first_by_itself_and_another_mailbox_saves_every_one() {
 #[test]
 fn another_mailbox_saves_every_message_being_written_first() {
     let mut s = session();
-    open(&mut s, "First");
+    let first = open(&mut s, "First");
     open(&mut s, "Second");
+    // The first was saved when the second opened; changed again, both have changes unsaved.
+    run(&mut s, "compose.set", json!({"compose": first, "body": "First, again"}));
     let steps = s.history.len();
     // A mailbox that can't be read fails, but what was saved first stays saved.
     assert!(s.run("file.open", &json!({"name": "other.mailcraft", "data": "not a mailbox"})).is_err());
@@ -211,6 +221,9 @@ fn the_owners_mark_is_kept_by_each_message() {
     // An agent's message opens behind the owner's, which stays where they are writing (#286).
     let agents = as_agent(&mut s, "mail.new", json!({"subject": "The agent's"})).unwrap()["compose"].as_u64().unwrap();
     assert_eq!(s.compose_id(), Some(mine));
+    // Nothing of the owner's is touched: not saved for them, still theirs to save or not.
+    assert!(s.compose.as_ref().unwrap().dirty && s.compose.as_ref().unwrap().draft.is_none());
+    assert_eq!(drafts_with(&s, "Mine"), 0);
     // The agent writes in its own, by its id; not in the owner's (#577).
     as_agent(&mut s, "compose.set", json!({"compose": agents, "body": "By the agent"})).unwrap();
     assert!(!s.composing_by_id(agents).unwrap().owner_changed);

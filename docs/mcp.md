@@ -109,8 +109,9 @@ text, 0, a negative number or a fraction is refused, and an id that isn't open i
 it, it acts on the current one, the one in the reading pane. **An agent names it whenever more
 than one is open**: a call without it is then refused and changes nothing. A message an agent
 opens while the owner is writing in the current one opens behind it and isn't made current, so the
-owner keeps writing where they were; the agent writes in its own by its id, and the owner decides
-when it is sent. Each message keeps its own text undo (`compose.undo`), its own "the owner wrote in
+owner keeps writing where they were, and nothing of the owner's is saved or changed for them (the
+owner starting another saves theirs to Drafts first); the agent writes in its own by its id, and
+the owner decides when it is sent. Each message keeps its own text undo (`compose.undo`), its own "the owner wrote in
 it" mark (#577: an agent's change to a message the owner typed in is refused, whichever it is) and
 is saved first by itself when it is closed; `file.new` and `file.open` save every one first. The
 owner's questions name the message they are about by its subject, and by its id when more than one

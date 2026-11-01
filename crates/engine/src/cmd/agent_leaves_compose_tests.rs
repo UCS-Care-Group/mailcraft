@@ -234,16 +234,16 @@ fn discard_and_another_mailbox_ask_the_owner_whatever_is_allowed() {
 }
 
 #[test]
-fn people_email_opens_beside_the_message_being_written() {
+fn people_email_saves_the_owners_message_first_and_opens_beside_it() {
     let mut s = writing();
     let contact = a_contact(&s);
     let address = s.mailbox.contact(contact).unwrap().address().unwrap().email.clone();
     let r = run(&mut s, "people.email", json!({"id": contact}));
-    assert!(draft_with(&s, "Mine").is_none(), "nothing is let go of, so nothing is saved first");
+    assert!(draft_with(&s, "Mine").is_some(), "the owner's message put aside is saved first");
     assert_eq!(s.compose_id(), r["compose"].as_u64());
     assert!(s.compose.as_ref().unwrap().to.contains(&address));
     let mine = s.composing.iter().find(|c| c.subject == "Mine").expect("still open, as it was");
-    assert!(mine.dirty && mine.body.text().to_plain().contains("Half a thought"));
+    assert!(!mine.dirty && mine.body.text().to_plain().contains("Half a thought"));
 }
 
 #[test]

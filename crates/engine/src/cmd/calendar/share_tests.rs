@@ -233,7 +233,7 @@ fn search_calendar_reads_the_search_box_language() {
 }
 
 #[test]
-fn starting_a_message_opens_it_beside_the_one_being_written() {
+fn starting_a_message_saves_the_one_being_written_and_opens_beside_it() {
     let mut s = session();
     let (_, _, planning) = week(&mut s);
     for (id, params) in
@@ -243,11 +243,11 @@ fn starting_a_message_opens_it_beside_the_one_being_written() {
         run(&mut s, "compose.set", json!({"subject": format!("Unsaved {id}"), "body": "Half a thought"}));
         let steps = s.history.len();
         let r = run(&mut s, id, params);
-        // Nothing is let go of (#286): the one being written stays open as it is, unsaved.
-        assert!(!s.mailbox.messages.values().any(|m| m.draft && m.subject == format!("Unsaved {id}")), "{id}");
-        assert!(s.composing.iter().any(|c| c.dirty && c.subject == format!("Unsaved {id}")), "{id}");
+        // The owner's is saved to Drafts first (#286) and stays open beside the new one.
+        assert!(s.mailbox.messages.values().any(|m| m.draft && m.subject == format!("Unsaved {id}")), "{id}");
+        assert!(s.composing.iter().any(|c| !c.dirty && c.subject == format!("Unsaved {id}")), "{id}");
         assert_eq!(s.compose_id(), r["compose"].as_u64(), "{id}: the new one is current");
-        assert_eq!(s.history.len(), steps, "{id}");
+        assert_eq!(s.history.len(), steps + 1, "{id}: the save is a step of its own");
         run(&mut s, "compose.close", json!({"discard": true}));
         run(&mut s, "compose.close", json!({"discard": true}));
         assert_eq!(s.composing_count(), 0, "{id}");

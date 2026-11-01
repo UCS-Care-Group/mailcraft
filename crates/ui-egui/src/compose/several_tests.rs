@@ -10,13 +10,15 @@ use super::editor;
 use super::tests::{Window, app, plain, type_in, window};
 use crate::dialogs::{Dialog, leave_message};
 
-/// Two messages being written, the owner's text in each: their ids, the current one last.
+/// Two messages being written, the owner's text in each, both with changes not saved (the first
+/// was saved when the second opened, and written in since): their ids, the current one last.
 fn two() -> (Window, u64, u64) {
     let mut a = app();
     let first = a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "First"})).unwrap()["compose"].as_u64().unwrap();
     a.execute("compose.set", json!({"body": "One"})).unwrap();
     let second = a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "Second"})).unwrap()["compose"].as_u64().unwrap();
     a.execute("compose.set", json!({"body": "Two"})).unwrap();
+    a.execute("compose.set", json!({"compose": first, "body": "One, again"})).unwrap();
     (window(a), first, second)
 }
 
@@ -79,17 +81,33 @@ fn ui_inspect_lists_every_message_being_written() {
 #[test]
 fn quitting_asks_once_about_them_all_and_save_draft_saves_each() {
     let draft = |h: &Window, subject: &str| h.state().session.mailbox.messages.values().any(|m| m.draft && m.subject == subject);
-    for (answer, kept) in [("save", true), ("discard", false)] {
+    // Discarded, the first keeps the draft it was saved as when the second opened.
+    for (answer, kept) in [("save", (true, true)), ("discard", (true, false))] {
         let (mut h, _, _) = two();
         assert!(!h.state_mut().close_requested(), "{answer}");
         assert!(matches!(&h.state().dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"), "{answer}");
         h.state_mut().dialog = None;
         leave_message(h.state_mut(), answer, "quit", json!({}));
         assert!(h.state().quit_requested, "{answer}");
-        assert_eq!((draft(&h, "First"), draft(&h, "Second")), (kept, kept), "{answer}");
+        assert_eq!((draft(&h, "First"), draft(&h, "Second")), kept, "{answer}");
     }
     // Only the one put aside has changes: still asked.
     let (mut h, _, second) = two();
     h.state_mut().run("compose.saveDraft", json!({"compose": second})).unwrap();
     assert!(!h.state_mut().close_requested());
+}
+
+#[test]
+fn every_message_with_changes_is_saved_by_itself_the_ones_put_aside_too() {
+    let mut a = app();
+    let account = a.execute("account.add", json!({"email": "one@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let first = a.execute("mail.new", json!({"account": account, "subject": "First"})).unwrap()["compose"].as_u64().unwrap();
+    a.execute("mail.new", json!({"account": account, "subject": "Second"})).unwrap();
+    a.execute("compose.set", json!({"body": "Two"})).unwrap();
+    a.execute("compose.set", json!({"compose": first, "body": "One"})).unwrap();
+    assert!(a.session.all_composing().all(|c| c.dirty));
+    // Five minutes on, both are saved, not the current one alone.
+    a.draft_saved_at = 1.0;
+    a.draft_autosave_tick(&egui::Context::default());
+    assert!(a.session.all_composing().all(|c| !c.dirty && c.draft.is_some()));
 }

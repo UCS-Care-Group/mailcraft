@@ -95,13 +95,32 @@ const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a messag
 const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written (#442). Those that start another (New
-/// Email, Reply, Forward, Open Draft, People's Email…) open it beside this one, which stays open
-/// as it is (#286): nothing of it is let go of, so nothing is saved first.
+/// Email, Reply, Forward, Open Draft, People's Email…: [`STARTING`]) open it beside this one,
+/// which stays open (#286); the owner's is saved to Drafts first, unasked.
 pub const LEAVING: [&str; 1] = ["compose.close"];
 
 /// The commands that put another mailbox in place of this one, and close every message being
 /// written with it (#470): each is saved to Drafts first, or the owner asked, as for [`LEAVING`].
 pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
+
+/// The commands that open another message beside the one being written (#286). Run by the
+/// owner, the one put aside is saved to Drafts first when it has changes ([`saves_first`]).
+pub const STARTING: [&str; 14] = [
+    "mail.new",
+    "mail.reply",
+    "mail.replyAll",
+    "mail.replyAndDelete",
+    "mail.forward",
+    "mail.forwardAsAttachment",
+    "mail.editDraft",
+    "mail.resend",
+    "people.email",
+    "people.forward",
+    "calendar.email",
+    "calendar.contactAttendees",
+    "calendar.respondEmail",
+    "tasks.statusReport",
+];
 
 /// Whether `id` closes a message being written: [`LEAVING`] or [`REPLACING`].
 pub fn leaves(id: &str) -> bool {
@@ -133,6 +152,14 @@ fn unsaved_for(s: &Session, c: &Compose) -> bool {
 /// draft away. A save that fails fails the command, and nothing changes. (The window asks the
 /// owner first.)
 pub fn saves_first(s: &Session, id: &str, params: &Value) -> Vec<u64> {
+    // The owner's message put aside for another is saved to Drafts first, unasked, so that what
+    // is written is never only in memory (#286). An agent's opens behind it and touches nothing.
+    if STARTING.contains(&id) {
+        return match &s.compose {
+            Some(c) if s.agent.is_none() && c.dirty => vec![c.id],
+            _ => Vec::new(),
+        };
+    }
     if p::bool(params, "discard") == Some(true) {
         return Vec::new();
     }

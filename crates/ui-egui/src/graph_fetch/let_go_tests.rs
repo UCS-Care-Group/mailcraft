@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A command that waits for its message to download runs again once it is here (#513). A reply
-//! opens beside the message being written, which stays open as it is (#286): a message opened or
-//! changed while it waited is never thrown away nor asked about. Nor does what it asks take the
-//! place of a form the owner is changing: it waits for the form to be closed.
+//! opens beside the message being written, which stays open and is saved to Drafts first (#286):
+//! a message opened or changed while it waited is never thrown away nor asked about, `discard` or
+//! not. Nor does what it asks take the place of a form the owner is changing: it waits for the
+//! form to be closed.
 
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -60,9 +61,10 @@ fn microsoft(app: &mut MailApp) -> (Id, Jobs) {
     (waiting, jobs)
 }
 
-/// The message being written with `subject` is still open, beside the current one, and saved nowhere.
+/// The message being written with `subject` is still open, beside the current one, and what is
+/// written in it is in Drafts: the reply saved it first.
 fn kept_open(app: &MailApp, subject: &str) -> bool {
-    app.session.composing.iter().any(|c| c.subject == subject && c.dirty) && !draft_with(app, subject)
+    app.session.composing.iter().any(|c| c.subject == subject) && draft_with(app, subject)
 }
 
 /// Every message asked for comes whole, and the window takes it in.
@@ -123,17 +125,6 @@ fn a_message_changed_while_it_waited_is_kept_beside_the_reply() {
     assert!(kept_open(&app, "Let go, but written on"));
 }
 
-#[test]
-fn the_message_it_was_asked_to_let_go_is_let_go() {
-    let (mut app, waiting, jobs) = window();
-    owner_writes(&mut app, "Let go");
-    app.run("mail.reply", json!({"id": waiting, "discard": true})).unwrap();
-    downloaded(&mut app, &jobs);
-    assert!(app.dialog.is_none(), "as asked: no question");
-    assert!(subject(&app).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(&app));
-    assert!(!draft_with(&app, "Let go"));
-}
-
 /// A window, frames and all, with the account and the message of [`window`].
 fn drawn() -> (testing::Window, Id, Jobs) {
     let mut w = testing::window_on(mailcraft_model::Mailbox::default(), "view.mail");
@@ -169,23 +160,6 @@ fn a_form_being_changed_when_it_came_stays_until_it_is_closed() {
         assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{name}: {:?}", subject(w.state()));
         assert!(kept_open(w.state(), "Mine"), "{name}");
     }
-}
-
-#[test]
-fn what_it_was_asked_to_let_go_is_let_go_once_the_form_is_closed() {
-    let (mut w, waiting, jobs) = drawn();
-    owner_writes(w.state_mut(), "Mine");
-    w.state_mut().run("mail.reply", json!({"id": waiting, "discard": true})).unwrap();
-    owner_fills(&mut w, "contact", "Ada");
-    answered(&jobs);
-    w.run_steps(5);
-    assert!(matches!(w.state().dialog, Some(Dialog::Form(_))));
-    assert_eq!(subject(w.state()).as_deref(), Some("Mine"), "waits");
-    w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
-    w.run_steps(3);
-    assert!(w.state().dialog.is_none(), "as asked: no question");
-    assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(w.state()));
-    assert!(!draft_with(w.state(), "Mine"));
 }
 
 #[test]

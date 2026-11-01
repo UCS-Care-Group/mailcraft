@@ -3,7 +3,7 @@
 //! Leaving a message being written (#442): nobody who calls a command is asked, so a message
 //! with changes that aren't saved goes to Drafts before a command closes it; an empty one is let
 //! go of; and a save that fails leaves everything as it was. (A command that starts another
-//! message opens it beside this one, which stays open as it is: #286, `composing_tests`.)
+//! message opens it beside this one, which stays open, saved first: #286, `composing_tests`.)
 
 use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};

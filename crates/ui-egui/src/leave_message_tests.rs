@@ -97,15 +97,15 @@ fn went_on(a: &MailApp, id: &str, was: &str, draft: Id) {
 }
 
 #[test]
-fn starting_another_message_asks_nothing_and_keeps_this_one_as_it_is() {
+fn starting_another_message_asks_nothing_and_saves_this_one_first() {
     let (mut a, draft) = with_a_draft();
     for (n, (id, params)) in starting(&a, draft).into_iter().enumerate() {
         let mine = format!("Mine {n}");
         written(&mut a, &mine);
         let r = a.run(id, params).unwrap();
         assert!(r.get("pending").is_none() && a.dialog.is_none(), "{id}: nothing to ask about");
-        assert!(draft_with(&a, &mine).is_none(), "{id}: nothing saved first");
-        assert!(a.session.composing.iter().any(|c| c.subject == mine && c.dirty), "{id}: still open beside it");
+        assert!(draft_with(&a, &mine).is_some(), "{id}: saved to Drafts first, unasked");
+        assert!(a.session.composing.iter().any(|c| c.subject == mine && !c.dirty), "{id}: still open beside it");
         assert_ne!(subject(&a).as_deref(), Some(mine.as_str()), "{id}");
         // The new one closed, this one is current again.
         a.execute("compose.close", json!({"discard": true})).unwrap();

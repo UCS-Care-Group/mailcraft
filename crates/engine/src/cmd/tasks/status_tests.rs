@@ -73,14 +73,14 @@ fn a_report_names_its_task_strictly() {
 }
 
 #[test]
-fn a_report_opens_beside_the_message_being_written() {
+fn a_report_saves_the_message_being_written_and_opens_beside_it() {
     let mut s = session();
     let id = task(&mut s);
     run(&mut s, "mail.new", json!({}));
     run(&mut s, "compose.set", json!({"subject": "Unsaved", "body": "Half a thought"}));
     run(&mut s, "tasks.statusReport", json!({"id": id}));
-    // Nothing is let go of (#286): it stays open as it is.
-    assert!(!s.mailbox.messages.values().any(|m| m.draft && m.subject == "Unsaved"));
-    assert!(s.composing.iter().any(|c| c.dirty && c.subject == "Unsaved"));
+    // The owner's is saved to Drafts first (#286) and stays open.
+    assert!(s.mailbox.messages.values().any(|m| m.draft && m.subject == "Unsaved"));
+    assert!(s.composing.iter().any(|c| !c.dirty && c.subject == "Unsaved"));
     assert_eq!(classify(&s, "tasks.statusReport", &json!({"id": id})), Access::Safe);
 }

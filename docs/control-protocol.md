@@ -175,9 +175,9 @@ start one (`mail.new`, `mail.reply`, `mail.forward`, `mail.editDraft`, `people.e
 `compose`, and every command that acts on one (`compose.*`, `format.*`, `insert.*`, the text
 editing ones) takes `"compose": <id>`, read strictly; without it they act on the current one, the
 one the reading pane shows. Starting another message opens it beside those open and makes it
-current: the one being written stays open as it is, nothing of it is saved or let go of (`discard`
-there changes nothing any more), and closing the current one makes the one put aside last current
-again. An agent's call (the MCP bridge, `--agent`) that doesn't name one while more than one is
+current: the one being written stays open, and when the owner (not an agent) starts another while
+it has changes, it is saved to Drafts first, as Save Draft does, unasked (`discard` there changes
+nothing any more); closing the current one makes the one put aside last current again. An agent's call (the MCP bridge, `--agent`) that doesn't name one while more than one is
 open is refused; one an agent starts while the owner is writing opens behind, not current.
 `compose.close` saves only the message it closes first; `file.new`, `file.open` and quitting save
 every one (the window asks once about all). `ui.inspect` lists them under `beingWritten`.

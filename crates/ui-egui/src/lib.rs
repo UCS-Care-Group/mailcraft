@@ -4036,12 +4036,19 @@ impl MailApp {
     /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
     fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
         const EVERY_MS: f64 = 5.0 * 60_000.0;
-        let Some(c) = &self.session.compose else {
+        if self.session.compose.is_none() {
             self.draft_saved_at = 0.0;
             return;
-        };
-        let graph = self.session.mailbox.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
-        if !graph || !c.dirty {
+        }
+        // Every message being written, the ones put aside too (#286).
+        let mb = &self.session.mailbox;
+        let due: Vec<u64> = self
+            .session
+            .all_composing()
+            .filter(|c| c.dirty && mb.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft))
+            .map(|c| c.id)
+            .collect();
+        if due.is_empty() {
             return;
         }
         let now = now_ms();
@@ -4051,8 +4058,10 @@ impl MailApp {
         let waited = now - self.draft_saved_at;
         if waited >= EVERY_MS {
             self.draft_saved_at = now;
-            if let Err(e) = self.run("compose.saveDraft", json!({})) {
-                log::info!("the draft couldn't be saved by itself: {e}");
+            for compose in due {
+                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose})) {
+                    log::info!("the draft couldn't be saved by itself: {e}");
+                }
             }
         } else {
             ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
