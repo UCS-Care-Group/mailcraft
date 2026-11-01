@@ -108,9 +108,10 @@ pub fn sync(caldav: &str, carddav: &str, username: &str, password: &str, from: T
     let auth = basic(username, password);
     let mut out = DavSync::default();
     match calendars(&servers.caldav, &auth, from, to) {
-        Ok((list, mut events)) => {
+        Ok((list, mut events, mut errors)) => {
             out.calendars = list;
             out.events.append(&mut events);
+            out.errors.append(&mut errors);
         }
         Err(e) => out.errors.push(format!("the calendars couldn't be read: {e}")),
     }
@@ -162,7 +163,7 @@ fn calendars(
     auth: &str,
     from: Timestamp,
     to: Timestamp,
-) -> Result<(CalendarsDownload, Vec<mailcraft_model::remote::EventsDownload>), NetError> {
+) -> Result<(CalendarsDownload, Vec<mailcraft_model::remote::EventsDownload>, Vec<String>), NetError> {
     let root = propfind(base, "0", DISCOVERY_CALDAV, auth)?;
     let home = root
         .iter()
@@ -177,6 +178,7 @@ fn calendars(
     let listing = propfind(&home, "1", LIST_CALENDARS, auth)?;
     let mut out = CalendarsDownload { complete: true, ..Default::default() };
     let mut events = Vec::new();
+    let mut errors = Vec::new();
     let mut main = true;
     for response in listing.iter().take(MAX_COLLECTIONS) {
         if !response.has_resource_type("calendar") {
@@ -187,12 +189,24 @@ fn calendars(
         let rights = response.rights();
         let color = response.prop_text("calendar-color").and_then(|color| color_of(&color));
         let is_main = main;
-        out.calendars.push(RemoteCalendar { id: href.clone(), name, color, group: String::new(), rights, owner: None, main, online_providers: None });
+        out.calendars.push(RemoteCalendar {
+            id: href.clone(),
+            name: name.clone(),
+            color,
+            group: String::new(),
+            rights,
+            owner: None,
+            main,
+            online_providers: None,
+        });
         match events_of(&href, auth, from, to, if is_main { "" } else { &href }) {
             Ok(download) => events.push(download),
             // A calendar that can't be read doesn't hide the others; its events are simply not
-            // brought this time, and the caller says so.
-            Err(_) => out.complete = false,
+            // brought this time, and the owner is told which calendar it was.
+            Err(e) => {
+                out.complete = false;
+                errors.push(format!("the events of \"{name}\" couldn't be read: {e}"));
+            }
         }
         main = false;
     }
@@ -200,7 +214,7 @@ fn calendars(
     if out.calendars.is_empty() {
         out.complete = false;
     }
-    Ok((out, events))
+    Ok((out, events, errors))
 }
 
 /// A principal's home set, read from its resource.
