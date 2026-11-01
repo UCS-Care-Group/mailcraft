@@ -126,6 +126,9 @@ pub mod reading;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+pub mod rule_sync;
+#[cfg(test)]
+mod rule_sync_tests;
 pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
@@ -244,6 +247,8 @@ pub struct Services {
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
+    /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
+    pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
     /// Read and change the automatic replies of a Microsoft account on its server
     /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
     /// browser: File › Info then has no Automatic Replies.
@@ -577,6 +582,10 @@ pub struct SignInRequest {
     /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
     /// the sign-in doesn't cover it, and the owner said go ahead.
     pub tasks: bool,
+    /// With `graph`: ask for changing the rules the account's server keeps
+    /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
+    /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
+    pub rules: bool,
     /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
     /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
     /// the sign-in doesn't cover it, and the owner said go ahead.
@@ -743,6 +752,8 @@ struct SigningIn {
     shared_calendars: bool,
     /// And for the To Do lists (#248).
     tasks: bool,
+    /// And for changing the rules on the server (#566).
+    rules: bool,
     /// And for changing the automatic replies.
     replies: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
@@ -912,7 +923,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -1005,6 +1016,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Allow Keeping Tasks in Step with Microsoft To Do",
         "File › Info",
         r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowRules",
+        "Allow Keeping Rules on the Server",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the rules the account's server keeps (MailboxSettings.ReadWrite), by itself and never with a sign-in. The window asks first, the first time a rule is to go to the server and the sign-in doesn't cover it, and File › Info has "Ask again". Until it is allowed the account's rules stay on this computer and nothing of them is sent. Allowed, the rules waiting go at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowSharedSend",
@@ -1374,6 +1391,8 @@ pub struct MailApp {
     /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
     replies_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
+    rules_next: bool,
+    pub(crate) rules: rule_sync::RuleSync,
     /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
@@ -1657,8 +1676,10 @@ impl MailApp {
             shared_send_next: false,
             shared_calendars_next: false,
             tasks_next: false,
+            rules_next: false,
             replies_next: false,
             tasks: Default::default(),
+            rules: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
@@ -2163,6 +2184,13 @@ impl MailApp {
                     self.sync_panel = Some(panel);
                     return Some(Ok(json!({"panel": "syncProgress"})));
                 }
+                // The New rule filled in from a message: an id that is none is refused, never
+                // taken to mean the selection (#566).
+                if name == "rules"
+                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::id_strict(p, k).err())
+                {
+                    return Some(Err(e.to_string()));
+                }
                 match dialogs::open_dialog(self, name, p) {
                     Some(d) => {
                         self.dialog = Some(d);
@@ -2333,6 +2361,13 @@ impl MailApp {
                 }
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 self.begin_tasks_sign_in(account)
+            }
+            "ui.allowRules" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_rules_sign_in(account)
             }
             "ui.allowSharedSend" => {
                 let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
@@ -2609,7 +2644,8 @@ impl MailApp {
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
         let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
-        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks;
+        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none() && !tasks;
+        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks && !rules;
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2639,12 +2675,27 @@ impl MailApp {
             shared_send,
             shared_calendars,
             tasks,
+            rules,
             replies,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in =
-            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, replies, browser, opening, rx, cancel });
+        self.signing_in = Some(SigningIn {
+            graph,
+            favorites,
+            quiet,
+            account,
+            shared,
+            shared_send,
+            shared_calendars,
+            tasks,
+            rules,
+            replies,
+            browser,
+            opening,
+            rx,
+            cancel,
+        });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -3026,6 +3077,9 @@ impl MailApp {
                 self.session.sync_status.clear();
             }
             self.forget_graph_switch();
+            // The rules job's answer is let go of (`poll_rules`), and what was known of the old
+            // mailbox's permissions goes: its account ids may name others here (#566).
+            self.rules = rule_sync::RuleSync::default();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
         }
@@ -3435,6 +3489,7 @@ impl MailApp {
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
+        let for_rules = waiting.rules;
         let for_replies = waiting.replies;
         let started_under = waiting.opening;
         let on_the_page = waiting.browser;
@@ -3479,6 +3534,10 @@ impl MailApp {
         // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
         if for_tasks {
             return self.tasks_signed_in(account, answer);
+        }
+        // For keeping rules on the server (#566): those waiting go now, or why not is said.
+        if for_rules {
+            return self.rules_signed_in(account, answer);
         }
         // For changing the automatic replies: the change that waited goes now, or why not is said.
         if for_replies {
@@ -3927,6 +3986,7 @@ impl MailApp {
         }
         self.poll_calendar();
         self.poll_tasks();
+        self.poll_rules();
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
@@ -3949,6 +4009,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
+            // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
+            self.rules_tick(ctx);
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }

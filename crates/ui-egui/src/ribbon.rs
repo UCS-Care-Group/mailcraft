@@ -1177,11 +1177,21 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Rules => {
             if !app.session.sel.messages.is_empty() {
-                ui.menu_button(tl!("Always Move Messages From This Sender"), |ui| {
-                    folder_menu(ui, app, |app, folder| {
-                        let _ = app.run("rules.fromMessage", json!({"folder": folder}));
+                // A shared mailbox's rules are its own, which this version doesn't make: one for
+                // the owner's account would move the owner's own mail into the shared mailbox.
+                let mb = &app.session.mailbox;
+                let shared = app.session.sel.focus().and_then(|m| mb.message(m)).and_then(|m| mb.account(m.account)).is_some_and(|a| a.is_shared());
+                if shared {
+                    ui.add_enabled(false, egui::Button::new(tl!("Always Move Messages From This Sender")).min_size(vec2(190.0, 0.0)))
+                        .on_disabled_hover_text(tl!("A shared mailbox's rules are its own: this version doesn't make them"));
+                } else {
+                    ui.menu_button(tl!("Always Move Messages From This Sender"), |ui| {
+                        folder_menu(ui, app, |app, folder| {
+                            // The New rule filled in, for the owner to see and add, where it is kept too.
+                            let _ = app.run("ui.dialog", json!({"name": "rules", "folder": folder}));
+                        });
                     });
-                });
+                }
                 ui.separator();
             }
             mi(ui, app, "Run Rules Now", "rules.run", json!({}));

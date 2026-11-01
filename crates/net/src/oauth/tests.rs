@@ -2291,3 +2291,36 @@ fn a_change_of_the_replies_needs_its_permission_and_nothing_less() {
     let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
     assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
 }
+
+#[test]
+fn a_rules_job_with_changes_needs_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"rules-access","refresh_token":"re-fresh-6"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_rules_at(&endpoints_of(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("rules-access", "re-fresh-6", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == SETTINGS_WRITE) && scope.contains("Mail.ReadWrite"), "{scope}");
+    assert!(!scope.contains("Tasks") && !scope.contains("Shared"), "{scope}");
+    // A sign-in that never agreed: the owner is to be asked on the page; nothing is sent without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    let error = refresh_graph_rules_at(&endpoints_of(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed(), "{error}");
+    assert_eq!(server.asked(), 1);
+}
+
+/// #520, for the rules: a bare no is put to the account's mail, which says whether the sign-in is
+/// over or only the rules are not covered.
+#[test]
+fn a_no_for_the_rules_alone_is_a_question_for_the_owner() {
+    let mail = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"mail-access"}"#;
+    let no = r#"{"error":"invalid_grant"}"#;
+    let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", no) } else { ok(mail) });
+    let at = Endpoints { scope: Endpoints::for_resource(&oauth(), Resource::GraphMail).scope, ..endpoints_of(&server) };
+    let error = refresh_graph_rules_at(&endpoints_of(&server), &at, &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed(), "{error}");
+    assert_eq!(form_of(&server, 1)["scope"], at.scope);
+    let server = FakeHttp::answering(response("400 Bad Request", no));
+    let error = refresh_graph_rules_at(&endpoints_of(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
+}

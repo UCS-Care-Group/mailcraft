@@ -73,6 +73,8 @@ mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
 mod quit_macos;
+#[cfg(test)]
+mod rules_job_tests;
 mod secrets;
 mod self_update;
 mod sender_images;
@@ -647,6 +649,12 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     // ahead: the page comes up for that permission alone, by itself.
     if request.graph && request.tasks {
         let asked = mailcraft_net::oauth::sign_in_for_tasks(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
+    // A rule is to go to the server, the sign-in doesn't cover changing the rules (#566), and the
+    // owner said go ahead: the page comes up for that permission alone, by itself.
+    if request.graph && request.rules {
+        let asked = mailcraft_net::oauth::sign_in_for_rules(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
     // A change of the automatic replies found the sign-in doesn't cover changing the mailbox's
@@ -1327,6 +1335,89 @@ fn tasks_job_with(
     out
 }
 
+/// Keep an account's rules on its server (#566): when something waits to go, a token that may
+/// change the rules (a sign-in that doesn't cover it gets none: the answer says the owner is to
+/// be asked, and nothing is sent), what waits told to the server; then the server's rules read
+/// whole, with the account's ordinary token when nothing went. Nothing of a rule is logged.
+fn rules_job(job: mailcraft_ui_egui::rule_sync::RulesJob) -> mailcraft_ui_egui::rule_sync::RulesResult {
+    rules_job_with(job, &mailcraft_net::oauth::refresh_graph_rules, &mailcraft_net::oauth::refresh_graph_mail)
+}
+
+/// How a rules job gets a token: for changing the rules, or for reading them.
+type RenewGraph<'a> = &'a dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>;
+
+/// [`rules_job`], with how the tokens are had as `write` and `read` (the tests' own, which ask
+/// nobody).
+fn rules_job_with(
+    job: mailcraft_ui_egui::rule_sync::RulesJob,
+    write: RenewGraph<'_>,
+    read: RenewGraph<'_>,
+) -> mailcraft_ui_egui::rule_sync::RulesResult {
+    use mailcraft_model::remote_rules::RuleResult;
+    use mailcraft_net::{NetError, graph};
+    let mut out = mailcraft_ui_egui::rule_sync::RulesResult { account: job.account.id, ..Default::default() };
+    let failed = |out: &mut mailcraft_ui_egui::rule_sync::RulesResult, e: &NetError| {
+        out.sign_in_refused = e.is_refused_sign_in();
+        if !out.sign_in_refused {
+            out.errors.push(format!("Couldn't sign in to Microsoft for the rules: {e}"));
+        }
+    };
+    let mut refresh = job.refresh.clone();
+    let mut access = String::new();
+    if !job.upload.ops.is_empty() {
+        match write(&job.oauth, &refresh) {
+            Ok(got) => {
+                access = got.tokens.access.clone();
+                if !got.tokens.refresh.is_empty() {
+                    refresh = got.tokens.refresh.clone();
+                }
+                out.tokens = Some(got.tokens);
+            }
+            // Nothing is sent: the owner is asked. The server's rules are still read.
+            Err(e) if e.is_consent_needed() => out.consent_needed = true,
+            Err(e) => {
+                failed(&mut out, &e);
+                return out;
+            }
+        }
+    }
+    if !access.is_empty() {
+        let uploaded = graph::push_rules(&access, &job.upload).for_account(&job.account);
+        out.denied = uploaded.outcomes.iter().any(|o| o.result == RuleResult::Denied);
+        let refused = uploaded.token_refused;
+        out.uploaded = Some(uploaded);
+        if refused {
+            out.sign_in_refused = true;
+            return out;
+        }
+    }
+    if access.is_empty() {
+        match read(&job.oauth, &refresh) {
+            Ok(got) => {
+                access = got.tokens.access.clone();
+                out.tokens = Some(got.tokens);
+            }
+            Err(e) if e.is_consent_needed() => {
+                // (The account's mail isn't covered either: its own run says so.)
+                out.unreadable = true;
+                return out;
+            }
+            Err(e) => {
+                failed(&mut out, &e);
+                return out;
+            }
+        }
+    }
+    match graph::rules(&access, &job.folders) {
+        Ok(download) => out.download = Some(download.for_account(&job.account)),
+        // The sign-in doesn't cover reading the mailbox's settings.
+        Err(NetError::Forbidden(_)) => out.unreadable = true,
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) => out.errors.push(format!("Couldn't read the rules on the server: {e}")),
+    }
+    out
+}
+
 /// File › Info › Automatic Replies: a read takes the calendar's tokens, which read the
 /// mailbox's settings (no more token requests than any Graph job makes); a change takes a token
 /// for changing them, which a sign-in doesn't carry until the owner allowed it by itself (then
@@ -1523,6 +1614,7 @@ fn services(
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
+    let rules_ctx = ctx.clone();
     let replies_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
@@ -1578,6 +1670,10 @@ fn services(
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
             background(&tasks_ctx, "microsoft to do", move || tasks_job(job))
+        })),
+        // The rules a Microsoft account's server keeps (#566).
+        graph_rules: Some(Box::new(move |job: mailcraft_ui_egui::rule_sync::RulesJob| {
+            background(&rules_ctx, "server rules", move || rules_job(job))
         })),
         // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {

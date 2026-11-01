@@ -221,8 +221,15 @@ impl MailApp {
         if self.auto_replies.rx.is_some() || self.services.graph_auto_replies.is_none() {
             return false;
         }
-        // One thing at a time: a Send/Receive, a sign-in, the calendar's and the tasks' jobs go first.
-        if self.signing_in.is_some() || self.sync_rx.is_some() || self.graph_rx.is_some() || self.calendar.rx.is_some() || self.tasks.busy() {
+        // One thing at a time: a Send/Receive, a sign-in, the calendar's, the tasks' and the rules'
+        // jobs go first.
+        if self.signing_in.is_some()
+            || self.sync_rx.is_some()
+            || self.graph_rx.is_some()
+            || self.calendar.rx.is_some()
+            || self.tasks.busy()
+            || self.rules.busy()
+        {
             return false;
         }
         if let Some((account, change)) = self.auto_replies.waiting.take() {
@@ -456,7 +463,7 @@ impl MailApp {
         let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
         let text = crate::i18n::fmt(
             tl!(
-                "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nMailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+                "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nMailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
             ),
             &[("address", &address)],
         );
@@ -498,6 +505,14 @@ impl MailApp {
         if self.auto_replies.trouble.get(&account) == Some(&Trouble::SignInToRead) {
             self.auto_replies.trouble.remove(&account);
             self.auto_replies.checked.remove(&account);
+        }
+    }
+
+    /// The owner allowed changing the mailbox's settings on Microsoft's page for the rules (#566):
+    /// the automatic replies are changed with the same permission, so they no longer wait for it.
+    pub(crate) fn auto_replies_allowed(&mut self, account: Id) {
+        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+            self.auto_replies.perm.remove(&account);
         }
     }
 
@@ -564,6 +579,10 @@ impl MailApp {
                 // Allowed, as far as is known: the change that waited finds out.
                 log::info!("automatic replies: the owner allowed changing them");
                 self.auto_replies.perm.remove(&account);
+                // The rules are changed with the same permission (#566).
+                if self.rules_held(account) {
+                    self.rules_allowed(account);
+                }
                 if let Some(change) = self.auto_replies.held.remove(&account) {
                     self.auto_replies.waiting = Some((account, change));
                     self.auto_replies_tick_at(now_ms());

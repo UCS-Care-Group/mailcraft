@@ -145,13 +145,15 @@ const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Cale
 /// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
 /// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
 const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
-/// What changing the automatic replies of the mailbox takes (File › Info › Automatic Replies):
-/// changing its settings. Asked for by itself, the first time the owner changes them and after
-/// the window has asked him, never with a sign-in, and on the administrator's list; a sign-in
-/// reads them with [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks for it
-/// ([`refresh_graph_replies`]); a sign-in that doesn't cover it gets [`NetError::ConsentNeeded`],
-/// and the window asks the owner ([`sign_in_for_replies`]). The categories and the working hours
-/// are never written with it, nor anything else of the settings.
+/// What changing the mailbox's settings takes: its automatic replies (File › Info › Automatic
+/// Replies) and the rules of its Inbox (`messageRules`, #566). Asked for by itself, the first
+/// time the owner changes either and after the window has asked him, never with a sign-in, so
+/// that a sign-in never waits on it, and on the administrator's list; a sign-in reads both with
+/// [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks for it
+/// ([`refresh_graph_replies`], [`refresh_graph_rules`]); a sign-in that doesn't cover it gets
+/// [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_replies`],
+/// [`sign_in_for_rules`]). The categories and the working hours are never written with it, nor
+/// anything else of the settings.
 const MICROSOFT_GRAPH_SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
@@ -430,8 +432,9 @@ pub enum FavoritesRefusal {
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
 /// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox and sending from one take, what reading its calendars takes, and what
-/// keeping the to-dos in step with Microsoft To Do takes.
+/// reading a shared mailbox and sending from one take, what reading its calendars takes, what
+/// keeping the to-dos in step with Microsoft To Do takes, and what keeping rules on the server
+/// takes.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -820,7 +823,8 @@ pub fn refresh_graph_tasks_at(
 }
 
 /// Tokens at `endpoints` for a permission that is asked for by itself (the to-dos', the
-/// automatic replies'): a sign-in that doesn't cover it gets [`NetError::ConsentNeeded`].
+/// automatic replies' and the rules'): a sign-in that doesn't cover it gets
+/// [`NetError::ConsentNeeded`].
 /// Microsoft says no to a personal account that never agreed in the words of a sign-in that is
 /// over (#520), so a no is put to the account's `mail` with the same refresh token: if it still
 /// takes it, it is the permission. `what` names it, for the error.
@@ -846,6 +850,39 @@ fn refresh_by_itself_at(
         },
         Err(error) => Err(error),
     }
+}
+
+/// What the tokens of a rules job that has changes to send are asked for (#566): what the
+/// account's mail takes, and changing the mailbox's settings on top.
+fn rules_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, to let this program change the rules his server keeps
+/// (`MailboxSettings.ReadWrite`, the permission the automatic replies are changed with). Only
+/// when a rule is to go to the server and the sign-in doesn't cover it, after the window has
+/// asked him, and never with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]);
+/// nothing is tried a second time.
+pub fn sign_in_for_rules(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
+    let endpoints = Endpoints { scope: rules_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph_mail`] for a rules job with changes to send (#566): the tokens are asked for
+/// with `MailboxSettings.ReadWrite`, and for nothing less. A sign-in that doesn't cover it gets
+/// [`NetError::ConsentNeeded`]: nothing of the rules is sent, everything else goes on, and the
+/// window asks the owner ([`sign_in_for_rules`]).
+pub fn refresh_graph_rules(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::GraphMail);
+    refresh_graph_rules_at(&endpoints, &endpoints, oauth, refresh_token)
+}
+
+/// [`refresh_graph_rules`] at endpoints other than the provider's usual ones: `mail` for the
+/// account's mail.
+pub fn refresh_graph_rules_at(endpoints: &Endpoints, mail: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: rules_scope(), ..endpoints.clone() };
+    refresh_by_itself_at(&endpoints, (mail, Resource::GraphMail), oauth, refresh_token, "changing the rules")
 }
 
 /// What the tokens of a job that changes the automatic replies are asked for: what Graph is
