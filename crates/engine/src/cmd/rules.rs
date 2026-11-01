@@ -310,9 +310,10 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
 
 fn enable(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
+    let value = p::opt_bool(v, "value")?;
     let i = changeable(s, id)?;
     let r = s.mailbox.rules.get_mut(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
-    r.enabled = p::bool(v, "value").unwrap_or(!r.enabled);
+    r.enabled = value.unwrap_or(!r.enabled);
     Ok(json!({"id": id, "enabled": r.enabled}))
 }
 
@@ -375,7 +376,7 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
 }
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
     let only = p::id_strict(v, "id")?;
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
@@ -395,7 +396,7 @@ pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), Cm
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     refuse_send_queue(s, folder)?;
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // A shared mailbox's mail is left alone by the rules, and one for its owner's account would
     // move the owner's own mail into the folder it names.

@@ -859,13 +859,16 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, one_account(&r)).is_some()),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
-        "rules.enable" => p::id(params, "id")
-            .and_then(|r| mb.rules.iter().find(|x| x.id == r))
-            .is_some_and(|r| p::bool(params, "value").unwrap_or(!r.enabled) && rule_onto_server(s, r, one_account(r)).is_some()),
+        // Read as the commands read them: what they refuse does nothing, and needs no question.
+        "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
+            p::id(params, "id")
+                .and_then(|r| mb.rules.iter().find(|x| x.id == r))
+                .is_some_and(|r| value.unwrap_or(!r.enabled) && rule_onto_server(s, r, one_account(r)).is_some())
+        }),
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
-            let from = mb.folder(p::id(params, "folder").unwrap_or(s.view.folder)).map(|f| f.account);
-            let only = p::id(params, "id");
+            let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
+            let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
             from.is_some_and(|a| {
                 mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && rule_onto_server(s, r, Some(a)).is_some())
             })
@@ -1293,9 +1296,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             Err(_) => "make a rule from a message that can't be made as asked".to_string(),
         },
         "rules.run" if rules_onto_another_server(s, id, params) => {
-            let folder = p::id(params, "folder").unwrap_or(s.view.folder);
+            let folder = p::id_strict(params, "folder").ok().flatten().unwrap_or(s.view.folder);
             let from = s.mailbox.folder(folder).map(|f| f.account);
-            let only = p::id(params, "id");
+            let only = p::id_strict(params, "id").ok().flatten();
             let onto: Vec<String> = s
                 .mailbox
                 .rules
