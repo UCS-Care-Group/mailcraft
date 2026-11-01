@@ -142,7 +142,19 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, reads: false, enabled: always, selection: false, writing: false, run }
+        CommandSpec {
+            id,
+            label,
+            location,
+            shortcut: "",
+            params: "{}",
+            mutates: true,
+            reads: false,
+            enabled: always,
+            selection: false,
+            writing: false,
+            run,
+        }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
