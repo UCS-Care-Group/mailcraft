@@ -205,9 +205,10 @@ pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
     if s.compose.is_none() { Some("no message is being written") } else { None }
 }
 
-/// The messages a command acts on: `ids` / `id` when given, else the selection.
+/// The messages a command acts on: `ids` / `id` when given, else the selection. They are read
+/// strictly ([`p::ids_strict`], #553): named wrongly, they are refused, never taken for the selection.
 pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    named_or_selected(s, p::ids(v))
+    named_or_selected(s, p::ids_strict(v)?)
 }
 
 /// As [`targets`], for Delete and Move: without `ids` / `id`, a message selected by its
@@ -221,12 +222,6 @@ pub(crate) fn targets_whole(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdEr
     let named = p::ids_strict(v)?;
     let ids = if named.is_some() { named } else { Some(s.acting_on()) };
     named_or_selected(s, ids)
-}
-
-/// As [`targets`], but `ids` / `id` read strictly ([`p::ids_strict`]): for a command whose mistake
-/// reaches other people, which never takes the selection for what a caller named wrongly.
-pub(crate) fn targets_strict(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    named_or_selected(s, p::ids_strict(v)?)
 }
 
 /// The messages `named`, else the selected ones; each must be here.

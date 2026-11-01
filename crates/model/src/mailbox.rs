@@ -1034,6 +1034,10 @@ pub const BETWEEN_MAILBOXES: &str =
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
+/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft or an Exchange
+/// server account's (#704): only Send sends.
+pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next Send/Receive would send it";
+
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
 
@@ -1886,6 +1890,14 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        // Moved in from another mailbox and not made on this account's server yet, it is mail from
+        // elsewhere still: not into an Outbox that would send it, as straight from there (#704).
+        if m.account == account
+            && self.sends_from(folder)
+            && self.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == id))
+        {
+            return Err(invalid(INTO_OUTBOX));
+        }
         if m.returned > 0 {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
@@ -2310,6 +2322,11 @@ impl Mailbox {
         let from_account = m.account;
         if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
+        }
+        // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
+        // Send/Receive, and made on the server as well (#704): only Send sends.
+        if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
+            return Err(invalid(COPY_INTO_OUTBOX));
         }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).

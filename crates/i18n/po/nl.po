@@ -239,14 +239,20 @@ msgstr "Een wijziging van de agenda van een gedeeld postvak is geweigerd: dit ac
 
 #. interface
 #: crates/ui-egui/src/symbol.rs
+#, fuzzy
 msgid "A code point written U+2192 or 2192, or a decimal number after #."
-msgstr ""
+msgstr "Een codepunt, geschreven als U+2192 of 2192, of een decimaal getal na #."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount. Alleen op deze computer bewaard"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -424,8 +430,9 @@ msgstr "Een reeks die de server van het account bewaart, kan vanaf hier niet naa
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "A shared mailbox's automatic replies are set by whoever manages it; MailCraft sets only your own account's"
-msgstr ""
+msgstr "De automatische antwoorden van een gedeeld postvak worden ingesteld door degene die het beheert; MailCraft stelt alleen die van uw eigen account in"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -481,13 +488,15 @@ msgstr "Boven de statusbalk"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent"
-msgstr ""
+msgstr "Accent"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Accent Colour"
-msgstr ""
+msgstr "Accentkleur"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -579,8 +588,9 @@ msgstr "Actief"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "Actual Size"
-msgstr ""
+msgstr "Werkelijke grootte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
@@ -754,8 +764,9 @@ msgstr "Adres"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
-msgstr ""
+msgstr "Adressen gescheiden door ; (leeg laten als antwoorden naar u moeten komen)"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -837,8 +848,9 @@ msgstr "Toestaan"
 
 #. command label, interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Allow Changing Automatic Replies"
-msgstr ""
+msgstr "Wijzigen van automatische antwoorden toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -854,8 +866,9 @@ msgstr "Taken bijhouden met Microsoft To Do toestaan"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
-msgstr ""
+msgstr "MailCraft toestaan uw automatische antwoorden te wijzigen op de pagina die in uw browser is geopend…"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -991,8 +1004,9 @@ msgstr "Een toepassings-id bestaat uit letters, cijfers, punten en streepjes"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
-msgstr ""
+msgstr "Een afspraak die als persoonlijk is gemarkeerd, toont alleen dat u bezet bent. Niemand die ergens voor is uitgenodigd, wordt genoemd."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -1070,8 +1084,9 @@ msgstr "Toepassen"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "Apply Downloaded Automatic Replies"
-msgstr ""
+msgstr "Gedownloade automatische antwoorden toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -1207,8 +1222,9 @@ msgstr "Afspraakvenster"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Appointments not listed:"
-msgstr ""
+msgstr "Niet vermelde afspraken:"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1324,8 +1340,9 @@ msgstr "Toestemming vragen om de regels op de server te wijzigen: de pagina van 
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-msgstr ""
+msgstr "Vraag toestemming om uw automatische antwoorden te wijzigen: de pagina van Microsoft opent in uw browser. Het lezen ervan heeft die toestemming niet nodig."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -1353,8 +1370,9 @@ msgstr "Vraag de server van het account nu om de agenda rond deze vergadering."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Ask to be told when the message is read"
-msgstr ""
+msgstr "Laten weten wanneer het bericht is gelezen"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -1428,18 +1446,21 @@ msgstr "Bestand bijvoegen"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#, fuzzy
 msgid "Attach Item"
-msgstr ""
+msgstr "Item bijvoegen"
 
 #. interface, name
 #: crates/ui-egui/src/pick_item.rs
+#, fuzzy
 msgid "Attach a Contact Card"
-msgstr ""
+msgstr "Een visitekaartje bijvoegen"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Attach the same as an iCalendar file"
-msgstr ""
+msgstr "Hetzelfde bijvoegen als een iCalendar-bestand"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -1461,8 +1482,9 @@ msgstr "Bijlagen kunnen hier niet worden geopend: sla de bijlage in plaats daarv
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Attendance"
-msgstr ""
+msgstr "Aanwezigheid"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -1496,108 +1518,129 @@ msgstr "Automatisch"
 
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic Replies"
-msgstr ""
+msgstr "Automatische antwoorden"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic Replies - {address}"
-msgstr ""
+msgstr "Automatische antwoorden - {address}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic Replies for {address}"
-msgstr ""
+msgstr "Automatische antwoorden voor {address}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are being sent for {address}"
-msgstr ""
+msgstr "Er worden automatische antwoorden verzonden voor {address}"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
-msgstr ""
+msgstr "Automatische antwoorden blijven op de e-mailserver, en MailCraft kan ze tot nu toe alleen instellen voor accounts die zich aanmelden met Microsoft: IMAP heeft geen standaardmanier om ze in te stellen (vakantieantwoorden via Sieve kunnen later komen)"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are off"
-msgstr ""
+msgstr "Automatische antwoorden zijn uitgeschakeld"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are on"
-msgstr ""
+msgstr "Automatische antwoorden zijn ingeschakeld"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are set for the time range you chose"
-msgstr ""
+msgstr "Automatische antwoorden zijn ingesteld voor de periode die u hebt gekozen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: MailCraft needs you to sign in again to read them"
-msgstr ""
+msgstr "Automatische antwoorden: MailCraft heeft nodig dat u zich opnieuw aanmeldt om ze te lezen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: Microsoft no longer takes the sign-in"
-msgstr ""
+msgstr "Automatische antwoorden: Microsoft accepteert de aanmelding niet meer"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: asking for your permission to change them…"
-msgstr ""
+msgstr "Automatische antwoorden: bezig met vragen om uw toestemming om ze te wijzigen…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: changing them not allowed ({why})"
-msgstr ""
+msgstr "Automatische antwoorden: wijzigen niet toegestaan ({why})"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: changing them waits for your permission"
-msgstr ""
+msgstr "Automatische antwoorden: wijzigen wacht op uw toestemming"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: couldn't be read ({why})"
-msgstr ""
+msgstr "Automatische antwoorden: kon niet worden gelezen ({why})"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: during a time range"
-msgstr ""
+msgstr "Automatische antwoorden: tijdens een periode"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: from {start} to {end}"
-msgstr ""
+msgstr "Automatische antwoorden: van {start} tot {end}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: not read yet"
-msgstr ""
+msgstr "Automatische antwoorden: nog niet gelezen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: off"
-msgstr ""
+msgstr "Automatische antwoorden: uit"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: on, until you turn them off"
-msgstr ""
+msgstr "Automatische antwoorden: aan, tot u ze uitschakelt"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: reading…"
-msgstr ""
+msgstr "Automatische antwoorden: bezig met lezen…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: your organisation doesn't let MailCraft change them"
-msgstr ""
+msgstr "Automatische antwoorden: uw organisatie staat MailCraft niet toe ze te wijzigen"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -1607,8 +1650,9 @@ msgstr "Automatische instelling kan zich niet aanmelden bij deze server. Typ het
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Availability only: when you are free or busy"
-msgstr ""
+msgstr "Alleen beschikbaarheid: wanneer u vrij of bezet bent"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1624,8 +1668,9 @@ msgstr "Terug"
 
 #. interface
 #: crates/ui-egui/src/send_receive.rs
+#, fuzzy
 msgid "Back online"
-msgstr ""
+msgstr "Weer online"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -1677,8 +1722,9 @@ msgstr "Afzender blokkeren"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Blue"
-msgstr ""
+msgstr "Blauw"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -1880,15 +1926,19 @@ msgstr "Annuleren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Cancel\n"
 "All"
 msgstr ""
+"Alles\n"
+"annuleren"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
 msgid "Cancel All"
-msgstr ""
+msgstr "Alles annuleren"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1940,8 +1990,9 @@ msgstr "Categorieën"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Categories:"
-msgstr ""
+msgstr "Categorieën:"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -1969,15 +2020,19 @@ msgstr "CC: {names}"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Change\n"
 "View"
 msgstr ""
+"Weergave\n"
+"wijzigen"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "Change Automatic Replies"
-msgstr ""
+msgstr "Automatische antwoorden wijzigen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1993,8 +2048,9 @@ msgstr "Deze vergadering wijzigen?"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Change View"
-msgstr ""
+msgstr "Weergave wijzigen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2046,23 +2102,27 @@ msgstr "Het wijzigen van de agenda vereist uw toestemming: Bestand › Info › 
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Changing your automatic replies needs your permission, once: when you press OK, Microsoft's page opens in your browser to ask you. Reading them doesn't need it."
-msgstr ""
+msgstr "Het wijzigen van uw automatische antwoorden vereist één keer uw toestemming: als u op OK drukt, opent de pagina van Microsoft in uw browser om het u te vragen. Het lezen ervan heeft die toestemming niet nodig."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask again: Microsoft's page opens in your browser."
-msgstr ""
+msgstr "Het wijzigen van uw automatische antwoorden was niet toegestaan ({why}). Druk op OK om opnieuw te vragen: de pagina van Microsoft opent in uw browser."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Changing your automatic replies…"
-msgstr ""
+msgstr "Bezig met wijzigen van uw automatische antwoorden…"
 
 #. interface
 #: crates/ui-egui/src/symbol.rs
+#, fuzzy
 msgid "Character code"
-msgstr ""
+msgstr "Tekencode"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2208,8 +2268,9 @@ msgstr "Een categorie kiezen"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Choose a first and a last day, at most a year apart."
-msgstr ""
+msgstr "Kies een eerste en een laatste dag, hoogstens een jaar uit elkaar."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2297,8 +2358,9 @@ msgstr "Opmaak wissen"
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "Clear Recent Searches"
-msgstr ""
+msgstr "Recente zoekopdrachten wissen"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2416,8 +2478,9 @@ msgstr "Communiceren"
 
 #. name
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Compact"
-msgstr ""
+msgstr "Compact"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -2505,20 +2568,25 @@ msgstr "Contactpersoon"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Contact\n"
 "Card"
 msgstr ""
+"Visite\n"
+"kaartje"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Contact Attendees"
-msgstr ""
+msgstr "Deelnemers contacteren"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Contact Card"
-msgstr ""
+msgstr "Visitekaartje"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2688,8 +2756,9 @@ msgstr "Land"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Create Message"
-msgstr ""
+msgstr "Bericht maken"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -3055,8 +3124,9 @@ msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar van Ma
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Detail"
-msgstr ""
+msgstr "Details"
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -3078,8 +3148,9 @@ msgstr "Diagram"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Direct Replies To"
-msgstr ""
+msgstr "Antwoorden rechtstreeks naar"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -3197,8 +3268,9 @@ msgstr "Niet verzenden"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Don't send automatic replies"
-msgstr ""
+msgstr "Geen automatische antwoorden verzenden"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3226,8 +3298,9 @@ msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
 msgid "Download"
-msgstr ""
+msgstr "Downloaden"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
@@ -3291,10 +3364,11 @@ msgstr "{name} gedownload"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bijlage gedownload"
+msgstr[1] "{n} bijlagen gedownload"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -3382,8 +3456,9 @@ msgstr "Einddatum"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Due date:"
-msgstr ""
+msgstr "Vervaldatum:"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3423,8 +3498,9 @@ msgstr "E-mail"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
-msgstr ""
+msgstr "Elke afzender krijgt één automatisch antwoord, met het bericht hieronder:"
 
 #. interface, name
 #: crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
@@ -3478,8 +3554,9 @@ msgstr "Handtekening bewerken"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Edit Signature as Text"
-msgstr ""
+msgstr "Handtekening bewerken als tekst"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -3489,13 +3566,15 @@ msgstr "Taak bewerken"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Edit signature as text"
-msgstr ""
+msgstr "Handtekening bewerken als tekst"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Editing"
-msgstr ""
+msgstr "Bewerken"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -3511,15 +3590,19 @@ msgstr "E-mail"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Email\n"
 "Calendar"
 msgstr ""
+"Agenda\n"
+"e-mailen"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Email Calendar"
-msgstr ""
+msgstr "Agenda e-mailen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -3535,8 +3618,9 @@ msgstr "E-mailadres"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Email the people of this meeting"
-msgstr ""
+msgstr "De personen van deze vergadering e-mailen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3586,8 +3670,9 @@ msgstr "Einde"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "End time:"
-msgstr ""
+msgstr "Eindtijd:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3663,8 +3748,9 @@ msgstr "Elke {n} minuten"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Everyone outside my organization"
-msgstr ""
+msgstr "Iedereen buiten mijn organisatie"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3862,8 +3948,9 @@ msgstr "februari"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Feedback"
-msgstr ""
+msgstr "Feedback"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -3931,8 +4018,9 @@ msgstr "Dubbele contactpersonen zoeken"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "Find Next"
-msgstr ""
+msgstr "Volgende zoeken"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -3948,8 +4036,9 @@ msgstr "Een tijd zoeken"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "Find what"
-msgstr ""
+msgstr "Zoeken naar"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4173,8 +4262,9 @@ msgstr "Opmaak"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Format Painter"
-msgstr ""
+msgstr "Opmaak kopiëren"
 
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
@@ -4202,15 +4292,19 @@ msgstr "Doorsturen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Forward\n"
 "Contact"
 msgstr ""
+"Contactpersoon\n"
+"doorsturen"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Forward Contact"
-msgstr ""
+msgstr "Contactpersoon doorsturen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -4314,8 +4408,9 @@ msgstr "Van:"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Full details: and where, and the notes"
-msgstr ""
+msgstr "Alle details: en waar, en de notities"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -4337,10 +4432,13 @@ msgstr "Georgia"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Get\n"
 "Support"
 msgstr ""
+"Ondersteuning\n"
+"krijgen"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -4362,8 +4460,9 @@ msgstr "Bericht ophalen"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
+#, fuzzy
 msgid "Get Support"
-msgstr ""
+msgstr "Ondersteuning krijgen"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -4481,8 +4580,9 @@ msgstr "Allerlei"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Graphite"
-msgstr ""
+msgstr "Grafiet"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs
@@ -4522,13 +4622,15 @@ msgstr "Heeft een bijlage"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Have replies sent to"
-msgstr ""
+msgstr "Antwoorden laten verzenden naar"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Have replies sent to other addresses"
-msgstr ""
+msgstr "Antwoorden laten verzenden naar andere adressen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -4634,8 +4736,9 @@ msgstr "Hoog"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "High Contrast"
-msgstr ""
+msgstr "Hoog contrast"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -4645,8 +4748,9 @@ msgstr "Hoog belang"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "High contrast"
-msgstr ""
+msgstr "Hoog contrast"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -4818,8 +4922,9 @@ msgstr "Belang is"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Importance:"
-msgstr ""
+msgstr "Belang:"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -4865,8 +4970,9 @@ msgstr "Importeren… {messages} van {total}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "In Progress"
-msgstr ""
+msgstr "Wordt uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -4972,8 +5078,9 @@ msgstr "Invoegen"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Insert Calendar"
-msgstr ""
+msgstr "Agenda invoegen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4989,8 +5096,9 @@ msgstr "Afbeelding invoegen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Inside My Organization"
-msgstr ""
+msgstr "Binnen mijn organisatie"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -5494,8 +5602,9 @@ msgstr "Mijn account handmatig instellen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
-msgstr ""
+msgstr "Laat weten dat u afwezig bent of een tijd niet kunt antwoorden: uw postvak antwoordt vanzelf"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -5505,8 +5614,9 @@ msgstr "Licht"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Limited details: and the titles"
-msgstr ""
+msgstr "Beperkte details: en de titels"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -5852,13 +5962,15 @@ msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › O
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-msgstr ""
+msgstr "MailCraft heeft nodig dat u zich opnieuw aanmeldt om uw automatische antwoorden te lezen: de pagina van Microsoft opent in uw browser. E-mail en uw agenda werken intussen zoals ze zijn."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr ""
+msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden te wijzigen: Bestand › Info › Opnieuw vragen."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -6076,8 +6188,9 @@ msgstr "Als ongelezen markeren"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "Match case"
-msgstr ""
+msgstr "Identieke hoofdletters/kleine letters"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -6271,8 +6384,9 @@ msgstr "Microsoft accepteert de aanmelding niet meer"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
-msgstr ""
+msgstr "Microsoft accepteert uw aanmelding niet meer. Meld u opnieuw aan om uw automatische antwoorden te lezen en te wijzigen."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6360,8 +6474,9 @@ msgstr "Maand"
 
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "More Options"
-msgstr ""
+msgstr "Meer opties"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs crates/ui-egui/src/lib.rs
@@ -6851,8 +6966,9 @@ msgstr "Nee"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Color"
-msgstr ""
+msgstr "Geen kleur"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -6910,8 +7026,9 @@ msgstr "Er is geen afspraak geopend in een eigen venster"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "No appointment matches."
-msgstr ""
+msgstr "Geen afspraak komt overeen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7023,8 +7140,9 @@ msgstr "Er staat geen nieuwe versie klaar om te installeren."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "No recent searches"
-msgstr ""
+msgstr "Geen recente zoekopdrachten"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -7112,8 +7230,9 @@ msgstr "Niemand heeft een andere tijd voorgesteld."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Nobody is invited to this appointment."
-msgstr ""
+msgstr "Niemand is uitgenodigd voor deze afspraak."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7165,8 +7284,9 @@ msgstr "Geen ongewenste e-mail"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Not Started"
-msgstr ""
+msgstr "Niet gestart"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -7290,13 +7410,15 @@ msgstr "Er wordt niets aan uw e-mail toegevoegd totdat alles is gelezen."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Nothing is scheduled on these days."
-msgstr ""
+msgstr "Er is niets gepland op deze dagen."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "Nothing is sent or received. Click to connect again."
-msgstr ""
+msgstr "Er wordt niets verzonden of ontvangen. Klik om opnieuw verbinding te maken."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -7312,8 +7434,9 @@ msgstr "Niets komt overeen met dit filter."
 
 #. interface
 #: crates/ui-egui/src/pick_item.rs
+#, fuzzy
 msgid "Nothing matches."
-msgstr ""
+msgstr "Niets komt overeen."
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -7533,8 +7656,9 @@ msgstr "Bevestig alleen als u deze servers kent."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Only my contacts"
-msgstr ""
+msgstr "Alleen mijn contactpersonen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7568,8 +7692,9 @@ msgstr "Alleen op deze computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Only send during this time range:"
-msgstr ""
+msgstr "Alleen tijdens deze periode verzenden:"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -7691,8 +7816,9 @@ msgstr "Een postvak van uw organisatie openen waartoe u Volledige toegang hebt g
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open a message you sent as a new one"
-msgstr ""
+msgstr "Een bericht dat u hebt verzonden, openen als een nieuw bericht"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -7930,13 +8056,15 @@ msgstr "Outlook.com"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Outside My Organization (Off)"
-msgstr ""
+msgstr "Buiten mijn organisatie (uit)"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Outside My Organization (On)"
-msgstr ""
+msgstr "Buiten mijn organisatie (aan)"
 
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -8228,8 +8356,9 @@ msgstr "Postcode"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Preferences"
-msgstr ""
+msgstr "Voorkeuren"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8353,8 +8482,9 @@ msgstr "Plaats ze in de agenda van uw account, waar Outlook en uw andere apparat
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Puts the days you choose of your calendar into the message, where the cursor is."
-msgstr ""
+msgstr "Zet de dagen die u kiest van uw agenda in het bericht, op de plaats van de cursor."
 
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs
@@ -8428,8 +8558,9 @@ msgstr "Het lezen van gedeelde postvakken vereist uw toestemming: gebruik Verzen
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Reading the automatic replies stopped unexpectedly"
-msgstr ""
+msgstr "Het lezen van de automatische antwoorden is onverwacht gestopt"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8439,8 +8570,9 @@ msgstr "De agenda wordt van Microsoft gelezen…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Reading your automatic replies from the server…"
-msgstr ""
+msgstr "Bezig met lezen van uw automatische antwoorden van de server…"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -8468,15 +8600,19 @@ msgstr "Recent"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Recent\n"
 "Searches"
 msgstr ""
+"Recente\n"
+"zoekopdrachten"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Recent Searches"
-msgstr ""
+msgstr "Recente zoekopdrachten"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8762,13 +8898,15 @@ msgstr "Herhaling"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Replace"
-msgstr ""
+msgstr "Vervangen"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "Replace All"
-msgstr ""
+msgstr "Alles vervangen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8778,8 +8916,9 @@ msgstr "Wat geopend is vervangen door een .mailcraft-bestand"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "Replace with"
-msgstr ""
+msgstr "Vervangen door"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -8817,23 +8956,27 @@ msgstr "Allen beantwoorden"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Reply and Delete"
-msgstr ""
+msgstr "Beantwoorden en verwijderen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Reply by Email"
-msgstr ""
+msgstr "Beantwoorden per e-mail"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Reply to"
-msgstr ""
+msgstr "Antwoorden aan"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Reply to people outside my organization"
-msgstr ""
+msgstr "Personen buiten mijn organisatie beantwoorden"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/ribbon.rs
@@ -8865,8 +9008,9 @@ msgstr "Antwoorden vragen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
-msgstr ""
+msgstr "Leesbevestiging aanvragen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -8876,8 +9020,9 @@ msgstr "Vereist"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Resend Message"
-msgstr ""
+msgstr "Bericht opnieuw verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8909,8 +9054,9 @@ msgstr "Reageren op terugkerend item"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Response"
-msgstr ""
+msgstr "Antwoord"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/forms.rs
@@ -9198,13 +9344,15 @@ msgstr "Opslaan & sluiten"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Save All Attachments"
-msgstr ""
+msgstr "Alle bijlagen opslaan"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Save All Attachments…"
-msgstr ""
+msgstr "Alle bijlagen opslaan…"
 
 #. ribbon location
 #: crates/engine/src/cmd/file.rs
@@ -9316,10 +9464,11 @@ msgstr "{name} opgeslagen"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved {n} attachment"
 msgid_plural "Saved {n} attachments"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bijlage opgeslagen"
+msgstr[1] "{n} bijlagen opgeslagen"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -9425,10 +9574,13 @@ msgstr "Zoeken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Search\n"
 "Calendar"
 msgstr ""
+"Agenda\n"
+"zoeken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9442,8 +9594,9 @@ msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Search Calendar"
-msgstr ""
+msgstr "Agenda zoeken"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -9465,8 +9618,9 @@ msgstr "Zoeksuggesties"
 
 #. interface
 #: crates/ui-egui/src/pick_item.rs
+#, fuzzy
 msgid "Search by subject or sender"
-msgstr ""
+msgstr "Zoeken op onderwerp of afzender"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -9476,8 +9630,9 @@ msgstr "Opdrachten zoeken"
 
 #. interface
 #: crates/ui-egui/src/pick_item.rs
+#, fuzzy
 msgid "Search contacts"
-msgstr ""
+msgstr "Contactpersonen zoeken"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -9643,15 +9798,19 @@ msgstr "Lokale taken naar To Do verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Send Status\n"
 "Report"
 msgstr ""
+"Statusrapport\n"
+"verzenden"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Send Status Report"
-msgstr ""
+msgstr "Statusrapport verzenden"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -9691,8 +9850,9 @@ msgstr "Automatisch verzenden en ontvangen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Send automatic replies"
-msgstr ""
+msgstr "Automatische antwoorden verzenden"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10046,8 +10206,9 @@ msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Show"
-msgstr ""
+msgstr "Weergeven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10061,10 +10222,13 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Training"
 msgstr ""
+"Training\n"
+"weergeven"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -10122,8 +10286,9 @@ msgstr "Afbeeldingen van afzenders tonen"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
+#, fuzzy
 msgid "Show Training"
-msgstr ""
+msgstr "Training weergeven"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -10203,8 +10368,9 @@ msgstr "Afbeeldingen van afzenders van Gravatar, favicon.im en Google tonen"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Show signature as it is sent"
-msgstr ""
+msgstr "Handtekening tonen zoals die wordt verzonden"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10280,13 +10446,15 @@ msgstr "Weergegeven als Voornaam Achternaam wanneer leeg"
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
+#, fuzzy
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
-msgstr ""
+msgstr "Weergegeven als tekst: er wordt niets in uitgevoerd, geopend of gedownload."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
-msgstr ""
+msgstr "Toont de handtekening weer zoals die is ontworpen, zolang de tekst ongewijzigd is"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10324,13 +10492,15 @@ msgstr "Aanmelden"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Sign In Again"
-msgstr ""
+msgstr "Opnieuw aanmelden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Sign In Again for Automatic Replies"
-msgstr ""
+msgstr "Opnieuw aanmelden voor automatische antwoorden"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10358,8 +10528,9 @@ msgstr "Opnieuw aanmelden zodra een beheerder heeft goedgekeurd"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-msgstr ""
+msgstr "Opnieuw aanmelden: de pagina van Microsoft opent in uw browser. E-mail en uw agenda werken intussen zoals ze zijn."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10429,8 +10600,9 @@ msgstr "Meld u nog een keer aan met Microsoft zodat MailCraft de mappen mag leze
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
-msgstr ""
+msgstr "Meld u eerst aan met Verzenden/ontvangen en wijzig daarna uw automatische antwoorden."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -10638,8 +10810,9 @@ msgstr "Sorteren op"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Source of {subject}"
-msgstr ""
+msgstr "Bron van {subject}"
 
 #. command label
 #: crates/engine/src/cmd/offline.rs
@@ -10679,8 +10852,9 @@ msgstr "Begindatum"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Start date:"
-msgstr ""
+msgstr "Begindatum:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10690,8 +10864,9 @@ msgstr "Opnieuw beginnen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Start time:"
-msgstr ""
+msgstr "Begintijd:"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -10707,8 +10882,9 @@ msgstr "Begint"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Starts a new message with the days you choose of your calendar in it. You say who it goes to, and nothing is sent until you press Send."
-msgstr ""
+msgstr "Begint een nieuw bericht met de dagen die u kiest van uw agenda erin. U bepaalt naar wie het gaat, en er wordt niets verzonden tot u op Verzenden drukt."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10730,8 +10906,9 @@ msgstr "Statusbalk · Bestand"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Status:"
-msgstr ""
+msgstr "Status:"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10801,8 +10978,9 @@ msgstr "Straat"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Stronger text and edges, in the light or the dark theme."
-msgstr ""
+msgstr "Sterkere tekst en randen, in het lichte of het donkere thema."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -10932,13 +11110,15 @@ msgstr "Taak"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Task Status Report:"
-msgstr ""
+msgstr "Statusrapport van de taak:"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Task:"
-msgstr ""
+msgstr "Taak:"
 
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
@@ -11002,8 +11182,9 @@ msgstr "Taken: wacht op uw toestemming"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Teal"
-msgstr ""
+msgstr "Groenblauw"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -11085,8 +11266,9 @@ msgstr "Teksteffecten"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Text Highlight Color"
-msgstr ""
+msgstr "Tekstmarkeringskleur"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11948,13 +12130,15 @@ msgstr "De aanmelding bij {address} die in uw browser wachtte, is gestopt zodat 
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "The signature is then sent as the simpler text shown here, not as it was designed"
-msgstr ""
+msgstr "De handtekening wordt dan verzonden als de eenvoudigere tekst die hier wordt getoond, niet zoals die is ontworpen"
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
+#, fuzzy
 msgid "The source is long: only its first megabyte is shown."
-msgstr ""
+msgstr "De bron is lang: alleen de eerste megabyte wordt getoond."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -12006,8 +12190,9 @@ msgstr "De testafspraak is weer verdwenen. Er is verder niets in de agenda gelez
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "The text wasn't found."
-msgstr ""
+msgstr "De tekst is niet gevonden."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -12113,8 +12298,9 @@ msgstr "Synoniemenlijst"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "These are the answers this computer has been told of."
-msgstr ""
+msgstr "Dit zijn de antwoorden waarvan deze computer op de hoogte is."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -12316,8 +12502,9 @@ msgstr "Deze build kan de server van het account niet bereiken."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
-msgstr ""
+msgstr "Deze build kan de server niet bereiken om automatische antwoorden te wijzigen. Gebruik de desktop-app."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -12843,15 +13030,19 @@ msgstr "Inhoudsmap van het postvak wordt opgeruimd…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Tighter\n"
 "Spacing"
 msgstr ""
+"Kleinere\n"
+"afstand"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Tighter Spacing"
-msgstr ""
+msgstr "Kleinere afstand"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12901,8 +13092,9 @@ msgstr "Tijdzone"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Time zone:"
-msgstr ""
+msgstr "Tijdzone:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12948,9 +13140,9 @@ msgid ""
 "\n"
 "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
 msgstr ""
-"Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n"
+"Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
 "\n"
-"MailCraft wijzigt daarmee alleen uw automatische antwoorden en de regels van uw Postvak IN, nooit uw categorieën of werktijden. Voor het lezen van uw automatische antwoorden is ze niet nodig."
+"MailCraft wijzigt daarmee alleen de automatische antwoorden en de regels van uw Postvak IN, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -13086,8 +13278,9 @@ msgstr "Totale grootte"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Tracking"
-msgstr ""
+msgstr "Bijhouden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13431,13 +13624,15 @@ msgstr "Alle voorstellen weergeven…"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "View Source"
-msgstr ""
+msgstr "Bron weergeven"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Violet"
-msgstr ""
+msgstr "Violet"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -13567,15 +13762,19 @@ msgstr "Wat u schreef is te lang voor een koppeling naar GitHub: maak het korter
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "What's\n"
 "New"
 msgstr ""
+"Wat is\n"
+"nieuw"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
+#, fuzzy
 msgid "What's New"
-msgstr ""
+msgstr "Wat is nieuw"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -13615,8 +13814,9 @@ msgstr "Of het online plaatsvindt, is aan de organisator."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Who has answered, and how"
-msgstr ""
+msgstr "Wie heeft geantwoord, en hoe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -13666,8 +13866,9 @@ msgstr "Woorden"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Words, from:, to:, category:, on:…"
-msgstr ""
+msgstr "Woorden, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13677,10 +13878,13 @@ msgstr "Werk"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Work\n"
 "Offline"
 msgstr ""
+"Offline\n"
+"werken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13694,8 +13898,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
 msgid "Work Offline"
-msgstr ""
+msgstr "Offline werken"
 
 #. command label, name
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs
@@ -13729,8 +13934,9 @@ msgstr "Werktijden"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "Working Offline"
-msgstr ""
+msgstr "Offline"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13740,13 +13946,15 @@ msgstr "Werktijden"
 
 #. interface
 #: crates/ui-egui/src/send_receive.rs
+#, fuzzy
 msgid "Working offline: mail you send waits in the Outbox"
-msgstr ""
+msgstr "Offline: e-mail die u verzendt, wacht in het Postvak UIT"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Write to the organizer without answering"
-msgstr ""
+msgstr "De organisator schrijven zonder te antwoorden"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -13876,8 +14084,9 @@ msgstr "U organiseert deze vergadering, dus er is niemand aan wie u een antwoord
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "You organize this meeting."
-msgstr ""
+msgstr "U organiseert deze vergadering."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13911,53 +14120,63 @@ msgstr "U hebt deze vergadering voorlopig geaccepteerd."
 
 #. interface
 #: crates/ui-egui/src/send_receive.rs
+#, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
-msgstr ""
+msgstr "U werkt offline. Schakel Offline werken uit (Verzenden/ontvangen) om verbinding te maken."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies couldn't be read: {error}"
-msgstr ""
+msgstr "Uw automatische antwoorden konden niet worden gelezen: {error}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed"
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft mocht ze niet wijzigen."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: Microsoft accepteert uw aanmelding niet meer."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: meld u opnieuw aan zodat MailCraft ze kan lezen (Bestand › Info)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: you are working offline."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: u werkt offline."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: uw organisatie staat MailCraft niet toe ze te wijzigen."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies weren't changed: {error}"
-msgstr ""
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: {error}"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -14003,8 +14222,9 @@ msgstr "Uw postvak heeft: {days} · {from} – {to}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your mailbox is sending automatic replies. Click to change them."
-msgstr ""
+msgstr "Uw postvak verzendt automatische antwoorden. Klik om ze te wijzigen."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -14044,13 +14264,15 @@ msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvak
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your organisation doesn't let MailCraft change automatic replies"
-msgstr ""
+msgstr "Uw organisatie staat MailCraft niet toe automatische antwoorden te wijzigen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
-msgstr ""
+msgstr "Uw organisatie staat MailCraft niet toe uw automatische antwoorden te wijzigen. Vraag het uw beheerder."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -14096,8 +14318,9 @@ msgstr "Uw organisatie laat daarna alleen een beheerder een nieuw programma goed
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
-msgstr ""
+msgstr "De beheerder van uw organisatie moet het wijzigen van automatische antwoorden door MailCraft één keer goedkeuren: Bestand › Info"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -14161,18 +14384,21 @@ msgstr "Zoom"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "Zoom In"
-msgstr ""
+msgstr "Inzoomen"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "Zoom Out"
-msgstr ""
+msgstr "Uitzoomen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Zoom the Message"
-msgstr ""
+msgstr "Het bericht zoomen"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -14314,8 +14540,9 @@ msgstr "een afbeelding in een bericht is hoogstens {mb} MB"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "a reply may be {most} characters long at most"
-msgstr ""
+msgstr "een antwoord mag hoogstens {most} tekens lang zijn"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -14867,8 +15094,9 @@ msgstr "geen account wordt via Microsoft Graph bijgehouden"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "no account with id {account}"
-msgstr ""
+msgstr "geen account met id {account}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
@@ -14926,8 +15154,9 @@ msgstr "geen inkomende server"
 
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
+#, fuzzy
 msgid "no look was copied: press Format Painter on the text to copy it from first"
-msgstr ""
+msgstr "er is geen opmaak gekopieerd: druk eerst op Opmaak kopiëren op de tekst waarvan u die wilt kopiëren"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
@@ -15027,8 +15256,9 @@ msgstr "geen map {folder}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "nobody else is invited to this appointment"
-msgstr ""
+msgstr "er is niemand anders uitgenodigd voor deze afspraak"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15110,8 +15340,9 @@ msgstr "op"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "only a message you sent can be sent again"
-msgstr ""
+msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -15121,8 +15352,9 @@ msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "only your own calendars can be put in a message"
-msgstr ""
+msgstr "alleen uw eigen agenda's kunnen in een bericht worden gezet"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15138,8 +15370,9 @@ msgstr "agenda's van anderen worden geopend onder een werk- of schoolaccount van
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "overdue"
-msgstr ""
+msgstr "te laat"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -15167,8 +15400,9 @@ msgstr "alleen-lezen"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "replies can go to at most {n} addresses"
-msgstr ""
+msgstr "antwoorden kunnen naar hoogstens {n} adressen gaan"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -15268,13 +15502,15 @@ msgstr "dat staat niet op de lijst"
 
 #. interface
 #: crates/ui-egui/src
+#, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
-msgstr ""
+msgstr "dat postvak is geopend in een ander MailCraft-venster; sluit het daar eerst"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "that message is a draft: open it to send it"
-msgstr ""
+msgstr "dat bericht is een concept: open het om het te verzenden"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -15308,13 +15544,15 @@ msgstr "het account is verdwenen"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
+#, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
-msgstr ""
+msgstr "de bijlagen zijn samen groter dan {mb} MB: sla ze op in een map"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen"
-msgstr ""
+msgstr "de automatische antwoorden zijn nog niet van de server gelezen: lees ze eerst, zodat er niets van ongezien wordt overschreven"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -15378,8 +15616,9 @@ msgstr "het einde ligt vóór het begin"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "the end of the time range must be after its start"
-msgstr ""
+msgstr "het einde van de periode moet na het begin liggen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -15455,8 +15694,9 @@ msgstr "het bericht kan niet zoveel tekst bevatten"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "the message has no HTML signature"
-msgstr ""
+msgstr "het bericht heeft geen HTML-handtekening"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/session.rs
@@ -15466,8 +15706,9 @@ msgstr "het bericht heeft geen bijlage {index}"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
+#, fuzzy
 msgid "the message has no attachments to save"
-msgstr ""
+msgstr "het bericht heeft geen bijlagen om op te slaan"
 
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
@@ -15489,8 +15730,9 @@ msgstr "de bovenliggende map hoort bij een ander account"
 
 #. what a command says
 #: crates/model/src/rich/find.rs
+#, fuzzy
 msgid "the places to replace are not places in the text"
-msgstr ""
+msgstr "de te vervangen plaatsen zijn geen plaatsen in de tekst"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -15614,8 +15856,9 @@ msgstr "de handtekening is er niet meer"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "the signature was edited as text: its copy is what goes out"
-msgstr ""
+msgstr "de handtekening is bewerkt als tekst: die kopie is wat wordt verzonden"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -15799,8 +16042,9 @@ msgstr "dit postvak is niet bereikbaar via Microsoft Graph (MailboxNotEnabledFor
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "this meeting has no organizer to write to"
-msgstr ""
+msgstr "deze vergadering heeft geen organisator om naartoe te schrijven"
 
 #. what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
@@ -15828,8 +16072,9 @@ msgstr "dit bericht heeft geen onderwerp om naar te zoeken"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
-msgstr ""
+msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -15859,8 +16104,9 @@ msgstr "er wachten te veel verwijderingen om naar Microsoft To Do te worden verz
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
+#, fuzzy
 msgid "too many files of one name"
-msgstr ""
+msgstr "te veel bestanden met dezelfde naam"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -15930,8 +16176,9 @@ msgstr "jaar"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "you signed in as somebody else"
-msgstr ""
+msgstr "u hebt zich aangemeld als iemand anders"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16183,8 +16430,9 @@ msgstr "{large} grote berichten worden gedownload bij openen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "{line} · MailCraft may change them"
-msgstr ""
+msgstr "{line} · MailCraft mag ze wijzigen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16254,8 +16502,9 @@ msgstr "{name} heeft deze uitnodiging beantwoord."
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
+#, fuzzy
 msgid "{name} couldn't be saved: the folder has too many files of that name"
-msgstr ""
+msgstr "{name} kon niet worden opgeslagen: de map heeft te veel bestanden met die naam"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16501,10 +16750,11 @@ msgstr[1] "{n} herinneringen"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "{n} accepted"
 msgid_plural "{n} accepted"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} geaccepteerd"
+msgstr[1] "{n} geaccepteerd"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16578,10 +16828,11 @@ msgstr[1] "{n} dagen"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "{n} declined"
 msgid_plural "{n} declined"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} afgewezen"
+msgstr[1] "{n} afgewezen"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -16793,10 +17044,11 @@ msgstr[1] "Nog {n} mappen worden niet vermeld."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "{n} more not listed"
 msgid_plural "{n} more not listed"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "nog {n} niet vermeld"
+msgstr[1] "nog {n} niet vermeld"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -16824,10 +17076,11 @@ msgstr[1] "{n} nieuwe berichten, {sent} verzonden"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "{n} not answered"
 msgid_plural "{n} not answered"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} niet beantwoord"
+msgstr[1] "{n} niet beantwoord"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16921,10 +17174,11 @@ msgstr[1] "{n} herinneringen zijn aan de beurt"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
+#, fuzzy
 msgid "{n} replacement was made."
 msgid_plural "{n} replacements were made."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} vervanging uitgevoerd."
+msgstr[1] "{n} vervangingen uitgevoerd."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -16982,10 +17236,11 @@ msgstr[1] "{n} taken bestaan alleen op deze computer"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "{n} tentative"
 msgid_plural "{n} tentative"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} voorlopig"
+msgstr[1] "{n} voorlopig"
 
 #. interface
 #: crates/ui-egui/src/opening.rs

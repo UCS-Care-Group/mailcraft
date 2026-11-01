@@ -249,15 +249,6 @@ pub mod p {
     pub fn req_id(v: &Value, k: &str) -> Result<Id, CmdError> {
         id(v, k).ok_or_else(|| CmdError::Params(format!("`{k}` (id) is required")))
     }
-    /// An id under `k`, read strictly, for a command whose default reaches further than the
-    /// caller meant (#566): `None` when `k` isn't given. Anything else under it (`null`, an id as
-    /// text, zero, a fraction) is refused, never taken to mean the default, as [`id`] takes it.
-    pub fn opt_id(v: &Value, k: &str) -> Result<Option<Id>, CmdError> {
-        match v.get(k) {
-            None => Ok(None),
-            Some(x) => whole(x).filter(|i| *i != 0).map(Some).ok_or_else(|| CmdError::Params(format!("`{k}` is an id: a whole number above 0"))),
-        }
-    }
     /// `true` or `false` under `k`, read strictly: `None` when `k` isn't given; anything else
     /// (`"false"`, `0`, `null`) is refused.
     pub fn opt_bool(v: &Value, k: &str) -> Result<Option<bool>, CmdError> {
@@ -267,18 +258,12 @@ pub mod p {
             Some(_) => Err(CmdError::Params(format!("`{k}` is true or false"))),
         }
     }
-    /// `ids` (an array) or `id` (one), when either is given.
-    pub fn ids(v: &Value) -> Option<Vec<Id>> {
-        if let Some(a) = v.get("ids").and_then(Value::as_array) {
-            return Some(a.iter().take(MAX_IDS).filter_map(|x| x.as_u64()).filter(|i| *i != 0).collect());
-        }
-        id(v, "id").map(|i| vec![i])
-    }
     /// `ids` (an array of ids) or `id` (one), read strictly, for a command whose mistake reaches
     /// other people (#360): `None` when neither is given. Anything else under those names (`null`,
     /// which a look-up that found nothing gives (#512), an id as text, zero, a fraction, `ids`
     /// that isn't a list or names no message or has an entry that isn't an id, or more than
-    /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection, as [`ids`] takes it.
+    /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection. Every command that
+    /// takes messages by `id` / `ids` reads them this way (#553).
     pub fn ids_strict(v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
         object(v)?;
         let null = |k: &str| CmdError::Params(format!("`{k}` is null, which names no message"));
@@ -389,6 +374,8 @@ mod import_tree_progress_tests;
 mod import_tree_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
 #[cfg(test)]

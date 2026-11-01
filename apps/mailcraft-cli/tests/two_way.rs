@@ -661,3 +661,60 @@ fn older_mail_called_off_halfway_comes_down_with_the_next_run() {
         r.settled();
     }
 }
+
+/// A message from this computer moved, and one copied, into the Outbox and sent with Send Again
+/// (#704): each goes to its people once and is in Sent Items once, there and here. The send
+/// files it there; it isn't also put on the server as a message moved in.
+#[test]
+fn mail_from_this_computer_sent_from_the_outbox_with_send_again_is_in_sent_items_once() {
+    let mut r = Rig::new(true, true);
+    r.sync();
+    let (outbox, sent) = (r.folder(FolderKind::Outbox), r.folder(FolderKind::Sent));
+    let local = r.s.mailbox.local_account();
+    let kept = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+    let add = |r: &mut Rig, subject: &str| {
+        let m = mailcraft_model::Message {
+            folder: kept,
+            subject: subject.into(),
+            message_id: format!("{}@example.org", subject.to_lowercase().replace(' ', "-")),
+            from: mailcraft_model::Address::new("Ada", "ada@example.org"),
+            to: vec![mailcraft_model::Address::new("Bob", "bob@example.org")],
+            read: true,
+            date: 1_800_000_000 - 7_200,
+            body: mailcraft_model::Body { text: format!("All of {subject}."), html: None },
+            ..Default::default()
+        };
+        r.s.mailbox.add_message(m).unwrap()
+    };
+    let (moved, copied) = (add(&mut r, "Moved out"), add(&mut r, "Copied out"));
+    r.run("mail.move", json!({"ids": [moved], "folder": outbox}));
+    r.run("mail.copy", json!({"ids": [copied], "folder": outbox}));
+    let copy = r.s.mailbox.messages_in(outbox).find(|m| m.subject == "Copied out").unwrap().id;
+    // Held there: nothing goes, and nothing is put on the server from the Outbox.
+    r.sync();
+    assert!(r.smtp.world().delivered.is_empty());
+    r.run("mail.sendAgain", json!({"id": moved}));
+    r.run("mail.sendAgain", json!({"id": copy}));
+    assert_eq!(r.sync()["sent"].as_u64(), Some(2));
+    for _ in 0..2 {
+        r.sync();
+    }
+    assert_eq!(r.smtp.world().delivered.len(), 2);
+    let on_server: Vec<String> = r
+        .imap
+        .world()
+        .mailbox("Sent Items")
+        .messages
+        .iter()
+        .filter(|m| !m.has("\\Deleted"))
+        .filter_map(|m| String::from_utf8_lossy(&m.body).lines().find_map(|line| line.strip_prefix("Subject: ").map(str::to_string)))
+        .collect();
+    let mut on_server = on_server;
+    on_server.sort();
+    assert_eq!(on_server, ["Copied out", "Moved out"]);
+    let mut here: Vec<(String, bool)> = r.s.mailbox.messages_in(sent).map(|m| (m.subject.clone(), m.uid != 0)).collect();
+    here.sort();
+    assert_eq!(here, [("Copied out".to_string(), true), ("Moved out".to_string(), true)]);
+    assert!(r.s.mailbox.queued.is_empty(), "{:?}", r.s.mailbox.queued);
+    assert_eq!(r.waiting(), 0);
+}

@@ -208,7 +208,7 @@ fn own_account(mb: &Mailbox, account: Id) -> Id {
 /// this computer, as rules were before they had accounts: what a script that names none asked
 /// for then).
 fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let Some(account) = p::opt_id(v, "account")? else { return Ok(0) };
+    let Some(account) = p::id_strict(v, "account")? else { return Ok(0) };
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.is_shared() {
         return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));
@@ -318,7 +318,7 @@ fn enable(s: &mut Session, v: &Value) -> CmdResult {
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let mb = &s.mailbox;
-    let order: Vec<usize> = match p::opt_id(v, "account")? {
+    let order: Vec<usize> = match p::id_strict(v, "account")? {
         Some(account) => mb.rules_in_order(account),
         None => (0..mb.rules.len()).collect(),
     };
@@ -376,7 +376,7 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::id(v, "folder").unwrap_or(s.view.folder);
-    let only = p::opt_id(v, "id")?;
+    let only = p::id_strict(v, "id")?;
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
@@ -447,7 +447,7 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     let i = changeable(s, id)?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     let account = match rule.account {
-        0 => p::opt_id(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
+        0 => p::id_strict(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
         own => own,
     };
     let server = rule.account == account && rule.keep == Keep::Server;
@@ -509,7 +509,7 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
     if rule.keep == Keep::Server {
         return Ok(json!({"id": id, "account": rule.account, "keep": "server"}));
     }
-    let account = match (rule.account, p::opt_id(v, "account")?) {
+    let account = match (rule.account, p::id_strict(v, "account")?) {
         (0, Some(account)) => account,
         (0, None) => {
             let servers: Vec<Id> = s.mailbox.accounts.iter().map(|a| a.id).filter(|a| s.mailbox.keeps_rules(*a)).collect();

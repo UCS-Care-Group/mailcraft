@@ -2249,7 +2249,8 @@ mod event {
 
         /// The form for an existing event: the one `p.id` names, else the selected one.
         pub fn edit(s: &Session, p: &Value) -> Option<EventForm> {
-            let id = p.get("id").and_then(Value::as_u64).filter(|i| *i != 0).or(s.sel.event)?;
+            // As the command reads it (#553): one named wrongly opens nothing, never the selected one.
+            let id = mailcraft_engine::p::id_strict(p, "id").ok()?.or(s.sel.event)?;
             let e = s.mailbox.event(id)?;
             let line =
                 |optional: bool| format_list(&e.attendees.iter().filter(|a| a.optional == optional).map(|a| a.address.clone()).collect::<Vec<_>>());

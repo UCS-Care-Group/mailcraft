@@ -1978,12 +1978,23 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                         let _ = app.run("ui.collapseRibbon", json!({}));
                     }
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Search every command by name ("Tell me").
-                    if crate::widgets::icon_text_button(ui, "search", tl!("Search commands"), true).clicked() {
-                        let _ = app.run("ui.dialog", json!({"name": "commands"}));
-                    }
-                });
+                // Search every command by name ("Tell me"), in what the tabs leave of the row: it
+                // gives way before it would cover them, to the magnifier alone and then to nothing
+                // (the Help tab has it too, #712).
+                let label = tl!("Search commands");
+                let shown = fit::search(ui.available_width(), widgets::icon_text_width(ui, label));
+                if shown != fit::Search::Hidden {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let resp = match shown {
+                            fit::Search::Named => widgets::icon_text_button(ui, "search", label, true),
+                            _ => widgets::icon_button(ui, "search", label, 16.0, true),
+                        };
+                        app.hit.add("ribbonSearch", 0, resp.rect);
+                        if resp.clicked() {
+                            let _ = app.run("ui.dialog", json!({"name": "commands"}));
+                        }
+                    });
+                }
             });
         });
     if app.ui.ribbon_collapsed {

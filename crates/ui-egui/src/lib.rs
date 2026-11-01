@@ -2187,7 +2187,7 @@ impl MailApp {
                 // The New rule filled in from a message: an id that is none is refused, never
                 // taken to mean the selection (#566).
                 if name == "rules"
-                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::opt_id(p, k).err())
+                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::id_strict(p, k).err())
                 {
                     return Some(Err(e.to_string()));
                 }
