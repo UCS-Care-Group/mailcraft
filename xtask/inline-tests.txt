@@ -125,7 +125,6 @@ crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs
 crates/ui-egui/src/widgets.rs
-crates/ui-egui/src/window_geometry.rs
 crates/ui-egui/src/windows.rs
 crates/ui-egui/src/zones.rs
 crates/vcard/src/lines.rs
