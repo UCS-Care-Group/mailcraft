@@ -161,4 +161,3 @@ path = "fuzz_targets/dav_document.rs"
 test = false
 doc = false
 bench = false
-

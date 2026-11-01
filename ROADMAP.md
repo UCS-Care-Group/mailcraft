@@ -19,8 +19,8 @@ and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 | Ribbon/menu catalog coverage | **227 / 328 (69.2%)** | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
-| Commands / crates | 295 commands · 18 crates, 3 apps, `xtask` | measured (source) |
-| Tests | 5,140 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
+| Commands / crates | 295 commands · 19 crates, 3 apps, `xtask` | measured (source) |
+| Tests | 5,401 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
 | 64,000 messages, 677 MB, 374 folders (#519, 2026-10-27) | the window's open **0.84 s** warm (was 1.35 s), the bodies the budget holds following in the background in about 0.23 s, on a made-up mailbox shaped as a large real one (about 7 KB of headers a message) | measured (`store_bench_tests.rs`, see the progress log) |
