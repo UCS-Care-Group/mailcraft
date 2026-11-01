@@ -119,7 +119,7 @@ pub(crate) struct Fit {
 /// The order: the note; then stage by stage across the row, every group to Small before any
 /// loses its labels, every one to Icons before any folds; then, if all are folded and the row is
 /// still too wide, groups go behind `…`. Within a step the lowest priority goes first, and of
-/// two alike the one further right. A step that would not make a group narrower is left out.
+/// two alike the one further right. A step that would make a group wider is left out, and so is a fold or an icons-only step that gains nothing.
 pub(crate) fn fit(widths: &[[f32; 4]], priority: &[u8], note: f32, available: f32) -> Fit {
     let n = widths.len();
     let at = |i: usize, s: Stage| widths.get(i).and_then(|w| w.get(s as usize)).copied().unwrap_or(0.0);
@@ -148,9 +148,8 @@ pub(crate) fn fit(widths: &[[f32; 4]], priority: &[u8], note: f32, available: f3
                 break 'steps;
             }
             let Some(cur) = stages.get(i).copied() else { continue };
-            if at(i, stage) < at(i, cur)
-                && let Some(s) = stages.get_mut(i)
-            {
+            let narrower = if stage == Stage::Small { at(i, stage) <= at(i, cur) } else { at(i, stage) < at(i, cur) };
+            if narrower && let Some(s) = stages.get_mut(i) {
                 *s = stage;
             }
         }
