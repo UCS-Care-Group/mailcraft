@@ -774,6 +774,10 @@ pub struct UiState {
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
+    /// File › Options › Mail, "Open replies and forwards in a new window" (#286): a reply or a
+    /// forward the owner starts opens in a window of its own rather than in the reading pane.
+    /// Off unless the owner turns it on.
+    pub replies_in_window: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -862,6 +866,7 @@ impl Default for UiState {
             high_contrast: false,
             accent: theme::Accent::default(),
             light_messages: false,
+            replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             language: i18n::AUTO.into(),
@@ -923,6 +928,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Messages on a Light Background",
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
+    ),
+    (
+        "ui.repliesInWindow",
+        "Open Replies and Forwards in a New Window",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
@@ -1107,13 +1118,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.openWindow",
         "Open in a Window of Its Own",
         "Window",
-        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens in the composer instead; a new appointment or meeting is made when its window is saved"#,
+        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"compose": number (a message being written, as `ui.inspect` lists it under `beingWritten`: as compose.popOut does)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens ready to be written in, in a window of its own; a new appointment or meeting is made when its window is saved. At most 12 windows of their own are open at a time"#,
     ),
     (
         "ui.closeWindow",
         "Close Window",
         "Window",
-        r#"{"window": number} | {"message": number} | {"event": number} | {"all": true} (default: the one in front) — closes without asking, also an appointment with unsaved changes"#,
+        r#"{"window": number} | {"message": number} | {"event": number} | {"compose": number} | {"all": true} (default: the one in front), "save"?: true, "discard"?: true — closes without asking, also an appointment with unsaved changes. A window with a message being written closes with its message, and needs `save` (it goes to Drafts first) or `discard` (it closes as it was last saved): neither, or both, is an error and closes nothing"#,
     ),
     (
         "ui.moveWindowMessage",
@@ -1527,7 +1538,7 @@ pub struct MailApp {
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
     /// Web: what the file the picker will deliver is for.
-    pub(crate) pending_open: Option<String>,
+    pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,
@@ -1892,6 +1903,8 @@ impl MailApp {
             return Ok(json!({"pending": "confirm"}));
         }
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
+        // Where a message it opens goes (#286): New Email into a window of its own, and so on.
+        let place = self.windows.place.take().or_else(|| windows::compose_window::hint(self, id));
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.
         let r = match id {
@@ -1900,7 +1913,12 @@ impl MailApp {
             updates::GO_BACK => self.go_back_a_version(),
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
-            _ => self.execute(id, params),
+            _ => {
+                self.windows.place = place;
+                let r = self.execute(id, params);
+                self.windows.place = None;
+                r
+            }
         };
         // View Source pressed by the owner: its window, with what it answered.
         if let (Ok(v), "mail.viewSource") = (&r, id) {
@@ -1995,7 +2013,8 @@ impl MailApp {
         if let Some(r) = self.ui_command(id, &params) {
             return r;
         }
-        let composing = self.session.compose.is_some();
+        // (The main window's: the reading pane's message being written, #286.)
+        let composing = windows::compose_window::pane_compose(self).is_some();
         // An account that goes takes what was remembered for it along.
         let leaving = if id == "account.remove" {
             params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
@@ -2014,10 +2033,18 @@ impl MailApp {
         if let Some(r) = send_receive::before(self, id) {
             return r;
         }
+        // No room for the window a message would open in (#286).
+        if let Err(e) = windows::compose_window::before_run(self, id, &params) {
+            self.windows.place = None;
+            return Err(e);
+        }
+        let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
         let r = self.session.run(id, &params);
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
+        // A message it opened goes where it is to: the reading pane or a window of its own.
+        let r = windows::compose_window::after_run(self, id, &before, r);
         // Work Offline, File › Account.
         send_receive::after(self, id, &r);
         // Asked for the reminders: their window comes up, due or not.
@@ -2102,7 +2129,7 @@ impl MailApp {
         // (What is remembered of a message being written goes with it.)
         let open: std::collections::HashSet<u64> = self.session.all_composing().map(|c| c.id).collect();
         self.compose_bcc.retain(|id| open.contains(id));
-        if r.is_ok() && composing != self.session.compose.is_some() {
+        if r.is_ok() && composing != windows::compose_window::pane_compose(self).is_some() {
             self.ui.tab = if composing { "Home".into() } else { "Message".into() };
             self.ui.backstage = false;
         }
@@ -2156,6 +2183,17 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.repliesInWindow" => {
+                let value = match p.get("value").filter(|v| !v.is_null()) {
+                    None => !self.ui.replies_in_window,
+                    Some(v) => match v.as_bool() {
+                        Some(value) => value,
+                        None => return Some(Err("`value` is true or false".into())),
+                    },
+                };
+                self.ui.replies_in_window = value;
+                Ok(json!({"value": value}))
             }
             "ui.lightMessages" => {
                 self.ui.light_messages = b("value").unwrap_or(!self.ui.light_messages);
@@ -4386,6 +4424,8 @@ impl MailApp {
         // Windows of their own (a message, an appointment), before the shortcuts: their keys are
         // not also the main window's where they are inside it.
         windows::show(self, &ctx);
+        // The main window acts on the reading pane's message being written (#286).
+        let fronted = windows::compose_window::front_pane(self);
         sync_panel::escape(self, &ctx);
         // Advanced Search closes when what it was opened for has gone, and on Escape, before the
         // window's Escape ends the search (#329).
@@ -4414,6 +4454,7 @@ impl MailApp {
                 mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
             });
         }
+        windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
         reminders::show(self, &ctx);
@@ -4448,8 +4489,9 @@ impl MailApp {
         if self.opening.is_some() {
             return true;
         }
-        // (Its saved draft gone, what is written is saved nowhere: #494.)
-        if dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
+        // Every message being written goes to Drafts, unasked (#286); one that can't be is asked
+        // about, as before.
+        if !windows::compose_window::save_all_for_quit(self) && dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }

@@ -377,6 +377,8 @@ mod import_tree_progress_tests;
 #[cfg(test)]
 mod import_tree_tests;
 #[cfg(test)]
+mod pop_out_tests;
+#[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]
 mod strict_ids_all_tests;

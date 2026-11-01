@@ -692,15 +692,18 @@ fn a_recurrence_being_filled_in_counts_as_changes_not_saved() {
 }
 
 #[test]
-fn quitting_asks_about_a_message_whose_saved_draft_an_agent_deleted() {
+fn quitting_saves_again_a_message_whose_saved_draft_an_agent_deleted() {
     let mut a = app();
     written(&mut a, "Mine");
     a.run("compose.saveDraft", json!({})).unwrap();
     let draft = draft_with(&a, "Mine").unwrap();
     let (now, _) = allowed(&mut a, "mail.deletePermanently", json!({"ids": [draft]}), Class::ALL.to_vec());
     assert_eq!(now.unwrap()["ok"], true);
-    assert!(!a.close_requested());
-    assert!(matches!(&a.dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"));
+    assert!(draft_with(&a, "Mine").is_none());
+    // Closing the window saves it to Drafts once more, unasked (#286): nothing of it is lost.
+    assert!(a.close_requested());
+    assert!(a.dialog.is_none());
+    assert!(draft_with(&a, "Mine").is_some());
 }
 
 #[test]

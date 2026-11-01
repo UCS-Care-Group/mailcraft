@@ -88,7 +88,8 @@ fn answered(jobs: &Jobs) {
 /// The owner writes `subject` in the message being written, or in a new one.
 fn owner_writes(app: &mut MailApp, subject: &str) {
     if app.session.compose.is_none() {
-        app.run("mail.new", json!({})).unwrap();
+        // (In the reading pane, as a script starts it: the owner's New Email has a window, #286.)
+        app.execute("mail.new", json!({})).unwrap();
     }
     app.execute("compose.set", json!({"subject": subject, "body": "Not saved yet"})).unwrap();
 }

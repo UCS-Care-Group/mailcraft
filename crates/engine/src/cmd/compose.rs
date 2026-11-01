@@ -87,6 +87,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"discard"?: true, "compose"?: number} (a message with changes that aren't saved is saved to Drafts first, unless `discard`; `compose`: which message being written, default the current one; the one put aside last is current after it)"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when_writing(needs_compose),
+        CommandSpec::new("compose.popOut", "Pop Out", "Message", pop_out)
+            .pure()
+            .params(r#"{"compose"?: number} (default: the current one, the reading pane's) — the message being written goes into a window of its own, as it is: nothing of it changes, and the reading pane is free again. The window does it (answered as `window`); a host without windows (the command line, headless MCP) leaves it where it is. Its id is answered as `compose`"#)
+            .when_writing(needs_compose),
     ]
 }
 
@@ -1396,6 +1400,13 @@ fn close(s: &mut Session, _: &Value) -> CmdResult {
     // (Saved to Drafts first unless `discard`, by `saves_first`; what was last saved stays there.)
     s.compose = None;
     done()
+}
+
+/// Pop Out (#286): what the window is to move into a window of its own. Nothing of the message
+/// changes here; the host with windows puts it there ([`Session::run`] made it current).
+fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
+    let id = s.compose_id().ok_or_else(|| fail("no message is being written"))?;
+    Ok(json!({"compose": id, "popOut": true}))
 }
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {

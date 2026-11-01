@@ -513,6 +513,18 @@ pub(crate) fn active(ctx: &egui::Context) -> LayerId {
         .unwrap_or(main_layer())
 }
 
+/// The window `layer`, inside the main one, opens behind (#286): coming up doesn't make it the
+/// active one; a press in it, or the keyboard moving to it, still does.
+pub(crate) fn opens_behind(ctx: &egui::Context, layer: LayerId) {
+    let viewport = ctx.viewport_id();
+    ctx.data_mut(|d| {
+        let chain = d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).entry(viewport).or_default();
+        if !chain.shown.contains(&layer) {
+            chain.shown.push(layer);
+        }
+    });
+}
+
 /// The registry's name for a key.
 pub fn key_name(k: Key) -> Option<&'static str> {
     Some(match k {
@@ -663,9 +675,11 @@ pub fn window_command(app: &MailApp, id: &'static str) -> Option<&'static str> {
 
 /// The command a key runs now: the first enabled one bound to it that fits the module in front.
 pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
-    let composing = app.session.compose.is_some();
+    // (The main window's message being written is the reading pane's; one in a window of its
+    // own has the keys of that window, #286.)
+    let composing = crate::windows::compose_window::pane_compose(app).is_some_and(|c| app.session.compose_id() == Some(c));
     let bound = |c: &&mailcraft_engine::CommandSpec| !c.shortcut.is_empty() && c.shortcut.split(" / ").any(|k| k.eq_ignore_ascii_case(key));
-    let fits = |c: &&mailcraft_engine::CommandSpec| window_command(app, c.id).is_some();
+    let fits = |c: &&mailcraft_engine::CommandSpec| window_command(app, c.id).is_some() && (composing || !c.writing);
     let mut hits: Vec<&mailcraft_engine::CommandSpec> = app.session.registry.all().iter().filter(bound).filter(fits).collect();
     // While writing, the Message commands win (Mod+S saves the draft); otherwise they are out.
     hits.sort_by_key(|c| c.id.starts_with("compose.") != composing);
@@ -698,7 +712,7 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     // acts on it, so that what else of the window reads it later still can. It ends a search, as
     // the ✕ on the bar over the list does (#115). (In the search box itself, the box does it.)
     if !typing
-        && app.session.compose.is_none()
+        && crate::windows::compose_window::pane_compose(app).is_none()
         && app.session.view.module == mailcraft_engine::Module::Mail
         && !app.session.view.search.trim().is_empty()
         && take_escape(ctx, main_layer())
@@ -708,7 +722,7 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     }
     // Otherwise it is the registry's: it closes a message being written, from one of its fields
     // too (#365).
-    if (!typing || app.session.compose.is_some())
+    if (!typing || crate::windows::compose_window::pane_compose(app).is_some())
         && let Some(id) = resolve(app, "Escape").and_then(|id| window_command(app, id))
         && take_escape(ctx, main_layer())
     {

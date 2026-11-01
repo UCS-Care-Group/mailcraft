@@ -8,7 +8,6 @@ use serde_json::json;
 
 use super::editor;
 use super::tests::{Window, app, plain, type_in, window};
-use crate::dialogs::{Dialog, leave_message};
 
 /// Two messages being written, the owner's text in each, both with changes not saved (the first
 /// was saved when the second opened, and written in since): their ids, the current one last.
@@ -38,6 +37,8 @@ fn each_message_has_a_body_of_its_own() {
     assert!(other.starts_with("One") && !other.contains("more"), "{other}");
     // The other one current, its body is another: the keyboard isn't carried over to it.
     assert!(h.state_mut().session.show_compose(first));
+    // (Made current as a command does it: the reading pane shows it from now on, #286.)
+    crate::windows::compose_window::settle_pane(h.state_mut());
     h.run_steps(3);
     assert_eq!(editor::id(h.state()), editor::id_of(first));
     assert!(!h.ctx.memory(|m| m.has_focus(editor::id_of(first))));
@@ -48,6 +49,8 @@ fn the_keyboard_asked_for_one_message_is_not_taken_by_another() {
     let (mut h, first, _) = two();
     h.state_mut().want_body_focus();
     assert!(h.state_mut().session.show_compose(first));
+    // (Made current as a command does it: the reading pane shows it from now on, #286.)
+    crate::windows::compose_window::settle_pane(h.state_mut());
     h.run_steps(3);
     assert!(!editor::has_focus(&h.ctx), "asked for the other message's body");
 }
@@ -79,22 +82,13 @@ fn ui_inspect_lists_every_message_being_written() {
 }
 
 #[test]
-fn quitting_asks_once_about_them_all_and_save_draft_saves_each() {
+fn quitting_saves_them_all_to_drafts_unasked() {
+    // Closing the window (#286, slice 3) asks nothing: every message being written goes to Drafts.
     let draft = |h: &Window, subject: &str| h.state().session.mailbox.messages.values().any(|m| m.draft && m.subject == subject);
-    // Discarded, the first keeps the draft it was saved as when the second opened.
-    for (answer, kept) in [("save", (true, true)), ("discard", (true, false))] {
-        let (mut h, _, _) = two();
-        assert!(!h.state_mut().close_requested(), "{answer}");
-        assert!(matches!(&h.state().dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"), "{answer}");
-        h.state_mut().dialog = None;
-        leave_message(h.state_mut(), answer, "quit", json!({}));
-        assert!(h.state().quit_requested, "{answer}");
-        assert_eq!((draft(&h, "First"), draft(&h, "Second")), kept, "{answer}");
-    }
-    // Only the one put aside has changes: still asked.
-    let (mut h, _, second) = two();
-    h.state_mut().run("compose.saveDraft", json!({"compose": second})).unwrap();
-    assert!(!h.state_mut().close_requested());
+    let (mut h, _, _) = two();
+    assert!(h.state_mut().close_requested());
+    assert!(h.state().dialog.is_none());
+    assert_eq!((draft(&h, "First"), draft(&h, "Second")), (true, true));
 }
 
 #[test]
