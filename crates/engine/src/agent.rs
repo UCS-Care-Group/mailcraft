@@ -171,6 +171,7 @@ const SAFE: &[&str] = &[
     // Writing (sending is not).
     "compose.set",
     "compose.replyTo",
+    "compose.readReceipt",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -345,6 +346,7 @@ const SAFE: &[&str] = &[
     "sync.cancel",
     // Help: the addresses of the project's own pages, and what this copy is.
     "help.help",
+    "help.training",
     "help.support",
     "help.feedback",
     "help.whatsNew",
@@ -357,6 +359,8 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.highContrast",
+    "ui.accent",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",

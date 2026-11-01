@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use crate::forms::Form;
 use crate::theme::{Tokens, regular, semibold};
-use crate::widgets::primary_button;
+use crate::widgets::{plain_button, primary_button};
 use crate::{MailApp, UI_COMMANDS};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1357,7 +1357,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let screen = ctx.content_rect();
     egui::Area::new(scrim_layer().id).order(scrim_layer().order).fixed_pos(screen.min).show(ctx, |ui| {
         let resp = ui.allocate_response(screen.size(), egui::Sense::click());
-        ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }));
+        ui.painter().rect_filled(screen, 0.0, t.scrim);
         resp
     });
     let mut close = escape;
@@ -1713,7 +1713,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 });
                 ui.add_space(4.0);
                 button_row(ui, |ui| {
-                    close |= primary_button(ui, tl!("Close"), true).clicked();
+                    close |= plain_button(ui, tl!("Close")).clicked();
                 });
             });
             close |= !open || enter;
@@ -1906,7 +1906,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     }
                     ui.add_space(4.0);
                     button_row(ui, |ui| {
-                        if primary_button(ui, tl!("Close"), true).clicked() || enter {
+                        if plain_button(ui, tl!("Close")).clicked() || enter {
                             close = true;
                         }
                     });
@@ -1929,7 +1929,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 );
                 ui.add_space(4.0);
                 button_row(ui, |ui| {
-                    if primary_button(ui, tl!("Close"), true).clicked() || enter {
+                    if plain_button(ui, tl!("Close")).clicked() || enter {
                         close = true;
                     }
                 });
@@ -2067,7 +2067,7 @@ pub(crate) fn unsaved_changes(ctx: &egui::Context, hit: &mut crate::control::Hit
     // repeats of the Escape that asked to close, which nobody has read the question for yet (#406).
     let layer = crate::keys::modal_layer(egui::Id::unique(("unsaved-changes", window)));
     let (enter, escape) = (crate::keys::take_enter_out(ctx, layer), crate::keys::take_escape(ctx, layer));
-    egui::Modal::new(layer.id).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(ctx, |ui| {
+    egui::Modal::new(layer.id).frame(frame).backdrop_color(t.scrim).show(ctx, |ui| {
         ui.set_width(width);
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         ui.label(egui::RichText::new(tl!("Unsaved Changes")).font(semibold(14.0)));

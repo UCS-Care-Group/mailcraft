@@ -724,8 +724,7 @@ fn mix(a: Color32, b: Color32, k: f32) -> Color32 {
 /// The light or the dark ink of the theme, whichever reads on `bg`.
 fn ink_on(bg: Color32, t: &Tokens) -> Color32 {
     let luma = 0.299 * f32::from(bg.r()) + 0.587 * f32::from(bg.g()) + 0.114 * f32::from(bg.b());
-    let (light, dark) = if t.dark { (t.text, t.surface) } else { (t.surface, t.text) };
-    if luma < 150.0 { light } else { dark }
+    if luma < 150.0 { t.ink_on_dark } else { t.ink_on_light }
 }
 
 fn text_w(ui: &Ui, text: &str, font: FontId) -> f32 {
@@ -1766,8 +1765,7 @@ struct Look {
 /// outlined and nearly empty), out of office purple whatever the calendar's colour. Cancelled
 /// events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
-    let soft = if t.dark { 0.36 } else { 0.20 };
-    let soft = if hovered { soft + 0.08 } else { soft };
+    let soft = t.data_soft(hovered);
     let purple = mix(t.blue, t.red, 0.5);
     let (edge, strength, kind, outline) = match ev.show_as {
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
@@ -3504,7 +3502,7 @@ fn all_day_row(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, bars
             let dragging = frame.drag.is_some();
             paint_bar(&p, rect, item, &t, g.twelve, bar.starts, bar.ends, is_selected(app, item), resp.hovered() && !dragging);
             if frame.fades(item) {
-                p.rect_filled(rect, 3.0, t.surface.linear_multiply(0.55));
+                p.rect_filled(rect, 3.0, t.surface_sunken);
             }
             event_input(app, resp, item, !dragging);
         }
@@ -3702,7 +3700,7 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
                         paint_block(&p, block, item, &t, g.twelve, is_selected(app, item), resp.hovered() && !dragging);
                         if frame.fades(item) {
                             // The block fades where it was while its ghost shows where it is going.
-                            p.rect_filled(block, 3.0, t.surface.linear_multiply(0.55));
+                            p.rect_filled(block, 3.0, t.surface_sunken);
                         }
                     }
                     event_input(app, resp, item, !dragging);
@@ -3805,7 +3803,7 @@ fn paint_ghost(ui: &Ui, zones: &Zones, item: Option<&Item>, span: Span, copy: bo
     let t = Tokens::get(ui.ctx());
     let color = item.map_or(t.accent, |i| i.color);
     // Nearly solid, so it reads over whatever it is dragged across.
-    let fill = mix(t.surface, color, if t.dark { 0.5 } else { 0.3 }).gamma_multiply(0.94);
+    let fill = t.data_ghost(color);
     let last = last_day(span.start, span.end);
     let (a, b) = (zones.from.days_until(span.start.date), zones.from.days_until(last));
     let whole = span.all_day || span.start.minutes_until(span.end) >= DAY_MINUTES;
@@ -4246,7 +4244,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                     let dragging = frame.drag.is_some();
                     paint_bar(&p, rect, item, &t, twelve, starts, ends, is_selected(app, item), resp.hovered() && !dragging);
                     if frame.fades(item) {
-                        p.rect_filled(rect, 3.0, t.surface.linear_multiply(0.55));
+                        p.rect_filled(rect, 3.0, t.surface_sunken);
                     }
                     event_input(app, resp, item, !dragging);
                     d = end + 1;
@@ -4270,7 +4268,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                 let dragging = frame.drag.is_some();
                 paint_chip(&p, rect, item, &t, twelve, is_selected(app, item), resp.hovered() && !dragging);
                 if frame.fades(item) {
-                    p.rect_filled(rect, 3.0, t.surface.linear_multiply(0.55));
+                    p.rect_filled(rect, 3.0, t.surface_sunken);
                 }
                 event_input(app, resp, item, !dragging);
             }

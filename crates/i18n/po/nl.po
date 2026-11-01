@@ -479,6 +479,16 @@ msgstr "Ongeveer {size} aan e-mail ouder dan {window} wordt van deze computer ve
 msgid "Above the status bar"
 msgstr "Boven de statusbalk"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Accent Colour"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1341,6 +1351,11 @@ msgstr "Vraag nogmaals om de afbeeldingen die niet konden worden gedownload."
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Vraag de server van het account nu om de agenda rond deze vergadering."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Ask to be told when the message is read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1659,6 +1674,11 @@ msgstr "Verjaardag"
 #, fuzzy
 msgid "Block Sender"
 msgstr "Afzender blokkeren"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Blue"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4459,6 +4479,11 @@ msgstr "Google heeft het wachtwoord niet geaccepteerd. Een account met verificat
 msgid "Grab bag"
 msgstr "Allerlei"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Graphite"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/sender_images.rs
 #, fuzzy
@@ -4607,11 +4632,21 @@ msgstr "De waarschuwing van dit bericht weer verbergen"
 msgid "High"
 msgstr "Hoog"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "High Contrast"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "High Importance"
 msgstr "Hoog belang"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "High contrast"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8828,6 +8863,11 @@ msgstr "Een probleem melden"
 msgid "Request Responses"
 msgstr "Antwoorden vragen"
 
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+msgid "Request a Read Receipt"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -10019,6 +10059,13 @@ msgstr ""
 "Voortgang\n"
 "weergeven"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Training"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10072,6 +10119,11 @@ msgstr "Voortgang van verzenden/ontvangen weergeven"
 #, fuzzy
 msgid "Show Sender Images"
 msgstr "Afbeeldingen van afzenders tonen"
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+msgid "Show Training"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -10748,6 +10800,11 @@ msgid "Street"
 msgstr "Straat"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Stronger text and edges, in the light or the dark theme."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Subfolders"
@@ -10942,6 +10999,11 @@ msgstr "Taken: nog niet gevraagd"
 #, fuzzy
 msgid "Tasks: waiting for your permission"
 msgstr "Taken: wacht op uw toestemming"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Teal"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs
@@ -13022,8 +13084,8 @@ msgstr "Totaal aantal berichten"
 msgid "Total size"
 msgstr "Totale grootte"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Tracking"
 msgstr ""
 
@@ -13370,6 +13432,11 @@ msgstr "Alle voorstellen weergeven…"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "View Source"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Violet"
 msgstr ""
 
 #. interface

@@ -2298,6 +2298,15 @@ fn parity_has_a_floor_that_only_rises() {
         assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
     }
     assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
+    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
+    for (id, why) in catalog::OUT_OF_SCOPE {
+        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
+        assert!(!why.is_empty());
+        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
+        assert!(!listed("missing"), "{id} isn't missing");
+        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
+    }
+    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
 }
 
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.

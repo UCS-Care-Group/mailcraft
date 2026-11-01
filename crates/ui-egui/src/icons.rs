@@ -8,6 +8,9 @@
 use egui::epaint::{Mesh, TextShape};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 
+mod mark;
+pub use mark::app_mark;
+
 /// Draws on the 20-unit grid of one icon, fitted to the screen's pixels.
 ///
 /// Everything is worked out in device pixels: the grid's origin is a whole pixel, a stroke is a

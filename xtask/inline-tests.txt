@@ -133,7 +133,6 @@ crates/vcard/src/text.rs
 crates/vcard/src/write.rs
 xtask/src/assets.rs
 xtask/src/i18n.rs
-xtask/src/icon.rs
 xtask/src/ico.rs
 xtask/src/release_key.rs
 xtask/src/spdx.rs
