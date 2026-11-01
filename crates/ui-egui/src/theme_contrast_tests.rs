@@ -6,10 +6,11 @@
 
 use egui::Color32;
 
-use super::{Palette, Tokens};
+use super::{Accent, Tokens};
 
 const TEXT: f32 = 4.5;
 const GRAPHIC: f32 = 3.0;
+const STRONG: f32 = 7.0;
 
 fn channel(v: u8) -> f32 {
     let c = f32::from(v) / 255.0;
@@ -75,16 +76,64 @@ const PAIRS: &[Pair] = &[
     ("text_disabled on window", |t| t.text_disabled, |t| t.canvas, GRAPHIC),
 ];
 
+/// Pairs that only high contrast promises: its borders and hairlines are lines you can see.
+const STRONG_PAIRS: &[Pair] = &[
+    ("border on surface", |t| t.border, |t| t.surface, STRONG),
+    ("border on window", |t| t.border, |t| t.canvas, STRONG),
+    ("border on ribbon", |t| t.border, |t| t.ribbon, STRONG),
+    ("border_strong on surface", |t| t.border_strong, |t| t.surface, STRONG),
+    ("ribbon_edge on window", |t| t.ribbon_edge.color, |t| t.canvas, STRONG),
+    ("rule on surface", |t| t.rule, |t| t.surface, GRAPHIC),
+    ("border_faint on surface", |t| t.border_faint, |t| t.surface, GRAPHIC),
+    ("selection_edge on selection", |t| t.selection_edge, |t| t.selection, STRONG),
+    ("selection_edge_unfocused on selection_unfocused", |t| t.selection_edge_unfocused, |t| t.selection_unfocused, GRAPHIC),
+    ("accent_soft_text on checked", |t| t.accent_soft_text, |t| t.checked, TEXT),
+    ("text on pill_quiet", |t| t.text, |t| t.pill_quiet, TEXT),
+];
+
+/// Every accent, light and dark, with high contrast off and on.
+fn every_theme() -> Vec<(String, Tokens, bool)> {
+    let mut all = Vec::new();
+    for accent in Accent::ALL {
+        for dark in [false, true] {
+            for high in [false, true] {
+                let name = format!("{} {} {}", accent.code(), if dark { "dark" } else { "light" }, if high { "high contrast" } else { "normal" });
+                all.push((name, Tokens::build(dark, accent, high), high));
+            }
+        }
+    }
+    all
+}
+
+#[test]
+fn blue_normal_is_the_look_that_shipped() {
+    let (light, dark) = (Tokens::build(false, Accent::Blue, false), Tokens::build(true, Accent::Blue, false));
+    assert_eq!(light.accent, Tokens::light().accent);
+    assert_eq!(light.selection, Tokens::light().selection);
+    assert_eq!(dark.accent_soft, Tokens::dark().accent_soft);
+    assert_eq!(dark.text_selection, Tokens::dark().text_selection);
+}
+
 #[test]
 fn token_pairs_meet_their_contrast() {
-    let palette = Palette::builtin();
     let mut wrong = Vec::new();
-    for dark in [false, true] {
-        let t = palette.tokens(dark);
-        for (name, fg, bg, min) in PAIRS {
+    for (mode, t, high) in every_theme() {
+        let extra: &[Pair] = if high { STRONG_PAIRS } else { &[] };
+        for (name, fg, bg, min) in PAIRS.iter().chain(extra) {
+            // Disabled controls are exempt: they stay at 3:1 in both. In high contrast text and
+            // outlines need 7:1; icons stay at 3:1.
+            let outline = name.contains("border") || name.contains("edge") || name.starts_with("accent on");
+            let min = if !high || name.contains("disabled") {
+                *min
+            } else if *min == TEXT
+                || (*min == GRAPHIC && outline && !name.starts_with("rule") && !name.contains("faint") && !name.contains("unfocused"))
+            {
+                STRONG
+            } else {
+                *min
+            };
             let got = ratio(fg(&t), bg(&t));
-            let mode = if dark { "dark" } else { "light" };
-            if got < *min {
+            if got < min {
                 wrong.push(format!("{name} ({mode}) is {got:.2}, needs {min}"));
             }
         }
