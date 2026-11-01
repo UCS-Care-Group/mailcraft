@@ -259,7 +259,7 @@ fn import_tree(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -278,7 +278,7 @@ pub fn eml_name(m: &mailcraft_model::Message) -> String {
 }
 
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").unwrap_or(s.view.folder);
+    let id = p::id_strict(v, "id")?.unwrap_or(s.view.folder);
     let folder = s.mailbox.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
     // Each message whole: what the mailbox keeps outside memory goes into the file.
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
@@ -305,7 +305,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
     // Each time in its zone, with the zone's definition: what another program reads right
     // wherever it is. (Floating, as before, when the system can't say which zone this is.)
     let zone = Some(s.zone());
-    if let Some(id) = p::id(v, "id") {
+    if let Some(id) = p::id_strict(v, "id")? {
         let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
         let text = mailcraft_ical::write_in(&[e], &[], &opts, zone);
         return deliver(v, &export_name(if e.title.is_empty() { "event" } else { &e.title }, "ics"), text.into_bytes());
@@ -325,7 +325,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn export_contacts(s: &mut Session, v: &Value) -> CmdResult {
-    let ids: Vec<Id> = match p::ids(v) {
+    let ids: Vec<Id> = match p::ids_strict(v)? {
         Some(ids) => ids,
         None => crate::cmd::people::sorted(s, ""),
     };

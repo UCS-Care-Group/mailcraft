@@ -21,7 +21,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("tasks.complete", "Mark Complete", "Home › Manage Task", complete)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
             .selection(needs_task),
-        CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null}"#),
+        CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
         CommandSpec::new("tasks.statusReport", "Send Status Report", "Home › Manage Task", status::report)
             .pure()
@@ -38,7 +38,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ONE: &str = r#"{"id"?: number} (default: the selected task)"#;
+const ONE: &str = r#"{"id"?: number} (default: the selected task). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
@@ -46,7 +46,7 @@ fn needs_task(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.task).ok_or_else(|| fail("select a task first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.task).ok_or_else(|| fail("select a task first"))?;
     s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
@@ -135,7 +135,9 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    s.sel.task = match p::id(v, "id") {
+    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
+    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
+    s.sel.task = match named {
         Some(id) => Some(s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))?),
         None => None,
     };
@@ -213,7 +215,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let due = p::date(v, "due")?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // One to-do per message.

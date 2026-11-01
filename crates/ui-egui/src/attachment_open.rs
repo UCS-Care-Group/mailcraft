@@ -21,7 +21,11 @@ pub(crate) const OPEN: &str = "mail.openAttachment";
 
 /// The attachment the params name: its message, its index and its name.
 fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
-    let id = p.get("id").and_then(Value::as_u64).or(app.session.sel.focus()).ok_or_else(|| tl!("Select a message first").to_string())?;
+    // Read as the engine reads it (#553): named wrongly, it is refused, never taken for the selection.
+    let id = mailcraft_engine::p::message_strict(p)
+        .map_err(|e| e.to_string())?
+        .or(app.session.sel.focus())
+        .ok_or_else(|| tl!("Select a message first").to_string())?;
     let index = p.get("index").and_then(Value::as_u64).ok_or_else(|| "bad parameters: `index` (number) is required".to_string())?;
     let index = usize::try_from(index).map_err(|_| tl!("The message has no such attachment").to_string())?;
     let m = app.session.mailbox.message(id).ok_or_else(|| tl!("The message isn't there any more").to_string())?;

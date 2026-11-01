@@ -456,14 +456,14 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
-/// strictly ([`targets_strict`](super::targets_strict)): a forward goes to other people, so what a
+/// strictly ([`targets`](super::targets)): a forward goes to other people, so what a
 /// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
 /// selection. Each once, in the message list's order (those it doesn't show after them, as
 /// named), and the one in focus, the last named, as for a selection. How many it may be is
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
     p::only(v, &["id", "ids", "discard"])?;
-    let mut ids = super::targets_strict(s, v)?;
+    let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
     ids.reverse();

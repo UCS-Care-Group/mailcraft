@@ -142,7 +142,7 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     let named = match id {
         "mail.reply" | "mail.replyAll" | "mail.replyAndDelete" | "mail.editDraft" | "mail.resend" => p::message_strict(params).ok()?,
         "mail.viewSource" | "mail.saveAllAttachments" | "compose.attachItem" => p::id_strict(params, "id").ok()?,
-        _ => p::id(params, "id"),
+        _ => p::message_strict(params).ok()?,
     };
     to_fetch(app, id, named.or(selected)?)
 }
