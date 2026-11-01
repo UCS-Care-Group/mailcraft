@@ -16,6 +16,27 @@
 //! `MAILCRAFT_FRAME_BENCH_OPEN` set, with a message open in the reading pane; with
 //! `MAILCRAFT_FRAME_BENCH_CHANGES` set, with a change to the mailbox before every frame; with
 //! `MAILCRAFT_FRAME_BENCH_SELECT` set, with another message selected before every frame).
+//!
+//! Measured on 2026-11-01 (8 cores, release build), `main` before the counts (e26e4ad, with this
+//! file added) against after; a frame's time in milliseconds, the median of a steady run or the
+//! range of single frames:
+//!
+//! | Frame                                   | Before   | After  |
+//! |-----------------------------------------|----------|--------|
+//! | The first four frames, together         | 292      | 7      |
+//! | Steady, nothing happening               | 61       | 0.7    |
+//! | Steady with a message open              | 110      | 1.3    |
+//! | After a scroll                          | 82–134   | 0.8–1.2 |
+//! | After a folder change                   | 142      | 5      |
+//! | Steady in another folder                | 61       | 0.6    |
+//! | Back in the Inbox (98,000 messages)     | 132      | 39     |
+//! | After a search                          | 75       | 5      |
+//! | Steady while searching                  | 73       | 2.6    |
+//! | After a change (a read mark)            | 51–135   | 50–65  |
+//! | After a selection (a message opened)    | 93–180   | 72–102 |
+//!
+//! The frame after a change or a selection, which builds the Inbox's list again, is the hitch
+//! that is left.
 
 use std::time::Instant;
 
