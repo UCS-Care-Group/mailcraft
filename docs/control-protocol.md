@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-01 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -174,7 +174,7 @@ A command that asks the owner something when a person runs it (deleting for good
 
 | Where | Kinds |
 |---|---|
-| Ribbon | `ribbon` (a button; its id is derived from the command it runs), `ribbonMenu` (the ▾ of a split button), `ribbonMore` (…), `ribbonMode` (the layout chevron), `ribbonBand` |
+| Ribbon | `ribbon` (a button; its id is derived from the command it runs), `ribbonMenu` (the ▾ of a split button), `ribbonMore` (…), `ribbonMode` (the layout chevron), `ribbonBand`, `ribbonSearch` (Search commands at the right of the tabs: the magnifier alone when the row is narrow, and not there when the tabs leave no room for it, #712) |
 | Folder pane | `folder` (a folder that is a favourite is listed twice: its row under Favorites comes first), `folderHeading` (Favorites is 0, an account its own id), `folderPaneHide`, `folderPaneShow`; under the Favorites heading, by the account's id: `favoritesOffer` (the line that offers to show Outlook's Favorites), `favoritesNote` (the line that says why they are not shown, or why the last look came to nothing) and `favoritesRetry` ("Try again" in it); when what stands in the way is somebody else's to change, `favoritesNote` is the sentence that says so and each link under it has a row: `favoritesCopyMessage` (copy a message for the administrator), and `favoritesHelp` (the page that says what to do next); in File › Options `favoritesOption` (the switch) and `favoritesConnect` |
 | Message list | `message`, `messageRead` (the strip that switches read and unread), `messageFlag`, `messageDelete` (both at the right of the sender's line, while the pointer is over the row), `messageWarning` (the mark of a row whose server says its sender's checks failed, or whose sender's name hides another address, #508), `conversationArrow` (the arrow that opens and closes a conversation, #503), `messageFolder` (the folder named beside a message: a result of a search of more than one folder, or a message of another folder listed under its open conversation, #503); in its header `listTab` (0 All, 1 Unread, 2 another filter while it is in use) and `listSort` (0 the arrangement and its menu, 1 the arrow that turns the list over); `listScroll` (the scroll bar's arrows, while the list is longer than its pane: 0 up, 1 down; none on a Mac, where the bar floats over the rows) |
 | Reading pane | `downloadPictures`, `alwaysDownloadPictures`, `alwaysDownloadPicturesDomain`, `retryPictures` (the links of the bar above a message with pictures on the web; the message's id); `senderWarnings` (the banner of a message with a warning or a caution, #508), `senderWarningsCollapsed` (the slim bar a dismissed warning leaves), `externalTag` (the External tag beside the sender's name), `conversationMessage` (a message of its conversation, to go to, by that message's id) |
@@ -302,3 +302,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-10-30 | minor | #634: `ui.lightMessages`, a message's body on a light page in the dark theme |
 | 2026-10-31 | minor | #703: `ui.highContrast` and `ui.accent` beside `ui.theme` |
 | 2026-10-31 | minor | Parity B1: `sync.cancel` beside `ui.cancelSync`; Work Offline refuses `ui.sync` and shows `workingOffline` in the status bar |
+| 2026-11-01 | patch | #712: `ribbonSearch`, Search commands at the right of the tab row |
