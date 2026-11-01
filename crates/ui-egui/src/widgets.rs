@@ -231,11 +231,15 @@ pub fn icon_button(ui: &mut Ui, icon: &str, tip: &str, size: f32, enabled: bool)
     resp.on_hover_text(tip)
 }
 
+/// How wide [`icon_text_button`] is with `label`.
+pub(crate) fn icon_text_width(ui: &Ui, label: &str) -> f32 {
+    text_w(ui, label, 12.0) + 34.0
+}
+
 /// An icon with a label beside it, as a flat button.
 pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let w = text_w(ui, label, 12.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w + 34.0, 24.0), Sense::click());
+    let (r, resp) = ui.allocate_exact_size(vec2(icon_text_width(ui, label), 24.0), Sense::click());
     if resp.hovered() && enabled {
         ui.painter().rect_filled(r, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
     }

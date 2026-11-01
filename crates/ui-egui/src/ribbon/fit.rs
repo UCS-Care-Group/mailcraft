@@ -208,3 +208,31 @@ pub(crate) fn prioritise(tab: &mut Tab, which: &str) {
         group.priority = table.iter().find(|(title, _)| *title == group.title).map_or(5, |(_, p)| *p);
     }
 }
+
+/// How Search commands shows at the right of the tab row (#712).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Search {
+    /// The magnifier and its name.
+    Named,
+    /// The magnifier alone: its tooltip names it.
+    Icon,
+    /// No room even for the magnifier: the Help tab has it too.
+    Hidden,
+}
+
+/// How wide the magnifier alone is (`widgets::icon_button` at 16).
+pub(crate) const SEARCH_ICON_W: f32 = 24.0;
+/// The room kept between the last tab and Search commands.
+pub(crate) const SEARCH_GAP: f32 = 8.0;
+
+/// What Search commands can be in `room`, what is left of the tab row after the tabs, when with
+/// its name it is `named` wide. The tabs come first: it gives way before they would be covered.
+pub(crate) fn search(room: f32, named: f32) -> Search {
+    if room >= named + SEARCH_GAP {
+        Search::Named
+    } else if room >= SEARCH_ICON_W + SEARCH_GAP {
+        Search::Icon
+    } else {
+        Search::Hidden
+    }
+}
