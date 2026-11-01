@@ -712,8 +712,9 @@ msgstr "Filters toevoegen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add step"
-msgstr ""
+msgstr "Stap toevoegen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10609,8 +10610,9 @@ msgstr "Status:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Steps"
-msgstr ""
+msgstr "Stappen"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -12633,6 +12635,12 @@ msgstr "Het account van dit gedeelde postvak is verdwenen"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Het account van dit gedeelde postvak is verdwenen: verwijder het gedeelde postvak en voeg het opnieuw toe"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr "Deze taak heeft te veel stappen om ze hier te bewerken. Bewerk ze in To Do en synchroniseer opnieuw."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs

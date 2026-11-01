@@ -567,6 +567,7 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
 
 // ---- the details pane ----
 
+/// Show a task and its bounded checklist controls without trimming the edit payload.
 fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
     let t = Tokens::get(ui.ctx());
     let id = task.id;
@@ -649,14 +650,18 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
 
             if !task.steps.is_empty() {
                 section(ui, tl!("Steps"));
-                let mut steps = task.steps.iter().take(mailcraft_model::MAX_TASK_STEPS).cloned().collect::<Vec<_>>();
+                let editable = task.steps.len() <= mailcraft_model::MAX_MERGED_TASK_STEPS;
+                if !editable {
+                    ui.label(tl!("This task has too many steps to edit here. Edit them in To Do and sync again."));
+                }
+                let mut steps = task.steps.iter().take(mailcraft_model::MAX_MERGED_TASK_STEPS).cloned().collect::<Vec<_>>();
                 let mut changed = false;
-                for step in &mut steps {
+                for step in steps.iter_mut().take(mailcraft_model::MAX_TASK_STEPS) {
                     ui.push_id(&step.id, |ui| {
-                        changed |= ui.checkbox(&mut step.completed, clip_chars(&step.title, 255)).changed();
+                        changed |= ui.add_enabled(editable, egui::Checkbox::new(&mut step.completed, clip_chars(&step.title, 255))).changed();
                     });
                 }
-                if changed {
+                if changed && editable {
                     let _ = app.run("tasks.edit", json!({"id": id, "steps": steps}));
                 }
             }

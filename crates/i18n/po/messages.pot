@@ -10448,6 +10448,11 @@ msgstr ""
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."

@@ -50,11 +50,14 @@ pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
 ///   [`TaskResult::Failed`], to be tried again; the rest is left untried.
 /// - 409 and 412 (something changed there meanwhile): [`TaskResult::Failed`], to be tried again.
 /// - any other refusal (400, 413…): [`TaskResult::Refused`], for good.
+/// - an unconfirmed checklist creation (transport failure, 5xx or a success without its id):
+///   [`TaskResult::Uncertain`], held for verification rather than retried or matched by title.
 /// - 401: nothing more is sent, and the upload says the sign-in was refused.
 pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
     push_tasks_at(&super::graph_base(), token, upload)
 }
 
+/// Read task metadata first, then enrich it with complete checklists where available.
 pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = TasksDownload::default();
@@ -127,7 +130,13 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
                 log::warn!("tasks: a checklist could not be read; existing steps will be kept");
                 None
             }
-            Err(e) => return Err(e),
+            Err(e) if e.is_refused_sign_in() || matches!(e, NetError::Forbidden(_)) => return Err(e),
+            Err(_) => {
+                // A busy/unreachable checklist must not discard the parent-task snapshot.
+                // Leave subsequent checklists unknown too: don't keep hitting a throttled service.
+                log::warn!("tasks: checklist reads stopped; existing steps will be kept");
+                break;
+            }
         };
     }
     log::debug!("tasks: {} of them in {} lists, complete: {}", download.tasks.len(), download.lists.len(), download.complete);
@@ -242,6 +251,7 @@ pub(super) fn task_body(patch: &TaskPatch) -> Value {
     Value::Object(body)
 }
 
+/// Send independently acknowledged writes; an unconfirmed checklist creation is held for verification.
 pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> TasksUploaded {
     let mut uploaded = TasksUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     let Ok(graph) = Graph::at(base, token) else {
@@ -314,7 +324,8 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         let reply = match graph.ask(&graph.url(&path), method, headers, body.as_deref(), WRITE_TIMEOUT, MAX_WRITTEN) {
             Ok(reply) => reply,
             Err(e) => {
-                uploaded.outcomes.push(outcome(TaskResult::Failed, &e.to_string()));
+                let result = if op.kind == TaskOpKind::StepCreate { TaskResult::Uncertain } else { TaskResult::Failed };
+                uploaded.outcomes.push(outcome(result, &e.to_string()));
                 break;
             }
         };
@@ -342,14 +353,14 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
                     done.step_id = text(&json, "id").to_string();
                     if !valid_id(&done.step_id) {
-                        done.result = TaskResult::Refused;
+                        done.result = TaskResult::Uncertain;
                         done.error = "the server made a checklist item and didn't say what it is called".into();
                     }
                 } else if op.kind == TaskOpKind::Update {
                     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
                     done.change_key = text(&json, "@odata.etag").to_string();
                 }
-                false
+                done.result == TaskResult::Uncertain
             }
             404 | 410 => {
                 done.result = TaskResult::Gone;
@@ -360,13 +371,18 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                 done.error = "this account may not change its to-dos".into();
                 true
             }
+            503 | 504 if op.kind == TaskOpKind::StepCreate => {
+                done.result = TaskResult::Uncertain;
+                done.error = "the checklist creation could not be confirmed".into();
+                true
+            }
             409 | 412 | 429 | 503 | 504 => {
                 done.result = TaskResult::Failed;
                 done.error = "Microsoft Graph is busy or the to-do changed there meanwhile".into();
                 true
             }
             status if status >= 500 => {
-                done.result = TaskResult::Failed;
+                done.result = if op.kind == TaskOpKind::StepCreate { TaskResult::Uncertain } else { TaskResult::Failed };
                 done.error = format!("Microsoft Graph failed (status {status})");
                 true
             }

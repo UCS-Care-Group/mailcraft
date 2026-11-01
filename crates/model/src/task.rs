@@ -9,8 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Id, Importance, Origin};
 
-/// Most checklist items kept for one task.
+/// Most checklist items read in one download or added through a whole-checklist edit.
 pub const MAX_TASK_STEPS: usize = 200;
+/// A merge may retain a full remote checklist and a full set of pending local additions.
+/// Editors and acknowledgements must preserve this union, even above the intake limit.
+pub const MAX_MERGED_TASK_STEPS: usize = MAX_TASK_STEPS * 2;
 
 /// A task's checklist item. The id is server-owned after upload; before that it is local.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,6 +25,7 @@ pub struct TaskStep {
 }
 
 impl TaskStep {
+    /// Normalize a checklist identity and its single-line title before keeping or sending it.
     pub fn tidy(&mut self) {
         self.id = crate::remote::key(&self.id);
         self.title = crate::remote::line(&self.title, 255);
@@ -64,7 +68,7 @@ pub struct Task {
     /// is what is left to tell it ([`Task::patch`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced: Option<TaskFields>,
-    /// The server refused to make this to-do: it stays on this computer.
+    /// A change was refused or a step creation was not confirmed: keep changes here until edited.
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
 }

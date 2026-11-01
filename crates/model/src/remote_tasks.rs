@@ -137,8 +137,11 @@ pub enum TaskOpKind {
     /// Change the fields of the patch.
     Update,
     Delete,
+    /// Add one checklist item after its parent exists.
     StepCreate,
+    /// Change one checklist item by its confirmed server identity.
     StepUpdate,
+    /// Remove one checklist item without deleting its parent.
     StepDelete,
 }
 
@@ -185,6 +188,9 @@ pub enum TaskResult {
     /// Not now: try again later.
     #[default]
     Failed,
+    /// A creation may have reached the server, but its identity was not confirmed.
+    /// Keep it here without retrying automatically; matching text is not an identity.
+    Uncertain,
     /// Refused for good.
     Refused,
 }

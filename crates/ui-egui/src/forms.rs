@@ -4985,6 +4985,8 @@ mod task {
         categories: Vec<String>,
         notes: String,
         steps: Vec<mailcraft_model::TaskStep>,
+        /// A hostile or older file may exceed even the merge bound. Never save its prefix.
+        steps_overflow: bool,
         completed: bool,
         /// The task was complete when the form opened.
         was_completed: bool,
@@ -5027,7 +5029,8 @@ mod task {
                 remind_time: reminder.map(|r| r.time_short(s.prefs.twelve_hour)).unwrap_or_default(),
                 categories: t.categories.clone(),
                 notes: t.notes.clone(),
-                steps: t.steps.iter().take(mailcraft_model::MAX_TASK_STEPS).cloned().collect(),
+                steps: t.steps.iter().take(mailcraft_model::MAX_MERGED_TASK_STEPS).cloned().collect(),
+                steps_overflow: t.steps.len() > mailcraft_model::MAX_MERGED_TASK_STEPS,
                 completed: t.is_complete(),
                 was_completed: t.is_complete(),
                 day_start: s.prefs.work_start.min(23),
@@ -5078,7 +5081,7 @@ mod task {
 
         /// Every field as `tasks.new` takes it.
         fn fields(&self) -> Map<String, Value> {
-            object(json!({
+            let mut fields = object(json!({
                 "title": self.title,
                 "notes": self.notes,
                 "steps": self.steps,
@@ -5087,7 +5090,11 @@ mod task {
                 "importance": self.importance.code(),
                 "categories": self.categories,
                 "reminder": self.reminder(),
-            }))
+            }));
+            if self.steps_overflow {
+                fields.remove("steps");
+            }
+            fields
         }
 
         /// The command OK runs, with its params: the fields that were filled in for a new task,
@@ -5168,24 +5175,31 @@ mod task {
                 }
                 tall_row(ui, tl!("Steps"), |ui| {
                     ui.vertical(|ui| {
-                        let mut remove = None;
-                        for (index, step) in self.steps.iter_mut().enumerate() {
-                            ui.push_id(index, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.checkbox(&mut step.completed, "");
-                                    ui.add(egui::TextEdit::singleline(&mut step.title).desired_width(220.0).char_limit(255));
-                                    if ui.small_button(tl!("Remove")).clicked() {
-                                        remove = Some(index);
-                                    }
-                                });
+                        if self.steps_overflow {
+                            ui.label(tl!("This task has too many steps to edit here. Edit them in To Do and sync again."));
+                        }
+                        ui.add_enabled_ui(!self.steps_overflow, |ui| {
+                            ui.vertical(|ui| {
+                                let mut remove = None;
+                                for (index, step) in self.steps.iter_mut().enumerate() {
+                                    ui.push_id(index, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.checkbox(&mut step.completed, "");
+                                            ui.add(egui::TextEdit::singleline(&mut step.title).desired_width(220.0).char_limit(255));
+                                            if ui.small_button(tl!("Remove")).clicked() {
+                                                remove = Some(index);
+                                            }
+                                        });
+                                    });
+                                }
+                                if let Some(index) = remove {
+                                    self.steps.remove(index);
+                                }
+                                if self.steps.len() < mailcraft_model::MAX_TASK_STEPS && ui.small_button(tl!("Add step")).clicked() {
+                                    self.steps.push(mailcraft_model::TaskStep::default());
+                                }
                             });
-                        }
-                        if let Some(index) = remove {
-                            self.steps.remove(index);
-                        }
-                        if self.steps.len() < mailcraft_model::MAX_TASK_STEPS && ui.small_button(tl!("Add step")).clicked() {
-                            self.steps.push(mailcraft_model::TaskStep::default());
-                        }
+                        });
                     });
                 });
                 tall_row(ui, tl!("Notes"), |ui| {

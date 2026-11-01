@@ -682,8 +682,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add step"
-msgstr ""
+msgstr "Schritt hinzufügen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10103,8 +10104,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Steps"
-msgstr ""
+msgstr "Schritte"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -11994,6 +11996,12 @@ msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden: Entfernen Sie das freigegebene Postfach und fügen Sie es erneut hinzu"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr "Diese Aufgabe hat zu viele Schritte, um sie hier zu bearbeiten. Bearbeiten Sie sie in To Do und synchronisieren Sie erneut."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs

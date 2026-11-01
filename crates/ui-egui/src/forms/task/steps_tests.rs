@@ -26,3 +26,39 @@ fn steps_are_loaded_edited_and_saved_without_changing_notes() {
     s.run(command, &params).unwrap();
     assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 1);
 }
+
+#[test]
+fn review_editing_a_merged_checklist_keeps_the_hidden_tail() {
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(1_790_000_000, 0), 1_790_000_000, 0);
+    let id = s.mailbox.add_task(mailcraft_model::Task {
+        title: "Trip".into(),
+        steps: (0..=mailcraft_model::MAX_TASK_STEPS)
+            .map(|i| mailcraft_model::TaskStep { id: format!("S{i}"), title: format!("Step {i}"), completed: false })
+            .collect(),
+        ..Default::default()
+    });
+    let mut form = TaskForm::edit(&s, &json!({"id":id})).unwrap();
+    assert_eq!(form.steps.len(), mailcraft_model::MAX_TASK_STEPS + 1);
+    form.steps[0].completed = true;
+    let (command, params) = form.command();
+    s.run(command, &params).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), mailcraft_model::MAX_TASK_STEPS + 1);
+}
+
+#[test]
+fn review_a_file_above_the_merge_bound_never_saves_a_truncated_prefix() {
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(1_790_000_000, 0), 1_790_000_000, 0);
+    let id = s.mailbox.add_task(mailcraft_model::Task {
+        title: "Trip".into(),
+        steps: (0..=mailcraft_model::MAX_MERGED_TASK_STEPS)
+            .map(|i| mailcraft_model::TaskStep { id: format!("S{i}"), title: format!("Step {i}"), completed: false })
+            .collect(),
+        ..Default::default()
+    });
+    let mut form = TaskForm::edit(&s, &json!({"id":id})).unwrap();
+    form.title = "Changed title".into();
+    let (command, params) = form.command();
+    assert!(params.get("steps").is_none());
+    s.run(command, &params).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), mailcraft_model::MAX_MERGED_TASK_STEPS + 1);
+}

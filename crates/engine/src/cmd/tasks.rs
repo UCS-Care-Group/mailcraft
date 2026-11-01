@@ -50,6 +50,7 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
+/// Validate and apply explicit task fields; oversized merges may be edited or reduced, never expanded.
 fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
     if let Some(title) = p::str(v, "title") {
         t.title = title.replace(['\r', '\n'], " ").trim().chars().take(500).collect();
@@ -57,7 +58,8 @@ fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
     if let Some(value) = v.get("steps") {
         let mut steps: Vec<mailcraft_model::TaskStep> =
             serde_json::from_value(value.clone()).map_err(|_| bad("`steps` must be a list of {id?, title, completed?}"))?;
-        if steps.len() > mailcraft_model::MAX_TASK_STEPS {
+        let limit = mailcraft_model::MAX_TASK_STEPS.max(t.steps.len().min(mailcraft_model::MAX_MERGED_TASK_STEPS));
+        if steps.len() > limit || steps.len() > mailcraft_model::MAX_TASK_STEPS && steps.iter().any(|step| step.id.is_empty()) {
             return Err(bad("too many task steps"));
         }
         let mut seen = std::collections::HashSet::new();
@@ -165,6 +167,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
+/// The task fields returned by commands, including every stored checklist item.
 fn task_json(s: &Session, t: &Task) -> Value {
     json!({
         "id": t.id, "title": t.title, "notes": t.notes, "steps": t.steps, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),

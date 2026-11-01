@@ -684,8 +684,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add step"
-msgstr ""
+msgstr "Aggiungi passaggio"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10115,8 +10116,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Steps"
-msgstr ""
+msgstr "Passaggi"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -12006,6 +12008,12 @@ msgstr "L'account di questa cassetta postale condivisa non c'è più"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "L'account di questa cassetta postale condivisa non c'è più: rimuovere la cassetta postale condivisa e aggiungerla di nuovo"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr "Questa attività ha troppi passaggi per modificarli qui. Modificali in To Do e sincronizza di nuovo."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs

@@ -824,7 +824,7 @@ fn new_parent_is_acknowledged_before_its_steps_are_sent() {
 }
 
 #[test]
-fn a_step_created_without_its_reply_is_adopted_once() {
+fn independent_equal_steps_are_not_adopted_as_lost_creates() {
     let (mut s, account) = session();
     let mut there = remote("T1", "Trip");
     there.steps = Some(Vec::new());
@@ -834,8 +834,134 @@ fn a_step_created_without_its_reply_is_adopted_once() {
     there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
     merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
     let task = s.mailbox.task(id).unwrap();
-    assert_eq!(task.steps.len(), 2);
+    assert_eq!(task.steps.len(), 3);
     assert_eq!(task.steps.iter().filter(|step| step.id == "S1").count(), 1);
     let up = task_upload(&s.mailbox, account).unwrap();
+    assert_eq!(up.ops.iter().filter(|op| op.task == id && op.kind == TaskOpKind::StepCreate).count(), 2);
+}
+
+#[test]
+fn review_denied_step_writes_explain_the_permission_failure() {
+    let (mut s, account) = session();
+    merge_tasks(&mut s.mailbox, &download(account, vec![remote("T1", "Trip")])).unwrap();
+    let id = titled(&s, "Trip").id;
+    let result = super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome { kind: TaskOpKind::StepUpdate, task: id, id: "T1".into(), result: TaskResult::Denied, ..Default::default() }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(result.skipped, 1);
+    assert!(result.messages.iter().any(|message| message.contains("may not change its to-dos")));
+}
+
+#[test]
+fn review_identical_independent_steps_keep_their_own_identities() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(Vec::new());
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let id = titled(&s, "Trip").id;
+    run(&mut s, "tasks.edit", json!({"id":id,"steps":[{"title":"Tea"}]}));
+    let local_id = s.mailbox.task(id).unwrap().steps[0].id.clone();
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let task = s.mailbox.task(id).unwrap();
+    assert_eq!(task.steps.len(), 2);
+    assert!(task.steps.iter().any(|step| step.id == local_id));
+}
+
+#[test]
+fn review_merged_steps_beyond_the_read_cap_are_editable_and_uploaded_once() {
+    use mailcraft_model::{MAX_TASK_STEPS, TaskStep};
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(Vec::new());
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let id = titled(&s, "Trip").id;
+    run(&mut s, "tasks.edit", json!({"id":id,"steps":(0..MAX_TASK_STEPS).map(|i|json!({"title":format!("Local {i}")})).collect::<Vec<_>>()}));
+    there.steps = Some((0..MAX_TASK_STEPS).map(|i| TaskStep { id: format!("R{i}"), title: format!("Remote {i}"), completed: false }).collect());
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let mut steps = s.mailbox.task(id).unwrap().steps.clone();
+    assert_eq!(steps.len(), MAX_TASK_STEPS * 2);
+    steps[0].completed = true;
+    run(&mut s, "tasks.edit", json!({"id":id,"steps":steps}));
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), MAX_TASK_STEPS * 2);
+    let up = task_upload(&s.mailbox, account).unwrap();
+    let create = up.ops.iter().find(|op| op.kind == TaskOpKind::StepCreate).expect("pending steps beyond the read cap must be uploaded").clone();
+    super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome {
+                kind: create.kind,
+                task: id,
+                id: "T1".into(),
+                step_id: "Created".into(),
+                patch: create.patch,
+                result: TaskResult::Done,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().synced.as_ref().unwrap().steps.len(), MAX_TASK_STEPS + 1);
+    assert!(
+        !task_upload(&s.mailbox, account)
+            .unwrap()
+            .ops
+            .iter()
+            .any(|op| op.kind == TaskOpKind::StepCreate && op.patch.steps.as_ref().unwrap()[0].id == "Created")
+    );
+}
+
+#[test]
+fn review_uncertain_creates_are_held_without_claiming_an_independent_remote_step() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(Vec::new());
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    let id = titled(&s, "Trip").id;
+    run(&mut s, "tasks.edit", json!({"id":id,"steps":[{"title":"Tea"}]}));
+    let op = task_upload(&s.mailbox, account).unwrap().ops.into_iter().find(|op| op.task == id).unwrap();
+    let applied = super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome {
+                kind: op.kind,
+                task: id,
+                id: "T1".into(),
+                result: TaskResult::Uncertain,
+                patch: op.patch,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(applied.messages.iter().any(|message| message.contains("Check it there")));
+    assert!(s.mailbox.task(id).unwrap().local_only);
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 2);
+    assert!(!task_upload(&s.mailbox, account).unwrap().ops.iter().any(|op| op.task == id));
+}
+
+#[test]
+fn review_adopting_a_parent_preserves_independent_remote_steps() {
+    let (mut s, account) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account":account}));
+    let id = run(&mut s, "tasks.new", json!({"title":"Unique trip","steps":[{"title":"Tea"}]}))["id"].as_u64().unwrap();
+    let mut there = remote("T1", "Unique trip");
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 2);
+    let up = task_upload(&s.mailbox, account).unwrap();
+    assert!(!up.ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepDelete));
     assert_eq!(up.ops.iter().filter(|op| op.task == id && op.kind == TaskOpKind::StepCreate).count(), 1);
 }

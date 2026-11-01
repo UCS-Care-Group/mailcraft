@@ -434,7 +434,7 @@ fn checklist_pages_are_followed_and_step_only_changes_are_read_again() {
 
 #[test]
 fn a_failed_checklist_write_is_not_acknowledged_and_stops_the_upload() {
-    for (status, result) in [(429, TaskResult::Failed), (503, TaskResult::Failed), (403, TaskResult::Denied)] {
+    for (status, result) in [(429, TaskResult::Failed), (503, TaskResult::Uncertain), (403, TaskResult::Denied)] {
         let state = todo();
         state.lock().unwrap().lists[0].2 = vec![json!({"id": "T1", "title": "Trip"})];
         state.lock().unwrap().write_status = Some(status);
@@ -466,7 +466,7 @@ fn a_failed_checklist_write_is_not_acknowledged_and_stops_the_upload() {
         },
     };
     let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op]));
-    assert_eq!(uploaded.outcomes[0].result, TaskResult::Refused);
+    assert_eq!(uploaded.outcomes[0].result, TaskResult::Uncertain);
 }
 
 #[test]
@@ -482,4 +482,47 @@ fn a_task_disappearing_before_its_checklist_does_not_lose_the_download() {
     let got = tasks_at(&server.url(""), TOKEN).unwrap();
     assert_eq!(got.tasks[0].title, "Trip");
     assert!(got.tasks[0].steps.is_none());
+}
+
+#[test]
+fn review_throttling_keeps_parents_and_stops_further_checklist_requests() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let requests = calls.clone();
+    let server = FakeHttp::start(move |_, request| {
+        let target = request.split_whitespace().nth(1).unwrap();
+        if target.contains("/checklistItems") {
+            requests.fetch_add(1, Ordering::SeqCst);
+            return b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 3600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec();
+        }
+        let value = if target.contains("/tasks") {
+            json!({"value":[{"id":"T1","title":"One"},{"id":"T2","title":"Two"}]})
+        } else {
+            json!({"value":[{"id":"L1"}]})
+        };
+        json_answer("200 OK", &value.to_string())
+    });
+    let got = tasks_at(&server.url(""), TOKEN).unwrap();
+    assert_eq!(got.tasks.len(), 2);
+    assert!(got.tasks.iter().all(|task| task.steps.is_none()));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn review_a_lost_create_reply_is_uncertain_not_automatically_retried() {
+    let server = FakeHttp::answering(Vec::new());
+    let op = TaskOp {
+        kind: TaskOpKind::StepCreate,
+        task: 1,
+        id: "T1".into(),
+        list: "L1".into(),
+        patch: TaskPatch {
+            steps: Some(vec![mailcraft_model::TaskStep { id: "local:1".into(), title: "Tea".into(), completed: false }]),
+            ..Default::default()
+        },
+    };
+    let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op.clone(), op]));
+    assert_eq!(uploaded.outcomes.len(), 1);
+    assert_eq!(uploaded.outcomes[0].result, TaskResult::Uncertain);
+    assert!(uploaded.outcomes[0].step_id.is_empty());
 }
