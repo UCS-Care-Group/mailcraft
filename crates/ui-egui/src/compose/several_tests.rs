@@ -261,3 +261,38 @@ fn a_message_saved_on_purpose_stays_in_drafts_whatever_the_background_saves_did(
     a.execute("compose.close", json!({"discard": true})).unwrap();
     assert!(a.session.mailbox.message(draft.0).is_some_and(|m| m.draft));
 }
+
+#[test]
+fn escape_after_a_background_save_asks_and_dont_save_takes_the_copy_out() {
+    for kind in ["imap", "local", "microsoft"] {
+        // Saved by itself, then closed without a word typed since: the owner is asked.
+        let (mut a, start, _) = new_message(kind, "Closed untouched");
+        tick_at(&mut a, start, 0);
+        tick_at(&mut a, start, 5 * 60);
+        let c = a.session.compose.clone().unwrap();
+        assert!(in_drafts(&a, "Closed untouched") && !c.dirty, "{kind}");
+        // (What the window's ✕ asks by too.)
+        assert!(mailcraft_engine::cmd::compose::unsaved(&a.session, &c), "{kind}");
+        a.run("compose.close", json!({})).unwrap();
+        assert!(matches!(a.dialog, Some(crate::dialogs::Dialog::DiscardDraft { .. })), "{kind}");
+        a.dialog = None;
+        crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+        assert!(a.session.compose.is_none() && !in_drafts(&a, "Closed untouched"), "{kind}");
+        // And Undo doesn't bring it back: the background saves are no steps to undo.
+        let _ = a.execute("edit.undo", json!({}));
+        assert!(!in_drafts(&a, "Closed untouched"), "{kind}: undone");
+    }
+}
+
+#[test]
+fn a_message_saved_by_itself_and_put_aside_unasked_still_goes_with_dont_save() {
+    let (mut a, start, first) = new_message("imap", "Put aside");
+    tick_at(&mut a, start, 0);
+    tick_at(&mut a, start, 5 * 60);
+    // Typed in again, then put aside for New Email: saved unasked, which isn't the owner's choice.
+    a.execute("compose.set", json!({"body": "More, not for keeping"})).unwrap();
+    a.run("mail.new", json!({})).unwrap();
+    assert!(a.session.composing_by_id(first).is_some_and(|c| !c.dirty && c.autosaved));
+    a.execute("compose.close", json!({"compose": first, "discard": true})).unwrap();
+    assert!(!in_drafts(&a, "Put aside"));
+}

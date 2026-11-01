@@ -15,6 +15,10 @@
 //! a place in points read on one monitor is somewhere else on another. A window opens at its size
 //! in points for the scale of the monitor it opens on, and is put at its place in pixels once it
 //! is there ([`Opening`]). The browser's windows, inside the page, open where they always did.
+//!
+//! macOS is the exception: there winit gives a monitor's place by that monitor's scale and a
+//! window's by the window's, so there is no one space of pixels; its own space is points, which
+//! is where places, monitors and the check are kept there ([`monitor`], [`system_ppp`]).
 
 use std::collections::BTreeMap;
 
@@ -63,6 +67,23 @@ impl Kind {
 pub struct Monitor {
     pub rect: egui::Rect,
     pub scale: f32,
+}
+
+/// A monitor as winit lists it (its place and size in pixels, and its scale), in the space places
+/// are kept in: pixels, or points (`points`, macOS), where its scale is 1.
+pub fn monitor(position: [i32; 2], size: [u32; 2], scale: f64, points: bool) -> Monitor {
+    let rect = egui::Rect::from_min_size(egui::pos2(position[0] as f32, position[1] as f32), egui::vec2(size[0] as f32, size[1] as f32));
+    let scale = scale as f32;
+    match points && usable_scale(scale) {
+        true => Monitor { rect: egui::Rect::from_min_max(rect.min / scale, rect.max / scale), scale: 1.0 },
+        false => Monitor { rect, scale },
+    }
+}
+
+/// What a window's points are multiplied by for its place as places are kept: its own pixels
+/// per point (`pixels_per_point`), or on macOS egui's `zoom` alone, places being points there.
+pub fn system_ppp(pixels_per_point: f32, zoom: f32) -> f32 {
+    if cfg!(target_os = "macos") { zoom } else { pixels_per_point }
 }
 
 impl Monitor {
@@ -247,7 +268,9 @@ pub fn place_new(saved: Option<Place>, default: egui::Vec2, min: egui::Vec2, las
     // The monitor it opens on: no bigger than it, and at its scale.
     let on = at.and_then(holding).unwrap_or(main);
     let ppp = on.scale * zoom;
-    let fitted = pixels.min(on.rect.size()).max(min * ppp);
+    // (Without a place, as under Wayland, the monitor it opens on isn't known, and Wayland's scale
+    // of a monitor is rounded up: its size isn't held to one.)
+    let fitted = if at.is_some() { pixels.min(on.rect.size()).max(min * ppp) } else { pixels };
     // Made smaller to fit, it is moved onto that monitor whole.
     let at = match at {
         Some(at) if fitted != pixels => {

@@ -193,3 +193,35 @@ fn what_cant_be_read_is_left_out_and_a_kind_this_version_doesnt_know_is_kept() {
     let places: Places = serde_json::from_value(serde_json::Value::Object(many)).unwrap();
     assert!(serde_json::to_value(&places).unwrap().as_object().unwrap().len() <= 32);
 }
+
+#[test]
+fn on_macos_places_are_points_and_a_window_on_the_external_monitor_reopens_there() {
+    // winit on macOS: a Retina built-in at (0,0), 3024×1964 at ×2, and an external ×1 at logical
+    // x=1512, whose place is its logical one times its own scale.
+    let built_in = super::monitor([0, 0], [3024, 1964], 2.0, true);
+    let external = super::monitor([1512, 0], [2560, 1440], 1.0, true);
+    assert_eq!(built_in, monitor(0.0, 0.0, 1512.0, 982.0, 1.0));
+    assert_eq!(external, monitor(1512.0, 0.0, 2560.0, 1440.0, 1.0));
+    // A window at logical x=2000 on the external, as it is noted there (points, by the zoom).
+    let rect = open(2000.0, 100.0, 900.0, 700.0);
+    let info = egui::ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), ..Default::default() };
+    let place = Place::of(&info, 1.0, 1.0);
+    assert_eq!(place, Some(at(2000.0, 100.0, 900.0, 700.0)));
+    // It reopens on the external, where it was, not on the built-in.
+    let o = place_new(place, DEFAULT, MIN, None, &[built_in, external], 1.0);
+    assert_eq!((o.size, o.at, o.pixels_per_point), (egui::vec2(900.0, 700.0), Some(egui::pos2(2000.0, 100.0)), 1.0));
+    // Read as pixels, as on Windows and X11, the same list would put x=2000 on the built-in.
+    let as_pixels = super::monitor([0, 0], [3024, 1964], 2.0, false);
+    assert!(as_pixels.rect.contains(egui::pos2(2000.0, 100.0)));
+}
+
+#[test]
+fn without_a_place_as_under_wayland_the_size_is_not_held_to_a_monitor() {
+    // Wayland: 1920×1080 at 150%, which winit gives as ×2; no window has a place.
+    let screen = monitor(0.0, 0.0, 1920.0, 1080.0, 2.0);
+    let o = place_new(None, DEFAULT, MIN, None, &[screen], 1.0);
+    assert_eq!((o.size, o.at), (DEFAULT, None));
+    let saved = Place { position: None, width: 1230.0, height: 960.0, scale: 1.5 };
+    let o = place_new(Some(saved), DEFAULT, MIN, None, &[screen], 1.0);
+    assert_eq!((o.size, o.at), (DEFAULT, None));
+}

@@ -498,8 +498,8 @@ fn monitors_in_pixels(frame: &eframe::Frame) -> Vec<mailcraft_ui_egui::window_pl
         .take(64)
         .map(|m| {
             let (at, size) = (m.position(), m.size());
-            let rect = egui::Rect::from_min_size(egui::pos2(at.x as f32, at.y as f32), egui::vec2(size.width as f32, size.height as f32));
-            mailcraft_ui_egui::window_places::Monitor { rect, scale: m.scale_factor() as f32 }
+            // (In points on macOS, where winit gives each monitor's place by its own scale.)
+            mailcraft_ui_egui::window_places::monitor([at.x, at.y], [size.width, size.height], m.scale_factor(), cfg!(target_os = "macos"))
         })
         .collect()
 }

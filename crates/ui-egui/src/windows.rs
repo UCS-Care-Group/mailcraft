@@ -84,7 +84,7 @@ impl What {
     /// message and isn't all in Drafts.
     fn unsaved(&self, s: &mailcraft_engine::Session) -> bool {
         match self.compose() {
-            Some(id) => s.composing_by_id(id).is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)),
+            Some(id) => s.composing_by_id(id).is_some_and(|c| mailcraft_engine::cmd::compose::unsaved(s, c)),
             None => self.dirty(),
         }
     }
@@ -1066,7 +1066,8 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
 /// In a frame of a window of the system, with its own `ctx`: the first time, it is put at its
 /// place, by its own scale (#286); then where it is now is noted, for the next of its kind.
 fn place_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, kind: Kind) {
-    let (ppp, zoom) = (ctx.pixels_per_point(), ctx.zoom_factor());
+    let zoom = ctx.zoom_factor();
+    let ppp = window_places::system_ppp(ctx.pixels_per_point(), zoom);
     if !std::mem::replace(&mut window.positioned, true)
         && let Some(at) = window.start.and_then(|s| s.at)
         && ppp.is_finite()

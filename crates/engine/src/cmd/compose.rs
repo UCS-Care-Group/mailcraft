@@ -80,10 +80,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
-        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft)
-            .key("Mod+S")
-            .params(r#"{"compose"?: number, "background"?: true (saved by the five-minute timer: a message that was no draft before is taken out of Drafts again when it is closed with `discard`)}"#)
-            .when_writing(needs_compose),
+        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
             .key("Escape")
@@ -178,6 +175,12 @@ pub fn saves_first(s: &Session, id: &str, params: &Value) -> Vec<u64> {
 /// and an agent's command that leaves it saves it to Drafts again first.
 pub fn draft_gone(s: &Session, c: &Compose) -> bool {
     c.draft.is_some_and(|d| s.mailbox.message(d).is_none())
+}
+
+/// Whether the owner is asked before `c` is closed: changed since it was saved, its draft gone
+/// (#494), or in Drafts only by the background saves, which Don't Save takes out again (#286).
+pub fn unsaved(s: &Session, c: &Compose) -> bool {
+    c.dirty || c.autosaved || draft_gone(s, c)
 }
 
 fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
@@ -1333,11 +1336,16 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"id": id, "queued": queued, "delivered": delivered}))
 }
 
-fn save_draft(s: &mut Session, v: &Value) -> CmdResult {
+fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
-    // Saved in the background, a message that was no draft before stays one that Don't Save
-    // takes out of Drafts again (#286); saved any other way, it is a draft for good.
-    let autosaved = p::bool(v, "background") == Some(true) && (c.draft.is_none() || c.autosaved);
+    // Saved by the timer, a message that was no draft before is one that Don't Save takes out of
+    // Drafts again (#286), and put aside unasked it stays so; saved on anybody's asking, it is a
+    // draft for good.
+    let autosaved = match s.saving {
+        crate::session::Saving::Background => c.draft.is_none() || c.autosaved,
+        crate::session::Saving::Unasked => c.autosaved,
+        crate::session::Saving::Asked => false,
+    };
     // Whole, so that what the server had of it is worked out from its real content (R6.1); as it
     // is when that can't be read.
     let old = c.draft.and_then(|d| s.loaded_message(d).ok().map(|m| Message::clone(&m)).or_else(|| s.mailbox.message(d).cloned()));

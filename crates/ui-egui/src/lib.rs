@@ -4116,8 +4116,9 @@ impl MailApp {
         if !(0..EVERY_SECS).contains(&waited) && !asked {
             self.draft_saved_at = Some(now);
             for compose in due {
-                // (`background`: one that was no draft before leaves Drafts again with Don't Save.)
-                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose, "background": true})) {
+                // (No command: no agent or script can save one in the background, #286. One that
+                // was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.session.save_in_background(compose) {
                     log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
                 }
             }
