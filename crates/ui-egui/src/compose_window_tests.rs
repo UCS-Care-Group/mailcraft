@@ -197,7 +197,8 @@ fn pop_out_moves_the_reading_panes_message_into_a_window() {
     assert_eq!(windows(&mut h)[0]["title"], "Inline - Message");
     // By command too, for another: one that has a window already only comes forward.
     let other = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
-    let answer = script(&mut h, "compose.popOut", json!({}));
+    // (Named: a script's call that names none acts on the window that has the keyboard's.)
+    let answer = script(&mut h, "compose.popOut", json!({"compose": other}));
     assert_eq!((answer["compose"].as_u64(), answer["window"].as_u64()), (Some(other), h.state().windows.of_compose(other)));
     assert_eq!(script(&mut h, "ui.openWindow", json!({"compose": other}))["window"].as_u64(), h.state().windows.of_compose(other));
     assert_eq!(h.state().windows.len(), 2);
@@ -469,4 +470,137 @@ fn a_double_clicked_draft_opens_in_a_window_ready_to_write_in() {
     type_text(&mut h, "More. ");
     assert!(text_of(&h, compose).starts_with("More. "), "{}", text_of(&h, compose));
     assert!(h.query_all_by_label_contains("Unfinished business - Message").next().is_some());
+}
+
+#[test]
+fn what_an_agent_opens_behind_never_takes_what_the_menu_bar_and_keys_act_on() {
+    let mut h = window(app());
+    // The owner writes in a window of their own, which has the keyboard.
+    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    script(&mut h, "compose.set", json!({"compose": mine, "subject": "The owner's"}));
+    into_body(&mut h, mine);
+    let said = agent(h.state_mut(), "mail.new", json!({"subject": "The agent's"}), Class::ALL.to_vec()).expect("done at once");
+    let theirs = said["result"]["compose"].as_u64().unwrap();
+    h.run_steps(3);
+    assert!(h.state().windows.of_compose(theirs).is_some());
+    // From the next frame on, the owner's is current again: the menu bar's Save acts on it.
+    assert_eq!(h.state().session.compose_id(), Some(mine));
+    let save = crate::menubar::Action::Command { id: "compose.saveDraft", params: "{}" };
+    assert!(crate::menubar::enabled(h.state(), &save));
+    crate::menubar::run(h.state_mut(), &save, String::new);
+    h.run_steps(3);
+    assert_eq!((drafts(&h, "The owner's"), drafts(&h, "The agent's")), (1, 0));
+}
+
+#[test]
+fn from_the_main_window_without_a_message_in_the_reading_pane_nothing_acts_on_a_window_behind() {
+    let mut h = window(app());
+    let theirs = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    // The owner goes back to the main window, whose reading pane has no message.
+    assert!(h.state().windows.of_compose(theirs).is_some());
+    h.state_mut().windows.focus = None;
+    assert_eq!(crate::windows::compose_window::target(h.state()), None);
+
+    let send = crate::menubar::Action::Command { id: "compose.send", params: "{}" };
+    assert!(!crate::menubar::enabled(h.state(), &send), "Send from the menu bar would send the window's message");
+    assert!(!crate::windows::compose_window::acts_here(h.state(), "compose.attach"));
+    assert!(crate::windows::compose_window::acts_here(h.state(), "mail.new"));
+}
+
+#[test]
+fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
+    let path = std::env::temp_dir().join(format!("mailcraft-286-attach-{}.txt", std::process::id()));
+    std::fs::write(&path, b"notes").unwrap();
+    let senders: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Option<String>>>>> = std::sync::Arc::default();
+    let mut a = app();
+    let keep = senders.clone();
+    a.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        keep.lock().unwrap().push(tx);
+        rx
+    }));
+    let mut h = window(a);
+    let asking = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    // Attach, in the window: the file dialog opens.
+    assert_eq!(owner(&mut h, "compose.attach", json!({}))["pending"], "attach");
+    // Meanwhile the owner goes to the main window, where another message is in the reading pane.
+    let pane_message = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    h.state_mut().windows.focus = None;
+    h.state_mut().session.show_compose(pane_message);
+    assert_eq!(h.state().session.compose_id(), Some(pane_message));
+
+    // The file picked goes to the message that asked for it.
+    senders.lock().unwrap()[0].send(Some(path.to_string_lossy().to_string())).unwrap();
+    h.run_steps(3);
+    let attached = |c: u64| h.state().session.composing_by_id(c).map(|c| c.attachments.len()).unwrap_or_default();
+    assert_eq!((attached(asking), attached(pane_message)), (1, 0));
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn an_agents_discard_of_every_window_asks_once_naming_the_message_and_counting_the_form() {
+    let mut h = window(app());
+    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    into_body(&mut h, mine);
+    type_text(&mut h, "Mine");
+    let event = h.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| e.id).unwrap();
+    script(&mut h, "ui.openWindow", json!({"event": event}));
+    h.run_steps(4);
+    type_text(&mut h, " (changed)");
+    let all = json!({"all": true, "discard": true});
+    let lost = crate::windows::closing_unsaved(h.state(), &all).expect("something would be lost");
+    assert_eq!((&lost["form"], &lost["more"]), (&json!("message"), &json!(1)), "{lost}");
+    // The agent waits for the owner; nothing closed meanwhile.
+    assert!(agent(h.state_mut(), "ui.closeWindow", all, Class::ALL.to_vec()).is_none());
+    h.run_steps(3);
+    assert_eq!(h.state().windows.len(), 2);
+    assert!(h.state().session.composing_by_id(mine).is_some());
+}
+
+#[test]
+fn at_the_bound_an_agents_message_is_refused_and_the_owners_reading_pane_stays_theirs() {
+    let mut h = window(app());
+    let mine = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    into_body(&mut h, mine);
+    type_text(&mut h, "Mine, not saved");
+    for _ in 0..MAX_WINDOWS {
+        owner(&mut h, "mail.new", json!({}));
+    }
+    assert!(h.state().windows.full());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    for (command, params) in [("mail.new", json!({})), ("mail.reply", json!({"id": message}))] {
+        let said = agent(h.state_mut(), command, params, Class::ALL.to_vec()).expect("answered at once");
+        assert_eq!(said["ok"], false, "{command}: {said}");
+        h.run_steps(3);
+        assert_eq!(pane(&h), Some(mine), "{command}");
+    }
+    assert!(text_of(&h, mine).starts_with("Mine, not saved"));
+}
+
+#[test]
+fn at_the_bound_a_double_clicked_draft_in_the_reading_pane_stays_there() {
+    let mut h = window(app());
+    let draft = h.state().session.mailbox.messages.values().find(|m| m.draft).map(|m| m.id).unwrap();
+    let compose = script(&mut h, "mail.editDraft", json!({"id": draft}))["compose"].as_u64().unwrap();
+    assert_eq!(pane(&h), Some(compose));
+    for _ in 0..MAX_WINDOWS {
+        owner(&mut h, "mail.new", json!({}));
+    }
+    let said = script(&mut h, "ui.openWindow", json!({"message": draft}));
+    assert_eq!(said["compose"], compose, "{said}");
+    assert_eq!((pane(&h), h.state().windows.of_compose(compose)), (Some(compose), None));
+}
+
+#[test]
+fn an_agents_pop_out_opens_behind() {
+    let mut h = window(app());
+    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    into_body(&mut h, mine);
+    let inline = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let said = agent(h.state_mut(), "compose.popOut", json!({"compose": inline}), Class::ALL.to_vec()).expect("done at once");
+    assert_eq!(said["ok"], true, "{said}");
+    h.run_steps(3);
+    let w = window_of(&h, inline);
+    assert_ne!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(w));
+    assert_eq!(h.state().session.compose_id(), Some(mine));
 }

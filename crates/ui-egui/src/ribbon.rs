@@ -98,13 +98,13 @@ impl From<Mode> for String {
     }
 }
 
-/// The tabs in order. `File` opens Backstage; `Message`, `Insert` and `Review` are there while a
-/// message is being written in the reading pane (a window of its own has them in its ribbon,
-/// [`show_window`]).
+/// The tabs in order. `File` opens Backstage; `Message`, `Insert`, `Format Text` and `Review` are
+/// there while a message is being written in the reading pane (a window of its own has them in
+/// its ribbon, [`show_window`]).
 pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     let mut tabs = vec!["File", "Home", "Send / Receive", "Folder", "View", "Help"];
     if crate::windows::compose_window::pane_compose(app).is_some() {
-        tabs.splice(1..1, ["Message", "Insert", "Review"]);
+        tabs.splice(1..1, ["Message", "Insert", "Format Text", "Review"]);
     }
     tabs
 }
@@ -745,7 +745,7 @@ fn format_text(app: &MailApp) -> Tab {
         g(
             "Clipboard",
             vec![
-                Item::big("paste", "Paste", "edit.paste", no()).at(0, 3),
+                Item::big("paste", "Paste", "edit.paste", no()).at(0, 1),
                 Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(0, 5).plain(),
             ],
         ),
@@ -2240,7 +2240,7 @@ mod tests {
                 out.push((format!("{module} › {tab}"), vec![(module, json!({})), ("ui.tab", json!({"tab": tab}))]));
             }
         }
-        for tab in ["Message", "Insert", "Review"] {
+        for tab in ["Message", "Insert", "Format Text", "Review"] {
             out.push((
                 tab.to_string(),
                 vec![("view.mail", json!({})), ("mail.first", json!({})), ("mail.reply", json!({})), ("ui.tab", json!({"tab": tab}))],
@@ -2262,13 +2262,10 @@ mod tests {
             for (command, params) in commands {
                 a.run(command, params).unwrap();
             }
-            // (Format Text is in a window of a message being written alone.)
-            let tabs = if a.session.compose.is_some() { vec![describe(&a), describe_tab(&a, "Format Text")] } else { vec![describe(&a)] };
-            for tab in &tabs {
-                for group in &tab.groups {
-                    let texts = std::iter::once(group.title).chain(group.items.iter().flat_map(|i| [i.label, i.tip]));
-                    missing.extend(texts.filter(|s| !s.is_empty() && !known.contains(*s)));
-                }
+            let tab = describe(&a);
+            for group in &tab.groups {
+                let texts = std::iter::once(group.title).chain(group.items.iter().flat_map(|i| [i.label, i.tip]));
+                missing.extend(texts.filter(|s| !s.is_empty() && !known.contains(*s)));
             }
         }
 
@@ -2323,7 +2320,7 @@ mod tests {
             assert!(tab.groups.iter().all(|group| !group.title.is_empty() && !group.items.is_empty()), "{name}");
             seen += 1;
         }
-        assert_eq!(seen, 23);
+        assert_eq!(seen, 24);
     }
 
     /// Mail › Home in the order the simplified row has it, with its split buttons.

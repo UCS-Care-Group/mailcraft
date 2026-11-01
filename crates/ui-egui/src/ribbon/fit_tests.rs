@@ -130,7 +130,7 @@ fn every_tab() -> Vec<(String, Vec<(&'static str, Value)>)> {
             out.push((format!("{module} › {tab}"), vec![(module, json!({})), ("ui.tab", json!({"tab": tab}))]));
         }
     }
-    for tab in ["Message", "Insert", "Review"] {
+    for tab in ["Message", "Insert", "Format Text", "Review"] {
         out.push((
             tab.to_string(),
             vec![("view.mail", json!({})), ("mail.first", json!({})), ("mail.reply", json!({})), ("ui.tab", json!({"tab": tab}))],

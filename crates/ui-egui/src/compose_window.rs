@@ -47,12 +47,14 @@ pub(crate) fn pane_compose(app: &MailApp) -> Option<u64> {
 }
 
 /// Settle which message the reading pane shows: the current one when it has no window; else the
-/// one it showed, while that is open and has none; else the one put aside last that has none.
+/// one it showed, while that is open and has none; else the one put aside last that has none. An
+/// agent's command never takes the reading pane from the message it shows.
 pub(crate) fn settle_pane(app: &mut MailApp) {
     let windowed = |c: u64| app.windows.of_compose(c).is_some();
     let s = &app.session;
+    let held = s.agent.is_some() && pane_compose(app).is_some();
     let now = match s.compose_id() {
-        Some(c) if !windowed(c) => Some(c),
+        Some(c) if !windowed(c) && !held => Some(c),
         _ => pane_compose(app).or_else(|| s.composing.iter().rev().map(|c| c.id).find(|c| !windowed(*c))),
     };
     app.windows.pane = now;
@@ -71,17 +73,19 @@ pub(crate) fn hint(app: &MailApp, id: &str) -> Option<Opens> {
 }
 
 /// Before a command runs ([`MailApp::execute`]): one that would open a message in a window of
-/// its own when there is no room for one is refused, unless it answers a message (that one stays
-/// in the reading pane). Pop Out too, for a message that has no window yet.
+/// its own when there is no room for one is refused, unless the owner answers a message (that one
+/// stays in the reading pane). An agent's are all refused: the reading pane is the owner's. Pop
+/// Out too, for a message that has no window yet.
 pub(crate) fn before_run(app: &MailApp, id: &str, params: &Value) -> Result<(), String> {
     if !app.windows.full() {
         return Ok(());
     }
     let starting = mailcraft_engine::cmd::compose::STARTING.contains(&id);
-    let window = matches!(app.windows.place, Some(Opens::Window { .. })) || (app.session.agent.is_some() && starting);
-    if starting && window && !ANSWERS.contains(&id) {
-        // (A draft open already in a window of its own only comes forward.)
-        let open = id == "mail.editDraft" && open_draft_window(app, params).is_some();
+    let agent = app.session.agent.is_some();
+    let window = matches!(app.windows.place, Some(Opens::Window { .. })) || agent;
+    if starting && window && (agent || !ANSWERS.contains(&id)) {
+        // (A draft being written already only comes forward, in its window or the reading pane.)
+        let open = id == "mail.editDraft" && being_written(app, params).is_some();
         if !open {
             return Err(too_many());
         }
@@ -92,11 +96,11 @@ pub(crate) fn before_run(app: &MailApp, id: &str, params: &Value) -> Result<(), 
     Ok(())
 }
 
-/// The window of the draft `mail.editDraft` with `params` would open, when it is open already in one.
-fn open_draft_window(app: &MailApp, params: &Value) -> Option<u64> {
+/// The message being written of the draft `mail.editDraft` with `params` would open, when it is
+/// being written already.
+fn being_written(app: &MailApp, params: &Value) -> Option<u64> {
     let draft = mailcraft_engine::p::id(params, "id").or_else(|| app.session.sel.focus())?;
-    let compose = app.session.all_composing().find(|c| c.draft == Some(draft))?.id;
-    app.windows.of_compose(compose)
+    Some(app.session.all_composing().find(|c| c.draft == Some(draft))?.id)
 }
 
 /// After a command ran ([`MailApp::execute`]), with the ids of the messages being written before
@@ -112,29 +116,35 @@ pub(crate) fn after_run(app: &mut MailApp, id: &str, before: &[u64], r: Result<V
         }
     };
     let mut window = None;
+    let agent = app.session.agent.is_some();
     if id == "compose.popOut"
         && let Some(compose) = answer.get("compose").and_then(Value::as_u64)
     {
-        window = Some(put_in_window(app, compose, false)?);
+        // An agent's opens behind the owner's window, without the keyboard.
+        window = Some(put_in_window(app, compose, agent)?);
     }
     let opened: Vec<u64> = app.session.all_composing().map(|c| c.id).filter(|c| !before.contains(c)).collect();
-    let agent = app.session.agent.is_some();
     for compose in &opened {
         let want = if agent { Opens::Window { behind: true } } else { place.unwrap_or(Opens::Pane) };
         match want {
             Opens::Window { behind } if !app.windows.full() => window = Some(put_in_window(app, *compose, behind)?),
+            // (An agent's never takes the reading pane: at the bound it was refused.)
+            _ if agent => {}
             // At the bound, it stays in the reading pane (only a reply or forward gets this far).
             _ => app.windows.pane = Some(*compose),
         }
     }
-    // A draft that was open already, asked for in a window: its window, or one for it.
+    // A draft that was open already, asked for in a window: its window, or one for it (at the
+    // bound, it stays where it is).
     if opened.is_empty()
         && let Some(Opens::Window { behind }) = place
         && id == "mail.editDraft"
         && let Some(compose) = answer.get("compose").and_then(Value::as_u64)
+        && (!app.windows.full() || app.windows.of_compose(compose).is_some())
     {
         window = Some(put_in_window(app, compose, behind || agent)?);
     }
+
     if let (Some(window), Some(fields)) = (window, answer.as_object_mut()) {
         fields.insert("window".into(), json!(window));
     }
@@ -237,25 +247,19 @@ pub(crate) fn close_by_command(app: &mut MailApp, closing: &[u64], p: &Value) ->
 }
 
 /// What an agent's `ui.closeWindow` with `discard` would throw away of what the owner wrote
-/// (#494): the first of the windows it closes whose message the owner wrote in and that isn't all
-/// in Drafts, as the owner's question names it, and how many more (`more`).
-pub(crate) fn discarding(app: &MailApp, closing: &[u64]) -> Option<Value> {
+/// (#494): each of the windows it closes whose message the owner wrote in and that isn't all in
+/// Drafts, as the owner's question names it.
+pub(crate) fn discarding(app: &MailApp, closing: &[u64]) -> Vec<Value> {
     let s = &app.session;
-    let mut lost = app
-        .windows
+    app.windows
         .open
         .iter()
         .filter(|w| closing.contains(&w.id))
         .filter_map(|w| w.what.compose())
         .filter_map(|id| s.composing_by_id(id))
-        .filter(|c| c.owner_changed && (c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)));
-    let first = lost.next()?;
-    let mut said = json!({"form": "message", "title": first.subject});
-    let more = lost.count();
-    if more > 0 {
-        said["more"] = json!(more);
-    }
-    Some(said)
+        .filter(|c| c.owner_changed && (c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)))
+        .map(|c| json!({"form": "message", "title": c.subject}))
+        .collect()
 }
 
 /// The main window closes (#286): every message being written that isn't all in Drafts is saved
@@ -293,20 +297,42 @@ pub(super) fn follow_focus(app: &mut MailApp, ctx: &egui::Context) {
             None => None,
         }
     };
-    let Some(target) = target else { return };
-    if target == app.windows.focus {
-        return;
-    }
-    app.windows.focus = target;
-    if let Some(compose) = target
-        && let Some(w) = app.windows.open.iter_mut().find(|w| w.what.compose() == Some(compose))
+    if let Some(target) = target
+        && target != app.windows.focus
     {
-        // The owner went to it: it is theirs now.
-        w.behind = false;
+        app.windows.focus = target;
+        if let Some(compose) = target
+            && let Some(w) = app.windows.open.iter_mut().find(|w| w.what.compose() == Some(compose))
+        {
+            // The owner went to it: it is theirs now.
+            w.behind = false;
+        }
     }
-    if let Some(want) = target.or_else(|| pane_compose(app)) {
+    // Every frame, not only when the keyboard moves: what opened meanwhile (an agent's message,
+    // behind) doesn't stay current, so the menu bar, a picked or dropped file and a key all act on
+    // the message of the window that has the keyboard.
+    if let Some(want) = self::target(app) {
         app.session.show_compose(want);
     }
+}
+
+/// The message being written that the window with the keyboard acts on: its window's, or (the
+/// main window has it) the reading pane's. `None` when it has none.
+pub(crate) fn target(app: &MailApp) -> Option<u64> {
+    match app.windows.focus {
+        Some(c) if app.windows.of_compose(c).is_some() => Some(c),
+        _ => pane_compose(app),
+    }
+}
+
+/// Whether the command `id`, run from outside a window's own layout (the menu bar, Search
+/// commands), acts on the message the window with the keyboard writes: one that acts on a message
+/// being written doesn't from the main window when its reading pane has none, rather than act on
+/// a message in a window behind it.
+pub(crate) fn acts_here(app: &MailApp, id: &str) -> bool {
+    let id = if id == "ui.attach" { "compose.attach" } else { id };
+    let writing = app.session.registry.all().iter().any(|c| c.id == id && c.writing);
+    !writing || app.session.compose_id().is_some_and(|c| target(app) == Some(c))
 }
 
 /// What [`front_pane`] changed, for [`back`] to put back.

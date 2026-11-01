@@ -646,6 +646,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(9.0, 11.0), (17.0, 3.0)], a);
             pen.line_c(&[(12.0, 3.0), (17.0, 3.0), (17.0, 8.0)], a);
         }
+        // A clipboard: its board, its clip at the top, and a sheet on it in the accent.
+        "paste" => {
+            pen.rounded(&[(7.0, 4.0), (3.5, 4.0), (3.5, 17.5), (14.5, 17.5), (14.5, 4.0), (11.0, 4.0)], false, 1.0, c);
+            pen.rounded(&[(7.0, 2.5), (11.0, 2.5), (11.0, 5.5), (7.0, 5.5)], true, 0.5, c);
+            pen.line_c(&[(6.5, 9.5), (11.5, 9.5)], a);
+            pen.line_c(&[(6.5, 12.5), (11.5, 12.5)], a);
+        }
         // An open folder.
         "open" => {
             pen.rounded(&[(15.5, 9.0), (15.5, 6.5), (9.5, 6.5), (7.5, 4.5), (2.5, 4.5), (2.5, 15.5)], false, 1.0, c);
@@ -1225,6 +1232,7 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
 /// The names [`paint`] draws (not a lettered tile); tests check ribbon icons against it.
 pub const NAMES: &[&str] = &[
     "popOut",
+    "paste",
     "mail",
     "email",
     "unread",

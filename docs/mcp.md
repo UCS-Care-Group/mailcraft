@@ -120,10 +120,14 @@ is open. `ui.inspect` lists them under `beingWritten` (bridged).
 **A message an agent starts opens in a window of its own (#286, bridged).** In the window, every
 message an agent starts (`mail.new`, `mail.reply`, `mail.forward`, opening a draft…) opens in a
 window of its own behind the owner's, without the keyboard: the owner goes on writing where they
-were, and decides when it is sent. At most 12 windows of their own are open at a time: at the bound
-an agent's reply or forward stays in the window without one, and anything else is refused.
-`compose.popOut {"compose"}` (safe) moves a message into a window of its own and changes nothing of
-it; headless, it does nothing but answer the message's id. `ui.closeWindow` of a window with a
+were, and decides when it is sent. An agent's message never takes the reading pane from the
+owner's. At most 12 windows of their own are open at a time: at the bound every message an agent
+starts is refused (opening a draft already being written isn't: it stays where it is).
+`compose.popOut {"compose"}` (safe) moves a message into a window of its own, behind the owner's
+when an agent asks, and changes nothing of it; headless, it does nothing but answer the message's
+id. A call that names no message acts on the one in the window that has the keyboard, or else the
+reading pane's.
+ `ui.closeWindow` of a window with a
 message being written closes the message with it and needs `"save": true` (it goes to Drafts) or
 `"discard": true`: neither is an error; `discard` of a message the owner wrote in, with changes not
 all in Drafts, waits for the owner's Delete, every time. `ui.inspect` lists such windows as kind
@@ -223,7 +227,7 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |
+| 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard, never takes the reading pane and at the bound is refused; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |
 | 2026-11-01 | major | #286: several messages being written at once (at most 13),
  each with an id (`compose`) that the commands starting one answer and that every command acting on one takes; an agent names it once more than one is open; starting another message no longer closes or saves the one being written, nor asks the owner (`discard` there changes nothing); an agent's opens behind the owner's |
 | 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |

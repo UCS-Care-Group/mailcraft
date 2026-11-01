@@ -37,6 +37,8 @@ fn each_message_has_a_body_of_its_own() {
     assert!(other.starts_with("One") && !other.contains("more"), "{other}");
     // The other one current, its body is another: the keyboard isn't carried over to it.
     assert!(h.state_mut().session.show_compose(first));
+    // (Made current as a command does it: the reading pane shows it from now on, #286.)
+    crate::windows::compose_window::settle_pane(h.state_mut());
     h.run_steps(3);
     assert_eq!(editor::id(h.state()), editor::id_of(first));
     assert!(!h.ctx.memory(|m| m.has_focus(editor::id_of(first))));
@@ -47,6 +49,8 @@ fn the_keyboard_asked_for_one_message_is_not_taken_by_another() {
     let (mut h, first, _) = two();
     h.state_mut().want_body_focus();
     assert!(h.state_mut().session.show_compose(first));
+    // (Made current as a command does it: the reading pane shows it from now on, #286.)
+    crate::windows::compose_window::settle_pane(h.state_mut());
     h.run_steps(3);
     assert!(!editor::has_focus(&h.ctx), "asked for the other message's body");
 }

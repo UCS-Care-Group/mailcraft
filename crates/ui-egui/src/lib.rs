@@ -1538,7 +1538,7 @@ pub struct MailApp {
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
     /// Web: what the file the picker will deliver is for.
-    pub(crate) pending_open: Option<String>,
+    pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,

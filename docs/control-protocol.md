@@ -196,11 +196,20 @@ starts in the reading pane unless File › Options › Mail says otherwise (`ui.
 the Message tab) moves a message into a window of its own, as `ui.openWindow {"compose": id}` does;
 nothing of it changes. A script's `mail.new`, `mail.reply` and the rest start in the reading pane as
 before. Every message an agent starts opens in a window of its own behind the owner's, without the
-keyboard. At most 12 windows of their own are open at a time, of every kind together (12 and the
-reading pane's are the 13 messages): at the bound a reply or forward stays in the reading pane, and
-anything else is refused, said in the status bar for the owner. A window's ribbon has the tabs
-Message, Insert, Format Text and Review, in the main ribbon's layout, with Search commands; what it
-runs acts on its own message, and so do its keys (Ctrl+Enter, Ctrl+S, Ctrl+K…). Closing such a
+keyboard, and never takes the reading pane. At most 12 windows of their own are open at a time, of
+every kind together (12 and the reading pane's are the 13 messages): at the bound the owner's reply
+or forward stays in the reading pane, a draft already being written stays where it is, and
+anything else (every message an agent starts) is refused, said in the status bar for the owner.
+From one frame to the next, the current message is the one in the window that has the keyboard,
+or else the reading pane's: what an agent opens behind doesn't stay current, and the menu bar,
+Search commands, a file picked or dropped and a script's call that names no message act on it
+(from the main window without a message in its reading pane, the commands that act on a message
+being written are off). A file asked for by Attach or Insert › Pictures goes to the message that
+asked, wherever the keyboard is by then. A window's ribbon has the tabs Message, Insert, Format
+Text and Review, in the main ribbon's layout, with Search commands, and Send beside the To line
+(no bar of actions over it); what it runs acts on its own message, and so do its keys (Ctrl+Enter,
+Ctrl+S, Ctrl+K…). Closing such a
+
 window with changes asks Save (to Drafts), Don't Save or Cancel; without changes it closes at once.
 `ui.closeWindow` of one needs `"save": true` or `"discard": true`, and neither (or both) is an
 error that closes nothing; it never asks.
@@ -216,7 +225,7 @@ error that closes nothing; it never asks.
 | Message list | `message`, `messageRead` (the strip that switches read and unread), `messageFlag`, `messageDelete` (both at the right of the sender's line, while the pointer is over the row), `messageWarning` (the mark of a row whose server says its sender's checks failed, or whose sender's name hides another address, #508), `conversationArrow` (the arrow that opens and closes a conversation, #503), `messageFolder` (the folder named beside a message: a result of a search of more than one folder, or a message of another folder listed under its open conversation, #503); in its header `listTab` (0 All, 1 Unread, 2 another filter while it is in use) and `listSort` (0 the arrangement and its menu, 1 the arrow that turns the list over); `listScroll` (the scroll bar's arrows, while the list is longer than its pane: 0 up, 1 down; none on a Mac, where the bar floats over the rows) |
 | Reading pane | `downloadPictures`, `alwaysDownloadPictures`, `alwaysDownloadPicturesDomain`, `retryPictures` (the links of the bar above a message with pictures on the web; the message's id); `senderWarnings` (the banner of a message with a warning or a caution, #508), `senderWarningsCollapsed` (the slim bar a dismissed warning leaves), `externalTag` (the External tag beside the sender's name), `conversationMessage` (a message of its conversation, to go to, by that message's id) |
 | Calendar | `event`, `slot`, `allDay`, `day`, `more`, `timeBar`, `weekNumber`, `calendar` (its check box), `calendarName`, `calendarReadOnly`, `calendarGroup` (a heading of the list, counted from 0), `calendarExtras` (the line that offers to connect for categories and working hours; the account's id), `calendarConnect`; with several calendars in view, by the calendar's id: `pane` (the tab strip over its block, as wide as the block), `paneTab`, `paneArrow` (overlay, or back beside), `paneClose`, and `allDay`, `day` and `slot` once for every block, the leftmost first; the navigator's `miniDay`, `miniWeek`, `miniMonth`, `miniStep`, `miniBusy`; while dragging `ghost`, `ghostCopy`, and `dropMenu` (0 Move, 1 Copy, 2 Cancel) |
-| Writing a message | `composeBody` (id 0: the owner's text; a click there gives it the keyboard, and `ui.key`/`ui.text` then type into it), `composePopOut` (id 0: Pop Out, at the top right of the message in the reading pane, #286). What is drawn in a window of its own of a message being written (its ribbon, its composer) carries that window's number as `window` |
+| Writing a message | `composeBody` (id 0: the owner's text; a click there gives it the keyboard, and `ui.key`/`ui.text` then type into it), `composePopOut` (id 0: Pop Out, at the top right of the message in the reading pane, #286), `composeSend` (id 0: Send beside the lines of a message in a window of its own, which has no bar of actions over them: its ribbon has them). What is drawn in a window of its own of a message being written (its ribbon, its composer) carries that window's number as `window` |
 | People, Tasks | `contact`, `task`; by the message's id, `recentMail` (a message in a contact's recent mail) and `openTaskMessage` (a task's Open the message), each of which opens the message in its folder's All tab |
 | Windows and reminders | `window`, `unsavedSave`, `unsavedDiscard`, `unsavedCancel` (the answers of a window that asks about its unsaved changes; the window's number), `reminder`, `reminderJoin` (Join, on the reminder of an online meeting that has a link; the event's id) |
 | File › Options and File › About | `optionRepliesInWindow` (Open replies and forwards in a new window, #286), `updateOption` (the switch for checking for new versions), `updateInstallOption` (Install updates automatically) and `updateInstallDetail` (the line under it, "Turned off by your organisation" when it is), `checkForUpdates` (About's button), `aboutRestartToUpdate` (About's Restart to update); in the status bar `updateReady` and `restartToUpdate`; above it `installsItselfOk` (the first notice's OK), `goBack` and `keepVersion` (the offer to go back); at the first starts, above the status bar, `updateYes` and `updateNo` (the question about the daily check) |

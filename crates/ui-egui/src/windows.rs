@@ -454,13 +454,16 @@ fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
 /// such windows it closes (`more`). `None` when nothing would be lost.
 pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
     let closing = closing(&app.windows.open, p).ok()?;
-    // What the owner typed in a message being written, thrown away (#494).
-    if p.get("discard").and_then(Value::as_bool) == Some(true)
-        && let Some(lost) = compose_window::discarding(app, &closing)
-    {
-        return Some(lost);
+    // What the owner typed in a message being written, thrown away (#494), and the changes of the
+    // appointments' windows closed with them: one question names the first and counts the rest.
+    let mut lost = if p.get("discard").and_then(Value::as_bool) == Some(true) { compose_window::discarding(app, &closing) } else { Vec::new() };
+    lost.extend(app.windows.open.iter().filter(|w| closing.contains(&w.id)).filter_map(|w| w.what.form().and_then(Form::unsaved)));
+    let more = lost.len().saturating_sub(1);
+    let mut first = lost.into_iter().next()?;
+    if more > 0 {
+        first["more"] = json!(more);
     }
-    unsaved_of(app.windows.open.iter().filter(|w| closing.contains(&w.id)))
+    Some(first)
 }
 
 /// What another mailbox in view would lose (#494): the windows of appointments of this one close

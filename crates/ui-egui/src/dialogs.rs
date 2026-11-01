@@ -1299,12 +1299,15 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                 tl!(c.label).to_string(),
                 crate::i18n::location(c.location),
                 crate::widgets::shortcut_text(app, c.id),
-                (c.enabled)(&app.session).is_none(),
+                (c.enabled)(&app.session).is_none() && crate::windows::compose_window::acts_here(app, c.id),
             )
         })
         .collect();
     out.extend(UI_COMMANDS.iter().filter(|c| matches!(c.0, "ui.sync" | "ui.open" | "ui.import" | "ui.attach" | "ui.collapseRibbon")).map(
-        |(id, label, location, _)| ((*id).to_string(), tl!(label).to_string(), crate::i18n::location(location), String::new(), app.enabled(id)),
+        |(id, label, location, _)| {
+            let on = app.enabled(id) && crate::windows::compose_window::acts_here(app, id);
+            ((*id).to_string(), tl!(label).to_string(), crate::i18n::location(location), String::new(), on)
+        },
     ));
     out
 }

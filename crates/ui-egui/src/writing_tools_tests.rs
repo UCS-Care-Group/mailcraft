@@ -45,7 +45,7 @@ fn body(app: &MailApp) -> String {
 #[test]
 fn insert_and_review_are_tabs_while_writing() {
     let app = writing();
-    assert_eq!(crate::ribbon::tabs(&app)[..4], ["File", "Message", "Insert", "Review"]);
+    assert_eq!(crate::ribbon::tabs(&app)[..5], ["File", "Message", "Insert", "Format Text", "Review"]);
     let mut app = writing();
     app.execute("compose.discard", json!({})).unwrap();
     assert!(!crate::ribbon::tabs(&app).contains(&"Insert"));
