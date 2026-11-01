@@ -47,6 +47,10 @@ pub struct Task {
     /// The server refused to make this to-do: it stays on this computer.
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
+    /// The owner chose to keep this to-do on this computer: the question about the to-dos that
+    /// exist only here leaves it out.
+    #[serde(skip_serializing_if = "is_false")]
+    pub kept_here: bool,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -229,7 +233,8 @@ pub enum LocalTasks {
     Unasked,
     /// "Not now": they stay on this computer, and the owner can offer them again.
     NotNow,
-    /// Sent to that account's default list; so is every to-do made here from now on.
+    /// Sent to that account's default list. A new to-do goes where it is put, not here: this
+    /// account is only where the owner is first offered to put one.
     SendTo(Id),
 }
 
@@ -243,6 +248,11 @@ impl LocalTasks {
 pub const MAX_TASK_GONE: usize = 5_000;
 
 impl Task {
+    /// Whether it exists only on this computer and could go to an account's To Do.
+    pub fn only_here(&self) -> bool {
+        self.origin.is_local() && self.origin.id.is_empty() && !self.local_only && !self.kept_here
+    }
+
     /// Whether the two would be the same to a server: what it keeps of a to-do
     /// ([`Task::fields`]), its list and what it calls it. Nothing is copied.
     pub fn same_on_server(&self, other: &Task) -> bool {

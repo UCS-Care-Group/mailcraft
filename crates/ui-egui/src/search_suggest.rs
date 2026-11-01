@@ -171,10 +171,12 @@ impl Suggesting {
 
     /// What to offer next frame, for `text` with the cursor at character `cursor`.
     pub fn offer(&mut self, text: &str, cursor: usize, session: &mailcraft_engine::Session) {
-        let categories = session.mailbox.categories.as_slice();
+        let categories = session.mailbox.every_category();
         self.moved |= (self.for_text.as_str(), self.for_cursor) != (text, cursor);
         let mailbox = (session.rev(), session.openings());
-        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice(), self.for_mailbox) == (text, cursor, categories, mailbox) {
+        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice(), self.for_mailbox)
+            == (text, cursor, categories.as_slice(), mailbox)
+        {
             return;
         }
         let byte = text.char_indices().nth(cursor).map_or(text.len(), |(b, _)| b);
@@ -183,7 +185,7 @@ impl Suggesting {
             self.selected = None;
         }
         self.items = items;
-        (self.for_text, self.for_cursor, self.for_categories, self.for_mailbox) = (text.to_string(), cursor, categories.to_vec(), mailbox);
+        (self.for_text, self.for_cursor, self.for_categories, self.for_mailbox) = (text.to_string(), cursor, categories, mailbox);
     }
 
     /// Closes the list and forgets what it offered: Advanced Search opened over it.

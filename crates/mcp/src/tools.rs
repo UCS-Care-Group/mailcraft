@@ -243,7 +243,16 @@ pub fn tool_definitions() -> Value {
             obj(json!({"query": s("Filter")}), &[]),
             true
         ),
-        tool("list_tasks", "List tasks", "To-do items.", obj(json!({"filter": s("active|today|overdue|completed|all")}), &[]), true),
+        tool(
+            "list_tasks",
+            "List tasks",
+            "To-do items of every account, unless `account` names one.",
+            obj(
+                json!({"filter": s("active|today|overdue|completed|all"), "account": {"description": "all, here (this computer) or an account's id"}}),
+                &[]
+            ),
+            true
+        ),
         tool(
             "status",
             "MailCraft status",
@@ -431,7 +440,14 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
         }
         "list_events" => wrap(exec(b, "calendar.list", pick(a, &["from", "to"]))),
         "list_contacts" => wrap(exec(b, "people.list", json!({"query": st("query").unwrap_or("")}))),
-        "list_tasks" => wrap(exec(b, "tasks.list", pick(a, &["filter"]))),
+        "list_tasks" => {
+            // What the window shows is the owner's view of them, not the agent's.
+            let mut params = pick(a, &["filter", "account"]);
+            if params.get("account").is_none() {
+                params["account"] = json!("all");
+            }
+            wrap(exec(b, "tasks.list", params))
+        }
         "parity" => wrap(b.call("ui.parity", json!({}))),
         "status" => wrap(b.call("app.status", json!({}))),
         "screenshot" => {

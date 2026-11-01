@@ -353,6 +353,12 @@ impl MailApp {
         tasks_remote::task_accounts(&self.session.mailbox).into_iter().filter(|a| self.tasks.perm.get(a) == Some(&Permission::Given)).collect()
     }
 
+    /// Whether a to-do put in `account` waits on this computer because a job found that To Do
+    /// isn't allowed there (nothing is known of an account no job has looked at yet).
+    pub(crate) fn tasks_held(&self, account: Id) -> bool {
+        !matches!(self.tasks.perm.get(&account), None | Some(Permission::Given))
+    }
+
     /// The first account whose To Do works: File › Info says what is local under it.
     pub(crate) fn tasks_working_first(&self) -> Option<Id> {
         self.tasks_working().first().copied()
@@ -379,11 +385,11 @@ impl MailApp {
         let more_than_one = accounts.len() > 1;
         let text = if more_than_one {
             tl!(
-                "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
+                "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
             )
         } else {
             tl!(
-                "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+                "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
             )
         };
         let label = |id: Id| crate::i18n::fmt(tl!("Send to {address}"), &[("address", &address(id))]);

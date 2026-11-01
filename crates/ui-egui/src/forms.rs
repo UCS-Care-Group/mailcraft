@@ -46,7 +46,7 @@ impl Form {
             "task" => Form::Task(Box::new(task::TaskForm::new(s, params))),
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
-            "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
+            "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s, params)?)),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
             "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
@@ -2994,11 +2994,24 @@ mod event {
             items
         }
 
+        /// The account whose categories the event takes: its calendar's.
+        pub(crate) fn category_account(&self, s: &Session) -> Id {
+            s.mailbox.calendar(self.calendar).map_or(0, |c| c.origin.account)
+        }
+
+        /// What the window's Categorize menu offers: the list of the event's account, then in
+        /// grey what the event has off it, as its chips do.
+        pub(crate) fn offered_categories(&self, s: &Session) -> Vec<(String, egui::Color32)> {
+            let account = self.category_account(s);
+            let listed = s.mailbox.categories_of(account).iter().map(|c| (c.name.clone(), c32(c.color)));
+            let off_list = self.categories.iter().filter(|name| s.mailbox.category_of(account, name).is_none());
+            listed.chain(off_list.map(|name| (name.clone(), c32(mailcraft_model::GREY_CATEGORY)))).take(200).collect()
+        }
+
         /// The window's own bar. The key of the button that was clicked.
         fn bar(&mut self, app: &mut MailApp, ui: &mut Ui) -> Option<&'static str> {
             let items = self.bar_items();
-            let categories: Vec<(String, egui::Color32)> =
-                app.session.mailbox.categories.iter().map(|c| (c.name.clone(), c32(c.color))).take(200).collect();
+            let categories = self.offered_categories(&app.session);
             let mut menu = |ui: &mut Ui, key: &'static str| match key {
                 "showAs" => {
                     for x in ShowAs::ALL {
@@ -3178,7 +3191,7 @@ mod event {
                 });
             }
             if !windowed {
-                tall_row(ui, tl!("Categories"), |ui| category_chips(ui, &s.mailbox.categories, &mut self.categories));
+                tall_row(ui, tl!("Categories"), |ui| category_chips(ui, s.mailbox.categories_of(self.category_account(s)), &mut self.categories));
                 row(ui, "", |ui| {
                     ui.checkbox(&mut self.private, tl!("Private"));
                     ui.add_space(12.0);
@@ -3198,8 +3211,7 @@ mod event {
                         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                         let mut off = None;
                         for name in self.categories.iter().take(100) {
-                            let color =
-                                s.mailbox.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name)).map_or(t.text_disabled, |c| c32(c.color));
+                            let color = s.mailbox.category_of(self.category_account(s), name).map_or(t.text_disabled, |c| c32(c.color));
                             if chip(ui, &kit::shown(name, 60), true, color) {
                                 off = Some(name.clone());
                             }
@@ -4689,7 +4701,8 @@ mod contact {
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let categories = app.session.mailbox.categories.clone();
+            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
                 row(ui, tl!("First name"), |ui| {
                     pass.text(ui, "first", &mut self.first, f32::INFINITY, "");
@@ -4941,6 +4954,7 @@ mod contact {
 mod task {
     use egui::Ui;
     use mailcraft_engine::Session;
+    use mailcraft_engine::cmd::{tasks, tasks_remote};
     use mailcraft_model::{Id, Importance};
     use mailcraft_time::{Date, time_short};
     use serde_json::{Map, Value, json};
@@ -4974,6 +4988,11 @@ mod task {
     pub struct TaskForm {
         /// The task being edited; `None` for a new one.
         id: Option<Id>,
+        /// Where the task is: an account, or 0 for this computer. `None` for a new one that
+        /// nobody has said where to put: it stays here, like one that isn't put anywhere.
+        pub(super) place: Option<Id>,
+        /// The place as the form opened: choosing another is something to ask about.
+        opened_place: Option<Id>,
         title: String,
         due: String,
         start: String,
@@ -5005,6 +5024,8 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.place = p.get("account").and_then(Value::as_u64).or_else(|| tasks::new_task_place(s));
+            f.opened_place = f.place;
             f.opened = f.fields();
             f
         }
@@ -5016,6 +5037,8 @@ mod task {
             let reminder = t.reminder.map(|r| s.local(r));
             let mut f = TaskForm {
                 id: Some(id),
+                place: Some(t.origin.account),
+                opened_place: Some(t.origin.account),
                 title: t.title.clone(),
                 due: t.due.map(Date::iso).unwrap_or_default(),
                 start: t.start.map(Date::iso).unwrap_or_default(),
@@ -5045,10 +5068,10 @@ mod task {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
         }
 
-        /// Whether the fields differ from what the form opened with, Completed too: there is
-        /// something to save.
+        /// Whether the fields differ from what the form opened with, Completed and the Account
+        /// list too: there is something to save.
         pub fn dirty(&self) -> bool {
-            self.fields() != self.opened || self.completed != self.was_completed
+            self.fields() != self.opened || self.completed != self.was_completed || self.place != self.opened_place
         }
 
         /// The task it changes; `None` for a new one.
@@ -5094,7 +5117,12 @@ mod task {
                     m.insert("id".into(), json!(id));
                     ("tasks.edit", Value::Object(m))
                 }
-                None => ("tasks.new", Value::Object(m)),
+                None => {
+                    if let Some(place) = self.place {
+                        m.insert("account".into(), json!(place));
+                    }
+                    ("tasks.new", Value::Object(m))
+                }
             }
         }
 
@@ -5115,15 +5143,49 @@ mod task {
                 && time_ok(&self.remind_time, false)
         }
 
+        /// The account whose categories the task takes: the one its Account list says.
+        pub(crate) fn category_account(&self) -> Id {
+            self.place.unwrap_or(0)
+        }
+
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
             let today = pass.today;
-            let categories = app.session.mailbox.categories.clone();
+            let mailbox = &app.session.mailbox;
+            let categories = mailbox.categories_of(self.category_account()).to_vec();
+            let place = self.place.unwrap_or(0);
+            let places: Vec<(Id, String)> =
+                tasks_remote::task_accounts(mailbox).into_iter().chain([0]).map(|a| (a, crate::widgets::place_name(mailbox, a))).collect();
+            // Nobody has said: it can still be offered to an account.
+            let place_name =
+                if self.place.is_some() { crate::widgets::place_name(mailbox, place) } else { tl!("On this computer for now").to_string() };
+            let held = place != 0 && app.tasks_held(place);
             body(ui, |ui| {
                 row(ui, tl!("Title"), |ui| {
                     pass.text(ui, "title", &mut self.title, f32::INFINITY, "");
                 });
+                if self.id.is_some() && (places.len() > 1 || place != 0) {
+                    // Where it is, as it stays there.
+                    row(ui, tl!("Account"), |ui| {
+                        ui.add(egui::Label::new(place_name.as_str()).truncate());
+                    });
+                } else if places.len() > 1 {
+                    row(ui, tl!("Account"), |ui| {
+                        egui::ComboBox::from_id_salt("task_account").width(220.0).selected_text(place_name.as_str()).truncate().show_ui(ui, |ui| {
+                            for (account, name) in &places {
+                                if ui.selectable_label(self.place == Some(*account), name.as_str()).clicked() {
+                                    self.place = Some(*account);
+                                }
+                            }
+                        });
+                    });
+                    if held {
+                        row(ui, "", |ui| {
+                            ui.label(egui::RichText::new(tl!("It waits on this computer until To Do is allowed for this account")).size(11.5));
+                        });
+                    }
+                }
                 row(ui, tl!("Due date"), |ui| {
                     pass.date(ui, "due", &mut self.due, false);
                     date_note(ui, &self.due, false);
@@ -5342,10 +5404,10 @@ mod account {
 mod categories {
     use egui::{Sense, Stroke, StrokeKind, Ui, vec2};
     use mailcraft_engine::Session;
-    use mailcraft_model::{Category, Rgb};
+    use mailcraft_model::{AccountKind, Category, Id, Mailbox, Rgb};
     use serde_json::{Value, json};
 
-    use super::kit::{ROW_H, body, close_button, error, field_id};
+    use super::kit::{ROW_H, body, close_button, error, field_id, shown};
     use crate::MailApp;
     use crate::theme::{Tokens, c32};
     use crate::widgets::icon_button;
@@ -5395,44 +5457,106 @@ mod categories {
         picked
     }
 
+    /// The lists the Categories dialog can show (#633): each account's own, then the one the rest
+    /// share, whose account is 0.
+    fn lists(mailbox: &Mailbox) -> Vec<(Id, String)> {
+        let own = mailbox.accounts.iter().filter(|a| mailbox.account_categories.contains_key(&a.id));
+        let mut lists: Vec<(Id, String)> = own.map(|a| (a.id, shown(if a.email.is_empty() { &a.name } else { &a.email }, 60))).collect();
+        let others = mailbox.accounts.iter().any(|a| a.kind != AccountKind::Local && mailbox.category_list_owner(a.id).is_none());
+        lists.push((0, if others { tl!("Other accounts and On this computer") } else { tl!("On this computer") }.to_string()));
+        lists
+    }
+
     /// The Categories dialog.
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
     pub struct CategoriesForm {
+        /// The account whose list is in view; 0 for the list that accounts without their own share.
+        account: Id,
         /// The name being retyped: the category it belongs to, and the text so far.
         editing: Option<(String, String)>,
-        new_name: String,
+        /// What is typed to be added.
+        pub new_name: String,
         new_color: Rgb,
         error: String,
         focus: bool,
     }
 
     impl CategoriesForm {
-        /// The dialog, with a colour no category has yet ready for a new one.
-        pub fn new(s: &Session) -> CategoriesForm {
-            CategoriesForm { new_color: unused_color(&s.mailbox.categories), focus: true, ..Default::default() }
+        /// The dialog, on the list of `params.account`, else of the selected message's account,
+        /// else of the first, with a colour no category has yet ready for a new one. An `account`
+        /// of 0 is the shared list, as an item of no account says it. `None` when `params.account`
+        /// is anything else that isn't an account.
+        pub fn new(s: &Session, params: &Value) -> Option<CategoriesForm> {
+            let named = match params.get("account") {
+                None | Some(Value::Null) => None,
+                Some(a) if a.as_u64() == Some(0) => Some(0),
+                Some(_) => Some(mailcraft_engine::cmd::category::list_account(s, params).ok()?),
+            };
+            let account = named
+                .or_else(|| s.sel.messages.last().and_then(|m| s.mailbox.message(*m)).map(|m| m.account))
+                .or_else(|| s.mailbox.default_account().map(|a| a.id))
+                .and_then(|a| s.mailbox.category_list_owner(a))
+                .unwrap_or(0);
+            Some(CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() })
+        }
+
+        /// Put the list of `account` in view; nothing begun on the last one carries over.
+        fn show_list(&mut self, mailbox: &Mailbox, account: Id) {
+            self.account = account;
+            self.editing = None;
+            self.new_name.clear();
+            self.error.clear();
+            self.new_color = unused_color(mailbox.categories_of(account));
+        }
+
+        /// A command's `params` for the list in view.
+        fn on_list(&self, mut params: Value) -> Value {
+            if let Some(params) = params.as_object_mut().filter(|_| self.account != 0) {
+                params.insert("account".to_string(), self.account.into());
+            }
+            params
         }
 
         /// The command that adds the category typed at the bottom.
         pub fn add_command(&self) -> (&'static str, Value) {
-            ("category.set", json!({"name": self.new_name, "color": self.new_color.hex()}))
+            ("category.set", self.on_list(json!({"name": self.new_name, "color": self.new_color.hex()})))
         }
 
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let t = Tokens::get(ui.ctx());
             let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
-            let list = app.session.mailbox.categories.clone();
+            let lists = lists(&app.session.mailbox);
+            if !lists.iter().any(|(id, _)| *id == self.account) {
+                self.show_list(&app.session.mailbox, 0);
+            }
+            let list = app.session.mailbox.categories_of(self.account).to_vec();
             // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
-            let outlook = &app.session.mailbox.outlook_categories;
+            let outlook = app.session.mailbox.server_categories.get(&self.account);
             let not_outlooks: Vec<bool> =
-                list.iter().map(|c| !outlook.is_empty() && !outlook.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name))).collect();
+                list.iter().map(|c| outlook.is_some_and(|names| !names.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name)))).collect();
             let mut run: Option<(&'static str, Value)> = None;
             let mut adding = false;
+            let mut picked = None;
             body(ui, |ui| {
+                if lists.len() > 1 {
+                    ui.horizontal(|ui| {
+                        ui.label(tl!("Account"));
+                        let now = lists.iter().find(|(id, _)| *id == self.account).map(|(_, name)| name.clone()).unwrap_or_default();
+                        egui::ComboBox::from_id_salt("categories_account").selected_text(now).width(280.0).show_ui(ui, |ui| {
+                            for (id, name) in &lists {
+                                if ui.selectable_label(self.account == *id, name).clicked() && self.account != *id {
+                                    picked = Some(*id);
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(6.0);
+                }
                 for (i, c) in list.iter().enumerate() {
                     ui.horizontal(|ui| {
                         if let Some(color) = swatch(ui, c.color) {
-                            run = Some(("category.set", json!({"name": c.name, "color": color.hex()})));
+                            run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
                         }
                         let mut text = match &self.editing {
                             Some((name, text)) if *name == c.name => text.clone(),
@@ -5449,10 +5573,10 @@ mod categories {
                             && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
                             && to.trim() != from
                         {
-                            run = Some(("category.rename", json!({"from": from, "to": to})));
+                            run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
                         }
                         if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
-                            run = Some(("category.remove", json!({"name": c.name})));
+                            run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
                         }
                     });
                     if not_outlooks.get(i).copied().unwrap_or(false) {
@@ -5489,6 +5613,9 @@ mod categories {
                     }
                 });
             });
+            if let Some(account) = picked {
+                self.show_list(&app.session.mailbox, account);
+            }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {
                     Ok(_) => {
@@ -5496,7 +5623,7 @@ mod categories {
                         if adding {
                             // Ready for the next one.
                             self.new_name.clear();
-                            self.new_color = unused_color(&app.session.mailbox.categories);
+                            self.new_color = unused_color(app.session.mailbox.categories_of(self.account));
                             self.focus = true;
                         }
                     }
@@ -5526,7 +5653,7 @@ mod categories {
             let all: Vec<Category> = PALETTE.iter().map(|c| Category { name: c.hex(), color: *c }).collect();
             assert_eq!(unused_color(&all), PALETTE[0]);
             // The row at the bottom adds a category in that colour.
-            let mut f = CategoriesForm::new(&s);
+            let mut f = CategoriesForm::new(&s, &json!({})).unwrap();
             f.new_name = "Travel".into();
             assert_eq!(f.add_command(), ("category.set", json!({"name": "Travel", "color": "#1A9BA6"})));
             let (command, params) = f.add_command();
@@ -5542,9 +5669,13 @@ mod categories {
     }
 }
 
+#[cfg(test)]
+mod categories_tests;
 mod junk;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod task_place_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 mod rules {
@@ -5744,7 +5875,7 @@ mod rules {
             let account = account_in_view(s);
             let folders = folder_choices(&s.mailbox, account);
             let first_folder = s.mailbox.folder_of_kind(account, FolderKind::Archive).or(folders.first().map(|f| f.0)).unwrap_or(0);
-            let first_category = s.mailbox.categories.first().map(|c| c.name.clone()).unwrap_or_default();
+            let first_category = s.mailbox.every_category().into_iter().next().map(|c| c.name).unwrap_or_default();
             let mut f = RulesForm { open: s.mailbox.rules.is_empty(), folders, first_folder, first_category, focus: true, ..Default::default() };
             f.reset();
             f
@@ -5805,7 +5936,7 @@ mod rules {
             let mut pass = Pass::new(ui, &app.session, &mut false);
             let t = pass.t;
             let rules = app.session.mailbox.rules.clone();
-            let categories: Vec<String> = app.session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
+            let categories: Vec<String> = app.session.mailbox.every_category().into_iter().map(|c| c.name).collect();
             let folder_in_view = crate::nav::folder_path(&app.session.mailbox, app.session.view.folder);
             let mut run: Option<(&'static str, Value)> = None;
             let mut add = false;

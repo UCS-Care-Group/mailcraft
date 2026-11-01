@@ -3,10 +3,11 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
-use mailcraft_model::Address;
 use mailcraft_model::search::Suggestion;
+use mailcraft_model::{AccountChoice, Address};
 use serde_json::{Value, json};
 
+use super::tasks_remote::keeps_tasks;
 use super::{bad, done, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
@@ -54,6 +55,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.taskFilter", "Filter Tasks", "Home › Current View", task_filter)
             .pure()
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
+        CommandSpec::new("view.taskAccount", "Show Tasks Of", "Tasks", task_account)
+            .pure()
+            .params(r#"{"value": "all" | "here" | number} — every account's tasks, those kept on this computer (0 is the same), or one account's"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).pure(),
     ];
@@ -146,7 +150,7 @@ pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Sugges
         let recent = s.prefs.recent_searches();
         return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
     }
-    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
+    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.every_category(), |typed| {
         let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
         if let Some(typed) = super::compose::Typed::new(typed) {
             let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
@@ -293,6 +297,17 @@ fn task_filter(s: &mut Session, v: &Value) -> CmdResult {
     s.view.task_filter =
         parse_enum::<TaskFilter>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is active, today, overdue, completed or all"))?;
     Ok(json!({"value": s.view.task_filter}))
+}
+
+fn task_account(s: &mut Session, v: &Value) -> CmdResult {
+    let value = v.get("value").and_then(AccountChoice::parse).ok_or_else(|| bad("`value` is all, here or an account's id"))?;
+    if matches!(value, AccountChoice::Account(account) if !keeps_tasks(&s.mailbox, account)) {
+        return Err(bad("that account doesn't keep its to-dos with Microsoft"));
+    }
+    s.view.task_account = value;
+    // The selected task stays selected only where it is listed.
+    s.sel.task = s.sel.task.filter(|id| s.mailbox.task(*id).is_some_and(|t| value.shows(&t.origin)));
+    Ok(json!({"value": value.code()}))
 }
 
 fn reset(s: &mut Session, _: &Value) -> CmdResult {

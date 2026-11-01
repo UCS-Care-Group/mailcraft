@@ -472,7 +472,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         st(ui, &tln!(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
                     }
                     Module::Tasks => {
-                        let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete()).count();
+                        let shown = mailcraft_engine::cmd::tasks::shown_account(&app.session);
+                        let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete() && shown.shows(&x.origin)).count();
                         st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
                     }
                 }
