@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-18 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+19 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -28,6 +28,7 @@ egui, eframe, winit or rfd.
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
+| L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
 | L3 | `ews` | Exchange Web Services (Microsoft's public documentation only) without sockets or browser APIs: the SOAP request writer, a hostile XML reader, the response-code and `ErrorServerBusy` judgement and `GetFolder`, Autodiscover as a state machine the host drives (the order of places, redirects, the owner's say for another host, Exchange Online told apart), Basic credentials, NTLMv2 written from MS-NLMP (the three legs, MIC, channel binding; MD4, MD5 and HMAC from RustCrypto) and the choice of NTLM or Basic from what the server offers, and mail down: `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` with their answer readers, and `sync_mail`/`fetch_messages`, which run them over any `HttpExchange` and hand the run back in pieces (waiting for a busy server through a hook the host gives); the program does the exchange (`HttpExchange`); a strict in-process stand-in of Exchange Web Services and of Autodiscover for tests (`stand-in` feature) (#252); going up: changes of messages and folders, drafts kept in the server's Drafts and found again by a marker, sending, never repeated after a lost answer (`changes`, `compose`, `up`); NTLM or Basic chosen from the server's offer (`auth`) |
 | L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). The browser build runs it over `fetch` (M6, [jmap.md](jmap.md)) |
@@ -247,7 +248,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
   `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, `dav_xml`, `dav_document`, IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -265,6 +266,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | #376: portable DAV model, document and XML foundation; DAV fuzz targets; 19 library crates |
 | 2026-10-11 | major | First architecture doc |
 | 2026-10-26 | minor | #519: start-up: the window first, the mailbox read on a thread of its own behind the opening screen; File › Open reads in the background |
 | 2026-10-23 | minor | `jmap`, L3: JMAP requests and answers without I/O (M6); 15 crates |

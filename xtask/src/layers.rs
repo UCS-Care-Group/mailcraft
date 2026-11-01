@@ -49,6 +49,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),
+    ("dav", Class::Layer(3)),
     // Exchange Web Services over any HTTP, the same: no sockets, no browser APIs, and builds for the browser.
     ("ews", Class::Layer(3)),
     ("net", Class::Layer(3)),

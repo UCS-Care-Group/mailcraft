@@ -2316,6 +2316,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-dav"
+version = "0.9.0"
+dependencies = [
+ "mailcraft-ical",
+ "mailcraft-model",
+ "mailcraft-time",
+ "mailcraft-vcard",
+ "proptest",
+ "quick-xml 0.42.0",
+]
+
+[[package]]
 name = "mailcraft-engine"
 version = "0.9.0"
 dependencies = [
