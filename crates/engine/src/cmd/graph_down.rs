@@ -150,16 +150,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         if there.server.id.is_empty() {
             continue;
         }
-        // What is in Sent Items was sent: Exchange files the copy of a message sent as MIME
-        // (`sendMail`, how a message never saved as a draft goes) with `isDraft` still true, and
-        // it would be shown as a draft for ever.
-        let sent_copy;
-        let there = if sent_items && there.draft != Some(false) {
-            sent_copy = GraphMessage { draft: Some(false), ..there.clone() };
-            &sent_copy
-        } else {
-            there
-        };
         match index.find(mb, account, &there.server.id) {
             Some(m) => {
                 if update(mb, account, m, folder, &page.folder, there) {
@@ -176,7 +166,17 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
-                if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
+                let mut message = new_message(folder, &page.folder, there);
+                // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
+                // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
+                // #611) under an id this mailbox has never seen, with `isDraft` still true, and it
+                // would be shown as a draft for ever. A draft this mailbox knows that turns up in
+                // Sent Items (moved there by the owner, which Outlook keeps as a draft) is sent
+                // only when the server says so (`update`), and is a draft again when moved back.
+                if sent_items {
+                    message.draft = false;
+                }
+                if let Ok(m) = mb.add_message(message) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
                     // list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken

@@ -52,18 +52,6 @@ fn a_message_sent_as_mime_is_no_draft_in_sent_items() {
 }
 
 #[test]
-fn a_sent_message_an_earlier_run_took_for_a_draft_is_put_right() {
-    let (mut mb, account) = mailbox();
-    let mut index = ServerIndex::default();
-    take_page(&mut mb, &mut index, account, &page("FS", "AAkS1", Some(true)), &mut Down::default());
-    // As a mailbox kept before this fix has it.
-    let id = only_in(&mb, account, "FS").id;
-    mb.message_mut(id).unwrap().draft = true;
-    take_page(&mut mb, &mut index, account, &page("FS", "AAkS1", Some(true)), &mut Down::default());
-    assert!(!mb.message(id).unwrap().draft);
-}
-
-#[test]
 fn a_draft_in_drafts_is_still_a_draft() {
     let (mut mb, account) = mailbox();
     let mut index = ServerIndex::default();
@@ -96,16 +84,97 @@ fn a_draft_changed_here_and_sent_elsewhere_keeps_the_sent_copy_as_sent() {
     );
     let copy = only_in(&mb, account, "FS");
     assert!(!copy.draft && copy.server.as_ref().is_some_and(|s| s.id == "AAkD1"), "the server's copy is the sent message");
-    // The same for one the server files with `isDraft` still true, as a message sent as MIME.
+    // The server's copy that the server still calls a draft (moved into Sent Items by the owner,
+    // not sent: a message sent as MIME comes under an id of its own) is a draft of its own, as
+    // Outlook keeps it.
     let (mut mb, account) = mailbox();
     let mut index = ServerIndex::default();
     take_page(&mut mb, &mut index, account, &page("FD", "AAkD2", Some(true)), &mut Down::default());
     let here = only_in(&mb, account, "FD").id;
     mb.message_mut(here).unwrap().server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, ..Default::default() });
-    let mut sent = page("FS", "AAkD2", Some(true));
-    sent.messages[0].server.change_key = "CK2".into();
-    take_page(&mut mb, &mut index, account, &sent, &mut Down::default());
-    assert!(mb.message(here).unwrap().draft && !only_in(&mb, account, "FS").draft);
+    let mut moved = page("FS", "AAkD2", Some(true));
+    moved.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &moved, &mut Down::default());
+    assert!(mb.message(here).unwrap().draft && only_in(&mb, account, "FS").draft);
+}
+
+/// A draft that came down from Drafts and that the owner moves into Sent Items by mistake:
+/// Outlook keeps it as a draft (`isDraft` stays true), and so does this mailbox, when the move
+/// has gone up and the delta lists it there, and when it is moved back to Drafts: the mark is
+/// never taken from a draft the mailbox knows but on the server's word.
+#[test]
+fn a_draft_moved_into_sent_items_stays_a_draft() {
+    let (mut mb, account) = mailbox();
+    let (drafts, sent) = (mb.folder_of_kind(account, FolderKind::Drafts).unwrap(), mb.folder_of_kind(account, FolderKind::Sent).unwrap());
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    mb.move_message(id, sent).unwrap();
+    // The move went up: the next delta lists it in Sent Items, a draft still.
+    let mut there = page("FS", "AAkD1", Some(true));
+    there.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &there, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.folder == sent, "in Sent Items, server isDraft=true, but draft={}", m.draft);
+    // Moved back.
+    mb.move_message(id, drafts).unwrap();
+    let mut back = page("FD", "AAkD1", Some(true));
+    back.messages[0].server.change_key = "CK3".into();
+    take_page(&mut mb, &mut index, account, &back, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.folder == drafts, "back in Drafts, server isDraft=true, but draft={}", m.draft);
+}
+
+/// The same, with the mailbox saved and opened again before the move goes up (offline, or the
+/// program quit right away): the server's copy still lies in Drafts, and the repair that puts
+/// right sent copies kept as drafts leaves it alone, so that a refused move has a draft to put
+/// back. Then the move goes up, and it is moved back, as above.
+#[test]
+fn a_draft_moved_into_sent_items_before_a_reopen_stays_a_draft() {
+    let (mut mb, account) = mailbox();
+    let (drafts, sent) = (mb.folder_of_kind(account, FolderKind::Drafts).unwrap(), mb.folder_of_kind(account, FolderKind::Sent).unwrap());
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    mb.move_message(id, sent).unwrap();
+    let bytes = crate::io::write_mailbox(&mb).unwrap();
+    let mut mb = crate::io::read_mailbox(&bytes).unwrap();
+    let m = mb.message(id).unwrap();
+    assert!(m.draft, "repair cleared the draft mark of a draft whose server copy is still in Drafts");
+    assert!(m.folder == sent && m.server.as_ref().is_some_and(|s| s.folder == "FD"));
+    let mut index = ServerIndex::default();
+    let mut there = page("FS", "AAkD1", Some(true));
+    there.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &there, &mut Down::default());
+    assert!(mb.message(id).unwrap().draft);
+    mb.move_message(id, drafts).unwrap();
+    let mut back = page("FD", "AAkD1", Some(true));
+    back.messages[0].server.change_key = "CK3".into();
+    take_page(&mut mb, &mut index, account, &back, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.folder == drafts, "back in Drafts, server isDraft=true, but draft={}", m.draft);
+}
+
+/// A draft written here and saved on the server (it keeps its `server_draft`, with the reply
+/// link in it), moved into Sent Items, the move gone up and the mailbox opened again: a sent
+/// copy never has a `server_draft`, so it is told from one and stays a draft.
+#[test]
+fn a_draft_written_here_and_moved_into_sent_items_stays_a_draft_when_the_mailbox_opens() {
+    let (mut mb, account) = mailbox();
+    let sent = mb.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    {
+        let m = mb.message_mut(id).unwrap();
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { marker: "mailcraft-draft-1-1".into(), ..Default::default() });
+    }
+    mb.move_message(id, sent).unwrap();
+    take_page(&mut mb, &mut index, account, &page("FS", "AAkD1", Some(true)), &mut Down::default());
+    let bytes = crate::io::write_mailbox(&mb).unwrap();
+    let opened = crate::io::read_mailbox(&bytes).unwrap();
+    let m = opened.message(id).unwrap();
+    assert!(m.draft && m.server_draft.is_some() && m.server.as_ref().is_some_and(|s| s.folder == "FS"));
 }
 
 /// Mail sent before the fix: the server never says it again, so the mailbox puts it right as it

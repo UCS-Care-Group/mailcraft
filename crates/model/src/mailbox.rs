@@ -2962,15 +2962,35 @@ impl Mailbox {
         }
         // A Microsoft account's Sent Items hold what was sent. Exchange files the copy of a
         // message sent as MIME with `isDraft` still true, and a mailbox kept before that was
-        // known took it for a draft; the server never says it again, so it is put right here.
+        // known took it for a draft (#611); the server never says it again, so it is put right
+        // here. Only a copy that came down from the server's own Sent Items: it is kept with no
+        // `server_draft`, as a draft written or saved here never is, and its server copy lies in
+        // that folder. A draft moved into Sent Items here whose move hasn't gone up (its server
+        // copy still lies in Drafts) is left alone: Outlook keeps it as a draft, and it is one
+        // again when moved back. What this can't tell apart: a draft that came down from Drafts,
+        // was never written in here, and was then moved into Sent Items by the owner, once that
+        // move has gone up, looks the same as a sent copy and is taken for one.
         // Not said as a repair: nothing in the mailbox was damaged, and the owner isn't told
         // that it was.
-        let sent_items: HashSet<Id> =
-            self.folders.iter().filter(|f| f.kind == FolderKind::Sent && self.keeps_drafts_on_server(f.account)).map(|f| f.id).collect();
-        for m in self.messages.values_mut() {
-            if m.draft && sent_items.contains(&m.folder) && !m.server_draft.as_ref().is_some_and(|d| d.pending) {
-                let m = Arc::make_mut(m);
-                (m.draft, m.server_draft) = (false, None);
+        let sent_items: HashMap<Id, &str> = self
+            .folders
+            .iter()
+            .filter(|f| f.kind == FolderKind::Sent && self.keeps_drafts_on_server(f.account))
+            .filter_map(|f| Some((f.id, f.server.as_ref()?.id.as_str())))
+            .collect();
+        let sent_copies: Vec<Id> = self
+            .messages
+            .values()
+            .filter(|m| {
+                m.draft
+                    && m.server_draft.is_none()
+                    && sent_items.get(&m.folder).is_some_and(|sent| m.server.as_ref().is_some_and(|s| s.folder == *sent))
+            })
+            .map(|m| m.id)
+            .collect();
+        for id in sent_copies {
+            if let Some(m) = self.messages.get_mut(&id) {
+                Arc::make_mut(m).draft = false;
             }
         }
         // What is kept about the server's copies must hang together: a UID names one message of
