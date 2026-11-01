@@ -2828,6 +2828,10 @@ impl Session {
             }
             claimed
         });
+        // Checked whatever became of the command: a reading command that failed or panicked has
+        // nothing put back on the light path, so it must have changed nothing on the way.
+        #[cfg(test)]
+        assert!(claimed.is_none_or(|claimed| self.mailbox == claimed), "`{id}` says it reads (`CommandSpec::reads`) but changed the mailbox");
         if let Some(outer) = &mut self.swaps {
             for swap in swaps.list {
                 outer.push(swap);
@@ -2892,8 +2896,6 @@ impl Session {
                 if wipes_history(id) {
                     crate::cmd::calendar_settings::forget_gone_hours(self);
                 }
-                #[cfg(test)]
-                assert!(claimed.is_none_or(|claimed| self.mailbox == claimed), "`{id}` says it reads (`CommandSpec::reads`) but changed the mailbox");
                 if !light && self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);
                     // Read marks alone: the list and the counts stand, put right ([`Session::read_marks_only`]).
