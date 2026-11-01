@@ -80,11 +80,14 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
-        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
+        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft)
+            .key("Mod+S")
+            .params(r#"{"compose"?: number, "background"?: true (saved by the five-minute timer: a message that was no draft before is taken out of Drafts again when it is closed with `discard`)}"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
             .key("Escape")
-            .params(r#"{"discard"?: true, "compose"?: number} (a message with changes that aren't saved is saved to Drafts first, unless `discard`; `compose`: which message being written, default the current one; the one put aside last is current after it)"#)
+            .params(r#"{"discard"?: true, "compose"?: number} (a message with changes that aren't saved is saved to Drafts first, unless `discard`, which also takes out of Drafts what only the background saves put there; `compose`: which message being written, default the current one; the one put aside last is current after it)"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when_writing(needs_compose),
         CommandSpec::new("compose.popOut", "Pop Out", "Message", pop_out)
@@ -1330,8 +1333,11 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"id": id, "queued": queued, "delivered": delivered}))
 }
 
-fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
+fn save_draft(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
+    // Saved in the background, a message that was no draft before stays one that Don't Save
+    // takes out of Drafts again (#286); saved any other way, it is a draft for good.
+    let autosaved = p::bool(v, "background") == Some(true) && (c.draft.is_none() || c.autosaved);
     // Whole, so that what the server had of it is worked out from its real content (R6.1); as it
     // is when that can't be read.
     let old = c.draft.and_then(|d| s.loaded_message(d).ok().map(|m| Message::clone(&m)).or_else(|| s.mailbox.message(d).cloned()));
@@ -1391,14 +1397,27 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     }
     let c = compose_mut(s)?;
     c.draft = Some(id);
+    c.autosaved = autosaved;
     // (Whoever saved it, what the owner wrote in it stays theirs until it is closed, #494.)
     c.dirty = false;
     Ok(json!({"draft": id}))
 }
 
-fn close(s: &mut Session, _: &Value) -> CmdResult {
+fn close(s: &mut Session, v: &Value) -> CmdResult {
     // (Saved to Drafts first unless `discard`, by `saves_first`; what was last saved stays there.)
-    s.compose = None;
+    let closed = s.compose.take();
+    // But what only the background saves put in Drafts goes with Don't Save (#286), as Discard
+    // takes a draft away (a Microsoft account's from its server too).
+    if p::bool(v, "discard") == Some(true)
+        && let Some(d) = closed.filter(|c| c.autosaved).and_then(|c| c.draft)
+        && s.mailbox.message(d).is_some()
+    {
+        match s.mailbox.remove_message(d) {
+            // (Closing is no step to undo, but the mailbox changed and is saved.)
+            Ok(_) => s.dirty = true,
+            Err(e) => log::info!("a message saved in the background stays in Drafts: {e}"),
+        }
+    }
     done()
 }
 

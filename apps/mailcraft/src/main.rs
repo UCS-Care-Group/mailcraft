@@ -186,7 +186,7 @@ impl eframe::App for App {
         }
         // A window of its own about to open is put on a monitor that is connected (#286).
         if self.0.wants_monitors() {
-            self.0.set_monitors(connected_monitors(ctx, frame));
+            self.0.set_monitors(monitors_in_pixels(frame));
         }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
@@ -487,6 +487,21 @@ fn connected_monitors(ctx: &egui::Context, frame: &eframe::Frame) -> Vec<egui::R
         ([at.x, at.y], [size.width, size.height])
     });
     window_geometry::monitors_in_points(listed, pixels_per_point)
+}
+
+/// The monitors connected now, in the system's pixels with each one's scale, for the windows of
+/// their own about to open (#286): one space for every monitor, whatever its scale.
+fn monitors_in_pixels(frame: &eframe::Frame) -> Vec<mailcraft_ui_egui::window_places::Monitor> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    window
+        .available_monitors()
+        .take(64)
+        .map(|m| {
+            let (at, size) = (m.position(), m.size());
+            let rect = egui::Rect::from_min_size(egui::pos2(at.x as f32, at.y as f32), egui::vec2(size.width as f32, size.height as f32));
+            mailcraft_ui_egui::window_places::Monitor { rect, scale: m.scale_factor() as f32 }
+        })
+        .collect()
 }
 
 /// The pages waiting for the window's activation token (`browser`), set once before the window opens.

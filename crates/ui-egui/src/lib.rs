@@ -1791,9 +1791,9 @@ impl MailApp {
         self.windows.wants_monitors()
     }
 
-    /// The monitors connected now, in points ([`window_geometry::monitors_in_points`]), for the
-    /// windows about to open in this frame. An empty list: the system places them.
-    pub fn set_monitors(&mut self, monitors: Vec<egui::Rect>) {
+    /// The monitors connected now, in the system's pixels with each one's scale, for the windows
+    /// about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
         self.windows.monitors = Some(monitors);
     }
 
@@ -4109,14 +4109,19 @@ impl MailApp {
         let now = self.session.now();
         let since = *self.draft_saved_at.get_or_insert(now);
         let waited = now.saturating_sub(since);
-        if !(0..EVERY_SECS).contains(&waited) {
+        // While the owner is asked whether to save a message (Unsaved Message, a window's own
+        // question, an agent's question), nothing is saved behind the answer: once it is given,
+        // a save that is due comes at once.
+        let asked = matches!(self.dialog, Some(dialogs::Dialog::DiscardDraft { .. })) || self.windows.asks() || !self.asking.is_empty();
+        if !(0..EVERY_SECS).contains(&waited) && !asked {
             self.draft_saved_at = Some(now);
             for compose in due {
-                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose})) {
+                // (`background`: one that was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose, "background": true})) {
                     log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
                 }
             }
-        } else {
+        } else if !asked {
             let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
             ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }

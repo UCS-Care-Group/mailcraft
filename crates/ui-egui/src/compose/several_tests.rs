@@ -173,3 +173,91 @@ fn a_microsoft_accounts_drafts_saved_by_themselves_wait_to_go_up() {
     tick_at(&mut a, start, 12 * 60);
     assert!(!a.session.compose.as_ref().unwrap().dirty);
 }
+
+/// A new message with a body on an account of `kind`, never saved: the app, the clock's start,
+/// the message and its subject.
+fn new_message(kind: &str, subject: &str) -> (crate::MailApp, i64, u64) {
+    let mut a = app();
+    let start = a.session.now();
+    let account = account(&mut a, "one@mail.example", kind);
+    let compose = a.execute("mail.new", json!({"account": account, "subject": subject})).unwrap()["compose"].as_u64().unwrap();
+    a.execute("compose.set", json!({"body": "Not for keeping"})).unwrap();
+    assert!(a.session.compose.as_ref().is_some_and(|c| c.dirty && c.draft.is_none()));
+    (a, start, compose)
+}
+
+fn in_drafts(a: &crate::MailApp, subject: &str) -> bool {
+    a.session.mailbox.messages.values().any(|m| m.draft && m.subject == subject)
+}
+
+#[test]
+fn nothing_is_saved_by_itself_while_the_owner_is_asked_whether_to_save() {
+    for kind in ["imap", "local"] {
+        let (mut a, start, _) = new_message(kind, "Asked about");
+        tick_at(&mut a, start, 0);
+        // The owner closes it: Unsaved Message asks.
+        a.run("compose.close", json!({})).unwrap();
+        assert!(matches!(a.dialog, Some(crate::dialogs::Dialog::DiscardDraft { .. })), "{kind}");
+        // Five minutes go by with the question open: nothing is saved behind the answer.
+        tick_at(&mut a, start, 5 * 60);
+        tick_at(&mut a, start, 6 * 60);
+        assert!(!in_drafts(&a, "Asked about"), "{kind}");
+        // Don't Save: it was never in Drafts, and isn't now.
+        a.dialog = None;
+        crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+        assert!(a.session.compose.is_none() && !in_drafts(&a, "Asked about"), "{kind}");
+    }
+}
+
+#[test]
+fn dont_save_takes_out_of_drafts_what_only_the_background_saves_put_there() {
+    for kind in ["imap", "local", "microsoft"] {
+        // Saved by itself, then Don't Save.
+        let (mut a, start, _) = new_message(kind, "Saved by itself");
+        tick_at(&mut a, start, 0);
+        tick_at(&mut a, start, 5 * 60);
+        assert!(in_drafts(&a, "Saved by itself"), "{kind}");
+        a.execute("compose.set", json!({"body": "Still not for keeping"})).unwrap();
+        a.run("compose.close", json!({})).unwrap();
+        a.dialog = None;
+        crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+        assert!(!in_drafts(&a, "Saved by itself"), "{kind}");
+        // Nothing waits to go to a server for it.
+        if kind == "microsoft" {
+            let account = a.session.mailbox.accounts.iter().find(|x| x.email == "one@mail.example").unwrap().id;
+            assert_eq!(mailcraft_engine::cmd::account::unpushed(&a.session, account), 0);
+        }
+        // A script's (or an agent's) `discard` too.
+        let (mut a, start, compose) = new_message(kind, "Thrown away");
+        tick_at(&mut a, start, 0);
+        tick_at(&mut a, start, 5 * 60);
+        assert!(in_drafts(&a, "Thrown away"), "{kind}");
+        a.execute("compose.close", json!({"compose": compose, "discard": true})).unwrap();
+        assert!(!in_drafts(&a, "Thrown away"), "{kind}");
+    }
+}
+
+#[test]
+fn a_message_saved_on_purpose_stays_in_drafts_whatever_the_background_saves_did() {
+    // Saved by itself, then by Save Draft: a draft for good, which Don't Save leaves as last saved.
+    let (mut a, start, _) = new_message("imap", "Kept");
+    tick_at(&mut a, start, 0);
+    tick_at(&mut a, start, 5 * 60);
+    a.execute("compose.set", json!({"body": "Saved on purpose"})).unwrap();
+    a.run("compose.saveDraft", json!({})).unwrap();
+    a.execute("compose.set", json!({"body": "Then thrown away"})).unwrap();
+    tick_at(&mut a, start, 10 * 60);
+    a.execute("compose.close", json!({"discard": true})).unwrap();
+    let kept = a.session.mailbox.messages.values().find(|m| m.draft && m.subject == "Kept").map(|m| m.body.text.clone());
+    assert!(kept.is_some_and(|b| b.contains("Then thrown away")), "as last saved");
+    // A draft opened from Drafts: Don't Save after a save by itself leaves it there.
+    let mut a = app();
+    let start = a.session.now();
+    let draft = a.session.mailbox.messages.values().find(|m| m.draft).map(|m| (m.id, m.subject.clone())).unwrap();
+    a.execute("mail.editDraft", json!({"id": draft.0})).unwrap();
+    a.execute("compose.set", json!({"body": "Changed"})).unwrap();
+    tick_at(&mut a, start, 0);
+    tick_at(&mut a, start, 5 * 60);
+    a.execute("compose.close", json!({"discard": true})).unwrap();
+    assert!(a.session.mailbox.message(draft.0).is_some_and(|m| m.draft));
+}

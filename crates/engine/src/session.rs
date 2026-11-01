@@ -670,6 +670,11 @@ pub struct Compose {
     /// is closed. Never read from a file: only [`Session::run`] sets it.
     #[serde(skip)]
     pub owner_changed: bool,
+    /// It is in Drafts only because it was saved in the background (`compose.saveDraft` with
+    /// `background`) and wasn't a draft when it was opened (#286): closing it with `discard`
+    /// (Don't Save) takes that copy out of Drafts again. A draft opened from Drafts never is.
+    #[serde(skip)]
+    pub autosaved: bool,
     /// Which message being written this is, among those open at once (#286): given when it opens
     /// ([`Session::open_compose`]), never read from a file.
     #[serde(skip)]
@@ -2795,7 +2800,7 @@ fn changes_owners_message(before: Option<&Compose>, now: Option<&Compose>) -> bo
         return false;
     }
     let mut saved = before.clone();
-    (saved.dirty, saved.draft) = (now.dirty, now.draft);
+    (saved.dirty, saved.draft, saved.autosaved) = (now.dirty, now.draft, now.autosaved);
     saved != *now && !as_it_was(&saved, now)
 }
 

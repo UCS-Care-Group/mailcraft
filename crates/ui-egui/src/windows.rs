@@ -145,12 +145,14 @@ pub(crate) struct Open {
     asking: bool,
     /// What its form is asked to do when it is next laid out (the answer to that question).
     ask: Option<Ask>,
-    /// A window of the system: the size it opened at and where (`None`: where the system put it),
-    /// once that is settled ([`window_places::place_new`]).
-    start: Option<(egui::Vec2, Option<egui::Pos2>)>,
+    /// A window of the system: the size it opened at and where, once that is settled
+    /// ([`window_places::place_new`]).
+    start: Option<window_places::Opening>,
     /// It waited a frame for the host's list of monitors before it opened.
     waited: bool,
-    /// Its size and place as the system last said.
+    /// Open, it was put at its place by its own scale.
+    positioned: bool,
+    /// Its size and place, in the system's pixels, as the system last said.
     seen: Option<window_places::Place>,
 }
 
@@ -177,9 +179,9 @@ pub struct Windows {
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,
-    /// The monitors connected now, in points, as the host listed them this frame for a window
+    /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
-    pub(crate) monitors: Option<Vec<egui::Rect>>,
+    pub(crate) monitors: Option<Vec<window_places::Monitor>>,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -239,6 +241,7 @@ impl Windows {
             ask: None,
             start: None,
             waited: false,
+            positioned: false,
             seen: None,
         });
         self.last
@@ -272,6 +275,11 @@ impl Windows {
     /// How many windows have something in them that was changed and is not saved.
     pub fn unsaved(&self) -> usize {
         self.open.iter().filter(|w| w.what.dirty()).count()
+    }
+
+    /// Whether a window asks whether to save what is in it before it closes.
+    pub(crate) fn asks(&self) -> bool {
+        self.open.iter().any(|w| w.asking)
     }
 
     /// Whether a window of the system is about to open, which the host lists the monitors for
@@ -1055,10 +1063,29 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
     builder
 }
 
+/// In a frame of a window of the system, with its own `ctx`: the first time, it is put at its
+/// place, by its own scale (#286); then where it is now is noted, for the next of its kind.
+fn place_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, kind: Kind) {
+    let (ppp, zoom) = (ctx.pixels_per_point(), ctx.zoom_factor());
+    if !std::mem::replace(&mut window.positioned, true)
+        && let Some(at) = window.start.and_then(|s| s.at)
+        && ppp.is_finite()
+        && ppp > 0.0
+    {
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at / ppp));
+    }
+    let place = ctx.input(|i| window_places::Place::of(i.viewport(), ppp, zoom));
+    if let Some(place) = place
+        && window.seen != Some(place)
+    {
+        window.seen = Some(place);
+        app.ui.window_places.set(kind, place);
+    }
+}
+
 /// Where a window of the system is, or opens: as the system last said, else where it was put.
 fn placed(window: &Open) -> Option<egui::Rect> {
-    let started = window.start.and_then(|(size, at)| Some(egui::Rect::from_min_size(at?, size)));
-    window.seen.and_then(|p| p.rect()).or(started)
+    window.seen.and_then(|p| p.rect()).or(window.start.and_then(|s| s.rect()))
 }
 
 /// A window of the system. `last`: where the last other window of its kind that is open is, for
@@ -1080,12 +1107,15 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         };
         let monitors = app.windows.monitors.as_deref().unwrap_or(&[]);
         let min = vec2(MIN_SIZE[0], MIN_SIZE[1]);
-        window.start = Some(window_places::place_new(app.ui.window_places.get(kind), default.into(), min, last, monitors));
+        let saved = app.ui.window_places.get(kind);
+        window.start = Some(window_places::place_new(saved, default.into(), min, last, monitors, ctx.zoom_factor()));
     }
-    let (size, at) = window.start.unwrap_or((vec2(MESSAGE_SIZE[0], MESSAGE_SIZE[1]), None));
-    let builder = egui::ViewportBuilder::default().with_title(window.title.clone()).with_inner_size(size).with_min_inner_size(MIN_SIZE);
-    let builder = match at {
-        Some(at) => builder.with_position(at),
+    let Some(start) = window.start else { return false };
+    let builder = egui::ViewportBuilder::default().with_title(window.title.clone()).with_inner_size(start.size).with_min_inner_size(MIN_SIZE);
+    // Near its place to begin with (the system takes a place in points by a scale of its choice),
+    // then put there exactly, by its own scale, once it is open.
+    let builder = match start.at {
+        Some(at) => builder.with_position(at / start.pixels_per_point),
         None => builder,
     };
     // One an agent opened comes up behind the owner's window, without the keyboard (#286).
@@ -1110,13 +1140,8 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             crate::keys::gate(&ctx, waits);
         }
         let wish = keys_of(&ctx, window, ui.layer_id());
-        // Where it is now is where the next of its kind opens (#286).
-        if let Some(place) = ctx.input(|i| window_places::Place::of(i.viewport()))
-            && !inside
-            && window.seen != Some(place)
-        {
-            window.seen = Some(place);
-            app.ui.window_places.set(kind, place);
+        if !inside {
+            place_native(app, &ctx, window, kind);
         }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
@@ -2797,6 +2822,10 @@ mod tests {
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]
 mod window_identity_tests;
+
+#[cfg(test)]
+#[path = "window_places_show_tests.rs"]
+mod window_places_show_tests;
 
 #[path = "compose_window.rs"]
 pub(crate) mod compose_window;
