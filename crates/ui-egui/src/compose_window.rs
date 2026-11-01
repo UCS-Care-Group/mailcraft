@@ -259,7 +259,7 @@ pub(crate) fn discarding(app: &MailApp, closing: &[u64]) -> Vec<Value> {
         .filter(|w| closing.contains(&w.id))
         .filter_map(|w| w.what.compose())
         .filter_map(|id| s.composing_by_id(id))
-        .filter(|c| c.owner_changed && (c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)))
+        .filter(|c| c.owner_changed && mailcraft_engine::cmd::compose::unsaved(s, c))
         .map(|c| json!({"form": "message", "title": c.subject}))
         .collect()
 }

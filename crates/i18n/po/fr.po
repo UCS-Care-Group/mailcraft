@@ -13475,6 +13475,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/session.rs
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
