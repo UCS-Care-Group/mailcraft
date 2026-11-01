@@ -282,6 +282,9 @@ fn fields(p: &PlaceUp) -> Map<String, Value> {
         Importance::High => "high",
     };
     out.insert("importance".into(), json!(level));
+    if p.read_receipt {
+        out.insert("isReadReceiptRequested".into(), json!(true));
+    }
     out.insert("isRead".into(), json!(p.read));
     if !p.categories.is_empty() {
         out.insert("categories".into(), json!(p.categories.iter().take(25).map(|c| clean(c, 255)).collect::<Vec<_>>()));

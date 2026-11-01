@@ -243,6 +243,11 @@ msgstr ""
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
@@ -455,6 +460,16 @@ msgstr "Environ {size} de courrier datant de plus de {window} seront supprimés 
 #, fuzzy
 msgid "Above the status bar"
 msgstr "Au-dessus de la barre d'état"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Accent Colour"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1264,6 +1279,11 @@ msgstr "Redemander les images qui n'ont pas pu être téléchargées."
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Demander maintenant au serveur du compte le calendrier autour de cette réunion."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Ask to be told when the message is read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1574,6 +1594,11 @@ msgstr "Anniversaire"
 #, fuzzy
 msgid "Block Sender"
 msgstr "Bloquer l'expéditeur"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Blue"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4298,6 +4323,11 @@ msgstr "Google n'a pas accepté le mot de passe. Un compte avec la validation en
 msgid "Grab bag"
 msgstr "Pêle-mêle"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Graphite"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/sender_images.rs
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
@@ -4436,11 +4466,21 @@ msgstr ""
 msgid "High"
 msgstr "Haute"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "High Contrast"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "High Importance"
 msgstr "Importance haute"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "High contrast"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8360,6 +8400,11 @@ msgstr ""
 msgid "Request Responses"
 msgstr "Demander des réponses"
 
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+msgid "Request a Read Receipt"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -9422,6 +9467,13 @@ msgstr ""
 "Afficher la\n"
 "progression"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Training"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9473,6 +9525,11 @@ msgstr "Afficher la progression d'Envoyer/Recevoir"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Show Sender Images"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+msgid "Show Training"
 msgstr ""
 
 #. interface
@@ -10134,6 +10191,11 @@ msgid "Street"
 msgstr "Rue"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Stronger text and edges, in the light or the dark theme."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Subfolders"
 msgstr ""
@@ -10312,6 +10374,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: waiting for your permission"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Teal"
 msgstr ""
 
 #. name
@@ -12201,8 +12268,8 @@ msgstr "Messages au total"
 msgid "Total size"
 msgstr "Taille totale"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Tracking"
 msgstr ""
 
@@ -12543,6 +12610,11 @@ msgstr "Afficher toutes les propositions…"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "View Source"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Violet"
 msgstr ""
 
 #. interface

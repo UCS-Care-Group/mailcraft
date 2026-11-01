@@ -25,6 +25,8 @@
 
 pub(crate) mod colors;
 #[cfg(test)]
+mod colors_strong_tests;
+#[cfg(test)]
 mod header_tests;
 pub(crate) mod images;
 #[cfg(test)]

@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -99,8 +99,11 @@ owner's.
 **Naming what a command acts on.** An `id`, `ids` or `message` that names nothing (`null`, an id
 as text, zero, a fraction) is refused, never taken for what the owner selected, by Reply, Reply
 All, Open Draft, Send Again, Forward, Delete, Move and the appointment commands (#553; the list is
-in the [control protocol](control-protocol.md)). Reply, Reply All, Open Draft and Send Again take
-one message: `id`, or `ids` naming one.
+in the [control protocol](control-protocol.md)). Every other command that takes `id` or `ids`
+reads them the same way (marking, flagging, categorising, `mail.get`, the attachment, export,
+contact, task and folder commands; the rule commands are still to follow). The commands that take
+one message take `id`, or `ids` naming one. Leaving `id` and `ids` out is the only way to mean
+the selection.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what
@@ -189,6 +192,7 @@ parameters.
 | 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |
 | 2026-10-31 | minor | `mail.replyAndDelete` (safe; names its message, never deletes for good), `mail.viewSource` (safe; message content, framed as untrusted) and `mail.saveAllAttachments` (safe; a folder is never taken from an agent, the files come back as `data`) |
 | 2026-10-31 | minor | `mail.resend` (safe; names its message, opens it again as a new one that is sent only by Send) and `compose.replyTo` (safe; each address checked, at most 20, line breaks dropped) |
+| 2026-11-01 | minor | #553: every other command that takes `id` or `ids`, but the rule commands, refuses one that names nothing rather than take the selection; one-message commands take `ids` naming one |
 | 2026-10-30 | minor | #553: Reply, Reply All, Open Draft, Send Again, the answers to meeting requests and the appointment commands refuse an `id`, `ids` or `message` that names nothing, rather than take the selection; the four one-message commands take `ids` naming one |
 | 2026-10-29 | minor | #599: `read_message` and `mail.get` answer `hiddenText` (what the sender hid), framed as untrusted message content |
 | 2026-10-28 | minor | #620: an agent names the messages (`ids` or `id`) for delete, delete for good, move, copy, archive, junk, not junk, reply, reply all, forward, forward as attachment, open draft, remove attachment and send again; the window's selection is the owner's. `list_messages` reads a folder and search without moving the window to them |
