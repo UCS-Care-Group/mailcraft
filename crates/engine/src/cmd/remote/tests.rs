@@ -2885,6 +2885,71 @@ fn a_change_that_cannot_be_sent_is_given_up_with_a_word_and_put_back() {
 }
 
 #[test]
+fn a_calendar_whose_owner_the_server_names_is_shown_and_keeps_its_tick() {
+    use mailcraft_model::CalendarOwner;
+    use mailcraft_model::remote::{CalendarsDownload, RemoteCalendar};
+    let (mut s, account, _, _, _) = served();
+    let list = |calendars: Vec<RemoteCalendar>| CalendarsDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete: true,
+        calendars,
+        ..Default::default()
+    };
+    let owned = |id: &str, name: &str, address: &str, main: bool| RemoteCalendar {
+        id: id.into(),
+        name: name.into(),
+        main,
+        owner: CalendarOwner { address: address.into(), name: String::new() }.cleaned(),
+        ..Default::default()
+    };
+    let team = owned("cal-team", "Team", "ada@example.org", false);
+    let shared = RemoteCalendar { rights: mailcraft_model::Rights::Read, ..owned("cal-bob", "Bob's calendar", "bob@example.org", false) };
+    // Holidays name no person: the server's owner is absent, so the calendar waits to be ticked.
+    let holidays = RemoteCalendar { id: "cal-holidays".into(), name: "Holidays".into(), ..Default::default() };
+    super::apply_calendars(
+        &mut s,
+        &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), team.clone(), shared.clone(), holidays.clone()]),
+    )
+    .unwrap();
+    let of_account = |s: &Session, id: &str| s.mailbox.calendars.iter().find(|c| c.origin.account == account && c.origin.id == id).cloned().unwrap();
+    let shown = |s: &Session, id: &str| of_account(s, id).visible;
+    // The account's own other calendar and the one shared with it are shown; the main one of
+    // course is, and a calendar with no owner does not take that as a reason to be.
+    assert_eq!((shown(&s, ""), shown(&s, "cal-team"), shown(&s, "cal-bob"), shown(&s, "cal-holidays")), (true, true, true, false));
+    assert_eq!(
+        (of_account(&s, "cal-bob").rights, of_account(&s, "cal-bob").owner.map(|o| o.address)),
+        (mailcraft_model::Rights::Read, Some("bob@example.org".into()))
+    );
+    // Shared means somebody else's: it is listed under Shared Calendars, not among its own.
+    let bob_id = of_account(&s, "cal-bob").id;
+    let groups = super::super::calendar_settings::calendar_groups(&s);
+    let shared_group = groups.iter().find(|group| group.title == "Shared Calendars").expect("a group of shared calendars");
+    assert!(shared_group.calendars.contains(&bob_id));
+    let own_group = groups.iter().find(|group| group.title == "My Calendars").expect("a group of the account's calendars");
+    assert!(!own_group.calendars.contains(&bob_id));
+
+    // A tick is the owner's, from then on: the next list does not put a shared calendar back.
+    let bob = of_account(&s, "cal-bob").id;
+    run(&mut s, "calendar.showCalendar", json!({"id": bob, "value": false}));
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), team, shared, holidays])).unwrap();
+    assert!(!shown(&s, "cal-bob"));
+
+    // A calendar listed before its owner was read is shown once when the owner arrives, and
+    // after that its tick is the owner's again.
+    let late = RemoteCalendar { id: "cal-late".into(), name: "Late".into(), ..Default::default() };
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late])).unwrap();
+    assert!(!shown(&s, "cal-late"));
+    let late_owned = owned("cal-late", "Late", "ada@example.org", false);
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late_owned.clone()])).unwrap();
+    assert!(shown(&s, "cal-late"));
+    let late_id = of_account(&s, "cal-late").id;
+    run(&mut s, "calendar.showCalendar", json!({"id": late_id, "value": false}));
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late_owned])).unwrap();
+    assert!(!shown(&s, "cal-late"));
+}
+
+#[test]
 fn an_event_of_another_calendar_is_sent_through_that_calendar() {
     use mailcraft_model::remote::{CalendarsDownload, RemoteCalendar};
     let (mut s, account, first, _, _) = served();

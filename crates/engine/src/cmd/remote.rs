@@ -3614,11 +3614,14 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
 /// the account may change it. The account's main calendar is the one events came into before
 /// there was a list. A calendar the server no longer lists goes, with the copies of its events,
 /// when the list is complete. Whether each is shown is kept here, and stays: a calendar that
-/// arrives is shown when it is the account's main one and listed unticked otherwise (birthdays,
-/// holidays and the rest wait for the owner to tick them), and one that is here already keeps
-/// whatever the owner set, whatever a later list says. Not an undo step.
+/// arrives is shown when it is the account's main one, or when the server says whose it is (the
+/// account's own and one shared with it); one with no owner (birthdays, a feed) waits for the
+/// owner to tick it. One that is here already keeps whatever the owner set, whatever a later
+/// list says, except that learning the owner of one listed before owners were read shows it
+/// once. Not an undo step.
 pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResult {
     let account = owner(&s.mailbox, download.account, &download.email)?.id;
+    let shared_mailbox = s.mailbox.account(account).is_some_and(|a| a.is_shared());
     let mut download = download.clone();
     download.tidy();
     // Calendars opened by address (#70) come from the host, never from a server's list, and
@@ -3653,10 +3656,18 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
                 && calendar.group == remote.group
                 && calendar.rights == remote.rights
                 && calendar.owner == remote.owner;
+            // The first list that names the owner is also the first that can tell a calendar
+            // shared with the account from a feed: it is shown once, as a new one would be.
+            // (Not in a shared mailbox: its calendars stay unticked until the owner ticks one,
+            // because reading them there asks for a permission of its own.)
+            let learned_owner = !shared_mailbox && calendar.owner.is_none() && remote.owner.is_some() && !remote.main;
             if !same {
                 (calendar.name, calendar.color, calendar.group) = (title, color, remote.group.clone());
                 (calendar.rights, calendar.owner) = (remote.rights, remote.owner.clone());
                 updated += 1;
+            }
+            if learned_owner {
+                calendar.visible = true;
             }
             // What its meetings may be held online with, when the list says (else: as it was).
             if remote.online_providers.is_some() && calendar.online_providers != remote.online_providers {
@@ -3673,8 +3684,10 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
                 id,
                 name: title,
                 color,
-                // Only the account's own calendar is ticked to begin with.
-                visible: remote.main || own.is_some_and(|o| o.ticked),
+                // The account's own calendar, and any calendar the server names an owner for
+                // (its own others and the ones shared with it), are ticked to begin with.
+                // Birthdays and feeds, whose owner it doesn't say, wait to be ticked.
+                visible: remote.main || (!shared_mailbox && remote.owner.is_some()) || own.is_some_and(|o| o.ticked),
                 origin,
                 rights: remote.rights,
                 owner: remote.owner.clone(),

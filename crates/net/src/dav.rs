@@ -26,7 +26,7 @@ use mailcraft_model::remote::{
     CalendarsDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded,
     RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
 };
-use mailcraft_model::{Event, Rgb, Rights};
+use mailcraft_model::{CalendarOwner, Event, Rgb, Rights};
 use mailcraft_time::{DateTime, Timestamp};
 use quick_xml::Reader;
 use quick_xml::escape::resolve_xml_entity;
@@ -199,7 +199,7 @@ fn calendars(
             color,
             group: String::new(),
             rights,
-            owner: None,
+            owner: calendar_owner(response),
             main,
             online_providers: None,
         });
@@ -405,6 +405,44 @@ fn utc_text(instant: Timestamp) -> String {
 fn slug(url: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or(url).trim_end_matches('/');
     path.rsplit('/').next().unwrap_or_default().to_string()
+}
+
+/// Whose calendar a listed collection is, from the `DAV:owner` href a server sends.
+///
+/// A personal calendar names its owner's principal, a shared one the principal of the person who
+/// shared it, and a team calendar names the group. Only the first two are a person, and the
+/// address is what tells a calendar shared with the account from one of its own.
+fn calendar_owner(response: &Response) -> Option<CalendarOwner> {
+    let href = response.href_of("owner")?;
+    let path = href.split(['?', '#']).next()?.trim_end_matches('/');
+    let address = percent_decoded(path.rsplit('/').next()?);
+    (address.contains('@')).then(|| CalendarOwner { address, name: String::new() }.cleaned()).flatten()
+}
+
+/// A URL path segment with its percent escapes read back into text.
+fn percent_decoded(text: &str) -> String {
+    let hex = |byte: u8| match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    };
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        match (bytes[at], bytes.get(at + 1).copied(), bytes.get(at + 2).copied()) {
+            (b'%', Some(high), Some(low)) if hex(high).is_some() && hex(low).is_some() => {
+                out.push(hex(high).unwrap_or_default() * 16 + hex(low).unwrap_or_default());
+                at += 3;
+            }
+            (byte, ..) => {
+                out.push(byte);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// An absolute address from one a server wrote, which may be absolute, root-relative or relative.
@@ -808,7 +846,7 @@ fn decoded_reference(reference: &BytesRef<'_>) -> Option<String> {
 
 const DISCOVERY_CALDAV: &str = r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:current-user-principal/><C:calendar-home-set/><D:resourcetype/></D:prop></D:propfind>"#;
 const DISCOVERY_CARDDAV: &str = r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav"><D:prop><D:current-user-principal/><A:addressbook-home-set/><D:resourcetype/></D:prop></D:propfind>"#;
-const LIST_CALENDARS: &str = r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:A="http://apple.com/ns/ical/"><D:prop><D:displayname/><D:resourcetype/><D:current-user-privilege-set/><A:calendar-color/></D:prop></D:propfind>"#;
+const LIST_CALENDARS: &str = r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:A="http://apple.com/ns/ical/"><D:prop><D:displayname/><D:resourcetype/><D:current-user-privilege-set/><D:owner/><A:calendar-color/></D:prop></D:propfind>"#;
 const LIST_ADDRESSBOOKS: &str = r#"<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop><D:displayname/><D:resourcetype/><D:current-user-privilege-set/></D:prop></D:propfind>"#;
 
 // (The documents above are the whole of what is sent; nothing of the owner's is in them.)
