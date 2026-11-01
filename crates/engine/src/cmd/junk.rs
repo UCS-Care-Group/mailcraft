@@ -19,13 +19,13 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("junk.blockSender", "Block Sender", "Home › Delete › Junk", block_sender)
-            .params(r#"{"ids"?: [number]} (default: the selected messages) — adds each one's sender to Blocked Senders and moves the messages to Junk E-mail"#)
+            .params(r#"{"ids"?: [number]} (default: the selected messages; named wrongly, refused) — adds each one's sender to Blocked Senders and moves the messages to Junk E-mail"#)
             .selection(needs_message),
         CommandSpec::new("junk.neverBlockSender", "Never Block Sender", "Home › Delete › Junk", never_block_sender)
-            .params(r#"{"ids"?: [number]} (default: the selected messages) — adds each one's sender to Safe Senders"#)
+            .params(r#"{"ids"?: [number]} (default: the selected messages; named wrongly, refused) — adds each one's sender to Safe Senders"#)
             .selection(needs_message),
         CommandSpec::new("junk.neverBlockDomain", "Never Block Sender's Domain", "Home › Delete › Junk", never_block_domain)
-            .params(r#"{"ids"?: [number]} (default: the selected messages) — adds each one's sender's domain (`@example.org`) to Safe Senders"#)
+            .params(r#"{"ids"?: [number]} (default: the selected messages; named wrongly, refused) — adds each one's sender's domain (`@example.org`) to Safe Senders"#)
             .selection(needs_message),
         CommandSpec::new("junk.add", "Add to Safe or Blocked Senders", "Home › Delete › Junk", add).params(
             r#"{"list": "safe"|"blocked", "entry": string, "account"?: number} — on that account's list (default: the selected message's account, else the first); an address (`ada@example.org`) or a domain (`@example.org`, which matches that domain only, not its subdomains); it leaves the other list"#,

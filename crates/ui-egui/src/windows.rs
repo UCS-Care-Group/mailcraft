@@ -409,14 +409,14 @@ pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Val
 /// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
 /// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
 pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
-    // As the command reads it: `12.0` is 12, and 0 is none.
-    let number = |key: &str| mailcraft_engine::p::id(p, key);
+    // As the command reads it (#553): `12.0` is 12, and one named wrongly (0, null, text) takes nothing away.
+    let named = |selected: Option<Id>| mailcraft_engine::p::id_strict(p, "id").ok().and_then(|n| n.or(selected));
     let sel = &app.session.sel;
     match id {
-        "calendar.delete" => number("id").or(sel.event) == Some(item),
-        "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == number("id")),
-        "people.delete" => number("id").or(sel.contact) == Some(item),
-        "tasks.delete" => number("id").or(sel.task) == Some(item),
+        "calendar.delete" => named(sel.event) == Some(item),
+        "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == named(None)),
+        "people.delete" => named(sel.contact) == Some(item),
+        "tasks.delete" => named(sel.task) == Some(item),
         "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", item),
         _ => false,
     }
