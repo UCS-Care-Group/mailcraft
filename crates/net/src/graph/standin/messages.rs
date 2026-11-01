@@ -104,6 +104,8 @@ pub struct Message {
     pub bcc: Vec<String>,
     /// Where replies go (a draft's `replyTo`).
     pub reply_to: Vec<String>,
+    /// It asks for a read receipt (`isReadReceiptRequested`).
+    pub read_receipt: bool,
     /// Its body, and whether that is HTML (else text). Empty: the preview is its text.
     pub body: String,
     pub html: bool,

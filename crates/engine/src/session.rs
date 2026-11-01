@@ -649,6 +649,9 @@ pub struct Compose {
     pub quote: Option<Quote>,
     pub attachments: Vec<Attachment>,
     pub importance: Importance,
+    /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub read_receipt: bool,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays

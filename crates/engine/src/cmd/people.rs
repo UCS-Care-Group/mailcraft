@@ -20,7 +20,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"id"?: number, …the fields of people.new}"#)
             .selection(needs_contact),
         CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
-        CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null}"#),
+        CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
         CommandSpec::new("people.list", "List Contacts", "People", list).pure().params(r#"{"query"?: string}"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
@@ -48,7 +48,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ONE: &str = r#"{"id"?: number} (default: the selected contact)"#;
+const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool}"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
@@ -56,7 +56,7 @@ fn needs_contact(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
     s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
@@ -222,7 +222,9 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    s.sel.contact = match p::id(v, "id") {
+    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
+    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
+    s.sel.contact = match named {
         Some(id) => Some(s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))?),
         None => None,
     };
@@ -286,7 +288,7 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));

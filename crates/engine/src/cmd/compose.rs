@@ -73,6 +73,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value": string} — the addresses replies to the message being written go to (its `Reply-To` line), separated by `;` or `,`, at most 20; "" sends replies to the sender again. Each must be an e-mail address"#)
             .when(needs_compose),
+        CommandSpec::new("compose.readReceipt", "Request a Read Receipt", "Options › Tracking", read_receipt)
+            .pure()
+            .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
+            .when(needs_compose),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when(needs_compose),
         CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when(needs_compose),
@@ -452,14 +456,14 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
-/// strictly ([`targets_strict`](super::targets_strict)): a forward goes to other people, so what a
+/// strictly ([`targets`](super::targets)): a forward goes to other people, so what a
 /// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
 /// selection. Each once, in the message list's order (those it doesn't show after them, as
 /// named), and the one in focus, the last named, as for a selection. How many it may be is
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
     p::only(v, &["id", "ids", "discard"])?;
-    let mut ids = super::targets_strict(s, v)?;
+    let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
     ids.reverse();
@@ -766,6 +770,30 @@ fn reply_to(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"replyTo": line}))
 }
 
+/// Request a Read Receipt: on or off for the message being written, or the other way round.
+fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["value"])?;
+    let wanted = match v.get("value") {
+        None | Some(Value::Null) => None,
+        Some(Value::Bool(b)) => Some(*b),
+        Some(_) => return Err(bad("`value` is true or false")),
+    };
+    let c = compose_mut(s)?;
+    let on = wanted.unwrap_or(!c.read_receipt);
+    if c.read_receipt != on {
+        c.read_receipt = on;
+        c.dirty = true;
+    }
+    Ok(json!({"readReceipt": on}))
+}
+
+/// Whether a draft or a sent message asked for a read receipt: as kept here, or as its header
+/// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
+/// opened to write again; a request in mail that comes in is never read, nor answered.
+fn asked_receipt(m: &Message) -> bool {
+    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+}
+
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
 /// its recipients, subject, text, files and the original quoted under it as they were.
 fn reopened(s: &Session, m: &Message) -> Compose {
@@ -834,6 +862,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         quote,
         attachments,
         importance: m.importance,
+        read_receipt: asked_receipt(m),
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
@@ -1049,6 +1078,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         attachments: attachments_of(c, &message_id),
         read: true,
         importance: c.importance,
+        read_receipt: c.read_receipt,
         message_id,
         ..Default::default()
     })

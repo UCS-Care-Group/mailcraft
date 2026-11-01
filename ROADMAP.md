@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -185,6 +185,11 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-01 | The classic ribbon fits its window ([#709](https://github.com/UCS-Care-Group/mailcraft/issues/709)): on Home at 1440 px Find and Send/Receive were cut off. Each group now has four forms (as classic Outlook lays it out; small buttons with labels, three to a column; icons only, each named in its tooltip; one button with the group's name that opens the group), and the row gives them up in a fixed order as the window narrows: the tab's note, then every group to small buttons, then every group to icons, then every group folded, the least used first (priorities written by hand per tab: on Mail Home New, Delete and Respond last, Find and Send/Receive first). If all folded groups still do not fit, the last go behind `…`. Widths are measured from the real labels at the current interface size and language. Tests run every tab from 600 to 2000 px at 100 % and 200 % (`ribbon/fit_tests.rs`). The simplified ribbon is unchanged |
+| 2026-11-01 | Themes, part 3 ([#703](https://github.com/UCS-Care-Group/mailcraft/issues/703)): four accent colours (blue, teal, violet, graphite) and high contrast. The accents are hand-written tables for light, dark and both high-contrast forms; high contrast raises text and outlines to 7:1, firms up borders and hairlines, and brings a message's colours to 7:1 against its paper (kept, never stripped). File › Options › General has a High contrast check box and an Accent row of named swatches; `ui.highContrast` and `ui.accent` set them, and every window follows at once. The contrast test covers every accent in light and dark, with high contrast off and on |
+| 2026-11-01 | Themes, part 2 ([#703](https://github.com/UCS-Care-Group/mailcraft/issues/703)): MailCraft's own look replaces the borrowed one, light and dark. One cool grey ramp (no navy chrome beside grey panes), a blue accent, an unread dot, folder counts as pills, one selection treatment (fill, accent edge, focused and unfocused) with a flag's tint kept under it, group headings as plain text, the ribbon as a card, a neutral File view column, outlines at 3:1 or better, egui's buttons, combo boxes and check boxes restyled once, and the app mark in the title bar. The contrast test has no expected failures left |
+| 2026-10-31 | A new app icon: an envelope that is also a calendar page, with ring tabs, in front of two tilted sheets, on a blue rounded tile (design: Martin Ball). Its source is one SVG drawn by hand for MailCraft (`assets/app-icon/source/mailcraft.svg`), and `cargo xtask icon` renders every size from it with `resvg`, which only xtask depends on; the carrier pigeon and the script that drew it are gone. The same drawing in five other colours is kept in `assets/app-icon/alternates/`, not used yet. The web build has the icon as its favicon ([assets/app-icon/README.md](assets/app-icon/README.md)) |
+| 2026-10-31 | Parity B6: Request a Read Receipt (`compose.readReceipt`, Message › Tags: `Disposition-Notification-To` naming the sender over IMAP/SMTP, JMAP and Exchange's MIME sends, `isReadReceiptRequested` and `IsReadReceiptRequested` on Graph and Exchange drafts; kept with the draft; a request in incoming mail is never answered) and Show Training (`help.training`, the project's `docs` folder). Catalog rows Edit Message, Send/Receive Groups, the contact's Follow Up and Private, and the task's Private are marked out of scope with a reason, listed apart in the parity checklist |
 | 2026-10-31 | Automatic Replies ([#692](https://github.com/UCS-Care-Group/mailcraft/issues/692); `account.automaticReplies`, `account.setAutomaticReplies`): File › Info › Automatic Replies for an account that signs in with Microsoft, read and changed through Graph's mailbox settings; reading takes the `MailboxSettings.Read` a sign-in already has, and changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time the owner changes them (`ui.allowAutomaticReplies`, never with a sign-in; File › Info shows it, with Ask again); nothing is changed before the server's setting is read; the replies are shown as plain text and written as simple HTML; Automatic Replies in the status bar while they go out; agents may read them, and changing them is the owner's, like Send |
 | 2026-10-31 | Parity B3c: Attach Item (`compose.attachItem`: a message from the mailbox attached whole as an `.eml`, as Forward as Attachment attaches it) and Contact Card (`insert.businessCard`: a contact attached as a vCard); Insert › Item and Contact Card are no longer pending |
 | 2026-10-31 | Parity B3a: Reply and Delete (`mail.replyAndDelete`: a reply, and the original to Deleted Items; never for good), View Source (`mail.viewSource`: header lines and the body's source as plain text, at most 1 MB, controls and characters that show nothing written as their codes; nothing rendered or fetched) and Save All Attachments (`mail.saveAllAttachments`: every listed file into a folder the owner picks, names made safe, numbered rather than written over; agents get `data`) |
@@ -402,6 +407,11 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | #709: the classic ribbon fits its window, in the progress log |
+| 2026-11-01 | #703 part 3: accents and high contrast, in the progress log |
+| 2026-11-01 | #703: MailCraft's own look, in the progress log |
+| 2026-10-31 | The new app icon, in the progress log |
+| 2026-10-31 | Parity B6: Request a Read Receipt, Show Training and the out-of-scope catalog rows, in the progress log |
 | 2026-10-31 | Automatic Replies for Microsoft accounts, in the progress log and step 11 |
 | 2026-10-31 | Parity B3c: Attach Item, Contact Card, in the progress log |
 | 2026-10-31 | Parity B3a: Reply and Delete, View Source, Save All Attachments, in the progress log |

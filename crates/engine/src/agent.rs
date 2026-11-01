@@ -171,6 +171,7 @@ const SAFE: &[&str] = &[
     // Writing (sending is not).
     "compose.set",
     "compose.replyTo",
+    "compose.readReceipt",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -346,6 +347,7 @@ const SAFE: &[&str] = &[
     "sync.cancel",
     // Help: the addresses of the project's own pages, and what this copy is.
     "help.help",
+    "help.training",
     "help.support",
     "help.feedback",
     "help.whatsNew",
@@ -358,6 +360,8 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.highContrast",
+    "ui.accent",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
@@ -772,7 +776,7 @@ fn shared_task<'a>(s: &'a Session, id: &str, params: &Value) -> Option<&'a mailc
     if !matches!(id, "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.delete") {
         return None;
     }
-    p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
+    p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
 }
 
 /// Whether `id` renames or deletes a category that a to-do in a shared list has: the to-do is
@@ -1154,7 +1158,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {
-            let f = p::id(params, "id").unwrap_or(s.view.folder);
+            let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
             let n = s.mailbox.count(f);
             let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
@@ -1197,7 +1201,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
         "people.delete" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!(
                 "delete the contact {} for good; contacts don't go to Deleted Items",
                 c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
@@ -1222,7 +1226,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("put a task in the To Do of {}", account.map(|a| a.email.trim().to_string()).unwrap_or_else(|| "an account".to_string()))
         }
         "tasks.delete" => {
-            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             let shared = if shared_task(s, id, params).is_some() { SHARED_TASK } else { "" };
             format!("delete the task {} for good{shared}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
@@ -1303,7 +1307,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "junk.blockSender" | "junk.neverBlockSender" | "junk.neverBlockDomain" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default();
             let domain = id == "junk.neverBlockDomain";
             let mut who: Vec<String> = Vec::new();
             for m in ids.iter().filter_map(|m| s.mailbox.message(*m)) {
@@ -1364,7 +1368,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }
         "calendar.removeShared" => {
-            let named = p::id(params, "id")
+            let named = p::id_strict(params, "id")
+                .ok()
+                .flatten()
                 .and_then(|c| s.mailbox.calendar(c))
                 .and_then(|c| mailcraft_model::remote::opened_address(&c.origin.id))
                 .unwrap_or_else(|| st("address").to_string());
@@ -1381,7 +1387,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "account.removeSharedMailbox" => {
-            let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());
+            let a = p::id_strict(params, "id")
+                .ok()
+                .flatten()
+                .and_then(|a| s.mailbox.account(a))
+                .map(|a| a.email.clone())
+                .unwrap_or_else(|| st("address").to_string());
             format!("close the shared mailbox {} and remove its mail from this computer", clip(&a, 80))
         }
         "account.graphSwitch" | "ui.switchToGraph" => {
@@ -1441,18 +1452,18 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "mail.editDraft" => format!("open the draft {}", one()),
         "mail.resend" => format!("open {} again as a new message to send", one()),
         "people.email" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
         }
         "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
         "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
         "calendar.respondEmail" => format!("start a new message to the organizer of {}", event_title(s, id, params)),
         "people.forward" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!("start a new message with the contact {} attached", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
         }
         "tasks.statusReport" => {
-            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             format!("start a new message about the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
         _ => String::new(),

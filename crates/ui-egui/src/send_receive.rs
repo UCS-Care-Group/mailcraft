@@ -60,7 +60,7 @@ pub(crate) fn after_owner(app: &mut MailApp, id: &str, r: &Result<Value, String>
         "help.feedback" => {
             let _ = app.run("ui.reportProblem", json!({}));
         }
-        "help.help" | "help.support" | "help.whatsNew" => {
+        "help.help" | "help.training" | "help.support" | "help.whatsNew" => {
             // Only the project's own pages, which the engine names.
             let Some(url) = v.get("url").and_then(Value::as_str).filter(|u| u.starts_with(mailcraft_engine::cmd::help::REPOSITORY)) else {
                 return;

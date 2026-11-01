@@ -371,8 +371,7 @@ fn short(text: &str, max: usize) -> String {
 /// The strip a notice above a message is drawn in: a wash of `hue` over whatever the header is
 /// painted on, with an edge of it, in light and dark alike.
 pub(crate) fn notice(hue: Color32, t: &Tokens) -> egui::Frame {
-    let wash = Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), if t.dark { 46 } else { 30 });
-    let edge = Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), if t.dark { 110 } else { 90 });
+    let (wash, edge) = t.notice(hue);
     egui::Frame::NONE.fill(wash).stroke(Stroke::new(1.0, edge)).corner_radius(4.0).inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
 }
 

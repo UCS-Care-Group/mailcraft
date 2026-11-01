@@ -48,7 +48,8 @@ const NAME_PIECE: usize = 52;
 ///
 /// Header fields come in this order: `Date`, `From`, `To`, `Cc`, `Bcc` (only with
 /// [`WriteOptions::include_bcc`]), `Reply-To`, `Subject`, `Message-ID`, `In-Reply-To`,
-/// `References`, `Importance` and `X-Priority` (unless normal), `Keywords` (the categories),
+/// `References`, `Importance` and `X-Priority` (unless normal), `Disposition-Notification-To`
+/// (the sender, with [`Message::read_receipt`]), `Keywords` (the categories),
 /// `Status` and `X-Status` (read, answered, flagged), then `Message::headers` (`Resent-Bcc` only
 /// with the Bcc), then `MIME-Version` and the content fields. Empty fields are left out.
 ///
@@ -101,6 +102,10 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         }
         Importance::Normal => {}
     }
+    // Request a Read Receipt (RFC 8098): the receipt goes to the sender, never anywhere else.
+    if message.read_receipt && !message.from.email.trim().is_empty() {
+        addresses(&mut out, "Disposition-Notification-To", std::slice::from_ref(&message.from));
+    }
     let keywords: Vec<String> = message.categories.iter().map(|c| clean(c)).filter(|c| !c.is_empty()).map(|c| keyword(&c)).collect();
     if !keywords.is_empty() {
         write_field(&mut out, "Keywords", &keywords.join(", "));
@@ -121,7 +126,15 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         let lower = name.to_ascii_lowercase();
         // Who got a blind copy of a resend goes only where the Bcc does.
         let blind = lower == "resent-bcc" && !opts.include_bcc;
-        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") && !private(&lower) && !blind {
+        // (Asked for above, the request isn't written twice.)
+        let asked = message.read_receipt && lower == "disposition-notification-to";
+        if !asked
+            && is_token(name.as_bytes())
+            && !OWN_FIELDS.contains(&lower.as_str())
+            && !lower.starts_with("content-")
+            && !private(&lower)
+            && !blind
+        {
             let value = if has_words(&lower) { unstructured(name, value) } else { kept(name, value) };
             write_field(&mut out, name, &value);
         }

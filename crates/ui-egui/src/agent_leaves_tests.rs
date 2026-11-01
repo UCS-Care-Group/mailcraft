@@ -445,12 +445,8 @@ fn the_appointment_is_known_however_its_number_is_written() {
         w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| (e.id, e.calendar)).unwrap();
     changing_in_a_window(&mut w, event);
     w.state_mut().execute("calendar.select", json!({"id": event})).unwrap();
-    // `12.0` is 12, and 0 is none (the selected one), as the commands read them.
-    for (id, params) in [
-        ("calendar.delete", json!({"id": event as f64})),
-        ("calendar.delete", json!({"id": 0})),
-        ("calendar.removeCalendar", json!({"id": calendar as f64})),
-    ] {
+    // `12.0` is 12, as the commands read them (0 is refused by the command, #553).
+    for (id, params) in [("calendar.delete", json!({"id": event as f64})), ("calendar.removeCalendar", json!({"id": calendar as f64}))] {
         let (now, rx) = allowed(w.state_mut(), id, params.clone(), Class::ALL.to_vec());
         assert!(now.is_none(), "{id} {params}: asked even so");
         assert!(question(w.state()).unwrap().1.contains("(moved)\u{201d} is closed without saving"), "{id} {params}");

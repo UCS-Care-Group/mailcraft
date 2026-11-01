@@ -518,7 +518,7 @@ fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, today
     if selected {
         p.rect_filled(rect, 0.0, t.selection);
     } else if resp.hovered() || check_resp.hovered() {
-        p.rect_filled(rect, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + TITLE_X, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
     paint_check(p, check.center(), done, check_resp.hovered(), &t);

@@ -222,6 +222,14 @@ impl State {
                     "message:CcRecipients" => item.cc = value("CcRecipients").map(people_of).unwrap_or_default(),
                     "message:BccRecipients" => item.bcc = value("BccRecipients").map(people_of).unwrap_or_default(),
                     "message:ReplyTo" => item.reply_to = value("ReplyTo").map(people_of).unwrap_or_default(),
+                    "message:IsReadReceiptRequested" => {
+                        let v = value("IsReadReceiptRequested").ok_or_else(|| invalid("IsReadReceiptRequested is missing"))?;
+                        item.read_receipt = match v.text.trim() {
+                            "true" => true,
+                            "false" => false,
+                            _ => return Err(invalid("IsReadReceiptRequested is true or false")),
+                        };
+                    }
                     other => return Err(invalid(format!("{other} is no property this stand-in updates"))),
                 }
             }
@@ -367,6 +375,7 @@ impl State {
             to: Vec::new(),
             cc: Vec::new(),
             reply_to: Vec::new(),
+            read_receipt: false,
             received: "2026-10-14T16:00:00Z".into(),
             sent: "2026-10-14T16:00:00Z".into(),
             read: true,
@@ -396,8 +405,18 @@ impl State {
             item.message_id = header("Message-ID");
             item.mime = bytes;
         } else {
-            let order =
-                ["Subject", "Body", "Attachments", "Importance", "ExtendedProperty", "ToRecipients", "CcRecipients", "BccRecipients", "ReplyTo"];
+            let order = [
+                "Subject",
+                "Body",
+                "Attachments",
+                "Importance",
+                "ExtendedProperty",
+                "ToRecipients",
+                "CcRecipients",
+                "BccRecipients",
+                "IsReadReceiptRequested",
+                "ReplyTo",
+            ];
             let parts = Check::children(message, TYPES, &order)?;
             item.subject = parts.first().copied().flatten().map(|n| n.text.clone()).unwrap_or_default();
             if let Some(body) = parts.get(1).copied().flatten() {
@@ -425,7 +444,12 @@ impl State {
             item.to = parts.get(5).copied().flatten().map(people_of).unwrap_or_default();
             item.cc = parts.get(6).copied().flatten().map(people_of).unwrap_or_default();
             item.bcc = parts.get(7).copied().flatten().map(people_of).unwrap_or_default();
-            item.reply_to = parts.get(8).copied().flatten().map(people_of).unwrap_or_default();
+            item.read_receipt = match parts.get(8).copied().flatten().map(|n| n.text.trim()) {
+                None | Some("false") => false,
+                Some("true") => true,
+                Some(_) => return Err(invalid("IsReadReceiptRequested is true or false")),
+            };
+            item.reply_to = parts.get(9).copied().flatten().map(people_of).unwrap_or_default();
             item.preview = item.body.1.chars().take(200).collect();
             item.message_id = format!("<{}@example.org>", self.issued.saturating_add(1));
         }
