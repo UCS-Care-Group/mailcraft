@@ -247,8 +247,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // A draft the server has changed (its change key differs from what was last seen of it).
     let changed_there = m.draft && !last.change_key.is_empty() && !there.server.change_key.is_empty() && last.change_key != there.server.change_key;
     if changed_there && m.server_draft.as_ref().is_some_and(|d| d.pending) {
-        // Changed here too: both are kept (S26).
-        let copy = new_message(folder, server_folder, there);
+        // Changed here too: both are kept (S26). The server's is a draft of its own, unless the
+        // server says it is one no longer: sent meanwhile and filed in Sent Items (#611), it is
+        // the sent message, and only what was changed here stays a draft.
+        let mut copy = new_message(folder, server_folder, there);
+        copy.draft = there.draft.unwrap_or(true);
         return super::graph_drafts::keep_twice(mb, id, Some(copy)).is_some();
     }
     // Where the server last had it, as this mailbox has that folder: a message still there here

@@ -226,8 +226,9 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
 }
 
 /// A draft here and on the server each changed since the last run (S26): both are kept. The
-/// server's comes down as a draft of its own (`there`, under its server id); this one lets go of
-/// the server's copy and is made there anew with the next run. The id of the server's version here.
+/// server's comes down as `there` (under its server id: a draft of its own, or the message as
+/// sent when the server sent it meanwhile, #611); this one lets go of the server's copy and is
+/// made there anew with the next run. The id of the server's version here.
 pub fn keep_twice(mb: &mut Mailbox, here: Id, there: Option<Message>) -> Option<Id> {
     let m = mb.message_mut(here).ok()?;
     let key = m.server.as_ref().map(|s| s.change_key.clone()).unwrap_or_default();
@@ -240,7 +241,7 @@ pub fn keep_twice(mb: &mut Mailbox, here: Id, there: Option<Message>) -> Option<
     }
     log::info!("graph drafts: a draft was changed here and elsewhere; both are kept");
     match there {
-        Some(there) => mb.add_message(Message { draft: true, ..there }).ok(),
+        Some(there) => mb.add_message(there).ok(),
         None => Some(here),
     }
 }

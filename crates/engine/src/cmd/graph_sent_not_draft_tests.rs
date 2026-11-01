@@ -71,6 +71,43 @@ fn a_draft_in_drafts_is_still_a_draft() {
     assert!(only_in(&mb, account, "FD").draft);
 }
 
+/// A draft saved on the server, changed here since (it waits to go up) and sent from another
+/// program meanwhile: the server files it in Sent Items under the same id with a new change key.
+/// Both are kept (S26), but the server's copy is the sent message, not a draft of its own; what
+/// was changed here stays a draft, to be made on the server anew.
+#[test]
+fn a_draft_changed_here_and_sent_elsewhere_keeps_the_sent_copy_as_sent() {
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let here = only_in(&mb, account, "FD").id;
+    {
+        let m = mb.message_mut(here).unwrap();
+        m.subject = "Quarterly figures, revised".into();
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, ..Default::default() });
+    }
+    let mut sent = page("FS", "AAkD1", Some(false));
+    sent.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &sent, &mut Down::default());
+    let m = mb.message(here).unwrap();
+    assert!(
+        m.draft && m.server.is_none() && m.server_draft.as_ref().is_some_and(|d| d.pending),
+        "what was changed here stays a draft, to go up anew"
+    );
+    let copy = only_in(&mb, account, "FS");
+    assert!(!copy.draft && copy.server.as_ref().is_some_and(|s| s.id == "AAkD1"), "the server's copy is the sent message");
+    // The same for one the server files with `isDraft` still true, as a message sent as MIME.
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD2", Some(true)), &mut Down::default());
+    let here = only_in(&mb, account, "FD").id;
+    mb.message_mut(here).unwrap().server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, ..Default::default() });
+    let mut sent = page("FS", "AAkD2", Some(true));
+    sent.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &sent, &mut Down::default());
+    assert!(mb.message(here).unwrap().draft && !only_in(&mb, account, "FS").draft);
+}
+
 /// Mail sent before the fix: the server never says it again, so the mailbox puts it right as it
 /// opens. A draft waiting to go up, wherever it is, is left alone, and so is a draft in Drafts.
 #[test]
