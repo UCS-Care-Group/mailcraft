@@ -167,17 +167,17 @@ fn files_arriving_from_the_browser_go_where_they_belong() {
     a.services.inbox = Some(inbox.clone());
     let contacts = a.session.mailbox.contacts.len();
     let card = b"BEGIN:VCARD\r\nVERSION:3.0\r\nN:Haddad;Noor;;;\r\nFN:Noor Haddad\r\nEMAIL:noor@example.org\r\nEND:VCARD\r\n";
-    inbox.lock().unwrap().push(("noor.vcf".into(), card.to_vec()));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("noor.vcf".into(), card.to_vec()));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.mailbox.contacts.len(), contacts + 1);
     // While writing, an unknown file is an attachment.
     a.run("mail.new", json!({})).unwrap();
-    inbox.lock().unwrap().push(("notes.bin".into(), vec![1, 2, 3]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("notes.bin".into(), vec![1, 2, 3]));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.compose.as_ref().unwrap().attachments.len(), 1);
     // Junk is refused with a message, not a crash.
     a.run("compose.close", json!({})).unwrap();
-    inbox.lock().unwrap().push(("junk.bin".into(), vec![0, 159, 146, 150]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("junk.bin".into(), vec![0, 159, 146, 150]));
     crate::files::drain_inbox(&mut a);
     assert!(a.status_msg.is_some());
 }

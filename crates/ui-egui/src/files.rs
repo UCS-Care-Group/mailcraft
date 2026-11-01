@@ -163,8 +163,8 @@ fn download_all(app: &mut MailApp, params: Value) -> Result<Value, String> {
 pub(crate) fn open(app: &mut MailApp, purpose: &str) {
     let asking = if matches!(purpose, "attach" | "bodyPicture") { app.session.compose_id() } else { None };
     if let Some(f) = &app.services.open_async {
-        f(purpose);
-        app.pending_open = Some((purpose.to_string(), asking));
+        // (What comes of it says itself what it was picked for: [`crate::Delivered`].)
+        f(purpose, asking);
         return;
     }
     let _ = ask(app, FileDialogRequest::Open { purpose: purpose.to_string() }, AfterPick::Open(purpose.to_string(), asking));
@@ -489,38 +489,55 @@ pub fn local_path(text: &str) -> String {
     }
 }
 
-/// Files that arrived asynchronously (the web picker, drops in the browser).
+/// Files that arrived asynchronously (the web picker, drops in the browser). Each goes where it
+/// was picked for, to the message that asked ([`crate::Delivered::asked`]); a drop goes by its
+/// kind, to the message with the keyboard. Several picked to attach for one message are a batch,
+/// as on the desktop: each in turn, up to the most at a time, and said once ([`attached_said`]).
 pub(crate) fn drain_inbox(app: &mut MailApp) {
     let Some(inbox) = app.services.inbox.clone() else { return };
-    let files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
-    // What the picker was opened for is what every file it delivered is for.
-    let asked = if files.is_empty() { None } else { app.pending_open.take() };
-    // Several files picked to attach: as on the desktop, each in turn, up to the most at a time,
-    // and said once ([`attached_said`]).
-    if let Some(("attach", asking)) = asked.as_ref().map(|(purpose, asking)| (purpose.as_str(), *asking))
-        && files.len() > 1
-    {
-        let mut batch = Batch::default();
-        for (name, bytes) in files.iter().take(MOST_ATTACHED) {
-            batch.took(app.run("compose.attach", on_message(json!({"name": name, "data": encode(bytes)}), asking)));
-        }
-        let _ = attached_said(app, batch, files.len());
-        return;
-    }
-    for (name, bytes) in files {
-        let (purpose, asking) = asked.clone().unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
-
-        let data = encode(&bytes);
-        let r = match purpose.as_str() {
-            "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
-            "attach" => app.run("compose.attach", on_message(json!({"name": name, "data": data}), asking)),
-            "bodyPicture" => app.run("insert.picture", on_message(json!({"file": name, "data": data}), asking)),
-
-            _ => app.run("file.import", json!({"name": name, "data": data})),
+    let mut files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
+    while !files.is_empty() {
+        let first = files.remove(0);
+        let Some(("attach", asking)) = first.asked.as_ref().map(|(purpose, asking)| (purpose.as_str(), *asking)) else {
+            delivered_one(app, first);
+            continue;
         };
-        if r.is_ok() {
-            app.ui.backstage = false;
+        // The rest of its pick: what else was picked to attach for the same message.
+        let (mut pick, rest): (Vec<_>, Vec<_>) =
+            files.into_iter().partition(|d| d.asked.as_ref().is_some_and(|(p, a)| p == "attach" && *a == asking));
+        files = rest;
+        if pick.is_empty() {
+            delivered_one(app, first);
+            continue;
         }
+        pick.insert(0, first);
+        let mut batch = Batch::default();
+        for d in pick.iter().take(MOST_ATTACHED) {
+            batch.took(match &d.bytes {
+                Ok(bytes) => app.run("compose.attach", on_message(json!({"name": d.name, "data": encode(bytes)}), asking)),
+                Err(why) => Err(why.clone()),
+            });
+        }
+        let _ = attached_said(app, batch, pick.len());
+    }
+}
+
+/// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
+fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
+    let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
+    let bytes = match d.bytes {
+        Ok(bytes) => bytes,
+        Err(why) => return app.status(why),
+    };
+    let (name, data) = (d.name, encode(&bytes));
+    let r = match purpose.as_str() {
+        "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
+        "attach" => app.run("compose.attach", on_message(json!({"name": name, "data": data}), asking)),
+        "bodyPicture" => app.run("insert.picture", on_message(json!({"file": name, "data": data}), asking)),
+        _ => app.run("file.import", json!({"name": name, "data": data})),
+    };
+    if r.is_ok() {
+        app.ui.backstage = false;
     }
 }
 

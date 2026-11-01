@@ -8,7 +8,7 @@ use std::rc::Rc;
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
 use mailcraft_ui_egui::opening::{Arrival, Trouble};
-use mailcraft_ui_egui::{Inbox, MailApp, Services, UiState};
+use mailcraft_ui_egui::{Delivered, Inbox, MailApp, Services, UiState};
 use wasm_bindgen::JsCast as _;
 
 use crate::page;
@@ -161,7 +161,7 @@ impl eframe::App for WebShell {
                 let name = f.path().file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "dropped".into());
                 match f.bytes_async().await {
                     Ok(bytes) => {
-                        inbox.lock().unwrap_or_else(|e| e.into_inner()).push((name, bytes));
+                        inbox.lock().unwrap_or_else(|e| e.into_inner()).push(Delivered::dropped(name, bytes));
                         ctx.request_repaint();
                     }
                     Err(e) => log::error!("couldn't read dropped file {name}: {e}"),
@@ -224,9 +224,10 @@ fn open_links(ctx: &egui::Context) {
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
     let open_inbox = inbox.clone();
     Services {
-        open_async: Some(Box::new(move |purpose: &str| {
+        open_async: Some(Box::new(move |purpose: &str, asking: Option<u64>| {
             let inbox = open_inbox.clone();
             let ctx = ctx.clone();
+            let picked_for = purpose.to_string();
             let dialog = match purpose {
                 "mailbox" => rfd::AsyncFileDialog::new().add_filter("MailCraft mailbox", MAILBOX_EXTS),
                 "import" => rfd::AsyncFileDialog::new().add_filter("Mail, calendar and contact files", IMPORT_EXTS),
@@ -240,9 +241,15 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                 let Some(files) = picked else {
                     return;
                 };
+                // Each file as it was picked for: a picker's answer is never taken for another's.
                 let mut read = Vec::with_capacity(files.len());
                 for file in files {
-                    read.push((file.file_name(), file.read().await));
+                    let name = file.file_name();
+                    let bytes = read_file(file.inner()).await.map_err(|e| {
+                        log::error!("couldn't read picked file {name}: {e}");
+                        format!("{name} couldn't be read")
+                    });
+                    read.push(Delivered::picked(name, bytes, &picked_for, asking));
                 }
                 inbox.lock().unwrap_or_else(|e| e.into_inner()).extend(read);
                 ctx.request_repaint();
@@ -262,6 +269,13 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         })),
         ..Default::default()
     }
+}
+
+/// A picked file's bytes, as the browser gives them: a read that fails (the file moved or changed
+/// since it was picked) is an error, never a stop of the page.
+async fn read_file(file: &web_sys::File) -> Result<Vec<u8>, String> {
+    let buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await.map_err(|e| format!("{e:?}"))?;
+    Ok(js_sys::Uint8Array::new(&buffer).to_vec())
 }
 
 /// Keep the mailbox in the browser's storage. A full store is the usual failure: say so plainly.

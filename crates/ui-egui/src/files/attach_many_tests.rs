@@ -10,7 +10,7 @@ use mailcraft_engine::Session;
 use serde_json::json;
 
 use super::FileDialogRequest;
-use crate::{MailApp, Services};
+use crate::{Delivered, MailApp, Services};
 
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
@@ -135,16 +135,31 @@ fn a_cancelled_pick_attaches_nothing() {
     assert!(attached(&app).is_empty());
 }
 
-/// The browser: the picker's files arrive together, and each is attached, a message file too.
-#[test]
-fn every_file_from_the_browser_picker_is_attached() {
+/// A browser whose picker answers through the inbox, and what it was last opened for.
+fn browser() -> (MailApp, crate::Inbox, Arc<Mutex<Option<(String, Option<u64>)>>>) {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     let inbox: crate::Inbox = Arc::new(Mutex::new(Vec::new()));
     app.services.inbox = Some(inbox.clone());
-    app.services.open_async = Some(Box::new(|_| {}));
+    let opened = Arc::new(Mutex::new(None));
+    let noted = opened.clone();
+    app.services.open_async = Some(Box::new(move |purpose, asking| *noted.lock().unwrap() = Some((purpose.to_string(), asking))));
     app.run("mail.new", json!({"to": "kit@example.org", "subject": "Figures"})).unwrap();
+    (app, inbox, opened)
+}
+
+/// What the picker delivers for the pick it was last opened for.
+fn picked(opened: &Mutex<Option<(String, Option<u64>)>>, files: &[(&str, &[u8])]) -> Vec<Delivered> {
+    let (purpose, asking) = opened.lock().unwrap().clone().expect("the picker was opened");
+    files.iter().map(|(name, bytes)| Delivered::picked(name.to_string(), Ok(bytes.to_vec()), &purpose, asking)).collect()
+}
+
+/// The browser: the picker's files arrive together, and each is attached, a message file too.
+#[test]
+fn every_file_from_the_browser_picker_is_attached() {
+    let (mut app, inbox, opened) = browser();
     app.run("ui.attach", json!({})).unwrap();
-    inbox.lock().unwrap().extend([("minutes.txt".to_string(), b"one".to_vec()), ("notes.eml".to_string(), b"two".to_vec())]);
+    assert_eq!(opened.lock().unwrap().as_ref().map(|(p, _)| p.as_str()), Some("attach"));
+    inbox.lock().unwrap().extend(picked(&opened, &[("minutes.txt", b"one"), ("notes.eml", b"two")]));
     super::drain_inbox(&mut app);
     assert_eq!(attached(&app), ["minutes.txt", "notes.eml"]);
     assert_eq!(said(&app), "Attached 2 files");
@@ -154,9 +169,67 @@ fn every_file_from_the_browser_picker_is_attached() {
         app.run("compose.attach", json!({"name": format!("f{i}.txt"), "data": "eA=="})).unwrap();
     }
     app.run("ui.attach", json!({})).unwrap();
-    inbox.lock().unwrap().extend([("budget.csv".to_string(), b"three".to_vec()), ("one-more.txt".to_string(), b"four".to_vec())]);
+    inbox.lock().unwrap().extend(picked(&opened, &[("budget.csv", b"three"), ("one-more.txt", b"four")]));
     super::drain_inbox(&mut app);
     assert_eq!(attached(&app).len(), 200);
     assert_eq!(attached(&app)[199], "budget.csv");
     assert!(said(&app).starts_with("Attached 1 file · ") && said(&app).contains("as many attachments"), "{}", said(&app));
+}
+
+/// The browser: a file the browser couldn't read (it moved or changed since it was picked) is
+/// said, and the others of its pick go in.
+#[test]
+fn a_file_the_browser_couldnt_read_is_said_and_the_rest_go_in() {
+    let (mut app, inbox, opened) = browser();
+    app.run("ui.attach", json!({})).unwrap();
+    let mut files = picked(&opened, &[("minutes.txt", b"one"), ("budget.csv", b"two")]);
+    files.insert(1, Delivered { name: "gone.txt".into(), bytes: Err("gone.txt couldn't be read".into()), asked: files[0].asked.clone() });
+    inbox.lock().unwrap().extend(files);
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app), ["minutes.txt", "budget.csv"]);
+    assert_eq!(said(&app), "Attached 2 files · gone.txt couldn't be read");
+    // One file alone that couldn't be read: said, nothing attached.
+    app.run("ui.attach", json!({})).unwrap();
+    inbox.lock().unwrap().push(Delivered::picked("lost.txt".into(), Err("lost.txt couldn't be read".into()), "attach", None));
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app).len(), 2);
+    assert_eq!(said(&app), "lost.txt couldn't be read");
+}
+
+/// The browser: more than the most at a time are picked; the first hundred go in, and the line
+/// says the rest were left out, as on the desktop.
+#[test]
+fn more_than_the_most_at_a_time_from_the_browser_picker_are_left_out_and_said() {
+    let (mut app, inbox, opened) = browser();
+    app.run("ui.attach", json!({})).unwrap();
+    let names: Vec<String> = (0..101).map(|i| format!("file-{i:03}.txt")).collect();
+    let files: Vec<(&str, &[u8])> = names.iter().map(|n| (n.as_str(), &b"x"[..])).collect();
+    inbox.lock().unwrap().extend(picked(&opened, &files));
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app).len(), 100);
+    assert_eq!(said(&app), "Attached 100 files · 1 more was left out: at most 100 files at a time");
+}
+
+/// The browser: each file arrives saying what it was picked for and for which message, so a
+/// picker opened for something else meanwhile takes nothing of another's answer, whichever
+/// answers first.
+#[test]
+fn a_picked_file_goes_where_it_was_picked_for_whatever_arrived_meanwhile() {
+    let (mut app, inbox, opened) = browser();
+    app.run("ui.attach", json!({})).unwrap();
+    let to_attach = picked(&opened, &[("minutes.txt", b"one"), ("notes.eml", b"two")]);
+    // Before that picker answers, another is opened, for a mailbox.
+    app.run("file.open", json!({})).unwrap();
+    assert_eq!(opened.lock().unwrap().as_ref().map(|(p, _)| p.as_str()), Some("mailbox"));
+    let subject = app.session.compose.as_ref().unwrap().subject.clone();
+    // The first picker's files are attached, as they were picked for; the second's is a mailbox
+    // to open, which this one isn't, and the message being written is untouched either way.
+    inbox.lock().unwrap().extend(to_attach);
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app), ["minutes.txt", "notes.eml"]);
+    assert_eq!(said(&app), "Attached 2 files");
+    inbox.lock().unwrap().extend(picked(&opened, &[("not-a-mailbox.txt", b"three")]));
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app), ["minutes.txt", "notes.eml"]);
+    assert_eq!(app.session.compose.as_ref().unwrap().subject, subject);
 }
