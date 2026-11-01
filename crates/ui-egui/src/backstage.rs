@@ -154,32 +154,22 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     }
 }
 
-/// An Exchange server account's line (#252): the name of its server alone, and, while the switch
-/// is off, why it isn't kept in step. Where it connects, as whom and the certificate it trusts are
-/// under its card ([`crate::ews_setup::info_rows`]).
+/// An Exchange server account's line (#252): the name of its server alone. Where it connects, as
+/// whom and the certificate it trusts are under its card ([`crate::ews_setup::info_rows`]).
 pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     let host = a.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
     let Some(host) = host else { return tl!("Exchange server · no usable server address").to_string() };
-    if app.session.ews {
-        let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
-        // A certificate the system doesn't trust, which only the owner can decide about.
-        if app.ews_certificate.contains_key(&a.id) {
-            line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+    let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
+    // A certificate the system doesn't trust, which only the owner can decide about.
+    if app.ews_certificate.contains_key(&a.id) {
+        line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+    }
+    // The folders the last run couldn't read, as the owner knows them.
+    match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
+        Some(folders) => {
+            crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
         }
-        // The folders the last run couldn't read, as the owner knows them.
-        match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
-            Some(folders) => {
-                crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
-            }
-            None => line,
-        }
-    } else {
-        crate::i18n::fmt(
-            tl!(
-                "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
-            ),
-            &[("host", host)],
-        )
+        None => line,
     }
 }
 

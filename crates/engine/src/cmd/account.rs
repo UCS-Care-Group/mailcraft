@@ -27,7 +27,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
-            .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}. Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#),
+            .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
@@ -42,7 +42,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers, only while Exchange server accounts are being tested: MAILCRAFT_EWS=1), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -408,10 +408,6 @@ fn ews_shown(a: &Account) -> Option<Value> {
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
-    // Exchange server accounts are being tested (#252): not made while the switch is off.
-    if !s.ews && p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("exchange")) {
-        return Err(fail(super::ews_mail::SWITCHED_OFF));
-    }
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
@@ -448,10 +444,6 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
-    // The settings of an Exchange server account (#252) are not changed while the switch is off.
-    if !s.ews && (v.get("ews").is_some() || p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("exchange"))) {
-        return Err(fail(super::ews_mail::SWITCHED_OFF));
-    }
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
     // An Exchange server account is the same: its ids are the server's.
@@ -521,9 +513,6 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 
 /// `account.forgetEwsCertificate`: the account no longer trusts the certificate it was told to trust (#252).
 fn forget_ews_certificate(s: &mut Session, v: &Value) -> CmdResult {
-    if !s.ews {
-        return Err(fail(super::ews_mail::SWITCHED_OFF));
-    }
     let id = p::req_id(v, "id")?;
     let a = s.mailbox.account_mut(id)?;
     if a.kind != AccountKind::Exchange {
@@ -686,10 +675,9 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     if a.kind == AccountKind::Jmap {
         return Err(failed!("{name} is a JMAP account, and this version doesn't send and receive with one yet", name = a.name));
     }
-    // So is an Exchange server account (`sync.ewsRequest`), where the switch is on, and it is
-    // not run at all where it is off.
+    // So is an Exchange server account (`sync.ewsRequest`).
     if a.kind == AccountKind::Exchange {
-        return Err(fail(super::ews_mail::refusal_text(s)));
+        return Err(fail(super::ews_mail::NOT_IMAP));
     }
     if a.kind != AccountKind::Imap {
         return Err(failed!("{name} isn't connected to a mail server", name = a.name));
@@ -745,13 +733,10 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
 /// A change the server refused stays counted until it goes through, so a host must not answer
 /// a count that doesn't fall by trying again at once.
 pub fn unpushed(s: &Session, account: Id) -> usize {
-    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
-        return super::graph_mail::unpushed(s, account);
-    }
     // An Exchange server account's changes are counted as a Microsoft account's (#252): folders,
-    // messages, drafts. (Nothing is counted while the switch is off: nothing would go.)
-    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
-        return if s.ews { super::graph_mail::unpushed(s, account) } else { 0 };
+    // messages, drafts.
+    if s.mailbox.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)) {
+        return super::graph_mail::unpushed(s, account);
     }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
@@ -922,7 +907,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     }
     // So has one of an Exchange server account (`sync.ewsRequest`).
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
-        return Err(fail(super::ews_mail::refusal_text(s)));
+        return Err(fail(super::ews_mail::NOT_IMAP));
     }
     let req = sync_request(s, account)?;
     serde_json::to_value(&req).map_err(|e| fail(e.to_string()))
