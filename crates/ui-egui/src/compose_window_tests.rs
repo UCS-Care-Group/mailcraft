@@ -512,7 +512,7 @@ fn from_the_main_window_without_a_message_in_the_reading_pane_nothing_acts_on_a_
 fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
     let path = std::env::temp_dir().join(format!("mailcraft-286-attach-{}.txt", std::process::id()));
     std::fs::write(&path, b"notes").unwrap();
-    let senders: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Option<String>>>>> = std::sync::Arc::default();
+    let senders: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Option<Vec<String>>>>>> = std::sync::Arc::default();
     let mut a = app();
     let keep = senders.clone();
     a.services.file_dialog = Some(Box::new(move |_| {
@@ -531,7 +531,7 @@ fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
     assert_eq!(h.state().session.compose_id(), Some(pane_message));
 
     // The file picked goes to the message that asked for it.
-    senders.lock().unwrap()[0].send(Some(path.to_string_lossy().to_string())).unwrap();
+    senders.lock().unwrap()[0].send(Some(vec![path.to_string_lossy().to_string()])).unwrap();
     h.run_steps(3);
     let attached = |c: u64| h.state().session.composing_by_id(c).map(|c| c.attachments.len()).unwrap_or_default();
     assert_eq!((attached(asking), attached(pane_message)), (1, 0));

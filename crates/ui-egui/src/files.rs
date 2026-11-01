@@ -198,10 +198,11 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     let mut picked = picked.unwrap_or_default();
     // Several files to attach: each in turn, and one that can't be (too large, unreadable) doesn't
     // keep the others out.
-    if let AfterPick::Open(purpose, asking) = &d.after {
-        if purpose == "attach" && picked.len() > 1 {
-            return Some(attach_all(app, &picked, *asking));
-        }
+    if let AfterPick::Open(purpose, asking) = &d.after
+        && purpose == "attach"
+        && picked.len() > 1
+    {
+        return Some(attach_all(app, &picked, *asking));
     }
     // A dialog for one file answers with one; anything more is not taken.
     picked.truncate(1);
