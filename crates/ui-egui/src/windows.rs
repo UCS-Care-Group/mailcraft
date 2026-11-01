@@ -20,6 +20,11 @@
 //! ([`crate::forms::kit::hosted`]). A new appointment or meeting gets such a window too, before
 //! it exists: saving it makes it.
 //!
+//! A message being written can have a window of its own too (#286, [`compose_window`]): New Email
+//! opens one, Pop Out moves the reading pane's into one, and so do a draft double-clicked and a
+//! reply or forward from a message's own window. It has the ribbon's Message, Insert, Format Text
+//! and Review tabs over the same composer as the reading pane's.
+//!
 //! An appointment's window behaves as Outlook's does. Its bar saves and closes (or sends, for a
 //! meeting); Ctrl+S saves and stays, Ctrl+Enter and Alt+S send; and closing it (Escape, its
 //! close button, Ctrl+W) asks first when something in it was changed and not saved
@@ -50,7 +55,7 @@ const MIN_SIZE: [f32; 2] = [420.0, 300.0];
 const FORM_HEIGHT: f32 = 780.0;
 
 /// What a window shows.
-enum What {
+pub(crate) enum What {
     /// A message, as it was when it was last looked at: that is how a different message that
     /// came to have its number (another mailbox was opened) is told from it.
     Message { message: Id, seen: Arc<Message> },
@@ -61,30 +66,49 @@ enum What {
     /// A message file that was opened and is not in the mailbox (#515): read-only, in memory
     /// only, with the file's bytes for Save As and for filing it.
     File { message: Arc<Message>, bytes: Arc<Vec<u8>> },
+    /// A message being written (#286), by its id in the engine, and the tab of its ribbon in view.
+    Compose { compose: u64, tab: &'static str },
 }
 
 impl What {
+    /// The message being written it shows, when it shows one.
+    pub(crate) fn compose(&self) -> Option<u64> {
+        match self {
+            What::Compose { compose, .. } => Some(*compose),
+            _ => None,
+        }
+    }
+
+    /// Whether closing it would lose something: its form's changes, or what is written in its
+    /// message and isn't all in Drafts.
+    fn unsaved(&self, s: &mailcraft_engine::Session) -> bool {
+        match self.compose() {
+            Some(id) => s.composing_by_id(id).is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)),
+            None => self.dirty(),
+        }
+    }
+
     /// What it is about: a message or an appointment, and which. `None` for what doesn't exist
     /// yet, which is about nothing another window could be about too.
     fn subject(&self) -> Option<(bool, Id)> {
         match self {
             What::Message { message, .. } => Some((true, *message)),
             What::Event { event, .. } => event.as_ref().map(|(id, _)| (false, *id)),
-            What::File { .. } => None,
+            What::File { .. } | What::Compose { .. } => None,
         }
     }
 
     /// The form it shows, when it shows one.
     fn form(&self) -> Option<&Form> {
         match self {
-            What::Message { .. } | What::File { .. } => None,
+            What::Message { .. } | What::File { .. } | What::Compose { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
 
     fn form_mut(&mut self) -> Option<&mut Form> {
         match self {
-            What::Message { .. } | What::File { .. } => None,
+            What::Message { .. } | What::File { .. } | What::Compose { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
@@ -96,11 +120,14 @@ impl What {
 }
 
 /// A window that is open.
-struct Open {
+pub(crate) struct Open {
     id: u64,
     what: What,
     /// Bring it to the front when it is next shown.
     raise: bool,
+    /// It opened behind the owner's window without the keyboard (an agent's message, #286): it
+    /// takes the keyboard once the owner goes to it.
+    behind: bool,
     /// It was last shown inside the main window rather than as a window of the system.
     embedded: bool,
     title: String,
@@ -118,6 +145,31 @@ pub struct Windows {
     last: u64,
     /// The main window is to close once the windows with unsaved changes have been asked about.
     quitting: bool,
+    /// The message being written that the reading pane shows (#286), by its id: the others have
+    /// windows of their own, or wait put aside (saved to Drafts) until they are current again.
+    pub(crate) pane: Option<u64>,
+    /// The message being written whose window had the keyboard last; `None`: the main window, or
+    /// a window of another kind. Its message is the current one while it has the keyboard.
+    focus: Option<u64>,
+    /// Where the next message being written that a command opens goes ([`compose_window::hint`]).
+    pub(crate) place: Option<Opens>,
+    /// An agent's command ran: the message of the window with the keyboard is made current again
+    /// on the next frame, so what the agent opened behind doesn't stay current
+    /// ([`compose_window::follow_focus`]).
+    pub(crate) restore: bool,
+    /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
+    /// message being written each shows, so that what runs inside one still finds them.
+    out: Vec<(u64, Option<u64>)>,
+}
+
+/// Where a message being written that a command opens goes (#286).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Opens {
+    /// The reading pane.
+    Pane,
+    /// A window of its own: in front with the keyboard, or (`behind`) behind the owner's window
+    /// without it.
+    Window { behind: bool },
 }
 
 impl Windows {
@@ -156,8 +208,19 @@ impl Windows {
 
     fn add(&mut self, what: What) -> u64 {
         self.last = self.last.saturating_add(1);
-        self.open.push(Open { id: self.last, what, raise: true, embedded: true, title: String::new(), asking: false, ask: None });
+        self.open.push(Open { id: self.last, what, raise: true, behind: false, embedded: true, title: String::new(), asking: false, ask: None });
         self.last
+    }
+
+    /// The window that shows the message being written `compose`, by its number.
+    pub fn of_compose(&self, compose: u64) -> Option<u64> {
+        let open = self.open.iter().find(|w| w.what.compose() == Some(compose)).map(|w| w.id);
+        open.or_else(|| self.out.iter().find(|(_, c)| *c == Some(compose)).map(|(w, _)| *w))
+    }
+
+    /// Whether there is no room for another window.
+    pub fn full(&self) -> bool {
+        self.open.len().saturating_add(self.out.len()) >= MAX_WINDOWS
     }
 
     /// Bring a window forward: it is the one in front from now on.
@@ -213,9 +276,9 @@ pub(crate) fn rezone(app: &mut MailApp, was: mailcraft_time::Zone) {
 
 fn open_message(app: &mut MailApp, id: Id) -> Result<Value, String> {
     let Some(m) = app.session.mailbox.messages.get(&id).cloned() else { return Err(format!("no message with id {id}")) };
-    // A draft opens where it is written.
+    // A draft opens ready to be written in, in a window of its own (#286).
     if m.draft {
-        return app.execute("mail.editDraft", json!({"id": id}));
+        return compose_window::open_draft(app, id);
     }
     if let Some(window) = app.windows.of_message(id) {
         app.windows.raise(window);
@@ -360,6 +423,8 @@ fn save_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 
 fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let closing = closing(&app.windows.open, p)?;
+    // A message being written closes with its window, saved to Drafts or not as it was told (#286).
+    compose_window::close_by_command(app, &closing, p)?;
     let open = &mut app.windows.open;
     let before = open.len();
     open.retain(|w| !closing.contains(&w.id));
@@ -367,7 +432,8 @@ fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 }
 
 /// The windows that `ui.closeWindow` with `p` closes: every one (`all`), the one named
-/// (`window`), those of a message or an appointment, or else the one in front.
+/// (`window`), those of a message, an appointment or a message being written (`compose`), or else
+/// the one in front.
 fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
     let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
     let of = |subject: (bool, Id)| open.iter().filter(|w| w.what.subject() == Some(subject)).map(|w| w.id).collect();
@@ -379,6 +445,9 @@ fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
         of((true, message?))
     } else if let Some(event) = number("event") {
         of((false, event?))
+    } else if let Some(compose) = number("compose") {
+        let compose = compose?;
+        open.iter().filter(|w| w.what.compose() == Some(compose)).map(|w| w.id).collect()
     } else {
         open.last().map(|w| w.id).into_iter().collect()
     })
@@ -389,7 +458,16 @@ fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
 /// such windows it closes (`more`). `None` when nothing would be lost.
 pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
     let closing = closing(&app.windows.open, p).ok()?;
-    unsaved_of(app.windows.open.iter().filter(|w| closing.contains(&w.id)))
+    // What the owner typed in a message being written, thrown away (#494), and the changes of the
+    // appointments' windows closed with them: one question names the first and counts the rest.
+    let mut lost = if p.get("discard").and_then(Value::as_bool) == Some(true) { compose_window::discarding(app, &closing) } else { Vec::new() };
+    lost.extend(app.windows.open.iter().filter(|w| closing.contains(&w.id)).filter_map(|w| w.what.form().and_then(Form::unsaved)));
+    let more = lost.len().saturating_sub(1);
+    let mut first = lost.into_iter().next()?;
+    if more > 0 {
+        first["more"] = json!(more);
+    }
+    Some(first)
 }
 
 /// What another mailbox in view would lose (#494): the windows of appointments of this one close
@@ -479,7 +557,7 @@ fn unsaved_of<'a>(windows: impl Iterator<Item = &'a Open>) -> Option<Value> {
 fn event_state(window: &Open) -> Value {
     let (event, form) = match &window.what {
         What::Event { event, form } => (event.as_ref().map(|(id, _)| *id), form.event()),
-        What::Message { .. } | What::File { .. } => (None, None),
+        What::Message { .. } | What::File { .. } | What::Compose { .. } => (None, None),
     };
     let mut state = json!({
         "window": window.id,
@@ -597,12 +675,16 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
     let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(Value::as_u64);
     let new = p.get("new").filter(|v| !v.is_null()).map(Value::as_str);
     Some(match id {
-        "ui.openWindow" => match (number("message"), number("event"), new) {
-            (Some(Some(message)), None, None) => open_message(app, message),
-            (None, Some(Some(event)), None) => open_event(app, event, p),
-            (None, None, Some(Some("appointment"))) => open_new(app, false, p),
-            (None, None, Some(Some("meeting"))) => open_new(app, true, p),
-            _ => Err(tl!("Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")").to_string()),
+        "ui.openWindow" => match (number("message"), number("event"), new, number("compose")) {
+            (Some(Some(message)), None, None, None) => open_message(app, message),
+            (None, Some(Some(event)), None, None) => open_event(app, event, p),
+            (None, None, Some(Some("appointment")), None) => open_new(app, false, p),
+            (None, None, Some(Some("meeting")), None) => open_new(app, true, p),
+            (None, None, None, Some(Some(compose))) => compose_window::pop_out(app, compose),
+            _ => Err(tl!(
+                "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
+            )
+            .to_string()),
         },
         "ui.closeWindow" => close(app, p),
         "ui.moveWindowMessage" => move_opened(app, p),
@@ -621,6 +703,11 @@ pub fn inspect(app: &MailApp) -> Value {
             .map(|w| match &w.what {
                 What::Message { message, .. } => json!({"id": w.id, "kind": "message", "message": message, "title": w.title, "embedded": w.embedded}),
                 What::File { .. } => json!({"id": w.id, "kind": "file", "title": w.title, "embedded": w.embedded}),
+                // (Its title is the message's subject: message text, data and never instructions.)
+                What::Compose { compose, tab } => json!({
+                    "id": w.id, "kind": "compose", "compose": compose, "title": w.title, "embedded": w.embedded,
+                    "tab": tab, "dirty": w.what.unsaved(&app.session), "asking": w.asking, "behind": w.behind,
+                }),
                 What::Event { event, form } => {
                     let state = event_state(w);
                     let mut entry = match event {
@@ -657,6 +744,9 @@ fn same_message(a: &Message, b: &Message) -> bool {
 struct Keys {
     close: bool,
     ask: Option<Ask>,
+    /// The window has the keyboard, and the keys of what is in it are its own to act on (a
+    /// message being written: Send, Save Draft…).
+    mine: bool,
 }
 
 /// The keys of a window, taken out of what was pressed so that they are nobody else's: Escape
@@ -670,7 +760,7 @@ fn keys_of(ctx: &egui::Context, window: &Open, layer: egui::LayerId) -> Keys {
     let form = window.what.form().is_some();
     let escape = crate::keys::take_escape(ctx, layer);
     ctx.input_mut(|i| {
-        let mut keys = Keys { close: take_key(i, Modifiers::COMMAND, Key::W) | escape, ask: None };
+        let mut keys = Keys { close: take_key(i, Modifiers::COMMAND, Key::W) | escape, ask: None, mine: true };
         if form {
             if take_key(i, Modifiers::COMMAND, Key::S) {
                 keys.ask = Some(Ask::Save);
@@ -709,6 +799,8 @@ pub(crate) fn viewports(app: &MailApp) -> Vec<egui::ViewportId> {
 /// the active one (Escape closes it) are not also the main window's.
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     crate::reading::tick(app, ctx);
+    // The message being written in the window that has the keyboard is the current one (#286).
+    compose_window::follow_focus(app, ctx);
     if app.windows.open.is_empty() {
         // Nothing is left to ask about: a main window that waited for the answers closes.
         if std::mem::take(&mut app.windows.quitting) {
@@ -718,6 +810,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     }
     let embedded = ctx.embed_viewports();
     let mut open = std::mem::take(&mut app.windows.open);
+    app.windows.out = open.iter().map(|w| (w.id, w.what.compose())).collect();
     // What a window shows may have gone since the last frame, or become something else.
     open.retain_mut(|w| match &mut w.what {
         What::Message { message, seen } => match app.session.mailbox.messages.get(message) {
@@ -732,6 +825,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         What::Event { event: None, .. } => true,
         // A file's message is its own: nothing in the mailbox can take it away.
         What::File { .. } => true,
+        // A message being written that was sent, closed or thrown away takes its window along.
+        What::Compose { compose, .. } => app.session.composing_by_id(*compose).is_some(),
     });
     // Inside the main window the active one is the one of them that has the keyboard: the one
     // last clicked or typed in (#406), not the one in front.
@@ -743,13 +838,19 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         // A dialog of the main window is answered first: it has the keyboard.
         let behind = embedded && (active != embedded_layer(window.id) || app.dialog.is_some());
         let closed = if embedded { show_embedded(app, ctx, &mut window, behind) } else { show_native(app, ctx, &mut window) };
-        if !closed {
+        if closed {
+            app.windows.out.retain(|(w, _)| *w != window.id);
+        } else {
             kept.push(window);
         }
     }
+    app.windows.out.clear();
     // What ran inside may have opened more: nothing twice, and no more than there may be.
     for new in std::mem::take(&mut app.windows.open) {
-        let twice = |window: &Open| new.what.subject().is_some() && window.what.subject() == new.what.subject();
+        let twice = |window: &Open| {
+            (new.what.subject().is_some() && window.what.subject() == new.what.subject())
+                || (new.what.compose().is_some() && window.what.compose() == new.what.compose())
+        };
         if kept.len() < MAX_WINDOWS && !kept.iter().any(twice) {
             kept.push(new);
         }
@@ -790,6 +891,11 @@ fn title(app: &MailApp, what: &What) -> String {
         }
         // `New Appointment`, `New Meeting`.
         What::Event { event: None, form } => form.title(),
+        What::Compose { compose, .. } => {
+            let subject = app.session.composing_by_id(*compose).map(|c| named(&c.subject, "")).filter(|s| !s.is_empty());
+            let subject = subject.unwrap_or_else(|| tl!("Untitled").to_string());
+            crate::i18n::fmt(tl!("{subject} - Message"), &[("subject", &subject)])
+        }
     }
 }
 
@@ -799,7 +905,12 @@ fn title(app: &MailApp, what: &What) -> String {
 fn frame(app: &mut MailApp, ui: &mut Ui, window: &mut Open, wish: Keys, closing: bool, own_keys: bool) -> bool {
     let ask = window.ask.take().or(wish.ask);
     let waited = window.what.form().is_some_and(Form::waiting);
-    let verdict = contents(app, ui, window.id, &mut window.what, own_keys, ask);
+    let verdict = if window.what.compose().is_some() {
+        let keyboard = !window.behind;
+        compose_window::contents(app, ui, window, keyboard, wish.mine && !window.asking)
+    } else {
+        contents(app, ui, window.id, &mut window.what, own_keys, ask)
+    };
     // A question came up about what the form was to do (mail to the people invited, which of a
     // series): it is asked in the main window, which comes forward for it.
     if own_keys && !waited && window.what.form().is_some_and(Form::waiting) {
@@ -817,8 +928,8 @@ fn frame(app: &mut MailApp, ui: &mut Ui, window: &mut Open, wish: Keys, closing:
     }
     if wish.close || closing {
         // As Outlook has it: a window with nothing to save just closes, one with changes asks.
-        if !window.what.dirty() {
-            return true;
+        if !window.what.unsaved(&app.session) {
+            return window.what.compose().is_none_or(|compose| compose_window::close_message(app, compose, true));
         }
         window.asking = true;
     }
@@ -828,12 +939,20 @@ fn frame(app: &mut MailApp, ui: &mut Ui, window: &mut Open, wish: Keys, closing:
         let name = named.unwrap_or_else(|| window.title.clone());
         match crate::dialogs::unsaved_changes(ui.ctx(), &mut app.hit, window.id, &name) {
             None => {}
+            // A message being written: Save puts it in Drafts and closes it, Don't Save closes it
+            // as it was last saved (#286). One that can't be saved stays, and why is said.
+            Some(answer @ (Unsaved::Save | Unsaved::Discard)) if window.what.compose().is_some() => {
+                window.asking = false;
+                let compose = window.what.compose().unwrap_or_default();
+                return compose_window::close_message(app, compose, answer == Unsaved::Discard);
+            }
             Some(Unsaved::Save) => {
                 window.asking = false;
                 window.ask = Some(Ask::SaveAndClose);
                 ui.ctx().request_repaint();
             }
             Some(Unsaved::Discard) => return true,
+
             Some(Unsaved::Cancel) => {
                 window.asking = false;
                 // The main window stays too, if it was waiting to close.
@@ -881,11 +1000,13 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
 fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> bool {
     let viewport = viewport_of(window.id);
     let size = match window.what.form() {
+        None if window.what.compose().is_some() => compose_window::SIZE,
         None => MESSAGE_SIZE,
         Some(form) => [form.window_width(), FORM_HEIGHT],
     };
-    let builder =
-        like_main(ctx, egui::ViewportBuilder::default().with_title(window.title.clone()).with_inner_size(size).with_min_inner_size(MIN_SIZE));
+    let builder = egui::ViewportBuilder::default().with_title(window.title.clone()).with_inner_size(size).with_min_inner_size(MIN_SIZE);
+    // One an agent opened comes up behind the owner's window, without the keyboard (#286).
+    let builder = like_main(ctx, if window.behind { builder.with_active(false) } else { builder });
     if std::mem::take(&mut window.raise) {
         ctx.send_viewport_cmd_to(viewport, egui::ViewportCommand::Focus);
     }
@@ -930,8 +1051,8 @@ fn show_embedded(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, behi
         .default_pos(screen.min + vec2(90.0 + step, 70.0 + step));
     inner = match window.what.form() {
         None => {
-            let size =
-                vec2(MESSAGE_SIZE[0].min(screen.width() - 40.0), MESSAGE_SIZE[1].min(screen.height() - 60.0)).max(vec2(MIN_SIZE[0], MIN_SIZE[1]));
+            let wanted = if window.what.compose().is_some() { compose_window::SIZE } else { MESSAGE_SIZE };
+            let size = vec2(wanted[0].min(screen.width() - 40.0), wanted[1].min(screen.height() - 60.0)).max(vec2(MIN_SIZE[0], MIN_SIZE[1]));
             inner.resizable(true).default_size(size).min_size(MIN_SIZE)
         }
         Some(form) => {
@@ -944,6 +1065,9 @@ fn show_embedded(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, behi
     }
     // The keys are the window's when it is the active one.
     let wish = if behind { Keys::default() } else { keys_of(ctx, window, embedded_layer(window.id)) };
+    if window.behind {
+        crate::keys::opens_behind(ctx, embedded_layer(window.id));
+    }
     let id = window.id;
     let mut close = false;
     let response = inner.show(ctx, |ui| {
@@ -954,11 +1078,11 @@ fn show_embedded(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, behi
     }
     if !shown && !close {
         // Its close button.
-        if window.what.dirty() {
+        if window.what.unsaved(&app.session) {
             window.asking = true;
             ctx.request_repaint();
         } else {
-            close = true;
+            close = window.what.compose().is_none_or(|compose| compose_window::close_message(app, compose, true));
         }
     }
     close
@@ -1014,6 +1138,8 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
             let host = Host { id, fill: own_keys };
             crate::forms::kit::hosted(host, || form.show_in_window(app, ui, ask))
         }
+        // (Laid out by `compose_window::contents`.)
+        What::Compose { .. } => Verdict::Stay,
     }
 }
 
@@ -1095,12 +1221,19 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
             Err(_) => false,
         },
         Action::Run(command) => {
-            // Replying and forwarding are written in the main window.
-            if app.run(command, json!({"id": m.id})).is_ok() {
-                if app.session.view.module != mailcraft_engine::Module::Mail {
-                    let _ = app.execute("view.mail", json!({}));
+            // Replying and forwarding are written in a window of their own (#286); at the bound
+            // of windows, in the main window's reading pane.
+            app.windows.place = Some(Opens::Window { behind: false });
+            let r = app.run(command, json!({"id": m.id}));
+            app.windows.place = None;
+            if let Ok(answer) = r {
+                let windowed = answer.get("compose").and_then(Value::as_u64).is_some_and(|c| app.windows.of_compose(c).is_some());
+                if !windowed && answer.get("compose").is_some() {
+                    if app.session.view.module != mailcraft_engine::Module::Mail {
+                        let _ = app.execute("view.mail", json!({}));
+                    }
+                    to_main(&ctx);
                 }
-                to_main(&ctx);
             }
             false
         }
@@ -1240,7 +1373,7 @@ mod tests {
         assert_eq!(harness.state().windows.len(), 2);
         run(&mut harness, "ui.closeWindow", json!({"all": true}));
 
-        // A draft opens where it is written, as it did before; it gets no window.
+        // A draft opens in a window of its own too, ready to be written in (#286).
         run(&mut harness, "mail.new", json!({"to": "maya@lumen.example", "subject": "Unfinished business"}));
         run(&mut harness, "compose.saveDraft", json!({}));
         run(&mut harness, "compose.close", json!({}));
@@ -1258,11 +1391,12 @@ mod tests {
         let pos = at(&harness, draft.0);
         click(&mut harness, pos, 2);
         assert_eq!(harness.state().session.compose.as_ref().and_then(|c| c.draft), Some(draft.0));
-        assert!(harness.state().windows.is_empty());
-        run(&mut harness, "compose.close", json!({}));
+        let compose = harness.state().session.compose_id().unwrap();
+        assert!(harness.state().windows.of_compose(compose).is_some());
+        run(&mut harness, "ui.closeWindow", json!({"all": true, "discard": true}));
         // By command too.
         assert_eq!(run(&mut harness, "ui.openWindow", json!({"message": draft.0}))["composing"], true);
-        assert!(harness.state().windows.is_empty());
+        assert_eq!(harness.state().windows.len(), 1);
     }
 
     #[test]
@@ -1288,15 +1422,16 @@ mod tests {
         harness.run_steps(30);
         click(&mut harness, pos, 1);
         assert_eq!(message(&harness).read, read);
-        // Reply, Reply All and Forward are written in the main window, about this message.
+        // Reply, Reply All and Forward are written in a window of their own (#286), about this message.
         for (kind, prefix) in [("windowReply", "RE:"), ("windowReplyAll", "RE:"), ("windowForward", "FW:")] {
             let pos = button(&harness, kind);
             click(&mut harness, pos, 1);
             let compose = harness.state().session.compose.clone().unwrap_or_else(|| panic!("{kind} wrote nothing"));
             assert_eq!(compose.source, Some(id), "{kind}");
             assert!(compose.subject.starts_with(prefix), "{kind}: {}", compose.subject);
-            assert_eq!(harness.state().ui.tab, "Message");
-            run(&mut harness, "compose.close", json!({}));
+            assert!(harness.state().windows.of_compose(compose.id).is_some(), "{kind}");
+            assert_eq!(harness.state().ui.tab, "Home");
+            run(&mut harness, "ui.closeWindow", json!({"compose": compose.id, "discard": true}));
             harness.run_steps(30);
         }
         // None of it touched what is selected in the main window, and the window is still there.
@@ -2571,3 +2706,6 @@ mod tests {
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]
 mod window_identity_tests;
+
+#[path = "compose_window.rs"]
+pub(crate) mod compose_window;

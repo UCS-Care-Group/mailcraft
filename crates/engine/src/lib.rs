@@ -28,6 +28,7 @@ pub mod agent;
 pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
+pub mod composing;
 pub mod import_tree;
 pub mod io;
 #[cfg(test)]
@@ -125,6 +126,9 @@ pub struct CommandSpec {
     /// `enabled` only asks for a selection: the command still runs for a caller that names what
     /// to act on (`id` / `ids` in its params), whatever is selected.
     pub selection: bool,
+    /// It acts on a message being written (#286): it takes an optional `compose` id naming which
+    /// one ([`Session::run`]), and an agent names it whenever more than one is open.
+    pub writing: bool,
     pub run: fn(&mut Session, &Value) -> CmdResult,
 }
 
@@ -134,7 +138,7 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, enabled: always, selection: false, run }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, enabled: always, selection: false, writing: false, run }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -158,6 +162,13 @@ impl CommandSpec {
     pub const fn selection(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
         self.enabled = f;
         self.selection = true;
+        self
+    }
+    /// Enabled while there is a message being written (`f` says what is missing), and acting on
+    /// one: the one its `compose` id names, else the current one (#286).
+    pub const fn when_writing(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
+        self.enabled = f;
+        self.writing = true;
         self
     }
 }
@@ -354,6 +365,8 @@ mod agent_tests;
 #[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
+mod composing_tests;
+#[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
@@ -363,6 +376,8 @@ mod import_tests;
 mod import_tree_progress_tests;
 #[cfg(test)]
 mod import_tree_tests;
+#[cfg(test)]
+mod pop_out_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]

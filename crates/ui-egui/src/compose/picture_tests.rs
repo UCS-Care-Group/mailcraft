@@ -38,7 +38,7 @@ fn writing_with(board: &PictureBoard) -> Window {
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"body": ""})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     h

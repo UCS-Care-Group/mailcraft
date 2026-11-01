@@ -58,21 +58,10 @@ fn received(a: &MailApp) -> Id {
     a.session.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft && !m.incomplete && !m.unfetched).unwrap().id
 }
 
-/// What an agent can run that closes the message being written or puts another in its place.
-fn leaving(a: &MailApp) -> Vec<(&'static str, Value)> {
-    let other = received(a);
-    let draft = a.session.mailbox.messages.values().find(|m| m.draft).unwrap().id;
-    let contact = a.session.mailbox.contacts.values().find(|c| c.address().is_some()).unwrap().id;
-    vec![
-        ("compose.close", json!({})),
-        ("mail.new", json!({})),
-        ("mail.reply", json!({"id": other})),
-        ("mail.replyAll", json!({"id": other})),
-        ("mail.forward", json!({"id": other})),
-        ("mail.forwardAsAttachment", json!({"id": other})),
-        ("mail.editDraft", json!({"id": draft})),
-        ("people.email", json!({"id": contact})),
-    ]
+/// What an agent can run that closes the message being written. (One that starts another opens it
+/// beside it, behind the owner's, and asks nothing: #286.)
+fn leaving(_: &MailApp) -> Vec<(&'static str, Value)> {
+    vec![("compose.close", json!({}))]
 }
 
 #[test]
@@ -93,11 +82,11 @@ fn an_agent_waits_for_the_owners_yes_before_it_leaves_their_message() {
         assert!(a.session.mailbox == before.1, "{id}");
     }
     // Yes: it is saved to Drafts, and the agent's command goes on.
-    let (_, rx) = agent(&mut a, "mail.new", json!({}));
+    let (_, rx) = agent(&mut a, "compose.close", json!({}));
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(draft_with(&a, "Mine").is_some());
-    assert!(a.session.compose.as_ref().is_some_and(|c| c.subject.is_empty() && !c.dirty));
+    assert!(a.session.compose.is_none());
 }
 
 #[test]
@@ -156,7 +145,7 @@ fn an_agents_own_message_is_left_without_a_question() {
     assert_eq!(now.unwrap()["ok"], true);
     let (now, _) = agent(&mut a, "compose.set", json!({"subject": "The agent's", "body": "Written by the agent"}));
     assert_eq!(now.unwrap()["ok"], true);
-    let (now, _) = agent(&mut a, "mail.new", json!({}));
+    let (now, _) = agent(&mut a, "compose.close", json!({}));
     assert_eq!(now.unwrap()["ok"], true, "not asked");
     assert!(a.asking.is_empty());
     assert!(draft_with(&a, "The agent's").is_some(), "saved to Drafts first");
@@ -247,7 +236,7 @@ fn a_message_the_owner_wrote_in_is_asked_about_saved_or_not() {
             "window" => a.run("compose.saveDraft", json!({})).map(|_| ()).unwrap(),
             _ => assert_eq!(agent(&mut a, "compose.saveDraft", json!({})).0.unwrap()["ok"], true),
         }
-        let (now, _) = allowed(&mut a, "mail.new", json!({}), everything.clone());
+        let (now, _) = allowed(&mut a, "compose.close", json!({}), everything.clone());
         assert!(now.is_none(), "{saves}: asked");
         assert_eq!(question(&a).unwrap().0, Class::Leave, "{saves}");
         answer(&mut a, false);
@@ -337,16 +326,13 @@ fn a_yes_lets_go_only_of_the_form_it_was_asked_about() {
 }
 
 #[test]
-fn opening_a_draft_in_a_window_is_asked_about_as_open_draft_is() {
+fn opening_a_draft_in_a_window_opens_it_beside_the_owners_message_unasked() {
     let mut a = app();
     written(&mut a, "Mine");
     let draft = a.session.mailbox.messages.values().find(|m| m.draft && m.subject != "Mine").unwrap().id;
     let (now, _) = allowed(&mut a, "ui.openWindow", json!({"message": draft}), Class::ALL.to_vec());
-    assert!(now.is_none(), "asked");
-    let (class, what) = question(&a).unwrap();
-    assert_eq!(class, Class::Leave);
-    assert!(what.starts_with("open the draft"), "{what}");
-    answer(&mut a, false);
+    assert!(now.is_some() && a.asking.is_empty(), "not asked: {now:?}");
+    // The owner's message stays where they are writing (#286).
     assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
 }
 
@@ -706,15 +692,18 @@ fn a_recurrence_being_filled_in_counts_as_changes_not_saved() {
 }
 
 #[test]
-fn quitting_asks_about_a_message_whose_saved_draft_an_agent_deleted() {
+fn quitting_saves_again_a_message_whose_saved_draft_an_agent_deleted() {
     let mut a = app();
     written(&mut a, "Mine");
     a.run("compose.saveDraft", json!({})).unwrap();
     let draft = draft_with(&a, "Mine").unwrap();
     let (now, _) = allowed(&mut a, "mail.deletePermanently", json!({"ids": [draft]}), Class::ALL.to_vec());
     assert_eq!(now.unwrap()["ok"], true);
-    assert!(!a.close_requested());
-    assert!(matches!(&a.dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"));
+    assert!(draft_with(&a, "Mine").is_none());
+    // Closing the window saves it to Drafts once more, unasked (#286): nothing of it is lost.
+    assert!(a.close_requested());
+    assert!(a.dialog.is_none());
+    assert!(draft_with(&a, "Mine").is_some());
 }
 
 #[test]
@@ -742,7 +731,7 @@ fn an_undo_that_would_put_back_an_earlier_draft_of_the_owners_message_is_refused
 fn an_agents_undo_doesnt_take_away_what_the_owners_yes_saved() {
     let mut a = app();
     written(&mut a, "Mine");
-    let (_, rx) = agent(&mut a, "mail.new", json!({}));
+    let (_, rx) = agent(&mut a, "compose.close", json!({}));
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(draft_with(&a, "Mine").is_some(), "saved on the owner's yes");

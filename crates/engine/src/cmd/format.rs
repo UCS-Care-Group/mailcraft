@@ -20,77 +20,77 @@ const RANGE: &str = r#"{"from"?: number, "to"?: number} (default: the selection)
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("compose.select", "Select Text", "Message", select).pure().params(r#"{"from": number, "to"?: number} (to: the caret, default from)"#).when(needs_doc),
+        CommandSpec::new("compose.select", "Select Text", "Message", select).pure().params(r#"{"from": number, "to"?: number} (to: the caret, default from)"#).when_writing(needs_doc),
         CommandSpec::new("compose.type", "Type", "Message", type_text)
             .pure()
             .params(r#"{"text": string} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there)"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("compose.delete", "Delete Text", "Message", delete)
             .pure()
             .params(r#"{"from"?: number, "to"?: number, "forward"?: bool} (default: the selection, else the character before the caret, or after it with forward)"#)
-            .when(needs_doc),
-        CommandSpec::new("compose.undo", "Undo Typing", "Message", undo).pure().when(|s| match s.doc() {
+            .when_writing(needs_doc),
+        CommandSpec::new("compose.undo", "Undo Typing", "Message", undo).pure().when_writing(|s| match s.doc() {
             None => Some("no message is being written"),
             Some((b, _)) if !b.can_undo() => Some("nothing to undo in the message"),
             Some(_) => None,
         }),
-        CommandSpec::new("compose.redo", "Redo Typing", "Message", redo).pure().when(|s| match s.doc() {
+        CommandSpec::new("compose.redo", "Redo Typing", "Message", redo).pure().when_writing(|s| match s.doc() {
             None => Some("no message is being written"),
             Some((b, _)) if !b.can_redo() => Some("nothing to redo in the message"),
             Some(_) => None,
         }),
-        CommandSpec::new("format.bold", "Bold", "Message › Basic Text", bold).pure().params(RANGE).when(needs_html),
-        CommandSpec::new("format.italic", "Italic", "Message › Basic Text", italic).pure().params(RANGE).when(needs_html),
-        CommandSpec::new("format.underline", "Underline", "Message › Basic Text", underline).pure().params(RANGE).when(needs_html),
+        CommandSpec::new("format.bold", "Bold", "Message › Basic Text", bold).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.italic", "Italic", "Message › Basic Text", italic).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.underline", "Underline", "Message › Basic Text", underline).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.size", "Font Size", "Message › Basic Text", size)
             .pure()
             .params(r#"{"size": number (points, 8–36) | null (the message's own size), "from"?: number, "to"?: number}"#)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("format.color", "Font Color", "Message › Basic Text", color)
             .pure()
             .params(r##"{"value": "#rrggbb" | null (the message's own colour), "from"?: number, "to"?: number}"##)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("format.highlight", "Text Highlight Color", "Message › Basic Text", highlight)
             .pure()
             .params(r##"{"value": "#rrggbb" | null (no highlight), "from"?: number, "to"?: number}"##)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("insert.symbol", "Symbol", "Insert › Symbols", symbol)
             .pure()
             .params(r#"{"char": string (one character)} | {"code": number | "U+20AC"} — put in at the caret, over the selection; a control or format character, a private-use or non-character code point, or white space other than the no-break space is refused"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
             .params(r#"{"value": "Arial"|"Calibri"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
-            .when(needs_html),
-        CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when(needs_html),
-        CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when(needs_html),
-        CommandSpec::new("format.clear", "Clear All Formatting", "Message › Basic Text", clear).pure().params(RANGE).when(needs_html),
+            .when_writing(needs_html),
+        CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.clear", "Clear All Formatting", "Message › Basic Text", clear).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("compose.link", "Link", "Message › Include", link)
             .pure()
             .params(r#"{"url"?: string (any URI scheme but javascript, vbscript, data, file and cid, e.g. https, mailto, tel, ms-settings; none: remove the link), "from"?: number, "to"?: number}"#)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("format.indent", "Increase Indent", "Message › Basic Text", indent)
             .pure()
             .params(r#"{"from"?: number, "to"?: number} — the list items there a level deeper (eight levels)"#)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("format.outdent", "Decrease Indent", "Message › Basic Text", outdent)
             .pure()
             .params(r#"{"from"?: number, "to"?: number} — the list items there a level out; from the outermost level, out of the list"#)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("edit.copy", "Copy", "Message › Clipboard", copy)
             .pure()
             .params(r#"{"from"?: number, "to"?: number} — answers the selection as {"html", "text"} for the clipboard (HTML only in an HTML message); changes nothing"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("edit.cut", "Cut", "Message › Clipboard", cut)
             .pure()
             .params(r#"{"from"?: number, "to"?: number} — answers the selection as edit.copy does, and takes it out of the text"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
             .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, links and lists (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
-            .when(needs_doc),
-        CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when(needs_compose),
-        CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when(needs_compose),
+            .when_writing(needs_doc),
+        CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
     ]
 }
 

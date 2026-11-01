@@ -50,6 +50,7 @@ Search|Results|More Results on the Server|sync.graphSearchRequest
 Search|Options|Recent Searches|view.recentSearches
 Search|Options|Search Folders|folder.newSearchFolder
 Home|New|New Email|mail.new
+Home|New|New Email in a Window of Its Own|mail.new
 Home|New|New Appointment|calendar.new
 Home|New|New Meeting|calendar.newMeeting
 Home|New|New Contact|people.new
@@ -189,6 +190,7 @@ Message|Send|Save Draft|compose.saveDraft
 Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
+Message|Window|Pop Out|compose.popOut
 Message|Send|Open Draft|mail.editDraft
 Insert|Include|Item|compose.attachItem
 Insert|Include|Business Card|insert.businessCard

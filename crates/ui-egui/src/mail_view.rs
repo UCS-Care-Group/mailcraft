@@ -120,7 +120,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         // Hidden: a narrow strip stays, with the button that brings the pane back.
         crate::nav::folder_pane_strip(app, ui);
     }
-    let composing = app.session.compose.is_some();
+    // The reading pane's message being written (#286): one in a window of its own isn't here.
+    let composing = crate::windows::compose_window::pane_compose(app).is_some_and(|c| app.session.compose_id() == Some(c));
     let pane = app.session.view.reading_pane;
     // The list takes the whole width when the reading pane is off, unless a message is being written.
     if pane == Pane::Off && !composing {
@@ -148,7 +149,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
         if composing {
-            crate::compose::show(app, ui);
+            // Each message being written has fields of its own (#286): two never share a caret.
+            let compose = app.session.compose_id();
+            ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
         } else {
             crate::reading::show(app, ui);
         }
@@ -1149,9 +1152,10 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
     if resp.clicked() {
         let _ = app.run("mail.select", json!({"id": id, "copy": copy, "extend": mods.command, "range": mods.shift}));
     }
-    // A double click opens the message: a draft in the composer, any other in a window of its own.
+    // A double click opens the message in a window of its own: a draft ready to be written in
+    // (#286), any other to read.
     if resp.double_clicked() {
-        let _ = if m.draft { app.run("mail.editDraft", json!({"id": id})) } else { app.run("ui.openWindow", json!({"message": id})) };
+        let _ = app.run("ui.openWindow", json!({"message": id}));
     }
     // A right click on a row outside the selection acts on that row (a conversation's row and
     // its newest message's own row under it are two rows, #503).

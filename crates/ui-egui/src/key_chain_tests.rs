@@ -436,7 +436,7 @@ fn a_held_enter_types_new_lines_in_a_message() {
     let mut h = window("view.mail");
     run(&mut h, "mail.new", json!({"to": "maya@lumen.example"}));
     run(&mut h, "compose.set", json!({"body": ""}));
-    h.state_mut().body_focus_wanted = true;
+    h.state_mut().want_body_focus();
     h.run_steps(3);
     assert!(crate::compose::editor::has_focus(&h.ctx));
     testing::text(&mut h, "Hi");
@@ -964,7 +964,7 @@ fn escape_right_after_ok_was_clicked_is_as_a_frame_later() {
 /// signature under what was typed.
 fn writing(h: &mut Window) -> String {
     run(h, "mail.new", json!({"to": "ada@example.org", "subject": "Mine"}));
-    h.state_mut().body_focus_wanted = true;
+    h.state_mut().want_body_focus();
     h.run_steps(3);
     assert!(crate::compose::editor::has_focus(&h.ctx), "the body has the keyboard");
     testing::text(h, "Half a thought");
@@ -1099,30 +1099,29 @@ fn a_held_enter_in_the_body_stops_at_the_question() {
 /// The ✕ on the message's bar and New Email, from the ribbon or with Ctrl+N (held too), ask as
 /// Escape does: once, a held Enter answers nothing, and Escape is the question's Cancel.
 #[test]
-fn the_close_button_and_new_email_ask_as_escape_does() {
-    // What a click on the ✕ and on the ribbon's New Email runs, as the owner.
-    for command in ["compose.close", "mail.new"] {
+fn the_close_button_asks_as_escape_does_and_new_email_opens_another() {
+    // What a click on the ✕ runs, as the owner.
+    {
         let mut h = window("view.mail");
         let body = writing(&mut h);
-        let _ = h.state_mut().run(command, json!({}));
+        let _ = h.state_mut().run("compose.close", json!({}));
         h.run_steps(3);
-        assert_eq!(dialog(&h), Some("discardDraft"), "{command}");
+        assert_eq!(dialog(&h), Some("discardDraft"));
         testing::held(&mut h, Key::Enter);
-        assert_eq!(dialog(&h), Some("discardDraft"), "{command}: Enter answers nothing");
+        assert_eq!(dialog(&h), Some("discardDraft"), "Enter answers nothing");
         testing::key(&mut h, Key::Escape);
-        assert_eq!(dialog(&h), None, "{command}: Escape is Cancel");
-        untouched(&h, &body, command);
+        assert_eq!(dialog(&h), None, "Escape is Cancel");
+        untouched(&h, &body, "compose.close");
     }
     for repeats in [0, 3] {
         let mut h = window("view.mail");
         let body = writing(&mut h);
+        // Ctrl+N opens another message beside it and asks nothing (#286).
         let seen = seen_while_held(&mut h, Key::N, egui::Modifiers::COMMAND, repeats);
-        assert_eq!(times_asked(&seen), 1, "Ctrl+N, {repeats} repeats: {seen:?}");
-        assert_eq!(dialog(&h), Some("discardDraft"));
-        untouched(&h, &body, "Ctrl+N");
-        testing::key(&mut h, Key::Escape);
-        assert_eq!(dialog(&h), None, "Ctrl+N, {repeats} repeats: Escape is Cancel");
-        untouched(&h, &body, "Ctrl+N, then Escape");
+        assert_eq!(times_asked(&seen), 0, "Ctrl+N, {repeats} repeats: {seen:?}");
+        assert_eq!(dialog(&h), None);
+        let mine = h.state().session.composing.iter().find(|c| c.subject == "Mine").map(|c| c.body.plain());
+        assert_eq!(mine, Some(body.clone()), "Ctrl+N, {repeats} repeats: still open as it was");
     }
 }
 
