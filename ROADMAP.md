@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-01 | Themes, part 3 ([#703](https://github.com/UCS-Care-Group/mailcraft/issues/703)): four accent colours (blue, teal, violet, graphite) and high contrast. The accents are hand-written tables for light, dark and both high-contrast forms; high contrast raises text and outlines to 7:1, firms up borders and hairlines, and brings a message's colours to 7:1 against its paper (kept, never stripped). File › Options › General has a High contrast check box and an Accent row of named swatches; `ui.highContrast` and `ui.accent` set them, and every window follows at once. The contrast test covers every accent in light and dark, with high contrast off and on |
 | 2026-11-01 | Themes, part 2 ([#703](https://github.com/UCS-Care-Group/mailcraft/issues/703)): MailCraft's own look replaces the borrowed one, light and dark. One cool grey ramp (no navy chrome beside grey panes), a blue accent, an unread dot, folder counts as pills, one selection treatment (fill, accent edge, focused and unfocused) with a flag's tint kept under it, group headings as plain text, the ribbon as a card, a neutral File view column, outlines at 3:1 or better, egui's buttons, combo boxes and check boxes restyled once, and the app mark in the title bar. The contrast test has no expected failures left |
 | 2026-10-31 | A new app icon: an envelope that is also a calendar page, with ring tabs, in front of two tilted sheets, on a blue rounded tile (design: Martin Ball). Its source is one SVG drawn by hand for MailCraft (`assets/app-icon/source/mailcraft.svg`), and `cargo xtask icon` renders every size from it with `resvg`, which only xtask depends on; the carrier pigeon and the script that drew it are gone. The same drawing in five other colours is kept in `assets/app-icon/alternates/`, not used yet. The web build has the icon as its favicon ([assets/app-icon/README.md](assets/app-icon/README.md)) |
 | 2026-10-31 | Parity B6: Request a Read Receipt (`compose.readReceipt`, Message › Tags: `Disposition-Notification-To` naming the sender over IMAP/SMTP, JMAP and Exchange's MIME sends, `isReadReceiptRequested` and `IsReadReceiptRequested` on Graph and Exchange drafts; kept with the draft; a request in incoming mail is never answered) and Show Training (`help.training`, the project's `docs` folder). Catalog rows Edit Message, Send/Receive Groups, the contact's Follow Up and Private, and the task's Private are marked out of scope with a reason, listed apart in the parity checklist |
@@ -403,6 +404,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | #703 part 3: accents and high contrast, in the progress log |
 | 2026-11-01 | #703: MailCraft's own look, in the progress log |
 | 2026-10-31 | The new app icon, in the progress log |
 | 2026-10-31 | Parity B6: Request a Read Receipt, Show Training and the out-of-scope catalog rows, in the progress log |
