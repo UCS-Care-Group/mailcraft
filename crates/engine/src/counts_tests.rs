@@ -170,3 +170,28 @@ fn counts_from_an_earlier_revision_are_not_carried_through_read_marks() {
     assert_eq!(after.unread(inbox), right.unread(inbox) - 1);
     assert_eq!(after.unread(inbox), s.mailbox.unread_count(inbox));
 }
+
+/// Counts a command builds as it runs are of the mailbox after its read marks already: Undo and
+/// Redo show what they select again, which builds the list, and so the counts, for a message
+/// listed under its open conversation; carried through the marks as well, they would have each
+/// mark twice. Only the counts that stood before the command are carried over.
+#[test]
+fn counts_built_as_a_command_runs_are_not_carried_through_its_read_marks() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    s.run("view.conversations", &json!({"value": true})).unwrap();
+    let row = s.rows().iter().find(|r| !r.others.is_empty()).cloned().unwrap();
+    let other = row.others[0];
+    let (folder, account) = s.mailbox.message(other).map(|m| (m.folder, m.account)).unwrap();
+    s.run("mail.expandConversation", &json!({"id": row.id})).unwrap();
+    s.run("mail.select", &json!({"id": other})).unwrap();
+    let _ = s.rows();
+    let _ = s.folder_counts();
+    s.run("mail.markUnread", &json!({"id": other})).unwrap();
+    for step in ["edit.undo", "edit.redo"] {
+        s.run(step, &json!({})).unwrap();
+        let counts = s.folder_counts();
+        assert_eq!(counts.unread(folder), s.mailbox.unread_count(folder), "{step}: the folder's unread");
+        assert_eq!(counts.account(account).unread, s.mailbox.messages.values().filter(|m| m.account == account && !m.read).count(), "{step}");
+    }
+    assert!(!s.mailbox.message(other).unwrap().read, "redone: unread again");
+}

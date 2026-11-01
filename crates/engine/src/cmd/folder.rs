@@ -179,7 +179,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     }
     // A search belongs to the folder it was typed in.
     s.view.search.clear();
-    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": s.mailbox.count(id), "unread": s.mailbox.unread_count(id)}))
+    // From the counts the window has anyway, not two walks over every message.
+    let counts = s.folder_counts();
+    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)}))
 }
 
 /// The folders under `parent`, each with its counts from `counts` (counted once for the whole

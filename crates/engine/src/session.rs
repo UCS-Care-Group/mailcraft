@@ -1661,7 +1661,12 @@ impl Session {
     /// (`rev_before`, the revision the command ran under) is carried over: counts or a
     /// conversation left from an earlier revision, which a command that is no step of the
     /// history changed the mailbox past, stay behind it and are worked out afresh when asked.
-    fn keep_through_read_marks(&mut self, changed: &[Id], rev_before: u64) {
+    /// And of the counts, only those that stood before the command ran (`counts_before`): counts
+    /// the command built as it ran, under the same revision but over the mailbox after the marks
+    /// (Undo and Redo show what they select again, which builds the list, and so the counts, for
+    /// a message listed under its open conversation), already have them, and would have them
+    /// twice; they are let go of, to be counted again when asked.
+    fn keep_through_read_marks(&mut self, changed: &[Id], rev_before: u64, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
         let key = self.list_key();
         let rev = self.rev;
         let mb = &self.mailbox;
@@ -1672,7 +1677,12 @@ impl Session {
             }
             cache.key = key;
         }
-        if let Some((at, counts)) = &mut self.counts_cache
+        // (The clone of the `Arc` is let go of before the counts are changed in place, so that
+        // changing them doesn't copy them.)
+        let stood = self.counts_cache.as_ref().is_some_and(|(_, counts)| counts_before.as_ref().is_some_and(|b| Arc::ptr_eq(b, counts)));
+        drop(counts_before);
+        if stood
+            && let Some((at, counts)) = &mut self.counts_cache
             && at.0 == rev_before
         {
             let counts = Arc::make_mut(counts);
@@ -2806,6 +2816,11 @@ impl Session {
         let signature_edit = self.signature_edit.clone();
         let view = self.view.clone();
         let list_before = self.list_of();
+        // The counts as they stand before the command: only those are carried through read marks
+        // alone ([`Session::keep_through_read_marks`]). Counts the command builds as it runs
+        // (Undo shows what it selects again, and a conversation open in the list has that built)
+        // are of the mailbox after the marks already.
+        let counts_before = self.counts_cache.as_ref().map(|(_, counts)| counts.clone());
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
@@ -2903,7 +2918,7 @@ impl Session {
                     let rev_before = self.rev;
                     self.rev += 1;
                     if let Some(changed) = &read_marks {
-                        self.keep_through_read_marks(changed, rev_before);
+                        self.keep_through_read_marks(changed, rev_before, counts_before);
                     }
                     if history && wipes_history(id) {
                         // The mail is gone from this computer (#177): no step brings it back,
