@@ -182,6 +182,9 @@ pub struct Windows {
     /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
     pub(crate) monitors: Option<Vec<window_places::Monitor>>,
+    /// Whether places are in points, as the host lists the monitors ([`window_places::POINTS`]
+    /// when `None`; a test sets it to try both).
+    pub(crate) points: Option<bool>,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -1067,7 +1070,8 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
 /// place, by its own scale (#286); then where it is now is noted, for the next of its kind.
 fn place_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, kind: Kind) {
     let zoom = ctx.zoom_factor();
-    let ppp = window_places::system_ppp(ctx.pixels_per_point(), zoom);
+    let points = app.windows.points.unwrap_or(window_places::POINTS);
+    let ppp = window_places::system_ppp(ctx.pixels_per_point(), zoom, points);
     if !std::mem::replace(&mut window.positioned, true)
         && let Some(at) = window.start.and_then(|s| s.at)
         && ppp.is_finite()

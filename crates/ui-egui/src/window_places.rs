@@ -80,10 +80,13 @@ pub fn monitor(position: [i32; 2], size: [u32; 2], scale: f64, points: bool) -> 
     }
 }
 
+/// Whether places are kept in points on this system (macOS), not in pixels.
+pub const POINTS: bool = cfg!(target_os = "macos");
+
 /// What a window's points are multiplied by for its place as places are kept: its own pixels
-/// per point (`pixels_per_point`), or on macOS egui's `zoom` alone, places being points there.
-pub fn system_ppp(pixels_per_point: f32, zoom: f32) -> f32 {
-    if cfg!(target_os = "macos") { zoom } else { pixels_per_point }
+/// per point (`pixels_per_point`), or, in points (`points`, macOS), egui's `zoom` alone.
+pub fn system_ppp(pixels_per_point: f32, zoom: f32, points: bool) -> f32 {
+    if points { zoom } else { pixels_per_point }
 }
 
 impl Monitor {
