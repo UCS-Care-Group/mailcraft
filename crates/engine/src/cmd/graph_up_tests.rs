@@ -537,13 +537,13 @@ fn outlooks_colours_win_for_the_categories_on_its_list() {
         categories: vec![mailcraft_model::Category { name: "Blue category".into(), color: mailcraft_model::Rgb(1, 2, 3) }],
     };
     s.run("sync.applyCategories", &json!({"download": download})).unwrap();
-    assert_eq!(s.mailbox.outlook_categories, ["Blue category"]);
-    let refused = s.run("category.set", &json!({"name": "blue category", "color": "#2E8B57"})).unwrap_err();
+    assert_eq!(s.mailbox.server_categories[&account], ["Blue category"]);
+    let refused = s.run("category.set", &json!({"account": account, "name": "blue category", "color": "#2E8B57"})).unwrap_err();
     assert_eq!(refused.to_string(), super::super::category::COLOUR_IN_OUTLOOK);
-    assert_eq!(s.mailbox.category("Blue category").unwrap().color, mailcraft_model::Rgb(1, 2, 3));
+    assert_eq!(s.mailbox.category_of(account, "Blue category").unwrap().color, mailcraft_model::Rgb(1, 2, 3));
     // One that isn't on Outlook's list takes the colour, and says it isn't there.
-    s.run("category.set", &json!({"name": "Travel", "color": "#2E8B57"})).unwrap();
-    let list = s.run("category.list", &json!({})).unwrap();
+    s.run("category.set", &json!({"account": account, "name": "Travel", "color": "#2E8B57"})).unwrap();
+    let list = s.run("category.list", &json!({"account": account})).unwrap();
     let outlook = |name: &str| list["categories"].as_array().unwrap().iter().find(|c| c["name"] == name).unwrap()["outlook"].clone();
     assert_eq!((outlook("Blue category"), outlook("Travel")), (json!(true), json!(false)));
     // An account that isn't kept in step through Graph has no such list.
