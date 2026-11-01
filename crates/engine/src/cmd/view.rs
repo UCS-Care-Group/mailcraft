@@ -3,14 +3,18 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
+use mailcraft_model::Address;
+use mailcraft_model::search::Suggestion;
 use serde_json::{Value, json};
 
 use super::{bad, done, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
+pub mod display;
+
 pub fn specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         CommandSpec::new("view.reminders", "Reminders Window", "View › Window", reminders)
             .pure()
             .params("{} — answers the reminders that are due now: events inside their reminder time, or that ended less than a day ago"),
@@ -31,8 +35,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.search", "Search", "Search", search)
             .pure()
             .key("Mod+E / F3")
-            .params(r#"{"query": string, "scope"?: "folder"|"everywhere"}"#),
+            .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
+        CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).pure().params(
+            r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
+        ),
         CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).pure().params(r#"{"value": 0-3}"#),
         CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).pure().params(TOGGLE),
         CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).pure().params(TOGGLE),
@@ -49,7 +56,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).pure(),
-    ]
+    ];
+    specs.extend(display::specs());
+    specs
 }
 
 const TOGGLE: &str = r#"{"value"?: bool} (default: toggle)"#;
@@ -112,7 +121,7 @@ fn filter(s: &mut Session, v: &Value) -> CmdResult {
 fn search(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(2000).collect();
     if let Some(scope) = p::str(v, "scope") {
-        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder or everywhere"))?;
+        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder, subfolders, mailbox or everywhere"))?;
     }
     // A new search forgets what the servers found for the last (R6.2).
     if s.view.search != query {
@@ -123,10 +132,55 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": crate::list::listed(&s.rows())}))
 }
 
+/// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
+/// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`, `to:`
+/// and `cc:` the people a new message's recipients are suggested from
+/// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
+/// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
+/// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
+/// window's list and `view.searchSuggestions` both ask this. With nothing typed, the searches run
+/// lately (`view.recentSearches`).
+pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
+    // An empty box offers the searches run lately, to run again.
+    if query.trim().is_empty() {
+        let recent = s.prefs.recent_searches();
+        return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
+    }
+    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
+        let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
+        if let Some(typed) = super::compose::Typed::new(typed) {
+            let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
+            people.extend(own.map(|a| Address::new(a.display_name.as_str(), a.email.as_str())));
+        }
+        people
+    })
+}
+
+fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {
+    let query: String = p::req_str(v, "query")?.chars().take(2000).collect();
+    // The cursor and the answer's places in characters, as the search box counts them.
+    let chars = query.chars().count();
+    let cursor = p::u64(v, "cursor").map_or(chars, |c| usize::try_from(c).unwrap_or(usize::MAX).min(chars));
+    let byte = query.char_indices().nth(cursor).map_or(query.len(), |(b, _)| b);
+    let at = |b: usize| query.get(..b).map_or(0, |before| before.chars().count());
+    let found: Vec<Value> = search_suggestions(s, &query, byte)
+        .into_iter()
+        .map(|x| {
+            let mut one = json!({"name": x.label, "text": x.text, "start": at(x.range.start), "end": at(x.range.end)});
+            if let Some(address) = x.address {
+                one["email"] = json!(address);
+            }
+            if let Some(color) = x.color {
+                one["color"] = json!(color.hex());
+            }
+            one
+        })
+        .collect();
+    Ok(json!({"suggestions": found}))
+}
+
 fn clear_search(s: &mut Session, _: &Value) -> CmdResult {
-    s.view.search.clear();
-    s.server_search.forget();
-    s.view.scope = Scope::Folder;
+    s.clear_search();
     done()
 }
 

@@ -369,6 +369,26 @@ fn an_oauth_account_signs_in_with_its_token() {
 }
 
 #[test]
+fn a_microsoft_token_goes_only_to_microsoft_servers() {
+    // AU2-V8: a mailbox file can name any server for an account; the token stays home.
+    let account = Account {
+        incoming: Some(Server { host: "imap.elsewhere.example".into(), port: 993, security: Security::Tls }),
+        outgoing: Some(Server { host: "smtp.elsewhere.example".into(), port: 465, security: Security::Tls }),
+        ..oauth_account(None, None)
+    };
+    for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
+        assert!(matches!(error, NetError::Config(_)), "{error:?}");
+        assert!(!format!("{error} {error:?}").contains(TOKEN));
+    }
+    for host in ["outlook.office365.com", "smtp.office365.com", "imap-mail.outlook.com", "Outlook.Office365.com."] {
+        assert!(crate::sync::is_microsoft_host(host), "{host}");
+    }
+    for host in ["office365.com.elsewhere.example", "evil-outlook.com", "outlook.com.evil.example", "example.org"] {
+        assert!(!crate::sync::is_microsoft_host(host), "{host}");
+    }
+}
+
+#[test]
 fn a_token_of_real_length_signs_in() {
     // A couple of thousand characters: too long for one line of SMTP.
     let token = format!("eyJ0eXAi.{}.c2ln", "x".repeat(2_000));
@@ -783,6 +803,8 @@ fn a_run_downloads_only_so_much() {
     assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
     assert_eq!((result.folders[1].new.len(), result.folders[1].uid_seen), (0, 2));
     assert_eq!((result.folders[3].new.len(), result.folders[3].uid_seen), (0, 0));
+    // A folder of which something is still to come isn't read whole (#504).
+    assert_eq!(result.folders.iter().map(|f| f.complete).collect::<Vec<_>>(), [false, false, true, false]);
 
     // Or for so many messages, however small.
     let folders = applied(&local_folders(), &result);
@@ -1767,6 +1789,8 @@ fn a_mailbox_arrives_in_pieces_the_inbox_first() {
     assert_eq!((all[3].new_count(), all[3].folders[0].new[49].subject.as_str()), (50, "Mail 230"));
     // It is only said to be read once the last of it is here.
     assert_eq!(batches.iter().map(|f| f.uid_seen).collect::<Vec<_>>(), [0, 0, 0, 0, 230]);
+    // ...and only then read whole, which is when the Safe and Blocked Senders lists begin (#504).
+    assert_eq!(batches.iter().map(|f| f.complete).collect::<Vec<_>>(), [false, false, false, false, true]);
     assert!(batches.iter().all(|f| f.id == Some(100)
         && f.uid_validity == 11
         && f.kind == FolderKind::Inbox

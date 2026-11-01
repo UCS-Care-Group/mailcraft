@@ -266,6 +266,12 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
         return Err(InvalidDocument);
     }
     if component == Component::Event {
+        // Recurrence and timing share DTSTART's representation. Refuse a partial edit
+        // when the writer did not retain the source's complete timing information.
+        let timing = ["DTSTART", "DTEND", "DURATION", "RRULE", "RDATE", "EXDATE", "EXRULE"];
+        if timing.iter().any(|key| changed.contains(key)) && timing.iter().any(|key| source_values.get(key) != old_values.get(key)) {
+            return Err(InvalidDocument);
+        }
         for document in [&source_values, &old_values, &new_values] {
             if document.contains_key("DTEND") && document.contains_key("DURATION") {
                 return Err(InvalidDocument);

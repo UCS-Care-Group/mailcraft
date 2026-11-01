@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message};
 use proptest::prelude::*;
 
-use crate::{WriteOptions, parse, parse_mbox, write, write_mbox};
+use crate::{WriteOptions, parse, parse_mbox, write, write_mbox, written_message_id};
 
 fn a(name: &str, email: &str) -> Address {
     Address { name: name.into(), email: email.into() }
@@ -122,7 +122,8 @@ fn a_plain_message_round_trips() {
     m.headers = vec![
         ("X-Mailer".into(), "Synthetic 1.0".into()),
         ("List-Id".into(), "Example list <list.example.org>".into()),
-        ("X-Note".into(), "ünïcode value".into()),
+        ("Comments".into(), "ünïcode value".into()),
+        ("X-Note".into(), "=?not decoded?=".into()),
     ];
     round_trip(&m);
     m.flag = FlagStatus::Complete;
@@ -481,7 +482,12 @@ fn message() -> impl Strategy<Value = Message> {
         proptest::sample::select(vec![FlagStatus::None, FlagStatus::Flagged, FlagStatus::Complete]),
         proptest::sample::select(vec![Importance::Low, Importance::Normal, Importance::High]),
         proptest::collection::vec(header_text().prop_filter("a category", |c| !c.is_empty()), 0..3),
-        proptest::collection::vec(("X-Test-[A-Za-z0-9]{1,8}", header_text()), 0..3),
+        // Unstructured text comes back whatever it is; another field as it was written, which
+        // printable ASCII is (`has_words`).
+        proptest::collection::vec(
+            prop_oneof![("Comments|Organization|Thread-Topic", header_text()), ("X-Test-[A-Za-z0-9]{1,8}", "([!-~]([ -~]{0,38}[!-~])?)?"),],
+            0..3,
+        ),
     );
     (people, ids, header_text(), -2_000_000_000i64..4_000_000_000i64, content, state).prop_map(
         |(
@@ -505,10 +511,12 @@ fn message() -> impl Strategy<Value = Message> {
             // Not carried by the format: must not come back.
             received: date.wrapping_add(99),
             body: Body { text, html },
+            hidden_text: String::new(),
             attachments,
             read,
             flag,
             importance,
+            read_receipt: false,
             categories,
             answered,
             headers,
@@ -518,14 +526,19 @@ fn message() -> impl Strategy<Value = Message> {
             uid: 11,
             draft: true,
             pinned: true,
+            warnings_dismissed: vec!["external".into()],
             forwarded: true,
             flag_due: Some(1),
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
             not_downloaded: 62_914_560,
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
+            refetch: false,
+            refetched: false,
             attachments_on_server: false,
             moving_out: None,
+            returned: 0,
+            placed: String::new(),
             incomplete: false,
             server_draft: None,
             held: String::new(),
@@ -712,5 +725,15 @@ proptest! {
         prop_assert!(m.to.len() + m.cc.len() + m.bcc.len() <= crate::MAX_RECIPIENTS);
         prop_assert!(m.reply_to.len() <= crate::MAX_RECIPIENTS);
         prop_assert!(m.categories.len() <= crate::MAX_CATEGORIES);
+    }
+}
+
+#[test]
+fn the_message_id_said_to_be_written_is_the_one_written() {
+    for raw in ["abc.123@example.org", "<abc@example.org>", "id@example.org>\r\nX-Evil: 1\r\n<x", "< >", ""] {
+        let m = Message { message_id: raw.into(), ..base() };
+        let out = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+        let field = out.lines().find_map(|line| line.strip_prefix("Message-ID: ")).map(str::to_string);
+        assert_eq!(written_message_id(raw), field, "{raw:?}");
     }
 }

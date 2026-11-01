@@ -1,0 +1,1 @@
+- People › Home › Meeting opens a new meeting with the selected contact already invited, and Forward Contact starts a message with the contact attached as a vCard (.vcf), for you to address and send.

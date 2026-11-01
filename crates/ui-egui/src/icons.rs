@@ -8,6 +8,9 @@
 use egui::epaint::{Mesh, TextShape};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 
+mod mark;
+pub use mark::app_mark;
+
 /// Draws on the 20-unit grid of one icon, fitted to the screen's pixels.
 ///
 /// Everything is worked out in device pixels: the grid's origin is a whole pixel, a stroke is a
@@ -512,6 +515,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             tail.draw(&pen, c);
             pen.head(16.5, 8.5, 0.0, 4.0, c);
         }
+        // Forward, higher, and the message it carries whole: an envelope in the modifier's corner.
+        "forwardAsAttachment" => {
+            let tail = pen.path().m(&pen, 16.5, 5.5).l(&pen, 10.0, 5.5).c(&pen, (6.5, 5.5), (3.5, 8.0), 3.5, 12.5);
+            tail.draw(&pen, c);
+            pen.head(16.5, 5.5, 0.0, 4.0, c);
+            pen.envelope(11.5, 12.0, 18.0, 17.0, c);
+        }
         "delete" | "deleted" | "discard" | "remove" => {
             pen.lid(false, c);
             pen.rounded(&[(5.0, 5.5), (5.0, 16.5), (15.0, 16.5), (15.0, 5.5)], false, 1.0, c);
@@ -630,6 +640,19 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(10.0, 12.5), (10.0, 2.5)], a);
             pen.head(10.0, 2.5, 270.0, 3.0, a);
         }
+        // A window with an arrow going out of its top right corner: Pop Out (#286).
+        "popOut" => {
+            pen.line(&[(9.0, 4.5), (4.0, 4.5), (2.5, 6.0), (2.5, 16.0), (4.0, 17.5), (14.0, 17.5), (15.5, 16.0), (15.5, 11.0)]);
+            pen.line_c(&[(9.0, 11.0), (17.0, 3.0)], a);
+            pen.line_c(&[(12.0, 3.0), (17.0, 3.0), (17.0, 8.0)], a);
+        }
+        // A clipboard: its board, its clip at the top, and a sheet on it in the accent.
+        "paste" => {
+            pen.rounded(&[(7.0, 4.0), (3.5, 4.0), (3.5, 17.5), (14.5, 17.5), (14.5, 4.0), (11.0, 4.0)], false, 1.0, c);
+            pen.rounded(&[(7.0, 2.5), (11.0, 2.5), (11.0, 5.5), (7.0, 5.5)], true, 0.5, c);
+            pen.line_c(&[(6.5, 9.5), (11.5, 9.5)], a);
+            pen.line_c(&[(6.5, 12.5), (11.5, 12.5)], a);
+        }
         // An open folder.
         "open" => {
             pen.rounded(&[(15.5, 9.0), (15.5, 6.5), (9.5, 6.5), (7.5, 4.5), (2.5, 4.5), (2.5, 15.5)], false, 1.0, c);
@@ -656,6 +679,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             if !tiny {
                 pen.rounded(&[(6.0, 16.5), (6.0, 11.5), (14.0, 11.5), (14.0, 16.5)], false, 1.0, c);
             }
+        }
+        // A sender warning: a triangle with an exclamation mark in it.
+        "warning" => {
+            pen.rounded(&[(10.0, 2.5), (18.0, 16.5), (2.0, 16.5)], true, 1.0, red);
+            pen.line_c(&[(10.0, 7.0), (10.0, 11.0)], red);
+            pen.fcircle(10.0, 13.75, 1.0, red);
         }
         "highImportance" | "importanceHigh" => {
             pen.frect_r(9.0, 2.5, 11.0, 12.5, 1.0, red);
@@ -728,6 +757,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
         "meeting" | "fromMessage" => {
             pen.person(7.5, 7.5, 2.75, 17.5, 5.0, 180.0, 360.0, c);
             pen.person(13.5, 5.5, 2.25, 14.5, 4.0, 250.0, 360.0, c);
+        }
+        // Two people side by side, and the modifier's lines that bring them together into one
+        // (Merge Duplicates, #506).
+        "mergeContacts" => {
+            pen.person(5.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.person(14.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.line_c(&[(5.5, 14.5), (10.0, 18.0), (14.5, 14.5)], a);
         }
         "newMeeting" => {
             pen.person(7.0, 8.0, 2.75, 17.5, 4.0, 180.0, 360.0, c);
@@ -860,6 +896,37 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(7.0, y), (17.5, y)]);
             }
         }
+        // Change View: a window with the list's rows on the left, the pane beside them.
+        "changeView" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            for y in [7.0, 10.0, 13.0] {
+                pen.line(&[(5.0, y), (8.0, y)]);
+            }
+            pen.line_c(&[(10.5, 3.5), (10.5, 16.5)], a);
+        }
+        // Tighter Spacing: rows close together, pressed from above and below.
+        "density" => {
+            for y in [7.5, 10.0, 12.5] {
+                pen.line(&[(8.0, y), (17.5, y)]);
+            }
+            pen.line_c(&[(4.5, 2.5), (4.5, 7.0)], a);
+            pen.head(4.5, 7.0, 90.0, 2.5, a);
+            pen.line_c(&[(4.5, 17.5), (4.5, 13.0)], a);
+            pen.head(4.5, 13.0, 270.0, 2.5, a);
+        }
+        // Zoom: a glass with a plus in it.
+        "zoom" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(6.0, 8.5), (11.0, 8.5)], a);
+            pen.line_c(&[(8.5, 6.0), (8.5, 11.0)], a);
+        }
+        // Recent Searches: a glass with a clock's hands in it.
+        "recentSearches" => {
+            pen.circle(8.5, 8.5, 5.5, c);
+            pen.line(&[(12.5, 12.5), (17.0, 17.0)]);
+            pen.line_c(&[(8.5, 5.5), (8.5, 8.5), (10.5, 10.0)], a);
+        }
         "reset" => {
             // Back the other way round, the head at the top.
             let ring = pen.path().a(&pen, 10.0, 10.5, 6.5, 240.0, -60.0);
@@ -971,6 +1038,36 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
         "clock" | "time" => {
             pen.circle(10.0, 10.0, 7.5, c);
             pen.line(&[(10.0, 5.5), (10.0, 10.0), (13.0, 12.0)]);
+        }
+        // Insert › Date & Time: a calendar page with a small clock over its corner.
+        "dateTime" => {
+            pen.calendar(true, c);
+            pen.circle(14.5, 14.5, 3.75, a);
+            pen.line_c(&[(14.5, 12.5), (14.5, 14.5), (16.0, 15.5)], a);
+        }
+        // Insert › Pictures: a frame with a sun and two hills.
+        "picture" => {
+            pen.rect(3.0, 4.0, 17.0, 16.0, c);
+            pen.circle(7.5, 8.5, 1.5, a);
+            pen.line(&[(3.5, 15.0), (8.0, 11.0), (11.0, 14.0), (13.0, 12.0), (16.5, 15.0)]);
+        }
+        // A control still to be built: an hourglass.
+        "pending" => {
+            pen.line(&[(5.0, 3.0), (15.0, 3.0)]);
+            pen.line(&[(5.0, 17.0), (15.0, 17.0)]);
+            pen.rounded(&[(6.0, 3.0), (6.0, 5.5), (10.0, 10.0), (6.0, 14.5), (6.0, 17.0)], false, 1.0, c);
+            pen.rounded(&[(14.0, 3.0), (14.0, 5.5), (10.0, 10.0), (14.0, 14.5), (14.0, 17.0)], false, 1.0, c);
+            pen.line_c(&[(8.0, 15.5), (12.0, 15.5)], a);
+        }
+        // Review › Word Count: lines of text and a tally of four strokes and one across them.
+        "wordCount" => {
+            pen.line(&[(2.5, 4.5), (17.5, 4.5)]);
+            pen.line(&[(2.5, 8.5), (12.5, 8.5)]);
+            pen.line(&[(2.5, 12.5), (8.5, 12.5)]);
+            for x in [11.0, 13.0, 15.0, 17.0] {
+                pen.line_c(&[(x, 11.5), (x, 17.5)], a);
+            }
+            pen.line_c(&[(10.0, 16.5), (18.0, 12.5)], a);
         }
         // A meeting held online: a camera, its lens to the right.
         "onlineMeeting" | "joinMeeting" => {
@@ -1087,10 +1184,41 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.head(2.5, 10.0, 180.0, 2.5, a);
             }
         }
+        // Text Highlight Color: a marker's slanted tip over the band it draws.
+        "highlight" => {
+            pen.closed(&[(9.0, 3.0), (14.0, 6.0), (10.5, 12.0), (5.5, 9.0)], c);
+            pen.line(&[(5.5, 9.0), (5.0, 12.5), (7.0, 13.5), (10.5, 12.0)]);
+            pen.frect_r(3.5, 14.5, 16.5, 17.5, 1.0, a);
+        }
+        // Format Painter: a brush, its bristles the accent.
+        "formatPainter" => {
+            pen.rect(3.5, 3.0, 15.5, 7.5, c);
+            pen.line(&[(15.5, 5.25), (17.0, 5.25), (17.0, 10.0), (10.0, 10.0), (10.0, 12.0)]);
+            pen.frect_r(8.5, 12.0, 11.5, 17.5, 1.0, a);
+        }
+        // Insert › Symbol: an omega, drawn as a letter of the window's own face.
+        "symbol" => pen.text(10.0, 10.0, 16.0, "\u{3a9}", c, 0.0),
+        // Format Text › Replace: one letter, a turn, another in its place.
+        "replace" => {
+            pen.text(6.0, 6.0, 10.0, "a", c, 0.0);
+            pen.text(14.5, 14.0, 10.0, "b", c, 0.0);
+            pen.line_c(&[(4.5, 11.0), (4.5, 14.5), (9.5, 14.5)], a);
+            pen.head(9.5, 14.5, 0.0, 2.0, a);
+        }
         "formatPlain" => {
             pen.line(&[(3.5, 5.5), (16.5, 5.5)]);
             pen.line(&[(3.5, 10.0), (16.5, 10.0)]);
             pen.line(&[(3.5, 14.5), (11.5, 14.5)]);
+        }
+        // A password's eye (#438): open, a click shows the password; struck through, it hides
+        // it again.
+        "showPassword" | "hidePassword" => {
+            let lids = pen.path().m(&pen, 2.5, 10.0).c(&pen, (5.5, 4.5), (14.5, 4.5), 17.5, 10.0).c(&pen, (14.5, 15.5), (5.5, 15.5), 2.5, 10.0);
+            lids.draw_closed(&pen, c);
+            pen.circle(10.0, 10.0, 2.5, c);
+            if name == "hidePassword" {
+                pen.line(&[(3.5, 16.5), (16.5, 3.5)]);
+            }
         }
         // Anything else: a lettered tile, so a missing drawing is visible rather than empty.
         _ => {
@@ -1103,6 +1231,8 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
 
 /// The names [`paint`] draws (not a lettered tile); tests check ribbon icons against it.
 pub const NAMES: &[&str] = &[
+    "popOut",
+    "paste",
     "mail",
     "email",
     "unread",
@@ -1116,6 +1246,7 @@ pub const NAMES: &[&str] = &[
     "reply",
     "replyAll",
     "forward",
+    "forwardAsAttachment",
     "delete",
     "deleted",
     "discard",
@@ -1164,6 +1295,7 @@ pub const NAMES: &[&str] = &[
     "starOn",
     "save",
     "saveDraft",
+    "warning",
     "highImportance",
     "importanceHigh",
     "lowImportance",
@@ -1189,6 +1321,7 @@ pub const NAMES: &[&str] = &[
     "newContact",
     "meeting",
     "newMeeting",
+    "mergeContacts",
     "fromMessage",
     "meetingRequest",
     "meetingCancelled",
@@ -1227,6 +1360,10 @@ pub const NAMES: &[&str] = &[
     "reverseSort",
     "previewLines",
     "list",
+    "changeView",
+    "density",
+    "zoom",
+    "recentSearches",
     "reset",
     "undo",
     "redo",
@@ -1254,6 +1391,10 @@ pub const NAMES: &[&str] = &[
     "location",
     "clock",
     "time",
+    "dateTime",
+    "wordCount",
+    "pending",
+    "picture",
     "onlineMeeting",
     "joinMeeting",
     "proposeTime",
@@ -1278,6 +1419,12 @@ pub const NAMES: &[&str] = &[
     "clearFormatting",
     "formatHtml",
     "formatPlain",
+    "replace",
+    "highlight",
+    "formatPainter",
+    "symbol",
     "increaseIndent",
     "decreaseIndent",
+    "showPassword",
+    "hidePassword",
 ];

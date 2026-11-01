@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use super::find::{Place, moved};
 use super::{Format, ListKind, MAX_CHARS, RichText, Style};
 use crate::ModelError;
 
@@ -71,6 +72,9 @@ pub struct RichBody {
     /// Where typing goes on in the same undo step.
     #[serde(skip)]
     typing: Option<usize>,
+    /// The look Format Painter copied, to be put on the next selection.
+    #[serde(skip)]
+    painter: Option<Style>,
 }
 
 /// A body as stored: plain text (what a message being written held before rich text), or the
@@ -134,6 +138,34 @@ impl RichBody {
             style.link = None;
             style
         })
+    }
+
+    /// The look Format Painter copied and has yet to put down.
+    pub fn painter(&self) -> Option<&Style> {
+        self.painter.as_ref()
+    }
+
+    /// Format Painter: copy the look of the selection's first character (with nothing selected,
+    /// what the next typed character would take), its link left out.
+    pub fn copy_look(&mut self) {
+        let sel = self.selection;
+        let mut look = if sel.is_empty() { self.typing_style() } else { self.text.style_at(sel.start() + 1) };
+        look.link = None;
+        self.painter = Some(look);
+    }
+
+    /// Put the look Format Painter copied on the selection (with nothing selected, on the next
+    /// typed character), as one step; it is then put away. Whether there was one.
+    pub fn paste_look(&mut self) -> Result<bool, ModelError> {
+        let Some(look) = self.painter.clone() else { return Ok(false) };
+        self.format(Format::Look(look))?;
+        self.painter = None;
+        Ok(true)
+    }
+
+    /// Put away the look Format Painter copied.
+    pub fn drop_look(&mut self) {
+        self.painter = None;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -343,6 +375,19 @@ impl RichBody {
         Ok(())
     }
 
+    /// Put `with` in place of each of `places` ([`RichText::find`]), as one step: what goes in
+    /// looks as the first character of its place did. The selection stays on the text it was on.
+    pub fn replace_places(&mut self, places: &[Place], with: &str) -> Result<(), ModelError> {
+        let with_chars = super::clean_line(with).chars().count();
+        self.edit(false, |t, s| {
+            t.replace_places(places, with)?;
+            *s = Selection { anchor: moved(s.anchor, places, with_chars), head: moved(s.head, places, with_chars) };
+            Ok(())
+        })?;
+        self.typing = None;
+        Ok(())
+    }
+
     /// Turn something on or off for the selection: on unless all of it has it already. With
     /// nothing selected it is the next typed character's. Whether it is on now.
     fn toggle(&mut self, has: fn(&Style) -> bool, set: fn(bool) -> Format) -> Result<bool, ModelError> {
@@ -378,7 +423,9 @@ impl RichBody {
             if let Format::Link(Some(url)) = &change
                 && super::safe_link(url).is_none()
             {
-                return Err(ModelError::Invalid("a link goes to an http, https, mailto or tel address".into()));
+                return Err(ModelError::Invalid(
+                    "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:".into(),
+                ));
             }
             let mut style = self.typing_style();
             change.apply(&mut style);
@@ -397,7 +444,12 @@ impl RichBody {
         let sel = self.selection;
         match url {
             Some(url) => {
-                let url = super::safe_link(url).ok_or_else(|| ModelError::Invalid("a link goes to an http, https, mailto or tel address".into()))?;
+                let url = super::safe_link(url).ok_or_else(|| {
+                    ModelError::Invalid(
+                        "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+                            .into(),
+                    )
+                })?;
                 if sel.is_empty() {
                     let mut style = self.typing_style();
                     style.link = Some(url.clone());

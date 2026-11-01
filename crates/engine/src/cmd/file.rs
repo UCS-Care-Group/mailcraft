@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{bad, deliver, fail, source};
 use crate::io::{Format, MAILBOX_EXT};
-use crate::opening::export_name;
+use crate::opening::{export_name, export_name_or};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -22,7 +22,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"path": string} — everything in one self-contained file; a copy, unless the mailbox wasn't kept anywhere yet"#),
         CommandSpec::new("file.import", "Import", "File › Open & Export", import)
-            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf; messages meant for a Microsoft account go to the local folder Imported (`local`)"#),
+            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf; messages meant for a Microsoft account go to the local folder Imported (`local`), or into its Drafts to this computer's Drafts, as drafts (`drafts`); `"opened": true` (a message file the system asked to open) puts one .eml into the local folder Imported as a received message, or finds the one already there (`opened`, `already`), whatever `folder` says"#),
+        CommandSpec::new("file.importFolderTree", "Import a Folder of Mailboxes", "File › Open & Export", import_tree).params(
+            r#"{"path": string (a folder) | "entries": [{"path": "Mail/Inbox.sbd/Sent", "data": base64}], "name"?: string (the new top folder; default the folder's name), "dryRun"?: bool (only say what would come in)} — every mbox file under the folder, found by its first bytes, into subfolders of one folder On this computer; a second import adds nothing already there (Message-ID)"#,
+        ),
         CommandSpec::new("file.exportMessage", "Save Message As", "File › Save As", export_message).pure().params(r#"{"id"?: number, "path"?: string} — one message as .eml"#),
         CommandSpec::new("file.exportFolder", "Export Folder", "File › Open & Export", export_folder).pure().params(r#"{"id"?: number, "path"?: string} — a folder's messages as .mbox"#),
         CommandSpec::new("file.exportCalendar", "Save Calendar", "File › Save Calendar", export_calendar).pure().params(r#"{"calendar"?: number, "id"?: number (one event), "path"?: string} — .ics"#),
@@ -146,6 +149,11 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if fetched_again > 0 {
         s.mailbox_changed();
     }
+    // So is that of IMAP accounts, by UID, at the next Send/Receive (#650).
+    let fetched_again = fetched_again.saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
+    if fetched_again > 0 {
+        s.mailbox_changed();
+    }
     Ok(json!({
         "favoritesNowGraph": favorites_now_graph,
         "fetchedAgain": fetched_again,
@@ -208,6 +216,13 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
 /// as you go doesn't wander off to the copy.
 fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     let path = p::req_str(v, "path")?.to_string();
+    // Saved onto the file the mailbox is kept in (the dialog suggests its very name): that is a
+    // save, never the one-file form written over it, which would leave its content folder
+    // orphaned and a large mailbox unreadable (#649).
+    #[cfg(not(target_arch = "wasm32"))]
+    if s.path.as_deref().is_some_and(|kept| same_file(kept, std::path::Path::new(&path))) {
+        return save(s, &json!({"path": s.path.as_ref().map(|p| p.to_string_lossy().to_string())})).map(|r| with(r, "copy", json!(false)));
+    }
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
         let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
@@ -224,13 +239,27 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     Ok(with(r, "copy", json!(!home)))
 }
 
+/// Whether two paths name one file: equal, or the same on disk (another spelling, case on
+/// Windows, a link).
+#[cfg(not(target_arch = "wasm32"))]
+fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
+    a == b || matches!((std::fs::canonicalize(a), std::fs::canonicalize(b)), (Ok(x), Ok(y)) if x == y)
+}
+
 fn import(s: &mut Session, v: &Value) -> CmdResult {
     let (name, bytes) = source(v)?;
+    if p::bool(v, "opened") == Some(true) {
+        return crate::io::import_opened(s, &name, &bytes);
+    }
     crate::io::import(s, &name, &bytes, p::id(v, "folder"))
 }
 
+fn import_tree(s: &mut Session, v: &Value) -> CmdResult {
+    crate::import_tree::run(s, v)
+}
+
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -238,12 +267,18 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let m = s.loaded_message(id)?;
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
-    let name = export_name(if m.subject.trim().is_empty() { "message" } else { &m.subject }, "eml");
+    let name = eml_name(&m);
     deliver(v, &name, mailcraft_mime::write(&m, &opts))
 }
 
+/// The name of a message as a file of its own: its subject, fit for a file name, as `.eml`;
+/// `message.eml` when nothing of the subject is left (none, or only what a name can't keep).
+pub fn eml_name(m: &mailcraft_model::Message) -> String {
+    export_name_or(&m.subject, "eml", "message")
+}
+
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id(v, "id").unwrap_or(s.view.folder);
+    let id = p::id_strict(v, "id")?.unwrap_or(s.view.folder);
     let folder = s.mailbox.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
     // Each message whole: what the mailbox keeps outside memory goes into the file.
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
@@ -270,7 +305,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
     // Each time in its zone, with the zone's definition: what another program reads right
     // wherever it is. (Floating, as before, when the system can't say which zone this is.)
     let zone = Some(s.zone());
-    if let Some(id) = p::id(v, "id") {
+    if let Some(id) = p::id_strict(v, "id")? {
         let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
         let text = mailcraft_ical::write_in(&[e], &[], &opts, zone);
         return deliver(v, &export_name(if e.title.is_empty() { "event" } else { &e.title }, "ics"), text.into_bytes());
@@ -290,7 +325,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn export_contacts(s: &mut Session, v: &Value) -> CmdResult {
-    let ids: Vec<Id> = match p::ids(v) {
+    let ids: Vec<Id> = match p::ids_strict(v)? {
         Some(ids) => ids,
         None => crate::cmd::people::sorted(s, ""),
     };

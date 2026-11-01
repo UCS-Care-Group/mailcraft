@@ -13,6 +13,9 @@
 //! **View All Proposals** sends nothing: accepting a proposal opens the meeting with the proposed
 //! time in its fields, where the owner sends the update as any other, through its question.
 //!
+//! Email Calendar, Insert › Calendar, Tracking and Search Calendar are in [`share`]: they send
+//! nothing either.
+//!
 //! Everything shown of a meeting that came from outside (its title, the organizer's name, a
 //! proposal's sender) is data: cut to size, shown as text, never followed.
 
@@ -33,11 +36,18 @@ const STRIP_H: f32 = 132.0;
 const MAX_ROWS: usize = 50;
 const MAX_NAMED: usize = 12;
 
-/// One of the three dialogs.
+mod share;
+#[cfg(test)]
+mod share_tests;
+
+/// One of the dialogs.
 pub enum MeetingDialog {
     Propose(Box<ProposeTime>),
     Forward(Box<ForwardMeeting>),
     Proposals(Box<Proposals>),
+    Share(Box<share::ShareCalendar>),
+    Tracking(Box<share::Tracking>),
+    Search(Box<share::SearchCalendar>),
 }
 
 /// A name from outside, for a label: one line, not too long, never empty.
@@ -264,7 +274,7 @@ impl ProposeTime {
             let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), STRIP_H), Sense::hover());
             day_strip(app, ui, rect, day, span, self.event, &t, twelve);
         }
-        ui.add(
+        let note = ui.add(
             egui::TextEdit::multiline(&mut self.note)
                 .id(kit::field_id("propose_note"))
                 .hint_text(tl!("A note to the organizer (optional)"))
@@ -272,6 +282,7 @@ impl ProposeTime {
                 .desired_width(f32::INFINITY)
                 .char_limit(2_000),
         );
+        crate::text_menu::field(note);
         // Who is written to, said before anything is pressed.
         let able = self.blocked.is_empty();
         let says = if able {
@@ -370,7 +381,7 @@ fn day_strip(app: &MailApp, ui: &Ui, rect: Rect, day: Date, span: Option<(DateTi
     }
     if span.is_some() {
         let r = block(starts, ends, lane.min.x, half - 1.0);
-        p.rect(r, 2.0, t.accent.linear_multiply(if t.dark { 0.35 } else { 0.16 }), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        p.rect(r, 2.0, t.band_chosen, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
         if r.height() >= 13.0 {
             paint_clipped(&p, pos2(r.min.x + 6.0, r.min.y + 7.0), r.width() - 9.0, tl!("Proposed time"), semibold(10.5), t.text);
         }
@@ -471,7 +482,7 @@ impl ForwardMeeting {
         kit::row(ui, tl!("To"), |ui| {
             pass.text(ui, "forward_to", &mut self.to, f32::INFINITY, tl!("Names or addresses, separated by ;"));
         });
-        ui.add(
+        let note = ui.add(
             egui::TextEdit::multiline(&mut self.note)
                 .id(kit::field_id("forward_note"))
                 .hint_text(tl!("A note to go with it (optional)"))
@@ -479,6 +490,7 @@ impl ForwardMeeting {
                 .desired_width(f32::INFINITY)
                 .char_limit(2_000),
         );
+        crate::text_menu::field(note);
         // Who is written to, said before Send is pressed.
         let (good, bad) = self.named();
         let names: Vec<String> = good.iter().take(MAX_NAMED).map(|who| kit::shown(&who.email, 80)).collect();
@@ -653,13 +665,18 @@ pub(crate) fn accept_proposal(app: &mut MailApp, event: Id, occurrence: Option<&
 }
 
 impl MeetingDialog {
-    /// The dialog `name` (`proposeTime`, `forwardMeeting`, `proposals`), set up from the app's
+    /// The dialog `name` (`proposeTime`, `forwardMeeting`, `proposals`, `emailCalendar`,
+    /// `insertCalendar`, `tracking`, `searchCalendar`), set up from the app's
     /// state and `params`; `None` for another name, or when there is nothing to open it on.
     pub fn open(name: &str, app: &mut MailApp, params: &Value) -> Option<MeetingDialog> {
         Some(match name {
             "proposeTime" => MeetingDialog::Propose(Box::new(ProposeTime::open(app, params)?)),
             "forwardMeeting" => MeetingDialog::Forward(Box::new(ForwardMeeting::open(app, params)?)),
             "proposals" => MeetingDialog::Proposals(Box::new(Proposals::open(app, params)?)),
+            "emailCalendar" => MeetingDialog::Share(Box::new(share::ShareCalendar::open(app, false))),
+            "insertCalendar" => MeetingDialog::Share(Box::new(share::ShareCalendar::open(app, true))),
+            "tracking" => MeetingDialog::Tracking(Box::new(share::Tracking::open(app, params)?)),
+            "searchCalendar" => MeetingDialog::Search(Box::new(share::SearchCalendar::open(params))),
             _ => return None,
         })
     }
@@ -669,6 +686,10 @@ impl MeetingDialog {
             MeetingDialog::Propose(_) => "proposeTime",
             MeetingDialog::Forward(_) => "forwardMeeting",
             MeetingDialog::Proposals(_) => "proposals",
+            MeetingDialog::Share(d) if d.inserts() => "insertCalendar",
+            MeetingDialog::Share(_) => "emailCalendar",
+            MeetingDialog::Tracking(_) => "tracking",
+            MeetingDialog::Search(_) => "searchCalendar",
         }
     }
 
@@ -677,6 +698,10 @@ impl MeetingDialog {
             MeetingDialog::Propose(_) => tl!("Propose New Time"),
             MeetingDialog::Forward(_) => tl!("Forward"),
             MeetingDialog::Proposals(_) => tl!("Proposed Times"),
+            MeetingDialog::Share(d) if d.inserts() => tl!("Insert Calendar"),
+            MeetingDialog::Share(_) => tl!("Email Calendar"),
+            MeetingDialog::Tracking(_) => tl!("Tracking"),
+            MeetingDialog::Search(_) => tl!("Search Calendar"),
         }
     }
 
@@ -685,6 +710,9 @@ impl MeetingDialog {
             MeetingDialog::Propose(_) => 500.0,
             MeetingDialog::Forward(_) => 480.0,
             MeetingDialog::Proposals(_) => 520.0,
+            MeetingDialog::Share(_) => 460.0,
+            MeetingDialog::Tracking(_) => 480.0,
+            MeetingDialog::Search(_) => 480.0,
         }
     }
 
@@ -694,6 +722,9 @@ impl MeetingDialog {
             MeetingDialog::Propose(dialog) => dialog.show(app, ui),
             MeetingDialog::Forward(dialog) => dialog.show(app, ui),
             MeetingDialog::Proposals(dialog) => dialog.show(app, ui),
+            MeetingDialog::Share(dialog) => dialog.show(app, ui),
+            MeetingDialog::Tracking(dialog) => dialog.show(app, ui),
+            MeetingDialog::Search(dialog) => dialog.show(app, ui),
         }
     }
 }

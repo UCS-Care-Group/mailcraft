@@ -17,19 +17,19 @@ use crate::NetError;
 use crate::http::{self, Answer, Url};
 
 /// The name servers asked, in turn: the next one only when the one before failed.
-const RESOLVERS: [&str; 2] = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"];
+pub(crate) const RESOLVERS: [&str; 2] = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"];
 /// Most name servers tried for one lookup.
-const MAX_RESOLVERS: usize = 4;
+pub(crate) const MAX_RESOLVERS: usize = 4;
 /// How long a name server has to be reached, and to answer.
-const LOOKUP_TIMEOUT: Duration = Duration::from_secs(8);
+pub(crate) const LOOKUP_TIMEOUT: Duration = Duration::from_secs(8);
 /// Most mail exchangers handed back, and most records of one answer looked at.
 const MAX_HOSTS: usize = 20;
-const MAX_RECORDS: usize = 5_000;
+pub(crate) const MAX_RECORDS: usize = 5_000;
 /// The record type of a mail exchanger.
 const MX: u64 = 15;
 /// What a name server says of a lookup: it went well, or there is no such domain.
-const NO_ERROR: u64 = 0;
-const NO_SUCH_DOMAIN: u64 = 3;
+pub(crate) const NO_ERROR: u64 = 0;
+pub(crate) const NO_SUCH_DOMAIN: u64 = 3;
 
 /// The domain's mail exchangers, best first: lower-cased host names without the trailing dot.
 ///
@@ -73,7 +73,7 @@ fn ask(endpoint: &str, domain: &str) -> Result<Vec<String>, NetError> {
 
 /// A domain or host name as it is asked for and handed back: lower-cased, without the dot it may
 /// end in. `None` for anything but letters, digits and hyphens in labels with dots between them.
-fn domain_name(text: &str) -> Option<String> {
+pub(crate) fn domain_name(text: &str) -> Option<String> {
     let name = text.trim();
     let name = name.strip_suffix('.').unwrap_or(name);
     is_domain(name).then(|| name.to_ascii_lowercase())

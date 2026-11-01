@@ -416,6 +416,36 @@ mod in_step {
         assert_eq!(subjects(&mut s, "from:ada@example.org -subject:two"), ["One"]);
     }
 
+    /// #329: a word answered from the index beside a day in words, matched on the session's day.
+    #[test]
+    fn a_word_from_the_index_and_a_day_in_words() {
+        let tmp = Temp::new("dated");
+        let path = tmp.0.join("mailbox.mailcraft");
+        let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+        let account = mb.accounts[0].id;
+        let folder = mb.folders.iter().find(|f| f.account == account && f.kind == FolderKind::Inbox).unwrap().id;
+        let noon = |d: u8| mailcraft_time::DateTime::new(mailcraft_time::Date::new(2026, 10, d).unwrap(), 12, 0, 0).unwrap().civil_seconds();
+        for (subject, d) in [("Old", 22), ("Yesterday", 25), ("Today", 26)] {
+            mb.add_message(Message { folder, account, date: noon(d), received: noon(d), ..message(0, subject, "Ada", "About the zymurgy.") })
+                .unwrap();
+        }
+        crate::store::save(&path, &mb).unwrap();
+        let mut s = session(&path);
+        s.clock = crate::Clock { now: Some(noon(26) + 3600), offset: Some(0), zone: None };
+        let subjects = |s: &mut Session, query: &str| {
+            s.view.search = query.into();
+            s.view.scope = crate::Scope::Everywhere;
+            s.wait_for_word_index();
+            let mut out: Vec<String> = s.rows().iter().map(|r| s.mailbox.message(r.id).unwrap().subject.clone()).collect();
+            out.sort();
+            out
+        };
+        assert_eq!(subjects(&mut s, "zymurgy received:today"), ["Today"]);
+        assert!(s.words().unwrap().complete(), "answered from the index");
+        assert_eq!(subjects(&mut s, "zymurgy received:10/25..10/26"), ["Today", "Yesterday"]);
+        assert_eq!(subjects(&mut s, "zymurgy -received:\"this week\""), ["Old"]);
+    }
+
     pub(crate) fn id_of(s: &Session, subject: &str) -> Id {
         s.mailbox.messages.values().find(|m| m.subject == subject).unwrap().id
     }
@@ -499,6 +529,33 @@ mod in_step {
         let _ = s.rows();
         assert!(!holds(&file), "gone without a search");
         assert_eq!(finds(&mut s, "zymurgy").len(), 1);
+    }
+
+    /// #325: an account removed where no word index is kept (`mailcraft-cli`, an agent without
+    /// the window) has its mail's words taken off the disk the first time the index is brought in
+    /// step after it is opened again, not only once enough has been taken out.
+    #[test]
+    fn mail_gone_while_the_index_was_closed_takes_its_words_off_the_disk() {
+        let tmp = Temp::new("closed");
+        let (path, _, work) = kept(&tmp);
+        let file = crate::store::words_file(&path);
+        let holds = |file: &std::path::Path| std::fs::read(file).unwrap().windows(11).any(|w| w == b"nightingale");
+        assert_eq!(finds(&mut session(&path), "nightingale").len(), 1);
+        assert!(holds(&file));
+
+        // Removed, and saved, by a session that keeps no index, as the command line does.
+        let mut cli = session(&path);
+        cli.index_words = false;
+        cli.run("account.remove", &json!({"id": work})).unwrap();
+        cli.run("file.save", &json!({})).unwrap();
+        drop(cli);
+        assert!(holds(&file), "nothing touched the index");
+
+        let mut s = session(&path);
+        s.wait_for_word_index();
+        assert!(!holds(&file), "gone at the first step");
+        assert_eq!(finds(&mut s, "zymurgy").len(), 1);
+        assert!(finds(&mut s, "nightingale").is_empty());
     }
 }
 
@@ -758,4 +815,16 @@ mod answered {
             let _ = s.rows();
         }
     }
+}
+
+/// What the sender hid is part of what the index read of a message (#599): a message that gains
+/// or loses it is read again, and one that hid nothing has the fingerprint it always had.
+#[test]
+fn the_fingerprint_follows_what_the_sender_hid() {
+    let plain = Message { subject: "s".into(), body: Body { text: "t".into(), html: None }, ..Default::default() };
+    let hiding = Message { hidden_text: "preview line".into(), ..plain.clone() };
+    let other = Message { hidden_text: "another line".into(), ..plain.clone() };
+    assert_ne!(fingerprint(&plain), fingerprint(&hiding));
+    assert_ne!(fingerprint(&hiding), fingerprint(&other));
+    assert_eq!(fingerprint(&plain), fingerprint(&Message { hidden_text: String::new(), ..plain.clone() }));
 }

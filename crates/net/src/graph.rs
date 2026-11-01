@@ -316,6 +316,10 @@ enum Doing {
     Favorites,
     Folders,
     Mail,
+    Tasks,
+    /// Reading the automatic replies, and changing them.
+    Replies,
+    ChangingReplies,
 }
 
 impl Doing {
@@ -329,6 +333,8 @@ impl Doing {
             Doing::Favorites => "favorites",
             Doing::Folders => "folders",
             Doing::Mail => "mail",
+            Doing::Tasks => "tasks",
+            Doing::Replies | Doing::ChangingReplies => "automatic replies",
         }
     }
 }
@@ -619,7 +625,7 @@ impl<'a> Graph<'a> {
 
     /// Note one more request asked (the run's timings count them).
     fn count_request(&self) {
-        let _ = self.requests.fetch_update(std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed, |n| Some(n.saturating_add(1)));
+        let _ = self.requests.try_update(std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed, |n| Some(n.saturating_add(1)));
     }
 
     /// How many requests this Graph has asked so far.
@@ -793,6 +799,9 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Favorites => "this account may not read its Favorites through Microsoft Graph",
                 Doing::Folders => "this account may not read or change its folders through Microsoft Graph",
                 Doing::Mail => "this account may not read its mail through Microsoft Graph",
+                Doing::Tasks => "this account may not read or change its to-dos through Microsoft Graph",
+                Doing::Replies => "this account may not read its automatic replies through Microsoft Graph",
+                Doing::ChangingReplies => "this account may not change its automatic replies through Microsoft Graph",
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
@@ -2209,8 +2218,14 @@ fn schedule_with(graph: &Graph<'_>, ask: &FreeBusyAsk) -> Result<FreeBusy, NetEr
 mod people;
 pub use people::{Opened, open_calendar};
 
+mod tasks;
+pub use tasks::{push_tasks, tasks};
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
+
+mod auto_replies;
+pub use auto_replies::{automatic_replies, set_automatic_replies};
 
 mod favorites;
 pub use favorites::favorites;
@@ -2227,11 +2242,15 @@ pub use check::{CHECK_TITLE, CalendarCheck, CheckStep, STEPS as CHECK_STEPS, che
 pub mod standin;
 
 #[cfg(test)]
+mod auto_replies_tests;
+#[cfg(test)]
 mod people_tests;
 #[cfg(test)]
 mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
+#[cfg(test)]
+mod tasks_tests;
 
 #[cfg(test)]
 mod shared_calendar_move_tests;

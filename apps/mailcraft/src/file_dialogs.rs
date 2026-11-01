@@ -53,6 +53,7 @@ impl Launcher {
             let dialog = rfd::AsyncFileDialog::new().set_parent(parent);
             let picking: Picking = match req {
                 FileDialogRequest::Open { purpose } => Box::pin(open_filters(dialog, &purpose).pick_file()),
+                FileDialogRequest::Folder => Box::pin(dialog.pick_folder()),
                 FileDialogRequest::Save { name } => Box::pin(dialog.set_file_name(name).save_file()),
             };
             let ctx = self.ctx.clone();
@@ -81,6 +82,7 @@ fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog 
             .add_filter("Contacts", &["vcf", "vcard"])
             .add_filter("All files", &["*"]),
         "picture" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]),
+        "bodyPicture" => d.add_filter("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"]),
         _ => d,
     }
 }

@@ -64,6 +64,18 @@ const WIDE_BEHIND: i64 = 31 * 86_400;
 const WIDE_AHEAD: i64 = 366 * 86_400;
 /// Most calendars of one account that a job asks for, and takes in.
 const MAX_ASKED: usize = 20;
+
+/// What the log says a calendar job waits for when the sign-in lacks a permission: a shared
+/// mailbox's calendars wait for the one to read shared mailboxes' calendars (asked for by itself,
+/// #70), an account's own for Connect calendar and contacts. (No address: the account's id is
+/// said beside it.)
+pub(crate) fn consent_wait(shared: bool) -> &'static str {
+    if shared {
+        "waiting for the owner's permission to read shared mailboxes' calendars"
+    } else {
+        "waiting for the owner's permission (Connect calendar and contacts)"
+    }
+}
 /// How often the working hours the mailbox has set are asked for (milliseconds): they change
 /// when the owner changes them in the mailbox's settings, which is seldom.
 const SETTINGS_MS: f64 = 3_600_000.0;
@@ -386,7 +398,7 @@ impl MailApp {
             mail_pieces: None,
             cancel: Default::default(),
         };
-        let Some(graph) = &self.services.graph else { return false };
+        let Some(graph) = self.services.graph.as_ref().filter(|_| !self.offline()) else { return false };
         if settings {
             self.calendar.settings_asked.insert(account, now);
         }
@@ -417,7 +429,7 @@ impl MailApp {
         // A shared mailbox's calendars (#70): their own token, and their own permission.
         let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         if result.consent_needed {
-            log::info!("calendar, account {account}: waiting for the owner's permission (Connect calendar and contacts)");
+            log::info!("calendar, account {account}: {}", consent_wait(shared));
         }
         if result.sign_in_refused {
             log::warn!("calendar, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
@@ -670,6 +682,9 @@ impl MailApp {
         let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
         if access.is_empty() && refresh.is_empty() {
             return Err(tl!("This account's calendar can't be asked yet: Send/Receive signs it in first.").to_string());
+        }
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         let request = CalendarCheckRequest { account: owner, oauth: self.effective_oauth(oauth), refresh, access };
         let Some(check) = &self.services.check_calendar else { return Err(tl!("This build can't reach the account's calendar.").to_string()) };

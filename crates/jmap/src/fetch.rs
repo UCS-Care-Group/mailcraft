@@ -207,7 +207,7 @@ async fn fetch_batch<H: HttpExchange>(
     max: usize,
     budget: usize,
 ) -> GraphFetchResult {
-    let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..Default::default() };
+    let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), session: request.session.clone(), ..Default::default() };
     // What the lines of the batch hide, as a run's do: what the client hides, and the account's address, its id
     // and the session's address, which a server may name although they are no part of the sign-in.
     let client = connection.client();
@@ -299,7 +299,7 @@ fn stops(e: &Failure) -> bool {
 /// The answer of a batch that could not begin: signing in to the server ([`Connection::connect`]) failed
 /// with `error`. What [`fetch_messages`] would have said of the same trouble: nothing fetched, and why.
 pub fn failed_fetch(request: &JmapFetchRequest, error: &Error) -> GraphFetchResult {
-    let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..Default::default() };
+    let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), session: request.session.clone(), ..Default::default() };
     stop(&mut out, &Failure::Request(error.clone()), &secrets_of(&request.email, &request.session, &Redactor::new(), ""));
     out
 }

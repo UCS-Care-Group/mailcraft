@@ -12,11 +12,13 @@ use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importan
 use mailcraft_time::Timestamp;
 
 mod drafts;
+mod ews;
 mod jmap;
 mod place;
 mod progress;
 mod search;
 pub use drafts::*;
+pub use ews::*;
 pub use jmap::*;
 pub use place::*;
 pub use progress::*;
@@ -40,6 +42,10 @@ pub struct FolderState {
     pub uid_from: u32,
     /// UIDs of the messages the mailbox has in this folder (to notice deletions and flag changes).
     pub known_uids: Vec<u32>,
+    /// UIDs of messages here that are to be downloaded again, whole, to be read anew (#650:
+    /// mail kept with U+FFFD). A few at a time; the run asks for them without setting `\Seen`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub again: Vec<u32>,
 }
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
@@ -113,6 +119,29 @@ pub struct SyncRequest {
     /// has for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ops: Vec<RemoteOp>,
+    /// Messages to put on the server, moved or copied into the account's folders from another
+    /// account or from this computer (#451); after `ops`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<ImapPlace>,
+}
+
+/// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ImapPlace {
+    /// The whole message: its fields, its body and its files.
+    pub message: Message,
+    /// Where it goes, as [`RemoteOp::Move`] says it: the local folder `to_folder`, whose server
+    /// path is `to`; or, for a folder that only exists here, `create` holds its names below `to`,
+    /// the path of the nearest folder above it that the server has (empty: the top level).
+    pub to: String,
+    pub to_folder: Id,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub create: Vec<String>,
+    /// The marker the copy carries ([`crate::Queued::PlaceMessage`]): a copy on the server is
+    /// taken for this one only when it carries it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub marker: String,
 }
 
 impl SyncRequest {
@@ -134,6 +163,7 @@ impl std::fmt::Debug for SyncRequest {
             .field("folders", &self.folders.len())
             .field("outbox", &self.outbox.len())
             .field("ops", &self.ops.len())
+            .field("places", &self.places.len())
             .finish()
     }
 }
@@ -269,6 +299,10 @@ pub struct MovingOut {
     /// back to when its move into another mailbox of the same owner's is refused (#70).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub folder: String,
+    /// The server said the copy left that folder (deleted, or moved on by another program) and
+    /// hasn't shown it in another since: there may be nothing there to go back to (#451).
+    #[serde(skip_serializing_if = "is_false")]
+    pub left: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a
@@ -333,6 +367,11 @@ pub struct GraphFetchRequest {
 pub struct GraphFetchResult {
     pub account: Id,
     pub email: String,
+    /// For a JMAP account, the address of the server's session resource the messages were fetched
+    /// from (their request's): they are taken in only while the account still names that server.
+    /// Empty for a Microsoft account's. It may carry the account's address, so it is never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fetched: Vec<GraphFetched>,
     /// Server ids the server answered "not found" for (deleted or moved meanwhile; the next run
@@ -435,6 +474,18 @@ pub struct FolderDelta {
     pub flags: Vec<RemoteFlags>,
     /// UIDs the mailbox has that the server no longer does.
     pub removed: Vec<u32>,
+    /// This piece ends the folder's reading and everything that was wanted of it came (#504):
+    /// the folder has been read whole once ([`crate::Folder::read_whole`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub complete: bool,
+    /// Messages of [`FolderState::again`] downloaded again (`uid` set): only their subject,
+    /// names and text are taken from them (#650).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetched: Vec<Message>,
+    /// UIDs of [`FolderState::again`] that are settled without a new copy (the message is too
+    /// large to download), so that they are not asked for at every run.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_done: Vec<u32>,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -489,6 +540,20 @@ pub struct Moved {
 pub struct Deleted {
     pub from: String,
     pub uid: u32,
+}
+
+/// A message the server took ([`SyncRequest::places`]), in the mailbox of local folder
+/// `to_folder`: its UID there and that mailbox's `UIDVALIDITY` when the server said them
+/// (`APPENDUID`), 0 when it didn't, and the flags it was given (the message may have changed
+/// here since).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Placed {
+    pub message: Id,
+    pub to_folder: Id,
+    pub uid: u32,
+    pub uid_validity: u32,
+    pub flags: RemoteFlags,
 }
 
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).
@@ -552,6 +617,13 @@ pub struct SyncResult {
     /// Mailboxes made on the server, whether or not the move they were made for went through.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub created: Vec<Created>,
+    /// What became of [`SyncRequest::places`]: the messages the server took. One that isn't here
+    /// nor in `unplaced` wasn't tried, or its answer was lost, and is put there again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub placed: Vec<Placed>,
+    /// Messages the server wouldn't take (see `errors`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unplaced: Vec<Id>,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before.
     pub errors: Vec<String>,
@@ -581,7 +653,7 @@ impl SyncResult {
 
     /// How many changes made here the server took on.
     pub fn pushed_count(&self) -> usize {
-        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len()
+        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len() + self.placed.len() + self.unplaced.len()
     }
 
     /// Whether there is anything in it for a mailbox to take in. A piece with only a line of
@@ -614,6 +686,8 @@ impl SyncResult {
         self.moved.extend(later.moved);
         self.deleted.extend(later.deleted);
         self.created.extend(later.created);
+        self.placed.extend(later.placed);
+        self.unplaced.extend(later.unplaced);
         self.errors.extend(later.errors);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
@@ -627,6 +701,7 @@ impl SyncResult {
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
+                    folder.complete |= delta.complete;
                 }
                 None => self.folders.push(delta),
             }
@@ -934,9 +1009,10 @@ pub struct GraphMessage {
     pub preview: String,
     #[serde(skip_serializing_if = "is_false")]
     pub has_attachments: bool,
-    /// It is a draft (Graph's `isDraft`).
-    #[serde(skip_serializing_if = "is_false")]
-    pub draft: bool,
+    /// It is a draft (Graph's `isDraft`); `None` when the server didn't say, which changes nothing
+    /// here (#611).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draft: Option<bool>,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so

@@ -1,0 +1,1 @@
+- With a meeting selected, Contact Attendees starts a message to everyone in it, Tracking shows who has answered and how, and (for somebody else's meeting) Reply by Email starts a message to its organizer without answering it. Nothing is sent until you press Send.

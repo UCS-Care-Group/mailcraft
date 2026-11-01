@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::list::Row;
-use mailcraft_engine::{Filter, Pane, SortBy};
+use mailcraft_engine::{Drawn, Filter, Pane, SortBy};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
 use serde_json::json;
 
@@ -46,6 +46,8 @@ const ROW_INSET: f32 = 2.0;
 const READ_STRIP: f32 = 12.0;
 /// Where a row's text starts, from the list's left edge.
 const TEXT_LEFT: f32 = 30.0;
+/// How far in the messages listed under their open conversation start (#503).
+const UNDER_INDENT: f32 = 18.0;
 /// Rows end this far from the list's right edge: a gap, the scroll bar's lane, and its margin.
 const SCROLL_LANE: f32 = SCROLL_GAP + SCROLL_TRACK + SCROLL_MARGIN;
 const SCROLL_GAP: f32 = 7.0;
@@ -82,13 +84,17 @@ const PREVIEW_PITCH: f32 = 13.0;
 const ROW_H: f32 = 72.0;
 /// What a row loses without a preview: the preview's line and the gap above it.
 const PREVIEW_FIRST: f32 = 15.0;
+/// With sender images on, the picture before a row's text: its radius, its middle from the
+/// row's top (level between the sender's and the subject's lines), and the room after it.
+const AVATAR_RADIUS: f32 = 16.0;
+const AVATAR_Y: f32 = 29.0;
+const AVATAR_GAP: f32 = 10.0;
 
 /// While messages are being dragged: a small label by the pointer saying how many.
 fn drag_ghost(ui: &Ui) {
     let Some(drag) = egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()) else { return };
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
     let t = Tokens::get(ui.ctx());
-    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     let text = tln!(drag.0.len(), "{n} message", "{n} messages");
     egui::Area::new(egui::Id::unique("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
@@ -114,7 +120,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         // Hidden: a narrow strip stays, with the button that brings the pane back.
         crate::nav::folder_pane_strip(app, ui);
     }
-    let composing = app.session.compose.is_some();
+    // The reading pane's message being written (#286): one in a window of its own isn't here.
+    let composing = crate::windows::compose_window::pane_compose(app).is_some_and(|c| app.session.compose_id() == Some(c));
     let pane = app.session.view.reading_pane;
     // The list takes the whole width when the reading pane is off, unless a message is being written.
     if pane == Pane::Off && !composing {
@@ -142,11 +149,21 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
         if composing {
-            crate::compose::show(app, ui);
+            // Each message being written has fields of its own (#286): two never share a caret.
+            let compose = app.session.compose_id();
+            ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
         } else {
             crate::reading::show(app, ui);
         }
     });
+    // Enter on a selected draft goes on writing it (#651). Only a new press that is the main
+    // window's, with nothing focused: not a text field's, nor a dialog's.
+    if !composing && app.session.sel.messages.len() == 1 {
+        let draft = app.session.sel.focus().and_then(|id| app.session.mailbox.messages.get(&id)).is_some_and(|m| m.draft);
+        if draft && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
+            let _ = app.run("mail.editDraft", json!({}));
+        }
+    }
 }
 
 /// A row and the line under it: 72 with one line of preview (15 clear above the sender's
@@ -170,6 +187,20 @@ const ONE_LINE_SENDER_MIN: f32 = 70.0;
 /// not less than 90 or more than 220 (and never more than the room).
 fn one_line_sender_width(room: f32) -> f32 {
     (room / 3.0).clamp(ONE_LINE_SENDER_MIN, 220.0).min(room.max(0.0))
+}
+
+/// What a row gives up with tighter spacing (`view.density`): a single-line row stays centred on
+/// its line, a taller one gives half of it up above the sender and half under its last line.
+const TIGHTER_ONE_LINE: f32 = 6.0;
+const TIGHTER_ROWS: f32 = 10.0;
+
+/// How much shorter a row is with tighter spacing on (`tight`): nothing when it is off.
+fn tightening(tight: bool, one_line: bool) -> f32 {
+    match (tight, one_line) {
+        (false, _) => 0.0,
+        (true, true) => TIGHTER_ONE_LINE,
+        (true, false) => TIGHTER_ROWS,
+    }
 }
 
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
@@ -446,11 +477,21 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
         return;
     }
     let t = Tokens::get(ui.ctx());
-    let scope = if app.session.view.scope == mailcraft_engine::Scope::Everywhere {
-        tl!("All Mailboxes").to_string()
-    } else {
+    let mb = &app.session.mailbox;
+    let folder = mb.folder(app.session.view.folder);
+    let scope = match app.session.view.scope {
+        mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+        // The account in view, by the name the folder pane gives it (#493).
+        mailcraft_engine::Scope::Mailbox => folder
+            .and_then(|f| mb.account(f.account))
+            .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
+        mailcraft_engine::Scope::Subfolders => {
+            folder.map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))])).unwrap_or_default()
+        }
         // (A shared mailbox's folder with the mailbox it is in, #70.)
-        app.session.mailbox.folder(app.session.view.folder).map(|f| crate::nav::folder_label(&app.session.mailbox, f)).unwrap_or_default()
+        mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
     };
     let said = match found {
         0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
@@ -487,9 +528,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
     if !app.session.view.search.trim().is_empty() {
-        let folder = app.session.view.folder;
-        let everywhere = app.session.view.scope == mailcraft_engine::Scope::Everywhere;
-        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && (everywhere || m.folder == folder)).count();
+        let in_view = mailcraft_engine::list::in_view(&app.session);
+        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && in_view(m)).count();
         if partly > 0 {
             let said = crate::i18n::fmt(
                 tl!("{count} messages weren't searched in full: only their beginning is here until they download."),
@@ -526,6 +566,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // The rows of a search on the server keep the height the preview lines ask for.
     let server_h = row_height(app.session.prefs.preview_lines);
     let row_h = if one_line { ONE_LINE_H } else { server_h };
+    let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
     let local: std::collections::HashSet<Id> =
@@ -568,13 +609,20 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
-    let focus = app.session.sel.focus().map(|id| (id, app.session.sel.focus_copy()));
+    // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
+    // newer message of its open conversation came, and its own row there is another), and for one
+    // picked as its conversation, the conversation's row.
+    let focus = app.session.sel.focus_in(&rows).and_then(|i| rows.get(i)).map(|r| (r.id, r.copy));
+    // What is drawn selected (#503).
+    let drawn = drawn_selection(app, &rows);
     let outer = ui.available_rect_before_wrap();
+    // Page Up and Page Down move by the rows that fit (#426).
+    app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
     let lane = scroll_lane(outer);
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
     if scrolls && !overlay {
-        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, if t.dark { t.panel } else { t.canvas });
+        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, t.lane);
     }
     // The handle keeps clear of the arrows at the ends of its lane (a lane too short for them
     // has none).
@@ -598,6 +646,16 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
         // list's right edge where the bar floats over them).
         let width = (area.width() - lane_w).max(0.0);
+        // After a move from the keyboard, the row with the focus comes into view, however far it
+        // is (End, Page Down), with its group's heading when it starts one.
+        if reveal
+            && let Some(i) = rows.iter().position(|r| Some((r.id, r.copy)) == focus)
+            && let (Some(top), Some(row)) = (tops.get(i).copied(), rows.get(i))
+        {
+            let above = if row.group.is_some() { GROUP_H } else { 0.0 };
+            let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
+            ui.scroll_to_rect(rect, None);
+        }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
         for (i, row) in rows.iter().enumerate().skip(first) {
@@ -606,34 +664,19 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 break;
             }
             if let Some(group) = &row.group {
-                // A box a step lighter than the list (a step darker on a light one), with a line round it.
+                // Text on the list itself: no bar, no box.
                 let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                let fill = t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 });
-                let line = Stroke::new(1.0, t.border_strong);
-                ui.painter().rect_filled(gr, 0.0, fill);
-                // The line under the row above is this box's top edge, except for the first box.
-                let (left, right, bottom) = (gr.min.x + 0.5, gr.max.x - 0.5, gr.max.y - 0.5);
-                let top = if i == 0 { gr.min.y + 0.5 } else { gr.min.y };
-                ui.painter().line_segment([pos2(left, top), pos2(left, gr.max.y)], line);
-                ui.painter().line_segment([pos2(right, top), pos2(right, gr.max.y)], line);
-                ui.painter().line_segment([pos2(gr.min.x, bottom), pos2(gr.max.x, bottom)], line);
-                if i == 0 {
-                    ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
-                }
                 paint_clipped(
                     ui.painter(),
-                    pos2(gr.min.x + 10.0, gr.center().y),
-                    gr.width() - 16.0,
+                    pos2(gr.min.x + 16.0, gr.center().y + 3.0),
+                    gr.width() - 22.0,
                     group_name(group, row.category),
                     semibold(GROUP_TEXT),
-                    t.text,
+                    t.group_label,
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            if reveal && Some((row.id, row.copy)) == focus {
-                ui.scroll_to_rect(rect, None);
-            }
-            message_row(app, ui, row, rect);
+            message_row(app, ui, row, rect, &drawn, focus);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -680,10 +723,11 @@ fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
     Some(mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024)))
 }
 
-/// Whether a row names the folder its message is in, under the time: in a search of every
-/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
+/// Whether a row names the folder its message is in, under the time: in a search of more than
+/// one folder (its subfolders, its mailbox or every mailbox), as Outlook's rows do (#195, #493);
+/// in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope == mailcraft_engine::Scope::Everywhere && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
 
 /// The previews of the rows the list drew last, so that drawing them again reads no message a
@@ -723,28 +767,6 @@ fn preview(ui: &Ui, rev: u64, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
     })
 }
 
-/// A line of dots round `r`, one pixel on and one off: the mark of the row the keys act on.
-fn dotted_frame(p: &egui::Painter, r: Rect, color: Color32) {
-    // A dot is a pixel of the screen, on the screen's own grid, so the line stays one of dots
-    // at any scale. They go out as one mesh: shapes this small are smoothed away otherwise.
-    let dot = 1.0 / p.pixels_per_point().max(0.25);
-    let r = egui::emath::GuiRounding::round_to_pixels(r, p.pixels_per_point());
-    let steps = |length: f32| ((length / (2.0 * dot)).ceil() as usize).min(4000);
-    let mut dots = egui::Mesh::default();
-    let mut put = |x: f32, y: f32| dots.add_colored_rect(Rect::from_min_size(pos2(x, y), vec2(dot, dot)), color);
-    for i in 0..steps(r.width()) {
-        let x = r.min.x + i as f32 * 2.0 * dot;
-        put(x, r.min.y);
-        put(x, r.max.y - dot);
-    }
-    for i in 0..steps(r.height()) {
-        let y = r.min.y + i as f32 * 2.0 * dot;
-        put(r.min.x, y);
-        put(r.max.x - dot, y);
-    }
-    p.add(egui::Shape::mesh(dots));
-}
-
 /// Where a message's follow-up flag stands, as its row in the list shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FollowUp {
@@ -770,7 +792,7 @@ impl FollowUp {
 /// one's tint, or nothing (the list shows through).
 pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: bool) -> Option<Color32> {
     match (selected, follow_up) {
-        (true, _) => Some(if focus { t.selection } else { t.selection.linear_multiply(0.7) }),
+        (true, _) => Some(if focus { t.selection } else { t.selection_unfocused }),
         (false, FollowUp::Flagged | FollowUp::Overdue) => Some(t.flagged_row),
         (false, FollowUp::None) => None,
     }
@@ -779,7 +801,24 @@ pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: b
 /// One message in the list: the sender in the larger size, the subject with the time at the end
 /// of its line, then the preview in the dimmer colour; marks at the right of the sender's line,
 /// category marks and the size of a conversation at the right of the preview's.
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
+/// What the list's `rows` draw selected ([`mailcraft_engine::Session::drawn`]), kept while they
+/// and the selection stay as they are: in a large list, working it out goes through every row,
+/// which a frame can't afford (#503).
+fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
+    let sel = &app.session.sel;
+    if let Some((was, messages, whole, drawn)) = &app.drawn
+        && Arc::ptr_eq(was, rows)
+        && *messages == sel.messages
+        && *whole == sel.whole
+    {
+        return drawn.clone();
+    }
+    let drawn = Arc::new(app.session.drawn(rows));
+    app.drawn = Some((rows.clone(), sel.messages.clone(), sel.whole.clone(), drawn.clone()));
+    drawn
+}
+
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -799,6 +838,20 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let one = app.session.prefs.one_line;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
+    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
+    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0;
+    let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
+    // A conversation's row has an arrow between the read switch and the text (#503): a click opens
+    // or closes it, as Right and Left do.
+    let conversation = row.conversation();
+    let arrow_rect = Rect::from_min_max(pos2(strip.max.x, line1 - 11.0), pos2(rect.min.x + TEXT_LEFT, line1 + 11.0));
+    let arrow = conversation.then(|| {
+        let tip = if row.open { tl!("Hide the messages of this conversation") } else { tl!("Show the messages of this conversation") };
+        app.hit.add("conversationArrow", row.id, arrow_rect);
+        ui.interact(arrow_rect, ui.scope_id().with(("msg_arrow", key)), Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .on_hover_text(tip)
+    });
     // Quick actions on the row under the pointer, at the right of the sender's line: flag (where
     // a flagged message wears its flag) and delete. Like the read switch they sit on top of the
     // row and leave the selection alone.
@@ -819,53 +872,84 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         app.hit.add("messageFlag", row.id, flag_rect);
         (delete, flag)
     });
-    let selected = app.session.sel.messages.contains(&row.id);
+    // What Delete takes is what is drawn selected: an open conversation's row when it was picked
+    // as the conversation, and under it the rows of what is taken (#503).
+    let selected = drawn.shows(row);
     // The focus is on one of a message's rows: the one clicked or stepped to.
-    let focus = app.session.sel.focus() == Some(row.id) && app.session.sel.focus_copy() == row.copy;
+    let focus = focus == Some((row.id, row.copy));
     let p = ui.painter();
     // The row is what is above the line under it; its content starts a little in from the list's edge.
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
     let follow_up = FollowUp::of(&m, &app.session);
     let fill = row_fill(&t, follow_up, selected, focus);
-    if let Some(fill) = fill {
-        p.rect_filled(body, 0.0, fill);
-        if fill == t.flagged_row {
+    // A selected row is a rounded card a little in from the list's edges: its fill and an
+    // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
+    // through the selection rather than being replaced by it.
+    let card = body.shrink2(vec2(4.0, 1.0));
+    let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
+    if flag_tint {
+        if selected {
+            p.rect_filled(card, 6.0, t.flagged_row);
+        } else {
+            p.rect_filled(card, 6.0, t.flagged_row);
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
-    if !selected && (resp.hovered() || read_resp.hovered() || quick.is_some()) {
+    if let (true, Some(fill)) = (selected, fill) {
+        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
+        let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
+        p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+    }
+    if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
         // The pointer's shade goes over a flagged row's tint.
-        p.rect_filled(body, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(card, 6.0, t.hover_subtle);
     }
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
     if overdue {
         app.hit.add("messageOverdue", row.id, body);
     }
-    // Unread wears the bar; under the pointer it widens, and a read message shows a faint one
-    // so the switch can be found.
-    let bar = Rect::from_min_max(body.min, pos2(body.min.x + if read_resp.hovered() { 6.0 } else { 4.0 }, body.max.y));
+    // Unread wears a dot in the accent; under the pointer a read message shows a ring, so the
+    // switch can be found.
+    let dot = pos2(body.min.x + 13.0, line1);
     if unread {
-        p.rect_filled(bar, 0.0, t.accent);
+        p.circle_filled(dot, 4.0, t.accent);
     } else if read_resp.hovered() {
-        p.rect_filled(bar, 0.0, t.accent.linear_multiply(0.4));
+        p.circle_stroke(dot, 3.5, Stroke::new(1.2, t.selection_edge_unfocused));
     }
-    if selected && focus {
-        // The message the keys act on has a line of dots round it.
-        dotted_frame(p, body, t.text_dim);
+    if !selected {
+        p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.border_faint));
     }
-    let rule = if t.dark { t.border_strong } else { t.border };
-    p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
+    // What is in the row is laid out from its top as in a row of the full height, moved up with
+    // its lines (the background and the line under it are the row's own, above).
+    let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
+    if let Some(arrow) = &arrow {
+        let at = Rect::from_center_size(arrow_rect.center(), vec2(12.0, 12.0));
+        icons::paint(p, at, if row.open { "expanded" } else { "collapsed" }, if arrow.hovered() { t.text } else { t.icon }, t.accent);
+    }
 
-    // Sent, drafts and outbox show who it went to rather than who wrote it.
-    let outgoing = app.session.mailbox.folder(m.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    // Sent, drafts and outbox show who it went to rather than who wrote it; a message under its
+    // conversation only in a list of those, so a reply in Sent Items listed in the Inbox says who
+    // wrote it, and so does mail that came in, listed in Sent Items (#503).
+    let outgoing_folder =
+        |folder| app.session.mailbox.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    let outgoing = outgoing_folder(m.folder) && (row.under.is_none() || outgoing_folder(app.session.view.folder));
     let who = if outgoing {
         let names: Vec<&str> = m.to.iter().map(|a| a.display()).collect();
         if names.is_empty() { tl!("(no recipients)").to_string() } else { names.join("; ") }
     } else {
         m.from.display().to_string()
     };
-    let left = rect.min.x + TEXT_LEFT;
+    // The picture (or the initials) of who wrote it, or of who it went to.
+    let pictured = app.ui.sender_images && !one;
+    // A message under its open conversation starts a step further in (#503).
+    let text_left = TEXT_LEFT + if row.under.is_some() { UNDER_INDENT } else { 0.0 };
+    if pictured {
+        let who = if outgoing { m.to.first().unwrap_or(&m.from) } else { &m.from };
+        let center = pos2(rect.min.x + text_left + AVATAR_RADIUS, rect.min.y + AVATAR_Y);
+        crate::sender_images::avatar(app, ui, center, AVATAR_RADIUS, &m, who);
+    }
+    let left = rect.min.x + text_left + if pictured { 2.0 * AVATAR_RADIUS + AVATAR_GAP } else { 0.0 };
     // Where the time ends, and where the text of every line does.
     let time_end = rect.max.x - TIME_RIGHT;
     let text_end = rect.max.x - TEXT_RIGHT;
@@ -876,7 +960,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
-        (true, false) => (semibold(LIST_TEXT), t.accent_text),
+        (true, false) => (semibold(LIST_TEXT), t.text),
         (true, true) => (semibold(LIST_TEXT), t.overdue),
         (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
     };
@@ -906,10 +990,19 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         one_date_w = p.text(pos2(time_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
         x = time_end - one_date_w - 10.0;
     }
+    // The server says its sender's checks failed, or its name hides another address (#508): the
+    // first of the marks, where it is seen.
+    let warned = crate::reading::warning_mark(app, &m);
+    if warned {
+        app.hit.add("messageWarning", row.id, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)));
+    }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
         x -= 15.0;
     };
+    if warned {
+        marker("warning", t.icon);
+    }
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);
     if let Some(meeting) = meeting {
@@ -969,7 +1062,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         app.hit.add("messageSize", row.id, at);
         sx = at.min.x - 6.0;
     }
-    if let Some(folder) = shows_folder(&app.session).then(|| app.session.mailbox.folder(m.folder)).flatten() {
+    // (And under an open conversation, a message of another folder: a reply in Sent Items, #503.)
+    let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
+    if let Some(folder) = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
@@ -980,8 +1075,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
-    if row.members.len() > 1 {
-        let n = row.members.len().to_string();
+    // How many messages the conversation has, in every folder: what opens under it (#503).
+    if conversation {
+        let n = row.size().to_string();
         let w = n.len() as f32 * 6.5 + 10.0;
         let br = Rect::from_min_max(pos2(sx - w, tail_y - 7.0), pos2(sx, tail_y + 7.0));
         p.rect_filled(br, 7.0, t.pressed);
@@ -993,7 +1089,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     }
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
     let (sfont, scolor) = match (unread, overdue) {
-        (true, false) => (semibold(LIST_TEXT), t.accent_text),
+        (true, false) => (semibold(LIST_TEXT), t.text),
         (true, true) => (semibold(LIST_TEXT), t.overdue),
         (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
     };
@@ -1023,7 +1119,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     // Dragging a row carries it to a folder: the whole selection when the row is part of it,
     // otherwise just what the row stands for.
     if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.sel.messages.to_vec() } else { row.members.clone() };
+        let ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
         resp.dnd_set_drag_payload(MessageDrag(ids));
     }
     if let Some((delete, flag)) = &quick {
@@ -1035,30 +1131,39 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
             let _ = app.run("mail.toggleFlag", json!({"ids": [row.id]}));
         }
     }
+    if let Some(arrow) = &arrow
+        && arrow.clicked()
+    {
+        let command = if row.open { "mail.collapseConversation" } else { "mail.expandConversation" };
+        let _ = app.run(command, json!({"id": row.id}));
+        return;
+    }
     if read_resp.clicked() {
         // A conversation is read once all of it is; its newest message makes it unread again.
         let (command, ids) = if unread { ("mail.markRead", row.members.clone()) } else { ("mail.markUnread", vec![row.id]) };
         let _ = app.run(command, json!({"ids": ids}));
     }
-    clicks(app, ui, &resp, row, &m);
+    clicks(app, ui, &resp, row, &m, selected);
 }
 
-fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message) {
+fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message, selected: bool) {
     let (id, copy) = (row.id, row.copy);
     let mods = ui.input(|i| i.modifiers);
     if resp.clicked() {
         let _ = app.run("mail.select", json!({"id": id, "copy": copy, "extend": mods.command, "range": mods.shift}));
     }
-    // A double click opens the message: a draft in the composer, any other in a window of its own.
+    // A double click opens the message in a window of its own: a draft ready to be written in
+    // (#286), any other to read.
     if resp.double_clicked() {
-        let _ = if m.draft { app.run("mail.editDraft", json!({"id": id})) } else { app.run("ui.openWindow", json!({"message": id})) };
+        let _ = app.run("ui.openWindow", json!({"message": id}));
     }
-    // A right click on a row outside the selection acts on that row.
-    if resp.secondary_clicked() && !app.session.sel.messages.contains(&id) {
+    // A right click on a row outside the selection acts on that row (a conversation's row and
+    // its newest message's own row under it are two rows, #503).
+    if resp.secondary_clicked() && !selected {
         let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
-    let in_junk = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Junk);
+    let sent = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Sent);
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::mi;
@@ -1067,11 +1172,16 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             ui.separator();
         } else {
             mi(ui, app, "Open in a Window", "ui.openWindow", json!({"message": id}));
+            if sent {
+                mi(ui, app, "Resend Message", "mail.resend", json!({}));
+            }
             ui.separator();
         }
         mi(ui, app, "Reply", "mail.reply", json!({}));
         mi(ui, app, "Reply All", "mail.replyAll", json!({}));
+        mi(ui, app, "Reply and Delete", "mail.replyAndDelete", json!({}));
         mi(ui, app, "Forward", "mail.forward", json!({}));
+        mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
         mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
         mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
@@ -1087,17 +1197,17 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             );
         });
         ui.separator();
-        ui.menu_button(tl!("Move"), |ui| {
-            crate::ribbon::folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
+        // (Greyed for mail a JMAP account's server has, which stays where it is for now.)
+        let movable = app.session.enabled("mail.move");
+        ui.add_enabled_ui(movable, |ui| {
+            ui.menu_button(tl!("Move"), |ui| {
+                crate::ribbon::folder_menu(ui, app, |app, folder| {
+                    let _ = app.run("mail.move", json!({"folder": folder}));
+                });
             });
         });
         mi(ui, app, "Archive", "mail.archive", json!({}));
-        if in_junk {
-            mi(ui, app, "Not Junk", "mail.notJunk", json!({}));
-        } else {
-            mi(ui, app, "Junk", "mail.junk", json!({}));
-        }
+        ui.menu_button(tl!("Junk"), |ui| crate::ribbon::junk_menu(ui, app));
         mi(ui, app, "Delete", "mail.delete", json!({}));
         ui.separator();
         mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
@@ -1105,11 +1215,22 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
         mi(ui, app, "Messages from Sender", "mail.findFromSender", json!({"id": id}));
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
+        mi(ui, app, "View Source", "mail.viewSource", json!({}));
     });
 }
 
 #[cfg(test)]
+mod density_tests;
+#[cfg(test)]
+mod focus_stays_tests;
+#[cfg(test)]
+mod forward_attachment_tests;
+#[cfg(test)]
 mod from_sender_menu_tests;
+#[cfg(test)]
+mod hidden_selection_tests;
+#[cfg(test)]
+mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
 

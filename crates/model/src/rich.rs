@@ -3,7 +3,8 @@
 //! The text of a message being written, in rich text: paragraphs of runs.
 //!
 //! The set is deliberately small (the roadmap's minimal rich-text reply): bold, italic,
-//! underline, one font size, a text colour, a font from a short list ([`Font`]), links to `http`,
+//! underline, one font size, a text colour, a highlight behind the text, a font from a short list
+//! ([`Font`]), links to `http`,
 //! `https`, `mailto` and `tel` addresses, and paragraphs that are plain, bulleted or numbered.
 //! Nothing else can be expressed, so nothing else can be sent: pasted formatting is reduced to
 //! this set before it gets here (`mailcraft_mime::rich`), and the HTML that goes out is written
@@ -27,8 +28,10 @@ use serde::{Deserialize, Serialize};
 use crate::ModelError;
 
 mod body;
+mod find;
 
 pub use body::{MAX_UNDO, RichBody, Selection};
+pub use find::{MAX_FIND, Place};
 
 /// Most characters one body holds (counting one for each paragraph break).
 pub const MAX_CHARS: usize = 1 << 20;
@@ -155,6 +158,9 @@ pub struct Style {
     /// Font; `None` for the message's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font: Option<Font>,
+    /// A highlight behind the text, `#rrggbb` ([`safe_color`]); `None` for none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub highlight: Option<String>,
 }
 
 impl Style {
@@ -163,6 +169,7 @@ impl Style {
         self.size = self.size.map(clamp_size);
         self.link = self.link.as_deref().and_then(safe_link);
         self.color = self.color.as_deref().and_then(safe_color);
+        self.highlight = self.highlight.as_deref().and_then(safe_color);
         self
     }
 
@@ -177,18 +184,34 @@ pub fn clamp_size(points: u8) -> u8 {
     points.clamp(MIN_SIZE, MAX_SIZE)
 }
 
-/// A link address as it may be kept and sent: `http`, `https`, `mailto` and `tel` only (the
-/// scheme in any letter case), at most [`MAX_LINK`] bytes, nothing invisible or blank inside.
-/// `http` and `https` need a host. Spaces around it are dropped; anything else is `None`.
+const UNSAFE_SCHEMES: [&str; 5] = ["javascript", "vbscript", "data", "file", "cid"];
+
+/// A link address as it may be kept and written into outgoing mail: any well-formed URI scheme
+/// (RFC 3986: a letter, then letters, digits, `+`, `-` or `.`, then `:` and something after it)
+/// except the ones that run or embed content (`javascript`, `vbscript`, `data`, `file`) and `cid`
+/// (an attachment reference, not an address), the scheme in any letter case; at most
+/// [`MAX_LINK`] bytes, nothing invisible or blank inside. `http` and `https` need a host. Spaces
+/// around it are dropped; anything else is `None`. This is only for what the owner writes: the
+/// links of received mail are followed by a narrower rule (`mailcraft_link`).
 pub fn safe_link(url: &str) -> Option<String> {
     let url = url.trim_matches(' ');
     if url.is_empty() || url.len() > MAX_LINK || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return None;
     }
     let (scheme, rest) = url.split_once(':')?;
+    let mut chars = scheme.chars();
+    if !chars.next().is_some_and(|c| c.is_ascii_alphabetic()) || !chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) {
+        return None;
+    }
+    if UNSAFE_SCHEMES.iter().any(|s| scheme.eq_ignore_ascii_case(s)) {
+        return None;
+    }
     let web = ["http", "https"].iter().any(|s| scheme.eq_ignore_ascii_case(s));
-    let other = ["mailto", "tel"].iter().any(|s| scheme.eq_ignore_ascii_case(s));
-    let ok = if web { rest.strip_prefix("//").is_some_and(|host| !host.is_empty() && !host.starts_with('/')) } else { other && !rest.is_empty() };
+    let ok = if web {
+        rest.strip_prefix("//").is_some_and(|host| !host.is_empty() && !host.starts_with('/')) && mailcraft_link::WebLink::parse(url).is_some()
+    } else {
+        !rest.is_empty()
+    };
     ok.then(|| url.to_string())
 }
 
@@ -392,6 +415,11 @@ pub enum Format {
     Color(Option<String>),
     /// A font, or `None` for the message's own.
     Font(Option<Font>),
+    /// A `#rrggbb` highlight ([`safe_color`]), or `None` for none.
+    Highlight(Option<String>),
+    /// Every look of another piece of text (Format Painter): all of [`Style`] but the link, which
+    /// is where the text leads, not how it looks.
+    Look(Style),
     /// Back to plain text, links and all.
     Clear,
 }
@@ -406,6 +434,11 @@ impl Format {
             Format::Link(url) => style.link = url.as_deref().and_then(safe_link),
             Format::Color(color) => style.color = color.as_deref().and_then(safe_color),
             Format::Font(font) => style.font = *font,
+            Format::Highlight(color) => style.highlight = color.as_deref().and_then(safe_color),
+            Format::Look(look) => {
+                let link = style.link.take();
+                *style = Style { link, ..look.clone().clean() };
+            }
             Format::Clear => *style = Style::default(),
         }
     }
@@ -853,9 +886,11 @@ impl RichText {
         if let Format::Link(Some(url)) = change
             && safe_link(url).is_none()
         {
-            return Err(ModelError::Invalid("a link goes to an http, https, mailto or tel address".into()));
+            return Err(ModelError::Invalid(
+                "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:".into(),
+            ));
         }
-        if let Format::Color(Some(color)) = change
+        if let Format::Color(Some(color)) | Format::Highlight(Some(color)) = change
             && safe_color(color).is_none()
         {
             return Err(ModelError::Invalid("a colour is written #rrggbb".into()));
@@ -948,3 +983,6 @@ pub fn numbers(paragraphs: &[Paragraph]) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod find_tests;

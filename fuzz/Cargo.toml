@@ -13,13 +13,15 @@ license = "MIT OR Apache-2.0"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
 mailcraft-dav = { path = "../crates/dav" }
+libfuzzer-sys = "0.4"
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
 mailcraft-ical = { path = "../crates/ical" }
 mailcraft-jmap = { path = "../crates/jmap" }
+mailcraft-ews = { path = "../crates/ews" }
+mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-vcard = { path = "../crates/vcard" }
@@ -37,6 +39,13 @@ bench = false
 [[bin]]
 name = "html"
 path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sheet"
+path = "fuzz_targets/sheet.rs"
 test = false
 doc = false
 bench = false
@@ -112,6 +121,34 @@ doc = false
 bench = false
 
 [[bin]]
+name = "ews"
+path = "fuzz_targets/ews.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "link"
+path = "fuzz_targets/link.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ews_autodiscover"
+path = "fuzz_targets/ews_autodiscover.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ews_ntlm"
+path = "fuzz_targets/ews_ntlm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "dav_xml"
 path = "fuzz_targets/dav_xml.rs"
 test = false
@@ -124,3 +161,4 @@ path = "fuzz_targets/dav_document.rs"
 test = false
 doc = false
 bench = false
+

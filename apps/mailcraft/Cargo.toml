@@ -14,15 +14,24 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
-url = { workspace = true }
+mailcraft-link = { workspace = true }
 image = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }
 # Sockets: Send/Receive runs on a background thread.
 mailcraft-net = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links"] }
+# Exchange server accounts (#252): the requests and the readers of the answers; the HTTPS is `mailcraft-net`'s.
+mailcraft-ews = { workspace = true }
+# `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
+# we turn the defaults off); without it nothing is copied, on any platform.
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
 egui = { workspace = true }
+# The monitors connected now, which egui doesn't list, so that a window restored onto a monitor
+# that is gone opens on the main one (#719): read from the window eframe made. Already in the
+# tree: eframe runs on it; the same version, nothing added to it here (Linux and FreeBSD add their
+# features below).
+winit = { version = "0.30", default-features = false }
 serde_json = { workspace = true }
 log = { workspace = true }
 
@@ -31,6 +40,12 @@ log = { workspace = true }
 # a stand-in for Microsoft Graph that takes only what the documented service takes
 # (`mailcraft_net::graph::standin`).
 mailcraft-net = { workspace = true, features = ["stand-in"] }
+# The window reading a JMAP account through a host, against the JMAP client and its server in the
+# process (`mailcraft_jmap::standin`): in a test's build only.
+mailcraft-jmap = { workspace = true, features = ["stand-in"] }
+# The window reading an Exchange server account through a host, against the strict stand-in
+# for Exchange Web Services behind a loopback server (`mailcraft_ews::standin`): in a test's build only.
+mailcraft-ews = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }
@@ -124,10 +139,6 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 # release in the update test (`update_flow`).
 ring = { workspace = true }
 rfd = { workspace = true }
-# Opens Microsoft's sign-in and approval pages in the system's browser, and says when no browser
-# could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
-# `links` feature runs on it.
-webbrowser = "1.2"
 # The system's clipboard with HTML on it, for copying and pasting formatted text in a message
 # being written (egui's own clipboard carries text only). Already in the tree: egui's window
 # layer copies text through it.

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Scheduling Assistant: the second page of a meeting's window, as Outlook has it.
+//! Find a Time: the second page of a meeting's window, everybody's free and busy time on a grid.
 //!
 //! A row for everybody (the organizer first, then the people who are required and the ones who
 //! are optional) over the day the meeting is on, with the working hours lighter than the rest
@@ -50,7 +50,7 @@ const SNAP: i64 = 30;
 /// How wide the part of an edge of the meeting's band is that takes hold of it.
 const EDGE_W: f32 = 7.0;
 
-/// What the host is asked to find out for the Scheduling Assistant
+/// What the host is asked to find out for Find a Time
 /// ([`Services::free_busy`](crate::Services::free_busy)): when the people of `ask` are busy, as
 /// far as the account may know. It reads; nothing is written and nobody is told.
 pub struct FreeBusyRequest {
@@ -121,7 +121,7 @@ pub(crate) struct Store {
     pub(crate) asked: u64,
 }
 
-/// What the Scheduling Assistant gets when it looks.
+/// What Find a Time gets when it looks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Look {
     /// What is known of each of the people, by address (in lower case).
@@ -197,6 +197,9 @@ impl MailApp {
         };
         if self.services.free_busy.is_none() {
             return Err(tl!("This build can't ask a server when other people are busy: only your own calendar is shown.").to_string());
+        }
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         if self.graph_consent_needed.contains(&account.id) {
             return Err(tl!("Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts").to_string());
@@ -419,7 +422,7 @@ pub(crate) struct Drawn {
     pub note: String,
 }
 
-/// The Scheduling Assistant's own state in a window.
+/// Find a Time's own state in a window.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct View {
     /// The grid was scrolled to the working day once.
@@ -718,7 +721,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             if let Some((start, end)) = span {
                 let (from, to) = (start.clamp(0, i64::from(DAY)) as f32, end.clamp(0, i64::from(DAY)) as f32);
                 let band = Rect::from_min_max(pos2(x_of(from), grid.min.y), pos2(x_of(to).max(x_of(from) + 2.0), grid.max.y));
-                painter.rect_filled(band, 0.0, t.accent.linear_multiply(if t.dark { 0.28 } else { 0.16 }));
+                painter.rect_filled(band, 0.0, t.band_meeting);
                 painter.line_segment([band.left_top(), band.left_bottom()], Stroke::new(2.0, t.green));
                 painter.line_segment([band.right_top(), band.right_bottom()], Stroke::new(2.0, t.red));
                 let held = band.intersect(grid);

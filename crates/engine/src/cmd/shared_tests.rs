@@ -246,7 +246,12 @@ fn a_send_exchange_wont_let_go_as_a_shared_mailbox_is_held_and_says_its_address(
     s.run("mail.new", &json!({"to": "bob@example.org", "subject": "Hello"})).unwrap();
     let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
     let mut result = GraphMailResult { account: shared, email: SHARED.into(), ..Default::default() };
-    result.sent = vec![SendDone { message: id, outcome: SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() }, draft: None }];
+    result.sent = vec![SendDone {
+        message: id,
+        outcome: SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() },
+        draft: None,
+        draft_left: String::new(),
+    }];
     apply_graph_mail(&mut s, result).unwrap();
     let m = s.mailbox.message(id).unwrap();
     assert!(m.held.contains(&format!("permission to send as {SHARED}")) && m.held.contains("Nothing was sent from another address"), "{}", m.held);
@@ -457,6 +462,29 @@ fn mail_doesnt_move_between_a_shared_mailbox_and_another_accounts_mailbox() {
         assert!(e.contains("its own account's mailboxes only"), "{command}: {e}");
     }
     assert!(graph_mail_request(&s, stranger).unwrap().places.is_empty());
+}
+
+#[test]
+fn mail_moves_between_a_shared_mailbox_and_an_imap_account_by_way_of_the_imap_server() {
+    let (mut s, _owner, shared) = both();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let imap = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let delta = mailcraft_model::sync::FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, ..Default::default() };
+    let result = mailcraft_model::sync::SyncResult { account: imap, folders: vec![delta], ..Default::default() };
+    crate::cmd::account::apply_sync(&mut s, result).unwrap();
+    let (theirs_inbox, imap_inbox) =
+        (s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap());
+    // Out of the shared mailbox: put on the IMAP server, and out of the shared mailbox once it is there.
+    let one = theirs(&s, shared)[0];
+    whole(&mut s, one);
+    s.run("mail.move", &json!({"ids": [one], "folder": imap_inbox})).unwrap();
+    let m = s.mailbox.message(one).unwrap();
+    assert_eq!((m.account, m.moving_out.as_ref().map(|o| o.account)), (imap, Some(shared)));
+    assert_eq!(crate::cmd::account::sync_request(&s, imap).unwrap().places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [one]);
+    // And into it, made there by its own run.
+    let mine = s.mailbox.add_message(mailcraft_model::Message { folder: imap_inbox, uid: 9, subject: "Mine".into(), ..Default::default() }).unwrap();
+    s.run("mail.copy", &json!({"ids": [mine], "folder": theirs_inbox})).unwrap();
+    assert_eq!(graph_mail_request(&s, shared).unwrap().places.len(), 1);
 }
 
 #[test]

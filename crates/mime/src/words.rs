@@ -119,6 +119,18 @@ fn q_decode(text: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Whether a field of this name (in lower case), of those kept in `Message::headers`, is
+/// unstructured text, where encoded-words are words (RFC 2047, 5 (1)).
+///
+/// Only these are decoded when read, and encoded when written. Every other kept field is kept as
+/// it was written: a structured one has no encoded-words outside its phrases and comments (RFC
+/// 2047, 5), and a trace or authentication field (`Received`, `Authentication-Results`, `ARC-…`,
+/// `Received-SPF`, `DKIM-Signature`) is read as the server wrote it, so that what a server copied
+/// into it from the sender never becomes words of the server's own.
+pub(crate) fn has_words(name: &str) -> bool {
+    matches!(name, "comments" | "organization" | "thread-topic")
+}
+
 /// Whether text can go in a header field as it is: printable ASCII that doesn't look like an encoded-word.
 pub(crate) fn is_plain(s: &str) -> bool {
     s.bytes().all(|b| (0x20..=0x7E).contains(&b)) && !s.contains("=?")

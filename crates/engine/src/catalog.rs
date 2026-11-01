@@ -18,6 +18,7 @@ File|Backstage|Open Mailbox File|file.open
 File|Backstage|Save Mailbox|file.save
 File|Backstage|Save Mailbox As|file.saveAs
 File|Backstage|Import|file.import
+File|Backstage|Import a Folder of Mailboxes|file.importFolderTree
 File|Backstage|Export Folder|file.exportFolder
 File|Backstage|Save Message As|file.exportMessage
 File|Backstage|Save Calendar|file.exportCalendar
@@ -31,7 +32,7 @@ File|Backstage|Mailbox Cleanup|file.cleanup
 File|Backstage|Rules and Alerts|rules.list
 File|Backstage|Open Data File|file.openDataFile
 File|Backstage|Open Shared Calendar|calendar.openShared
-File|Backstage|Office Account|file.account
+File|Backstage|Account|file.account
 Quick Access|Toolbar|Send/Receive All Folders|sync.request
 Quick Access|Toolbar|Undo|edit.undo
 Quick Access|Toolbar|Redo|edit.redo
@@ -49,6 +50,7 @@ Search|Results|More Results on the Server|sync.graphSearchRequest
 Search|Options|Recent Searches|view.recentSearches
 Search|Options|Search Folders|folder.newSearchFolder
 Home|New|New Email|mail.new
+Home|New|New Email in a Window of Its Own|mail.new
 Home|New|New Appointment|calendar.new
 Home|New|New Meeting|calendar.newMeeting
 Home|New|New Contact|people.new
@@ -58,6 +60,10 @@ Home|Delete|Ignore Conversation|mail.ignore
 Home|Delete|Clean Up Conversation|mail.cleanUp
 Home|Delete|Junk|mail.junk
 Home|Delete|Not Junk|mail.notJunk
+Home|Delete|Block Sender|junk.blockSender
+Home|Delete|Never Block Sender|junk.neverBlockSender
+Home|Delete|Never Block Sender's Domain|junk.neverBlockDomain
+Home|Delete|Junk E-mail Options|junk.list
 Home|Delete|Delete|mail.delete
 Home|Delete|Permanently Delete|mail.deletePermanently
 Home|Delete|Archive|mail.archive
@@ -67,10 +73,10 @@ Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
 Home|Respond|Reply with IM|mail.replyIm
-Home|Quick Steps|Move to Folder Quick Step|mail.move
-Home|Quick Steps|Reply and Delete|mail.replyAndDelete
-Home|Quick Steps|Create Quick Step|quickSteps.new
-Home|Quick Steps|Manage Quick Steps|quickSteps.manage
+Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
+Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete
+Home|Action Shortcuts|Create Action Shortcut|quickSteps.new
+Home|Action Shortcuts|Manage Action Shortcuts|quickSteps.manage
 Home|Move|Move|mail.move
 Home|Move|Copy to Folder|mail.copy
 Home|Move|Create Rule|rules.add
@@ -147,7 +153,7 @@ View|Layout|Use Tighter Spacing|view.density
 View|People Pane|People Pane|view.peoplePane
 View|Window|Reminders Window|view.reminders
 View|Window|Open in New Window|view.newWindow
-View|Window|Immersive Reader|view.immersiveReader
+View|Window|Focus Reading|view.immersiveReader
 View|Window|Zoom|view.zoom
 Navigation|Modules|Mail|view.mail
 Navigation|Modules|Calendar|view.calendar
@@ -184,18 +190,27 @@ Message|Send|Save Draft|compose.saveDraft
 Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
+Message|Window|Pop Out|compose.popOut
 Message|Send|Open Draft|mail.editDraft
+Insert|Include|Item|compose.attachItem
+Insert|Include|Business Card|insert.businessCard
+Insert|Include|Calendar|insert.calendar
 Insert|Tables|Table|insert.table
 Insert|Illustrations|Pictures|insert.picture
 Insert|Illustrations|Shapes|insert.shape
 Insert|Illustrations|Icons|insert.icon
+Insert|Illustrations|3D Models|insert.models3d
+Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
-Insert|Text|Quick Parts|insert.quickParts
+Insert|Text|Saved Text|insert.quickParts
+Insert|Text|Text Effects|insert.textEffects
+Insert|Text|Drop Cap|insert.dropCap
 Insert|Text|Date & Time|insert.dateTime
+Insert|Text|Object|insert.object
 Insert|Symbols|Symbol|insert.symbol
 Insert|Symbols|Equation|insert.equation
 Insert|Symbols|Horizontal Line|insert.rule
@@ -238,7 +253,7 @@ Calendar|New|New Meeting|calendar.newMeeting
 Calendar|New|New All Day Event|calendar.new
 Calendar|New|New Recurring Appointment|calendar.new
 Calendar|Go To|Today|view.today
-Calendar|Go To|Next 7 Days|view.next7
+Calendar|Go To|Next 7 Days|view.next7Days
 Calendar|Go To|Back|view.previous
 Calendar|Go To|Forward|view.next
 Calendar|Go To|Go to Date|view.goToDate
@@ -266,10 +281,10 @@ Appointment|Actions|Delete Occurrence|calendar.delete
 Appointment|Actions|Forward|calendar.forward
 Appointment|Actions|Save as iCalendar|file.exportCalendar
 Appointment|Actions|Copy to My Calendar|calendar.copy
-Appointment|Show|Scheduling Assistant|calendar.freeBusy
+Appointment|Show|Find a Time|calendar.freeBusy
 Appointment|Show|Tracking|calendar.tracking
 Appointment|Attendees|Invite Attendees|calendar.edit
-Appointment|Attendees|Cancel Meeting|calendar.cancel
+Appointment|Attendees|Cancel Meeting|calendar.delete
 Appointment|Attendees|Contact Attendees|calendar.contactAttendees
 Appointment|Options|Show As|calendar.showAs
 Appointment|Options|Reminder|calendar.reminder
@@ -295,6 +310,7 @@ People|Actions|Edit Contact|people.edit
 People|Actions|Add to Favorites|people.favorite
 People|Actions|Forward Contact|people.forward
 People|Actions|Link Contacts|people.link
+People|Actions|Merge Duplicates|people.merge
 People|Actions|Mail Merge|people.mailMerge
 People|Tags|Categorize|people.categorize
 People|Tags|Follow Up|people.followUp
@@ -326,6 +342,21 @@ Help|Help|Show Training|help.training
 Help|Help|What's New|help.whatsNew
 ";
 
+/// Catalog rows deliberately not built, each with why: the checklist lists them as out of scope
+/// rather than missing. They still count as not implemented in the percentage.
+pub const OUT_OF_SCOPE: [(&str, &str); 5] = [
+    ("mail.edit", "it would rewrite a received message and replace the server's copy of it"),
+    ("people.private", "contacts are read-only from the server (Contacts.Read), so the mark would stay on this computer"),
+    ("people.followUp", "contacts are read-only from the server (Contacts.Read), so the flag would stay on this computer"),
+    ("tasks.private", "Microsoft To Do has no private tasks"),
+    ("sync.groups", "each account is kept in step on its own; there are no Send/Receive groups"),
+];
+
+/// Why the catalog row `id` is out of scope, when it is.
+pub fn out_of_scope(id: &str) -> Option<&'static str> {
+    OUT_OF_SCOPE.iter().find(|(out, _)| *out == id).map(|(_, why)| *why)
+}
+
 /// One catalog line.
 pub struct Feature<'a> {
     pub tab: &'a str,
@@ -345,7 +376,7 @@ pub fn features() -> impl Iterator<Item = Feature<'static>> {
 /// and what is missing.
 pub fn parity(reg: &Registry) -> Value {
     let mut tabs: Vec<(String, usize, usize)> = Vec::new();
-    let mut missing = Vec::new();
+    let (mut missing, mut out_of_scope_rows) = (Vec::new(), Vec::new());
     let (mut total, mut done) = (0usize, 0usize);
     for f in features() {
         total += 1;
@@ -358,8 +389,10 @@ pub fn parity(reg: &Registry) -> Value {
             }
             None => tabs.push((f.tab.to_string(), 1, usize::from(have))),
         }
-        if !have {
-            missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id}));
+        match (have, out_of_scope(f.id)) {
+            (true, _) => {}
+            (false, Some(why)) => out_of_scope_rows.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id, "why": why})),
+            (false, None) => missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id})),
         }
     }
     let percent = if total == 0 { 0.0 } else { (done as f64 * 1000.0 / total as f64).round() / 10.0 };
@@ -370,6 +403,7 @@ pub fn parity(reg: &Registry) -> Value {
         "commands": reg.all().len(),
         "tabs": tabs.iter().map(|(t, n, d)| json!({"tab": t, "total": n, "implemented": d})).collect::<Vec<_>>(),
         "missing": missing,
+        "outOfScope": out_of_scope_rows,
     })
 }
 
@@ -400,6 +434,12 @@ pub fn parity_markdown(reg: &Registry) -> String {
     for m in p.get("missing").and_then(Value::as_array).into_iter().flatten() {
         let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");
         out.push_str(&format!("| {} | {} | {} | `{}` |\n", s("tab"), s("group"), s("feature"), s("id")));
+    }
+    out.push_str("\n## Out of scope\n\nDeliberately not built. These rows count as not implemented in the percentage above.\n\n");
+    out.push_str("| Tab | Group | Feature | Command id | Why |\n|---|---|---|---|---|\n");
+    for m in p.get("outOfScope").and_then(Value::as_array).into_iter().flatten() {
+        let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");
+        out.push_str(&format!("| {} | {} | {} | `{}` | {} |\n", s("tab"), s("group"), s("feature"), s("id"), s("why")));
     }
     out
 }

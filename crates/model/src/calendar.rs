@@ -110,6 +110,21 @@ pub struct OpenedCalendar {
 /// Most calendars one account may have opened by address.
 pub const MAX_OPENED_CALENDARS: usize = 20;
 
+/// A shared mailbox open under an account whose calendar the account's server lists among the
+/// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under
+/// Shared Calendars), and what the owner said when MailCraft offered, once, to hide that copy:
+/// the shared mailbox's own calendar, read at its own address, is the fuller one. Kept on this
+/// computer only; nothing on the server changes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ListedTwice {
+    /// The shared mailbox's address: the owner the server names for the copy.
+    pub address: String,
+    /// The copy under Shared Calendars is hidden: it isn't read from the server, nor shown.
+    /// `false`: the owner kept both (or showed it again).
+    pub hidden: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, from = "CalendarFile")]
 pub struct Calendar {
@@ -377,7 +392,8 @@ impl OnlineMeeting {
         let host = rest.split(['/', '?', '#']).next().unwrap_or("");
         let plain = url.len() <= MAX_JOIN_LINK && !url.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '"' | '<' | '>' | '\\'));
         let named = !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'));
-        (plain && named).then(|| format!("https://{rest}"))
+        let parses = || mailcraft_link::WebLink::parse(url).is_some_and(|l| l.is_https());
+        (plain && named && parses()).then(|| format!("https://{rest}"))
     }
 
     /// The same meeting with a link that can be one, or with none.
@@ -873,6 +889,9 @@ mod tests {
             "",
             "https://",
             "https:///path",
+            "https://[::1",
+            "https://[zz]/x",
+            "https://:443/x",
             "http://teams.example.org/x",
             "javascript:alert(1)",
             "file:///C:/Windows/System32/calc.exe",

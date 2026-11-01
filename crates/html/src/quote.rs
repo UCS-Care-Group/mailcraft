@@ -9,8 +9,9 @@
 //! the sender hid, nor a picture too small to see. Pictures in the message (`cid:`) and ordinary
 //! pictures on the web stay: the recipient's program decides whether to fetch those.
 
-use crate::blocks::picture_url;
+use crate::blocks::{css_of, picture_url};
 use crate::entities::{escape, unescape};
+use crate::sheet::Sheet;
 use crate::style::{self, Css};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{MAX_INPUT, is_embedded, is_safe_url, truncate};
@@ -201,7 +202,18 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// [`MAX_INPUT`] bytes and is linear in them.
 pub fn quotable(html: &str) -> String {
     let mut q = Quoter::default();
-    for token in Tokenizer::new(truncate(html, MAX_INPUT)) {
+    let html = truncate(html, MAX_INPUT);
+    // The message's style sheets are read to see what the sender hid with them; they are not
+    // carried.
+    let mut sheet = Sheet::read(html);
+    let mut opened = 0usize;
+    for mut token in Tokenizer::new(html) {
+        if let Token::Open(tag) = &mut token {
+            if let Some(sheet) = &mut sheet {
+                sheet.apply(opened, tag);
+            }
+            opened = opened.saturating_add(1);
+        }
         q.token(token);
     }
     q.finish()
@@ -426,7 +438,7 @@ fn closed_by(name: &str, opening: &str) -> bool {
 
 /// Whether the sender hid the element: the way the reading pane reads it.
 fn hidden(tag: &Tag<'_>) -> bool {
-    tag.has("hidden") || tag.attr("style").is_some_and(|s| Css::parse(&s).hidden)
+    tag.has("hidden") || css_of(tag).hidden
 }
 
 /// A picture's address as it is carried, when it may be: one in the message, or one on the web

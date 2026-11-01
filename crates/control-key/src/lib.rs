@@ -7,6 +7,10 @@
 
 use std::path::{Path, PathBuf};
 
+pub mod proof;
+#[cfg(test)]
+mod proof_tests;
+
 /// The app's settings folder (preferences, logs, key files): macOS
 /// `~/Library/Application Support/MailCraft`, Windows `%APPDATA%\MailCraft`, otherwise
 /// `$XDG_CONFIG_HOME/mailcraft` or `~/.config/mailcraft`.

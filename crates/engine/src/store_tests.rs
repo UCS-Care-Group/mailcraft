@@ -362,6 +362,29 @@ fn an_old_single_file_opens_and_becomes_the_split_form_on_the_next_save() {
     assert!(crate::io::read_mailbox(br#"{"version":3}"#).unwrap_err().contains("newer MailCraft"));
 }
 
+/// #649: Save As onto the file the mailbox is kept in (the dialog suggests its name) must be a
+/// save, not the one-file form written over it.
+#[test]
+fn save_as_onto_the_mailbox_in_use_never_writes_the_one_file_form() {
+    let tmp = Temp::new("saveas-home");
+    let home = tmp.file();
+    let mut s = Session::new(mailbox(12));
+    s.run("file.save", &json!({"path": home})).unwrap();
+    assert!(blob_dir(&home).is_dir());
+    // The same file under another spelling, too.
+    let dotted = tmp.0.join(".").join(home.file_name().unwrap());
+    for target in [home.clone(), dotted] {
+        let r = s.run("file.saveAs", &json!({"path": target})).unwrap();
+        assert_eq!((r["copy"].as_bool(), s.path.as_deref()), (Some(false), Some(home.as_path())));
+        let head = fs::read(&home).unwrap();
+        assert!(!head.starts_with(b"{"), "the one-file form was written over the mailbox");
+        assert!(blob_dir(&home).is_dir());
+        let mut t = Session::empty();
+        t.run("file.open", &json!({"path": home})).unwrap();
+        assert!(t.loaded_mailbox().unwrap() == s.mailbox);
+    }
+}
+
 #[test]
 fn one_self_contained_file_still_works_everywhere() {
     // What the browser keeps and what Save Mailbox As writes: one file, attachments inside.
@@ -1235,6 +1258,43 @@ fn a_save_that_fails_is_reported_leaves_the_file_and_works_when_tried_again() {
     assert!(!nowhere.parent().unwrap().exists());
 }
 
+/// #470: File › New and File › Open, run by a script, save the message being written to Drafts
+/// first, as #442's commands do, and that draft is in the file of the mailbox left behind;
+/// `discard` lets it go.
+#[test]
+fn another_mailbox_saves_the_message_being_written_to_drafts_first() {
+    let tmp = Temp::new("replace-compose");
+    let (home, other) = (tmp.file(), tmp.0.join("other.mailcraft"));
+    save_single(&other, &mailbox(4)).unwrap();
+    let saver = Saver::spawn(|| {}).unwrap();
+    saver.follow(&home);
+    let draft = |subject: &str| {
+        let mb = open(&home).unwrap().mailbox;
+        mb.messages.values().any(|m| m.draft && m.subject == subject)
+    };
+    for (n, (id, params)) in [("file.new", json!({})), ("file.open", json!({"path": other}))].into_iter().enumerate() {
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        let subject = format!("Half written {n}");
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"to": "ada@example.org", "subject": subject, "body": "Not done yet"})).unwrap();
+        s.run(id, &params).unwrap();
+        assert!(s.compose.is_none(), "{id}");
+        assert!(draft(&subject), "{id}: saved to Drafts in the mailbox left");
+        // Let go of when the caller says so.
+        save(&home, &crate::sample::mailbox(1_791_993_600, 0)).unwrap();
+        let mut s = Session::new(open(&home).unwrap().mailbox);
+        s.path = Some(home.clone());
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.set", &json!({"subject": "Let go"})).unwrap();
+        let mut params = params.clone();
+        params["discard"] = json!(true);
+        s.run(id, &params).unwrap();
+        assert!(!draft("Let go"), "{id}: discarded");
+    }
+}
+
 #[test]
 fn replacing_a_mailbox_a_host_keeps_saved_writes_its_last_changes_first() {
     let tmp = Temp::new("replace");
@@ -1537,7 +1597,10 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     );
     // (An original in HTML is carried below the owner's text; one in plain text is in it.)
     let quoted = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
-    assert!(c.attachments.iter().all(Attachment::is_loaded) && quoted.contains(was.body.text.trim()), "{quoted}");
+    // (An original in HTML is quoted as its HTML reads, line breaks aside, never as its text part.)
+    let said = was.body.html.as_deref().map_or_else(|| was.body.text.clone(), mailcraft_html::to_text);
+    let squash = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(c.attachments.iter().all(Attachment::is_loaded) && squash(&quoted).contains(&squash(said.trim())), "{quoted}");
     s.run("compose.discard", &json!({})).unwrap_or_default();
 
     // Exported as .eml: the files are in it.
@@ -1569,6 +1632,8 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     imap.mailbox.accounts.iter_mut().for_each(|a| a.kind = mailcraft_model::AccountKind::Imap);
     let outbox_folder = imap.mailbox.folder_of_kind(was.account, mailcraft_model::FolderKind::Outbox).unwrap();
     imap.mailbox.move_message(id, outbox_folder).unwrap();
+    // (A message moved into an Outbox is held, not sent, until Send Again: #607.)
+    imap.mailbox.message_mut(id).unwrap().held.clear();
     let request = crate::cmd::account::sync_request(&imap, was.account).unwrap();
     assert!(request.outbox.len() == 1 && request.outbox[0].id == id && request.outbox[0].is_loaded());
 
@@ -1951,6 +2016,9 @@ mod format3;
 #[path = "store_session_tests.rs"]
 mod in_session;
 
+#[path = "store_undo_body_tests.rs"]
+mod undo_body;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
@@ -2013,3 +2081,9 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
     fs::write(t.file(), "{\"messages\":{\"1\":{},\"2\":{}}}").unwrap();
     assert!(with_budget(64 << 20, || open(&t.file())).is_ok());
 }
+
+#[path = "store_launch_tests.rs"]
+mod launch;
+
+#[path = "store_hidden_tests.rs"]
+mod hidden;

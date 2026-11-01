@@ -242,6 +242,16 @@ pub const BLOCKED: &[&str] = &[
     "flatpakrepo",
     "cdxml",
     "swf",
+    // Theme packs, location files that connect to a server, plug-ins and kinds that open in a
+    // program that runs what they hold.
+    "deskthemepack",
+    "afploc",
+    "ftploc",
+    "vncloc",
+    "wcx",
+    "its",
+    "cdr",
+    "smi",
     // MailCraft's own mailbox: its accounts name servers, so one sent in mail is saved, never
     // opened from the message.
     "mailcraft",
@@ -327,7 +337,9 @@ pub fn blocked_message(name: &str) -> String {
 /// name seen is the name written.
 pub fn file_name(name: &str) -> String {
     let leaf = name.rsplit(['/', '\\']).next().unwrap_or_default();
-    let out = clean(leaf);
+    // Explorer reads a comma as the end of an argument and a semicolon is no better: neither
+    // stays in a name an opener may be handed. (Names of exported files keep them, see [`export_name`].)
+    let out = clean(&leaf.replace([',', ';'], "_"));
     if out.is_empty() { "attachment".to_string() } else { out }
 }
 
@@ -344,11 +356,16 @@ pub fn save_name(name: &str) -> String {
 /// The name a file made from the mailbox is offered under: `stem` (a message's subject, a
 /// folder's name, an event's title; at most 80 characters of it) made safe as [`file_name`]
 /// makes a name, a slash in it being a character and not a folder, then `.ext`. `untitled` when
-/// nothing of `stem` is left.
+/// nothing of `stem` is left ([`export_name_or`] names another).
 pub fn export_name(stem: &str, ext: &str) -> String {
+    export_name_or(stem, ext, "untitled")
+}
+
+/// [`export_name`], named `fallback` when nothing of `stem` is left.
+pub fn export_name_or(stem: &str, ext: &str, fallback: &str) -> String {
     let stem: String = stem.chars().take(80).map(|c| if matches!(c, '/' | '\\') { '_' } else { c }).collect();
     let stem = clean(&stem);
-    let stem = if stem.is_empty() { "untitled" } else { stem.as_str() };
+    let stem = if stem.is_empty() { fallback } else { stem.as_str() };
     let ext: String = ext.chars().filter(|c| c.is_alphanumeric()).take(16).collect();
     if ext.is_empty() { clean(stem) } else { clean(&format!("{stem}.{ext}")) }
 }
@@ -479,6 +496,19 @@ mod tests {
     }
 
     #[test]
+    fn commas_and_semicolons_never_reach_the_opener() {
+        // AU2-V3: Explorer takes a comma as the end of its argument; the verdict and the file
+        // written are of the same name.
+        for name in ["a,b.pdf", "x /select,C:\\Windows\\calc.exe.pdf", ",,evil.exe", "a;b.txt"] {
+            let safe = file_name(name);
+            assert!(!safe.contains([',', ';']), "{safe}");
+            assert_eq!(verdict(name), verdict(&safe), "{name}");
+        }
+        assert_eq!(file_name("a,b;c.pdf"), "a_b_c.pdf");
+        assert_eq!(save_name("a,b.pdf"), "a_b.pdf");
+    }
+
+    #[test]
     fn programs_are_never_opened() {
         for name in [
             "setup.exe",
@@ -510,6 +540,16 @@ mod tests {
             "group.grp",
             "backup.mailcraft",
             "Backup.MAILCRAFT",
+            "look.deskthemepack",
+            "x.AFPLOC",
+            "x.ftploc",
+            "x.vncloc",
+            "pack.wcx",
+            "x.its",
+            "drawing.cdr",
+            "x.smi",
+            "a,b.exe",
+            "a;b.exe",
         ] {
             assert_eq!(verdict(name), Verdict::Blocked, "{name}");
         }

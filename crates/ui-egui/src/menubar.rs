@@ -202,12 +202,16 @@ const FOLDER: &[Row] = &[
 const MESSAGE: &[Row] = &[
     Cmd("mail.reply"),
     Cmd("mail.replyAll"),
+    Cmd("mail.replyAndDelete"),
     Cmd("mail.forward"),
+    Cmd("mail.forwardAsAttachment"),
+    Cmd("mail.viewSource"),
     Sep,
     Cmd("mail.delete"),
     Cmd("mail.archive"),
     Cmd("mail.move"),
     Cmd("mail.copy"),
+    Cmd("mail.resend"),
     Sep,
     Cmd("mail.markRead"),
     Cmd("mail.markUnread"),
@@ -219,10 +223,16 @@ const MESSAGE: &[Row] = &[
     Sep,
     Cmd("mail.junk"),
     Cmd("mail.notJunk"),
+    Cmd("junk.blockSender"),
+    Cmd("junk.neverBlockSender"),
+    Cmd("junk.neverBlockDomain"),
+    Cmd("junk.list"),
     Sep,
     Cmd("compose.send"),
     Cmd("compose.saveDraft"),
     Cmd("compose.attach"),
+    Cmd("compose.attachItem"),
+    Cmd("insert.businessCard"),
     Cmd("compose.checkNames"),
 ];
 
@@ -385,7 +395,11 @@ fn block(app: &MailApp, title: &str, rows: &[Row], taken: &mut HashSet<Chord>) -
 /// can: the text field that has the focus decides what they do.
 pub fn enabled(app: &MailApp, action: &Action) -> bool {
     match action {
-        Action::Command { id, .. } => keys::takes_commands(app) && keys::window_command(app, id).is_some_and(|run| app.enabled(run)),
+        Action::Command { id, .. } => {
+            keys::takes_commands(app)
+                && keys::window_command(app, id).is_some_and(|run| app.enabled(run) && crate::windows::compose_window::acts_here(app, run))
+        }
+
         Action::Edit(_) => true,
     }
 }

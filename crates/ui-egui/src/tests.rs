@@ -3,7 +3,7 @@
 //! The window without a window: what `run` does around commands, and frames laid out headlessly in
 //! every module, page and dialog (nothing may panic, whatever is on screen).
 
-use mailcraft_engine::Session;
+use mailcraft_engine::{PeopleSort, Session, TaskSort};
 use serde_json::{Value, json};
 
 use crate::{MailApp, Services, UiState};
@@ -45,6 +45,29 @@ fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
 }
 
 #[test]
+fn rename_folder_without_a_name_asks_for_the_folder_s_new_name() {
+    use crate::dialogs::{Dialog, FolderMode};
+    let mut a = app();
+    let account = a.session.mailbox.accounts[0].id;
+    let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let reports = a.session.run("folder.new", &json!({"name": "Quarterly reports", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    a.session.run("folder.select", &json!({"id": reports})).unwrap();
+    // As the ribbon's Rename Folder and F2 run it: with no name, and with no parameters at all.
+    for params in [json!({}), Value::Null] {
+        a.dialog = None;
+        assert_eq!(a.run("folder.rename", params).unwrap()["pending"], "folder");
+        match a.dialog.as_ref() {
+            Some(Dialog::Folder { mode: FolderMode::Rename { id }, name, .. }) => assert_eq!((*id, name.as_str()), (reports, "Quarterly reports")),
+            _ => panic!("Rename Folder opened something else than the folder's rename"),
+        }
+    }
+    // New Folder still asks for a folder in the one in view.
+    a.dialog = None;
+    assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
+    assert!(matches!(a.dialog, Some(Dialog::Folder { mode: FolderMode::New { parent: Some(p) }, .. }) if p == reports));
+}
+
+#[test]
 fn commands_missing_input_open_their_dialog() {
     let mut a = app();
     assert_eq!(a.run("folder.new", json!({})).unwrap()["pending"], "folder");
@@ -73,7 +96,11 @@ fn writing_brings_up_the_message_tab_and_errors_reach_the_status_bar() {
     a.run("compose.set", json!({"to": "not an address"})).unwrap();
     let e = a.run("compose.send", json!({})).unwrap_err();
     assert_eq!(a.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(e.as_str()));
-    a.run("compose.close", json!({})).unwrap();
+    // Changed, it asks first (#442); let go of, it closes.
+    assert_eq!(a.run("compose.close", json!({})).unwrap()["pending"], "discardDraft");
+    a.dialog = None;
+    crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+    assert!(a.session.compose.is_none());
     assert_eq!(a.ui.tab, "Home");
     assert!(a.run("ui.tab", json!({"tab": "Message"})).is_err());
     assert!(a.run("ui.tab", json!({"tab": "View"})).is_ok());
@@ -90,11 +117,14 @@ fn window_commands_validate() {
     assert_eq!(a.ui.language, "en");
     assert!(a.execute("ui.language", json!({"language": "xx"})).is_err());
     assert!(a.execute("ui.language", json!({})).is_err());
-    // Dutch has no catalogue: it can't be chosen, and Automatic in the Netherlands is English.
-    assert!(a.execute("ui.language", json!({"language": "nl"})).is_err());
+    // Dutch is a preview. Automatic in the Netherlands follows it. The guard holds the
+    // process-wide language until this ends, and puts the previous one back if an assertion fails.
+    let _language = crate::i18n::RestoreLanguage::hold();
+    assert_eq!(a.execute("ui.language", json!({"language": "nl"})).unwrap()["inForce"], "nl");
     a.services.system_locale = Some("nl-NL".into());
-    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "en");
-    assert_eq!(a.session.interface_language, crate::i18n::Lang::English);
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Dutch);
+    assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
     assert!(a.execute("ui.backstage", json!({"page": "nowhere"})).is_err());
@@ -158,13 +188,26 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     a.execute("ui.theme", json!({"value": "dark"})).unwrap();
     a.execute("view.conversations", json!({"value": true})).unwrap();
     a.execute("view.search", json!({"query": "secret"})).unwrap();
+    a.execute("people.arrange", json!({"by": "categories"})).unwrap();
+    a.execute("tasks.arrange", json!({"by": "categories"})).unwrap();
     let saved = serde_json::to_string(&a.prefs()).unwrap();
+    let fields = serde_json::to_value(a.prefs()).unwrap();
+    assert_eq!((&fields["view"]["peopleSort"], &fields["view"]["taskSort"]), (&json!("categories"), &json!("categories")));
     // What was searched for is not written down.
     assert!(!saved.contains("secret"));
     let mut b = app();
     b.apply_prefs(serde_json::from_str(&saved).unwrap());
     assert_eq!(b.ui.theme, crate::theme::Appearance::Dark);
     assert!(b.session.view.conversations);
+    // How People and Tasks were arranged carries over too (#327).
+    assert_eq!((b.session.view.people_sort, b.session.view.task_sort), (PeopleSort::Categories, TaskSort::Categories));
+    // A file from before they were kept starts them on Name and Due Date.
+    let mut older = fields.clone();
+    older["view"].as_object_mut().unwrap().retain(|k, _| k != "peopleSort" && k != "taskSort");
+    let mut c = app();
+    c.apply_prefs(serde_json::from_value(older).unwrap());
+    assert_eq!((c.session.view.people_sort, c.session.view.task_sort), (PeopleSort::Name, TaskSort::DueDate));
+    assert!(c.session.view.conversations);
     // A hand-edited file with nonsense in it still loads.
     let odd: UiState = serde_json::from_value(
         json!({"theme": 7_i32.to_string(), "interfaceSize": "huge", "folderPaneWidth": -5.0, "listWidth": 1e30, "tab": 3, "nonsense": true}),
@@ -645,7 +688,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
             tx.send(Ok(tokens)).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -662,6 +705,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-one"));
     // A sign-in is remembered as its refresh token; the access token is not kept anywhere.
     a.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     a.poll_sync();
     assert_eq!(kept("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("ref-kept"));
@@ -672,11 +716,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
 
     // The next start: nobody is asked for the password, and the sign-in renews without a browser.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["started"], true);
-    assert!(b.dialog.is_none());
+    // (The store is asked again first, off the window's thread, and the run goes on with the answer.)
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert!(b.syncing() && b.dialog.is_none());
     b.poll_sync();
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "pw-one");
     b.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut b);
     assert_eq!(renewals.lock().unwrap().last().unwrap(), "ref-kept");
     b.poll_sign_in();
     b.poll_sync();
@@ -687,7 +734,9 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.poll_sync();
     refuse.store(false, Ordering::Relaxed);
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.dialog = None;
 
     // Switched off: what was kept goes, and nothing new is kept.
@@ -755,7 +804,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
         tx.send(Ok(tokens)).unwrap();
         rx
     }));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     let id = a.execute(
         "account.add",
         json!({"email": "quinn@mail.example", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}),
@@ -766,6 +815,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
 
     // Send/Receive signs in for mail: refused, said, and no run with the other one's token.
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(nothing_kept(&a) && synced.lock().unwrap().is_empty() && !a.syncing());
     assert_eq!(a.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(said));
@@ -785,6 +835,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     // The account's own address, whatever its case: used and remembered as before.
     *who.lock().unwrap() = "Quinn@Mail.Example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some("tok-other"));
     assert_eq!(
@@ -798,6 +849,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     store.0.lock().unwrap().clear();
     who.lock().unwrap().clear();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
     a.poll_sync();
@@ -806,6 +858,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     a.execute("account.edit", json!({"id": id, "username": "q.admin@mail.example"})).unwrap();
     *who.lock().unwrap() = "Q.Admin@mail.example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
 }
@@ -853,7 +906,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
             tx.send(SyncResult { account: req.account.id, ..Default::default() }).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -886,7 +939,9 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
 
     // The next start asks for the password, as on a system without a store, and tells again.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.check_secret_store();
     assert_eq!(b.secrets_trouble, Some(StoreTrouble::Unavailable));
 
@@ -1450,18 +1505,15 @@ fn deleting_a_contact_is_asked_about_first() {
 /// arrows mark another, and typing carries on after it.
 #[test]
 fn recipients_are_suggested_as_they_are_typed() {
-    use crate::compose::{completed, typing};
+    use crate::compose::completed;
     use mailcraft_engine::cmd::compose::{Suggestion, suggest};
 
-    // The pieces.
-    assert_eq!(typing("Maya <maya@lumen.example>; pri"), ("Maya <maya@lumen.example>;", "pri"));
-    assert_eq!(typing("pri"), ("", "pri"));
-    assert_eq!(typing("a@b.example,"), ("a@b.example,", ""));
+    // The pieces: what takes the place of the name being typed.
     let who = |name: &str, email: &str| Suggestion { name: name.into(), email: email.into(), contact: true };
-    assert_eq!(completed("pri", &who("Priya Nair", "priya@lumen.example")), "Priya Nair <priya@lumen.example>; ");
-    assert_eq!(completed("a@b.example; x", &who("", "x@y.example")), "a@b.example; x@y.example; ");
-    assert_eq!(completed("x", &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
-    assert_eq!(completed("x", &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
+    assert_eq!(completed(true, &who("Priya Nair", "priya@lumen.example")), "Priya Nair <priya@lumen.example>; ");
+    assert_eq!(completed(false, &who("", "x@y.example")), " x@y.example; ");
+    assert_eq!(completed(true, &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
+    assert_eq!(completed(true, &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
 
     // The engine's answer: contacts by any word of the name or the address, then people mail was
     // exchanged with, never the owner, never twice.
@@ -1936,6 +1988,16 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
+/// Discard on a draft a JMAP account's server has keeps it in Drafts (M6), and the status bar says
+/// why, in the words the Move menu greys with; a draft that went says nothing.
+#[test]
+fn discarding_a_draft_that_stays_says_why() {
+    let why = mailcraft_model::NOT_MOVING_YET;
+    let said = crate::feedback("compose.discard", &json!({"draftDeleted": false, "draft": 4, "stays": why})).unwrap();
+    assert!(said.starts_with("The draft stays in Drafts.") && said.ends_with(why), "{said}");
+    assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": true})), None);
+}
+
 #[test]
 fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     let said = |v: Value| crate::feedback("file.open", &v);
@@ -1950,10 +2012,10 @@ fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     assert_eq!(said(json!({"lostSaves": 0, "unfinished": 0, "unavailable": 0})), None);
 }
 
-/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and moving it into
-/// the account's folders is refused, with the reason in the status bar.
+/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and the status bar
+/// says how it gets into the account: moved there, it is put on the server by the next run (#451).
 #[test]
-fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() {
+fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_gets_there() {
     let mut a = app();
     let account = a.run("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
@@ -1961,13 +2023,34 @@ fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() 
     let eml = a.execute("file.exportMessage", json!({"id": id})).unwrap();
     let r = a.run("file.import", json!({"name": "in.eml", "data": eml["data"], "folder": inbox})).unwrap();
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Imported 1 message into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox");
+    assert_eq!(said, "Imported 1 message into a local folder: move it into the account to put it on Microsoft's server");
     let imported = r["ids"][0].as_u64().unwrap();
     assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
-    assert!(a.run("mail.move", json!({"ids": [imported], "folder": inbox})).is_err());
+    a.run("mail.move", json!({"ids": [imported], "folder": inbox})).unwrap();
+    assert_eq!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    let waits = |q: &mailcraft_model::Queued| matches!(q, mailcraft_model::Queued::PlaceMessage { message, .. } if *message == imported);
+    assert!(a.session.mailbox.queued.iter().any(waits));
+    // What Microsoft's server leaves out of it is said, not hidden.
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder.");
-    assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    assert_eq!(said, "1 message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)");
+}
+
+/// Mail moved or copied into a Microsoft account from elsewhere: the status bar says that
+/// Microsoft's server makes it without most of its headers (#451). Other moves say nothing.
+#[test]
+fn mail_put_into_a_microsoft_account_says_its_headers_stay_behind() {
+    let said = |id: &str, v: Value| crate::feedback(id, &v);
+    let moved = said("mail.move", json!({"moved": 2, "folder": 9, "intoMicrosoft": 2})).unwrap();
+    assert!(moved.starts_with("2 messages moved into the account") && moved.contains("without most of their headers"), "{moved}");
+    let copied = said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 1})).unwrap();
+    assert!(copied.starts_with("1 message copied into the account") && copied.contains("without most of its headers"), "{copied}");
+    assert_eq!(said("mail.move", json!({"moved": 1, "folder": 9, "intoMicrosoft": 0})), None);
+    assert_eq!(said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 0})), None);
+    // Drafts imported for a Microsoft account aren't told to go into it: a draft stays here.
+    let drafts = said("file.import", json!({"messages": 2, "local": true, "drafts": true})).unwrap();
+    assert_eq!(drafts, "Imported 2 messages into Drafts on this computer: a draft stays on this computer until it is sent");
+    let mail = said("file.import", json!({"messages": 2, "local": true, "drafts": false})).unwrap();
+    assert!(mail.ends_with("move it into the account to put it on Microsoft's server"), "{mail}");
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).
@@ -2150,9 +2233,10 @@ fn an_account_a_newer_version_added_is_said_to_be_one_and_left_out_of_send_recei
     assert!(h.state().ui.backstage && h.state().session.mailbox.account(newer).is_some());
 }
 
-/// A JMAP account (M6): no Send/Receive of the window takes it in until the engine has its
-/// commands. Asked for by name, it is refused with its reason, nothing is handed to the host and
-/// nothing is asked of the owner; the accounts beside it go on as before.
+/// A JMAP account (M6): no Send/Receive of the window takes it in until the window has a runner
+/// for one. Asked for by name, it is refused with its reason, nothing is handed to the host and
+/// nothing is asked of the owner; the accounts beside it go on as before. Deleting its mail for
+/// good doesn't say it goes from the server: nothing done here reaches a JMAP server yet.
 #[test]
 fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let mut a = app();
@@ -2179,10 +2263,15 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     // A Send/Receive of every account is the IMAP account's alone.
     a.execute("ui.sync", json!({"password": "not-a-real-password"})).unwrap();
     assert_eq!(*handed.lock().unwrap(), ["ada@imap.example"]);
+    let inbox = a.session.mailbox.folder_of_kind(jmap, mailcraft_model::FolderKind::Inbox).unwrap();
+    let kept = mailcraft_model::Message { folder: inbox, subject: "Kept there".into(), ..Default::default() };
+    let kept = a.session.mailbox.add_message(kept).unwrap();
+    let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
+    assert_eq!(ask.text, "This message will be deleted for good.");
 }
 
 /// A noisy PNG far over a signature picture's cap.
-fn big_png(side: u32) -> Vec<u8> {
+pub(crate) fn big_png(side: u32) -> Vec<u8> {
     use image::ImageEncoder as _;
     let mut x = 0x9E37_79B9_u32;
     let raw: Vec<u8> = (0..side * side * 3)
@@ -2220,6 +2309,19 @@ fn signature_picture_over_the_cap_is_made_smaller() {
     assert!(a.signature_note.as_ref().is_some_and(|n| !n.error));
 }
 
+/// #363: a signature takes the kinds of picture a message shows, never an icon or the bitmap one
+/// holds, which are decoded for a sender's picture alone.
+#[test]
+fn signature_picture_is_no_icon_or_bitmap() {
+    for format in [image::ImageFormat::Ico, image::ImageFormat::Bmp] {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(16, 16, image::Rgba([0, 90, 200, 255])).write_to(&mut bytes, format).unwrap();
+        let mut a = signature_app();
+        crate::signatures::add_picture(&mut a, json!({"data": crate::files::base64_lite::encode(&bytes.into_inner()), "file": "logo.png"}));
+        assert!(a.session.signature_edit.as_ref().unwrap().signature.pictures().is_empty(), "{format:?}");
+    }
+}
+
 /// #270: a refusal shows on the Signatures page (the status bar is hidden behind File).
 #[test]
 fn signature_picture_refusal_is_on_the_page() {
@@ -2252,4 +2354,40 @@ fn signature_picture_over_the_total_is_refused_on_the_page() {
     }
     assert!(refused);
     assert!(total(&a) <= MAX_PICTURES_BYTES);
+}
+
+/// File › Signatures › Rename: Enter keeps the new name, and a click elsewhere lets go of the
+/// field without renaming.
+#[test]
+fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
+    use egui_kittest::kittest::Queryable as _;
+    let key = |h: &mut egui_kittest::Harness<'static, MailApp>, key: egui::Key| {
+        for pressed in [true, false] {
+            h.event(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+        }
+        h.run_steps(3);
+    };
+    let mut harness = window(signature_app());
+    harness.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Rename").click();
+    harness.run_steps(3);
+    key(&mut harness, egui::Key::End);
+    harness.event(egui::Event::Text(" at work".into()));
+    harness.run_steps(3);
+    key(&mut harness, egui::Key::Enter);
+    let m = &harness.state().session.mailbox;
+    assert!(m.signature("Mine at work").is_some() && m.signature("Mine").is_none(), "Enter didn't rename it");
+    assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard");
+
+    // Rename again, then click away: the name stays, and the field is gone.
+    harness.get_by_label("Rename").click();
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("x".into()));
+    harness.run_steps(3);
+    harness.get_by_label("New").click();
+    harness.run_steps(3);
+    assert!(harness.state().session.mailbox.signature("Mine at work").is_some());
+    assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard after a click away");
 }

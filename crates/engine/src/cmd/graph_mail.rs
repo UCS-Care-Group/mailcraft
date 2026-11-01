@@ -105,19 +105,28 @@ fn full_sweep_due(s: &Session, account: Id) -> bool {
 
 /// The Inbox pass of `account` (#276): only its Inbox's delta, from the link kept for it, to be
 /// run before anything else of a Send/Receive. `None` for an account with no Inbox pass: not one
-/// kept in step through Graph, one that can't be read, or one whose Inbox has no delta link yet
-/// (never read to its end, or a round under way: the run itself brings it in).
+/// kept in step through Graph, one that can't be read, or one whose Inbox is part-way through a
+/// round (its link is the next page of it: the run itself brings it in). An Inbox whose id is
+/// known but that has never been read (no link yet) is read from its start. One the server's id
+/// isn't known for (never listed) has none: the run lists the folders first.
 pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest> {
     let a = s.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft)?;
     let shared = shared_mailbox(s, account).ok()?;
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).and_then(|id| s.mailbox.folder(id))?;
-    let server = inbox.server.as_ref().filter(|server| !server.id.is_empty() && !server.delta.is_empty() && server.caught_up)?;
+    let (id, links) = match inbox.server.as_ref()? {
+        server if server.id.is_empty() => return None,
+        server if server.delta.is_empty() => (server.id.clone(), Vec::new()),
+        server if server.caught_up => {
+            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }])
+        }
+        _ => return None,
+    };
     Some(GraphMailRequest {
         account,
         email: a.email.clone(),
         shared,
-        links: vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }],
-        inbox_pass: Some(GraphFolder { id: server.id.clone(), name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
+        links,
+        inbox_pass: Some(GraphFolder { id, name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
         ..Default::default()
     })
 }
@@ -168,7 +177,7 @@ fn parent_on_server(mb: &Mailbox, folder: &Folder) -> Option<String> {
 
 /// The folder changes made in `account` that its server hasn't heard of, parents before what lies
 /// in them: at most `limit` spelled out, and how many there are.
-fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>, usize) {
+pub(super) fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>, usize) {
     let (mut changes, mut count) = (Vec::new(), 0usize);
     let mut note = |change: &dyn Fn() -> FolderChange| {
         if changes.len() < limit {
@@ -184,7 +193,7 @@ fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>
         match &f.server {
             // The special folders are the server's: they are found in its listing, never made;
             // so is a folder that was on the account's IMAP server before it switched (R3.7).
-            None if f.kind != FolderKind::Custom || f.awaiting_listing => {}
+            None if (f.kind != FolderKind::Custom && !graph_up::made_on_server(mb, f)) || f.awaiting_listing => {}
             None => {
                 let parent = mb.folder(f.parent.unwrap_or(0)).filter(|p| p.account == account);
                 let (server_parent, local_parent) = match parent {
@@ -273,9 +282,9 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
         s.mailbox_changed();
     }
     let now = s.now();
-    let (waiting, large) = graph_down::not_fetched(&s.mailbox, account, now);
-    s.sync_progress.count_full(&s.mailbox, account, now);
-    let all = graph_down::kept_in_full(&s.mailbox, account, now);
+    let counts = graph_down::full_counts(&s.mailbox, account, now);
+    s.sync_progress.counted_as(&s.mailbox, account, counts, now);
+    let graph_down::FullCounts { all, waiting, large } = counts;
     Ok(
         json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
     )
@@ -301,13 +310,13 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     apply_graph_mail(s, result)
 }
 
-/// What taking in a Graph run changed.
+/// What taking in a Graph run changed (a JMAP run's listing too, [`super::jmap_mail`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Taken {
-    pushed: usize,
-    added: usize,
-    updated: usize,
-    removed: usize,
+pub(super) struct Taken {
+    pub(super) pushed: usize,
+    pub(super) added: usize,
+    pub(super) updated: usize,
+    pub(super) removed: usize,
 }
 
 /// Take in what a Graph run brought back: what became of the changes sent, then the listing.
@@ -392,6 +401,13 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
+    // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
+    // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
+    // what arrived after its step (#605), there is no going back past it.
+    if down.left > 0 {
+        s.forget_history();
+    }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
@@ -423,20 +439,22 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         (None, None, true) => result.inbox_pass.then(|| (SyncPhase::Inbox, String::new(), 0, 0)),
     };
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
-    let piece = Piece {
-        step,
-        folders,
-        new: down.new,
-        sent,
-        problems: &errors,
-        // (The Inbox pass is never the end of the account's part of the run.)
-        last: !result.partial && !result.inbox_pass,
-        stopped: result.stopped,
-        timings: Some(&result.timings),
-    };
+    // (The Inbox pass is never the end of the account's part of the run.)
+    let last = !result.partial && !result.inbox_pass;
+    if last {
+        errors.extend(super::graph_place::unreadable_waiting(s, account));
+    }
+    let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);
-    if !result.pages.is_empty() || result.whole {
-        s.sync_progress.count_full(&s.mailbox, account, s.now());
+    // Full messages: counting them goes through every message, so a run's pages are counted at
+    // most once a second while it goes on, and exactly when the account's part of it ends.
+    let now = s.now();
+    if result.whole || (last && !result.pages.is_empty()) {
+        s.sync_progress.count_full(&s.mailbox, account, now);
+    } else if !result.pages.is_empty() {
+        s.sync_progress.count_full_now_and_then(&s.mailbox, account, now);
+    } else if last {
+        s.sync_progress.count_full_if_due(&s.mailbox, account, now);
     }
     let summary = match (errors.first(), taken.pushed + taken.added + taken.updated + taken.removed) {
         (Some(e), _) => e.clone(),
@@ -486,7 +504,7 @@ fn shown(name: &str) -> String {
 }
 
 /// Take in what became of one change. Answers what to tell the owner, when there is something.
-fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &ChangeOutcome, taken: &mut Taken) -> Option<String> {
+pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &ChangeOutcome, taken: &mut Taken) -> Option<String> {
     let mine = |mb: &Mailbox, id: Id| mb.folder(id).is_some_and(|f| f.account == account);
     match (change, outcome) {
         (FolderChange::Delete { id }, ChangeOutcome::Done { .. } | ChangeOutcome::Gone) => {
@@ -519,7 +537,9 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 parent: there.parent.clone(),
                 delta: String::new(),
                 caught_up: false,
+                round_ended: false,
                 counts: None,
+                sync_state: String::new(),
             });
             taken.pushed += 1;
             None
@@ -561,8 +581,10 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
     }
 }
 
-/// Take in every folder the server listed, by server id.
-fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
+/// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
+/// known by their ids as Graph's folders are).
+pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
+    release_outbox(mb, account, listing);
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
@@ -608,8 +630,35 @@ fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &
             .map(|f| f.id)
             .collect();
         taken.removed += gone.len();
+        // Mail moved in that the server wasn't given yet isn't in the folder there: it goes back
+        // to where it came from, not with the folder (#451).
+        super::graph_place::put_back_waiting(mb, |mb, a, message| a == account && mb.message(message).is_some_and(|m| gone.contains(&m.folder)));
         mb.remove_folders(&gone);
         taken.removed += super::graph_switch::sweep_unlisted(mb, account);
+    }
+}
+
+/// The Outbox here is the queue mail is sent from; it follows no folder of the server (AU2-V2).
+/// 0.8.0 and before bound it to the server's Outbox, whose items were then sent from here with
+/// the owner's rights. A listing that now has that folder as a folder like another lets go of the
+/// bond; what the server delivered into it is forgotten here (it comes down again into the
+/// server's Outbox as a folder of its own) and is not sent.
+fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing) {
+    let bound: Vec<Id> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && f.kind == FolderKind::Outbox)
+        .filter(|f| f.server.as_ref().is_some_and(|s| listing.folders.iter().any(|l| l.id == s.id && l.kind != FolderKind::Outbox)))
+        .map(|f| f.id)
+        .collect();
+    for folder in bound {
+        let delivered: Vec<Id> = mb.messages_in(folder).filter(|m| super::graph_send::from_server(m)).map(|m| m.id).collect();
+        for id in delivered {
+            let _ = mb.forget_message(id);
+        }
+        if let Ok(f) = mb.folder_mut(folder) {
+            f.server = None;
+        }
     }
 }
 
@@ -622,10 +671,17 @@ fn adopt(mb: &Mailbox, account: Id, there: &GraphFolder, parent_here: Option<Id>
         return mb.folders.iter().filter(unsynced).find(|f| f.kind == there.kind).map(|f| f.id);
     }
     let name = name.to_lowercase();
+    // An Exchange server account's Archive is the folder of that name at the top, when the server
+    // has one (E8).
+    let exchange = mb.account(account).is_some_and(|a| a.kind == AccountKind::Exchange);
     mb.folders
         .iter()
         .filter(unsynced)
-        .find(|f| f.kind == FolderKind::Custom && f.parent == parent_here && f.name.to_lowercase() == name)
+        .find(|f| {
+            f.parent == parent_here
+                && f.name.to_lowercase() == name
+                && (f.kind == FolderKind::Custom || (exchange && f.kind == FolderKind::Archive && parent_here.is_none() && !f.awaiting_listing))
+        })
         .map(|f| f.id)
 }
 
@@ -661,7 +717,10 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         parent: there.parent.clone(),
         delta: last.delta,
         caught_up: last.caught_up,
+        round_ended: last.round_ended,
         counts: last.counts,
+        // (An Exchange server account's folder goes on from its sync state; the other kinds have none.)
+        sync_state: last.sync_state,
     });
     *f != before
 }
@@ -673,3 +732,7 @@ mod tests;
 #[cfg(test)]
 #[path = "graph_sweep_tests.rs"]
 mod sweep_tests;
+
+#[cfg(test)]
+#[path = "graph_inbox_first_tests.rs"]
+mod inbox_first_tests;

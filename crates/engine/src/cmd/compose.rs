@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
+use mailcraft_mime::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FolderKind, Id, Importance, Message, NOT_SENDING_YET, RichBody, Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody,
+    Signature, format_list,
 };
 use serde_json::{Value, json};
 
@@ -27,32 +29,153 @@ pub fn specs() -> Vec<CommandSpec> {
             ),
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
-        CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
+            .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .selection(super::needs_movable),
+        CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
+        CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
+            .pure()
+            .key("Mod+Alt+F")
+            .params(FORWARD)
+            .selection(needs_forwardable),
         CommandSpec::new("mail.editDraft", "Open Draft", "Mail", edit_draft).pure().params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.resend", "Resend Message", "Home › Actions", resend)
+            .pure()
+            .params(r#"{"id"?: number} (default: the selected message) — a message the owner sent, opened again as a new message to send: its recipients, subject, text and files, nothing sent until Send. A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number}"#)
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("compose.attach", "Attach File", "Message › Include", attach)
             .pure()
             .params(r#"{"path": string} | {"name": string, "data": base64}, "mime"?: string"#)
-            .when(needs_compose),
-        CommandSpec::new("compose.removeAttachment", "Remove Attachment", "Message › Include", remove_attachment).pure().params(r#"{"index": number}"#).when(needs_compose),
-        CommandSpec::new("compose.signature", "Signature", "Message › Include", signature).pure().params(r#"{"name"?: string} (default: the account's signature)"#).when(needs_compose),
-        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when(needs_compose),
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.attachItem", "Attach Item", "Insert › Include", attach_item::attach_item)
+            .pure()
+            .params(r#"{"id": number} — a message, attached whole as an .eml file (no Bcc, none of the owner's marks)"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("insert.businessCard", "Contact Card", "Insert › Include", attach_item::business_card)
+            .pure()
+            .params(r#"{"id": number} — a contact, attached as a vCard (.vcf) file"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.removeAttachment", "Remove Attachment", "Message › Include", remove_attachment).pure().params(r#"{"index": number}"#).when_writing(needs_compose),
+        CommandSpec::new("compose.signature", "Signature", "Message › Include", signature).pure().params(r#"{"name"?: string} (default: the account's signature)"#).when_writing(needs_compose),
+        CommandSpec::new("compose.signatureAsText", "Edit Signature as Text", "Message › Include", signature_as_text)
+            .pure()
+            .params(r#"{"value": bool} (true: an HTML signature's simpler copy is shown and sent in place of the HTML; false: the HTML again, while that copy is unedited)"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
             .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be: contacts first, then people mail was exchanged with, the latest first"#),
-        CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when(needs_compose),
-        CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when(needs_compose),
-        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when(needs_compose),
-        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when(needs_compose),
-        CommandSpec::new("compose.close", "Close Message", "Message", close).pure().key("Escape").when(needs_compose),
-        CommandSpec::new("compose.discard", "Discard", "Message", discard).when(needs_compose),
+        CommandSpec::new("compose.replyTo", "Direct Replies To", "Options › More Options", reply_to)
+            .pure()
+            .params(r#"{"value": string} — the addresses replies to the message being written go to (its `Reply-To` line), separated by `;` or `,`, at most 20; "" sends replies to the sender again. Each must be an e-mail address"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.readReceipt", "Request a Read Receipt", "Options › Tracking", read_receipt)
+            .pure()
+            .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
+        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
+        CommandSpec::new("compose.close", "Close Message", "Message", close)
+            .pure()
+            .key("Escape")
+            .params(r#"{"discard"?: true, "compose"?: number} (a message with changes that aren't saved is saved to Drafts first, unless `discard`; `compose`: which message being written, default the current one; the one put aside last is current after it)"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.discard", "Discard", "Message", discard).when_writing(needs_compose),
+        CommandSpec::new("compose.popOut", "Pop Out", "Message", pop_out)
+            .pure()
+            .params(r#"{"compose"?: number} (default: the current one, the reading pane's) — the message being written goes into a window of its own, as it is: nothing of it changes, and the reading pane is free again. The window does it (answered as `window`); a host without windows (the command line, headless MCP) leaves it where it is. Its id is answered as `compose`"#)
+            .when_writing(needs_compose),
     ]
 }
 
-const SOURCE: &str = r#"{"id"?: number} (default: the selected message)"#;
+const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
+
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+
+/// The commands that close the message being written (#442). Those that start another (New
+/// Email, Reply, Forward, Open Draft, People's Email…: [`STARTING`]) open it beside this one,
+/// which stays open (#286); the owner's is saved to Drafts first, unasked.
+pub const LEAVING: [&str; 1] = ["compose.close"];
+
+/// The commands that put another mailbox in place of this one, and close every message being
+/// written with it (#470): each is saved to Drafts first, or the owner asked, as for [`LEAVING`].
+pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
+
+/// The commands that open another message beside the one being written (#286). Run by the
+/// owner, the one put aside is saved to Drafts first when it has changes ([`saves_first`]).
+pub const STARTING: [&str; 14] = [
+    "mail.new",
+    "mail.reply",
+    "mail.replyAll",
+    "mail.replyAndDelete",
+    "mail.forward",
+    "mail.forwardAsAttachment",
+    "mail.editDraft",
+    "mail.resend",
+    "people.email",
+    "people.forward",
+    "calendar.email",
+    "calendar.contactAttendees",
+    "calendar.respondEmail",
+    "tasks.statusReport",
+];
+
+/// Whether `id` closes a message being written: [`LEAVING`] or [`REPLACING`].
+pub fn leaves(id: &str) -> bool {
+    LEAVING.contains(&id) || REPLACING.contains(&id)
+}
+
+/// The messages being written that running `id` with `params` closes: the one it names
+/// (`compose`), else the current one, for [`LEAVING`]; every one for [`REPLACING`].
+pub fn closed_by<'a>(s: &'a Session, id: &str, params: &Value) -> Vec<&'a Compose> {
+    if REPLACING.contains(&id) {
+        s.all_composing().collect()
+    } else if LEAVING.contains(&id) {
+        s.compose_named(params).into_iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Whether what is written in `c` isn't all in Drafts: changed since it was saved, or, for an
+/// agent, its draft is gone (#494).
+fn unsaved_for(s: &Session, c: &Compose) -> bool {
+    c.dirty || (s.agent.is_some() && draft_gone(s, c))
+}
+
+/// The messages being written that running `id` saves to Drafts first (#442), by their ids: those
+/// it closes ([`closed_by`]) that have changes that aren't saved, unless the caller let them go
+/// (`discard`). Nobody who calls a command (an agent, a script) is asked, so [`Session::run`] runs
+/// Save Draft first for each, as a step of its own: undoing what the command did never takes a
+/// draft away. A save that fails fails the command, and nothing changes. (The window asks the
+/// owner first.)
+pub fn saves_first(s: &Session, id: &str, params: &Value) -> Vec<u64> {
+    // The owner's message put aside for another is saved to Drafts first, unasked, so that what
+    // is written is never only in memory (#286). An agent's opens behind it and touches nothing.
+    if STARTING.contains(&id) {
+        return match &s.compose {
+            Some(c) if s.agent.is_none() && c.dirty => vec![c.id],
+            _ => Vec::new(),
+        };
+    }
+    if p::bool(params, "discard") == Some(true) {
+        return Vec::new();
+    }
+    closed_by(s, id, params).into_iter().filter(|c| unsaved_for(s, c)).map(|c| c.id).collect()
+}
+
+/// Whether the draft the message being written was last saved as is no longer there (#494): an
+/// agent's undo took it away, or it was deleted for good. What is written is then saved nowhere,
+/// and an agent's command that leaves it saves it to Drafts again first.
+pub fn draft_gone(s: &Session, c: &Compose) -> bool {
+    c.draft.is_some_and(|d| s.mailbox.message(d).is_none())
+}
 
 fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
     s.compose.as_mut().ok_or_else(|| fail("no message is being written"))
@@ -64,7 +187,7 @@ fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -
     let name = name
         .map(str::to_string)
         .or_else(|| s.mailbox.account(account).map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
-    s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty()).cloned()
+    s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
 }
 
 /// Put `sig` in the message as its signature (in place of the one there, else at `at`), or take
@@ -72,7 +195,14 @@ fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -
 fn put_signature(c: &mut Compose, sig: Option<&Signature>, at: usize) -> Result<(), CmdError> {
     c.body.put_signature(sig.map(Signature::body), at).map_err(|e| fail(e.to_string()))?;
     c.signature = match (sig, c.body.text().signature()) {
-        (Some(sig), Some(text)) => Some(InsertedSignature { name: sig.name.clone(), layout: sig.layout, pictures: sig.pictures().to_vec(), text }),
+        (Some(sig), Some(text)) => Some(InsertedSignature {
+            name: sig.name.clone(),
+            layout: sig.layout,
+            pictures: sig.pictures().to_vec(),
+            text,
+            html: sig.html().map(str::to_string),
+            as_text: false,
+        }),
         _ => None,
     };
     Ok(())
@@ -83,11 +213,6 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
     put_signature(c, Some(sig), at)?;
     c.body = RichBody::new(c.body.text().clone());
     Ok(())
-}
-
-/// Whether the signature in the message is still the one that went in.
-fn signature_unedited(c: &Compose) -> bool {
-    c.signature.as_ref().is_some_and(|inserted| c.body.text().signature().as_ref() == Some(&inserted.text))
 }
 
 fn is_response(mode: ComposeMode) -> bool {
@@ -121,15 +246,15 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         let end = c.body.text().len();
         start_with(&mut c, sig, end)?;
     }
-    s.compose = Some(c);
+    let compose = s.open_compose(c)?;
     s.view.module = crate::Module::Mail;
-    Ok(json!({"composing": true}))
+    Ok(json!({"composing": true, "compose": compose}))
 }
 
 /// The message a command answers, forwards or opens again, whole: its body and its files in
 /// memory, fetched from where the mailbox keeps them when they weren't (`Session::content`).
 fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -139,7 +264,7 @@ fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
 /// The message a reply answers, with what the reply quotes of it in memory: its body and the
 /// pictures its HTML shows (`Session::loaded_for_reply`); its other files stay where they are.
 fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -153,13 +278,8 @@ fn prefixed(prefix: &str, subject: &str) -> String {
 }
 
 /// The line that opens the quoted original in plain text, in English; a language has its own
-/// (`-----Message d'origine-----`), which a draft reopening knows too ([`original_at`]).
+/// (`-----Message d'origine-----`), which a draft reopening knows too.
 const ORIGINAL: &str = "-----Original Message-----";
-
-/// Where the quoted original starts in a plain-text body: the opening line in any language.
-fn original_at(text: &str) -> Option<usize> {
-    mailcraft_i18n::Lang::ALL.iter().filter_map(|l| text.find(&format!("\n\n{}", l.t(ORIGINAL)))).min()
-}
 
 /// The names of the header lines above a quoted original, with their colons, in the interface
 /// language: the recipient reads them as the owner's program wrote them (French puts a narrow
@@ -203,6 +323,16 @@ fn quoted(s: &Session, m: &Message) -> String {
     out.push_str(m.body.text.trim_end());
     out.push('\n');
     out
+}
+
+/// The quoted original as plain text for the text part of a message that carries it in HTML: what
+/// its HTML reads as, under the opening line. Never the text alternative its sender wrote beside
+/// it (the owner never saw that one, and it can say something else).
+fn quote_text(marker: &str, quoted_html: &str) -> String {
+    let text = mailcraft_html::to_text(quoted_html);
+    // (The rule above the header lines is for the eye.)
+    let text = text.trim_start_matches('-').trim();
+    format!("\n\n{marker}\n{text}\n")
 }
 
 /// Where the quoted original starts in the HTML MailCraft writes; what is above it is the
@@ -287,9 +417,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let quote = match &m.body.html {
         Some(html) if quoting => {
             let html = quoted_html(s, &m, html);
+            let text = quote_text(s.interface_language.t(ORIGINAL), &html);
             // The pictures the quote still shows: not those of what was left out of it.
             let pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
-            Some(Quote { text: quoted(s, &m), html, pictures })
+            Some(Quote { text, html, pictures })
         }
         _ => None,
     };
@@ -316,12 +447,38 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     if let Some(sig) = &sig {
         start_with(&mut c, sig, 1)?;
     }
-    s.compose = Some(c);
-    Ok(json!({"composing": true, "mode": mode}))
+    let compose = s.open_compose(c)?;
+    Ok(json!({"composing": true, "mode": mode, "compose": compose}))
 }
 
 fn reply(s: &mut Session, v: &Value) -> CmdResult {
     respond(s, v, ComposeMode::Reply)
+}
+
+/// Reply and Delete: a reply to the message, which goes to Deleted Items meanwhile (the reply
+/// still answers it, and marks it answered once sent). One in Deleted Items already, or of an
+/// account without one, stays where it is: this never deletes for good.
+fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    if s.mailbox.has_jmap_account() && s.mailbox.stays_on_server(id) {
+        return Err(fail(mailcraft_model::NOT_MOVING_YET));
+    }
+    let before = s.rows();
+    let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
+    let bin = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder));
+    let deleted = match bin {
+        Some(bin) => {
+            s.mailbox.move_message(id, bin)?;
+            super::select_after_removal(s, &before, &[id]);
+            true
+        }
+        None => false,
+    };
+    if let Some(o) = out.as_object_mut() {
+        o.insert("deleted".into(), json!(deleted));
+    }
+    Ok(out)
 }
 
 fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
@@ -329,7 +486,274 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
-    respond(s, v, ComposeMode::Forward)
+    match forwarded(s, v)? {
+        (ids, focus) if ids.len() > 1 => forward_attached(s, &ids, focus),
+        (_, focus) => respond(s, &json!({"id": focus}), ComposeMode::Forward),
+    }
+}
+
+/// Forward as Attachment (#315): as [`forward_attached`] does, for one message too.
+fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    let (ids, focus) = forwarded(s, v)?;
+    forward_attached(s, &ids, focus)
+}
+
+/// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
+/// strictly ([`targets`](super::targets)): a forward goes to other people, so what a
+/// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
+/// selection. Each once, in the message list's order (those it doesn't show after them, as
+/// named), and the one in focus, the last named, as for a selection. How many it may be is
+/// [`forward_check`]'s to say.
+pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
+    p::only(v, &["id", "ids", "discard"])?;
+    let mut ids = super::targets(s, v)?;
+    // Each once, where it was named last.
+    let mut seen = std::collections::HashSet::new();
+    ids.reverse();
+    ids.retain(|id| seen.insert(*id));
+    ids.reverse();
+    let Some(focus) = ids.last().copied() else { return Err(fail("select a message first")) };
+    if ids.len() > 1 {
+        let rows = s.rows();
+        let mut at: std::collections::HashMap<Id, (usize, usize)> = std::collections::HashMap::new();
+        for (i, row) in rows.iter().enumerate() {
+            for (j, id) in std::iter::once(&row.id).chain(&row.members).enumerate() {
+                at.entry(*id).or_insert((i, j));
+            }
+        }
+        ids.sort_by_key(|id| at.get(id).copied().unwrap_or((usize::MAX, 0)));
+    }
+    Ok((ids, focus))
+}
+
+/// Why more messages than one can carry aren't forwarded together.
+const TOO_MANY_TO_FORWARD: &str = "at most 200 messages can be forwarded together";
+
+/// Enabled with messages selected, as many as one message can carry as attachments.
+fn needs_forwardable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| (s.sel.messages.len() > MAX_ATTACHMENTS).then_some(TOO_MANY_TO_FORWARD))
+}
+
+/// Forward messages as attachments (#315, #360): a new message from the account of the one in
+/// focus, with nothing quoted and each attached whole as an `.eml` in the order given, its
+/// headers and all, as Save Message As writes it. A forward all the same: each original is
+/// marked forwarded once it has gone. Nothing is composed when one of them can't go whole.
+fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
+    forward_check(s, ids, false)?;
+    let mut attachments: Vec<Attachment> = Vec::new();
+    let mut total = 0usize;
+    for id in ids {
+        let a = eml_attachment(s, *id)?;
+        total = total.saturating_add(a.size());
+        if total > MAX_ATTACHMENT {
+            return Err(too_large(s, ids));
+        }
+        // Two with the same subject aren't two files of one name.
+        let name = numbered(a.name.clone(), &attachments);
+        attachments.push(Attachment { name, ..a });
+    }
+    let m = s.mailbox.message(focus).ok_or_else(|| failed!("no message with id {id}", id = focus))?;
+    let account = m.account;
+    // Several have no subject: one message's would name the others wrongly. The owner writes it.
+    let subject = match ids {
+        [_] => prefixed("FW", &m.subject),
+        _ => String::new(),
+    };
+    let sig = chosen_signature(s, account, None, true);
+    let mut c = Compose {
+        mode: ComposeMode::Forward,
+        source: Some(focus),
+        also: ids.iter().copied().filter(|id| *id != focus).collect(),
+        as_attachment: true,
+        account,
+        subject,
+        // A line to write on, a blank one, then the signature.
+        body: RichBody::from_plain(if sig.is_some() { "\n" } else { "" }),
+        attachments,
+        ..Default::default()
+    };
+    if let Some(sig) = &sig {
+        start_with(&mut c, sig, 1)?;
+    }
+    let compose = s.open_compose(c)?;
+    Ok(json!({"composing": true, "mode": ComposeMode::Forward, "compose": compose}))
+}
+
+/// Whether `ids` can be forwarded as attachments, judged before any of them is read in: at most
+/// [`MAX_ATTACHMENTS`] of them and [`MAX_ATTACHMENT`] together, each one here, and none that
+/// only stands in for a message (only its headers are here for good; too large to download).
+/// One of which only the headers are here, waiting to be fetched, is refused too, unless
+/// `fetched_first`: the window fetches it before the command runs, and judges by the size its
+/// server said meanwhile.
+pub fn forward_check(s: &Session, ids: &[Id], fetched_first: bool) -> Result<(), CmdError> {
+    if ids.len() > MAX_ATTACHMENTS {
+        return Err(fail(TOO_MANY_TO_FORWARD));
+    }
+    let mut total = 0u64;
+    for id in ids {
+        let m = s.mailbox.message(*id).ok_or_else(|| failed!("no message with id {id}", id = *id))?;
+        if m.incomplete {
+            return Err(failed!("only the headers of “{subject}” are here, so it can't be forwarded as an attachment", subject = subject_of(m)));
+        }
+        if m.unfetched && !fetched_first {
+            return Err(failed!(
+                "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment",
+                subject = subject_of(m)
+            ));
+        }
+        if m.not_downloaded > 0 {
+            return Err(too_large_to_download(m));
+        }
+        // Too large already as it is kept, or as its server said: written out it is no smaller.
+        total = total.saturating_add(m.list_size().unwrap_or_else(|| m.size()));
+    }
+    if total > u64::try_from(MAX_ATTACHMENT).unwrap_or(u64::MAX) {
+        return Err(too_large(s, ids));
+    }
+    Ok(())
+}
+
+/// Why message `id`, which a forward of several waited for (#360), can't go: its server answered
+/// that it hasn't it (`gone`: deleted or moved meanwhile), or wouldn't give it whole.
+pub fn not_sent(s: &Session, id: Id, gone: bool) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    if gone {
+        failed!("“{subject}” wasn't found on its server, so it can't be forwarded as an attachment", subject = subject_of(m))
+    } else {
+        failed!("the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment", subject = subject_of(m))
+    }
+}
+
+/// Message `id` of a forward came from its server whole but wasn't kept here (#360).
+pub fn not_kept(s: &Session, id: Id) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    failed!(
+        "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment",
+        subject = subject_of(m)
+    )
+}
+
+/// The message `ids` names, or the messages together, are larger than one message may carry
+/// attached.
+fn too_large(s: &Session, ids: &[Id]) -> CmdError {
+    let mb = MAX_ATTACHMENT >> 20;
+    match ids {
+        [one] => failed!("{name} is larger than {mb} MB", name = s.mailbox.message(*one).map(super::file::eml_name).unwrap_or_default(), mb),
+        _ => failed!("the messages to forward are larger than {mb} MB together", mb),
+    }
+}
+
+fn too_large_to_download(m: &Message) -> CmdError {
+    failed!("“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment", subject = subject_of(m))
+}
+
+/// A message as a refusal names it: its subject on one line, at most 80 characters of it.
+fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
+    let line = m.subject.split(char::is_control).flat_map(str::split_whitespace).collect::<Vec<_>>().join(" ");
+    if line.is_empty() {
+        return mailcraft_i18n::Arg::words("(no subject)");
+    }
+    match line.char_indices().nth(80) {
+        Some((at, _)) => mailcraft_i18n::Arg::Plain(format!("{}…", line.get(..at).unwrap_or(""))),
+        None => mailcraft_i18n::Arg::Plain(line),
+    }
+}
+
+/// `name`, or `name (2).eml` and on when an attachment has that name already.
+fn numbered(name: String, taken: &[Attachment]) -> String {
+    let used = |n: &str| taken.iter().any(|a| a.name.eq_ignore_ascii_case(n));
+    if !used(&name) {
+        return name;
+    }
+    let (stem, ext) = name.rsplit_once('.').map_or((name.as_str(), String::new()), |(stem, ext)| (stem, format!(".{ext}")));
+    (2..MAX_ATTACHMENTS + 2).map(|k| format!("{stem} ({k}){ext}")).find(|n| !used(n)).unwrap_or_else(|| name.clone())
+}
+
+/// Message `id` whole as an `.eml` attachment, as Forward as Attachment and Attach Item attach
+/// it, read in first: refused when its text can't be read here or was never downloaded.
+fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
+    let m = s.loaded_message(id)?;
+    if m.kept.as_deref().is_some_and(|k| k.failed) {
+        return Err(failed!(
+            "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment",
+            subject = subject_of(&m)
+        ));
+    }
+    if not_downloaded(&m) {
+        return Err(too_large_to_download(&m));
+    }
+    // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
+    // message (read, answered, flagged, categorised), and every header kept with it but those
+    // known to come from the sender or the servers on the way, stay here.
+    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let unmarked = Message {
+        read: false,
+        answered: false,
+        flag: FlagStatus::None,
+        categories: Vec::new(),
+        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        ..Message::clone(&m)
+    };
+    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
+}
+
+#[path = "attach_item.rs"]
+mod attach_item;
+#[cfg(test)]
+#[path = "attach_item_tests.rs"]
+mod attach_item_tests;
+
+/// Whether `m` is what is kept of an IMAP message too large to download: its header and, in
+/// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
+/// write that mark into a message of their own; only plain text that opens as the note does,
+/// with no file, is taken for it.
+fn not_downloaded(m: &Message) -> bool {
+    m.body.html.is_none()
+        && m.attachments.is_empty()
+        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
+        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+}
+
+/// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
+/// own fields (From, To, Cc, Reply-To, Subject, Date, Message-ID, In-Reply-To, References,
+/// Importance, the MIME fields) are written from what it is, never a Bcc; of the other headers
+/// only those known to come from the sender or the servers on the way go:
+/// - the rest of RFC 5322: `Sender`, `Comments`, the trace (`Return-Path`, `Received`) and a
+///   resend's `Resent-…` fields, but never `Resent-Bcc`;
+/// - the checks of where it came from: `Authentication-Results`, `DKIM-Signature`, `ARC-…` and a
+///   spam filter's `X-Spam-…`;
+/// - a mailing list's `List-…`.
+///
+/// Everything else stays here: what a mail program or the owner's server wrote for the owner
+/// (folders, labels, flags, every other `X-…`), the headers that name the address it was
+/// delivered to (`Delivered-To`, `X-Original-To`, `Envelope-To`, `Received-SPF`; a `Received`
+/// line's `for <…>` can name it too, and goes as it is), a request for a receipt
+/// (`Disposition-Notification-To`, `Return-Receipt-To`), which the recipient's program could
+/// answer to the sender, and the sender's organisation and mail program (`Organization`,
+/// `User-Agent`, `X-Mailer`), which aren't needed to tell where it came from.
+fn goes_along(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.starts_with("list-")
+        || name.starts_with("x-spam-")
+        || matches!(
+            name.as_str(),
+            "sender"
+                | "comments"
+                | "return-path"
+                | "received"
+                | "resent-date"
+                | "resent-from"
+                | "resent-sender"
+                | "resent-to"
+                | "resent-cc"
+                | "resent-message-id"
+                | "authentication-results"
+                | "dkim-signature"
+                | "arc-seal"
+                | "arc-message-signature"
+                | "arc-authentication-results"
+        )
 }
 
 fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
@@ -341,6 +765,90 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     if m.unfetched {
         return Err(fail("this draft isn't downloaded yet: open it once you're online, then edit it"));
     }
+    // Open already, it is that one: two of it would each save over the other.
+    let open = s.all_composing().find(|c| c.draft == Some(m.id)).map(|c| c.id);
+    if let Some(open) = open {
+        // (An agent's call doesn't take it from behind the owner's.)
+        if s.agent.is_none() {
+            s.show_compose(open);
+        }
+        return Ok(json!({"composing": true, "draft": m.id, "compose": open}));
+    }
+    let compose = s.open_compose(Compose { mode: ComposeMode::Draft, draft: Some(m.id), ..reopened(s, &m) })?;
+    Ok(json!({"composing": true, "draft": m.id, "compose": compose}))
+}
+
+/// Resend Message: a message the owner sent, as a new message with what it had (recipients,
+/// subject, text, files, where replies go), sent only when the owner presses Send. The original
+/// stays as it is.
+fn resend(s: &mut Session, v: &Value) -> CmdResult {
+    let m = source_message(s, v)?;
+    if m.draft {
+        return Err(fail("that message is a draft: open it to send it"));
+    }
+    let mine = s.mailbox.accounts.iter().any(|a| !a.email.is_empty() && a.email.eq_ignore_ascii_case(m.from.email.trim()));
+    if !mine {
+        return Err(fail("only a message you sent can be sent again"));
+    }
+    if m.unfetched || m.incomplete || not_downloaded(&m) {
+        return Err(fail("this message isn't downloaded: open it once you're online, then send it again"));
+    }
+    let c = reopened(s, &m);
+    let compose = s.open_compose(Compose { mode: ComposeMode::New, dirty: true, ..c })?;
+    s.view.module = crate::Module::Mail;
+    Ok(json!({"composing": true, "from": m.id, "compose": compose}))
+}
+
+/// Most addresses on a `Reply-To` line.
+const MAX_REPLY_TO: usize = 20;
+
+/// Direct Replies To: the `Reply-To` line of the message being written, each address checked.
+fn reply_to(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["value"])?;
+    let typed = p::req_str(v, "value")?;
+    let list = Address::parse_list(&typed.replace(['\r', '\n', '\0'], " "));
+    if let Some(wrong) = list.iter().find(|a| !a.is_valid()) {
+        return Err(failed!("\"{address}\" isn't an e-mail address", address = wrong.email));
+    }
+    if list.len() > MAX_REPLY_TO {
+        return Err(failed!("replies can go to at most {n} addresses", n = MAX_REPLY_TO));
+    }
+    let line = format_list(&list);
+    let c = compose_mut(s)?;
+    if c.reply_to != line {
+        c.reply_to = line.clone();
+        c.dirty = true;
+    }
+    Ok(json!({"replyTo": line}))
+}
+
+/// Request a Read Receipt: on or off for the message being written, or the other way round.
+fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["value"])?;
+    let wanted = match v.get("value") {
+        None | Some(Value::Null) => None,
+        Some(Value::Bool(b)) => Some(*b),
+        Some(_) => return Err(bad("`value` is true or false")),
+    };
+    let c = compose_mut(s)?;
+    let on = wanted.unwrap_or(!c.read_receipt);
+    if c.read_receipt != on {
+        c.read_receipt = on;
+        c.dirty = true;
+    }
+    Ok(json!({"readReceipt": on}))
+}
+
+/// Whether a draft or a sent message asked for a read receipt: as kept here, or as its header
+/// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
+/// opened to write again; a request in mail that comes in is never read, nor answered.
+fn asked_receipt(m: &Message) -> bool {
+    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+}
+
+/// The message being written made again from `m` (a draft opened, a sent message to send again):
+/// its recipients, subject, text, files and the original quoted under it as they were.
+fn reopened(s: &Session, m: &Message) -> Compose {
     // A draft written here with an original quoted below opens as it was: the owner's text in
     // rich text, the original as it was carried. A draft is a file anybody could have written (or
     // an older MailCraft, which carried the original as it came), so what is below the mark is
@@ -349,38 +857,68 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         Some((html, at)) => {
             let end = html.rfind("</body>").filter(|end| *end >= at).unwrap_or(html.len());
             let quoted = mailcraft_html::quotable(html.get(at..end).unwrap_or("")).trim_end().to_string();
-            let text = original_at(&m.body.text).and_then(|at| m.body.text.get(at..)).unwrap_or("").to_string();
-            let pictures = shown_pictures(&m, &quoted);
+            // (Its text part is what the HTML reads as: the text part the draft file carries is
+            // only asked which language the opening line is in.)
+            let marker = mailcraft_i18n::Lang::ALL
+                .iter()
+                .map(|l| l.t(ORIGINAL))
+                .find(|marker| m.body.text.contains(&format!("\n\n{marker}")))
+                .unwrap_or_else(|| s.interface_language.t(ORIGINAL));
+            let text = quote_text(marker, &quoted);
+            let pictures = shown_pictures(m, &quoted);
             (Some(html.get(..at).unwrap_or("").to_string()), Some(Quote { text, html: quoted, pictures }))
         }
         None => (m.body.html.clone(), None),
     };
+    // The pictures the owner put in the text come back where they were (#547), once each, checked
+    // as a new one is; they are the text's, no longer attachments.
+    let mut pictures: Vec<Picture> = Vec::new();
+    let rich = own_html.as_deref().map(|html| {
+        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+            let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
+            if pictures.iter().any(|p| p.id == id) {
+                return Some(id);
+            }
+            let a = m.attachments.iter().find(|a| a.inline && a.content_id == img.cid)?;
+            let picture = mailcraft_model::pictures::take(&pictures, id, &a.name, a.data.to_vec(), &img.alt, img.width)?;
+            pictures.push(picture);
+            Some(id)
+        })
+    });
+    let taken: Vec<String> = pictures
+        .iter()
+        .filter_map(|p| m.attachments.iter().find(|a| a.inline && a.content_id.starts_with(&format!("{PICTURE_CID}{}.", p.id))))
+        .map(|a| a.content_id.clone())
+        .collect();
+    let picture_seq = pictures.iter().map(|p| p.id.saturating_sub(mailcraft_model::pictures::FIRST_ID).saturating_add(1)).max().unwrap_or(0);
     let attachments: Vec<Attachment> = match &quote {
         Some(q) => m.attachments.iter().filter(|a| !q.pictures.contains(a)).cloned().collect(),
         None => m.attachments.clone(),
     };
-    s.compose = Some(Compose {
-        mode: ComposeMode::Draft,
-        draft: Some(m.id),
+    let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
+    Compose {
         account: m.account,
         to: format_list(&m.to),
         cc: format_list(&m.cc),
         bcc: format_list(&m.bcc),
+        reply_to: format_list(&m.reply_to),
         subject: m.subject.clone(),
         // A draft written in HTML opens in rich text, reduced to what can be written here.
-        body: match &own_html {
-            Some(html) => RichBody::new(mailcraft_mime::rich::from_html(html)),
+        body: match rich {
+            Some(rich) => RichBody::new(rich),
             None => RichBody::from_plain(&m.body.text),
         },
+        pictures,
+        picture_seq,
         format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments,
         importance: m.importance,
+        read_receipt: asked_receipt(m),
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
-    });
-    Ok(json!({"composing": true, "draft": m.id}))
+    }
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {
@@ -398,7 +936,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     // edited the one in it.
     // ponytail: a message that started with no signature gets none; add one when owners ask.
     let swap = match (account, s.compose.as_ref()) {
-        (Some(a), Some(c)) if a != c.account && signature_unedited(c) => Some(chosen_signature(s, a, None, is_response(c.mode))),
+        (Some(a), Some(c)) if a != c.account && c.signature_unedited() => Some(chosen_signature(s, a, None, is_response(c.mode))),
         _ => None,
     };
     let c = compose_mut(s)?;
@@ -406,7 +944,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(sig) = swap {
         put_signature(c, sig.as_ref(), 0)?;
     }
-    for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("subject", &mut c.subject)] {
+    for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("replyTo", &mut c.reply_to), ("subject", &mut c.subject)] {
         if let Some(text) = p::str(v, key) {
             *field = text.replace(['\r', '\n'], " ");
         }
@@ -474,6 +1012,21 @@ fn signature(s: &mut Session, v: &Value) -> CmdResult {
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
     put_signature(c, Some(&sig), at)?;
+    c.dirty = true;
+    done()
+}
+
+/// Show and send an HTML signature as its simpler copy, or as the HTML again while that copy is
+/// unedited ([`Session::run`] then takes the caret out of the copy, which is no longer shown).
+fn signature_as_text(s: &mut Session, v: &Value) -> CmdResult {
+    let value = p::bool(v, "value").ok_or_else(|| bad("`value` (bool) is required"))?;
+    let c = compose_mut(s)?;
+    let unedited = c.signature_unedited();
+    let inserted = c.signature.as_mut().filter(|i| i.html.is_some()).ok_or_else(|| fail("the message has no HTML signature"))?;
+    if !value && !unedited {
+        return Err(fail("the signature was edited as text: its copy is what goes out"));
+    }
+    inserted.as_text = value;
     c.dirty = true;
     done()
 }
@@ -546,6 +1099,8 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         Ok(list)
     };
     let (to, cc, bcc) = (parse(&c.to, "To")?, parse(&c.cc, "Cc")?, parse(&c.bcc, "Bcc")?);
+    // Where replies go: an address that isn't one never goes, a draft's included.
+    let reply_to: Vec<Address> = parse(&c.reply_to, "Reply-To")?.into_iter().filter(Address::is_valid).take(MAX_REPLY_TO).collect();
     if strict && to.is_empty() && cc.is_empty() && bcc.is_empty() {
         return Err(fail("add at least one recipient"));
     }
@@ -567,6 +1122,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         to,
         cc,
         bcc,
+        reply_to,
         subject: c.subject.trim().to_string(),
         date: now,
         received: now,
@@ -574,6 +1130,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         attachments: attachments_of(c, &message_id),
         read: true,
         importance: c.importance,
+        read_receipt: c.read_receipt,
         message_id,
         ..Default::default()
     })
@@ -585,23 +1142,33 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let text = c.body.text();
     let quote_text = c.quote.as_ref().map_or("", |q| q.text.as_str());
     let quote_html = c.quote.as_ref().map(|q| q.html.as_str());
+    // The pictures the owner put in the text (#547): `<img>`s of the HTML, `[picture]` in words.
+    let img = |id: u32| c.pictures.iter().find(|p| p.id == id).map(|p| Img::of(p, picture_cid(p, message_id)));
+    let say = |id: u32| {
+        c.pictures
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| if p.alt.is_empty() { mailcraft_model::pictures::PLACEHOLDER.to_string() } else { p.alt.clone() })
+    };
     let Some((before, sig, after)) = sent_signature(c) else {
-        let plain = format!("{}{quote_text}", text.to_plain());
+        let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::to_html_document(text, quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
     // The signature laid out as it was made, its pictures the message's own parts.
-    let parts = [before.as_ref().map(RichText::to_plain), Some(sig.plain()), after.as_ref().map(RichText::to_plain)];
+    let parts = [before.as_ref().map(|t| t.to_plain_with(say)), Some(sig.plain()), after.as_ref().map(|t| t.to_plain_with(say))];
     let plain = format!("{}{quote_text}", parts.into_iter().flatten().collect::<Vec<_>>().join("\n"));
     match c.format {
         BodyFormat::Html => {
             let cid = |p: &Picture| signature_cid(p, message_id);
+            // An HTML signature goes out as the owner wrote it, cleaned, unless they edited it here.
+            let own = c.signature_html();
             let html = [
-                before.as_ref().map(mailcraft_mime::rich::to_html),
-                Some(mailcraft_mime::rich::signature_html(&sig, &cid)),
-                after.as_ref().map(mailcraft_mime::rich::to_html),
+                before.as_ref().map(|t| to_html_with(t, &img)),
+                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                after.as_ref().map(|t| to_html_with(t, &img)),
             ];
             Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
@@ -623,10 +1190,32 @@ fn signature_cid(p: &Picture, message_id: &str) -> String {
     format!("sig-{}.{local}@mailcraft.invalid", p.id)
 }
 
-/// What goes with the message: the attachments, and in HTML the pictures of the signature and of
-/// the quoted original.
+/// A picture the owner put in the text: its Content-ID, unique to the message and naming nothing
+/// of the owner. (A draft reads it back by the `pic-<id>.` it starts with.)
+fn picture_cid(p: &Picture, message_id: &str) -> String {
+    let local = message_id.split('@').next().unwrap_or("");
+    format!("{PICTURE_CID}{}.{local}@mailcraft.invalid", p.id)
+}
+
+/// What a Content-ID of a picture the owner put in the text starts with.
+const PICTURE_CID: &str = "pic-";
+
+/// What goes with the message: the attachments, and in HTML the pictures of the text, of the
+/// signature and of the quoted original.
 fn attachments_of(c: &Compose, message_id: &str) -> Vec<Attachment> {
     let mut all = c.attachments.clone();
+    if c.format == BodyFormat::Html {
+        // Only the pictures the text shows (one that was deleted stays for undo, not for sending).
+        let held: std::collections::HashSet<u32> = c.body.text().pictures().into_iter().collect();
+        all.extend(c.pictures.iter().filter(|p| held.contains(&p.id)).map(|p| Attachment {
+            name: if p.name.is_empty() { format!("picture.{}", p.mime.rsplit('/').next().unwrap_or("png")) } else { p.name.clone() },
+            mime: p.mime.clone(),
+            content_id: picture_cid(p, message_id),
+            inline: true,
+            data: p.data.clone(),
+            kept: None,
+        }));
+    }
     if c.format == BodyFormat::Html
         && let Some((_, sig, _)) = sent_signature(c)
     {
@@ -647,22 +1236,30 @@ fn attachments_of(c: &Compose, message_id: &str) -> Vec<Attachment> {
     all
 }
 
-/// The original a reply or forward being written answers or forwards.
+/// The original a reply or forward being written answers or forwards, and the others a forward of
+/// several forwards (#360); those that are gone are left out.
 fn answers_of(s: &Session, c: &Compose) -> Option<Answers> {
     let forward = match c.mode {
         ComposeMode::Forward => true,
         ComposeMode::Reply | ComposeMode::ReplyAll => false,
         _ => return None,
     };
-    let original = s.mailbox.message(c.source?)?;
-    Some(Answers { message: original.id, message_id: original.message_id.clone(), forward })
+    let mut originals = c.source.iter().chain(&c.also).filter_map(|id| s.mailbox.message(*id)).map(|original| Answers {
+        message: original.id,
+        message_id: original.message_id.clone(),
+        forward,
+        also: Vec::new(),
+    });
+    let first = originals.next()?;
+    Some(Answers { also: originals.collect(), ..first })
 }
 
 fn send(s: &mut Session, _: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
-    let saved = c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.is_graph(d.account));
+    let saved =
+        c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.keeps_drafts_on_server(d.account));
     let mut m = build_as(s, &c, true, saved.as_ref().map(|d| d.message_id.as_str()).filter(|id| !id.is_empty()))?;
     if let Some(d) = saved.as_ref().filter(|d| d.account == m.account) {
         (m.server, m.server_draft) = (d.server.clone(), d.server_draft.clone());
@@ -686,7 +1283,7 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     if account.kind.has_server() && !account.kind.sends_mail() {
         return Err(failed!(
             "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(NOT_SENDING_YET)
+            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
         ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
@@ -750,19 +1347,22 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
-    let graph = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Microsoft);
+    let graph = s.mailbox.keeps_drafts_on_server(m.account);
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
-        let of = c.source.and_then(|src| s.mailbox.message(src)).filter(|src| src.account == m.account).and_then(|src| {
-            let id = src.server.as_ref().filter(|server| !server.gone)?.id.clone();
-            let kind = match c.mode {
-                ComposeMode::Reply => DraftKind::Reply,
-                ComposeMode::ReplyAll => DraftKind::ReplyAll,
-                ComposeMode::Forward => DraftKind::Forward,
-                _ => return None,
-            };
-            Some(DraftOf { id, kind })
-        });
+        // Not a forward as an attachment: made as a forward, it would have the source's files
+        // beside the attached message, and a meeting request would be forwarded as itself (#315).
+        let of =
+            c.source.filter(|_| !c.as_attachment).and_then(|src| s.mailbox.message(src)).filter(|src| src.account == m.account).and_then(|src| {
+                let id = src.server.as_ref().filter(|server| !server.gone)?.id.clone();
+                let kind = match c.mode {
+                    ComposeMode::Reply => DraftKind::Reply,
+                    ComposeMode::ReplyAll => DraftKind::ReplyAll,
+                    ComposeMode::Forward => DraftKind::Forward,
+                    _ => return None,
+                };
+                Some(DraftOf { id, kind })
+            });
         let mut sd = m.server_draft.take().unwrap_or_else(|| ServerDraft { of, ..Default::default() });
         // A draft the server had from elsewhere, edited here for the first time: what the server
         // had is what it was before.
@@ -791,22 +1391,33 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     }
     let c = compose_mut(s)?;
     c.draft = Some(id);
+    // (Whoever saved it, what the owner wrote in it stays theirs until it is closed, #494.)
     c.dirty = false;
     Ok(json!({"draft": id}))
 }
 
 fn close(s: &mut Session, _: &Value) -> CmdResult {
+    // (Saved to Drafts first unless `discard`, by `saves_first`; what was last saved stays there.)
     s.compose = None;
     done()
 }
 
+/// Pop Out (#286): what the window is to move into a window of its own. Nothing of the message
+/// changes here; the host with windows puts it there ([`Session::run`] made it current).
+fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
+    let id = s.compose_id().ok_or_else(|| fail("no message is being written"))?;
+    Ok(json!({"compose": id, "popOut": true}))
+}
+
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    if let Some(d) = draft {
-        // Already gone is fine.
-        let _ = s.mailbox.remove_message(d);
+    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
+    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
+    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
+        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
     }
-    Ok(json!({"draftDeleted": draft.is_some()}))
+    Ok(json!({"draftDeleted": deleted}))
 }
 
 /// Someone a name or address being typed could be.
@@ -818,22 +1429,42 @@ pub struct Suggestion {
     pub contact: bool,
 }
 
-/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first. The owner's own addresses and
-/// addresses that don't look like one are left out. One pass over the mailbox, so it can run on
-/// every key press.
-pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() || q.chars().count() > 200 {
-        return Vec::new();
+/// What was typed for a person, as [`suggest`] compares a name and an address with it.
+pub(crate) struct Typed {
+    q: String,
+    wanted: Vec<String>,
+}
+
+impl Typed {
+    /// `None` for nothing, or for more than 200 characters. With an `@` in it, it is an address
+    /// being typed and is not taken apart into words: `ada@` is not Ada Smith at another address.
+    pub(crate) fn new(query: &str) -> Option<Typed> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() || q.chars().count() > 200 {
+            return None;
+        }
+        let wanted = if q.contains('@') { Vec::new() } else { mailcraft_model::words::words(&q) };
+        Some(Typed { wanted, q })
     }
+
+    /// Whether it is the start of the address, of the name, or of words of the name one after
+    /// another, compared as the search compares them, ignoring case and accents (`gvoz` is
+    /// Gvožđar, #308).
+    pub(crate) fn fits(&self, name: &str, email: &str) -> bool {
+        email.to_lowercase().starts_with(&self.q)
+            || name.to_lowercase().starts_with(&self.q)
+            || (!self.wanted.is_empty() && mailcraft_model::words::starts_in(name, &self.wanted))
+    }
+}
+
+/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
+/// then the people mail was exchanged with, the latest first, matched as [`Typed::fits`] says. The
+/// owner's own addresses and addresses that don't look like one are left out. One pass over the
+/// mailbox, so it can run on every key press.
+pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    let Some(typed) = Typed::new(query) else { return Vec::new() };
     let limit = limit.clamp(1, 20);
-    let fits = |name: &str, email: &str| {
-        let (name, email) = (name.to_lowercase(), email.to_lowercase());
-        email.starts_with(&q)
-            || name.starts_with(&q)
-            || name.split(|c: char| !c.is_alphanumeric()).any(|word| !word.is_empty() && word.starts_with(&q))
-    };
+    let fits = |name: &str, email: &str| typed.fits(name, email);
     let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = own.into_iter().collect();
     let mut out: Vec<Suggestion> = Vec::new();
@@ -850,21 +1481,41 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
     }
     if out.len() < limit {
         // Whoever wrote, or was written to: each address once, as it was last seen.
-        let mut recent: std::collections::HashMap<String, (i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
-        for m in s.mailbox.messages.values() {
-            for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
+        // A sender writes the date, the From line and the folder rules put mail in Junk E-mail:
+        // mail there is not a source, a date after now counts as now, and an address the owner
+        // has written to (Sent Items) ranks above one that only wrote.
+        let (junk, sent): (Vec<Id>, Vec<Id>) = {
+            let ids = |keep: &dyn Fn(&mailcraft_model::Folder) -> bool| s.mailbox.folders.iter().filter(|f| keep(f)).map(|f| f.id).collect();
+            (ids(&|f| s.mailbox.in_junk(f.id)), ids(&|f| f.kind == FolderKind::Sent))
+        };
+        let now = s.now();
+        let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
+        // A name and an address are matched once, however many messages carry them.
+        let mut matched: std::collections::HashMap<(&str, &str), bool> = std::collections::HashMap::new();
+        for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
+            let written = sent.contains(&m.folder);
+            let date = m.date.min(now);
+            let people: Vec<(&mailcraft_model::Address, bool)> = if written {
+                m.to.iter().chain(&m.cc).chain(&m.bcc).map(|a| (a, true)).collect()
+            } else {
+                std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
+            };
+            for (a, to) in people {
+                if !*matched.entry((a.name.as_str(), a.email.as_str())).or_insert_with(|| fits(&a.name, &a.email)) {
+                    continue;
+                }
                 let key = a.email.trim().to_lowercase();
-                if !seen.contains(&key) && a.is_valid() && fits(&a.name, &a.email) {
-                    let known = recent.entry(key).or_insert((m.date, a));
-                    if m.date >= known.0 {
-                        *known = (m.date, a);
+                if !seen.contains(&key) && a.is_valid() {
+                    let known = recent.entry(key).or_insert((to, date, a));
+                    if (to, date) >= (known.0, known.1) {
+                        *known = (to || known.0, date, a);
                     }
                 }
             }
         }
-        let mut recent: Vec<(i64, &mailcraft_model::Address)> = recent.into_values().collect();
-        recent.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.email.cmp(&b.1.email)));
-        out.extend(recent.into_iter().map(|(_, a)| Suggestion {
+        let mut recent: Vec<(bool, i64, &mailcraft_model::Address)> = recent.into_values().collect();
+        recent.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.email.cmp(&b.2.email)));
+        out.extend(recent.into_iter().map(|(_, _, a)| Suggestion {
             name: a.name.trim().to_string(),
             email: a.email.trim().to_string(),
             contact: false,

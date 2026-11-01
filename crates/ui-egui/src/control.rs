@@ -11,6 +11,8 @@
 //!   real pointer input in screen points (reaches every widget)
 //! - `ui.key {key, shift?, alt?, cmd?}`, `ui.text {text}`: keyboard input through egui
 //! - `ui.screenshot {path?, inline?}`: PNG of the window (`inline`: as base64 `data` in the answer)
+//! - `app.status`: whether the mailbox is open; while the window still opens it, the one request
+//!   answered (every other is refused, `crate::opening::STILL_OPENING`)
 //!
 //! A request the MCP bridge marked as an agent's (`agent`) goes through [`crate::agent_gate`].
 //! - `ui.parity`: feature catalog parity
@@ -66,7 +68,10 @@ pub enum Outcome {
 /// tests click by asking `ui.inspect` for an item's rectangle instead of guessing coordinates.
 #[derive(Default)]
 pub struct HitMap {
-    items: Vec<(&'static str, u64, egui::Rect)>,
+    /// What, its id, where, and the window of its own it is in (0: the main window).
+    items: Vec<(&'static str, u64, egui::Rect, u64)>,
+    /// The window of its own being laid out (#286): what is recorded meanwhile is in it.
+    scope: u64,
 }
 
 impl HitMap {
@@ -79,17 +84,39 @@ impl HitMap {
     pub fn add(&mut self, kind: &'static str, id: u64, rect: egui::Rect) {
         // A list far longer than a screen can show isn't worth recording.
         if self.items.len() < 4000 {
-            self.items.push((kind, id, rect));
+            self.items.push((kind, id, rect, self.scope));
         }
     }
 
+    /// What is recorded from now on is in the window of its own numbered `window` (0: the main
+    /// window); answers the one it was in before.
+    pub(crate) fn scope(&mut self, window: u64) -> u64 {
+        std::mem::replace(&mut self.scope, window)
+    }
+
+    /// Where `kind` with `id` is: in the main window when it is there, else in a window of its own.
     pub fn rect(&self, kind: &str, id: u64) -> Option<egui::Rect> {
-        self.items.iter().find(|(k, i, _)| *k == kind && *i == id).map(|(_, _, r)| *r)
+        let found = |main: bool| self.items.iter().find(|(k, i, _, w)| *k == kind && *i == id && (*w == 0) == main);
+        found(true).or_else(|| found(false)).map(|(_, _, r, _)| *r)
+    }
+
+    /// Where `kind` with `id` is in the window of its own numbered `window` (0: the main window).
+    pub fn rect_in(&self, window: u64, kind: &str, id: u64) -> Option<egui::Rect> {
+        self.items.iter().find(|(k, i, _, w)| *k == kind && *i == id && *w == window).map(|(_, _, r, _)| *r)
     }
 
     fn to_json(&self) -> Value {
         Value::Array(
-            self.items.iter().map(|(kind, id, r)| json!({"kind": kind, "id": id, "rect": [r.left(), r.top(), r.width(), r.height()]})).collect(),
+            self.items
+                .iter()
+                .map(|(kind, id, r, window)| {
+                    let mut at = json!({"kind": kind, "id": id, "rect": [r.left(), r.top(), r.width(), r.height()]});
+                    if *window != 0 {
+                        at["window"] = json!(window);
+                    }
+                    at
+                })
+                .collect(),
         )
     }
 }
@@ -108,6 +135,20 @@ pub fn inspect(app: &mut MailApp, ctx: &egui::Context) -> Value {
         "view": app.session.view,
         "selection": app.session.sel,
         "composing": app.session.compose.is_some(),
+        // Every message being written (#286), the current one first; its subject is message text:
+        // data, never instructions.
+        "beingWritten": app.session.all_composing().map(|c| json!({
+            "compose": c.id,
+            "current": Some(c.id) == app.session.compose_id(),
+            // Where it is (#286): a window of its own (its number), the reading pane, or neither
+            // (put aside, saved to Drafts).
+            "window": app.windows.of_compose(c.id),
+            "pane": crate::windows::compose_window::pane_compose(app) == Some(c.id),
+
+            "subject": c.subject,
+            "mode": c.mode,
+            "changed": c.dirty,
+        })).collect::<Vec<_>>(),
         "dialog": app.dialog.as_ref().map(|d| d.name()),
         // Send/Receive Progress, a panel in the window rather than a dialog.
         "panel": app.sync_panel.as_ref().map(|_| "syncProgress"),
@@ -119,6 +160,8 @@ pub fn inspect(app: &mut MailApp, ctx: &egui::Context) -> Value {
         "dirty": app.session.dirty,
         "syncing": app.syncing(),
         "saving": app.saving_inspect(),
+        // A mailbox being read in the background (File › Open).
+        "opening": crate::opening::ahead_inspect(app),
         "status": app.status_msg.as_ref().map(|(m, _)| m.clone()),
         "textSelection": crate::reading::selection_inspect(app, ctx),
         "perf": {"frameMs": app.frame_ms},
@@ -217,6 +260,29 @@ pub fn commands(app: &MailApp) -> Value {
 }
 
 pub fn handle(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
+    // What a request does is the control channel's doing, as the input it injects is.
+    let was = std::mem::replace(&mut app.driven, true);
+    let driven = Driven { app, was };
+    dispatch(driven.app, ctx, req)
+}
+
+/// The window marked as driven while a request is handled; as it was again however the handling
+/// ends, a panic in it too.
+struct Driven<'a> {
+    app: &'a mut MailApp,
+    was: bool,
+}
+
+impl Drop for Driven<'_> {
+    fn drop(&mut self) {
+        self.app.driven = self.was;
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
     if let Some(allow) = &req.agent
         && let Some(settled) = crate::agent_gate::screen(app, req, allow)
     {
@@ -240,6 +306,9 @@ pub fn handle(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> O
             Err(e) => err(e),
         },
         "ui.inspect" => ok(inspect(app, ctx)),
+        // Whether the mailbox is open (while it opens, this alone is answered: `opening`), and
+        // the one being read in the background, if any.
+        "app.status" => ok(json!({"mailbox": "open", "opening": crate::opening::ahead_inspect(app)})),
         "ui.parity" => ok(mailcraft_engine::catalog::parity(&app.session.registry)),
         // The desktop alerts the window showed (read only: nothing can ask for one).
         "ui.alerts" => ok(crate::alerts::inspect(app, p)),

@@ -5,10 +5,12 @@
 //! Usage: `mailcraft [--control <port> [--control-agents-only]] [--sample] [--mailbox <file>] [files or mailto: links…]`
 //!
 //! The mailbox lives in `<settings>/mailbox.mailcraft` (or the file `--mailbox` names) and is saved
-//! as you go. `--sample` opens the sample mailbox instead and keeps nothing. Files on the command
-//! line (`.eml`, `.mbox`, `.ics`, `.vcf`) are imported, and a `mailto:` link starts a new message.
-//! A mailbox is open in one window only: started again, MailCraft hands its files and links to
-//! the window that is already open and exits (`single_instance`).
+//! as you go. `--sample` opens the sample mailbox instead and keeps nothing. On the command line
+//! a `mailto:` link starts a new message, a `.eml` file opens in a window of its own, a `.ics` or
+//! `.vcf` file is imported once the owner says so, and a `.mbox` file is imported
+//! (`MailApp::open_from_system`). A mailbox is open in one window only: started again, MailCraft
+//! hands its files and links to the window that is already open, which comes to the front, and
+//! exits (`single_instance`, which also says which runs take part).
 //!
 //! `--control <port>` (or `MAILCRAFT_CONTROL_PORT`) starts a localhost JSON-lines control server:
 //! `{"id":1,"key":"…","method":"engine.execute","params":{"command":"mail.markAllRead","params":{}}}`.
@@ -29,10 +31,20 @@ mod browser;
 #[cfg(test)]
 mod calendar_flow;
 mod clipboard;
+#[cfg(test)]
+mod control_challenge_flow;
 mod control_server;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
 mod diagnostics;
+#[cfg(test)]
+mod ews_mail_flow;
+mod ews_runner;
+mod ews_setup;
+#[cfg(test)]
+mod ews_setup_flow;
+#[cfg(test)]
+mod ews_up_flow;
 #[cfg(test)]
 mod favorites_flow;
 #[cfg(test)]
@@ -46,6 +58,11 @@ mod graph_mail_flow;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod install;
+#[cfg(test)]
+mod jmap_mail_flow;
+mod launch;
+#[cfg(test)]
+mod listed_twice_flow;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menubar;
@@ -58,12 +75,17 @@ mod quit;
 mod quit_macos;
 mod secrets;
 mod self_update;
+mod sender_images;
+#[cfg(test)]
+mod settings_unread_tests;
 #[cfg(test)]
 mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
 mod system_locale;
+#[cfg(test)]
+mod tasks_job_tests;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
@@ -76,12 +98,11 @@ mod wipe;
 use std::path::PathBuf;
 
 use mailcraft_engine::Session;
-use mailcraft_model::Mailbox;
 use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
-    GraphRequest, GraphResult, MailApp, Services, SignInRequest, UiState,
-    window_geometry::{WindowGeometry, take_rescue},
+    GraphRequest, GraphResult, MailApp, Services, SettingsUnread, SignInRequest, UiState,
+    window_geometry::{self, WindowGeometry, take_rescue},
 };
 
 /// The app, the restored window geometry until the first frame has checked it, the control
@@ -131,11 +152,14 @@ impl eframe::App for App {
         // MailCraft was started again (the shortcut, a `mailto:` link, a file opened from the
         // file manager): what it was started with opens here, and the window comes forward.
         if let Some(asked) = self.4.as_ref().and_then(single_instance::Guard::handed_over) {
-            for what in &asked {
-                self.0.open_path(what);
+            for what in &asked.open {
+                self.0.open_from_system(what);
             }
+            self.0.note_left_alone(asked.refused);
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            // Where the system won't let a window step in front by itself, its button says so.
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
         }
         // The menu bar's choices run before the frame's own work (macOS).
         #[cfg(target_os = "macos")]
@@ -143,11 +167,22 @@ impl eframe::App for App {
             bar.pump(&mut self.0, ctx);
         }
         self.0.logic(ctx);
+        // Another mailbox file opened in the window (or File › New): the lock follows it (#517).
+        if let Some(guard) = &self.4
+            && !self.0.is_opening()
+        {
+            guard.follow(self.0.session.path.as_deref());
+        }
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
-        if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport())) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        // A window restored onto a monitor that is gone is moved onto the main one (#719): the
+        // monitors are asked for only until that check is done.
+        if self.1.is_some() {
+            let monitors = connected_monitors(ctx, frame);
+            if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport(), &monitors)) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+            }
         }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
@@ -170,11 +205,14 @@ impl eframe::App for App {
         open_pages(ui.ctx(), frame);
     }
     fn on_exit(&mut self) {
-        save_prefs(&self.0);
-        // The last changes, if the timer hadn't got to them yet, and whatever the background
-        // saver is still writing.
-        if let Err(e) = self.0.save_on_exit() {
-            log::error!("saving the mailbox on exit failed: {e}");
+        // A window closed while its mailbox was still opening has nothing to save (#519).
+        if !self.0.is_opening() {
+            save_prefs(&self.0);
+            // The last changes, if the timer hadn't got to them yet, and whatever the background
+            // saver is still writing.
+            if let Err(e) = self.0.save_on_exit() {
+                log::error!("saving the mailbox on exit failed: {e}");
+            }
         }
         // The attachments opened in this run (#126).
         if let Some(opened) = OPENED.get() {
@@ -205,6 +243,10 @@ impl eframe::App for App {
                 }
             }
         }
+        // Written and done with: the mailbox's memory goes with the process instead of being
+        // handed back message by message with the window still showing (a fifth of a second for
+        // 64,000 messages, #586).
+        std::mem::forget(std::mem::take(&mut self.0.session.mailbox));
     }
 }
 
@@ -270,27 +312,96 @@ fn prefs_enabled() -> bool {
     std::env::var_os("MAILCRAFT_NO_PREFS").is_none()
 }
 
-fn load_prefs(app: &mut MailApp) {
-    if !prefs_enabled() {
-        return;
-    }
-    if let Some(ui) = prefs_path().and_then(|p| read_prefs(&p)) {
-        app.apply_prefs(ui);
+/// File › Info › Open MailCraft's data folder (#460): the settings folder (the one Remove
+/// MailCraft's data clears first), and the system's own opener for whichever folder the window
+/// shows: that one, or the open mailbox's own when it is kept elsewhere. None for a run that keeps
+/// nothing.
+fn data_folder(keeps_data: bool) -> Option<mailcraft_ui_egui::data_removal::DataFolder> {
+    let path = mailcraft_control_key::settings_dir().filter(|_| keeps_data)?;
+    Some(mailcraft_ui_egui::data_removal::DataFolder { path, open: Box::new(file_launcher::open_folder) })
+}
+
+/// The preferences, read once at start (before the window opens, for its size and place), and
+/// what became of the file when it couldn't be read. Nothing for a run without preferences.
+fn load_prefs() -> (Option<UiState>, Option<SettingsUnread>) {
+    match prefs_path() {
+        Some(path) if prefs_enabled() => read_prefs(&path),
+        _ => (None, None),
     }
 }
 
+/// A settings file that couldn't be set aside stays where it was, and this run's settings
+/// aren't saved over it.
+static PREFS_LEFT_IN_PLACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// The preferences in `path`. A file that can't be read as them (damaged, or written by a version
-/// that keeps them otherwise) is moved aside to `ui.json.damaged`, so the next save doesn't
-/// overwrite what the owner had set and it can still be looked at.
-fn read_prefs(path: &std::path::Path) -> Option<UiState> {
-    let bytes = std::fs::read(path).ok()?;
-    let ui = serde_json::from_slice::<UiState>(&bytes);
-    if ui.is_err() {
-        let mut aside = path.as_os_str().to_os_string();
-        aside.push(".damaged");
-        let _ = std::fs::rename(path, aside);
+/// that keeps them otherwise) is moved aside to `ui.json.damaged` (or `.damaged-2` and on, so an
+/// earlier one is kept), so the next save doesn't overwrite what the owner had set and it can
+/// still be looked at; the window says so. One that can't be read at all, or can't be moved
+/// aside, is left where it is and not saved over (the window says which). The log names the kind of error and where in
+/// the file it is, never what the file says.
+fn read_prefs(path: &std::path::Path) -> (Option<UiState>, Option<SettingsUnread>) {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (None, None),
+        Err(e) => {
+            log::warn!("the settings file couldn't be read ({:?}); it is left as it is and not saved over", e.kind());
+            PREFS_LEFT_IN_PLACE.store(true, std::sync::atomic::Ordering::Relaxed);
+            return (None, Some(SettingsUnread::CouldntRead));
+        }
+    };
+    let e = match serde_json::from_slice::<UiState>(&bytes) {
+        Ok(ui) => return (Some(ui), None),
+        Err(e) => e,
+    };
+    let at = format!("{:?} error at line {}, column {}", e.classify(), e.line(), e.column());
+    match set_aside(path) {
+        Ok(aside) => {
+            let name = aside.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            log::warn!("the settings file couldn't be read ({at}); set aside as {name}, started with MailCraft's own settings");
+            (None, Some(SettingsUnread::SetAside(name)))
+        }
+        Err(_) => {
+            log::warn!("the settings file couldn't be read ({at}) nor set aside; it is left as it is and not saved over");
+            PREFS_LEFT_IN_PLACE.store(true, std::sync::atomic::Ordering::Relaxed);
+            (None, Some(SettingsUnread::LeftInPlace))
+        }
     }
-    ui.ok()
+}
+
+/// How many damaged copies of the settings are kept; past that the oldest is replaced.
+const MAX_DAMAGED_COPIES: usize = 20;
+
+/// Move the settings file at `path` to `<file>.damaged` (or `.damaged-2` and on) without
+/// replacing anything already there: a name is taken when anything is on it, a link that leads
+/// nowhere included (`symlink_metadata`, which doesn't follow it, and which only an absent name
+/// answers with an error). When all the names are taken, the oldest plain file among them is
+/// replaced, so settings go on being saved however often the file has been damaged.
+fn set_aside(path: &std::path::Path) -> std::io::Result<PathBuf> {
+    let name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut oldest: Option<(std::time::SystemTime, PathBuf)> = None;
+    for n in 1..=MAX_DAMAGED_COPIES {
+        let mut aside = name.clone();
+        aside.push(if n == 1 { ".damaged".to_string() } else { format!(".damaged-{n}") });
+        let aside = path.with_file_name(aside);
+        match std::fs::symlink_metadata(&aside) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                std::fs::rename(path, &aside)?;
+                return Ok(aside);
+            }
+            Err(e) => return Err(e),
+            Ok(meta) if meta.is_file() => {
+                let modified = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+                if oldest.as_ref().is_none_or(|(t, _)| modified < *t) {
+                    oldest = Some((modified, aside));
+                }
+            }
+            Ok(_) => {}
+        }
+    }
+    let (_, aside) = oldest.ok_or_else(|| std::io::Error::other("no name is free for a damaged copy"))?;
+    std::fs::rename(path, &aside)?;
+    Ok(aside)
 }
 
 /// Write the preferences so that a crash leaves the old file or the whole new one, readable by
@@ -302,22 +413,20 @@ fn write_prefs(path: &std::path::Path, ui: &UiState) -> std::io::Result<()> {
     mailcraft_engine::store::write_atomic(path, &serde_json::to_vec_pretty(ui).map_err(std::io::Error::other)?)
 }
 
-/// The saved window geometry, read before the window opens (`load_prefs` runs after).
-fn saved_window() -> Option<WindowGeometry> {
-    if !prefs_enabled() {
-        return None;
+fn save_prefs(app: &MailApp) {
+    if let Some(p) = prefs_path() {
+        save_prefs_at(app, &p);
     }
-    read_prefs(&prefs_path()?)?.window?.sanitized()
 }
 
-fn save_prefs(app: &MailApp) {
-    // Its data was removed from this computer (File › Info): nothing is written back.
-    if !prefs_enabled() || app.data_removed {
+/// [`save_prefs`] to `path`.
+fn save_prefs_at(app: &MailApp, path: &std::path::Path) {
+    // Its data was removed from this computer (File › Info): nothing is written back. Nor is
+    // anything of a window closed while its mailbox was still opening (#519).
+    if !prefs_enabled() || app.data_removed || app.is_opening() || PREFS_LEFT_IN_PLACE.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
-    if let Some(p) = prefs_path() {
-        let _ = write_prefs(&p, &app.prefs());
-    }
+    let _ = write_prefs(path, &app.prefs());
 }
 
 /// Run `work` on a background thread of its own; the answer comes back through the channel and
@@ -363,6 +472,19 @@ fn open_in_browser(url: &str) -> bool {
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 static DESKTOP_THEME: std::sync::OnceLock<desktop_theme::DesktopTheme> = std::sync::OnceLock::new();
 
+/// The monitors connected now, in the points the window's place is in, from the window eframe made
+/// (egui doesn't list them). None while there is no window; where the system lists none, none.
+fn connected_monitors(ctx: &egui::Context, frame: &eframe::Frame) -> Vec<egui::Rect> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    // As egui turns the window's own rect into points (`egui_winit::pixels_per_point`).
+    let pixels_per_point = ctx.zoom_factor() * window.scale_factor() as f32;
+    let listed = window.available_monitors().map(|m| {
+        let (at, size) = (m.position(), m.size());
+        ([at.x, at.y], [size.width, size.height])
+    });
+    window_geometry::monitors_in_points(listed, pixels_per_point)
+}
+
 /// The pages waiting for the window's activation token (`browser`), set once before the window opens.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 static BROWSER: std::sync::OnceLock<browser::Browser<winit::event_loop::AsyncRequestSerial>> = std::sync::OnceLock::new();
@@ -381,8 +503,16 @@ fn open_pages(ctx: &egui::Context, frame: &eframe::Frame) {
     }
 }
 
+/// Everywhere else the system's own way brings the browser forward; the links are taken out of
+/// the frame all the same, so that each is checked (`browser::normalised`) on the way out and
+/// nothing reaches the opener unchecked (AU2-V1).
 #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-fn open_pages(_ctx: &egui::Context, _frame: &eframe::Frame) {}
+fn open_pages(ctx: &egui::Context, _frame: &eframe::Frame) {
+    for url in browser::take_links(ctx) {
+        // A thread of its own: the opener can take a moment. No thread, no page.
+        let _ = std::thread::Builder::new().name("browser".into()).spawn(move || browser::system_open(&url));
+    }
+}
 
 /// eframe's own handling of winit's events, and the activation tokens the window asked for
 /// (`open_pages`), which eframe would drop, handed to the pages waiting for them.
@@ -511,6 +641,18 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     // (#70): the page comes up for what sending from shared mailboxes takes too, by itself.
     if request.graph && request.shared && request.shared_send {
         let asked = mailcraft_net::oauth::sign_in_for_shared_send(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
+    // A tasks run found the sign-in doesn't cover the To Do lists (#248) and the owner said go
+    // ahead: the page comes up for that permission alone, by itself.
+    if request.graph && request.tasks {
+        let asked = mailcraft_net::oauth::sign_in_for_tasks(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
+    // A change of the automatic replies found the sign-in doesn't cover changing the mailbox's
+    // settings, and the owner said go ahead: the page comes up for that permission alone.
+    if request.graph && request.replies {
+        let asked = mailcraft_net::oauth::sign_in_for_replies(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
     // Calendars are opened by address for the first time (#70): the page comes up for the same
@@ -995,6 +1137,10 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 // those that can be read are in the list as calendars of the account, and those
                 // that can't are said, with why. (Not for a shared mailbox's job.)
                 if shared_address.is_none() {
+                    // The copy of a shared mailbox's calendar that the owner hid (the server lists
+                    // it among the account's own too, #70) isn't read: the shared mailbox's job
+                    // reads its calendar at its own address.
+                    list.calendars.retain(|calendar| calendar.main || !request.account.hides_listed(calendar.owner.as_ref()));
                     let (opened, no_good) = open_by_address(&access, &request.account.opened_calendars);
                     list.calendars.extend(opened);
                     list.refused = no_good.0;
@@ -1120,6 +1266,124 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
     out
 }
 
+/// Keep an account's tasks in step with Microsoft To Do (#248): a token of its own for the lists
+/// (a sign-in from before they were asked for gets none: the answer says the owner is to be
+/// asked), what waits to go up told to the server, then the lists and tasks read whole. Nothing
+/// of a task is logged.
+fn tasks_job(job: mailcraft_ui_egui::task_sync::TasksJob) -> mailcraft_ui_egui::task_sync::TasksResult {
+    let mail = tasks_mail(&job.account);
+    tasks_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_tasks(oauth, refresh, mail))
+}
+
+/// How a to-do job's account has its mail: what a no for the to-dos is checked against (#520).
+fn tasks_mail(account: &mailcraft_model::Account) -> mailcraft_net::oauth::Resource {
+    use mailcraft_net::oauth::Resource;
+    if account.kind == mailcraft_model::AccountKind::Microsoft { Resource::GraphMail } else { Resource::Mail }
+}
+
+/// [`tasks_job`], with how the token is had as `renew` (the tests' own, which asks nobody).
+fn tasks_job_with(
+    job: mailcraft_ui_egui::task_sync::TasksJob,
+    renew: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
+) -> mailcraft_ui_egui::task_sync::TasksResult {
+    use mailcraft_model::remote_tasks::TaskResult;
+    use mailcraft_net::{NetError, graph};
+    let mut out = mailcraft_ui_egui::task_sync::TasksResult { account: job.account.id, ..Default::default() };
+    let access = match renew(&job.oauth, &job.refresh) {
+        Ok(got) => {
+            let access = got.tokens.access.clone();
+            out.tokens = Some(got.tokens);
+            access
+        }
+        Err(e) => {
+            out.consent_needed = e.is_consent_needed();
+            out.sign_in_refused = !out.consent_needed && e.is_refused_sign_in();
+            if !out.consent_needed && !out.sign_in_refused {
+                out.errors.push(format!("Couldn't sign in to Microsoft for the tasks: {e}"));
+            }
+            return out;
+        }
+    };
+    if !job.upload.ops.is_empty() {
+        let uploaded = graph::push_tasks(&access, &job.upload).for_account(&job.account);
+        out.denied = uploaded.outcomes.iter().any(|o| o.result == TaskResult::Denied);
+        let refused = uploaded.token_refused;
+        out.uploaded = Some(uploaded);
+        if refused {
+            out.sign_in_refused = true;
+            return out;
+        }
+    }
+    if out.denied {
+        return out;
+    }
+    match graph::tasks(&access) {
+        Ok(download) => out.download = Some(download.for_account(&job.account)),
+        // The token covers the permission and Graph still says no: the organisation keeps it.
+        Err(NetError::Forbidden(_)) => out.denied = true,
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) => out.errors.push(format!("Couldn't bring the tasks down: {e}")),
+    }
+    out
+}
+
+/// File › Info › Automatic Replies: a read takes the calendar's tokens, which read the
+/// mailbox's settings (no more token requests than any Graph job makes); a change takes a token
+/// for changing them, which a sign-in doesn't carry until the owner allowed it by itself (then
+/// the answer says he is to be asked, and nothing is sent). The setting is read back after a
+/// change. Nothing of a reply is logged.
+fn auto_replies_job(job: mailcraft_ui_egui::auto_replies::AutoRepliesJob) -> mailcraft_ui_egui::auto_replies::AutoRepliesResult {
+    use mailcraft_net::{NetError, graph, oauth};
+    let mut out = mailcraft_ui_egui::auto_replies::AutoRepliesResult { account: job.account.id, ..Default::default() };
+    let renewed = match &job.change {
+        Some(_) => oauth::refresh_graph_replies(&job.oauth, &job.refresh, tasks_mail(&job.account)).map(|got| (got.tokens, true)),
+        None => oauth::refresh_graph(&job.oauth, &job.refresh).map(|got| (got.tokens, !got.extras_missing)),
+    };
+    let access = match renewed {
+        Ok((tokens, covered)) => {
+            let access = tokens.access.clone();
+            out.tokens = Some(tokens);
+            if !covered {
+                // The sign-in doesn't read the mailbox's settings: the owner is to sign in again.
+                out.consent_needed = true;
+                return out;
+            }
+            access
+        }
+        Err(e) if e.is_consent_needed() && job.change.is_some() => {
+            out.write_consent_needed = true;
+            return out;
+        }
+        Err(e) => {
+            out.consent_needed = e.is_consent_needed();
+            out.sign_in_refused = !out.consent_needed && e.is_refused_sign_in();
+            if !out.consent_needed && !out.sign_in_refused {
+                out.error = format!("Couldn't sign in to Microsoft for the automatic replies: {e}");
+            }
+            return out;
+        }
+    };
+    if let Some(change) = &job.change {
+        match graph::set_automatic_replies(&access, change) {
+            Ok(()) => out.changed = true,
+            // The token covers the permission and Graph still says no: the organisation keeps them.
+            Err(NetError::Forbidden(_)) => out.write_denied = true,
+            Err(e) if e.is_refused_sign_in() => {
+                out.sign_in_refused = true;
+                return out;
+            }
+            Err(e) => out.error = format!("Couldn't change the automatic replies: {e}"),
+        }
+    }
+    match graph::automatic_replies(&access) {
+        Ok(setting) => out.setting = Some(setting),
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) if out.error.is_empty() => out.error = format!("Couldn't read the automatic replies: {e}"),
+        Err(_) => {}
+    }
+    out
+}
+
 /// File › Info › Check Calendar Connection: on the account's real server, and only because the
 /// owner asked for it and said yes to what it does. One appointment is made a year from today
 /// in the main calendar, read back, changed (once as an instant, once said in this computer's
@@ -1207,7 +1471,7 @@ fn open_by_address(
     (read, (refusals, signed_out))
 }
 
-/// When the people a meeting is for are free and busy, for its Scheduling Assistant: one
+/// When the people a meeting is for are free and busy, for its Find a Time page: one
 /// question to Microsoft Graph, about when their time is taken and how, never by what. It
 /// reads; nothing is written, and nobody is told that it was asked.
 fn free_busy(request: FreeBusyRequest) -> FreeBusyResult {
@@ -1250,15 +1514,21 @@ fn services(
 ) -> Services {
     let pictures_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
+    let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
     let busy_ctx = ctx.clone();
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
+    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
+    let tasks_ctx = ctx.clone();
+    let replies_ctx = ctx.clone();
+    let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
+    let tree_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1297,9 +1567,21 @@ fn services(
         graph_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
             background(&fetch_ctx, "message download", move || mailcraft_net::graph::fetch_messages(&job.access, &job.request, &job.cancel))
         })),
+        // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
+        ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
+        ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
+        ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
+        })),
+        // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
+        graph_tasks: Some(Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
+            background(&tasks_ctx, "microsoft to do", move || tasks_job(job))
+        })),
+        // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
+        graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
+            background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
@@ -1312,6 +1594,22 @@ fn services(
         write_copy: Some(Box::new(move |path, mailbox| {
             background(&copy_ctx, "mailbox copy", move || mailcraft_engine::store::save_single(&path, &mailbox).map(|_| ()))
         })),
+        // A folder of mbox files, walked, read and parsed off the window's thread (#420); the
+        // window shows its progress and cancels it.
+        import_tree: Some(Box::new(move |job: mailcraft_ui_egui::import_tree::TreeJob| {
+            background(&tree_ctx, "folder import", move || {
+                mailcraft_engine::import_tree::load_path(&job.path, None, job.count_only, &job.progress).map_err(|e| e.to_string())
+            })
+        })),
+        // Another mailbox file, read off the window's thread before it takes the place of the one
+        // open (File › Open, #519): the window shows how far it has got and can call it off. A
+        // panic on the way is a file that couldn't be read.
+        read_ahead: Some(Box::new(move |path: PathBuf, progress: std::sync::Arc<mailcraft_engine::io::OpenProgress>| {
+            background(&ahead_ctx, "opening a mailbox", move || {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| mailcraft_engine::store::open_ahead(&path, &progress)))
+                    .unwrap_or_else(|_| Err("MailCraft stopped reading it before it was done.".to_string()))
+            })
+        })),
         // A picture a message keeps on the web, once the owner asked for that message's pictures.
         // The address is the message's choice, so `fetch` checks where it leads before it goes
         // there (never to this machine or a private network), and takes and waits only so much.
@@ -1321,8 +1619,14 @@ fn services(
             let kept = pictures_kept.clone();
             background(&pictures_ctx, "picture", move || picture_cache::picture(&url, kept.as_ref()))
         })),
+        // A sender's picture for the message list, once the owner turned that on: from
+        // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
+        sender_images: Some(Box::new(move |address, wanted| {
+            let kept = images_kept.clone();
+            background(&images_ctx, "sender image", move || sender_images::look_up(&address, kept.as_ref(), &wanted, mailcraft_net::pictures::fetch))
+        })),
         picture_cache: kept_pictures.map(|kept| Box::new(picture_cache::Kept(kept)) as Box<dyn mailcraft_ui_egui::PictureCache>),
-        // When the people of a meeting are free and busy, while its Scheduling Assistant is open.
+        // When the people of a meeting are free and busy, while its Find a Time page is open.
         free_busy: Some(Box::new(move |request| background(&busy_ctx, "free and busy times", move || free_busy(request)))),
         // A check of the calendar connection on the account's real server, when the owner asks.
         check_calendar: Some(Box::new(move |request| background(&check_ctx, "calendar check", move || check_calendar(request)))),
@@ -1345,6 +1649,10 @@ fn services(
             Box::new(wipe::Wipe { roots: wipe::Roots::of_this_program(), pictures: wipe_pictures })
                 as Box<dyn mailcraft_ui_egui::data_removal::DataWipe>
         }),
+        // File › Info › Open MailCraft's data folder (#460): the settings folder, and the opener
+        // for whichever folder the window shows (that one, or the open mailbox's own when it is
+        // kept elsewhere). Not for a run that keeps nothing.
+        data_folder: data_folder(prefs_enabled()),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         clipboard: clipboard::board(),
@@ -1393,6 +1701,9 @@ fn update_download(
     })
 }
 
+/// The application id of every window (by which Wayland desktops find the icon).
+const APP_ID: &str = "io.github.billsecond.mailcraft";
+
 /// Window, Dock and taskbar icon.
 fn app_icon() -> Option<egui::IconData> {
     #[cfg(target_os = "macos")]
@@ -1405,40 +1716,6 @@ fn app_icon() -> Option<egui::IconData> {
 /// The commit the build came from (short), or `dev`.
 fn build_sha() -> &'static str {
     option_env!("MAILCRAFT_BUILD_SHA").map(|s| s.get(..8).unwrap_or(s)).unwrap_or("dev")
-}
-
-/// The mailbox to start with, the file it is kept in (none for the sample, or without prefs),
-/// how many bodies and attachments couldn't be read back from the content folder beside it, and
-/// whether part of the mailbox file itself was damaged and left out.
-fn first_mailbox(sample: bool, chosen: Option<PathBuf>) -> (Mailbox, Option<PathBuf>, usize, bool) {
-    let now = mailcraft_time::now();
-    if sample {
-        return (mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)), None, 0, false);
-    }
-    let ours = chosen.is_none();
-    let path = chosen.or_else(|| default_mailbox_path().filter(|_| prefs_enabled()));
-    let Some(path) = path else { return (Mailbox::with_local_account("", ""), None, 0, false) };
-    if !path.exists() {
-        // A first start: the settings folder has to be there for the mailbox to be saved in it.
-        if ours && let Some(dir) = path.parent() {
-            let _ = mailcraft_engine::store::create_private_dir_all(dir);
-        }
-        return (Mailbox::with_local_account("", ""), Some(path), 0, false);
-    }
-    match mailcraft_engine::store::open(&path) {
-        Ok(opened) => {
-            if let Some(notice) = opened.notice() {
-                log::warn!("{}: {notice}", path.display());
-            }
-            let damaged = opened.lost_saves > 0 || opened.unfinished > 0 || opened.lost_records > 0;
-            (opened.mailbox, Some(path), opened.unavailable, damaged)
-        }
-        Err(e) => {
-            // Never write over a mailbox that couldn't be read: start empty, keep nothing, say why.
-            log::error!("{e}");
-            (Mailbox::with_local_account("", ""), None, 0, false)
-        }
-    }
 }
 
 /// The thread that writes the mailbox file, so the window never waits for the disk; it wakes the
@@ -1458,6 +1735,45 @@ fn background_saver(ctx: &egui::Context, path: &std::path::Path) -> Option<Box<d
         // Without it the mailbox is saved in place.
         Err(e) => {
             log::error!("couldn't start the mailbox saver: {e}");
+            None
+        }
+    }
+}
+
+/// Once the window shows (#519): look for the content files of the mailbox file at `path` that
+/// its opening left on disk and read the bodies it left for later (`store::content_later`), hand
+/// over which are missing or damaged, then the bodies in batches, on a
+/// thread of its own, waking the window each time. `None` when the thread couldn't be started:
+/// then nothing more is said than the opening found, and the bodies load as they are shown.
+#[allow(clippy::type_complexity)]
+fn content_later(
+    ctx: &egui::Context,
+    path: &std::path::Path,
+) -> Option<(std::sync::mpsc::Receiver<mailcraft_engine::Missing>, std::sync::mpsc::Receiver<Vec<mailcraft_engine::BodyRead>>)> {
+    /// Bodies read and handed over at a time.
+    const BATCH: usize = 256;
+    let (missing_tx, missing_rx) = std::sync::mpsc::channel();
+    let (bodies_tx, bodies_rx) = std::sync::mpsc::channel();
+    let (wake, path) = (ctx.clone(), path.to_path_buf());
+    let spawned = std::thread::Builder::new().name("looking for the mailbox's content".into()).spawn(move || {
+        // (What is missing is known once the bodies are read: a damaged file shows only then.)
+        let (missing, bodies) = mailcraft_engine::store::content_later(&path);
+        let _ = missing_tx.send(missing);
+        wake.request_repaint();
+        let mut bodies = bodies.into_iter();
+        loop {
+            let batch: Vec<_> = bodies.by_ref().take(BATCH).collect();
+            // Done, or the window has let go (another mailbox, or it closed).
+            if batch.is_empty() || bodies_tx.send(batch).is_err() {
+                return;
+            }
+            wake.request_repaint();
+        }
+    });
+    match spawned {
+        Ok(_) => Some((missing_rx, bodies_rx)),
+        Err(e) => {
+            log::warn!("couldn't start looking for the mailbox's content files: {e}");
             None
         }
     }
@@ -1532,6 +1848,22 @@ fn main() -> eframe::Result {
         }
         None => Default::default(),
     };
+    // What an update that stopped partway left beside a copy this program replaces, also where it
+    // no longer updates itself (a Mac app, #497), and a Mac copy's leftovers in the data folder.
+    // Not while another start is installing (the update lock).
+    if build_sha() != "dev"
+        && prefs_enabled()
+        && let found @ (install::Install::MacApp | install::Install::AppImage) = install::found()
+        && let Some(dir) = mailcraft_control_key::settings_dir()
+    {
+        let folders = self_update::Folders::new(dir);
+        if let Some(target) = self_update::target(found) {
+            self_update::clear_leftovers(&folders, &target);
+        }
+        if found == install::Install::MacApp && updates.is_none() {
+            self_update::clear_mac_data(&folders);
+        }
+    }
     // The settings folder holds the mailbox, the control key and the logs: for the owner alone.
     // One an earlier version left open to others is closed; best effort, never a reason not to
     // start (a folder of somebody else's, named by `--mailbox`, is not touched).
@@ -1541,7 +1873,8 @@ fn main() -> eframe::Result {
         log::debug!("the settings folder was not made private: {e}");
     }
     // One window per mailbox file: started again, MailCraft hands what it was started with to
-    // the window that has the mailbox and exits. The sample keeps no file, so it isn't guarded.
+    // the window that has the mailbox and exits. The sample keeps no file, so nothing is locked at the
+    // start; a mailbox file it opens later is (#517).
     let kept = if sample { None } else { mailbox_path.clone().or_else(|| default_mailbox_path().filter(|_| prefs_enabled())) };
     let guard = match kept {
         Some(path) => match single_instance::start(&path, &files) {
@@ -1553,7 +1886,8 @@ fn main() -> eframe::Result {
                 return Ok(());
             }
         },
-        None => None,
+        // Nothing held yet: a mailbox file opened later in the window is locked all the same.
+        None => Some(single_instance::none()),
     };
     // The log file lives in the settings directory, next to the preferences; opened after the
     // arguments, so `--version` leaves no file behind. Runs without preferences (agents' test
@@ -1570,7 +1904,7 @@ fn main() -> eframe::Result {
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("MailCraft")
-            .with_app_id("io.github.billsecond.mailcraft")
+            .with_app_id(APP_ID)
             .with_inner_size([1440.0, 920.0])
             .with_min_inner_size([760.0, 480.0])
             .with_drag_and_drop(true)
@@ -1586,7 +1920,8 @@ fn main() -> eframe::Result {
     // DirectX 12 has no GPU driver (see graphics.rs).
     #[cfg(target_os = "windows")]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
-    let restored = saved_window();
+    let (prefs, settings_unread) = load_prefs();
+    let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
     }
@@ -1596,6 +1931,8 @@ fn main() -> eframe::Result {
     let apple_events = apple_events::AppleEvents::install();
     #[cfg(target_os = "macos")]
     let apple_events = &apple_events;
+    // For the window, to take the lock of another mailbox file before it opens it (#517).
+    let claimer = guard.as_ref().map(single_instance::Guard::claimer);
     run_window(
         options,
         Box::new(move |cc| {
@@ -1606,48 +1943,92 @@ fn main() -> eframe::Result {
             // Before the first frame, so a dark desktop's window doesn't come up light.
             #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
             let _ = DESKTOP_THEME.set(desktop_theme::follow(&cc.egui_ctx));
-            let (mailbox, path, unavailable, damaged) = first_mailbox(sample, mailbox_path);
+            // The mailbox is read on a thread of its own, so that the window is there at once
+            // (#519): it shows the opening screen meanwhile, and is made as it always was once
+            // the mailbox is there (`build`).
+            let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
+            let reading = progress.clone();
+            let wake = cc.egui_ctx.clone();
+            let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
-            let mut session = Session::new(mailbox);
-            let kept = path.is_some();
-            session.path = path;
-            // Search answers from a word index kept beside the mailbox file, built in the
-            // background (R6.2).
-            session.index_words = true;
-            // A run that keeps its mailbox and its settings keeps downloaded pictures too.
-            let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
-            let mut services = services(file_dialog, cc.egui_ctx.clone(), kept_pictures, updates.as_ref());
-            services.update_start = update_start;
-            let mut app = MailApp::new(session, services);
-            // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
-            app.autosave = kept;
-            if let Some(path) = &app.session.path {
-                app.services.saver = background_saver(&cc.egui_ctx, path);
-            }
-            if damaged {
-                app.status(mailcraft_ui_egui::damaged_mailbox_notice());
-            } else if unavailable > 0 {
-                app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
-            }
-            // A mailbox whose Outlook Favorites were read another way than Microsoft Graph, which
-            // is no more: said once, and the file is saved without it.
-            if app.session.mailbox.take_retired_favorites_choices() > 0 {
-                app.session.mailbox_changed();
-                app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
-            }
-            // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
-            // before their character sets were) is fetched again, once (#185).
-            let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox);
-            if again > 0 {
-                app.session.mailbox_changed();
-                app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
-            }
-            // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
-            app.offer_setup = kept && !sample;
-            // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only for a
-            // mailbox kept in a file, which is where the copy from before the switch goes.
-            app.offer_graph_switch = kept && !sample;
-            load_prefs(&mut app);
+            let ctx = cc.egui_ctx.clone();
+            let (first_prefs, host_updates) = (prefs.clone(), updates.clone());
+            let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
+                let (mailbox, path, unavailable, unchecked, damaged) =
+                    (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
+                let mut session = Session::new(mailbox);
+                let kept = path.is_some();
+                session.path = path;
+                // Search answers from a word index kept beside the mailbox file, built in the
+                // background (R6.2).
+                session.index_words = true;
+                // A run that keeps its mailbox and its settings keeps downloaded pictures too.
+                let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
+                let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());
+                services.window_identity =
+                    Some(mailcraft_ui_egui::windows::WindowIdentity { icon: app_icon().map(std::sync::Arc::new), app_id: Some(APP_ID.into()) });
+                services.update_start = update_start;
+                services.claim_mailbox =
+                    claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
+                let mut app = MailApp::new(session, services);
+                // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
+                app.autosave = kept;
+                if let Some(path) = &app.session.path {
+                    app.services.saver = background_saver(&ctx, path);
+                }
+                // The word index starts once the window has drawn its first frames (#519).
+                app.index_words_later();
+                // The content files the opening left on disk are looked for now that the window
+                // shows, and the bodies it left for later are read (#519); what is missing is
+                // said when that is done (the damaged-mailbox notice is said instead).
+                let later = match &app.session.path {
+                    Some(path) if unchecked => content_later(&ctx, path),
+                    _ => None,
+                };
+                let later = later.map(|(missing, bodies)| {
+                    app.check_parts_later(missing, unavailable, !damaged);
+                    app.take_bodies_later(bodies);
+                });
+                if damaged {
+                    app.status(mailcraft_ui_egui::damaged_mailbox_notice());
+                } else if later.is_some() {
+                    // (Said once the look is over.)
+                } else if unavailable > 0 {
+                    app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
+                }
+                // A mailbox whose Outlook Favorites were read another way than Microsoft Graph,
+                // which is no more: said once, and the file is saved without it.
+                if app.session.mailbox.take_retired_favorites_choices() > 0 {
+                    app.session.mailbox_changed();
+                    app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
+                }
+                // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
+                // before their character sets were) is fetched again, once (#185).
+                // IMAP accounts' mail the same way, by UID, at the next Send/Receive (#650).
+                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox)
+                    + mailcraft_engine::cmd::imap_again::mark_unreadable(&mut app.session.mailbox);
+                if again > 0 {
+                    app.session.mailbox_changed();
+                    app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
+                }
+                // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
+                app.offer_setup = kept && !sample;
+                // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only
+                // for a mailbox kept in a file, which is where the copy from before the switch goes.
+                app.offer_graph_switch = kept && !sample;
+                if let Some(ui) = prefs {
+                    app.apply_prefs(ui);
+                }
+                app.settings_unread = settings_unread;
+                app.ui.window = restored;
+                app.integrated_titlebar = cfg!(target_os = "macos");
+                for f in files {
+                    app.open_from_system(&f);
+                }
+                app
+            });
+            let mut app =
+                MailApp::opening(mailcraft_ui_egui::opening::Opening::new(arriving, progress, build), first_prefs, system_locale::system_locale());
             app.ui.window = restored;
             app.integrated_titlebar = cfg!(target_os = "macos");
             let mut key_file = None;
@@ -1657,9 +2038,6 @@ fn main() -> eframe::Result {
             {
                 app = app.with_control(rx);
                 key_file = file;
-            }
-            for f in files {
-                app.open_path(&f);
             }
             if let Some(guard) = &guard {
                 guard.wake(&cc.egui_ctx);
@@ -1693,28 +2071,4 @@ fn main() -> eframe::Result {
             )))
         }),
     )
-}
-
-#[cfg(test)]
-mod prefs_tests {
-    use super::*;
-
-    #[test]
-    fn prefs_written_whole_and_a_damaged_file_kept_aside() {
-        let dir = std::env::temp_dir().join(format!("mailcraft-prefs-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("ui.json");
-        let ui = UiState::default();
-        write_prefs(&path, &ui).unwrap();
-        let back = read_prefs(&path).unwrap();
-        assert_eq!(serde_json::to_value(&back).unwrap(), serde_json::to_value(&ui).unwrap());
-        // Nothing left beside it but the file itself.
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
-
-        std::fs::write(&path, b"{\"theme\": ").unwrap();
-        assert!(read_prefs(&path).is_none());
-        assert!(!path.exists());
-        assert_eq!(std::fs::read(dir.join("ui.json.damaged")).unwrap(), b"{\"theme\": ");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }

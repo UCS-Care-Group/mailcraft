@@ -9,6 +9,10 @@ use serde_json::{Value, json};
 use super::{bad, done, fail, needs_message};
 use crate::{CmdError, CmdResult, CommandSpec, Module, Session, TaskFilter, p};
 
+mod status;
+#[cfg(test)]
+mod status_tests;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("tasks.new", "New Task", "Home › New", new).key("Mod+Shift+K").params(TASK),
@@ -17,8 +21,13 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("tasks.complete", "Mark Complete", "Home › Manage Task", complete)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
             .selection(needs_task),
-        CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null}"#),
+        CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
+        CommandSpec::new("tasks.statusReport", "Send Status Report", "Home › Manage Task", status::report)
+            .pure()
+            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
+            .selection(needs_task),
+        CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("tasks.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
@@ -29,7 +38,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ONE: &str = r#"{"id"?: number} (default: the selected task)"#;
+const ONE: &str = r#"{"id"?: number} (default: the selected task). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
@@ -37,7 +46,7 @@ fn needs_task(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.task).ok_or_else(|| fail("select a task first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.task).ok_or_else(|| fail("select a task first"))?;
     s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
@@ -74,7 +83,9 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.mailbox.add_task(t);
     s.sel.task = Some(id);
-    Ok(json!({"id": id}))
+    // Where it lives: with the account's To Do once the owner has said so, else here only.
+    let kept_at = super::tasks_remote::tasks_kept_at(&s.mailbox);
+    Ok(json!({"id": id, "keptAt": kept_at.as_deref().unwrap_or("this computer")}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
@@ -84,12 +95,19 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if t.title.is_empty() {
         return Err(fail("a task needs a title"));
     }
+    // Changed again: a change the server refused is tried again.
+    t.local_only = false;
     *s.mailbox.task_mut(id)? = t;
     Ok(json!({"id": id}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
+    if s.mailbox.task(id).is_some_and(|t| t.origin.is_remote() && !t.origin.id.is_empty())
+        && s.mailbox.task_gone.len() >= mailcraft_model::MAX_TASK_GONE
+    {
+        return Err(fail("too many deletions are waiting to be sent to Microsoft To Do; wait for them to go first"));
+    }
     let order = sorted(s, s.view.task_filter);
     let at = order.iter().position(|x| *x == id);
     s.mailbox.remove_task(id)?;
@@ -103,6 +121,7 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let now = s.now();
     let t = s.mailbox.task_mut(id)?;
+    t.local_only = false;
     let done = p::bool(v, "value").unwrap_or(!t.is_complete());
     t.completed = if done { Some(t.completed.unwrap_or(now)) } else { None };
     let message = t.message;
@@ -116,7 +135,9 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    s.sel.task = match p::id(v, "id") {
+    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
+    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
+    s.sel.task = match named {
         Some(id) => Some(s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))?),
         None => None,
     };
@@ -166,6 +187,11 @@ pub fn sorted(s: &Session, filter: TaskFilter) -> Vec<Id> {
     v.into_iter().map(|t| t.id).collect()
 }
 
+fn arrange(s: &mut Session, v: &Value) -> CmdResult {
+    s.view.task_sort = crate::session::parse_enum::<crate::TaskSort>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is dueDate or categories"))?;
+    Ok(json!({"by": s.view.task_sort}))
+}
+
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let filter = match p::str(v, "filter") {
         Some(f) => crate::session::parse_enum::<TaskFilter>(f).ok_or_else(|| bad("`filter` is active, today, overdue, completed or all"))?,
@@ -189,7 +215,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let due = p::date(v, "due")?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // One to-do per message.

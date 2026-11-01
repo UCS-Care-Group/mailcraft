@@ -1,9 +1,8 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-23 · **Change:** minor (a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-01 · **Change:** patch · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
-The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
-this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
+This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
 permissions, its own installer identity), so a release has exactly the files a Craft app's has,
 under the same names.
@@ -16,13 +15,28 @@ organisation, call `storytold/craft-common-actions/.github/workflows/release.yml
 WordCraft does.
 
 1. Release notes: `packaging/release-notes.md` is the release's text on GitHub and on the
-   website's changelog, which shows it as written. Under **Fixes**, one line for each user-visible
-   fix, each linking the issue it resolves (or its PR when there was no issue) in full,
-   `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`, because the website does not link
-   a bare `#123`; thank whoever reported it. Check the list against everything merged since the
+   website's changelog, which shows it as written. It opens with **MailCraft <version> in short**:
+   a headline list of six to ten lines, a few words each, of what a tester would notice (the main
+   new features, then safety and sturdiness in a line each, then a line pointing to the fixes), each with
+   its issue linked where there is one. **What's new** then says what each feature does. Under
+   **Fixes**, one line for each user-visible fix, each linking the issue it resolves (or its PR
+   when there was no issue) in full, `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`,
+   because the website does not link a bare `#123`; thank whoever reported it. Check the list
+   against everything merged since the
    last tag, `gh pr list --state merged --search "merged:>YYYY-MM-DD" --json number,title,closingIssuesReferences`:
    every user-visible change is in the notes, and a security fix always is. Lines are added as
    fixes merge and cleared when the next release's notes start.
+
+   A pull request doesn't edit **Fixes** or **What's new** in `packaging/release-notes.md`: it
+   adds its line as a file of its own, `packaging/release-notes.d/fixes/<issue>.md` (a feature:
+   `new/<issue>.md`), named by the issue it resolves, or its own number, or a short name when it
+   has neither, and holding the line exactly as it reads under the heading (`- …`, more than one
+   if it needs). So two pull requests never conflict over the notes. `cargo xtask release-notes`
+   prints the notes with every fragment joined in, newest first, and changes nothing; `cargo xtask
+   ci` checks that they join. Before tagging, `cargo xtask release-notes --write` puts the
+   fragments' lines at the top of their sections and removes the fragments, in the release's own
+   pull request: what is tagged is what is released, and `release.yml` reads the file as before.
+   **In short** and the closing paragraphs are written in the file itself.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.
@@ -47,7 +61,7 @@ WordCraft does.
    Nothing is public until then.
 6. Announce it to the testers: a comment on [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)
    headed `## MailCraft v<version> is out`, with the download link and the release's headlines
-   (the tester welcome promises it). Add anyone who signed up since to #11's Testers table.
+   (the tester welcome promises it): the notes' **in short** list. Add anyone who signed up since to #11's Testers table.
 
 A pushed tag builds and signs only if its commit is on `main` and `ci-ok` passed on it: the first
 job of `release.yml` (`version`) checks both and every other job needs it, so a tag on a branch
@@ -88,6 +102,17 @@ itself. So a release's packages must keep their names
 must keep its `UpgradeCode` and `AllowDowngrades` (going back installs the older `.msi` over the
 newer). An organisation installs the `.msi` with `DISABLEAUTOMATICUPDATES=1` to turn updating by
 itself off for every user of the computer.
+
+**On macOS a copy doesn't install updates by itself for now** (#497): it says a new version is
+out, with a link to its page, as a copy installed by a package manager does. The builds are signed
+ad hoc and not notarized (the project has no Apple Team ID yet), and an app swapped in place by
+the program, in a folder it may not fully control, is what macOS's checks then judge; one update
+that went wrong (0.8.1) left an app that wouldn't start. The code that installs from the disk
+image is still built and tested, and comes back on with one switch, `MAC_SELF_INSTALL` in
+`apps/mailcraft/src/install.rs`, once releases are signed with a Developer ID and notarized and
+`mac_swap` requires the project's Team ID of the new app. On every system, a copy whose folder
+(the one holding the app or the AppImage) it can't write to is told of new versions and installs
+nothing; the `.msi`, installed by Windows Installer, isn't affected.
 
 - **Making the keys (once):** `cargo xtask release-key new <folder>` writes two private keys,
   `mailcraft-release-key-in-use.pkcs8.b64` and `mailcraft-release-key-spare.pkcs8.b64` (base64
@@ -164,7 +189,7 @@ MailCraft, and where each part stands:
 | Needs | State |
 |---|---|
 | One release per version with Craft file names and `SHA256SUMS.txt` | The workflow above produces it; seven have been published, v0.1.0 to v0.4.1 |
-| An icon in the Craft style: an engraved animal in black ink and cream on one flat app colour, in the rounded tile (`rx` 112 of 512, the figure clipped 6 units in) | `cargo xtask icon` builds every size from `assets/app-icon/source/mailcraft-art.png` once the artwork is there; until then the icon is the drawn placeholder |
+| An icon in the Craft style: an engraved animal in black ink and cream on one flat app colour, in the rounded tile (`rx` 112 of 512, the figure clipped 6 units in) | MailCraft's icon is its own instead (an envelope that is also a calendar page, on a blue tile): `cargo xtask icon` builds every size from `assets/app-icon/source/mailcraft.svg`. The launcher takes its 128 px PNG as it is |
 | A row in the launcher's catalog (`crates/core/src/catalog.rs` in `storytold/craft-launcher`): id, name, tagline, what it is like, colours, `owner/repo`; for an app outside the organisation also its own reverse-DNS id and publisher (the "community apps" group) | A pull request on that repository, after the first release; the 128 px icon goes with it |
 
 ## What the installers do
@@ -178,9 +203,15 @@ MailCraft, and where each part stands:
 - **Linux (`.deb`, `.rpm`, `.AppImage`, `.tar.gz`):** `/usr/bin/mailcraft` and `mailcraft-cli`, a
   desktop entry that offers MailCraft for `mailto:` links, messages, calendar files and contact
   cards, AppStream metadata and the icons. The binaries need glibc 2.35 or later.
+- **macOS (the app in a disk image):** `Info.plist` declares messages, calendar files and contact
+  cards, each as an alternative (`LSHandlerRank` Alternate), so MailCraft is offered in Open With
+  and never takes a type over. There is no `mailto:` declaration yet: a link would arrive as an
+  Apple event the app can't receive (#505).
 - **One window per mailbox:** started a second time (the shortcut again, a link, a file from the
-  file manager), MailCraft hands what it was started with to the window already open and exits
-  (`apps/mailcraft/src/single_instance.rs`), so two windows never save over each other.
+  file manager), MailCraft hands what it was started with to the window already open, which comes
+  to the front, and exits (`apps/mailcraft/src/single_instance.rs`), so two windows never save
+  over each other. No installer makes MailCraft the default for anything but its own
+  `.mailcraft`: the owner chooses it in the system's settings.
 - **Product identity:** the MSI's UpgradeCode and component GUIDs are MailCraft's own. Never copy
   them from or into a sibling Craft app (Windows would treat the two as one product).
 
@@ -262,6 +293,12 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
+| 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |
+| 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |
+| 2026-10-26 | #505: the macOS bundle's file types, one per kind and never the default; the hand-over brings the window to the front |
+| 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
+| 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
 | 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |

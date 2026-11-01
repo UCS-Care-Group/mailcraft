@@ -44,7 +44,7 @@ fn app(store: &Store, seen: &Seen) -> MailApp {
         tx.send(SyncResult { account: req.account.id, ..Default::default() }).unwrap();
         rx
     }));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     a
 }
 
@@ -73,6 +73,17 @@ fn the_key_names_the_address_and_the_servers() {
         ..Default::default()
     };
     assert_eq!(MailApp::secret_key("refresh", &microsoft), "refresh:me@example.org|graph");
+    // AU2-V8: a mailbox file's IMAP account that says it is shared does not get the owner's Graph token.
+    let shared = mailcraft_model::Account {
+        kind: mailcraft_model::AccountKind::Imap,
+        shared_of: Some(1),
+        incoming: Some(mailcraft_model::Server { host: "imap.elsewhere.example".into(), port: 993, security: Default::default() }),
+        ..microsoft.clone()
+    };
+    assert_ne!(MailApp::secret_key("refresh", &shared), MailApp::secret_key("refresh", &microsoft));
+    assert!(MailApp::secret_key("refresh", &shared).contains("imap=imap.elsewhere.example:993"));
+    let shared_microsoft = mailcraft_model::Account { shared_of: Some(1), ..microsoft.clone() };
+    assert_eq!(MailApp::secret_key("refresh", &shared_microsoft), MailApp::secret_key("refresh", &microsoft));
 }
 
 #[test]
@@ -81,6 +92,8 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
     let mut a = app(&store, &seen);
     let id = add(&mut a);
     store.set(OLD, "pw").unwrap();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     a.passwords.insert(id, "pw".into());
     assert_eq!(a.remembered("password", "avery@mail.example").as_deref(), Some("pw"));
 
@@ -88,6 +101,18 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
 
     assert_eq!(a.remembered("password", "avery@mail.example"), None);
     assert!(store.get(OLD).is_none() && store.get(NEW).is_none());
+    assert!(!a.passwords.contains_key(&id));
+}
+
+#[test]
+fn undo_of_a_server_change_drops_what_was_typed_for_the_new_one() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap.other.example", "port": 993}})).unwrap();
+    a.passwords.insert(id, "typed for the other".into());
+    a.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(a.session.mailbox.account(id).and_then(|x| x.incoming.as_ref()).map(|s| s.host.as_str()), Some("imap.mail.example"));
     assert!(!a.passwords.contains_key(&id));
 }
 
@@ -102,11 +127,85 @@ fn an_edit_that_leaves_the_servers_keeps_the_secret() {
 }
 
 #[test]
+fn either_servers_host_or_port_invalidates_every_cached_sign_in() {
+    for change in [
+        json!({"incoming": {"host": "imap.other.example", "port": 993}}),
+        json!({"incoming": {"host": "imap.mail.example", "port": 1993}}),
+        json!({"outgoing": {"host": "smtp.other.example", "port": 465}}),
+        json!({"outgoing": {"host": "smtp.mail.example", "port": 1465}}),
+    ] {
+        let (store, seen) = (Store::default(), Seen::default());
+        let mut a = app(&store, &seen);
+        let id = add(&mut a);
+        let before = a.session.mailbox.account(id).unwrap().clone();
+        for kind in ["password", "refresh"] {
+            store.set(&MailApp::secret_key(kind, &before), "invented").unwrap();
+            store.set(&MailApp::legacy_secret_key(kind, &before.email), "invented").unwrap();
+        }
+        let other = a.execute("account.add", json!({"email": "other@example.org", "incoming": {"host": "imap.other.example", "port": 993}, "outgoing": {"host": "smtp.other.example", "port": 465}})).unwrap()["id"].as_u64().unwrap();
+        let other_account = a.session.mailbox.account(other).unwrap().clone();
+        let other_key = MailApp::secret_key("password", &other_account);
+        store.set(&other_key, "unrelated").unwrap();
+        a.passwords.insert(other, "unrelated".into());
+        a.tokens.insert(other, Default::default());
+        a.graph_tokens.insert(other, Default::default());
+        a.passwords.insert(id, "invented".into());
+        a.tokens.insert(id, Default::default());
+        a.graph_tokens.insert(id, Default::default());
+
+        let mut edit = change;
+        edit["id"] = json!(id);
+        a.execute("account.edit", edit).unwrap();
+
+        for kind in ["password", "refresh"] {
+            assert!(store.get(&MailApp::secret_key(kind, &before)).is_none());
+            assert!(store.get(&MailApp::legacy_secret_key(kind, &before.email)).is_none());
+        }
+        assert!(!a.passwords.contains_key(&id));
+        assert!(!a.tokens.contains_key(&id));
+        assert!(!a.graph_tokens.contains_key(&id));
+        assert_eq!(store.get(&other_key).as_deref(), Some("unrelated"));
+        assert_eq!(a.passwords.get(&other).map(String::as_str), Some("unrelated"));
+        assert!(a.tokens.contains_key(&other));
+        assert!(a.graph_tokens.contains_key(&other));
+        assert!(!a.can_sync_quietly(id));
+        // (The owner's Send/Receive asks the store again first.)
+        assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "secrets");
+        crate::secret_read_tests::settle(&mut a);
+        assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("password"));
+        a.poll_sync();
+        assert!(seen.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn an_edit_that_fails_validation_keeps_the_remembered_password() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    store.set(OLD, "invented").unwrap();
+    a.passwords.insert(id, "invented".into());
+    a.tokens.insert(id, Default::default());
+    a.graph_tokens.insert(id, Default::default());
+    let before = a.session.mailbox.account(id).unwrap().clone();
+    assert!(
+        a.execute("account.edit", json!({"id": id, "email": "not an address", "incoming": {"host": "imap.other.example", "port": 993}})).is_err()
+    );
+    assert_eq!(a.session.mailbox.account(id).unwrap(), &before);
+    assert!(a.tokens.contains_key(&id));
+    assert!(a.graph_tokens.contains_key(&id));
+    assert_eq!(store.get(OLD).as_deref(), Some("invented"));
+    assert_eq!(a.passwords.get(&id).map(String::as_str), Some("invented"));
+}
+
+#[test]
 fn a_password_never_goes_to_another_host() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);
     let id = add(&mut a);
     store.set(OLD, "pw").unwrap();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     // Before the change the remembered password is used, quietly, for the host it was given for.
     assert!(a.can_sync_quietly(id));
     a.execute("ui.sync", json!({"account": id})).unwrap();
@@ -117,7 +216,9 @@ fn a_password_never_goes_to_another_host() {
     a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap.attacker.example", "port": 993}})).unwrap();
     assert!(!a.can_sync_quietly(id));
     let asked = a.execute("ui.sync", json!({"account": id})).unwrap();
-    assert_eq!(asked["pending"], "password");
+    assert_eq!(asked["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut a);
+    assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("password"));
     a.poll_sync();
     assert!(seen.lock().unwrap().iter().all(|(_, password)| password.is_empty()), "{:?}", seen.lock().unwrap());
 }
@@ -131,7 +232,8 @@ fn secrets_kept_the_old_way_move_once_to_the_servers_of_the_account() {
     store.set("refresh:avery@mail.example", "ref").unwrap();
     store.set("password:other@mail.example", "not ours").unwrap();
 
-    a.migrate_secrets();
+    a.session.clock.now = Some(NOW);
+    crate::secret_read_tests::settle(&mut a);
 
     assert_eq!(store.get(OLD).as_deref(), Some("pw"));
     assert_eq!(store.get("refresh:avery@mail.example|imap=imap.mail.example:993|smtp=smtp.mail.example:465").as_deref(), Some("ref"));
@@ -140,7 +242,8 @@ fn secrets_kept_the_old_way_move_once_to_the_servers_of_the_account() {
     assert!(a.ui.sign_ins_bound);
     // Once: an entry that turns up under the old name afterwards is left alone.
     store.set("password:avery@mail.example", "later").unwrap();
-    a.migrate_secrets();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     assert_eq!(store.get("password:avery@mail.example").as_deref(), Some("later"));
 }
 
@@ -153,4 +256,28 @@ fn removing_an_account_forgets_both_names() {
     store.set("password:avery@mail.example", "old").unwrap();
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert!(store.get(OLD).is_none() && store.get("password:avery@mail.example").is_none());
+}
+
+#[test]
+fn an_exchange_servers_password_is_for_that_address_and_that_user_name() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let added =
+        a.execute("account.add", json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ada"}})).unwrap();
+    let id = added["id"].as_u64().unwrap();
+    let key = |a: &MailApp| MailApp::secret_key("password", a.session.mailbox.account(id).unwrap());
+    let before = key(&a);
+    // The same server and name: kept.
+    a.passwords.insert(id, "pw".into());
+    a.execute("account.edit", json!({"id": id, "displayName": "Ada"})).unwrap();
+    assert!(a.passwords.contains_key(&id));
+    // Another user name on the same address: the password typed for the first is not sent as the second's.
+    a.execute("account.edit", json!({"id": id, "ews": {"url": url, "username": "CORP\\bob"}})).unwrap();
+    assert_ne!(key(&a), before);
+    assert!(!a.passwords.contains_key(&id));
+    // Another server with the same user name, likewise.
+    a.passwords.insert(id, "pw".into());
+    a.execute("account.edit", json!({"id": id, "ews": {"url": "https://other.example.org/EWS/Exchange.asmx", "username": "CORP\\bob"}})).unwrap();
+    assert!(!a.passwords.contains_key(&id));
 }

@@ -14,8 +14,9 @@
 //!   may check only while the daily check is on (`ui.checkForUpdates`).
 //! - A newer version is said once in the status bar, and stays in About while it is newer than
 //!   the running build. A failure is one log line, said only when the owner pressed the button.
-//! - A copy that updates itself (the Windows `.msi`, the macOS app, a Linux AppImage: the host
-//!   says so by giving [`Services::update_download`]) downloads a newer release in the
+//! - A copy that updates itself (the Windows `.msi` or a Linux AppImage, not the macOS app until
+//!   it is notarized: the host says so by giving [`Services::update_download`]) downloads a
+//!   newer release in the
 //!   background, when the daily check (or the owner's press while it is on) finds one and File ›
 //!   Options › Install updates automatically is on (as it is unless the owner turns it off; it
 //!   needs the daily check). The host checks it by the release's own signature and deletes
@@ -319,7 +320,8 @@ impl MailApp {
         self.updates_at_start();
         self.poll_update_check();
         self.poll_update_download();
-        if self.ui.update_check != UpdateCheck::On || !may_check_by_itself(&self.services) || self.updates.pending.is_some() {
+        // (Working offline, nothing is checked by itself: the check is due again once it is off.)
+        if self.ui.update_check != UpdateCheck::On || !may_check_by_itself(&self.services) || self.updates.pending.is_some() || self.offline() {
             return;
         }
         let now = self.session.now();
@@ -571,7 +573,20 @@ pub(crate) fn bar(
                     t.accent,
                 );
                 ui.add_space(24.0);
-                ui.label(egui::RichText::new(said).color(t.text));
+                // A line too long for the window (or longer in another language) is cut short
+                // and whole on hover, so the buttons stay on screen.
+                let room = (ui.available_width() - buttons.len() as f32 * 84.0).max(80.0);
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let wide = ui.painter().layout_no_wrap(said.to_string(), font, t.text).size().x;
+                let text = egui::RichText::new(said).color(t.text);
+                if wide <= room {
+                    ui.label(text);
+                } else {
+                    ui.scope(|ui| {
+                        ui.set_max_width(room);
+                        ui.add(egui::Label::new(text).truncate()).on_hover_text(said);
+                    });
+                }
                 for (name, label, primary) in buttons {
                     let button =
                         if *primary { primary_button(ui, label, true) } else { ui.add(egui::Button::new(*label).min_size(vec2(64.0, 26.0))) };

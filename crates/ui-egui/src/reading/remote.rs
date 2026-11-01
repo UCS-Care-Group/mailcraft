@@ -34,7 +34,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Color32, Sense, Stroke, Ui, vec2};
-use mailcraft_model::{Account, AccountKind, Id, Message, provider};
+pub use mailcraft_model::auth_results::vouched;
+use mailcraft_model::auth_results::{domain, sender};
+use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
 use super::Place;
@@ -57,14 +59,8 @@ const PATIENCE_MS: f64 = 60_000.0;
 /// Most senders whose pictures are always downloaded, and most domains.
 pub const MAX_SENDERS: usize = 500;
 pub const MAX_DOMAINS: usize = 500;
-/// Longest address of a sender that is remembered, and the longest domain.
+/// Longest address of a sender that is remembered.
 const MAX_SENDER_LEN: usize = 320;
-const MAX_DOMAIN_LEN: usize = 253;
-/// How many of a message's headers are looked through for the server's verdict, and how many
-/// words of it.
-const MAX_HEADERS_READ: usize = 2_000;
-const MAX_TOKENS: usize = 200;
-const MAX_HEADER_CHARS: usize = 4_000;
 /// Most messages the owner asked pictures for that are kept track of.
 const MAX_ASKED: usize = 500;
 /// Most messages whose share of the downloading is kept track of.
@@ -190,29 +186,6 @@ impl RemotePictures {
     }
 }
 
-/// A sender's address as it is remembered; `None` for what is no address.
-fn sender(text: &str) -> Option<String> {
-    let text = text.trim();
-    // ASCII only, folded as ASCII: Unicode lower-casing maps some letters (the Kelvin sign) onto
-    // ASCII ones, which would let a lookalike address stand for a remembered one.
-    let plain = text.is_ascii() && text.len() <= MAX_SENDER_LEN && text.contains('@') && !text.chars().any(|c| c.is_whitespace() || c.is_control());
-    (plain && text.len() >= 3).then(|| text.to_ascii_lowercase())
-}
-
-/// A domain as it is remembered: what follows the `@` of an address (or the whole of `text`,
-/// with or without an `@` in front), in ASCII lower case; `None` for what is no domain (a name
-/// with a letter outside ASCII is written the way it goes over the wire, `xn--…`, to be one).
-fn domain(text: &str) -> Option<String> {
-    let text = text.trim();
-    let name = text.rsplit_once('@').map_or(text, |(_, name)| name).trim_end_matches('.');
-    let plain = !name.is_empty()
-        && name.len() <= MAX_DOMAIN_LEN
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
-        && !name.starts_with(['.', '-'])
-        && !name.contains("..");
-    plain.then(|| name.to_ascii_lowercase())
-}
-
 /// Whether pictures from `address` are always downloaded.
 pub fn sender_remembered(ui: &UiState, address: &str) -> bool {
     sender(address).is_some_and(|address| ui.picture_senders.iter().take(MAX_SENDERS).any(|kept| kept.trim().eq_ignore_ascii_case(&address)))
@@ -228,83 +201,6 @@ pub fn domain_remembered(ui: &UiState, address: &str) -> bool {
 /// Whether `m` is in an account's Junk E-mail folder or under it.
 fn in_junk(app: &MailApp, m: &Message) -> bool {
     app.session.mailbox.in_junk(m.folder)
-}
-
-/// Two-label public suffixes a host's domain must not be cut down to. ponytail: a short list of
-/// the common ones, not the Public Suffix List; a rarer one lets an id under that suffix match
-/// a mail host sitting directly under it.
-const TWO_LABEL_SUFFIXES: &[&str] = &[
-    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "co.nz", "co.jp", "co.za", "com.br", "com.cn", "co.in", "com.mx",
-    "com.tr", "co.kr", "com.sg", "com.hk",
-];
-
-/// The authserv-id (RFC 8601) an `Authentication-Results` value starts with: the first word before
-/// the first `;`, after comments, ignoring an optional version number. `None` when the value
-/// starts with a result instead (Exchange Online writes no id), or the id is no host name.
-fn authserv_id(value: &str) -> Option<String> {
-    let mut plain = String::new();
-    let mut depth = 0usize;
-    for c in value.chars().take(MAX_HEADER_CHARS) {
-        match c {
-            '(' => depth = depth.saturating_add(1),
-            ')' => depth = depth.saturating_sub(1),
-            ';' if depth == 0 => break,
-            c if depth == 0 => plain.push(c),
-            _ => {}
-        }
-    }
-    let first = plain.split_whitespace().next()?;
-    if first.contains('=') { None } else { domain(first) }
-}
-
-/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
-/// server: any header for a Microsoft account (Exchange Online puts its own on top, with no id),
-/// and for another account one whose authserv-id is a known id of its IMAP host's provider
-/// (`provider::authserv_ids`), or the IMAP host's domain one label up, or a name under that.
-/// Anything else is not known to be the account's server's.
-fn from_own_server(account: Option<&Account>, value: &str) -> bool {
-    let Some(account) = account else { return false };
-    let host = account.incoming.as_ref().map(|server| server.host.trim().trim_end_matches('.').to_ascii_lowercase());
-    if account.kind == AccountKind::Microsoft || host.as_deref().is_some_and(provider::is_microsoft_imap_host) {
-        return true;
-    }
-    let (Some(host), Some(id)) = (host, authserv_id(value)) else { return false };
-    if provider::authserv_ids(&host).contains(&id.as_str()) {
-        return true;
-    }
-    let Some((_, rest)) = host.split_once('.') else { return false };
-    rest.split('.').count() >= 2
-        && !TWO_LABEL_SUFFIXES.contains(&rest)
-        && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
-}
-
-/// Whether the server that received `m` vouches that it came from the domain it says it did:
-/// the topmost `Authentication-Results` header (the receiving server puts its own on top; the
-/// ones below were written before it), written by the server of the account `m` is in
-/// ([`from_own_server`]), holds `dmarc=pass` (or Exchange Online's `compauth=pass`), and, when
-/// it names the `header.from` it judged, that is the sender's domain. A header the sender
-/// could have written is not read.
-pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
-    let Some((_, value)) = m.headers.iter().take(MAX_HEADERS_READ).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results")) else {
-        return false;
-    };
-    if !from_own_server(account, value) {
-        return false;
-    }
-    let mut passed = false;
-    let mut of_domain: Option<String> = None;
-    for token in value.split(|c: char| c.is_whitespace() || c == ';').take(MAX_TOKENS) {
-        let token = token.trim_matches(['(', ')', ',']);
-        if token.eq_ignore_ascii_case("dmarc=pass") || token.eq_ignore_ascii_case("compauth=pass") {
-            passed = true;
-        } else if let Some((key, name)) = token.split_once('=')
-            && key.eq_ignore_ascii_case("header.from")
-        {
-            of_domain = domain(name);
-        }
-    }
-    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address));
-    passed && sender_domain.is_some() && of_domain.as_ref().is_none_or(|named| Some(named) == sender_domain.as_ref())
 }
 
 /// Whether a remembered sender or domain stands for `m`'s sender, and the server vouches for it.
@@ -397,6 +293,7 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     let state = &mut app.remote_pictures;
     if let Some(download) = &app.services.pictures
         && !waiting.is_empty()
+        && !app.session.prefs.offline
     {
         let pictures = Pictures::of(ctx);
         let pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());
@@ -474,8 +371,7 @@ fn short(text: &str, max: usize) -> String {
 /// The strip a notice above a message is drawn in: a wash of `hue` over whatever the header is
 /// painted on, with an edge of it, in light and dark alike.
 pub(crate) fn notice(hue: Color32, t: &Tokens) -> egui::Frame {
-    let wash = Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), if t.dark { 46 } else { 30 });
-    let edge = Color32::from_rgba_unmultiplied(hue.r(), hue.g(), hue.b(), if t.dark { 110 } else { 90 });
+    let (wash, edge) = t.notice(hue);
     egui::Frame::NONE.fill(wash).stroke(Stroke::new(1.0, edge)).corner_radius(4.0).inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
 }
 
@@ -605,24 +501,7 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let none = tl!("No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here.");
         ui.label(egui::RichText::new(none).color(t.text_dim));
     } else {
-        ui.label(tl!("Pictures are always downloaded from:"));
-    }
-    for address in senders {
-        ui.horizontal(|ui| {
-            if ui.small_button(tl!("Remove")).on_hover_text(tl!("Ask before downloading this sender's pictures again")).clicked() {
-                let _ = app.run("ui.alwaysDownloadPictures", json!({"sender": address, "value": false}));
-            }
-            ui.add(egui::Label::new(address.as_str()).truncate());
-        });
-    }
-    for name in domains {
-        ui.horizontal(|ui| {
-            if ui.small_button(tl!("Remove")).on_hover_text(tl!("Ask before downloading pictures from this domain's senders again")).clicked() {
-                let _ = app.run("ui.alwaysDownloadPictures", json!({"domain": name, "value": false}));
-            }
-            let everybody = crate::i18n::fmt(tl!("everybody at @{domain}"), &[("domain", &name)]);
-            ui.add(egui::Label::new(everybody).truncate());
-        });
+        remembered(app, ui, senders, domains);
     }
     // What the host keeps of them between runs, when it keeps anything.
     let Some((count, bytes)) = app.services.picture_cache.as_ref().map(|kept| kept.usage()) else { return };
@@ -641,6 +520,52 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if ui.add_enabled(count > 0, egui::Button::new(tl!("Clear")).small()).on_hover_text(tl!("Forget the pictures that are kept; they are downloaded again when you ask.")).clicked() {
             let _ = app.run("ui.clearPictureCache", json!({}));
         }
+    });
+}
+
+/// How many remembered senders and domains File › Options shows at a time.
+const PAGE: usize = 20;
+
+/// The remembered senders, then the domains, under a heading that folds them away, a page at a
+/// time: a long list doesn't push the rest of File › Options out of sight. It starts folded
+/// when it is longer than a page.
+fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec<String>) {
+    let total = senders.len().saturating_add(domains.len());
+    let heading = crate::i18n::fmt(tl!("Pictures are always downloaded from ({n}):"), &[("n", &total.to_string())]);
+    egui::CollapsingHeader::new(heading).id_salt("pictureSenders").default_open(total <= PAGE).show(ui, |ui| {
+        let pages = total.div_ceil(PAGE).max(1);
+        let id = egui::Id::unique("pictureSendersPage");
+        // (A removal can leave the page it was on empty.)
+        let mut page = ui.data(|d| d.get_temp::<usize>(id)).unwrap_or(0).min(pages - 1);
+        let rows = senders.into_iter().map(|s| (false, s)).chain(domains.into_iter().map(|d| (true, d)));
+        for (is_domain, name) in rows.skip(page.saturating_mul(PAGE)).take(PAGE) {
+            let (label, tip, remove) = if is_domain {
+                let everybody = crate::i18n::fmt(tl!("everybody at @{domain}"), &[("domain", &name)]);
+                (everybody, tl!("Ask before downloading pictures from this domain's senders again"), json!({"domain": name, "value": false}))
+            } else {
+                (name.clone(), tl!("Ask before downloading this sender's pictures again"), json!({"sender": name, "value": false}))
+            };
+            ui.horizontal(|ui| {
+                if ui.small_button(tl!("Remove")).on_hover_text(tip).clicked() {
+                    let _ = app.run("ui.alwaysDownloadPictures", remove);
+                }
+                ui.add(egui::Label::new(label).truncate());
+            });
+        }
+        if pages > 1 {
+            // Under each other when the page is too narrow for them side by side.
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(page > 0, egui::Button::new(tl!("Previous")).small()).clicked() {
+                    page = page.saturating_sub(1);
+                }
+                let at = crate::i18n::fmt(tl!("Page {page} of {pages}"), &[("page", &(page + 1).to_string()), ("pages", &pages.to_string())]);
+                ui.label(at);
+                if ui.add_enabled(page + 1 < pages, egui::Button::new(tl!("Next")).small()).clicked() {
+                    page += 1;
+                }
+            });
+        }
+        ui.data_mut(|d| d.insert_temp(id, page));
     });
 }
 
@@ -715,6 +640,7 @@ fn clear(app: &mut MailApp) -> Result<Value, String> {
         None => 0,
     };
     app.remote_pictures.forget_all = true;
+    app.sender_images = Default::default();
     Ok(json!({"cleared": on_disk}))
 }
 

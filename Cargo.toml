@@ -4,7 +4,7 @@ members = ["crates/*", "apps/*", "xtask"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.9.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -14,6 +14,8 @@ repository = "https://github.com/UCS-Care-Group/mailcraft"
 # internal
 mailcraft-time = { path = "crates/time" }
 mailcraft-charset = { path = "crates/charset" }
+mailcraft-link = { path = "crates/link" }
+mailcraft-names = { path = "crates/names" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
@@ -23,6 +25,7 @@ mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
+mailcraft-ews = { path = "crates/ews" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-mcp = { path = "crates/mcp" }
@@ -35,7 +38,9 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 log = "0.4"
 proptest = "1"
-base64 = "0.22"
+# Runtime-generated loopback certificates for tests only.
+rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "ring"] }
+base64 = "0.23"
 # Character sets by the WHATWG Encoding Standard, for mail in any of the sets it names
 # (windows-1250, iso-8859-2, koi8-r, shift_jis, iso-2022-jp…), and vCard files: `mailcraft-charset`.
 # (Apache-2.0 OR MIT) AND BSD-3-Clause, Rust throughout, builds for the browser.
@@ -46,11 +51,21 @@ encoding_rs = "0.8"
 # our own.
 jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"] }
 
+# Unicode's word boundaries (UAX #29), for Review › Word Count (`mailcraft-engine`). MIT OR
+# Apache-2.0, Rust throughout, builds for the browser; already in the tree (egui runs on it).
+unicode-segmentation = "1.13"
+
 # network (desktop and CLI only; the browser can't open sockets)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-webpki-roots = "1"
+# Server certificates are checked by the operating system's own verifier (#501): Windows and macOS
+# trust what the system trusts (and may fetch a missing intermediate themselves); Linux and
+# FreeBSD read the system's certificate store. No default features: rustls with `ring`, as above.
+rustls-platform-verifier = { version = "0.7.1", default-features = false }
 # SHA-256 and random bytes for the OAuth sign-in (already in the tree: rustls runs on it).
 ring = "0.17"
+# The flag that opens a file without waiting (`O_NONBLOCK`), so that a pipe put where a file was
+# named can't hold the window (#505). Constants only (already in the tree).
+libc = "0.2"
 # gzip and deflate, for a picture a web server sends packed (already in the tree: the PNG decoder
 # runs on it); the backend written in Rust.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
@@ -60,22 +75,29 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # `mailcraft-net`'s `graph::favorites`). MIT, Rust throughout, and nothing but `memchr` under it. It reads no DTD and expands no entity: a reference in the text is handed over as such.
 # Already in the tree (a build tool of the Linux windowing crates uses it); desktop and CLI only.
 quick-xml = { version = "0.42", default-features = false }
+# NTLMv2 sign-in to Exchange servers (#252, E4), written from MS-NLMP: MD4 (the hash of the
+# password), MD5 and HMAC. RustCrypto, pure Rust, MIT OR Apache-2.0, and wasm-clean; `hmac` is
+# already in the tree. Used by `mailcraft-ews` only.
+md4 = { version = "0.11", default-features = false }
+md-5 = { version = "0.11", default-features = false }
+hmac = { version = "0.13", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
-# else on the web; its decoder (image-webp) is Rust all the way down, like the others here.
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+# else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO
+# (which brings BMP, the pictures inside one) for a sender's picture that is a web site's icon
+# alone: everything else names the kinds it decodes (`reading::images::KINDS`).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico"] }
 
 # ui
 egui = "0.37"
 egui_extras = { version = "0.37", default-features = false }
 eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
+# The font reader egui uses, at egui's version: a system font is opened with it before egui is
+# given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
+skrifa = "0.48"
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
-# Reading a link's address the way a browser does (WHATWG URL), for the host it really goes to,
-# an international name in its ASCII (`xn--`) form: the tip over a link. MIT OR Apache-2.0, Rust
-# throughout, builds for the browser; already in the tree (the desktop's `webbrowser` uses it).
-url = "2.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -91,6 +113,10 @@ opt-level = 2
 
 [profile.dev]
 opt-level = 1
+# File and line in a backtrace or a debugger's stack, no variables: a clean test build is about a
+# quarter quicker and a rebuild about a third, and target/ half the size. `debug = true` locally
+# (`CARGO_PROFILE_DEV_DEBUG=true`) when a debugger needs the variables.
+debug = "line-tables-only"
 
 [profile.release]
 opt-level = 3
@@ -99,6 +125,8 @@ codegen-units = 16
 debug = 0
 
 [patch.crates-io]
-# winit 0.30.13 with an activation token that names the latest click, which KWin needs before it
-# brings the browser forward (#144). Dropped when winit itself does it.
-winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "bb472d90071a8b48288aeaa70ad81b767808ae9a" }
+# winit 0.30.13 with two patches, each dropped when winit itself has it: an activation token that
+# names the latest click, which KWin needs before it brings the browser forward (#144); and
+# Wayland file drops plus the clipboard on winit's one data device (rust-windowing/winit#4729),
+# so that files dropped on a window are attached (#523).
+winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "951b6c131897a80d27a925af7c5da22ea522eb0d" }

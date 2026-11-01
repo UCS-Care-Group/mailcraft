@@ -160,6 +160,15 @@ impl Count {
         }
     }
 
+    /// The number alone, as the pill shows it.
+    fn digits(self) -> String {
+        match self {
+            Count::Nothing => String::new(),
+            Count::Unread(n) | Count::Total(n) => n.to_string(),
+        }
+    }
+
+    #[cfg(test)]
     fn text(self) -> String {
         match self {
             Count::Nothing => String::new(),
@@ -248,10 +257,11 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     app.hit.add("folder", f.id, r);
     let row = highlight(r);
     if selected {
-        ui.painter().rect_filled(row, 0.0, t.selection);
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
     } else if resp.hovered() {
         // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
-        ui.painter().rect_filled(row, 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     // The chevron has its own click target, only on a folder with something under it.
@@ -265,26 +275,43 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     let y = r.center().y - TEXT_RISE;
-    // The count, flush right: unread in bold, a total in brackets, both in the accent.
+    // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
+    // (Drafts, Junk) in a quiet grey one.
     let mut name_end = r.max.x - COUNT_RIGHT;
     if count != Count::Nothing {
-        let font = if matches!(count, Count::Unread(_)) { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-        let shown = ui.painter().text(pos2(r.max.x - COUNT_RIGHT, y), Align2::RIGHT_CENTER, count.text(), font, t.accent);
-        name_end = shown.min.x - 8.0;
+        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+        let w = (galley.size().x + 12.0).max(20.0);
+        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+        ui.painter().rect_filled(pill, 9.0, fill);
+        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
+        name_end = pill.min.x - 6.0;
     }
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-    paint_clipped(ui.painter(), pos2(x + NAME_LEFT, y), (name_end - x - NAME_LEFT).max(0.0), &name, font, t.text);
+    paint_clipped(
+        ui.painter(),
+        pos2(x + NAME_LEFT, y),
+        (name_end - x - NAME_LEFT).max(0.0),
+        &name,
+        font,
+        if selected { t.accent_soft_text } else { t.text },
+    );
     if resp.clicked() {
         ui.data_mut(|d| d.insert_temp(egui::Id::unique("folder_picked_in_list"), key == "tree"));
         let _ = app.run("folder.select", json!({"id": f.id}));
     }
     // Messages dragged out of the list are filed in the folder they are let go over.
-    if resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some() {
-        ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    if let Some(drag) = resp.dnd_hover_payload::<crate::mail_view::MessageDrag>() {
+        let takes = !crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id).is_empty();
+        crate::drag_pointer::note_folder(ui.ctx(), takes);
+        if takes {
+            ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        }
     }
     if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
         // Only what isn't here already.
-        let ids: Vec<Id> = drag.0.iter().copied().filter(|m| app.session.mailbox.message(*m).is_some_and(|m| m.folder != f.id)).collect();
+        let ids = crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id);
         if !ids.is_empty() {
             let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
         }
@@ -301,13 +328,17 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             }
         };
         item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), true);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), custom);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), custom);
+        // (Not one that is or holds what a JMAP account's server has, which stays for now.)
+        let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
+        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
+        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
         item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), true);
+            let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
+            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
@@ -344,7 +375,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
     };
     app.hit.add(kind, account, r);
     if resp.hovered() {
-        ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
     paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
@@ -383,7 +414,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
             let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_offer", account)), Sense::click());
             app.hit.add("favoritesOffer", account, r);
             if resp.hovered() {
-                ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+                ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
             }
             paint_clipped(ui.painter(), pos2(left, y), width, tl!("Show Outlook's Favorites"), font, t.accent_text);
             // Signing in with Microsoft once more, for that alone.
@@ -494,7 +525,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         // In the dark the pane and the list beside it are told apart by their own colours; on a
         // light window they are nearly one white, and a line parts them.
-        .show_separator_line(!t.dark)
+        .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.canvas));
     let shown = panel.show(ui, |ui| {
         sheet(ui.painter(), ui.max_rect(), &t);

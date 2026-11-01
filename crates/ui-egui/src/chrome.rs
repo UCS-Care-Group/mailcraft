@@ -79,14 +79,18 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// Where title-bar content starts to the right of the traffic lights.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 
-/// The search box: typing filters the message list as you go; Escape clears it.
+/// The search box: typing filters the message list as you go, or in People the contacts, which
+/// have a search of their own (#366); Escape clears it. In mail, a list under it offers what the
+/// word being typed may be (#308; `search_suggest`), and Escape closes that first; and the button
+/// at its right opens Advanced Search under it (#329), which Escape closes before it clears
+/// anything (`advanced_search::escape`).
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
-    let id = ui.scope_id().with("search_box");
+    let id = search_box_id();
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
-    let edge = if t.dark { t.group_label } else { t.border_strong };
+    let edge = t.field_edge;
     ui.painter().rect(
         rect,
         4.0,
@@ -95,14 +99,57 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         egui::StrokeKind::Inside,
     );
     icons::paint(ui.painter(), Rect::from_center_size(pos2(rect.min.x + 15.0, rect.center().y), vec2(16.0, 16.0)), "search", t.text_dim, t.accent);
-    // The engine's search is the truth; the box follows it when it changes elsewhere (a command).
-    if !focused && app.search_text != app.session.view.search {
-        app.search_text = app.session.view.search.clone();
-    }
-    // The scope menu is about mail folders, so People (which searches contacts) goes without it.
+    // People has a search of its own, which the box shows and types into there; everywhere else
+    // the box is the mail's (#366).
     let mail_search = app.session.view.module != Module::People;
+    // When the other search came in front since the box was last drawn (Ctrl+1, Ctrl+3, a click),
+    // with the keyboard in the box or not.
+    let slot = id.with("mail_search");
+    let swapped = ui.data(|d| d.get_temp::<bool>(slot)).is_some_and(|was| was != mail_search);
+    ui.data_mut(|d| d.insert_temp(slot, mail_search));
+    // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
+    // and at once when the other one comes in front.
+    let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
+    let refill = (!focused || swapped) && app.search_text != *truth;
+    if refill {
+        app.search_text = truth.clone();
+    }
+    // With the same letters in both too.
+    if refill || swapped {
+        caret_at_end(ui.ctx(), &app.search_text);
+    }
+    // Undo doesn't bring back what was typed in the other one.
+    if swapped && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), id) {
+        state.clear_undoer();
+        state.store(ui.ctx(), id);
+    }
+    // A dialog over the window takes the keys, Escape first.
+    let free = crate::keys::takes_commands(app);
+    // The scope menu is about mail folders, so People (which searches contacts) goes without it.
     let scope_w = if mail_search { 104.0 } else { 0.0 };
-    let edit_rect = Rect::from_min_max(pos2(rect.min.x + 28.0, rect.min.y + 1.0), pos2(rect.max.x - scope_w - 4.0, rect.max.y - 1.0));
+    // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
+    let in_mail = app.session.view.module == Module::Mail;
+    let advanced_w = if in_mail { 28.0 } else { 0.0 };
+    let edit_rect = Rect::from_min_max(pos2(rect.min.x + 28.0, rect.min.y + 1.0), pos2(rect.max.x - scope_w - advanced_w - 4.0, rect.max.y - 1.0));
+    app.hit.add("searchBox", 0, rect);
+    let advanced = Rect::from_center_size(pos2(rect.max.x - scope_w - advanced_w / 2.0 - 2.0, rect.center().y), vec2(24.0, 22.0));
+    if in_mail {
+        let aresp = ui.interact(advanced, ui.scope_id().with("advanced_search_button"), Sense::click());
+        aresp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Advanced Search")));
+        let aresp = aresp.on_hover_text(tl!("Advanced Search"));
+        app.hit.add("advancedSearchButton", 0, advanced);
+        let open = app.advanced_search.is_some();
+        if aresp.hovered() || open {
+            ui.painter().rect_filled(advanced, 4.0, if open { t.pressed } else { t.hover });
+        }
+        icons::paint(ui.painter(), Rect::from_center_size(advanced.center(), vec2(15.0, 15.0)), "filter", t.text_dim, t.accent);
+        if aresp.clicked()
+            && let Err(e) = crate::advanced_search::set_open(app, !open)
+        {
+            app.say_refused("ui.advancedSearch", e);
+        }
+    }
+    let panel = app.advanced_search.is_some();
     let hint = match app.session.view.module {
         Module::People => tl!("Search people"),
         // Calendar and Tasks have no search of their own yet: what is typed looks in the mail.
@@ -113,6 +160,17 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let font = if rect.height() >= 30.0 { regular(13.0) } else { TypeRung::Control.regular() };
     // Keywords as pills (#196), drawn under the text in a place kept for them.
     let cursor = if focused { egui::TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index.0) } else { None };
+    // A held Enter or Tab is one press in the box (#391, #393): its repeats would take one
+    // suggestion after another, or leave the box once one is taken.
+    if focused {
+        ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));
+    }
+    // What the word being typed may be (#308), for mail: the list's keys come before the box's.
+    let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
+    let over = suggesting.pointer_over(ui);
+    // With a dialog open, the list is not drawn: it would be on top of the dialog.
+    let open = mail_search && free && !panel && crate::search_suggest::Suggesting::is_open(ui.ctx());
+    let mut take = if open && focused { suggesting.keys(ui) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, _wrap: f32| {
@@ -126,6 +184,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .font(font.clone())
         .align(egui::Align2::LEFT_CENTER)
         .desired_width(edit_rect.width())
+        // Tab is for the list while it shows. Escape is always the box's.
+        .event_filter(list_keys(open))
         .layouter(&mut layouter);
     let output = ui
         .scope_builder(egui::UiBuilder::new().max_rect(edit_rect).layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)), |ui| {
@@ -134,44 +194,123 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .inner;
     let shapes = crate::search_pills::shapes(&output.galley, output.galley_pos, &drawn, &t);
     ui.painter().with_clip_rect(output.text_clip_rect).set(pill_slot, egui::Shape::Vec(shapes));
-    let resp = output.response.response;
+    let resp = crate::text_menu::field(output.response.response);
+    // The box gave up the keyboard without a click (Enter, Shift+Tab): the list closes too. After a
+    // click the list stays for that frame, so a click on it can still take a suggestion.
+    if resp.lost_focus() && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {
+        suggesting.clear();
+    }
+    // A search the box is left with (Enter, a click away) is one of the recent searches.
+    if resp.lost_focus() && mail_search && !app.session.view.search.trim().is_empty() {
+        let query = app.session.view.search.clone();
+        let _ = app.execute("view.recentSearches", json!({"remember": query}));
+    }
     if std::mem::take(&mut app.search_focus) {
         resp.request_focus();
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = match app.session.view.module {
-            Module::People => app.execute("people.search", json!({"query": text})),
-            _ => app.execute("view.search", json!({"query": text})),
-        };
+        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
     }
-    if focused && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    // Escape is the box's while it has the keyboard and nothing is over it, the list under it
+    // either (#406), so nothing drawn after it does something with the same key (a selection in
+    // the message being read stays). Only a press clears the search: the repeats of one that
+    // closed a dialog leave it.
+    let pressed = focused && free && crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), id);
+    if pressed {
         app.search_text.clear();
         let _ = app.execute("view.clearSearch", json!({}));
         let _ = app.execute("people.search", json!({"query": ""}));
         resp.surrender_focus();
     }
+    // Not while Advanced Search is open under the box.
+    let wanted = mail_search && free && !panel && (focused || over) && !suggesting.items.is_empty();
+    take = suggesting.show(ui, rect, wanted).or(take);
+    let mut cursor = output.cursor_range.map(|r| r.primary.index.0);
+    // Only what was offered for the search as it is now: not for one this frame's typing changed.
+    let fresh = app.search_text == suggesting.for_text;
+    if let Some(s) = take.filter(|_| fresh).and_then(|i| suggesting.items.get(i).cloned()) {
+        let (text, at) = crate::search_suggest::taken(&app.search_text, &s);
+        app.search_text = text.clone();
+        let _ = app.execute("view.search", json!({"query": text}));
+        // Go on typing after it: the keyboard stays in the box.
+        let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(at))));
+        state.store(ui.ctx(), id);
+        ui.memory_mut(|m| m.request_focus(id));
+        cursor = Some(at);
+    }
+    match cursor {
+        Some(at) if mail_search && !panel && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
+            suggesting.offer(&app.search_text, at, &app.session);
+            // The keys of a list that shows from the next frame are its own from that frame on.
+            let next = suggesting.will_show(ui.ctx(), free);
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
+        }
+        _ if suggesting.pointer_over(ui) => {}
+        // The box was left: the list shows again on coming back, after an Escape too.
+        _ if !ui.memory(|m| m.has_focus(id)) => suggesting = crate::search_suggest::Suggesting::default(),
+        _ => suggesting.clear(),
+    }
+    suggesting.store(ui.ctx());
+    if in_mail {
+        crate::advanced_search::show(app, ui.ctx(), rect, advanced);
+    }
     if !mail_search {
         return;
     }
-    // Scope: this folder, or every mailbox.
+    // Scope: this folder, it and its subfolders, its mailbox, or every mailbox (#493).
     let scope_rect = Rect::from_min_max(pos2(rect.max.x - scope_w, rect.min.y + 2.0), pos2(rect.max.x - 2.0, rect.max.y - 2.0));
-    let everywhere = app.session.view.scope == Scope::Everywhere;
-    let label = if everywhere { tl!("All Mailboxes") } else { tl!("Current Folder") };
+    let scopes = scopes();
+    let now = app.session.view.scope;
+    let label = scopes.iter().find(|(scope, ..)| *scope == now).map_or(tl!("Current Folder"), |(_, name, _)| *name);
     let sresp = ui.interact(scope_rect, ui.scope_id().with("search_scope"), Sense::click());
     if sresp.hovered() {
         ui.painter().rect_filled(scope_rect, 4.0, t.hover);
     }
     ui.painter().text(scope_rect.center(), Align2::CENTER_CENTER, format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
     egui::Popup::menu(&sresp).show(|ui| {
-        for (name, code, on) in [("Current Folder", "folder", !everywhere), ("All Mailboxes", "everywhere", everywhere)] {
-            if ui.selectable_label(on, tl!(name)).clicked() {
+        for (scope, name, code) in scopes {
+            if ui.selectable_label(scope == now, name).clicked() {
                 let query = app.session.view.search.clone();
                 let _ = app.execute("view.search", json!({"query": query, "scope": code}));
                 ui.close();
             }
         }
     });
+}
+
+/// Where a search looks, by name and by `view.search`'s code (#493): this folder, it and its
+/// subfolders, its mailbox, or every mailbox.
+pub(crate) fn scopes() -> [(Scope, &'static str, &'static str); 4] {
+    [
+        (Scope::Folder, tl!("Current Folder"), "folder"),
+        (Scope::Subfolders, tl!("Subfolders"), "subfolders"),
+        (Scope::Mailbox, tl!("Current Mailbox"), "mailbox"),
+        (Scope::Everywhere, tl!("All Mailboxes"), "everywhere"),
+    ]
+}
+
+/// The search box's own keys: the arrows, and Tab while the list under it shows. Escape is always
+/// the box's: it closes the list or clears the search. It never reaches the window, where it would
+/// close a message being written (#365).
+fn list_keys(open: bool) -> egui::EventFilter {
+    egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: open, escape: true }
+}
+
+/// The search box, for the window's keys (`keys.rs`).
+pub(crate) fn search_box_id() -> egui::Id {
+    egui::Id::unique("search_box")
+}
+
+/// For `text`, just written in the search box from outside it: the caret at its end, so that what
+/// is typed next goes on after it, once Ctrl+E brings the keyboard too (#366).
+pub(crate) fn caret_at_end(ctx: &egui::Context, text: &str) {
+    let id = search_box_id();
+    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+    let end = egui::text::CCursor::new(text.chars().count());
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+    state.store(ctx, id);
 }
 
 pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
@@ -200,7 +339,10 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
             let mut right_start = full.max.x;
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                // Quick Access Toolbar: Send/Receive, Undo, Redo.
+                // MailCraft's mark, then the Quick Access Toolbar: Send/Receive, Undo, Redo.
+                let (mark, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+                icons::app_mark(ui.painter(), mark);
+                ui.add_space(8.0);
                 let sync_tip = if app.syncing() { tl!("Sending and receiving…") } else { tl!("Send/Receive All Folders") };
                 qat_button(ui, app, "sync", sync_tip, "ui.sync");
                 let undo = crate::i18n::fmt(tl!("Undo {what}"), &[("what", tl!(app.session.undo_label().unwrap_or("")))]);
@@ -233,6 +375,7 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
             // The search box, centred, as wide as the space allows.
             let room = (right_start - qat_end - 40.0).max(0.0);
             let w = room.min(520.0);
+            app.search_box_shown = w >= 220.0;
             if w >= 220.0 {
                 let cx = full.center().x.clamp(qat_end + 20.0 + w / 2.0, (right_start - 20.0 - w / 2.0).max(qat_end + 20.0 + w / 2.0));
                 search_box(app, ui, Rect::from_center_size(pos2(cx, full.center().y), vec2(w, search_h)));
@@ -363,8 +506,38 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         }
                         ui.add_space(10.0);
                     }
+                    // Another mailbox being read in the background (File › Open): how far it has
+                    // got, and Cancel, which leaves the one open as it is.
+                    if let Some((label, fraction)) = crate::opening::ahead_label(app) {
+                        let cancel = ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT));
+                        app.hit.add("cancelOpen", 0, cancel.rect);
+                        if cancel.on_hover_text(tl!("Stop opening it; the mailbox that is open stays")).clicked() {
+                            let _ = app.run("ui.cancelOpen", json!({}));
+                        }
+                        ui.add_space(6.0);
+                        let (resp, track) = progress_bar(ui, &t, &label, fraction, OPEN_BAR);
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &label));
+                        app.hit.add("openBar", 0, track);
+                        ui.add_space(10.0);
+                    } else {
+                        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
+                    }
+                    // Work Offline is on: said for as long as it is, and a click turns it off.
+                    if app.offline() {
+                        let offline = st(ui, tl!("Working Offline"), t.text)
+                            .interact(Sense::click())
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .on_hover_text(tl!("Nothing is sent or received. Click to connect again."));
+                        app.hit.add("workingOffline", 0, offline.rect);
+                        if offline.clicked() {
+                            let _ = app.run("sync.offline", json!({"value": false}));
+                        }
+                        ui.add_space(10.0);
+                    }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);
+                    // Automatic replies are on for an account: said, and a click opens them.
+                    crate::auto_replies::status_item(app, ui, &t, STATUS_TEXT);
                     // The last Send/Receive had problems: one click shows them, in Send/Receive
                     // Progress under their accounts.
                     if app.has_sync_problems() {
@@ -446,6 +619,9 @@ fn sync_bar(app: &mut MailApp, ui: &mut Ui, t: &Tokens, label: &str, fraction: f
     resp
 }
 
+/// Where the status bar remembers how far the bar of a mailbox read in the background got.
+const OPEN_BAR: &str = "status_open_bar";
+
 /// A label and a bar that fills as `fraction` goes from 0 to 1, in the status bar: the bar never
 /// goes back while it is shown (`key` remembers how far it got). Returns the whole and the bar.
 fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) -> (egui::Response, Rect) {
@@ -465,7 +641,7 @@ fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) 
     }
     let track = Rect::from_min_size(pos2(r.max.x - bar_w, r.center().y - SYNC_BAR.y / 2.0), vec2(bar_w, SYNC_BAR.y));
     let radius = SYNC_BAR.y / 2.0;
-    ui.painter().rect_filled(track, radius, if t.dark { t.border } else { t.border_strong.linear_multiply(0.6) });
+    ui.painter().rect_filled(track, radius, t.track);
     if shown > 0.0 {
         let fill = Rect::from_min_max(track.min, pos2(track.min.x + (bar_w * shown).max(SYNC_BAR.y), track.max.y));
         ui.painter().rect_filled(fill, radius, t.accent);
@@ -520,6 +696,10 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "search_box_tests.rs"]
+mod search_box_tests;
 
 #[cfg(test)]
 mod tests {

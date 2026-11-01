@@ -1,6 +1,6 @@
 # DAV model and documents
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (source line endings, portable DAV crate and review fixes)
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-01 · **Change:** minor
 
 **Status:** foundation only.
 
@@ -32,6 +32,10 @@ folds and their line endings, remain untouched.
 Time edits keep the source date, floating, UTC or TZID form. A named zone must have its
 VTIMEZONE definition in the source. An added DTEND must match the effective DTSTART form. A writer that converts the source DURATION to DTEND
 cannot safely edit its times; conflicting DTEND and DURATION are refused.
+Timing and recurrence properties form one unit: changing DTSTART, DTEND, DURATION, RRULE,
+RDATE, EXDATE or EXRULE requires all of their source lines to match the writer’s baseline.
+This refuses edits that would leave an unmodelled recurrence date behind or mix a floating
+start with a UTC rule produced by normalisation.
 These cases return an error rather than silently discard information. They can be handled by
 later, separately reviewed operations. A text is limited to 4 MiB, 65,536 physical lines,
 256 KiB per unfolded line and a nesting depth of 16 components.
@@ -71,6 +75,7 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | Timing and recurrence changes refuse a lossy writer baseline |
 | 2026-10-24 | Inserted properties and folds use the source line endings |
 | 2026-10-24 | Separate portable DAV crate, property ordering, end-form guards and fuzz coverage |
 | 2026-10-24 | Review fixes: time/end forms, repeated properties, source versions, email alarms and real-writer tests |

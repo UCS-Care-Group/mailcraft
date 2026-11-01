@@ -1667,11 +1667,11 @@ fn the_identity_token_says_which_directory_signed_in() {
 
 /// What an administrator is asked to approve: everything the program asks an owner for, and what
 /// later shared-mailbox slices will ask for.
-const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
+const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
 /// The same, service by service.
 const ADMIN_SCOPES_MAIL: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
-const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
+const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
 /// A directory's id and an application's, both invented.
 const DIRECTORY: &str = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
 const APPLICATION: &str = "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6";
@@ -2149,4 +2149,145 @@ fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_m
     assert_eq!(server.asked(), 1);
     // An ordinary sign-in and the others' refreshes don't carry it.
     assert!(!shared_scope().contains("Calendars.ReadWrite.Shared"));
+}
+
+const TASKS_SCOPE: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
+
+#[test]
+fn tasks_are_never_put_on_a_sign_in_page_so_a_mail_sign_in_never_waits_on_them() {
+    // Asked for by itself, after the window has asked the owner, for new accounts and old alike: a
+    // tenant that makes an administrator approve it must not stop a plain mail sign-in.
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        let endpoints = Endpoints::for_resource(&oauth(), resource);
+        assert!(!endpoints.consent.contains("Tasks") && !endpoints.lesser.contains("Tasks"), "{resource:?}: {}", endpoints.consent);
+        assert!(!endpoints.scope.contains("Tasks"), "{resource:?}: {}", endpoints.scope);
+    }
+    // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let all = Endpoints { scope: format!("{GRAPH_SCOPES} offline_access openid profile email"), ..endpoints_of(&server) };
+    refresh_graph_at(&all, &all, &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert!(!form_of(&server, 0)["scope"].contains("Tasks"));
+    // The administrator's one approval covers it.
+    assert!(admin_scope().split(' ').any(|scope| scope == TASKS_SCOPE));
+}
+
+#[test]
+fn a_tasks_job_needs_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"tasks-access","refresh_token":"re-fresh-5"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_tasks_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("tasks-access", "re-fresh-5", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == TASKS_SCOPE) && scope.contains("Calendars.ReadWrite"), "{scope}");
+    // Never the permissions that are asked for by themselves for other things.
+    assert!(!scope.contains("Mail.ReadWrite") && !scope.contains("Shared"), "{scope}");
+    // A sign-in from before: the owner is to be asked on the page; nothing is read without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    assert!(
+        refresh_graph_tasks_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh")
+            .unwrap_err()
+            .is_consent_needed()
+    );
+    assert_eq!(server.asked(), 1);
+}
+
+/// #520: Microsoft's no for the to-dos of a personal account that never agreed reads like a
+/// sign-in that is over (a bare invalid_grant, or AADSTS70000); the mail servers say which.
+#[test]
+fn a_no_for_the_tasks_alone_is_a_question_for_the_owner() {
+    let mail = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"mail-access"}"#;
+    let busy = r#"{"error":"temporarily_unavailable","error_description":"Busy."}"#;
+    for no in [
+        r#"{"error":"invalid_grant"}"#,
+        r#"{"error":"invalid_grant","error_description":"AADSTS70000: The request was denied because one or more scopes requested are unauthorized or expired. The user must first sign in and grant the client application access to the requested scope.","error_codes":[70000]}"#,
+    ] {
+        // Mail still takes the sign-in: the owner is to be asked, and the mail tokens are dropped.
+        let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", no) } else { ok(mail) });
+        let error = refresh_graph_tasks_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+        assert!(error.is_consent_needed(), "{no}: {error}");
+        assert_eq!(server.asked(), 2);
+        assert!(form_of(&server, 0)["scope"].split(' ').any(|s| s == TASKS_SCOPE));
+        assert_eq!(form_of(&server, 1)["scope"], endpoints_of(&server).scope);
+        // Mail doesn't either: the sign-in is over.
+        let server = FakeHttp::answering(response("400 Bad Request", no));
+        let error = refresh_graph_tasks_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+        assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{no}: {error}");
+        assert_eq!(server.asked(), 2);
+        // Mail couldn't say: neither, and nothing is concluded.
+        let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", no) } else { response("503 Service Unavailable", busy) });
+        let error = refresh_graph_tasks_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+        assert!(!error.is_refused_sign_in() && !error.is_consent_needed(), "{no}: {error}");
+    }
+}
+
+/// #520: an account kept in step through Graph never signed in for IMAP, so its no for the to-dos
+/// is checked against Graph's mail; IMAP would say no too.
+#[test]
+fn a_graph_accounts_no_for_the_tasks_is_checked_against_graph_mail() {
+    let mail = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"mail-access"}"#;
+    let no = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The request was denied because one or more scopes requested are unauthorized or expired.","error_codes":[70000]}"#;
+    let mut kinds = Vec::new();
+    for resource in [Resource::GraphMail, Resource::Mail] {
+        // Microsoft as for such an account: the to-dos and IMAP refused, Graph's mail taken.
+        let server = FakeHttp::start(move |n, _| if n == 1 && resource == Resource::GraphMail { ok(mail) } else { response("400 Bad Request", no) });
+        let at = Endpoints { scope: Endpoints::for_resource(&oauth(), resource).scope, ..endpoints_of(&server) };
+        let error = refresh_graph_tasks_at(&endpoints_of(&server), (&at, resource), &oauth(), "re-fresh").unwrap_err();
+        assert_eq!(form_of(&server, 1)["scope"], at.scope);
+        kinds.push((error.is_consent_needed(), error.is_refused_sign_in()));
+    }
+    assert!(Endpoints::for_resource(&oauth(), Resource::GraphMail).scope.contains("Mail.ReadWrite"));
+    assert!(!Endpoints::for_resource(&oauth(), Resource::Mail).scope.contains("Mail.ReadWrite"));
+    assert_eq!(kinds, [(true, false), (false, true)]);
+}
+
+const SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
+
+#[test]
+fn changing_the_settings_is_never_on_a_sign_in_page_and_reading_them_costs_nothing_more() {
+    // A sign-in still asks to read the settings, and never to change them: a tenant that makes an
+    // administrator approve that must not stop a sign-in.
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        let endpoints = Endpoints::for_resource(&oauth(), resource);
+        let all = format!("{} {} {}", endpoints.consent, endpoints.lesser, endpoints.scope);
+        assert!(!all.contains("MailboxSettings.ReadWrite"), "{resource:?}: {all}");
+    }
+    assert!(Endpoints::for_resource(&oauth(), Resource::Mail).consent.split(' ').any(|s| s == "https://graph.microsoft.com/MailboxSettings.Read"));
+    // The administrator's one approval covers it.
+    assert!(admin_scope().split(' ').any(|scope| scope == SETTINGS_WRITE));
+    // The calendar's (and the replies' reading) refresh asks for what it asked before: once.
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let all = Endpoints { scope: format!("{GRAPH_SCOPES} offline_access openid profile email"), ..endpoints_of(&server) };
+    refresh_graph_at(&all, &all, &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!(server.asked(), 1);
+    assert!(!form_of(&server, 0)["scope"].contains(SETTINGS_WRITE));
+}
+
+#[test]
+fn a_change_of_the_replies_needs_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"replies-access","refresh_token":"re-fresh-6"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), server.asked()), ("replies-access", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == SETTINGS_WRITE) && scope.contains("Calendars.ReadWrite"), "{scope}");
+    assert!(!scope.contains("Tasks") && !scope.contains("Shared") && !scope.contains("Mail.ReadWrite"), "{scope}");
+    // A sign-in from before (reading them only): the owner is to be asked, once.
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed(), "{error}");
+    assert_eq!(server.asked(), 1);
+    // Microsoft's no in the words of a sign-in that is over, while mail takes it: the permission.
+    let mail = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"mail-access"}"#;
+    let no = r#"{"error":"invalid_grant"}"#;
+    let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", no) } else { ok(mail) });
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed() && !format!("{error:?}").contains("re-fresh"), "{error}");
+    // And mail doesn't either: the sign-in is over.
+    let server = FakeHttp::answering(response("400 Bad Request", no));
+    let error = refresh_graph_replies_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
 }

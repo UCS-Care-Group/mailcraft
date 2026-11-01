@@ -124,6 +124,8 @@ pub fn text_hash(text: &str) -> u64 {
 
 /// The header `mailcraft-net` gives a message too large to download, with its size on the server.
 pub const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+/// How the note `mailcraft-net` keeps in place of such a message's text begins.
+pub const NOT_DOWNLOADED_NOTE: &str = "This message is too large to download:";
 
 /// A byte count for people.
 pub fn size_label(bytes: u64) -> String {
@@ -148,6 +150,9 @@ pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
     };
     mailcraft_i18n::fmt(template, &[("n", &n.to_string()), ("tenth", &tenth.to_string())])
 }
+
+/// The most text of what a sender hid ([`Message::hidden_text`]) that is kept, in bytes.
+pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
@@ -185,6 +190,14 @@ pub struct Message {
     /// When it arrived here.
     pub received: Timestamp,
     pub body: Body,
+    /// The words of what the sender hid in the HTML (`display:none`, a style sheet's
+    /// `visibility:hidden`, a font size of nothing: preheaders, the other copy of a desktop and
+    /// mobile pair), as one line of at most 16 KB. It is not in `body.text` and is never shown,
+    /// quoted in a reply or sent: it is for the owner's search, rules and agents, who read it as
+    /// data, never as instructions. Empty for a message read before it was kept, until the
+    /// message is read again from its source.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hidden_text: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<Attachment>,
     pub read: bool,
@@ -193,12 +206,22 @@ pub struct Message {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag_due: Option<Timestamp>,
     pub importance: Importance,
+    /// Written here with Request a Read Receipt on: it goes with `Disposition-Notification-To`
+    /// naming its sender (RFC 8098), or Exchange's own flag for one. Only ever set by the owner's
+    /// own message; a request in mail that comes in is never read into it, and never answered.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_receipt: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     pub answered: bool,
     pub forwarded: bool,
     pub draft: bool,
     pub pinned: bool,
+    /// The kinds of sender warning ([`crate::sender_warnings::Warning::kind`]) the owner dismissed
+    /// the banner for (#508). The banner is hidden while every kind it would show is among these;
+    /// a kind that appears later brings it back.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub warnings_dismissed: Vec<String>,
     /// Headers MailCraft doesn't model, kept so a saved message round-trips.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
@@ -234,6 +257,16 @@ pub struct Message {
     /// message of a file from before this was kept is whole.
     #[serde(skip_serializing_if = "is_false")]
     pub unfetched: bool,
+    /// A message of an IMAP account that was kept with U+FFFD in its subject, names or text
+    /// (stored before character sets beyond UTF-8 were read, #178) and is to be downloaded again
+    /// by its UID, once (#650): its subject, names and text are written over by the new copy's,
+    /// and the mark goes. Everything else about it stays as it is.
+    #[serde(skip_serializing_if = "is_false")]
+    pub refetch: bool,
+    /// It was downloaded again for that (#650), or the server would not give it: it is not
+    /// marked a second time, whatever it holds (a message whose own bytes are broken stays so).
+    #[serde(skip_serializing_if = "is_false")]
+    pub refetched: bool,
     /// While it is not fetched: the server said it has attachments (Graph's `hasAttachments`),
     /// which its headers and preview don't show. It wears the paperclip and `has:attachment`
     /// finds it; once it is fetched its own attachments say.
@@ -245,6 +278,18 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
+    /// Put back as its server's message when a copy of it in another account was refused (#451):
+    /// how many more times that server is to list its folder with it still there before it is
+    /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
+    /// may have been asked for before it was put back). Should the server say meanwhile that it
+    /// is gone (deleted elsewhere), it is kept on this computer instead of going with it.
+    #[serde(skip_serializing_if = "none_left")]
+    pub returned: u8,
+    /// The marker of the copy of it put on its account's IMAP server from elsewhere, while that
+    /// server hasn't said where the copy is (#451): only a message there that carries it is
+    /// taken for that copy. Empty for every other message.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub placed: String,
     /// The server's copy was gone before it could be fetched: only the headers and preview it
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
@@ -281,6 +326,19 @@ pub struct Answers {
     /// It is a forward (the original is marked forwarded); otherwise a reply (marked replied).
     #[serde(skip_serializing_if = "is_false")]
     pub forward: bool,
+    /// A forward of several messages, each attached whole (#360): the others it forwards, each
+    /// marked as its own entry says (their own `also` is not looked at). Empty for every other
+    /// reply or forward; a build from before reads the first original alone.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub also: Vec<Answers>,
+}
+
+/// How many listings of its folder a message put back after a refused copy waits for
+/// ([`Message::returned`]).
+pub const RETURNED_LISTINGS: u8 = 2;
+
+fn none_left(n: &u8) -> bool {
+    *n == 0
 }
 
 fn is_false(b: &bool) -> bool {
@@ -295,6 +353,9 @@ fn is_false(b: &bool) -> bool {
 pub struct KeptBody {
     pub text: Option<ContentRef>,
     pub html: Option<ContentRef>,
+    /// The words the sender hid ([`Message::hidden_text`]) when they are over the size kept in
+    /// the mailbox file (#599): `hidden_text` is empty until they are brought in with the body.
+    pub hidden: Option<ContentRef>,
     /// Bringing it in was tried and failed (the file is missing or damaged): the text says so,
     /// and nothing tries again until the mailbox is opened anew.
     pub failed: bool,
@@ -305,7 +366,7 @@ pub struct KeptBody {
 
 impl KeptBody {
     pub fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none()
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none()
     }
 
     /// Whether `text` is the text the mailbox was opened with.
@@ -315,7 +376,7 @@ impl KeptBody {
 
     /// How many bytes the kept text and HTML come to.
     pub fn len(&self) -> u64 {
-        self.text.map_or(0, |r| r.len).saturating_add(self.html.map_or(0, |r| r.len))
+        self.text.map_or(0, |r| r.len).saturating_add(self.html.map_or(0, |r| r.len)).saturating_add(self.hidden.map_or(0, |r| r.len))
     }
 }
 
@@ -328,6 +389,14 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
+    /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
+    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451).
+    pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
+        (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
+        self.placed.clear();
+    }
+
     /// Every recipient: To, Cc, Bcc.
     pub fn recipients(&self) -> impl Iterator<Item = &Address> {
         self.to.iter().chain(&self.cc).chain(&self.bcc)
@@ -395,16 +464,20 @@ impl Message {
             Some(h) => h.len() as u64,
             None => kept.and_then(|k| k.html).map_or(0, |r| r.len),
         };
-        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html), u64::saturating_add)
+        let hidden = if self.hidden_text.is_empty() { kept.and_then(|k| k.hidden).map_or(0, |r| r.len) } else { self.hidden_text.len() as u64 };
+        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html).saturating_add(hidden), u64::saturating_add)
     }
 
     /// Whether some of the body is kept outside memory and not brought in yet ([`Message::kept`]):
     /// its text is empty, or its HTML missing, until it is. Not so once bringing it in failed
     /// (the text says so then).
     pub fn body_is_kept(&self) -> bool {
-        self.kept
-            .as_ref()
-            .is_some_and(|k| !k.failed && ((k.text.is_some() && self.body.text.is_empty()) || (k.html.is_some() && self.body.html.is_none())))
+        self.kept.as_ref().is_some_and(|k| {
+            !k.failed
+                && ((k.text.is_some() && self.body.text.is_empty())
+                    || (k.html.is_some() && self.body.html.is_none())
+                    || (k.hidden.is_some() && self.hidden_text.is_empty()))
+        })
     }
 
     /// Whether everything of the message is in memory: its body and every attachment.
@@ -418,13 +491,13 @@ impl Message {
 }
 
 /// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `Re[2]:`; German `AW:`, `WG:`;
-/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`), however many there are.
+/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`; Dutch `Antw:`, `Doorst:`), however many there are.
 pub fn normalize_subject(subject: &str) -> String {
     let mut s = subject.trim();
     while let Some((prefix, rest)) = s.split_once(':') {
         let p = prefix.trim().to_ascii_lowercase();
         let p = p.split('[').next().unwrap_or("").trim();
-        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i") {
+        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i" | "antw" | "doorst") {
             s = rest.trim();
         } else {
             break;
@@ -453,6 +526,7 @@ mod tests {
         assert_eq!(normalize_subject("AW: WG: Mittagessen"), "Mittagessen");
         assert_eq!(normalize_subject("RE: RV: Almuerzo"), "Almuerzo");
         assert_eq!(normalize_subject("R: I: Pranzo"), "Pranzo");
+        assert_eq!(normalize_subject("Antw: Doorst: Lunch"), "Lunch");
         assert_eq!(normalize_subject("Ristorante: Pranzo"), "Ristorante: Pranzo");
     }
 

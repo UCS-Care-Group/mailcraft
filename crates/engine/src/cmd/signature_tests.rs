@@ -340,3 +340,190 @@ fn a_signature_made_from_details_has_working_links_and_follows_them_until_edited
     // Junk is refused.
     assert!(s.run("signature.details", &json!({"name": "Card", "details": "x"})).is_err());
 }
+
+/// A signature laid out by a signature generator: a table, a logo on the web, and what a hostile
+/// paste could carry along.
+const GENERATED: &str = r#"<html><head><style>td{color:red}</style><script>alert(1)</script></head><body>
+<table cellpadding="0" style="font-family:Arial"><tr><td style="padding-right:12px"><img src="https://logo.example/lumen.png" width="80" alt="Lumen Studio" onerror="alert(2)"></td>
+<td><b>Avery Quinn</b><br><a href="https://lumen.example">lumen.example</a> <a href="javascript:alert(3)">click</a><img src="https://track.example/p.gif" width="1" height="1"></td></tr></table></body></html>"#;
+
+#[test]
+fn an_html_signature_goes_out_as_written_cleaned_of_what_runs_or_tracks() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    let sig = s.mailbox.signature("Generated").unwrap();
+    assert_eq!(sig.html(), Some(GENERATED));
+    // A message being written shows its words.
+    assert!(sig.plain().contains("Avery Quinn"), "{:?}", sig.plain());
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Plan", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    let html = m.body.html.clone().unwrap();
+    assert!(html.contains("<table") && html.contains("https://logo.example/lumen.png") && html.contains("padding-right:12px"), "{html}");
+    assert!(html.contains("Hello") && html.contains("https://lumen.example"), "{html}");
+    for gone in ["<script", "alert", "<style", "onerror", "javascript:", "track.example"] {
+        assert!(!html.contains(gone), "{gone} in {html}");
+    }
+    assert!(m.attachments.is_empty());
+    assert!(m.body.text.starts_with("Hello\n\n") && m.body.text.contains("Avery Quinn"), "{:?}", m.body.text);
+}
+
+#[test]
+fn an_html_signature_edited_in_the_message_goes_out_as_edited() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    // Shown as it goes out, it is out of reach until the owner chooses to edit it as text.
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": " PhD"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("PhD") && !html.contains("<table"), "{html}");
+    // In plain text, the words alone.
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatPlain", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.body.html.is_none() && m.body.text.contains("Avery Quinn") && !m.body.text.contains('<'), "{:?}", m.body.text);
+}
+
+/// Chosen to be edited as text, an HTML signature goes out as its simpler copy, though unedited;
+/// going back to the HTML takes the caret out of the copy, which is then no longer shown.
+#[test]
+fn an_html_signature_chosen_as_text_goes_out_as_text_and_back_leaves_the_caret_in_the_text() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_unedited() && c.signature_html().is_none());
+    // Back to the HTML, with the caret at the end of the text, in the copy.
+    let end = c.body.text().len();
+    let start = c.body.text().signature_start().unwrap();
+    run(&mut s, "compose.select", json!({"from": 2, "to": end}));
+    run(&mut s, "compose.signatureAsText", json!({"value": false}));
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!((c.body.selection().anchor, c.body.selection().head), (2, start - 1));
+    assert!(c.signature_html().is_some());
+    run(&mut s, "compose.type", json!({"text": "!"}));
+    assert!(s.compose.as_ref().unwrap().signature_unedited());
+    // As text, it goes out as the copy.
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("Avery Quinn") && !html.contains("padding-right:12px"), "{html}");
+    // Once the copy is edited, there is no way back to the HTML; without one, nothing to choose.
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": " PhD"}));
+    assert!(s.run("compose.signatureAsText", &json!({"value": false})).is_err());
+    run(&mut s, "signature.set", json!({"name": "Plain", "text": "Avery", "default": true}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+    assert!(s.run("compose.signatureAsText", &json!({"value": true})).is_err());
+}
+
+/// The caret never stays in an HTML signature shown as it goes out, however it got there: the
+/// next key typed would edit the signature, and its simpler copy would go out in its place.
+#[test]
+fn a_caret_never_stays_in_an_html_signature_that_is_not_shown() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    let caret = |s: &Session| {
+        let sel = s.compose.as_ref().unwrap().body.selection();
+        (sel.anchor, sel.head)
+    };
+    // In Plain the signature is text, and Ctrl+End goes to its end; then HTML.
+    run(&mut s, "compose.formatPlain", json!({}));
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_html_shown().is_some());
+    let text_end = c.body.text().signature_start().unwrap() - 1;
+    assert_eq!(caret(&s), (text_end, text_end));
+    // An agent's selection into it, and typing after it.
+    run(&mut s, "compose.select", json!({"from": 2, "to": end}));
+    assert_eq!(caret(&s), (2, text_end));
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": "!"}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature_unedited() && c.body.text().text().starts_with("Hello\n!\nAvery Quinn"), "{:?}", c.body.text().text());
+    // Nor does an undo put it back there.
+    run(&mut s, "edit.undo", json!({}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(caret(&s).1 < c.body.text().signature_start().unwrap());
+}
+
+#[test]
+fn an_html_signature_is_rich_text_again_with_its_words_and_refuses_what_it_would_lose() {
+    let mut s = session();
+    // A logo alone still has a place in the message: its description.
+    run(&mut s, "signature.set", json!({"name": "Logo", "text": ""}));
+    run(&mut s, "signature.html", json!({"name": "Logo", "html": r#"<img src="https://logo.example/l.png" alt="Lumen Studio">"#}));
+    assert_eq!(s.mailbox.signature("Logo").unwrap().plain(), "[Lumen Studio]");
+    run(&mut s, "signature.html", json!({"name": "Logo", "html": null}));
+    let sig = s.mailbox.signature("Logo").unwrap();
+    assert!(sig.html().is_none() && sig.plain() == "[Lumen Studio]");
+    // One with pictures would lose them; too much HTML is refused; nothing changes.
+    logo(&mut s);
+    assert!(s.run("signature.html", &json!({"name": "Logo", "html": "<b>Avery</b>"})).is_err());
+    assert!(s.mailbox.signature("Logo").unwrap().html().is_none() && s.mailbox.signature("Logo").unwrap().pictures().len() == 1);
+    let big = "x".repeat(mailcraft_model::signature::MAX_HTML + 1);
+    assert!(s.run("signature.html", &json!({"name": "Standard", "html": big})).is_err());
+    assert!(s.run("signature.html", &json!({"name": "Standard", "html": 7})).is_err());
+    assert!(s.mailbox.signature("Standard").unwrap().html().is_none());
+}
+
+#[test]
+fn the_open_signature_becomes_html_and_is_saved() {
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    run(&mut s, "signature.html", json!({"html": "<p><b>Avery Quinn</b></p>"}));
+    let e = s.signature_edit.as_ref().unwrap();
+    assert!(e.dirty && e.body.text().to_plain() == "Avery Quinn" && e.signature.html().is_some());
+    // Saved, it keeps its HTML.
+    run(&mut s, "signature.save", json!({}));
+    assert_eq!(s.mailbox.signature("Standard").unwrap().html(), Some("<p><b>Avery Quinn</b></p>"));
+}
+
+#[test]
+fn new_words_for_an_html_signature_make_it_rich_text_and_the_message_says_them_alone() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "", "default": true}));
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    // Through a command: the old table goes with the old words.
+    run(&mut s, "signature.set", json!({"name": "Generated", "text": "Jo Bloggs"}));
+    assert!(s.mailbox.signature("Generated").unwrap().html().is_none());
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    let html = m.body.html.clone().unwrap();
+    assert!(html.contains("Jo Bloggs") && !html.contains("<table") && !html.contains("Avery Quinn"), "{html}");
+    assert!(m.body.text.contains("Jo Bloggs") && !m.body.text.contains("Avery Quinn"), "{:?}", m.body.text);
+    // Edited while open and saved: the same.
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "signature.open", json!({"name": "Generated"}));
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": " PhD"}));
+    run(&mut s, "signature.save", json!({}));
+    let sig = s.mailbox.signature("Generated").unwrap();
+    assert!(sig.html().is_none() && sig.plain().contains("PhD"), "{:?}", sig.plain());
+    // Opened and saved unchanged, it stays HTML.
+    run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
+    run(&mut s, "signature.save", json!({}));
+    assert_eq!(s.mailbox.signature("Generated").unwrap().html(), Some(GENERATED));
+}

@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
 use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -38,6 +38,8 @@ const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
 const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+/// Most messages of one mailbox downloaded again in one run (#650).
+const MAX_AGAIN: usize = 100;
 /// Most new messages handed over in one piece, and most bytes of them...
 const BATCH_MESSAGES: usize = 50;
 const BATCH_BYTES: usize = 4 * 1024 * 1024;
@@ -46,6 +48,7 @@ const BATCH_WAIT: Duration = Duration::from_secs(1);
 /// The header a message kept without its text has, for a program to know it by: its size on
 /// the server, in bytes.
 const NOT_DOWNLOADED: &str = mailcraft_model::NOT_DOWNLOADED;
+const NOT_DOWNLOADED_NOTE: &str = mailcraft_model::NOT_DOWNLOADED_NOTE;
 
 /// How far one run goes, and how its answer is cut into pieces.
 #[derive(Clone, Debug)]
@@ -259,7 +262,7 @@ impl Run<'_> {
 }
 
 /// A message's subject for an error line: one line, not too long.
-fn subject_of(message: &Message) -> String {
+pub(crate) fn subject_of(message: &Message) -> String {
     let words: Vec<&str> = message.subject.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
     let subject = words.join(" ");
     if subject.is_empty() {
@@ -358,11 +361,29 @@ impl Host {
     pub(crate) fn of(account: &Account) -> Host {
         let Some(server) = &account.incoming else { return Host::default() };
         let host = server.host.trim().trim_end_matches('.').to_ascii_lowercase();
-        let one_of =
-            |domains: &[&str]| domains.iter().any(|domain| host == *domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.')));
-        let microsoft = one_of(&["office365.com", "outlook.com"]);
-        Host { files_sent: microsoft || one_of(&["gmail.com", "googlemail.com"]), microsoft }
+        let microsoft = is_microsoft_host(&host);
+        Host { files_sent: microsoft || host_in(&host, &["gmail.com", "googlemail.com"]), microsoft }
     }
+}
+
+/// Whether `host` (lower case, no trailing dot) is `domain` or a name under it.
+fn host_in(host: &str, domains: &[&str]) -> bool {
+    domains.iter().any(|domain| host == *domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.')))
+}
+
+/// Whether a mail server's name is Microsoft's (Microsoft 365, Outlook.com).
+pub(crate) fn is_microsoft_host(host: &str) -> bool {
+    host_in(&host.trim().trim_end_matches('.').to_ascii_lowercase(), &["office365.com", "outlook.com"])
+}
+
+/// A sign-in with a Microsoft access token (XOAUTH2) goes only to Microsoft's own mail servers
+/// (or to this computer, for tests): an account that names another server, from a mailbox file
+/// say, is refused before a connection is made, so that the token never leaves for a stranger.
+pub(crate) fn token_may_go_to(server: &Server) -> Result<(), NetError> {
+    if is_microsoft_host(&server.host) || crate::transport::is_loopback(&server.host) {
+        return Ok(());
+    }
+    Err(NetError::Config("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server".into()))
 }
 
 /// Put a copy of each message that was sent into the server's mailbox for sent mail, marked as
@@ -416,6 +437,12 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_some() && secret.is_empty() {
         return Err(not_signed_in(account));
     }
+    if account.oauth.is_none() && secret.is_empty() {
+        return Err(NetError::Config("enter a password to sign in".into()));
+    }
+    if account.oauth.is_some() {
+        token_may_go_to(server)?;
+    }
     let (mut stream, host) = transport::open(server, Service::Imap, patience)?;
     stream.watch(cancel);
     let mut imap = Imap::connect(stream)?;
@@ -433,7 +460,7 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_some() {
         imap.authenticate_xoauth2(user, secret)?;
     } else {
-        imap.login(user, secret)?;
+        imap.authenticate_password(user, secret)?;
     }
     Ok(imap)
 }
@@ -635,7 +662,7 @@ fn has(flags: &[String], flag: &str) -> bool {
     flags.iter().any(|f| f.eq_ignore_ascii_case(flag))
 }
 
-fn remote_flags(message: &Fetched) -> RemoteFlags {
+pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
     let flags = &message.flags;
     RemoteFlags {
         uid: message.uid,
@@ -671,7 +698,7 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     message.attachments.clear();
     message.body = Body {
         text: format!(
-            "This message is too large to download: it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
+            "{NOT_DOWNLOADED_NOTE} it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
              What is here comes from its header alone: who sent it, when, and what it is about. The message itself, \
              with anything attached to it, is still on the server. Read it there with another mail program or on the web.\n",
             megabytes(size),
@@ -776,6 +803,9 @@ impl FolderSync<'_> {
                 Some(state) if reset => state.known_uids.iter().copied().filter(|uid| *uid != 0).collect(),
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
+            complete: false,
+            refetched: Vec::new(),
+            refetch_done: Vec::new(),
         };
         let mut alive = true;
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -846,6 +876,9 @@ impl FolderSync<'_> {
                 missed = Some(missed.map_or(lowest, |missed| missed.min(lowest)));
             }
         }
+        if alive && !reset && !run.cancelled() {
+            self.read_again(imap, &present, run, &mut delta, &mut alive);
+        }
         delta.uid_seen = match missed {
             Some(missed) => missed.saturating_sub(1).max(below),
             None => highest.unwrap_or(uid_seen),
@@ -856,11 +889,64 @@ impl FolderSync<'_> {
             (_, Some(oldest)) if uid_from == 0 || oldest < uid_from => oldest,
             _ => uid_from,
         };
+        // Everything wanted came: the folder is read whole (an empty one at its first reading).
+        delta.complete = alive && missed.is_none();
         delta.new.sort_by_key(|m| m.uid);
         log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
+    }
+
+    /// Download again, whole, the messages the mailbox asks to read anew (#650: kept with U+FFFD
+    /// before character sets beyond UTF-8 were read): `UID FETCH … BODY.PEEK[]` by UID, which
+    /// never sets `\Seen`. At most [`MAX_AGAIN`] per mailbox per run, within the run's limits;
+    /// what is left comes with the next run. A message the server no longer lists is not asked
+    /// for (its removal reaches the mailbox as any other); one too large to take is settled
+    /// without a new copy, so that it is not asked for at every run.
+    fn read_again(&self, imap: &mut Imap<Stream<'_>>, present: &BTreeMap<u32, &Fetched>, run: &mut Run, delta: &mut FolderDelta, alive: &mut bool) {
+        let Some(state) = self.state else { return };
+        let mut wanted: Vec<u32> = state.again.iter().copied().filter(|uid| present.contains_key(uid)).collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        wanted.truncate(MAX_AGAIN);
+        if wanted.is_empty() {
+            return;
+        }
+        let sizes = self.sizes(imap, &wanted, run, alive);
+        for uid in wanted {
+            if !*alive || run.cancelled() || run.limits.messages == 0 || run.limits.bytes == 0 {
+                return;
+            }
+            let size = sizes.get(&uid).copied().unwrap_or(0);
+            if size > run.limits.largest {
+                delta.refetch_done.push(uid);
+                continue;
+            }
+            if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
+                continue;
+            }
+            match imap.uid_fetch_message(uid) {
+                Ok(Some(fetched)) => {
+                    let bytes = fetched.body.as_ref().map_or(0, Vec::len);
+                    run.limits.messages = run.limits.messages.saturating_sub(1);
+                    run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
+                    delta.refetched.push(message_from(fetched));
+                }
+                // Gone since the listing: the next run's listing says so.
+                Ok(None) => {}
+                // Said once: a refusal settles the message, which is not asked for again. A lost
+                // connection settles nothing, and the next run tries again.
+                Err(e) => {
+                    let e = NetError::from(e);
+                    let fatal = e.is_fatal();
+                    *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
+                    if !fatal && !run.cancelled() {
+                        delta.refetch_done.push(uid);
+                    }
+                }
+            }
+        }
     }
 
     /// Which of the messages that were asked for and not handed over (`silent`) the mailbox
@@ -899,6 +985,19 @@ impl FolderSync<'_> {
             }
         }
     }
+}
+
+/// `ts` as an IMAP `date-time` in UTC (`01-Jul-2003 09:52:37 +0000`), for the time a message put
+/// on the server arrived; `None` for no time, or one whose year IMAP can't write.
+pub(crate) fn imap_date_time(ts: Timestamp) -> Option<String> {
+    if ts <= 0 {
+        return None;
+    }
+    let t = DateTime::from_timestamp(ts, 0);
+    let month = mailcraft_time::month_name(t.date.month).get(..3)?;
+    (1..=9999)
+        .contains(&t.date.year)
+        .then(|| format!("{:02}-{month}-{:04} {:02}:{:02}:{:02} +0000", t.date.day, t.date.year, t.hour, t.minute, t.second))
 }
 
 /// The instant of an IMAP `INTERNALDATE`: `17-Jul-1996 02:44:25 -0700` (the day may be padded with a space).

@@ -217,10 +217,22 @@ fn add_in_dialog(app: &mut MailApp, answers: &Answers, owner: Id, address: &str,
     if let Some(crate::dialogs::Dialog::SharedMailbox { address: typed, .. }) = app.dialog.as_mut() {
         *typed = address.into();
     }
+    press_in_dialog(app, enter());
+}
+
+/// The dialog shown alone, then `key` pressed in it: once egui has it on top, the keys are the
+/// dialog's, as in the window (#406).
+fn press_in_dialog(app: &mut MailApp, key: egui::Event) {
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    for events in [Vec::new(), vec![key]] {
+        let mut out = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+            let ctx = ui.ctx().clone();
+            crate::keys::gate_main(app, &ctx);
+            crate::dialogs::show(app, &ctx);
+        });
+        out.textures_delta.clear();
+    }
 }
 
 fn enter() -> egui::Event {
@@ -257,11 +269,8 @@ fn add_shared_mailbox_keeps_only_a_mailbox_whose_inbox_could_be_read() {
     app.dialog = None;
     // Called off while it is checked: not kept.
     add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
-    let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
     let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![escape], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    press_in_dialog(&mut app, escape);
     assert!(app.dialog.is_none() && app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));
     app.poll_graph();
     assert!(app.session.mailbox.accounts.iter().all(|a| a.email != SHARED), "an answer that comes after adds nothing");
@@ -553,7 +562,10 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
         shared: None,
         shared_send: false,
         shared_calendars: false,
+        tasks: false,
+        replies: false,
         browser: false,
+        opening: app.session.openings(),
         rx,
         cancel: cancel.clone(),
     });
@@ -566,6 +578,40 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
     assert_eq!(jobs.lock().unwrap().len(), 1);
     app.poll_graph();
     assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    no_imap();
+}
+
+#[test]
+fn a_shared_mailbox_problem_names_the_mailbox_and_says_what_happens_next() {
+    let (mut app, _, answers, _, _) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    // A passing error: tried again at the next Send/Receive.
+    let passing = GraphMailResult {
+        account: shared,
+        email: SHARED.into(),
+        errors: vec!["Couldn't bring the folders in step with Microsoft: nothing found.".into()],
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back((GraphResult { account: shared, ..Default::default() }, vec![passing]));
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    let said = app.session.sync_status.clone();
+    assert!(said.contains(SHARED) && said.contains("try again at the next Send/Receive"), "{said}");
+    assert!(!app.shared_refused.contains_key(&shared));
+    // A real refusal: the address, the help, and File > Info.
+    let refused = GraphMailResult {
+        account: shared,
+        email: SHARED.into(),
+        refused: Some(mailcraft_model::sync::SharedRefusal::NoMailbox),
+        errors: vec!["Microsoft has no mailbox at this address.".into()],
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back((GraphResult { account: shared, ..Default::default() }, vec![refused]));
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    let said = app.session.sync_status.clone();
+    assert!(said.contains(SHARED) && said.contains("no mailbox at this address") && said.contains("File › Info"), "{said}");
+    assert!(app.shared_refused.contains_key(&shared) && !said.contains("try again at the next"));
     no_imap();
 }
 
@@ -650,10 +696,7 @@ fn a_refused_sign_in_of_the_owner_is_said_and_the_mailbox_being_added_is_not_kep
     if let Some(crate::dialogs::Dialog::SharedMailbox { address, .. }) = app.dialog.as_mut() {
         *address = SHARED.into();
     }
-    let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    press_in_dialog(&mut app, enter());
     app.poll_graph();
     assert!(app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { error, .. }) if error.contains("sign in again")));
@@ -1009,4 +1052,22 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
         assert!(app.sync_queue.is_empty() && app.graph_rx.is_none(), "{address}: stopped is stopped");
     }
     no_imap();
+}
+
+#[test]
+fn delete_on_a_shared_mailboxs_conversation_names_whose_folder_it_is() {
+    let (mut app, _, shared, _) = with_shared_inbox();
+    let theirs = app.session.mailbox.folder_by_server(shared, "in").unwrap();
+    for (at, subject) in [(1_791_000_000, "Plans"), (1_791_000_060, "Re: Plans")] {
+        let m = mailcraft_model::Message { folder: theirs, subject: subject.into(), date: at, received: at, ..Default::default() };
+        app.session.mailbox.add_message(m).unwrap();
+    }
+    app.session.mailbox_changed();
+    app.execute("folder.select", json!({"id": theirs})).unwrap();
+    app.execute("view.conversations", json!({"value": true})).unwrap();
+    let row = app.session.rows().iter().find(|r| r.members.len() == 2).cloned().unwrap();
+    app.execute("mail.select", json!({"id": row.id})).unwrap();
+    assert_eq!(app.run("mail.delete", json!({})).unwrap()["pending"], "confirm");
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("not asked") };
+    assert!(ask.text.starts_with(&format!("This deletes the conversation from Inbox - {SHARED}: ")), "{}", ask.text);
 }

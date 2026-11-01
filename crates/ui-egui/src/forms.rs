@@ -27,6 +27,8 @@ pub enum Form {
     Categories(Box<categories::CategoriesForm>),
     /// The mail rules, and a builder for a new one.
     Rules(Box<rules::RulesForm>),
+    /// Junk E-mail Options: the Safe and Blocked Senders lists (#504).
+    Junk(Box<junk::JunkForm>),
 }
 
 impl Form {
@@ -46,6 +48,7 @@ impl Form {
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
+            "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
         })
     }
@@ -59,6 +62,7 @@ impl Form {
             Form::Account(_) => "account",
             Form::Categories(_) => "categories",
             Form::Rules(_) => "rules",
+            Form::Junk(_) => "junkOptions",
         }
     }
 
@@ -71,6 +75,7 @@ impl Form {
             Form::Account(f) => f.title(),
             Form::Categories(_) => tl!("Categories").to_string(),
             Form::Rules(_) => tl!("Rules").to_string(),
+            Form::Junk(_) => tl!("Junk E-mail Options").to_string(),
         }
     }
 
@@ -82,6 +87,7 @@ impl Form {
             Form::Account(_) => crate::account_setup::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
+            Form::Junk(_) => junk::WIDTH,
         }
     }
 
@@ -94,6 +100,15 @@ impl Form {
             Form::Account(f) => f.show(app, ui),
             Form::Categories(f) => f.show(app, ui),
             Form::Rules(f) => f.show(app, ui),
+            Form::Junk(f) => f.show(app, ui),
+        }
+    }
+
+    /// The dialog was closed with the window's own close button: Add Account gives up what it
+    /// has under way, as on Escape.
+    pub fn closed(&mut self, app: &mut MailApp) {
+        if let Form::Account(f) = self {
+            f.give_up(app);
         }
     }
 
@@ -135,10 +150,45 @@ impl Form {
         }
     }
 
+    /// The appointment, contact or task the form changes, when it is one that exists.
+    pub(crate) fn editing(&self) -> Option<mailcraft_model::Id> {
+        match self {
+            Form::Event(f) => f.editing(),
+            Form::Contact(f) => f.editing(),
+            Form::Task(f) => f.editing(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
+        }
+    }
+
     /// Whether something was changed in the form that isn't saved: its window asks before it
-    /// closes.
+    /// closes, and an agent asks the owner before it closes the dialog or opens another in its
+    /// place (#494).
     pub(crate) fn dirty(&self) -> bool {
-        self.event().is_some_and(event::EventForm::dirty)
+        match self {
+            Form::Event(f) => f.dirty(),
+            Form::Contact(f) => f.dirty(),
+            Form::Task(f) => f.dirty(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
+        }
+    }
+
+    /// What an agent or a command that waited may not take away (#494, #513): changes that aren't
+    /// saved, or the Appointment Recurrence dialog with something changed in it (what it holds
+    /// reaches the form only on its OK).
+    pub(crate) fn changed(&self) -> bool {
+        self.dirty() || self.event().is_some_and(event::EventForm::recurrence_touched)
+    }
+
+    /// What an agent's question names of the form when it has changes that aren't saved (#494):
+    /// the kind of item and what it is called, as typed. `None` when nothing in it is unsaved.
+    pub(crate) fn unsaved(&self) -> Option<Value> {
+        let (form, title) = match self {
+            Form::Event(f) => (if f.is_meeting() { "meeting" } else { "appointment" }, f.subject().to_string()),
+            Form::Contact(f) => ("contact", f.subject()),
+            Form::Task(f) => ("task", f.subject().to_string()),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
+        };
+        self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }
 
     /// Whether the keys are for something of the form's own that is open over it (a dialog), or
@@ -150,6 +200,11 @@ impl Form {
     /// Whether a command of the form waits for the answer to a question the main window asks.
     pub(crate) fn waiting(&self) -> bool {
         self.event().is_some_and(event::EventForm::waiting)
+    }
+
+    /// Whether the form has a dialog of its own open over it (the recurrence editor).
+    pub(crate) fn modal(&self) -> bool {
+        self.event().is_some_and(event::EventForm::modal)
     }
 }
 
@@ -181,12 +236,13 @@ pub(crate) mod kit {
     use std::fmt::Debug;
     use std::hash::Hash;
 
-    use egui::{Align, Align2, Color32, CornerRadius, Key, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+    use egui::{Align, Align2, Color32, CornerRadius, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
-    use mailcraft_time::{Date, parse_time, time_short};
+    use mailcraft_time::{Date, Weekday, parse_time, time_short};
     use serde_json::{Map, Value, json};
 
+    use crate::date_picker::{Calendar, Picked};
     use crate::theme::{Tokens, c32, paint_clipped, regular};
     use crate::widgets::{icon_button, primary_button};
 
@@ -196,22 +252,20 @@ pub(crate) mod kit {
     pub const ROW_H: f32 = 24.0;
 
     /// Where a form is laid out when that isn't the dialog: a window of its own
-    /// ([`crate::windows`]). Forms in different windows don't share their fields, only the one
-    /// in front acts on an Enter that no field took, and a form that has a window of the system
-    /// to itself fills it.
+    /// ([`crate::windows`]). Forms in different windows don't share their fields, and a form that
+    /// has a window of the system to itself fills it. (Which of them an Enter is for is
+    /// [`crate::keys`]'s to say.)
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Host {
         /// Tells this form's fields from those of the same form in another window; 0 for the dialog.
         pub id: u64,
-        /// Another window is in front of this one: the keyboard is that one's.
-        pub background: bool,
         /// The form has the height of its window, and fills it.
         pub fill: bool,
     }
 
     thread_local! {
         /// The host of the form that is being laid out.
-        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, background: false, fill: false }) };
+        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, fill: false }) };
         /// Where the fields of the form being laid out end when it fills its window (a height
         /// on the page of its fields); not a number otherwise.
         static BODY_END: std::cell::Cell<f32> = const { std::cell::Cell::new(f32::NAN) };
@@ -338,6 +392,8 @@ pub(crate) mod kit {
         pub today: Date,
         /// Times read `3:05 PM` rather than `15:05`.
         pub twelve: bool,
+        /// The day weeks begin on, in a date field's calendar.
+        pub week_start: Weekday,
         enter: bool,
         /// Enter asked for OK: it was pressed in a one-line field, or with nothing focused.
         pub submit: bool,
@@ -348,15 +404,17 @@ pub(crate) mod kit {
     impl Pass {
         /// Start a frame. `focus` is taken: the form's first field gets the keyboard once.
         pub fn new(ui: &Ui, s: &Session, focus: &mut bool) -> Pass {
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
-            let idle = ui.memory(|m| m.focused().is_none()) && !egui::Popup::is_any_open(ui.ctx());
+            // Enter is the form's when its window (or dialog) is where the key went (#406): not
+            // under a dialog or a question, not in a window behind the active one, not while a
+            // list is open, and never a held key's repeats.
+            let layer = ui.layer_id();
             Pass {
                 t: Tokens::get(ui.ctx()),
                 today: s.today(),
                 twelve: s.prefs.twelve_hour,
-                enter,
-                // (A form in a window that another one is in front of leaves it to that one.)
-                submit: enter && idle && !host().background,
+                week_start: s.prefs.week_start,
+                enter: crate::keys::enter(ui.ctx(), layer),
+                submit: crate::keys::enter_alone(ui.ctx(), layer),
                 focus: std::mem::take(focus),
             }
         }
@@ -375,6 +433,7 @@ pub(crate) mod kit {
         /// A one-line text field `width` points wide (infinity: the rest of the row).
         pub fn text(&mut self, ui: &mut Ui, key: impl Hash + Debug, value: &mut String, width: f32, hint: &str) -> Response {
             let resp = ui.add(egui::TextEdit::singleline(value).id(field_id(key)).desired_width(width.max(16.0)).hint_text(hint.to_owned()));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             resp
         }
@@ -389,6 +448,7 @@ pub(crate) mod kit {
                     .char_limit(10)
                     .hint_text(egui::RichText::new(tl!("YYYY-MM-DD")).size(10.5)),
             );
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             if !date_ok(text, required) {
                 mark_wrong(ui, &resp, &self.t);
@@ -396,9 +456,9 @@ pub(crate) mod kit {
             resp
         }
 
-        /// A date field with buttons that step a day back and forward. Returns `true` when the
-        /// text changed.
-        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+        /// A date field with buttons that step a day back and forward, and a calendar to pick
+        /// one from (#329). Returns `true` when the text changed.
+        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug + Copy, text: &mut String, required: bool) -> bool {
             let before = text.clone();
             let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 2.0);
             self.date_text(ui, key, text, required);
@@ -407,8 +467,28 @@ pub(crate) mod kit {
                     *text = Date::parse_iso(text).map_or(self.today, |d| d.add_days(step)).iso();
                 }
             }
+            self.calendar(ui, key, text, required);
             ui.spacing_mut().item_spacing.x = gap;
             *text != before
+        }
+
+        /// The calendar after the date field `key`: a day picked is written in, and None, offered
+        /// only when the field may be empty, empties it. Returns `true` when something was picked.
+        pub fn calendar(&self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+            let calendar = Calendar {
+                field: field_id(key),
+                current: Date::parse_iso(text.trim()),
+                today: self.today,
+                week_start: self.week_start,
+                offer_none: !required,
+                name: tl!("Pick a date"),
+            };
+            match calendar.show(ui) {
+                Some(Picked::Day(day)) => *text = day.iso(),
+                Some(Picked::None) => text.clear(),
+                None => return false,
+            }
+            true
         }
 
         /// A time of day as text (`9`, `9:30`, `9am`, `14:15`), rewritten the way times are shown
@@ -423,8 +503,9 @@ pub(crate) mod kit {
                 0,
                 self.twelve,
             )));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
-            if resp.lost_focus()
+            if crate::text_menu::left(&resp)
                 && let Some((h, m)) = parse_clock(text)
             {
                 *text = time_short(h, m, self.twelve);
@@ -544,7 +625,7 @@ pub(crate) mod kit {
         let edit = egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(rows).desired_width(f32::INFINITY);
         // Its own room, also when the field is below what the form shows without scrolling.
         ui.allocate_ui(vec2(ui.available_width().max(0.0), room), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -564,7 +645,7 @@ pub(crate) mod kit {
         let edit =
             egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(lines).desired_width(f32::INFINITY).min_size(vec2(0.0, left - 8.0));
         ui.allocate_ui(vec2(ui.available_width().max(0.0), left), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -575,13 +656,13 @@ pub(crate) mod kit {
         let text_w = ui.painter().layout_no_wrap(label.to_string(), regular(11.5), t.text).size().x.min(180.0);
         let (r, resp) = ui.allocate_exact_size(vec2(text_w + 32.0, 22.0), Sense::click());
         let fill = if on {
-            color.linear_multiply(if t.dark { 0.45 } else { 0.22 })
+            t.data_fill(color)
         } else if resp.hovered() {
             t.hover
         } else {
             t.input
         };
-        ui.painter().rect(r, 11.0, fill, Stroke::new(1.0, if on { color.linear_multiply(0.8) } else { t.input_border }), StrokeKind::Inside);
+        ui.painter().rect(r, 11.0, fill, Stroke::new(1.0, if on { t.data_edge(color) } else { t.input_border }), StrokeKind::Inside);
         let mark = pos2(r.min.x + 12.0, r.center().y);
         if on {
             ui.painter().text(mark, Align2::CENTER_CENTER, "✓", regular(11.0), t.text);
@@ -707,7 +788,7 @@ pub(crate) mod kit {
     /// The one button of a dialog that only manages things. `true` when it was clicked.
     pub fn close_button(ui: &mut Ui) -> bool {
         let mut close = false;
-        strip(ui, |ui| close = primary_button(ui, tl!("Close"), true).clicked());
+        strip(ui, |ui| close = crate::widgets::plain_button(ui, tl!("Close")).clicked());
         close
     }
 
@@ -885,7 +966,7 @@ pub(crate) mod kit {
             ui.painter().rect_filled(strip, 0.0, t.tab_strip);
             let sheet = Rect::from_min_max(pos2(strip.min.x + SIDE, strip.min.y + OVER), pos2(strip.max.x - SIDE, strip.min.y + OVER + BAND_H));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
-            let line = if t.dark { Stroke::NONE } else { Stroke::new(1.0, t.border) };
+            let line = t.ribbon_edge;
             ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
             let edge = (BAND_H - BUTTON_H) / 2.0;
             let area = Rect::from_min_max(pos2(sheet.min.x + SIDE, sheet.min.y + edge), pos2(sheet.max.x - SIDE, sheet.max.y - edge));
@@ -1443,49 +1524,19 @@ mod event {
         job
     }
 
-    /// What an attendee line offers for the name that is being typed, from one frame to the next.
-    #[derive(Clone, Default)]
-    struct Offering {
-        /// Which line they are for (`required`, `optional`).
-        key: &'static str,
-        items: Vec<mailcraft_engine::cmd::compose::Suggestion>,
-        selected: usize,
-        /// Where they were drawn, so a click on one isn't taken for a click away from the line.
-        rect: Option<egui::Rect>,
-        /// Something was typed into the line since the keyboard came to it. A line that is only
-        /// passed through (with Tab, say) is offered nothing and stays exactly as it is.
-        typed: bool,
-    }
-
-    /// An attendee line. As it is typed in, the people it could be are offered underneath, as
-    /// the composer offers them (contacts, then whoever mail was exchanged with): the arrow keys
-    /// choose, Enter or Tab or a click takes one. When it is left, the names on it that stand
-    /// for one contact become that contact, and from then on it reads as the people it names.
+    /// An attendee line. As it is typed in, recipients are suggested underneath, as the composer
+    /// suggests them ([`crate::compose::recipient_line`]); a line that is only passed through
+    /// (with Tab, say) is suggested nothing and stays exactly as it is. When it is left,
+    /// the names on it that stand for one contact become that contact, and from then on it reads
+    /// as the people it names.
     fn attendee_line(ui: &mut Ui, pass: &mut Pass, s: &Session, key: &'static str, text: &mut String, hint: &str) {
         let t = pass.t;
         let id = kit::field_id(key);
-        let store = kit::field_id("attendee_offering");
-        let mut st: Offering = ui.data(|d| d.get_temp(store)).unwrap_or_default();
-        let mine = st.key == key && !st.items.is_empty();
         let focused = ui.memory(|m| m.has_focus(id));
-        let over = st.rect.is_some_and(|r| ui.rect_contains_pointer(r));
-        let open = mine && (focused || over);
-        let mut take: Option<usize> = None;
-        if open && focused {
-            // Before the line itself sees the keys: they are for the list while it is showing.
-            let n = st.items.len().max(1);
-            ui.input_mut(|i| {
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                    st.selected = (st.selected + 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                    st.selected = (st.selected + n - 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
-                    take = Some(st.selected.min(n - 1));
-                }
-            });
-        }
+        // Something was typed into the line since the keyboard came to it.
+        let typing = id.with("typed");
+        let was_typed = ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
+        let typed = focused && was_typed;
         // While nobody types in it, it reads as the people it names. (Laid out once for a text,
         // not every frame: finding a contact's name looks through the contacts.)
         let reading = !focused && !text.trim().is_empty();
@@ -1510,88 +1561,19 @@ mod event {
         if reading {
             edit = edit.layouter(&mut as_names);
         }
-        let resp = ui.add(edit);
+        let resp = crate::compose::recipient_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
-        let typed = (st.key == key && st.typed) || resp.changed();
-        let at = resp.rect;
-        if open {
-            let shown = egui::Area::new(store.with(key)).order(egui::Order::Foreground).fixed_pos(egui::pos2(at.min.x, at.max.y + 2.0)).show(
-                ui.ctx(),
-                |ui| {
-                    egui::Frame::NONE
-                        .fill(t.menu)
-                        .stroke(egui::Stroke::new(1.0, t.border_strong))
-                        .corner_radius(6.0)
-                        .inner_margin(egui::Margin::same(4))
-                        .show(ui, |ui| {
-                            ui.set_width(at.width().clamp(240.0, 440.0));
-                            for (i, who) in st.items.iter().enumerate() {
-                                let (r, line) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
-                                if i == st.selected || line.hovered() {
-                                    ui.painter().rect_filled(r, 4.0, if i == st.selected { t.selection } else { t.hover });
-                                }
-                                let name = if who.name.is_empty() { who.email.as_str() } else { who.name.as_str() };
-                                let font = crate::theme::regular(12.5);
-                                let w = crate::theme::paint_clipped(
-                                    ui.painter(),
-                                    egui::pos2(r.min.x + 8.0, r.center().y),
-                                    r.width() * 0.5,
-                                    name,
-                                    font,
-                                    t.text,
-                                );
-                                if !who.name.is_empty() {
-                                    let room = (r.width() - w - 24.0).max(0.0);
-                                    let font = crate::theme::regular(11.5);
-                                    crate::theme::paint_clipped(
-                                        ui.painter(),
-                                        egui::pos2(r.min.x + 16.0 + w, r.center().y),
-                                        room,
-                                        &who.email,
-                                        font,
-                                        t.text_dim,
-                                    );
-                                }
-                                if line.clicked() {
-                                    take = Some(i);
-                                }
-                            }
-                        });
-                },
-            );
-            st.rect = Some(shown.response.rect);
-        } else {
-            st.rect = None;
-        }
-        if let Some(who) = take.and_then(|i| st.items.get(i)) {
-            *text = crate::compose::completed(text, who);
-            // Carry on typing after it: the keyboard stays in the line, at its end.
-            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-            let end = egui::text::CCursor::new(text.chars().count());
-            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-            state.store(ui.ctx(), id);
-            ui.memory_mut(|m| m.request_focus(id));
-            st.items.clear();
-        } else if resp.lost_focus() && !over && typed {
+        // (What was typed is kept until the line is left: its menu may have the keyboard meanwhile.)
+        let typed = was_typed || resp.changed();
+        let left = crate::text_menu::left(&resp);
+        if left && typed {
             // Left, after something was typed: what stands for one contact becomes that contact.
             let (checked, _) = check_names(s, text);
             if Address::parse_list(text) != Address::parse_list(&checked) {
                 *text = checked;
             }
         }
-        // What to offer next frame, for what is being typed now.
-        if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
-            let (_, last) = crate::compose::typing(text);
-            let items = if !typed || last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(s, last, 6) };
-            st.selected = if st.key == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-            st.key = key;
-            st.items = items;
-            st.typed = typed;
-        } else if st.key == key && !over {
-            st.items.clear();
-            st.typed = false;
-        }
-        ui.data_mut(|d| d.insert_temp(store, st));
+        ui.data_mut(|d| d.insert_temp(typing, typed && !left));
     }
 
     /// A menu entry with a mark when it is the current choice. `true` when it was chosen.
@@ -1843,119 +1825,117 @@ mod event {
             let width = (ctx.content_rect().width() - 48.0).clamp(160.0, 540.0);
             let week_start = s.prefs.week_start;
             let mut enter = false;
-            egui::Modal::new(kit::field_id("recurrence_dialog"))
-                .frame(frame)
-                .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
-                .show(ctx, |ui| {
-                    ui.set_width(width);
-                    ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-                    ui.label(egui::RichText::new(tl!("Appointment Recurrence")).font(semibold(14.0)));
-                    let mut pass = Pass::new(ui, s, &mut self.focus);
-                    let twelve = pass.twelve;
-                    let heading = |ui: &mut Ui, text: &str| {
-                        ui.add_space(2.0);
-                        ui.label(egui::RichText::new(text).font(semibold(12.0)).color(t.text_dim));
-                    };
-                    egui::ScrollArea::vertical().max_height((ui.ctx().content_rect().height() - 160.0).max(120.0)).show(ui, |ui| {
-                        heading(ui, tl!("Time"));
-                        if self.all_day {
-                            row(ui, tl!("Start"), |ui| {
-                                ui.label(tl!("All day"));
-                            });
-                        } else {
-                            row(ui, tl!("Start"), |ui| {
-                                if pass.time(ui, "recurrence_start_time", &mut self.start_time, true, None) {
-                                    self.start_time_moved(twelve);
-                                }
-                            });
-                            row(ui, tl!("End"), |ui| {
-                                let after = parse_clock(&self.start_time).map(|(h, m)| u32::from(h) * 60 + u32::from(m));
-                                if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
-                                    self.end_time_moved();
-                                }
-                                ui.label(egui::RichText::new(format!("· {}", crate::dates::duration(self.minutes))).color(t.text_dim));
-                            });
-                        }
-                        heading(ui, tl!("Pattern"));
-                        row(ui, tl!("Repeats"), |ui| {
-                            let mut freq = self.freq();
-                            let options = [Freq::Daily, Freq::Weekly, Freq::Monthly, Freq::Yearly].map(|f| (f, tl!(freq_label(f))));
-                            segmented(ui, &mut freq, &options);
-                            self.set_freq(freq);
+            egui::Modal::new(kit::field_id("recurrence_dialog")).frame(frame).backdrop_color(t.scrim).show(ctx, |ui| {
+                ui.set_width(width);
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                ui.label(egui::RichText::new(tl!("Appointment Recurrence")).font(semibold(14.0)));
+                let mut pass = Pass::new(ui, s, &mut self.focus);
+                let twelve = pass.twelve;
+                let heading = |ui: &mut Ui, text: &str| {
+                    ui.add_space(2.0);
+                    ui.label(egui::RichText::new(text).font(semibold(12.0)).color(t.text_dim));
+                };
+                egui::ScrollArea::vertical().max_height((ui.ctx().content_rect().height() - 160.0).max(120.0)).show(ui, |ui| {
+                    heading(ui, tl!("Time"));
+                    if self.all_day {
+                        row(ui, tl!("Start"), |ui| {
+                            ui.label(tl!("All day"));
                         });
-                        self.pattern(ui, week_start);
-                        heading(ui, tl!("Range"));
-                        row(ui, tl!("Starts"), |ui| {
-                            pass.date(ui, "recurrence_start", &mut self.start, true);
-                            date_note(ui, &self.start, true);
-                        });
-                        tall_row(ui, tl!("Ends"), |ui| {
-                            if ui.radio(self.repeat.ends == Ends::Never, tl!("No end date")).clicked() {
-                                self.repeat.ends = Ends::Never;
+                    } else {
+                        row(ui, tl!("Start"), |ui| {
+                            if pass.time(ui, "recurrence_start_time", &mut self.start_time, true, None) {
+                                self.start_time_moved(twelve);
                             }
-                            ui.horizontal(|ui| {
-                                if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
-                                    self.repeat.ends = Ends::After;
-                                }
-                                if ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05)).changed() {
-                                    self.repeat.ends = Ends::After;
-                                }
-                                // (The number is in the box before it: only the word follows it.)
-                                ui.label(tln!(self.repeat.count, "time", "times"));
-                            });
-                            ui.horizontal(|ui| {
-                                if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
-                                    self.repeat.ends = Ends::Until;
-                                }
-                                // A series that ends on a date starts with three months to run.
-                                if self.repeat.ends == Ends::Until && self.repeat.until.trim().is_empty() {
-                                    self.repeat.until = Date::parse_iso(&self.start).unwrap_or(pass.today).add_months(3).iso();
-                                }
-                                if self.repeat.ends == Ends::Until {
-                                    pass.date(ui, "recurrence_until", &mut self.repeat.until, true);
-                                    date_note(ui, &self.repeat.until, true);
-                                }
-                            });
                         });
-                        // The rule in words, and the day the series starts on when that is not
-                        // the day the range does.
-                        let from = Date::parse_iso(&self.start);
-                        if let Some((from, first)) = from.and_then(|from| Some((from, self.first_day(from)?)))
-                            && let Some(rule) = self.as_repeat().rule(first)
-                        {
-                            let words = rule.describe(first);
-                            let words = if first == from {
-                                words
-                            } else {
-                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::dates::medium(first))])
-                            };
-                            ui.label(egui::RichText::new(words).color(t.text_dim));
-                        }
-                    });
-                    let wrong = self.wrong();
-                    if let Some(wrong) = wrong {
-                        ui.label(egui::RichText::new(tl!(wrong)).color(t.red));
+                        row(ui, tl!("End"), |ui| {
+                            let after = parse_clock(&self.start_time).map(|(h, m)| u32::from(h) * 60 + u32::from(m));
+                            if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
+                                self.end_time_moved();
+                            }
+                            ui.label(egui::RichText::new(format!("· {}", crate::dates::duration(self.minutes))).color(t.text_dim));
+                        });
                     }
-                    enter = pass.submit;
-                    ui.add_space(4.0);
-                    ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
-                            left = Some(Left::Cancel);
-                        }
-                        if crate::widgets::primary_button(ui, tl!("OK"), wrong.is_none()).clicked() {
-                            left = Some(Left::Ok);
-                        }
-                        if self.had_rule {
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                if ui.add(egui::Button::new(tl!("Remove Recurrence")).min_size(vec2(72.0, 26.0))).clicked() {
-                                    left = Some(Left::Remove);
-                                }
-                            });
-                        }
+                    heading(ui, tl!("Pattern"));
+                    row(ui, tl!("Repeats"), |ui| {
+                        let mut freq = self.freq();
+                        let options = [Freq::Daily, Freq::Weekly, Freq::Monthly, Freq::Yearly].map(|f| (f, tl!(freq_label(f))));
+                        segmented(ui, &mut freq, &options);
+                        self.set_freq(freq);
                     });
+                    self.pattern(ui, week_start);
+                    heading(ui, tl!("Range"));
+                    row(ui, tl!("Starts"), |ui| {
+                        pass.date(ui, "recurrence_start", &mut self.start, true);
+                        date_note(ui, &self.start, true);
+                    });
+                    tall_row(ui, tl!("Ends"), |ui| {
+                        if ui.radio(self.repeat.ends == Ends::Never, tl!("No end date")).clicked() {
+                            self.repeat.ends = Ends::Never;
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
+                                self.repeat.ends = Ends::After;
+                            }
+                            if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05))).changed() {
+                                self.repeat.ends = Ends::After;
+                            }
+                            // (The number is in the box before it: only the word follows it.)
+                            ui.label(tln!(self.repeat.count, "time", "times"));
+                        });
+                        ui.horizontal(|ui| {
+                            if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
+                                self.repeat.ends = Ends::Until;
+                            }
+                            // A series that ends on a date starts with three months to run.
+                            if self.repeat.ends == Ends::Until && self.repeat.until.trim().is_empty() {
+                                self.repeat.until = Date::parse_iso(&self.start).unwrap_or(pass.today).add_months(3).iso();
+                            }
+                            if self.repeat.ends == Ends::Until {
+                                pass.date(ui, "recurrence_until", &mut self.repeat.until, true);
+                                date_note(ui, &self.repeat.until, true);
+                            }
+                        });
+                    });
+                    // The rule in words, and the day the series starts on when that is not
+                    // the day the range does.
+                    let from = Date::parse_iso(&self.start);
+                    if let Some((from, first)) = from.and_then(|from| Some((from, self.first_day(from)?)))
+                        && let Some(rule) = self.as_repeat().rule(first)
+                    {
+                        let words = rule.describe(first);
+                        let words = if first == from {
+                            words
+                        } else {
+                            crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::dates::medium(first))])
+                        };
+                        ui.label(egui::RichText::new(words).color(t.text_dim));
+                    }
                 });
-            // Escape leaves it as it was; Enter in one of its fields, or with none, is OK.
-            let escape = !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                let wrong = self.wrong();
+                if let Some(wrong) = wrong {
+                    ui.label(egui::RichText::new(tl!(wrong)).color(t.red));
+                }
+                enter = pass.submit;
+                ui.add_space(4.0);
+                ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
+                        left = Some(Left::Cancel);
+                    }
+                    if crate::widgets::primary_button(ui, tl!("OK"), wrong.is_none()).clicked() {
+                        left = Some(Left::Ok);
+                    }
+                    if self.had_rule {
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            if ui.add(egui::Button::new(tl!("Remove Recurrence")).min_size(vec2(72.0, 26.0))).clicked() {
+                                left = Some(Left::Remove);
+                            }
+                        });
+                    }
+                });
+            });
+            // Escape leaves it as it was (when it is on top: a list open in it closes first, #406);
+            // Enter in one of its fields, or with none, is OK.
+            let escape = crate::keys::escape(ctx, crate::keys::modal_layer(kit::field_id("recurrence_dialog")));
             left.or(if escape {
                 Some(Left::Cancel)
             } else if enter && self.wrong().is_none() {
@@ -1969,7 +1949,7 @@ mod event {
         fn pattern(&mut self, ui: &mut Ui, week_start: Weekday) {
             let freq = self.freq();
             let every = |ui: &mut Ui, interval: &mut u32| {
-                ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05));
+                crate::text_menu::field(ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05)));
                 ui.label(tl!(unit(freq, *interval)));
             };
             let pick_nth = |ui: &mut Ui, salt: &str, nth: &mut i8| {
@@ -2048,7 +2028,7 @@ mod event {
                         if ui.radio(self.repeat.nth.is_none(), tl!("Day")).clicked() {
                             self.repeat.nth = None;
                         }
-                        if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                        if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                             self.repeat.nth = None;
                         }
                         ui.label(tl!("of every"));
@@ -2080,7 +2060,7 @@ mod event {
                                 self.repeat.nth = None;
                             }
                             pick_month(ui, "by_date", &mut self.month);
-                            if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                            if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                                 self.repeat.nth = None;
                             }
                         });
@@ -2167,7 +2147,7 @@ mod event {
         recurrence: Option<RecurrenceDialog>,
         /// A command that waits for the owner's answer to a question.
         waiting: Option<Waiting>,
-        /// The Scheduling Assistant's own state.
+        /// Find a Time's own state.
         assistant: crate::scheduling::View,
         /// Which of a series it is about, when that was said on opening it.
         scope: Option<Scope>,
@@ -2268,7 +2248,8 @@ mod event {
 
         /// The form for an existing event: the one `p.id` names, else the selected one.
         pub fn edit(s: &Session, p: &Value) -> Option<EventForm> {
-            let id = p.get("id").and_then(Value::as_u64).filter(|i| *i != 0).or(s.sel.event)?;
+            // As the command reads it (#553): one named wrongly opens nothing, never the selected one.
+            let id = mailcraft_engine::p::id_strict(p, "id").ok()?.or(s.sel.event)?;
             let e = s.mailbox.event(id)?;
             let line =
                 |optional: bool| format_list(&e.attendees.iter().filter(|a| a.optional == optional).map(|a| a.address.clone()).collect::<Vec<_>>());
@@ -2405,6 +2386,16 @@ mod event {
             .to_string()
         }
 
+        /// The event it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// Whether the Appointment Recurrence dialog is open over it with something changed in it.
+        pub fn recurrence_touched(&self) -> bool {
+            self.recurrence.as_ref().is_some_and(RecurrenceDialog::touched)
+        }
+
         /// Whether it is about a meeting (people are invited, or are about to be).
         pub fn is_meeting(&self) -> bool {
             self.meeting
@@ -2427,7 +2418,7 @@ mod event {
             self.page == page
         }
 
-        /// The meeting as the Scheduling Assistant needs to know it.
+        /// The meeting as Find a Time needs to know it.
         pub(crate) fn meeting(&self) -> crate::scheduling::Meeting {
             let people = |line: &str| Address::parse_list(line).into_iter().take(500).collect();
             // (Everybody's time is drawn by the calendar's clock: so is the meeting's, whatever
@@ -2447,7 +2438,7 @@ mod event {
             }
         }
 
-        /// What the Scheduling Assistant drew the last time it was in view.
+        /// What Find a Time drew the last time it was in view.
         pub(crate) fn scheduling(&self) -> &crate::scheduling::Drawn {
             &self.assistant.drawn
         }
@@ -2461,7 +2452,7 @@ mod event {
             (end >= start).then_some((start, end))
         }
 
-        /// The meeting was moved or stretched in the Scheduling Assistant: the fields say so.
+        /// The meeting was moved or stretched in Find a Time: the fields say so.
         fn set_span_of_day(&mut self, start: DateTime, end: DateTime, twelve: bool) {
             if self.all_day || end < start {
                 return;
@@ -2482,7 +2473,7 @@ mod event {
             self.last_start = Some(start.date);
         }
 
-        /// The Scheduling Assistant's page: when the meeting is, over when everybody is free.
+        /// The Find a Time page: when the meeting is, over when everybody is free.
         fn scheduling_page(&mut self, app: &mut MailApp, ui: &mut Ui, pass: &mut Pass, below: f32) {
             let twelve = pass.twelve;
             self.time_rows(ui, pass, &app.session);
@@ -2946,10 +2937,7 @@ mod event {
             }
             if organizes {
                 items.push(bar::Item { checked: self.page == Page::Appointment, ..item("appointment", "appointment", tl!("Appointment"), 1, 5) });
-                items.push(bar::Item {
-                    checked: self.page == Page::Scheduling,
-                    ..item("scheduling", "scheduling", tl!("Scheduling Assistant"), 1, 2)
-                });
+                items.push(bar::Item { checked: self.page == Page::Scheduling, ..item("scheduling", "scheduling", tl!("Find a Time"), 1, 2) });
             }
             items.push(bar::Item { menu: true, tip: tl!("Show As").to_string(), ..item("showAs", "showAs", tl!(self.show_as.label()), 2, 5) });
             items.push(bar::Item {
@@ -3039,7 +3027,13 @@ mod event {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(r.shrink(1.0), 3.0, *color);
                             if on {
-                                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "✓", crate::theme::medium(10.0), egui::Color32::WHITE);
+                                ui.painter().text(
+                                    r.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "✓",
+                                    crate::theme::medium(10.0),
+                                    Tokens::get(ui.ctx()).on_swatch,
+                                );
                             }
                             if ui.add(egui::Button::new(kit::shown(name, 60)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
                                 self.categories.retain(|c| !c.eq_ignore_ascii_case(name));
@@ -4559,6 +4553,9 @@ mod contact {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl ContactForm {
@@ -4583,6 +4580,7 @@ mod contact {
             if let Some(ph) = f.phones.first_mut() {
                 ph.value = text("phone");
             }
+            f.opened = f.fields();
             f
         }
 
@@ -4611,6 +4609,7 @@ mod contact {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -4622,6 +4621,24 @@ mod contact {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Contact") } else { tl!("New Contact") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with: there is something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened
+        }
+
+        /// The contact it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the contact is called, as typed: its display name, else its first and last names.
+        pub fn subject(&self) -> String {
+            match self.display.trim() {
+                "" => format!("{} {}", self.first.trim(), self.last.trim()).trim().to_string(),
+                display => display.to_string(),
+            }
         }
 
         /// Every field as `people.new` takes it. Rows left empty are not sent.
@@ -4718,6 +4735,7 @@ mod contact {
                 });
                 row(ui, tl!("Birthday"), |ui| {
                     pass.date_text(ui, "birthday", &mut self.birthday, false);
+                    pass.calendar(ui, "birthday", &mut self.birthday, false);
                     date_hint(ui, &self.birthday, false);
                 });
                 tall_row(ui, tl!("Categories"), |ui| category_chips(ui, &categories, &mut self.categories));
@@ -4973,6 +4991,9 @@ mod task {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl TaskForm {
@@ -4984,6 +5005,7 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.opened = f.fields();
             f
         }
 
@@ -5009,6 +5031,7 @@ mod task {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -5020,6 +5043,22 @@ mod task {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with, Completed too: there is
+        /// something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened || self.completed != self.was_completed
+        }
+
+        /// The task it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the task is called, as its title field has it.
+        pub fn subject(&self) -> &str {
+            self.title.trim()
         }
 
         /// What `tasks.new` gets as the reminder: `2026-10-16T09:00`, or `null` for none. A day
@@ -5301,7 +5340,7 @@ mod account {
 
 /// The Categories dialog: recolour, rename, delete, add.
 mod categories {
-    use egui::{Key, Sense, Stroke, StrokeKind, Ui, vec2};
+    use egui::{Sense, Stroke, StrokeKind, Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{Category, Rgb};
     use serde_json::{Value, json};
@@ -5311,21 +5350,8 @@ mod categories {
     use crate::theme::{Tokens, c32};
     use crate::widgets::icon_button;
 
-    /// The colours a category can take: our own twelve, mid-tones that read in both themes.
-    pub const PALETTE: [Rgb; 12] = [
-        Rgb(0xD1, 0x3B, 0x3B),
-        Rgb(0xE0, 0x7B, 0x1F),
-        Rgb(0xD9, 0xA4, 0x0C),
-        Rgb(0x2E, 0x8B, 0x57),
-        Rgb(0x1A, 0x9B, 0xA6),
-        Rgb(0x2F, 0x6F, 0xD0),
-        Rgb(0x7E, 0x57, 0xC2),
-        Rgb(0xC2, 0x4E, 0x9A),
-        Rgb(0x8A, 0x5A, 0x44),
-        Rgb(0x6B, 0x7A, 0x1F),
-        Rgb(0x4F, 0x6D, 0x8F),
-        Rgb(0x7A, 0x7A, 0x7A),
-    ];
+    /// The colours a category can take: the theme's twelve.
+    pub const PALETTE: [Rgb; 12] = crate::theme::CATEGORY_PALETTE;
 
     /// The first palette colour no category has yet; the first one when all are taken.
     pub fn unused_color(list: &[Category]) -> Rgb {
@@ -5394,7 +5420,7 @@ mod categories {
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let t = Tokens::get(ui.ctx());
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
+            let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let list = app.session.mailbox.categories.clone();
             // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
             let outlook = &app.session.mailbox.outlook_categories;
@@ -5414,11 +5440,12 @@ mod categories {
                         };
                         let width = (ui.available_width() - 44.0).max(40.0);
                         let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                        let resp = crate::text_menu::field(resp);
                         if resp.changed() {
                             self.editing = Some((c.name.clone(), text));
                         }
                         // Enter, or leaving the field, renames.
-                        if resp.lost_focus()
+                        if crate::text_menu::left(&resp)
                             && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
                             && to.trim() != from
                         {
@@ -5450,6 +5477,7 @@ mod categories {
                             .desired_width(width)
                             .hint_text(tl!("New category")),
                     );
+                    let resp = crate::text_menu::field(resp);
                     if std::mem::take(&mut self.focus) {
                         resp.request_focus();
                     }
@@ -5513,6 +5541,10 @@ mod categories {
         }
     }
 }
+
+mod junk;
+#[cfg(test)]
+mod junk_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 mod rules {

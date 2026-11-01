@@ -49,7 +49,10 @@ USAGE:
                                                 accounts, the mailbox file and options are asked
                                                 about in the app (bridged) or refused (headless),
                                                 unless allowed with --allow send, delete, accounts,
-                                                mailbox, settings or input (clicking and typing)
+                                                mailbox, settings or input (clicking and typing).
+                                                Leaving or throwing away what the owner is writing
+                                                or changing is asked about in the app every time
+                                                (with input, the agent clicks as the owner does)
   mailcraft-cli --version
 ";
 
@@ -412,7 +415,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let accounts = &s.mailbox.accounts;
                     accounts
                         .iter()
-                        .find(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap)
+                        .find(|a| {
+                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                        })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)
                         .ok_or("sync: no account in this mailbox is connected to a mail server")?

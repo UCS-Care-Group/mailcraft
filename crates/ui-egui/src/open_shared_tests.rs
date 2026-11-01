@@ -231,3 +231,69 @@ fn the_dialog_opens_for_the_ribbons_command_and_the_remove_question_names_the_ad
     let ask = crate::dialogs::confirmation(&app, "calendar.removeShared", &json!({"id": id})).expect("asks first");
     assert!(ask.text.contains(CY) && ask.text.contains("not touched"), "{}", ask.text);
 }
+
+const OPS: &str = "operations@example.org";
+
+/// The copy of the shared mailbox's calendar that the server lists among the owner's own.
+fn ops_copy() -> RemoteCalendar {
+    RemoteCalendar {
+        id: "AAMk-ops".into(),
+        name: "Example Operations".into(),
+        group: "Other Calendars".into(),
+        rights: Rights::Edit,
+        owner: Some(CalendarOwner { address: "Operations@example.org".into(), name: "Example Operations".into() }),
+        ..Default::default()
+    }
+}
+
+/// The account's list comes again with the next job.
+fn list_again(app: &mut MailApp, owner: Id, answers: &Answers, calendars: Vec<RemoteCalendar>) {
+    answers.lock().unwrap().push_back(listed(owner, calendars, vec![]));
+    app.calendar.checked.clear();
+    app.graph_checked.remove(&owner);
+    job(app);
+}
+
+fn has_copy(app: &MailApp) -> bool {
+    app.session.mailbox.calendars.iter().any(|c| c.origin.id == "AAMk-ops")
+}
+
+#[test]
+fn a_shared_mailboxs_calendar_the_server_lists_too_is_offered_to_be_hidden_once() {
+    let (mut app, owner, answers, jobs, _) = window(Ok(tokens("x", "y")));
+    let shared = app.execute("account.addSharedMailbox", json!({"account": owner, "address": OPS})).unwrap()["id"].as_u64().unwrap();
+    list_again(&mut app, owner, &answers, vec![main_calendar(), ops_copy()]);
+    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("offered") };
+    assert_eq!((command.as_str(), params["address"].as_str()), ("calendar.hideListedCopy", Some(OPS)));
+    assert!(ask.text.contains(OPS) && ask.text.contains("Example Operations") && ask.text.contains("Nothing on the server changes"), "{}", ask.text);
+    assert_eq!((ask.with.clone(), ask.more.first().map(|(_, with)| with.clone())), (json!({"hide": true}), Some(json!({"hide": false}))));
+    // The copy's menu offers to hide it; the shared mailbox's own calendar has nothing to show yet.
+    let copy = app.session.mailbox.calendars.iter().find(|c| c.origin.id == "AAMk-ops").map(|c| c.id).unwrap();
+    let own = app.session.mailbox.calendars.iter().find(|c| c.origin.account == shared).map(|c| c.id).unwrap();
+    assert_eq!(crate::calendar_view::listed_twice(&app, copy), Some((OPS.to_string(), false)));
+    assert_eq!(crate::calendar_view::listed_twice(&app, own), None);
+    // Closed without an answer: not asked again while the window is open.
+    app.dialog = None;
+    list_again(&mut app, owner, &answers, vec![main_calendar(), ops_copy()]);
+    assert!(app.dialog.is_none());
+
+    // Hide the Copy: it goes, and the shared mailbox's own calendar offers to show it again.
+    app.run("calendar.hideListedCopy", json!({"address": OPS, "hide": true})).unwrap();
+    assert!(!has_copy(&app));
+    assert_eq!(crate::calendar_view::listed_twice(&app, own), Some((OPS.to_string(), true)));
+    // The account's next job is handed the answer (the host reads no copy), and none comes back.
+    list_again(&mut app, owner, &answers, vec![main_calendar()]);
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+    assert!(!has_copy(&app) && app.dialog.is_none());
+
+    // Shown again: the account's list is read at once, and the copy is back; nothing is asked.
+    app.run("calendar.hideListedCopy", json!({"address": OPS, "hide": false})).unwrap();
+    assert!(app.calendar.due && !app.calendar.checked.contains_key(&owner));
+    answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), ops_copy()], vec![]));
+    job(&mut app);
+    assert!(has_copy(&app) && app.dialog.is_none());
+    // A window opened afterwards doesn't ask either: the answer is in the mailbox file.
+    app.open_shared.offered.clear();
+    list_again(&mut app, owner, &answers, vec![main_calendar(), ops_copy()]);
+    assert!(app.dialog.is_none());
+}

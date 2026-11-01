@@ -318,3 +318,60 @@ fn inserted_properties_and_folds_use_the_sources_line_endings() {
         assert_eq!(patch(&source, CARD, &writer_before, Component::Card).unwrap(), source);
     }
 }
+
+fn real_writer_edit(source: &str, edit: impl Fn(&mut mailcraft_model::Event)) -> Result<String, InvalidDocument> {
+    let mut file = mailcraft_ical::parse(source, &|_| 0);
+    let event = file.events.first_mut().unwrap();
+    let options = mailcraft_ical::WriteOptions::default();
+    let before = mailcraft_ical::write_in(&[&*event], &[], &options, Some(mailcraft_time::Zone::UTC));
+    edit(event);
+    let after = mailcraft_ical::write_in(&[&*event], &[], &options, Some(mailcraft_time::Zone::UTC));
+    patch(source, &before, &after, Component::Event)
+}
+
+#[test]
+fn an_unmodelled_rdate_is_never_left_behind_by_a_recurrence_edit() {
+    let series = EVENT.replace(
+        "SUMMARY:Old",
+        "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRDATE:20261110T120000Z",
+    );
+    // Removing the rule would leave Nov 10 on the server.
+    if let Ok(got) = real_writer_edit(&series, |e| e.recurrence = None) {
+        assert!(!got.contains("RDATE"), "{got}");
+    }
+    // Moving the series would leave Nov 10 at the old time.
+    if let Ok(got) = real_writer_edit(&series, |e| {
+        e.start = e.start.add_minutes(60);
+        e.end = e.end.add_minutes(60);
+    }) {
+        assert!(!got.contains("RDATE:20261110T120000Z"), "{got}");
+    }
+}
+
+#[test]
+fn a_new_rule_matches_a_floating_start() {
+    let floating = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000\r\nDTEND:20261024T130000");
+    let rule = mailcraft_model::Recurrence {
+        freq: mailcraft_model::Freq::Daily,
+        interval: 1,
+        until: mailcraft_time::Date::new(2026, 10, 31),
+        ..Default::default()
+    };
+    // RFC 5545 §3.3.10: with a floating DTSTART, UNTIL is floating too.
+    if let Ok(got) = real_writer_edit(&floating, |e| e.recurrence = Some(rule.clone())) {
+        assert!(!got.lines().any(|l| l.starts_with("RRULE") && l.contains('Z')), "{got}");
+    }
+}
+
+#[test]
+fn timing_guards_allow_lossless_recurrence_and_unrelated_title_edits() {
+    let series = EVENT.replace(
+        "SUMMARY:Old",
+        "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRDATE:20261110T120000Z",
+    );
+    let after = series.replace("COUNT=2", "COUNT=3");
+    assert_eq!(patch(&series, &series, &after, Component::Event).unwrap(), after);
+    let got = real_writer_edit(&series, |event| event.title = "New".into()).unwrap();
+    assert!(got.contains("SUMMARY:New\r\n"));
+    assert!(got.contains("RDATE:20261110T120000Z\r\n"));
+}

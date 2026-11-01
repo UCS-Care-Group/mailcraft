@@ -22,9 +22,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
             .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
-        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#),
-        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#),
-        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER),
+        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#).selection(can_rename),
+        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#).selection(can_move),
+        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
         CommandSpec::new("folder.favorite", "Add to Favorites", "Folder › Favorites", favorite).params(
             r#"{"value"?: bool (default: toggle), "id"?: number} — refused for a folder of an account whose Favorites come from its server (Outlook's list, which is changed in Outlook; `view.favorites` says which accounts those are). A shared mailbox's folders are favourites kept in MailCraft, whatever the account it is opened through has: nothing is written to any server for them"#,
         ),
@@ -112,23 +112,42 @@ fn favorites_command(s: &mut Session, v: &Value) -> CmdResult {
     Ok(favorites_json(s))
 }
 
-const FOLDER: &str = r#"{"id"?: number} (default: the folder in view)"#;
+const FOLDER: &str = r#"{"id"?: number} (default: the folder in view). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 
 /// Why `folder.favorite` refuses for an account whose Favorites are its server's.
 pub const FROM_OUTLOOK: &str =
     "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)";
 
 fn can_empty(s: &Session) -> Option<&'static str> {
-    if s.mailbox.count(s.view.folder) == 0 { Some("the folder is already empty") } else { None }
+    if s.mailbox.count(s.view.folder) == 0 {
+        return Some("the folder is already empty");
+    }
+    // Not of what a JMAP account's server has (M6): the next run would bring it back.
+    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+}
+
+/// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
+fn can_rename(s: &Session) -> Option<&'static str> {
+    s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
+fn can_move(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
+fn can_delete(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").unwrap_or(s.view.folder);
+    let id = p::id_strict(v, "id")?.unwrap_or(s.view.folder);
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
-fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
+pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
     let want = path.trim().trim_matches('/').to_lowercase();
     s.mailbox
         .folders
@@ -140,7 +159,7 @@ fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account");
-    let id = if let Some(id) = p::id(v, "id") {
+    let id = if let Some(id) = p::id_strict(v, "id")? {
         s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?
     } else if let Some(kind) = p::str(v, "kind") {
         let kind = FolderKind::parse(kind).ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted, junk, archive or outbox"))?;
