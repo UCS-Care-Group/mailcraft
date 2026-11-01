@@ -3824,23 +3824,11 @@ msgstr "Exchange-server (van uw eigen organisatie)"
 msgid "Exchange server account"
 msgstr "Exchange-serveraccount"
 
-#. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
-msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"
-msgstr "Exchange-serveraccounts worden getest: start MailCraft met MAILCRAFT_EWS=1 om ze uit te proberen"
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Exchange server {host}"
 msgstr "Exchange-server {host}"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
-msgstr "Exchange-server {host} · niet bijgehouden: Exchange-serveraccounts zijn uitgeschakeld (start MailCraft met MAILCRAFT_EWS=1 om ze uit te proberen)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14327,12 +14315,6 @@ msgid "add at least one recipient"
 msgstr "voeg minstens één ontvanger toe"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
-msgid "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is"
-msgstr "een Exchange-serveraccount wordt verzonden en ontvangen via Exchange Web Services, niet zoals een IMAP-account"
-
-#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
@@ -17058,6 +17040,19 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #~ msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
 #~ msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
 
+#, fuzzy
+#~ msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"
+#~ msgstr "Exchange-serveraccounts worden getest: start MailCraft met MAILCRAFT_EWS=1 om ze uit te proberen"
+
+#, fuzzy
+#~ msgid "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
+#~ msgstr "Exchange-server {host} · niet bijgehouden: Exchange-serveraccounts zijn uitgeschakeld (start MailCraft met MAILCRAFT_EWS=1 om ze uit te proberen)"
+
+#, fuzzy
+#~ msgid "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is"
+#~ msgstr "een Exchange-serveraccount wordt verzonden en ontvangen via Exchange Web Services, niet zoals een IMAP-account"
+
+#, fuzzy
 #~ msgid "Business Card"
 #~ msgstr "Visitekaartje"
 
