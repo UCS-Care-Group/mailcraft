@@ -1211,6 +1211,13 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
+            // send files it in Sent Items, so it is no longer to be put on the server as a
+            // message moved in, which would put it there twice. An original elsewhere goes once
+            // the filed copy is known here, as for any message moved in.
+            if mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if message == id)) {
+                mb.queued.retain(|q| !matches!(q, Queued::PlaceMessage { account: a, message, .. } if *a == account && message == id));
+            }
         }
     }
     // The server's copy is marked as read.
