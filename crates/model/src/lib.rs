@@ -47,7 +47,7 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactBook, Labeled, PostalAddress};
 pub use dav::DavServer;
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use jmap_server::JmapServer;

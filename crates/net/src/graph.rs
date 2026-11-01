@@ -1917,6 +1917,7 @@ fn contact_of(entry: &Value) -> Option<RemoteContact> {
         birthday: Some(text(entry, "birthday")).filter(|day| day.len() <= MAX_DATE).and_then(mailcraft_time::parse_iso).map(|(day, _)| day.date),
         notes: text(entry, "personalNotes").to_string(),
         book: String::new(),
+        book_id: String::new(),
         uid: String::new(),
         modified: instant(text(entry, "lastModifiedDateTime")).unwrap_or(0),
     };

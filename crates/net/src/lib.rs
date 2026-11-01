@@ -96,7 +96,9 @@ mod native {
     use mailcraft_model::Account;
 
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
-    pub use crate::dav::{DavSync, Endpoints, probe as probe_linchange, sync as sync_dav, upload_events as upload_dav_events};
+    pub use crate::dav::{
+        DavSync, Endpoints, probe as probe_linchange, sync as sync_dav, upload_contacts as upload_dav_contacts, upload_events as upload_dav_events,
+    };
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
     pub use crate::linchange::{AppTokenGrant, finish as finish_linchange_app_token, start as start_linchange_app_token};

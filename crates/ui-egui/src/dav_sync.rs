@@ -15,7 +15,7 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_engine::cmd::remote;
-use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, EventsUpload, EventsUploaded};
+use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, ContactsUpload, ContactsUploaded, EventsDownload, EventsUpload, EventsUploaded};
 use mailcraft_model::{Account, Id};
 use mailcraft_time::Timestamp;
 use std::sync::mpsc::Receiver;
@@ -37,6 +37,8 @@ pub struct DavJob {
     pub to: Timestamp,
     /// What was made, changed or deleted here, to tell the server before reading it again.
     pub changes: Option<EventsUpload>,
+    /// Contacts made here that are to be put in an address book the server lists.
+    pub contact_changes: Option<ContactsUpload>,
     /// The calendar an event that names none belongs in (the account's main one), once it has
     /// been listed.
     pub main_calendar: String,
@@ -52,6 +54,8 @@ pub struct DavResult {
     pub contacts: Option<ContactsDownload>,
     /// What the server made of the changes that were sent.
     pub uploaded: Option<EventsUploaded>,
+    /// What the server made of the contacts that were sent.
+    pub uploaded_contacts: Option<ContactsUploaded>,
     /// What one part couldn't do, in words for the owner.
     pub errors: Vec<String>,
 }
@@ -124,7 +128,8 @@ impl MailApp {
                     upload
                 })
                 .filter(|upload| !upload.ops.is_empty());
-            let job = DavJob { username: found.login().to_string(), password, from, to, account: found, changes, main_calendar };
+            let contact_changes = remote::contact_upload(&self.session, account);
+            let job = DavJob { username: found.login().to_string(), password, from, to, account: found, changes, contact_changes, main_calendar };
             let Some(dav) = &self.services.dav else { return false };
             self.dav.checked.insert(account, now);
             let opening = self.session.openings();
@@ -160,6 +165,11 @@ impl MailApp {
             && let Err(e) = remote::apply_event_outcomes(&mut self.session, uploaded)
         {
             errors.push(crate::i18n::fmt(tl!("The calendar changes couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+        }
+        if let Some(uploaded) = &result.uploaded_contacts
+            && let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded)
+        {
+            errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
         }
         if let Some(calendars) = &result.calendars {
             let mut calendars = calendars.clone();

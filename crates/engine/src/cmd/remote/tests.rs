@@ -5,7 +5,7 @@
 
 use mailcraft_model::remote::{
     ContactsDownload, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime,
-    EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteContact, RemoteEvent, RemoteEventKind,
+    EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteContact, RemoteEvent, RemoteEventKind,
 };
 use mailcraft_model::{Address, Attendee, Contact, Event, Freq, Id, Labeled, Origin, Recurrence, Response, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -85,7 +85,7 @@ fn person(id: &str, first: &str, email: &str) -> RemoteContact {
 }
 
 fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
-    ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts }
+    ContactsDownload { account, email: "ada@example.org".into(), complete: true, books: Vec::new(), contacts }
 }
 
 /// The events that came from `account`'s server, by start.
@@ -1475,6 +1475,49 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert!(names(&s, account).is_empty() && s.sel.contact.is_none());
     assert_eq!(own(&s), before);
     assert!(s.mailbox.clone().repair().is_empty());
+}
+
+#[test]
+fn a_contact_is_matched_by_uid_when_the_server_names_a_different_url() {
+    let (mut s, account) = session();
+    let made = run(&mut s, "people.new", json!({"first": "Ada", "email": "ada@example.org"}));
+    let id = made["id"].as_u64().unwrap();
+    {
+        let contact = s.mailbox.contact_mut(id).unwrap();
+        contact.origin = Origin { account, id: "https://mail.example.org/carddav/ada/contacts/personal/one.vcf".into(), ..Default::default() };
+        contact.uid = "one-uid".into();
+        contact.book = "My contacts".into();
+        contact.book_id = "https://mail.example.org/carddav/ada/contacts/personal/".into();
+    }
+    let remote = RemoteContact { id: "/carddav/ada/contacts/personal/one.vcf".into(), uid: "one-uid".into(), ..person("", "Ada", "ada@example.org") };
+    let merged = apply_contacts(&mut s, &everybody(account, vec![remote])).unwrap();
+    assert_eq!(counts(&merged), (0, 1, 0, 0, 0));
+    let contact = s.mailbox.contact(id).unwrap();
+    assert_eq!((contact.origin.id.as_str(), contact.uid.as_str()), ("/carddav/ada/contacts/personal/one.vcf", "one-uid"));
+    assert_eq!(names(&s, account), ["Ada"]);
+}
+
+#[test]
+fn the_address_books_a_server_lists_are_kept_for_a_new_contact() {
+    use mailcraft_model::Rights;
+    let (mut s, account) = session();
+    let list = ContactsDownload {
+        books: vec![
+            RemoteAddressBook {
+                id: "https://mail.example.org/carddav/ada/contacts/personal/".into(),
+                name: "My contacts".into(),
+                rights: Rights::Edit,
+            },
+            RemoteAddressBook { id: "https://mail.example.org/carddav/ada/contacts/~book-9/".into(), name: "Team".into(), rights: Rights::Read },
+        ],
+        ..everybody(account, Vec::new())
+    };
+    apply_contacts(&mut s, &list).unwrap();
+    assert_eq!(s.mailbox.contact_books.len(), 2);
+    assert_eq!(s.mailbox.contact_books[0].name, "My contacts");
+    // A later list that is all there is replaces them; the chosen book is then gone.
+    apply_contacts(&mut s, &everybody(account, Vec::new())).unwrap();
+    assert!(s.mailbox.contact_books.is_empty());
 }
 
 #[test]

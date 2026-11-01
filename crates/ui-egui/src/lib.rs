@@ -2274,6 +2274,17 @@ impl MailApp {
                 }
             }
         }
+        // A contact put into an address book of a Linchange account: written there at once.
+        if let (Ok(made), "people.new") = (&r, id)
+            && let Some(account) = made
+                .get("id")
+                .and_then(Value::as_u64)
+                .and_then(|id| self.session.mailbox.contact(id))
+                .map(|contact| contact.origin.account)
+                .filter(|account| *account != 0)
+        {
+            self.dav_sync_soon(account);
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)

@@ -14,6 +14,8 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 #[cfg(test)]
 mod account_tests;
 #[cfg(test)]
+mod book_tests;
+#[cfg(test)]
 mod share_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -28,6 +30,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.list", "List Contacts", "People", list)
             .pure()
             .params(r#"{"query"?: string, "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#),
+        CommandSpec::new("people.addressBooks", "List Address Books", "People", address_books)
+            .pure()
+            .params(r#"{} — the address books the accounts' servers list: {"books": [{"account", "accountName", "id", "name", "rights": "freeBusy"|"read"|"edit"}]}"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
         CommandSpec::new("people.favorite", "Add to Favorites", "Home › Actions", favorite)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -54,7 +59,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool} — it is kept on this computer; the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "addressBook"?: string (the id of an address book of people.addressBooks; default: this computer)} — the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -223,10 +228,25 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
+    let book = p::str(v, "addressBook").map(str::trim).filter(|id| !id.is_empty());
+    if let Some(book) = book {
+        let found = s
+            .mailbox
+            .contact_books
+            .iter()
+            .find(|known| known.id == book)
+            .filter(|known| known.rights.can_edit())
+            .cloned()
+            .ok_or_else(|| bad("that address book can't be written to"))?;
+        c.book = found.name;
+        c.book_id = found.id;
+        c.origin.account = found.account;
+    }
+    c.uid = super::remote::new_token(0, s.rev() ^ s.now().unsigned_abs().rotate_left(56));
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
     reveal(s, id);
-    Ok(json!({"id": id}))
+    Ok(json!({"id": id, "addressBook": book}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
@@ -297,6 +317,7 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
         "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "book": c.book, "bookId": c.book_id,
     })
 }
 
@@ -322,6 +343,21 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     };
     let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
+}
+
+fn address_books(s: &mut Session, _: &Value) -> CmdResult {
+    let books: Vec<Value> = s
+        .mailbox
+        .contact_books
+        .iter()
+        .filter_map(|book| {
+            let account = s.mailbox.account(book.account)?;
+            Some(json!({
+                "account": book.account, "accountName": account.email, "id": book.id, "name": book.name, "rights": book.rights,
+            }))
+        })
+        .collect();
+    Ok(json!({"books": books}))
 }
 
 fn search(s: &mut Session, v: &Value) -> CmdResult {
@@ -376,7 +412,8 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         Some((f, l)) => (f.trim().to_string(), l.trim().to_string()),
         None => (from.name.trim().to_string(), String::new()),
     };
-    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], ..Default::default() });
+    let uid = super::remote::new_token(0, s.rev() ^ s.now().unsigned_abs().rotate_left(40));
+    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], uid, ..Default::default() });
     s.sel.contact = Some(id);
     reveal(s, id);
     s.view.module = Module::People;

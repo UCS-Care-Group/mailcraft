@@ -143,6 +143,31 @@ fn a_change_to_an_event_named_only_by_its_path_reaches_the_server() {
 }
 
 #[test]
+fn a_new_contact_goes_to_the_book_it_was_given() {
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let book = server.url("/carddav/ada@example.org/contacts/personal/");
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Create,
+            contact: 7,
+            book: book.clone(),
+            uid: "one-uid".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one-uid\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts("", "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Done);
+    assert_eq!(out.outcomes[0].remote, format!("{book}one-uid.vcf"));
+    let request = server.request(0);
+    assert!(request.starts_with("PUT /carddav/ada@example.org/contacts/personal/one-uid.vcf HTTP/1.1\r\n"), "{request}");
+    assert!(request.contains("Content-Type: text/vcard; charset=utf-8\r\n"), "{request}");
+    assert!(request.contains("UID:one-uid\r\n") && request.contains("FN:Ada Lovelace\r\n"), "{request}");
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()

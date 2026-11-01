@@ -1809,16 +1809,30 @@ fn services(
                     .changes
                     .as_ref()
                     .map(|changes| mailcraft_net::upload_dav_events(&dav.caldav, &job.username, &job.password, changes, &job.main_calendar));
-                match mailcraft_net::sync_dav(&dav.caldav, &dav.carddav, &job.username, &job.password, job.from, job.to) {
+                let synced = mailcraft_net::sync_dav(&dav.caldav, &dav.carddav, &job.username, &job.password, job.from, job.to);
+                // A contact made here goes after the read: the read's list cannot yet show it,
+                // and applying its answer before the list would make the next one remove it.
+                let uploaded_contacts = job
+                    .contact_changes
+                    .as_ref()
+                    .map(|changes| mailcraft_net::upload_dav_contacts(&dav.carddav, &job.username, &job.password, changes));
+                match synced {
                     Ok(got) => mailcraft_ui_egui::dav_sync::DavResult {
                         account: id,
                         calendars: Some(got.calendars),
                         events: got.events,
                         contacts: Some(got.contacts),
                         uploaded,
+                        uploaded_contacts,
                         errors: got.errors,
                     },
-                    Err(e) => mailcraft_ui_egui::dav_sync::DavResult { account: id, uploaded, errors: vec![e.to_string()], ..Default::default() },
+                    Err(e) => mailcraft_ui_egui::dav_sync::DavResult {
+                        account: id,
+                        uploaded,
+                        uploaded_contacts,
+                        errors: vec![e.to_string()],
+                        ..Default::default()
+                    },
                 }
             })
         })),

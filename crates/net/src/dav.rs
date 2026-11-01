@@ -23,8 +23,8 @@ use std::time::Duration;
 use mailcraft_charset::base64::STANDARD as BASE64;
 use mailcraft_model::dav::DavServer;
 use mailcraft_model::remote::{
-    CalendarsDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded,
-    RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
+    CalendarsDownload, ContactOp, ContactOutcome, ContactsDownload, ContactsUpload, ContactsUploaded, EventChangeKind, EventFields, EventOp,
+    EventOutcome, EventResult, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
 };
 use mailcraft_model::{CalendarOwner, Event, Rgb, Rights};
 use mailcraft_time::{DateTime, Timestamp};
@@ -38,6 +38,7 @@ use crate::http::{self, Request as HttpRequest, Url};
 /// The bodies sent with the requests.
 const XML: &str = "application/xml; charset=utf-8";
 const CALENDAR: &str = "text/calendar; charset=utf-8";
+const VCARD: &str = "text/vcard; charset=utf-8";
 
 /// How long one DAV request may take: the server is usually close, and an answer is a page of XML.
 const PATIENCE: Duration = Duration::from_secs(30);
@@ -334,7 +335,8 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
             continue;
         };
         let name = response.prop_text("displayname").filter(|name| !name.trim().is_empty()).unwrap_or_else(|| slug(&href));
-        match cards(&href, &name, auth) {
+        out.books.push(RemoteAddressBook { id: href.clone(), name: name.clone(), rights: response.rights() });
+        match cards(&href, &href, &name, auth) {
             Ok(mut cards) => out.contacts.append(&mut cards),
             Err(_) => out.complete = false,
         }
@@ -351,7 +353,7 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
 }
 
 /// Every card of one address book.
-fn cards(book: &str, name: &str, auth: &str) -> Result<Vec<RemoteContact>, NetError> {
+fn cards(book: &str, book_id: &str, name: &str, auth: &str) -> Result<Vec<RemoteContact>, NetError> {
     let body = r#"<?xml version="1.0" encoding="utf-8"?><C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop><D:getetag/><C:address-data/></D:prop></C:addressbook-query>"#;
     let reply = send(book, "REPORT", Some("1"), Some(body), auth, XML, MAX_BODY)?;
     if reply.status != 207 {
@@ -363,13 +365,13 @@ fn cards(book: &str, name: &str, auth: &str) -> Result<Vec<RemoteContact>, NetEr
         let Some(text) = response.prop_text("address-data") else { continue };
         let etag = response.prop_text("getetag").unwrap_or_default();
         let Some(card) = mailcraft_vcard::parse(&text).into_iter().next() else { continue };
-        out.push(remote_contact(card, response.href.clone(), etag, name));
+        out.push(remote_contact(card, response.href.clone(), etag, name, book_id));
     }
     Ok(out)
 }
 
 /// A parsed vCard as a server's contact.
-fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book: &str) -> RemoteContact {
+fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book: &str, book_id: &str) -> RemoteContact {
     RemoteContact {
         id,
         change_key: etag,
@@ -389,6 +391,7 @@ fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book
         birthday: card.birthday,
         notes: card.notes,
         book: book.to_string(),
+        book_id: book_id.to_string(),
         modified: 0,
     }
 }
@@ -638,6 +641,59 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
         EventChangeKind::Respond | EventChangeKind::Forward => {
             outcome.result = EventResult::Refused;
             outcome.error = "this server takes answers to invitations through mail".into();
+        }
+    }
+    outcome
+}
+
+/// Put the contacts made here into the address books chosen for them.
+///
+/// A contact is new, so its URL on the server is the one its `UID` makes in that book: a second
+/// run of an upload whose answer was lost writes the same card again rather than a second one.
+///
+/// This blocks; a host calls it on a background thread.
+pub fn upload_contacts(_carddav: &str, username: &str, password: &str, upload: &ContactsUpload) -> ContactsUploaded {
+    let auth = basic(username, password);
+    let mut out = ContactsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
+    for op in upload.ops.iter().take(mailcraft_model::remote::MAX_CONTACT_OPS) {
+        out.outcomes.push(one_contact(&auth, op));
+    }
+    out
+}
+
+/// One new contact, as the server made of it.
+fn one_contact(auth: &str, op: &ContactOp) -> ContactOutcome {
+    let mut outcome = ContactOutcome { op: op.clone(), ..Default::default() };
+    let book = op.book.trim();
+    if book.is_empty() {
+        outcome.result = EventResult::Failed;
+        outcome.error = "the address book is not known yet".into();
+        return outcome;
+    }
+    if op.uid.trim().is_empty() {
+        outcome.result = EventResult::Failed;
+        outcome.error = "the contact has no UID to be saved under".into();
+        return outcome;
+    }
+    let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
+    let url = format!("{base}{}.vcf", http::encode(op.uid.trim()));
+    match send(&url, "PUT", None, Some(&op.card), auth, VCARD, 64 * 1024) {
+        Ok(reply) if matches!(reply.status, 200 | 201 | 204) => {
+            outcome.result = EventResult::Done;
+            outcome.remote = url;
+            outcome.status = reply.status;
+        }
+        Ok(reply) => {
+            outcome.result = match reply.status {
+                403 => EventResult::Denied,
+                404 | 410 => EventResult::Gone,
+                _ => EventResult::Failed,
+            };
+            outcome.status = reply.status;
+        }
+        Err(e) => {
+            outcome.result = EventResult::Failed;
+            outcome.error = e.to_string();
         }
     }
     outcome

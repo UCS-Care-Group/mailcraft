@@ -328,6 +328,9 @@ pub struct RemoteContact {
     /// list.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub book: String,
+    /// The URL of that address book on the server, when it names one.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book_id: String,
     /// When it was last changed on the server (Unix seconds); 0 when the server didn't say.
     pub modified: Timestamp,
 }
@@ -340,6 +343,7 @@ impl RemoteContact {
         self.change_key = key(&self.change_key);
         self.uid = line(&self.uid, MAX_KEY);
         self.book = line(&self.book, MAX_NAME);
+        self.book_id = key(&self.book_id);
         for name in [
             &mut self.display_name,
             &mut self.first,
@@ -440,6 +444,16 @@ impl EventsDownload {
     }
 }
 
+/// One address book a server lists: the URL it is addressed by, the name it is shown under, and
+/// what the account may do with it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RemoteAddressBook {
+    pub id: String,
+    pub name: String,
+    pub rights: Rights,
+}
+
 /// An account's contacts, as its server has them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -451,6 +465,9 @@ pub struct ContactsDownload {
     pub email: String,
     /// Every contact the server has is here. When not, nothing is removed for not being here.
     pub complete: bool,
+    /// Every address book the server lists, including ones with no cards.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub books: Vec<RemoteAddressBook>,
     pub contacts: Vec<RemoteContact>,
 }
 
@@ -462,6 +479,70 @@ impl ContactsDownload {
         self
     }
 }
+
+/// One new contact to put into an address book: the contact's id here, the book's URL on the
+/// server, its vCard `UID`, and the card itself.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactOp {
+    pub contact: Id,
+    pub book: String,
+    pub uid: String,
+    pub card: String,
+}
+
+/// The contacts made here that a server is yet to receive.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactsUpload {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub ops: Vec<ContactOp>,
+}
+
+impl ContactsUpload {
+    /// The upload as one for `account`.
+    pub fn for_account(mut self, account: &Account) -> ContactsUpload {
+        self.account = account.id;
+        self.email = account.email.trim().to_string();
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+}
+
+/// What became of one [`ContactOp`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactOutcome {
+    pub op: ContactOp,
+    pub result: EventResult,
+    /// The URL the server gave the contact, when it was made.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub remote: String,
+    /// The status of the server's answer; 0 when there was none.
+    #[serde(skip_serializing_if = "is_no_status")]
+    pub status: u16,
+    /// Why not, in words for the owner.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub error: String,
+}
+
+/// What a server made of a [`ContactsUpload`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactsUploaded {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub outcomes: Vec<ContactOutcome>,
+}
+
+/// Most contacts one upload carries: the rest go with the next.
+pub const MAX_CONTACT_OPS: usize = 50;
 
 /// Most changes to events that may wait for a server at once ([`crate::Mailbox::event_changes`]),
 /// and most that one [`EventsUpload`] carries: the rest go with the next.
