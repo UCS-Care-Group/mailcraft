@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -29,7 +29,7 @@ egui, eframe, winit or rfd.
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
-| L3 | `ews` | Exchange Web Services (Microsoft's public documentation only) without sockets or browser APIs: the SOAP request writer, a hostile XML reader, the response-code and `ErrorServerBusy` judgement and `GetFolder`, Autodiscover as a state machine the host drives (the order of places, redirects, the owner's say for another host, Exchange Online told apart), Basic credentials, NTLMv2 written from MS-NLMP (the three legs, MIC, channel binding; MD4, MD5 and HMAC from RustCrypto) and the choice of NTLM or Basic from what the server offers, and mail down: `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` with their answer readers, and `sync_mail`/`fetch_messages`, which run them over any `HttpExchange` and hand the run back in pieces (waiting for a busy server through a hook the host gives); the program does the exchange (`HttpExchange`); a strict in-process stand-in of Exchange Web Services and of Autodiscover for tests (`stand-in` feature). Behind `MAILCRAFT_EWS` while it is built (#252); going up: changes of messages and folders, drafts kept in the server's Drafts and found again by a marker, sending, never repeated after a lost answer (`changes`, `compose`, `up`); NTLM or Basic chosen from the server's offer (`auth`) |
+| L3 | `ews` | Exchange Web Services (Microsoft's public documentation only) without sockets or browser APIs: the SOAP request writer, a hostile XML reader, the response-code and `ErrorServerBusy` judgement and `GetFolder`, Autodiscover as a state machine the host drives (the order of places, redirects, the owner's say for another host, Exchange Online told apart), Basic credentials, NTLMv2 written from MS-NLMP (the three legs, MIC, channel binding; MD4, MD5 and HMAC from RustCrypto) and the choice of NTLM or Basic from what the server offers, and mail down: `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` with their answer readers, and `sync_mail`/`fetch_messages`, which run them over any `HttpExchange` and hand the run back in pieces (waiting for a busy server through a hook the host gives); the program does the exchange (`HttpExchange`); a strict in-process stand-in of Exchange Web Services and of Autodiscover for tests (`stand-in` feature) (#252); going up: changes of messages and folders, drafts kept in the server's Drafts and found again by a marker, sending, never repeated after a lost answer (`changes`, `compose`, `up`); NTLM or Basic chosen from the server's offer (`auth`) |
 | L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). The browser build runs it over `fetch` (M6, [jmap.md](jmap.md)) |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
 | L5 | `mcp` | MCP server: tools over the command registry; headless or bridged to the running app |
@@ -59,14 +59,13 @@ egui, eframe, winit or rfd.
    account goes the Graph way: `sync.jmapRequest` (pure) says what to read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
    `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
-   account (#252, Exchange Web Services) is going the same way, behind `MAILCRAFT_EWS=1` (a
-   `Session` field the host sets, never a command's params): its request and result shapes are
+   account (#252, Exchange Web Services) goes the same way: its request and result shapes are
    in `model`'s `sync::ews`; `sync.ewsRequest` (pure) says what to read (the folder list from its
    sync state, each folder from its own), the desktop host runs `mailcraft_ews::sync_mail` on a
    thread of its own over `mailcraft_net::https` (Basic over TLS, one certificate trusted by its
    fingerprint, a certificate question stopping the run instead of a TLS error) and hands the run
    back in pieces, and `sync.applyEws` (pure) takes each in by server id; messages are fetched whole
-   through `sync.ewsFetchRequest` and `sync.applyEwsFetch`. All refuse while the switch is off.
+   through `sync.ewsFetchRequest` and `sync.applyEwsFetch`.
    What is made here goes up and is sent through the same run. Setting one up is Add Account's
    explicit Exchange server choice (L6, `account_setup/exchange.rs`): the page only collects, and
    the host (`Services::ews_setup`, `apps/mailcraft/src/ews_setup.rs`, on a thread of its own once
@@ -306,3 +305,4 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-29 | patch | #252 E3 review: `ews` depends on `model` (L1) for the providers table; Autodiscover asks for the sign-in only on a challenge |
 | 2026-10-29 | minor | #252 E6: `ews` signs in with NTLMv2 (`ntlm`, from MS-NLMP; RustCrypto `md4`, `md-5`, `hmac`) and chooses NTLM or Basic from the server's offer (`auth`); `net`'s `https::Connection` holds one TLS connection across the legs and gives the hash of the server's certificate; nothing drives them yet |
 | 2026-10-29 | minor | #252 E7: setting up an Exchange server account (Add Account's explicit choice, the host's `ews_setup` job, the owner's questions, File › Info) |
+| 2026-11-01 | minor | #252: the `MAILCRAFT_EWS` switch and `Session::ews` are gone; Exchange server accounts are on for everyone |
