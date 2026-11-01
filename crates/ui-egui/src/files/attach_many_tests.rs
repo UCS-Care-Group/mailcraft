@@ -59,6 +59,10 @@ fn attached(app: &MailApp) -> Vec<String> {
     app.session.compose.as_ref().unwrap().attachments.iter().map(|a| a.name.clone()).collect()
 }
 
+fn said(app: &MailApp) -> String {
+    app.status_msg.clone().unwrap_or_default().0
+}
+
 #[test]
 fn only_files_to_attach_are_picked_several_at_once() {
     assert!(FileDialogRequest::Open { purpose: "attach".into() }.picks_many());
@@ -86,6 +90,34 @@ fn a_file_that_cant_be_attached_doesnt_keep_the_others_out() {
     let (mut app, _) = writing(Some(paths));
     app.run("ui.attach", json!({})).unwrap();
     assert_eq!(attached(&app), ["minutes.txt", "budget.csv"]);
+    // The status bar says how many went in and why one didn't, in one line.
+    let said = said(&app);
+    assert!(said.starts_with("Attached 2 files · ") && said.contains("not-there.txt"), "{said}");
+}
+
+/// None could be attached: the reason, and an error.
+#[test]
+fn nothing_attached_is_an_error_with_the_reason() {
+    let (files, _) = Files::new("none", &[]);
+    let paths = ["a", "b"].map(|n| files.0.join(format!("{n}.txt")).to_string_lossy().to_string()).to_vec();
+    let (mut app, _) = writing(Some(paths));
+    // (`ui.attach` answers that the pick is pending; what came of it is the status bar's.)
+    app.run("ui.attach", json!({})).unwrap();
+    assert!(attached(&app).is_empty());
+    assert!(!said(&app).starts_with("Attached") && said(&app).contains("a.txt"), "{}", said(&app));
+}
+
+/// A stuck key picks a great many: the first hundred go in, and the status bar says the rest
+/// were left out.
+#[test]
+fn more_than_the_most_at_a_time_are_left_out_and_said() {
+    let names: Vec<String> = (0..103).map(|i| format!("file-{i:03}.txt")).collect();
+    let (_files, paths) = Files::new("many", &names.iter().map(String::as_str).collect::<Vec<_>>());
+    let (mut app, _) = writing(Some(paths));
+    app.run("ui.attach", json!({})).unwrap();
+    assert_eq!(attached(&app).len(), 100);
+    assert_eq!(attached(&app)[99], "file-099.txt");
+    assert_eq!(said(&app), "Attached 100 files · 3 more were left out: at most 100 files at a time");
 }
 
 #[test]
@@ -115,4 +147,16 @@ fn every_file_from_the_browser_picker_is_attached() {
     inbox.lock().unwrap().extend([("minutes.txt".to_string(), b"one".to_vec()), ("notes.eml".to_string(), b"two".to_vec())]);
     super::drain_inbox(&mut app);
     assert_eq!(attached(&app), ["minutes.txt", "notes.eml"]);
+    assert_eq!(said(&app), "Attached 2 files");
+    // One of them refused (the message carries as many as it can by then): the rest go in,
+    // and the line says how many did and why one didn't.
+    for i in 2..199 {
+        app.run("compose.attach", json!({"name": format!("f{i}.txt"), "data": "eA=="})).unwrap();
+    }
+    app.run("ui.attach", json!({})).unwrap();
+    inbox.lock().unwrap().extend([("budget.csv".to_string(), b"three".to_vec()), ("one-more.txt".to_string(), b"four".to_vec())]);
+    super::drain_inbox(&mut app);
+    assert_eq!(attached(&app).len(), 200);
+    assert_eq!(attached(&app)[199], "budget.csv");
+    assert!(said(&app).starts_with("Attached 1 file · ") && said(&app).contains("as many attachments"), "{}", said(&app));
 }

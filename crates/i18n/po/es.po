@@ -15814,6 +15814,13 @@ msgid_plural "{n} more questions are waiting."
 msgstr[0] "Hay {n} pregunta más en espera."
 msgstr[1] "Hay {n} preguntas más en espera."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {most} files at a time"
+msgid_plural "{n} more were left out: at most {most} files at a time"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
 #, fuzzy

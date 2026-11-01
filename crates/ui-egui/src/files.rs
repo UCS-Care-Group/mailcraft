@@ -241,24 +241,61 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
 const MOST_ATTACHED: usize = 100;
 
 /// Attach each of `paths`, in the order picked, to the message being written `asking` (#286).
-/// Said once: how many went in, and why one didn't.
+/// Said once: how many went in, and why one didn't ([`attached_said`]).
 fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
-    let (mut attached, mut failed) = (0usize, None);
+    let mut batch = Batch::default();
     for path in paths.iter().take(MOST_ATTACHED) {
-        match app.run("compose.attach", on_message(json!({"path": path}), asking)) {
-            Ok(_) => attached += 1,
-            Err(e) => failed = failed.or(Some(e)),
+        batch.took(app.run("compose.attach", on_message(json!({"path": path}), asking)));
+    }
+    attached_said(app, batch, paths.len())
+}
+
+/// What attaching several files came to: how many went in, and the first reason one didn't.
+#[derive(Default)]
+struct Batch {
+    attached: usize,
+    failed: Option<String>,
+}
+
+impl Batch {
+    fn took(&mut self, r: Result<Value, String>) {
+        match r {
+            Ok(_) => self.attached += 1,
+            Err(e) => self.failed = self.failed.take().or(Some(e)),
         }
     }
+}
+
+/// Say once what attaching `picked` files came to: how many went in, the first reason one
+/// didn't, and that the rest were left out when more than [`MOST_ATTACHED`] were picked. An
+/// error only when none went in.
+fn attached_said(app: &mut MailApp, batch: Batch, picked: usize) -> Result<Value, String> {
     app.ui.backstage = false;
+    let Batch { attached, failed } = batch;
+    let left_out = picked.saturating_sub(MOST_ATTACHED);
+    let mut said = tln!(attached, "Attached {n} file", "Attached {n} files");
+    if left_out > 0 {
+        let most = MOST_ATTACHED.to_string();
+        let rest = tln!(left_out, "{n} more was left out: at most {most} files at a time", "{n} more were left out: at most {most} files at a time");
+        said = format!("{said} · {}", crate::i18n::fmt(&rest, &[("most", &most)]));
+    }
+    let mut r = json!({"attached": attached});
+    if left_out > 0 {
+        r["leftOut"] = json!(left_out);
+    }
     match failed {
-        Some(e) => {
+        Some(e) if attached == 0 => {
             app.status(e.clone());
-            if attached == 0 { Err(e) } else { Ok(json!({"attached": attached})) }
+            Err(e)
+        }
+        Some(e) => {
+            app.status(format!("{said} · {e}"));
+            r["failed"] = json!(e);
+            Ok(r)
         }
         None => {
-            app.status(tln!(attached, "Attached {n} file", "Attached {n} files"));
-            Ok(json!({"attached": attached}))
+            app.status(said);
+            Ok(r)
         }
     }
 }
@@ -458,6 +495,18 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
     let files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
     // What the picker was opened for is what every file it delivered is for.
     let asked = if files.is_empty() { None } else { app.pending_open.take() };
+    // Several files picked to attach: as on the desktop, each in turn, up to the most at a time,
+    // and said once ([`attached_said`]).
+    if let Some(("attach", asking)) = asked.as_ref().map(|(purpose, asking)| (purpose.as_str(), *asking))
+        && files.len() > 1
+    {
+        let mut batch = Batch::default();
+        for (name, bytes) in files.iter().take(MOST_ATTACHED) {
+            batch.took(app.run("compose.attach", on_message(json!({"name": name, "data": encode(bytes)}), asking)));
+        }
+        let _ = attached_said(app, batch, files.len());
+        return;
+    }
     for (name, bytes) in files {
         let (purpose, asking) = asked.clone().unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
 
