@@ -1657,8 +1657,11 @@ impl Session {
 
     /// The list, the counts and the conversation stand through the read marks of `changed`
     /// ([`Session::read_marks_only`]), with the rows' and the folders' unread counts put right,
-    /// under the revision after them.
-    fn keep_through_read_marks(&mut self, changed: &[Id]) {
+    /// under the revision after them. Only what was of the mailbox as it was before them
+    /// (`rev_before`, the revision the command ran under) is carried over: counts or a
+    /// conversation left from an earlier revision, which a command that is no step of the
+    /// history changed the mailbox past, stay behind it and are worked out afresh when asked.
+    fn keep_through_read_marks(&mut self, changed: &[Id], rev_before: u64) {
         let key = self.list_key();
         let rev = self.rev;
         let mb = &self.mailbox;
@@ -1669,14 +1672,18 @@ impl Session {
             }
             cache.key = key;
         }
-        if let Some((at, counts)) = &mut self.counts_cache {
+        if let Some((at, counts)) = &mut self.counts_cache
+            && at.0 == rev_before
+        {
             let counts = Arc::make_mut(counts);
             for m in changed.iter().filter_map(|id| mb.message(*id)) {
                 counts.read_changed(m.folder, m.account, m.read);
             }
             *at = (rev, mb.messages.len());
         }
-        if let Some((at, _)) = &mut self.conversation_cache {
+        if let Some((at, _)) = &mut self.conversation_cache
+            && at.0 == rev_before
+        {
             at.0 = rev;
         }
     }
@@ -2880,9 +2887,10 @@ impl Session {
                     self.hold_replaced(&before.mailbox);
                     // Read marks alone: the list and the counts stand, put right ([`Session::read_marks_only`]).
                     let read_marks = self.read_marks_only(&mut before.mailbox);
+                    let rev_before = self.rev;
                     self.rev += 1;
                     if let Some(changed) = &read_marks {
-                        self.keep_through_read_marks(changed);
+                        self.keep_through_read_marks(changed, rev_before);
                     }
                     if history && wipes_history(id) {
                         // The mail is gone from this computer (#177): no step brings it back,

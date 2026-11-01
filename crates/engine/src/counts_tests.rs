@@ -145,3 +145,28 @@ fn read_marks_alone_leave_the_list_and_the_counts_standing_put_right() {
     let _ = s.rows();
     assert_eq!(s.list_builds(), builds + 1, "filtered: built again");
 }
+
+/// Counts left from an earlier revision aren't carried through read marks. A command that is no
+/// step of the history (`mail.select`, a Send/Receive's pages) changes the mailbox without the
+/// counts being let go of first, so counts from before it may still be held when a later one
+/// changes read marks alone: they are of another mailbox, and stay behind. (Here they are
+/// planted, as between two frames nothing asks for them in between.)
+#[test]
+fn counts_from_an_earlier_revision_are_not_carried_through_read_marks() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let inbox = s.mailbox.inbox().unwrap();
+    let rows = s.rows();
+    let right = s.folder_counts();
+    let id = rows.iter().find(|r| r.unread > 0 && r.members.len() == 1).map(|r| r.id).unwrap();
+    drop(rows);
+    // Counts of nothing, left from the revision before the one the list was built under.
+    let stale = Arc::new(FolderCounts::of(&mailcraft_model::Mailbox::default()));
+    s.counts_cache = Some(((s.rev().wrapping_sub(1), s.mailbox.messages.len()), stale));
+    // Opening the message marks it read, and is no step of the history.
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    assert!(s.mailbox.message(id).unwrap().read);
+    let after = s.folder_counts();
+    assert_eq!(after.total(inbox), right.total(inbox), "counted afresh, not the stale ones put right");
+    assert_eq!(after.unread(inbox), right.unread(inbox) - 1);
+    assert_eq!(after.unread(inbox), s.mailbox.unread_count(inbox));
+}
