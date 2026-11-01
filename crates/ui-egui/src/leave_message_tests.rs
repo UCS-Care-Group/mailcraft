@@ -212,16 +212,26 @@ fn a_draft_that_cant_be_saved_leaves_the_message_open_and_says_why() {
 }
 
 #[test]
-fn quitting_still_asks_and_each_answer_still_quits() {
-    for (answer, kept) in [("save", true), ("discard", false)] {
+fn quitting_saves_to_drafts_unasked_and_asks_only_when_that_fails() {
+    // Closing the window saves what is being written to Drafts, asking nothing (#286).
+    let mut a = app();
+    written(&mut a, "At quitting");
+    assert!(a.close_requested());
+    assert!(a.dialog.is_none());
+    assert!(draft_with(&a, "At quitting").is_some());
+    // With nowhere to save it, the owner is asked, and each answer still quits.
+    for (answer, kept) in [("save", false), ("discard", false)] {
         let mut a = app();
-        written(&mut a, "At quitting");
-        assert!(!a.close_requested());
-        assert_eq!(asked(&a).map(|(then, _)| then), Some("quit".to_string()));
+        written(&mut a, "Nowhere at quitting");
+        let d = drafts(&a);
+        a.session.mailbox.folders.iter_mut().find(|f| f.id == d).unwrap().kind = FolderKind::Custom;
+        assert!(!a.close_requested(), "{answer}");
+        assert_eq!(asked(&a).map(|(then, _)| then), Some("quit".to_string()), "{answer}");
+        a.session.mailbox.folders.iter_mut().find(|f| f.id == d).unwrap().kind = FolderKind::Drafts;
         a.dialog = None;
         leave_message(&mut a, answer, "quit", json!({}));
         assert!(a.quit_requested && a.session.compose.is_none(), "{answer}");
-        assert_eq!(draft_with(&a, "At quitting").is_some(), kept, "{answer}");
+        assert_eq!(draft_with(&a, "Nowhere at quitting").is_some(), answer == "save" || kept, "{answer}");
     }
 }
 

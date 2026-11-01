@@ -203,7 +203,16 @@ impl Shown {
     }
 }
 
+/// The message being written in the reading pane.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    show_in(app, ui, None, true);
+}
+
+/// The current message being written: in the reading pane, or in the window of its own numbered
+/// `window` (#286), which has its own way to close (and nothing to pop out of). `keyboard`: it may
+/// take the keyboard when it has just opened and nothing has it (not one that opened behind the
+/// owner's window).
+pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keyboard: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(c) = Shown::of(app) else { return };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
@@ -236,8 +245,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("compose.discard", json!({}));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
-                let _ = app.run("compose.close", json!({}));
+            // In the reading pane: Close, and Pop Out at the top right, which moves the message
+            // into a window of its own (#286).
+            if window.is_none() {
+                if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
+                    let _ = app.run("compose.close", json!({}));
+                }
+                let pop = crate::widgets::icon_button(ui, "popOut", tl!("Pop Out"), 14.0, true);
+                app.hit.add("composePopOut", 0, pop.rect);
+                if pop.clicked() {
+                    let _ = app.run("compose.popOut", json!({}));
+                }
             }
             let state = if c.dirty {
                 tl!("Not saved")
@@ -253,7 +271,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // A message that just opened has the keyboard: To for a new one, the body for a reply. Not
     // while a dialog is over it: what is typed would go under the dialog, and the keyboard goes
     // back to what had it when the dialog closes (#406).
-    let fresh = !c.dirty && ui.memory(|m| m.focused().is_none() && m.allows_interaction(ui.layer_id()));
+    let fresh = keyboard && !c.dirty && ui.memory(|m| m.focused().is_none() && m.allows_interaction(ui.layer_id()));
+
     let focus_to = fresh && c.to.is_empty();
 
     // From, when there is a choice.

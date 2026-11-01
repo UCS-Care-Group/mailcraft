@@ -5239,6 +5239,11 @@ msgstr "Hell"
 msgid "Limited details: and the titles"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Line Spacing"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -7238,6 +7243,11 @@ msgid "Open Recurring Item"
 msgstr "Serienelement öffnen"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Replies and Forwards in a New Window"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Open Result from the Server"
@@ -7274,6 +7284,11 @@ msgstr "In eigenem Fenster öffnen"
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Open on GitHub"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Open replies and forwards in a new window"
 msgstr ""
 
 #. interface
@@ -7433,6 +7448,11 @@ msgstr ""
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -7537,6 +7557,11 @@ msgstr "Seite {page} von {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Seiten wie diese werden im Browser geöffnet, wo darin enthaltene Skripts ausgeführt werden. Öffnen Sie sie nur, wenn Sie den Absender kennen und die Datei erwarten."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Paragraph"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Paragraphs"
@@ -7565,8 +7590,8 @@ msgstr "Kennwort"
 msgid "Password for {account}"
 msgstr "Kennwort für {account}"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Einfügen"
@@ -7731,6 +7756,13 @@ msgstr "Oben in der Liste anheften"
 msgid "Pinned"
 msgstr "Angeheftet"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Plain\n"
+"Text"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7757,6 +7789,18 @@ msgstr "Zeigen Sie auf eines, um den Grund zu sehen."
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Policy"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Pop\n"
+"Out"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+msgid "Pop Out"
 msgstr ""
 
 #. interface
@@ -8505,6 +8549,11 @@ msgstr "Menüband-Layout"
 msgid "Ribbon Layout"
 msgstr "Menüband-Layout"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Rich Text"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Rich text"
@@ -8770,9 +8819,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-#, fuzzy
-msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr "Geben Sie an, was geöffnet werden soll: `message` oder `event` über die ID, oder `new` (\"appointment\" oder \"meeting\")"
+msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10163,6 +10211,11 @@ msgstr "Straße"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Stronger text and edges, in the light or the dark theme."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Styles"
 msgstr ""
 
 #. interface
@@ -12213,7 +12266,7 @@ msgid "Too many shared mailboxes are listed twice"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/windows.rs
+#: crates/ui-egui/src/compose_window.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Too many windows are open: close one first"
 msgstr "Zu viele Fenster sind geöffnet: Schließen Sie zuerst eines"
@@ -12420,6 +12473,11 @@ msgstr "Nicht gespeicherte Änderungen"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Nicht gespeicherte Nachricht"
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "Untitled"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16033,6 +16091,11 @@ msgid "{service} account"
 msgstr "{service}-Konto"
 
 #. interface
+#: crates/ui-egui/src/windows.rs
+msgid "{subject} - Message"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "{time} ago"
@@ -16115,6 +16178,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
+#~ msgstr "Geben Sie an, was geöffnet werden soll: `message` oder `event` über die ID, oder `new` (\"appointment\" oder \"meeting\")"
 
 #, fuzzy
 #~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."

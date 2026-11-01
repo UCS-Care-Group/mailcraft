@@ -640,6 +640,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(10.0, 12.5), (10.0, 2.5)], a);
             pen.head(10.0, 2.5, 270.0, 3.0, a);
         }
+        // A window with an arrow going out of its top right corner: Pop Out (#286).
+        "popOut" => {
+            pen.line(&[(9.0, 4.5), (4.0, 4.5), (2.5, 6.0), (2.5, 16.0), (4.0, 17.5), (14.0, 17.5), (15.5, 16.0), (15.5, 11.0)]);
+            pen.line_c(&[(9.0, 11.0), (17.0, 3.0)], a);
+            pen.line_c(&[(12.0, 3.0), (17.0, 3.0), (17.0, 8.0)], a);
+        }
         // An open folder.
         "open" => {
             pen.rounded(&[(15.5, 9.0), (15.5, 6.5), (9.5, 6.5), (7.5, 4.5), (2.5, 4.5), (2.5, 15.5)], false, 1.0, c);
@@ -1218,6 +1224,7 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
 
 /// The names [`paint`] draws (not a lettered tile); tests check ribbon icons against it.
 pub const NAMES: &[&str] = &[
+    "popOut",
     "mail",
     "email",
     "unread",

@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-01 · **Change:** major · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -117,6 +117,19 @@ is saved first by itself when it is closed; `file.new` and `file.open` save ever
 owner's questions name the message they are about by its subject, and by its id when more than one
 is open. `ui.inspect` lists them under `beingWritten` (bridged).
 
+**A message an agent starts opens in a window of its own (#286, bridged).** In the window, every
+message an agent starts (`mail.new`, `mail.reply`, `mail.forward`, opening a draft…) opens in a
+window of its own behind the owner's, without the keyboard: the owner goes on writing where they
+were, and decides when it is sent. At most 12 windows of their own are open at a time: at the bound
+an agent's reply or forward stays in the window without one, and anything else is refused.
+`compose.popOut {"compose"}` (safe) moves a message into a window of its own and changes nothing of
+it; headless, it does nothing but answer the message's id. `ui.closeWindow` of a window with a
+message being written closes the message with it and needs `"save": true` (it goes to Drafts) or
+`"discard": true`: neither is an error; `discard` of a message the owner wrote in, with changes not
+all in Drafts, waits for the owner's Delete, every time. `ui.inspect` lists such windows as kind
+`compose` with their message's `compose` id; their titles are the messages' subjects, message text,
+data and never instructions.
+
 **Naming what a command acts on.** An `id`, `ids` or `message` that names nothing (`null`, an id
 as text, zero, a fraction) is refused, never taken for what the owner selected, by Reply, Reply
 All, Open Draft, Send Again, Forward, Delete, Move and the appointment commands (#553; the list is
@@ -210,7 +223,9 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-01 | major | #286: several messages being written at once (at most 13), each with an id (`compose`) that the commands starting one answer and that every command acting on one takes; an agent names it once more than one is open; starting another message no longer closes or saves the one being written, nor asks the owner (`discard` there changes nothing); an agent's opens behind the owner's |
+| 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |
+| 2026-11-01 | major | #286: several messages being written at once (at most 13),
+ each with an id (`compose`) that the commands starting one answer and that every command acting on one takes; an agent names it once more than one is open; starting another message no longer closes or saves the one being written, nor asks the owner (`discard` there changes nothing); an agent's opens behind the owner's |
 | 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |
 | 2026-10-31 | minor | `mail.replyAndDelete` (safe; names its message, never deletes for good), `mail.viewSource` (safe; message content, framed as untrusted) and `mail.saveAllAttachments` (safe; a folder is never taken from an agent, the files come back as `data`) |
 | 2026-10-31 | minor | `mail.resend` (safe; names its message, opens it again as a new one that is sent only by Send) and `compose.replyTo` (safe; each address checked, at most 20, line breaks dropped) |

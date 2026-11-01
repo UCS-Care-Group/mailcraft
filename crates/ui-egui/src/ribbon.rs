@@ -99,10 +99,11 @@ impl From<Mode> for String {
 }
 
 /// The tabs in order. `File` opens Backstage; `Message`, `Insert` and `Review` are there while a
-/// message is being written.
+/// message is being written in the reading pane (a window of its own has them in its ribbon,
+/// [`show_window`]).
 pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     let mut tabs = vec!["File", "Home", "Send / Receive", "Folder", "View", "Help"];
-    if app.session.compose.is_some() {
+    if crate::windows::compose_window::pane_compose(app).is_some() {
         tabs.splice(1..1, ["Message", "Insert", "Review"]);
     }
     tabs
@@ -312,9 +313,15 @@ impl Tab {
 
 /// The tab in view, as the window stands.
 pub(crate) fn describe(app: &MailApp) -> Tab {
-    let (mut tab, which) = match app.ui.tab.as_str() {
+    describe_tab(app, &app.ui.tab)
+}
+
+/// The tab `name`, as the window stands.
+pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
+    let (mut tab, which) = match name {
         "Message" => (message(app), "Message"),
         "Insert" => (insert(), "Insert"),
+        "Format Text" => (format_text(app), "Format Text"),
         "Review" => (review(), "Review"),
         "Send / Receive" => (send_receive(app), "Send / Receive"),
         "Folder" => (folder(app), "Folder"),
@@ -721,6 +728,64 @@ fn message(app: &MailApp) -> Tab {
                 Item::big("saveDraft", "Save\nDraft", "compose.saveDraft", no()).at(6, 2),
                 Item::big("discard", "Discard", "compose.discard", no()).at(6, 3).plain(),
                 Item::big("close", "Close", "compose.close", no()).at(6, 3),
+            ],
+        ),
+        // The reading pane's message into a window of its own (#286; a window's ribbon leaves it out).
+        g("Window", vec![Item::big("popOut", "Pop\nOut", "compose.popOut", no()).at(6, 4)]),
+    ])
+}
+
+/// Format Text, in a window of a message being written (#286): the message's format, and the
+/// text's font and paragraphs, in classic Outlook's groups.
+fn format_text(app: &MailApp) -> Tab {
+    let look = look_now(app);
+    let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
+    let rich = !look.plain;
+    Tab::of(vec![
+        g(
+            "Clipboard",
+            vec![
+                Item::big("paste", "Paste", "edit.paste", no()).at(0, 3),
+                Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(0, 5).plain(),
+            ],
+        ),
+        g(
+            "Format",
+            vec![
+                Item::big("formatHtml", "HTML", "compose.formatHtml", no()).checked(rich).at(1, 2),
+                Item::big("formatPlain", "Plain\nText", "compose.formatPlain", no()).checked(look.plain).at(1, 2),
+                Item::pending("compose.formatRich", "Rich Text", 1),
+            ],
+        ),
+        g(
+            "Font",
+            vec![
+                Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(2, 4).plain(),
+                Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(2, 4).plain(),
+                Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(2, 3).plain(),
+                Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(2, 4).plain(),
+                Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && rich).at(2, 2).plain(),
+                Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && rich).at(2, 2).plain(),
+                Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && rich).at(2, 2).plain(),
+                Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(2, 5).plain(),
+            ],
+        ),
+        g(
+            "Paragraph",
+            vec![
+                Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(3, 3).plain(),
+                Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(3, 3).plain(),
+                Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(3, 4).plain(),
+                Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(3, 4).plain(),
+                Item::pending("format.lineSpacing", "Line Spacing", 3),
+            ],
+        ),
+        g("Styles", vec![Item::pending("format.styles", "Styles", 4)]),
+        g(
+            "Editing",
+            vec![
+                Item::small("find", "Find", "Find", "edit.find", no()).at(5, 4).plain(),
+                Item::small("replace", "Replace", "Replace", "edit.replace", no()).at(5, 5).plain(),
             ],
         ),
     ])
@@ -1929,22 +1994,62 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
 // ---- the ribbon ----
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
-    let t = Tokens::get(ui.ctx());
     let tabs = tabs(app);
     if !tabs.contains(&app.ui.tab.as_str()) {
         app.ui.tab = "Home".into();
     }
+    let current = if app.ui.backstage { String::new() } else { app.ui.tab.clone() };
     // The tabs and the ribbon start beside the module bar, in line with the panes under them.
-    egui::Panel::top("tabs")
+    if let Some((tab, double)) = strip(app, ui, &tabs, &current, egui::Id::unique("tabs")) {
+        let _ = app.run("ui.tab", json!({"tab": tab}));
+        if double && tab != "File" {
+            let _ = app.run("ui.collapseRibbon", json!({}));
+        }
+    }
+    if app.ui.ribbon_collapsed {
+        return;
+    }
+    let tab = describe(app);
+    band(app, ui, &tab, egui::Id::unique("ribbon"));
+}
+
+/// The ribbon of a window of its own with a message being written (#286), numbered `window`:
+/// its tabs Message, Insert, Format Text and Review, of which `tab` is in view, and Search
+/// commands, in the main ribbon's layout (classic or simplified). What it runs acts on the
+/// window's message, which is the current one while the window is laid out.
+pub(crate) fn show_window(app: &mut MailApp, ui: &mut Ui, window: u64, tab: &mut &'static str) {
+    let tabs = crate::windows::compose_window::TABS;
+    if !tabs.contains(tab) {
+        *tab = "Message";
+    }
+    if let Some((chosen, _)) = strip(app, ui, &tabs, tab, egui::Id::unique(("tabs", window)))
+        && let Some(chosen) = tabs.iter().find(|t| **t == chosen)
+    {
+        *tab = chosen;
+    }
+    let mut described = describe_tab(app, tab);
+    // (It is in a window of its own already.)
+    for group in &mut described.groups {
+        group.items.retain(|item| item.command.as_ref().is_none_or(|(id, _)| *id != "compose.popOut"));
+    }
+    band(app, ui, &described, egui::Id::unique(("ribbon", window)));
+}
+
+/// The row of tabs, `current` the one in view, with Search commands at its right end; `id` names
+/// its panel. The tab clicked, and whether it was a double click.
+fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, id: egui::Id) -> Option<(&'static str, bool)> {
+    let t = Tokens::get(ui.ctx());
+    let mut clicked = None;
+    egui::Panel::top(id)
         .exact_size(TAB_H)
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.tab_strip).inner_margin(egui::Margin { left: 3, right: 10, top: 0, bottom: 0 }))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-                for tab in &tabs {
+                for tab in tabs {
                     let shown = tl!(tab);
-                    let active = app.ui.tab == *tab && !app.ui.backstage;
+                    let active = current == *tab;
                     // As wide as its name in the heavier weight, so a tab keeps its place when chosen.
                     let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.to_string(), semibold(TAB_SIZE), t.text).size().x);
                     let w = text_w + 24.0;
@@ -1962,10 +2067,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                         ui.painter().rect_filled(u, 1.0, t.accent_text);
                     }
                     if resp.clicked() {
-                        let _ = app.run("ui.tab", json!({"tab": tab}));
+                        clicked = Some((*tab, false));
                     }
-                    if resp.double_clicked() && *tab != "File" {
-                        let _ = app.run("ui.collapseRibbon", json!({}));
+                    if resp.double_clicked() {
+                        clicked = Some((*tab, true));
                     }
                 }
                 // Search every command by name ("Tell me"), in what the tabs leave of the row: it
@@ -1987,10 +2092,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                 }
             });
         });
-    if app.ui.ribbon_collapsed {
-        return;
-    }
-    let tab = describe(app);
+    clicked
+}
+
+/// The commands of `tab` under the row of tabs, in the layout chosen; `id` names its panel.
+fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
+    let t = Tokens::get(ui.ctx());
     let mode = app.ui.ribbon_mode;
     // The ribbon is a sheet on the window's own colour, with a gap under it before the panes. The
     // commands have the sheet less its edges and the layout button at its right end.
@@ -1999,7 +2106,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         Mode::Simplified => (BAND_H, (BAND_H - BUTTON_H) / 2.0),
     };
     let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + TOP_GAP) as i8, bottom: (edge + SHEET_GAP) as i8 };
-    egui::Panel::top("ribbon")
+    egui::Panel::top(id)
         .exact_size(height + TOP_GAP + SHEET_GAP)
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.tab_strip).inner_margin(margin))
@@ -2015,12 +2122,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                     egui::ScrollArea::horizontal().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
                         ui.horizontal_top(|ui| {
                             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
-                            classic(app, ui, &t, &tab, area.width());
+                            classic(app, ui, &t, tab, area.width());
                         });
                     });
                 }
                 Mode::Simplified => {
-                    simplified(app, ui, &t, &tab, area);
+                    simplified(app, ui, &t, tab, area);
+
                     ui.allocate_rect(area, Sense::hover());
                 }
             }
@@ -2133,7 +2241,10 @@ mod tests {
             }
         }
         for tab in ["Message", "Insert", "Review"] {
-            out.push((tab.to_string(), vec![("view.mail", json!({})), ("mail.new", json!({})), ("ui.tab", json!({"tab": tab}))]));
+            out.push((
+                tab.to_string(),
+                vec![("view.mail", json!({})), ("mail.first", json!({})), ("mail.reply", json!({})), ("ui.tab", json!({"tab": tab}))],
+            ));
         }
         out
     }
@@ -2151,12 +2262,16 @@ mod tests {
             for (command, params) in commands {
                 a.run(command, params).unwrap();
             }
-            let tab = describe(&a);
-            for group in &tab.groups {
-                let texts = std::iter::once(group.title).chain(group.items.iter().flat_map(|i| [i.label, i.tip]));
-                missing.extend(texts.filter(|s| !s.is_empty() && !known.contains(*s)));
+            // (Format Text is in a window of a message being written alone.)
+            let tabs = if a.session.compose.is_some() { vec![describe(&a), describe_tab(&a, "Format Text")] } else { vec![describe(&a)] };
+            for tab in &tabs {
+                for group in &tab.groups {
+                    let texts = std::iter::once(group.title).chain(group.items.iter().flat_map(|i| [i.label, i.tip]));
+                    missing.extend(texts.filter(|s| !s.is_empty() && !known.contains(*s)));
+                }
             }
         }
+
         assert!(missing.is_empty(), "not in messages.pot (run `cargo xtask i18n`): {missing:?}");
     }
 
@@ -2534,11 +2649,12 @@ mod tests {
         harness.run_steps(3);
         assert_eq!(message(&harness).folder, junk);
 
-        // And the main part of that button: New Email starts a message.
+        // And the main part of that button: New Email starts a message, in a window of its own (#286).
         let pos = at(&harness, "ribbon", "mail.new");
         click(&mut harness, pos);
-        assert!(harness.state().session.compose.is_some());
-        assert_eq!(harness.state().ui.tab, "Message");
+        let compose = harness.state().session.compose_id().expect("a message");
+        assert!(harness.state().windows.of_compose(compose).is_some());
+        assert_eq!(harness.state().ui.tab, "Home");
     }
 
     /// The layout is chosen at the right end of the band, in View and by command; it is kept with
