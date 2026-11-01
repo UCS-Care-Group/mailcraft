@@ -172,7 +172,7 @@ impl MailApp {
         self.sync_queue.clear();
         let mailbox = self.session.path.take();
         self.autosave = false;
-        self.session.compose = None;
+        self.session.close_all_composing();
         let Some(host) = self.services.data_wipe.as_ref() else { return Err(String::new()) };
         let mut report = host.erase(mailbox.as_deref());
         // Only now the sign-ins the system remembers: every entry MailCraft noted putting there,

@@ -33,14 +33,14 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
         CommandSpec::new("people.email", "Email", "Home › Communicate", email)
             .pure()
-            .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.meeting", "Meeting", "Home › Communicate", meeting)
             .params(r#"{"id"?: number (the contact; default: the selected one), …the fields of calendar.newMeeting} — a new meeting with the contact invited, beside anyone "attendees" names: calendar.newMeeting, with its rules ("send": true invites them by mail from an account's calendar)"#)
             .selection(needs_contact),
         CommandSpec::new("people.forward", "Forward Contact", "Home › Share", forward)
             .pure()
-            .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one)"#)
@@ -283,8 +283,8 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn email(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
-    // (What is written is saved first, or let go of, as the caller said: `saves_first`.)
-    s.run("mail.new", &json!({"to": to.full(), "discard": p::bool(v, "discard") == Some(true)}))
+    // (Beside a message being written, which stays open as it is: #286.)
+    s.run("mail.new", &json!({"to": to.full()}))
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
@@ -358,7 +358,10 @@ fn forward(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let card = mailcraft_vcard::write(&[&c]);
     let subject = mailcraft_names::shown(&c.name(), 200);
-    s.run("mail.new", &json!({"subject": subject, "discard": p::bool(v, "discard") == Some(true)}))?;
-    s.run("compose.attach", &json!({"name": card_name(&c), "data": super::base64_encode(card.as_bytes()), "mime": "text/vcard"}))?;
-    Ok(json!({"composing": true, "contact": id}))
+    let compose = s.run("mail.new", &json!({"subject": subject}))?["compose"].clone();
+    s.run(
+        "compose.attach",
+        &json!({"name": card_name(&c), "data": super::base64_encode(card.as_bytes()), "mime": "text/vcard", "compose": compose}),
+    )?;
+    Ok(json!({"composing": true, "contact": id, "compose": compose}))
 }

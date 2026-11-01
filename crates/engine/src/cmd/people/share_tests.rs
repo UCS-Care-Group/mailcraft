@@ -60,15 +60,19 @@ fn forward_contact_names_its_contact_strictly() {
 }
 
 #[test]
-fn forward_contact_saves_the_message_being_written_first() {
+fn forward_contact_opens_beside_the_message_being_written() {
     let mut s = session();
     let id = gil(&mut s);
     run(&mut s, "mail.new", json!({}));
     run(&mut s, "compose.set", json!({"subject": "Unsaved", "body": "Half a thought"}));
     let steps = s.history.len();
-    run(&mut s, "people.forward", json!({"id": id}));
-    assert!(s.mailbox.messages.values().any(|m| m.draft && m.subject == "Unsaved"));
-    assert_eq!((s.undo_label(), s.history.len()), (Some("Save Draft"), steps + 1));
+    let r = run(&mut s, "people.forward", json!({"id": id}));
+    // Nothing is let go of (#286), so nothing is saved first; the card goes on the new one.
+    assert!(!s.mailbox.messages.values().any(|m| m.draft && m.subject == "Unsaved"));
+    assert!(s.composing.iter().any(|c| c.dirty && c.subject == "Unsaved" && c.attachments.is_empty()));
+    assert_eq!(s.compose_id(), r["compose"].as_u64());
+    assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1);
+    assert_eq!(s.history.len(), steps);
 }
 
 #[test]

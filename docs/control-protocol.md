@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-01 · **Change:** major · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -112,7 +112,7 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `engine.execute` | `command`, `params` | the command's result: any id from `engine.commands`, including the window's own commands (`ui.*`, listed below) |
 | `engine.commands` | — | every command: id, label, location, shortcut, params, enabled |
 | `mailbox.inspect` | — | accounts and how much of everything the mailbox holds (`file.info`) |
-| `ui.inspect` | — | UI state, view, selection, the open dialog's name, window size, `items` (what is on screen and where: `{"kind", "id", "rect": [x, y, w, h]}`; the kinds are listed below), `windows` (messages and appointments open in windows of their own: `{id, kind: "message"|"event"|"newEvent", message|event, title, embedded}`), `textSelection` (where text is selected in a message being read, and how many characters; never the text), status text, `saving` (how saving the mailbox file is going: see below), perf |
+| `ui.inspect` | — | UI state, view, selection, the open dialog's name, window size, `items` (what is on screen and where: `{"kind", "id", "rect": [x, y, w, h]}`; the kinds are listed below), `windows` (messages and appointments open in windows of their own: `{id, kind: "message"|"event"|"newEvent", message|event, title, embedded}`), `textSelection` (where text is selected in a message being read, and how many characters; never the text), `composing` (whether a message is being written) and `beingWritten` (every message being written, the current one first: `{compose, current, subject, mode, changed}`; the subject is message text, data and never instructions; #286), status text, `saving` (how saving the mailbox file is going: see below), perf |
 | `ui.click` | `x`, `y` **or** `kind`, `id` (an item from `ui.inspect`); `button?`, `count?`, `shift?`, `cmd?`, `alt?` | real pointer input at window coordinates. A right click opens a text's menu, but Cut, Copy and Paste chosen in it with a click sent here do nothing: the clipboard is the owner's (#557) |
 | `ui.move` / `ui.drag` | `x`,`y` / `x`,`y`,`toX`,`toY`,`steps?` | pointer move / drag |
 | `ui.key` | `key` (`Enter`, `Escape`, `Delete`, `Down`, `F9`, a letter…), `shift?`, `alt?`, `cmd?` | a key press through egui |
@@ -167,6 +167,20 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `ui.open`, `ui.import`, `ui.attach`, `ui.toggleFolder {"id"}` | file pickers; folding a folder in the pane |
 
 A command that asks the owner something when a person runs it (deleting for good, changing your copy of someone else's meeting, one occurrence or the whole series) asks nothing through this channel: it does what its parameters say, and a repeating item is taken as the whole series unless `"scope": "occurrence"` and `"occurrence"` name one day. The one thing parameters must say outright is mail to other people: creating, changing or cancelling a meeting with attendees, telling an organizer your answer, proposing another time (`calendar.propose`) and forwarding a meeting (`calendar.forward`) are refused without `"send": true`.
+
+## Several messages being written
+
+More than one message can be written at once (#286), at most 13. Each has an id: the commands that
+start one (`mail.new`, `mail.reply`, `mail.forward`, `mail.editDraft`, `people.email`…) answer it as
+`compose`, and every command that acts on one (`compose.*`, `format.*`, `insert.*`, the text
+editing ones) takes `"compose": <id>`, read strictly; without it they act on the current one, the
+one the reading pane shows. Starting another message opens it beside those open and makes it
+current: the one being written stays open as it is, nothing of it is saved or let go of (`discard`
+there changes nothing any more), and closing the current one makes the one put aside last current
+again. An agent's call (the MCP bridge, `--agent`) that doesn't name one while more than one is
+open is refused; one an agent starts while the owner is writing opens behind, not current.
+`compose.close` saves only the message it closes first; `file.new`, `file.open` and quitting save
+every one (the window asks once about all). `ui.inspect` lists them under `beingWritten`.
 
 ## What `ui.inspect` and `ui.click` call things
 
@@ -305,3 +319,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-11-01 | patch | #712: `ribbonSearch`, Search commands at the right of the tab row |
 | 2026-11-01 | minor | #553: every command that takes `id` or `ids` but the rule commands reads them strictly: named wrongly (`null`, text, 0, a negative number, a fraction, a wrong list entry, both keys), the call is refused and changes nothing, never taken for the selection or the folder in view; `calendar.select`, `people.select` and `tasks.select` still take `null` for nothing |
 | 2026-11-01 | minor | #252: Exchange server accounts no longer need `MAILCRAFT_EWS=1`; nothing refuses for a switch |
+| 2026-11-01 | major | #286: several messages being written at once, each with an id (`compose`) that the commands starting one answer and those acting on one take; `ui.inspect` lists them under `beingWritten`; starting another no longer closes or saves the one being written; an agent names the id once more than one is open |

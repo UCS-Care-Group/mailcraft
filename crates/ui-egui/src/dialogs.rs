@@ -837,21 +837,58 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// Run a command whose question was just answered (it may have another: [`MailApp::run`] asks).
 /// A recurring item that is being opened remembers which of it was meant, for what its form
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
-/// Whether running `id` as the owner asks first (#442): it closes the message being written, or
-/// puts another in its place, and that message has changes that aren't saved, or its saved draft
-/// is gone (#494). A caller that already let them go (`discard`) isn't asked. Another mailbox in
+/// Whether running `id` as the owner asks first (#442): it closes a message being written, and
+/// that message has changes that aren't saved, or its saved draft is gone (#494). (One that starts
+/// another message opens it beside this one, #286.) A caller that already let them go (`discard`) isn't asked. Another mailbox in
 /// view closes it too (#470): File › Open asks once the file is chosen, so a cancelled picker
 /// leaves the message alone, and a file read in the background asks once it is read, as it takes
 /// the place of this mailbox.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
     let choosing = id == "file.open" && (params.get("path").is_none_or(Value::is_null) && params.get("data").is_none_or(Value::is_null));
     // (One that first asks which days asks this once they are chosen.)
-    (mailcraft_engine::cmd::compose::leaves(id) || (mailcraft_engine::cmd::calendar::share::starts_message(id) && input_dialog(id, params).is_none()))
+    mailcraft_engine::cmd::compose::leaves(id)
         && !choosing
         && !(id == "file.open" && crate::opening::reads_ahead(app, params))
         && params.get("discard").and_then(Value::as_bool) != Some(true)
-        && app.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&app.session, c))
+        && unsaved_closed_by(app, id, params) > 0
         && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
+}
+
+/// How many of the messages being written that `id` closes have changes that aren't saved, or a
+/// saved draft that is gone (#494): every one for another mailbox, else the current one.
+pub(crate) fn unsaved_closed_by(app: &MailApp, id: &str, params: &Value) -> usize {
+    let s = &app.session;
+    mailcraft_engine::cmd::compose::closed_by(s, id, params)
+        .into_iter()
+        .filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c))
+        .count()
+}
+
+/// Whether what waits for Unsaved Message closes every message being written (quitting, another
+/// mailbox), not only the current one.
+fn closes_all(then: &str) -> bool {
+    then == "quit" || mailcraft_engine::cmd::compose::REPLACING.contains(&then)
+}
+
+/// Save every message being written with changes that aren't saved (or whose draft is gone) to
+/// Drafts: `false`, with why said, at the first that can't be.
+fn save_all(app: &mut MailApp) -> bool {
+    let s = &app.session;
+    let unsaved: Vec<u64> = s.all_composing().filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)).map(|c| c.id).collect();
+    unsaved.into_iter().all(|id| app.run("compose.saveDraft", json!({"compose": id})).is_ok())
+}
+
+/// Close every message being written without saving it: `false` at the first that can't be.
+fn discard_all(app: &mut MailApp) -> bool {
+    for _ in 0..=mailcraft_engine::composing::MAX_COMPOSING {
+        if app.session.compose.is_none() {
+            return true;
+        }
+        if app.execute("compose.close", json!({"discard": true})).is_err() {
+            return false;
+        }
+    }
+    app.session.compose.is_none()
 }
 
 /// Unsaved Message, asked before `then` (`quit`, or a command of the owner's with `params`).
@@ -863,8 +900,12 @@ pub(crate) fn leaving(then: &str, params: Value) -> Dialog {
 /// what waited for it (`then`: `quit`, or a command with `params`). A draft that can't be saved
 /// leaves the message open, and why is said as any refusal is; Cancel leaves it as it was.
 pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params: Value) {
+    // Quitting and another mailbox close every message being written (#286).
+    let all = closes_all(then);
     let left = match answer {
+        "save" if all => save_all(app),
         "save" => app.run("compose.saveDraft", json!({})).is_ok(),
+        "discard" if all => discard_all(app),
         "discard" => app.execute("compose.close", json!({"discard": true})).is_ok(),
         _ => false,
     };
@@ -1640,7 +1681,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
             // The keyboard goes back to the text.
-            app.body_focus_wanted |= close;
+            if close {
+                app.want_body_focus();
+            }
         }
         Dialog::DateTime { choices, selected, at } => {
             let mut submit = false;
@@ -1690,7 +1733,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 close = true;
             }
             // The keyboard goes back to the text.
-            app.body_focus_wanted |= close;
+            if close {
+                app.want_body_focus();
+            }
         }
         Dialog::WordCount { counts, selection } => {
             let open = window(ctx, tl!("Word Count"), 320.0, |ui| {
@@ -1712,7 +1757,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 });
             });
             close |= !open || enter;
-            app.body_focus_wanted |= close;
+            if close {
+                app.want_body_focus();
+            }
         }
         Dialog::Password { account, password, shown } => {
             let watch = app.secret_watch();
@@ -1857,7 +1904,16 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::DiscardDraft { then, params } => {
             let mut answer: Option<&str> = None;
             let open = window(ctx, tl!("Unsaved Message"), 400.0, |ui| {
-                ui.label(tl!("The message you are writing has changes that aren't saved."));
+                let n = if closes_all(then) { unsaved_closed_by(app, "file.new", params) } else { 1 };
+                if n > 1 {
+                    ui.label(tln!(
+                        n,
+                        "{n} message you are writing has changes that aren't saved.",
+                        "{n} messages you are writing have changes that aren't saved."
+                    ));
+                } else {
+                    ui.label(tl!("The message you are writing has changes that aren't saved."));
+                }
                 ui.add_space(4.0);
                 button_row(ui, |ui| {
                     if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
@@ -1973,7 +2029,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut done = false;
             let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
-            app.body_focus_wanted |= close;
+            if close {
+                app.want_body_focus();
+            }
         }
         Dialog::FindReplace(dialog) => {
             let mut done = false;
@@ -1981,7 +2039,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, title, crate::find_replace::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
             // The keyboard goes back to the text.
-            app.body_focus_wanted |= close;
+            if close {
+                app.want_body_focus();
+            }
         }
         Dialog::ImportTree(dialog) => {
             let mut done = false;

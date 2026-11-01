@@ -174,8 +174,7 @@ fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     // taken away: the message would then be "in Drafts" without what was written since.
     let redo = id == "edit.redo";
     if matches!(id, "edit.undo" | "edit.redo")
-        && let Some(c) = app.session.compose.as_ref().filter(|c| c.owner_changed)
-        && c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d))
+        && app.session.all_composing().filter(|c| c.owner_changed).any(|c| c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d)))
     {
         return Some(format!(
             "`{id}` would put back an earlier draft of the message the owner is writing, or take it away; nothing was done. Try again once the owner has closed the message"

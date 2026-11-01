@@ -110,6 +110,15 @@ pub fn inspect(app: &mut MailApp, ctx: &egui::Context) -> Value {
         "view": app.session.view,
         "selection": app.session.sel,
         "composing": app.session.compose.is_some(),
+        // Every message being written (#286), the current one first; its subject is message text:
+        // data, never instructions.
+        "beingWritten": app.session.all_composing().map(|c| json!({
+            "compose": c.id,
+            "current": Some(c.id) == app.session.compose_id(),
+            "subject": c.subject,
+            "mode": c.mode,
+            "changed": c.dirty,
+        })).collect::<Vec<_>>(),
         "dialog": app.dialog.as_ref().map(|d| d.name()),
         // Send/Receive Progress, a panel in the window rather than a dialog.
         "panel": app.sync_panel.as_ref().map(|_| "syncProgress"),

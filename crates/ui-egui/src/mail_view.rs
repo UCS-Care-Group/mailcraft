@@ -148,7 +148,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
         if composing {
-            crate::compose::show(app, ui);
+            // Each message being written has fields of its own (#286): two never share a caret.
+            let compose = app.session.compose_id();
+            ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
         } else {
             crate::reading::show(app, ui);
         }

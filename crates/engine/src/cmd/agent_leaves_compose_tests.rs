@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An agent doesn't close, replace or throw away the message the owner is writing without asking
-//! (#494): a command that would asks the owner first. A message only the agent changed is the
-//! agent's to leave, headless too: it goes to Drafts first, as #442 made it.
+//! An agent doesn't close or throw away the message the owner is writing without asking (#494): a
+//! command that would asks the owner first. A message only the agent changed is the agent's to
+//! leave, headless too: it goes to Drafts first, as #442 made it. A command that starts another
+//! message opens it beside the owner's, which stays as it is (#286).
 
 use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
@@ -61,11 +62,15 @@ fn draft_with(s: &Session, subject: &str) -> Option<Id> {
     s.mailbox.messages.values().find(|m| m.draft && m.subject == subject).map(|m| m.id)
 }
 
-/// The commands that close the message being written or put another in its place.
-fn leaving(s: &Session) -> Vec<(&'static str, Value)> {
+/// The commands that close the message being written.
+fn leaving(_: &Session) -> Vec<(&'static str, Value)> {
+    vec![("compose.close", json!({}))]
+}
+
+/// The commands that start another message beside it.
+fn starting(s: &Session) -> Vec<(&'static str, Value)> {
     let other = received(s);
     vec![
-        ("compose.close", json!({})),
         ("mail.new", json!({})),
         ("mail.reply", json!({"id": other})),
         ("mail.replyAll", json!({"id": other})),
@@ -108,12 +113,12 @@ fn the_question_names_the_owners_message_and_what_becomes_of_it() {
         let lost = describe(&s, id, &with_discard(params));
         assert!(lost.contains("\u{201c}Mine\u{201d}") && lost.contains("without saving what the owner wrote"), "{id}: {lost}");
     }
-    // And what the agent wants instead.
-    let other = received(&s);
-    let subject = s.mailbox.message(other).unwrap().subject.clone();
-    assert!(describe(&s, "mail.new", &json!({})).starts_with("start a new message in place of"));
-    assert!(describe(&s, "mail.reply", &json!({"id": other})).starts_with(&format!("reply to \u{201c}{subject}\u{201d}")));
     assert!(describe(&s, "compose.close", &json!({})).starts_with("close the message"));
+    // Starting another message takes nothing of the owner's: nobody is asked (#286).
+    for (id, params) in starting(&s) {
+        assert_eq!(classify(&s, id, &params), Access::Safe, "{id}");
+        assert_eq!(classify(&s, id, &with_discard(params)), Access::Safe, "{id}");
+    }
 }
 
 #[test]
@@ -131,7 +136,7 @@ fn what_an_agent_wrote_itself_is_its_own_to_leave() {
         assert_eq!(check(&s, id, &params, &[Class::Delete]), Verdict::Run, "{id}");
     }
     // It goes to Drafts first, as before.
-    as_agent(&mut s, "mail.new", json!({}));
+    as_agent(&mut s, "compose.close", json!({}));
     assert!(draft_with(&s, "The agent's").is_some());
 }
 
@@ -143,19 +148,19 @@ fn the_owners_change_makes_it_theirs_until_it_is_closed() {
     // A command of the owner's that doesn't change the message leaves it the agent's.
     let other = received(&s);
     run(&mut s, "mail.select", json!({"id": other}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Safe);
     run(&mut s, "compose.type", json!({"text": "and the owner "}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
     // Saved, by the owner or by the window's own saving every few minutes, it is still theirs.
     run(&mut s, "compose.saveDraft", json!({}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
     // What the agent does after that doesn't make it the agent's (and it can't change what is
     // written in it, #577).
     s.agent = Some(Vec::new());
     assert!(s.run("compose.set", &json!({"body": "More by the agent"})).is_err());
     s.agent = None;
     as_agent(&mut s, "compose.saveDraft", json!({}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
     // Closed, the next message is nobody's until somebody writes in it.
     run(&mut s, "compose.close", json!({}));
     as_agent(&mut s, "mail.new", json!({}));
@@ -229,18 +234,16 @@ fn discard_and_another_mailbox_ask_the_owner_whatever_is_allowed() {
 }
 
 #[test]
-fn people_email_saves_the_message_first_or_lets_it_go_as_asked() {
+fn people_email_opens_beside_the_message_being_written() {
     let mut s = writing();
     let contact = a_contact(&s);
     let address = s.mailbox.contact(contact).unwrap().address().unwrap().email.clone();
-    run(&mut s, "people.email", json!({"id": contact}));
-    assert!(draft_with(&s, "Mine").is_some(), "saved to Drafts first");
+    let r = run(&mut s, "people.email", json!({"id": contact}));
+    assert!(draft_with(&s, "Mine").is_none(), "nothing is let go of, so nothing is saved first");
+    assert_eq!(s.compose_id(), r["compose"].as_u64());
     assert!(s.compose.as_ref().unwrap().to.contains(&address));
-    // Let go of, it isn't kept.
-    run(&mut s, "compose.set", json!({"subject": "Not kept", "body": "Gone"}));
-    run(&mut s, "people.email", json!({"id": contact, "discard": true}));
-    assert!(draft_with(&s, "Not kept").is_none());
-    assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && c.to.contains(&address)));
+    let mine = s.composing.iter().find(|c| c.subject == "Mine").expect("still open, as it was");
+    assert!(mine.dirty && mine.body.text().to_plain().contains("Half a thought"));
 }
 
 #[test]
@@ -260,16 +263,15 @@ fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
     // Asked every time: whatever the class, no `--allow` is offered as a way round it.
     let asked = needs_owner("compose.discard", Class::Delete, true, "throw away the message");
     assert!(asked.contains("no `--allow` lets an agent do it") && !asked.contains("--allow delete"), "{asked}");
-    let refusal = needs_owner("mail.new", Class::Leave, false, "start a new message");
+    let refusal = needs_owner("compose.close", Class::Leave, false, "close the message");
     assert!(!refusal.contains("mcp --allow") && refusal.contains("every time"), "{refusal}");
 }
 
 #[test]
-fn a_draft_in_a_window_takes_the_owners_message_too() {
+fn a_draft_in_a_window_opens_beside_the_owners_message() {
     let s = writing();
     let draft = a_draft(&s);
-    assert_eq!(classify(&s, "ui.openWindow", &json!({"message": draft})), Access::Asked(Class::Leave));
-    assert!(describe(&s, "ui.openWindow", &json!({"message": draft})).starts_with("open the draft"));
+    assert_eq!(classify(&s, "ui.openWindow", &json!({"message": draft})), Access::Safe);
     assert_eq!(classify(&s, "ui.openWindow", &json!({"message": received(&s)})), Access::Safe);
 }
 
@@ -340,13 +342,13 @@ fn a_message_whose_draft_was_taken_away_is_saved_again_before_an_agent_leaves_it
     as_agent(&mut s, "edit.undo", json!({}));
     assert!(s.mailbox.message(draft).is_none() && !s.compose.as_ref().unwrap().dirty);
     // The question doesn't say it is in Drafts, and `discard` would throw it away.
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
-    let what = describe(&s, "mail.new", &json!({}));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
+    let what = describe(&s, "compose.close", &json!({}));
     assert!(what.ends_with("what isn't saved of it goes to Drafts first"), "{what}");
-    assert_eq!(classify(&s, "mail.new", &json!({"discard": true})), Access::Asked(Class::Delete));
+    assert_eq!(classify(&s, "compose.close", &json!({"discard": true})), Access::Asked(Class::Delete));
     // On the owner's yes it goes to Drafts first.
     s.agent = Some(vec![Class::Leave]);
-    let r = s.run("mail.new", &json!({}));
+    let r = s.run("compose.close", &json!({}));
     s.agent = None;
     r.unwrap();
     assert!(draft_with(&s, "Mine").is_some());
@@ -360,8 +362,8 @@ fn moving_the_cursor_in_the_agents_message_doesnt_make_it_the_owners() {
     run(&mut s, "compose.select", json!({"from": 0, "to": 7}));
     run(&mut s, "compose.select", json!({"from": 3}));
     assert!(!s.compose.as_ref().unwrap().owner_changed);
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Safe);
     // Typing does.
     run(&mut s, "compose.type", json!({"text": "and the owner "}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
 }

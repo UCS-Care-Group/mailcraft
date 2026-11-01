@@ -1271,11 +1271,11 @@ pub struct MailApp {
     pub(crate) advanced_search: Option<advanced_search::Panel>,
     /// Whether the title bar had room for the search box when it was last drawn.
     pub(crate) search_box_shown: bool,
-    /// The Bcc line of the message being written is shown.
-    pub(crate) compose_bcc: bool,
-    /// The body of the message being written takes the keyboard back at its next frame (after a
-    /// ribbon button or a dialog changed its text).
-    pub(crate) body_focus_wanted: bool,
+    /// The messages being written whose Bcc line is shown, by their ids (#286).
+    pub(crate) compose_bcc: std::collections::HashSet<u64>,
+    /// The message being written whose body takes the keyboard back at its next frame (after a
+    /// ribbon button or a dialog changed its text), by its id (#286).
+    pub(crate) body_focus_wanted: Option<u64>,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1616,8 +1616,8 @@ impl MailApp {
             search_focus: false,
             advanced_search: None,
             search_box_shown: false,
-            compose_bcc: false,
-            body_focus_wanted: false,
+            compose_bcc: Default::default(),
+            body_focus_wanted: None,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -1942,9 +1942,24 @@ impl MailApp {
             && (id.starts_with("format.")
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
-            self.body_focus_wanted = true;
+            self.want_body_focus();
         }
         r
+    }
+
+    /// The body of the current message being written takes the keyboard back at its next frame.
+    pub(crate) fn want_body_focus(&mut self) {
+        self.body_focus_wanted = self.session.compose_id();
+    }
+
+    /// Whether the body of the current message being written is to take the keyboard back now; asked once.
+    pub(crate) fn take_body_focus(&mut self) -> bool {
+        self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the Bcc line of the current message being written is shown.
+    pub(crate) fn bcc_shown(&self) -> bool {
+        self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
     }
 
     /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
@@ -2084,8 +2099,10 @@ impl MailApp {
             }
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
+        // (What is remembered of a message being written goes with it.)
+        let open: std::collections::HashSet<u64> = self.session.all_composing().map(|c| c.id).collect();
+        self.compose_bcc.retain(|id| open.contains(id));
         if r.is_ok() && composing != self.session.compose.is_some() {
-            self.compose_bcc = false;
             self.ui.tab = if composing { "Home".into() } else { "Message".into() };
             self.ui.backstage = false;
         }
@@ -4423,7 +4440,7 @@ impl MailApp {
             return true;
         }
         // (Its saved draft gone, what is written is saved nowhere: #494.)
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&self.session, c)) {
+        if dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }

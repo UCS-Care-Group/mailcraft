@@ -24,15 +24,15 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("edit.formatPainter", "Format Painter", "Message › Clipboard", format_painter)
             .pure()
             .params(r#"{"apply"?: bool, "from"?: number, "to"?: number} — copies the look of the selection (or puts away a look copied before); apply: puts the copied look on the selection, or on from–to, as one step, and puts it away. Answers {"copied", "look"}"#)
-            .when(needs_html),
+            .when_writing(needs_html),
         CommandSpec::new("edit.find", "Find", "Format Text › Editing", find)
             .pure()
             .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; answers {"found", "from", "to", "count"} (count: the places in all)"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
             .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "all"?: bool} — puts `with` in place of the selection when it is the text, then selects the next place; all: in place of every one, as one step of the message's undo. Answers {"replaced", "found", "from", "to"}"#)
-            .when(needs_doc),
+            .when_writing(needs_doc),
     ]
 }
 

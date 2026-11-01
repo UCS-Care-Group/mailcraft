@@ -13940,6 +13940,11 @@ msgstr "kein Posteingangsserver"
 msgid "no look was copied: press Format Painter on the text to copy it from first"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "no message being written has the id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
@@ -14068,7 +14073,7 @@ msgstr "nichts von dieser Suche kann beim Server abgefragt werden"
 msgid "nothing to redo"
 msgstr "nichts zu wiederholen"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to redo in the message"
@@ -14080,7 +14085,7 @@ msgstr "in der Nachricht ist nichts zu wiederholen"
 msgid "nothing to undo"
 msgstr "nichts rückgängig zu machen"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to undo in the message"
@@ -15682,6 +15687,18 @@ msgid "{n} message will be deleted for good."
 msgid_plural "{n} messages will be deleted for good."
 msgstr[0] "{n} Nachricht wird endgültig gelöscht."
 msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} message you are writing has changes that aren't saved."
+msgid_plural "{n} messages you are writing have changes that aren't saved."
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs

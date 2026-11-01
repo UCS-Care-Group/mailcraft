@@ -30,7 +30,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
-            .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written with changes that aren't saved is saved to Drafts first. An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
             .selection(super::needs_movable),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
@@ -41,90 +41,102 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.editDraft", "Open Draft", "Mail", edit_draft).pure().params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.resend", "Resend Message", "Home › Actions", resend)
             .pure()
-            .params(r#"{"id"?: number} (default: the selected message) — a message the owner sent, opened again as a new message to send: its recipients, subject, text and files, nothing sent until Send. A message being written with changes that aren't saved is saved to Drafts first. An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .params(r#"{"id"?: number} (default: the selected message) — a message the owner sent, opened again as a new message to send: its recipients, subject, text and files, nothing sent until Send. A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
             .selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number}"#)
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("compose.attach", "Attach File", "Message › Include", attach)
             .pure()
             .params(r#"{"path": string} | {"name": string, "data": base64}, "mime"?: string"#)
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("compose.attachItem", "Attach Item", "Insert › Include", attach_item::attach_item)
             .pure()
             .params(r#"{"id": number} — a message, attached whole as an .eml file (no Bcc, none of the owner's marks)"#)
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("insert.businessCard", "Contact Card", "Insert › Include", attach_item::business_card)
             .pure()
             .params(r#"{"id": number} — a contact, attached as a vCard (.vcf) file"#)
-            .when(needs_compose),
-        CommandSpec::new("compose.removeAttachment", "Remove Attachment", "Message › Include", remove_attachment).pure().params(r#"{"index": number}"#).when(needs_compose),
-        CommandSpec::new("compose.signature", "Signature", "Message › Include", signature).pure().params(r#"{"name"?: string} (default: the account's signature)"#).when(needs_compose),
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.removeAttachment", "Remove Attachment", "Message › Include", remove_attachment).pure().params(r#"{"index": number}"#).when_writing(needs_compose),
+        CommandSpec::new("compose.signature", "Signature", "Message › Include", signature).pure().params(r#"{"name"?: string} (default: the account's signature)"#).when_writing(needs_compose),
         CommandSpec::new("compose.signatureAsText", "Edit Signature as Text", "Message › Include", signature_as_text)
             .pure()
             .params(r#"{"value": bool} (true: an HTML signature's simpler copy is shown and sent in place of the HTML; false: the HTML again, while that copy is unedited)"#)
-            .when(needs_compose),
-        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when(needs_compose),
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
             .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be: contacts first, then people mail was exchanged with, the latest first"#),
         CommandSpec::new("compose.replyTo", "Direct Replies To", "Options › More Options", reply_to)
             .pure()
             .params(r#"{"value": string} — the addresses replies to the message being written go to (its `Reply-To` line), separated by `;` or `,`, at most 20; "" sends replies to the sender again. Each must be an e-mail address"#)
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("compose.readReceipt", "Request a Read Receipt", "Options › Tracking", read_receipt)
             .pure()
             .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
-            .when(needs_compose),
-        CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when(needs_compose),
-        CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when(needs_compose),
-        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when(needs_compose),
-        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when(needs_compose),
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
+        CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
             .key("Escape")
-            .params(r#"{"discard"?: true} (a message with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
-            .when(needs_compose),
-        CommandSpec::new("compose.discard", "Discard", "Message", discard).when(needs_compose),
+            .params(r#"{"discard"?: true, "compose"?: number} (a message with changes that aren't saved is saved to Drafts first, unless `discard`; `compose`: which message being written, default the current one; the one put aside last is current after it)"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.discard", "Discard", "Message", discard).when_writing(needs_compose),
     ]
 }
 
-const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
+const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
 
-const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first, unless discard). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
-/// The commands that close the message being written or put another in its place (#442), People's
-/// Email too, which starts a new one (#494).
-pub const LEAVING: [&str; 10] = [
-    "compose.close",
-    "mail.new",
-    "mail.reply",
-    "mail.replyAll",
-    "mail.replyAndDelete",
-    "mail.forward",
-    "mail.forwardAsAttachment",
-    "mail.editDraft",
-    "mail.resend",
-    "people.email",
-];
+/// The commands that close the message being written (#442). Those that start another (New
+/// Email, Reply, Forward, Open Draft, People's Email…) open it beside this one, which stays open
+/// as it is (#286): nothing of it is let go of, so nothing is saved first.
+pub const LEAVING: [&str; 1] = ["compose.close"];
 
-/// The commands that put another mailbox in place of this one, and close the message being
-/// written with it (#470): it is saved to Drafts first, or the owner asked, as for [`LEAVING`].
+/// The commands that put another mailbox in place of this one, and close every message being
+/// written with it (#470): each is saved to Drafts first, or the owner asked, as for [`LEAVING`].
 pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
 
-/// Whether `id` closes the message being written: [`LEAVING`] or [`REPLACING`].
+/// Whether `id` closes a message being written: [`LEAVING`] or [`REPLACING`].
 pub fn leaves(id: &str) -> bool {
     LEAVING.contains(&id) || REPLACING.contains(&id)
 }
 
-/// Whether running `id` saves the message being written to Drafts first (#442): it leaves the
-/// message, which has changes that aren't saved, and the caller didn't let them go (`discard`).
-/// Nobody who calls a command (an agent, a script) is asked, so [`Session::run`] runs Save Draft
-/// first, as a step of its own: undoing what the command did never takes the draft away. A save
-/// that fails fails the command, and nothing changes. (The window asks the owner first.)
-pub fn saves_first(s: &Session, id: &str, params: &Value) -> bool {
-    leaves(id) && p::bool(params, "discard") != Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty || (s.agent.is_some() && draft_gone(s, c)))
+/// The messages being written that running `id` with `params` closes: the one it names
+/// (`compose`), else the current one, for [`LEAVING`]; every one for [`REPLACING`].
+pub fn closed_by<'a>(s: &'a Session, id: &str, params: &Value) -> Vec<&'a Compose> {
+    if REPLACING.contains(&id) {
+        s.all_composing().collect()
+    } else if LEAVING.contains(&id) {
+        s.compose_named(params).into_iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Whether what is written in `c` isn't all in Drafts: changed since it was saved, or, for an
+/// agent, its draft is gone (#494).
+fn unsaved_for(s: &Session, c: &Compose) -> bool {
+    c.dirty || (s.agent.is_some() && draft_gone(s, c))
+}
+
+/// The messages being written that running `id` saves to Drafts first (#442), by their ids: those
+/// it closes ([`closed_by`]) that have changes that aren't saved, unless the caller let them go
+/// (`discard`). Nobody who calls a command (an agent, a script) is asked, so [`Session::run`] runs
+/// Save Draft first for each, as a step of its own: undoing what the command did never takes a
+/// draft away. A save that fails fails the command, and nothing changes. (The window asks the
+/// owner first.)
+pub fn saves_first(s: &Session, id: &str, params: &Value) -> Vec<u64> {
+    if p::bool(params, "discard") == Some(true) {
+        return Vec::new();
+    }
+    closed_by(s, id, params).into_iter().filter(|c| unsaved_for(s, c)).map(|c| c.id).collect()
 }
 
 /// Whether the draft the message being written was last saved as is no longer there (#494): an
@@ -203,9 +215,9 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         let end = c.body.text().len();
         start_with(&mut c, sig, end)?;
     }
-    s.compose = Some(c);
+    let compose = s.open_compose(c)?;
     s.view.module = crate::Module::Mail;
-    Ok(json!({"composing": true}))
+    Ok(json!({"composing": true, "compose": compose}))
 }
 
 /// The message a command answers, forwards or opens again, whole: its body and its files in
@@ -404,8 +416,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     if let Some(sig) = &sig {
         start_with(&mut c, sig, 1)?;
     }
-    s.compose = Some(c);
-    Ok(json!({"composing": true, "mode": mode}))
+    let compose = s.open_compose(c)?;
+    Ok(json!({"composing": true, "mode": mode, "compose": compose}))
 }
 
 fn reply(s: &mut Session, v: &Value) -> CmdResult {
@@ -532,8 +544,8 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
     if let Some(sig) = &sig {
         start_with(&mut c, sig, 1)?;
     }
-    s.compose = Some(c);
-    Ok(json!({"composing": true, "mode": ComposeMode::Forward}))
+    let compose = s.open_compose(c)?;
+    Ok(json!({"composing": true, "mode": ComposeMode::Forward, "compose": compose}))
 }
 
 /// Whether `ids` can be forwarded as attachments, judged before any of them is read in: at most
@@ -722,8 +734,17 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     if m.unfetched {
         return Err(fail("this draft isn't downloaded yet: open it once you're online, then edit it"));
     }
-    s.compose = Some(Compose { mode: ComposeMode::Draft, draft: Some(m.id), ..reopened(s, &m) });
-    Ok(json!({"composing": true, "draft": m.id}))
+    // Open already, it is that one: two of it would each save over the other.
+    let open = s.all_composing().find(|c| c.draft == Some(m.id)).map(|c| c.id);
+    if let Some(open) = open {
+        // (An agent's call doesn't take it from behind the owner's.)
+        if s.agent.is_none() {
+            s.show_compose(open);
+        }
+        return Ok(json!({"composing": true, "draft": m.id, "compose": open}));
+    }
+    let compose = s.open_compose(Compose { mode: ComposeMode::Draft, draft: Some(m.id), ..reopened(s, &m) })?;
+    Ok(json!({"composing": true, "draft": m.id, "compose": compose}))
 }
 
 /// Resend Message: a message the owner sent, as a new message with what it had (recipients,
@@ -742,9 +763,9 @@ fn resend(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("this message isn't downloaded: open it once you're online, then send it again"));
     }
     let c = reopened(s, &m);
-    s.compose = Some(Compose { mode: ComposeMode::New, dirty: true, ..c });
+    let compose = s.open_compose(Compose { mode: ComposeMode::New, dirty: true, ..c })?;
     s.view.module = crate::Module::Mail;
-    Ok(json!({"composing": true, "from": m.id}))
+    Ok(json!({"composing": true, "from": m.id, "compose": compose}))
 }
 
 /// Most addresses on a `Reply-To` line.

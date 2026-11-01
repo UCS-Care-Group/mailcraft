@@ -15,6 +15,8 @@ mod font_tests;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
+mod several_tests;
+#[cfg(test)]
 mod tests;
 
 const LABEL_W: f32 = 62.0;
@@ -138,7 +140,7 @@ fn suggestions(ctx: &egui::Context, s: &mailcraft_engine::Session, id: egui::Id,
 
 /// Whether the quiet Bcc link is shown (no Bcc line yet).
 fn bcc_link(app: &MailApp) -> bool {
-    app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.compose_bcc
+    app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.bcc_shown()
 }
 
 /// A recipient line, with the recipient suggestions under it ([`recipient_line`]).
@@ -278,7 +280,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let hint = tl!("Names or addresses, separated by ;");
     for (key, label, text, show) in
-        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.compose_bcc)]
+        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.bcc_shown())]
     {
         if !show {
             continue;
@@ -301,8 +303,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         );
         let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
         ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
-        if resp.clicked() {
-            app.compose_bcc = true;
+        if resp.clicked()
+            && let Some(id) = app.session.compose_id()
+        {
+            app.compose_bcc.insert(id);
         }
     }
 

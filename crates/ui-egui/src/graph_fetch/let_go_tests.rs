@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A command that waits for its message to download runs again once it is here (#513). Asked to
-//! let the message being written go (`discard`), it lets go of that one alone, as it was then: a
-//! message opened or changed while it waited is asked about as usual (Unsaved Message), never
-//! thrown away. Nor does what it asks take the place of a form the owner is changing: it waits
-//! for the form to be closed.
+//! A command that waits for its message to download runs again once it is here (#513). A reply
+//! opens beside the message being written, which stays open as it is (#286): a message opened or
+//! changed while it waited is never thrown away nor asked about. Nor does what it asks take the
+//! place of a form the owner is changing: it waits for the form to be closed.
 
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -61,6 +60,11 @@ fn microsoft(app: &mut MailApp) -> (Id, Jobs) {
     (waiting, jobs)
 }
 
+/// The message being written with `subject` is still open, beside the current one, and saved nowhere.
+fn kept_open(app: &MailApp, subject: &str) -> bool {
+    app.session.composing.iter().any(|c| c.subject == subject && c.dirty) && !draft_with(app, subject)
+}
+
 /// Every message asked for comes whole, and the window takes it in.
 fn downloaded(app: &mut MailApp, jobs: &Jobs) {
     answered(jobs);
@@ -96,29 +100,27 @@ fn draft_with(app: &MailApp, subject: &str) -> bool {
 }
 
 #[test]
-fn a_message_opened_while_it_waited_is_asked_about_not_thrown_away() {
+fn a_message_opened_while_it_waited_is_kept_beside_the_reply() {
     let (mut app, waiting, jobs) = window();
     let r = app.run("mail.reply", json!({"id": waiting, "discard": true})).unwrap();
     assert_eq!(r["pending"], "download");
     owner_writes(&mut app, "Started meanwhile");
     downloaded(&mut app, &jobs);
-    assert_eq!(subject(&app).as_deref(), Some("Started meanwhile"), "not thrown away");
-    assert!(matches!(app.dialog, Some(Dialog::DiscardDraft { .. })), "asked as usual");
-    // Save Draft keeps it, and the reply goes on.
-    crate::dialogs::leave_message(&mut app, "save", "mail.reply", json!({"id": waiting}));
-    assert!(draft_with(&app, "Started meanwhile"));
+    assert!(app.dialog.is_none(), "nothing to ask about");
     assert!(subject(&app).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(&app));
+    assert!(kept_open(&app, "Started meanwhile"), "not thrown away");
 }
 
 #[test]
-fn a_message_changed_while_it_waited_is_asked_about() {
+fn a_message_changed_while_it_waited_is_kept_beside_the_reply() {
     let (mut app, waiting, jobs) = window();
     owner_writes(&mut app, "Let go");
     app.run("mail.reply", json!({"id": waiting, "discard": true})).unwrap();
     owner_writes(&mut app, "Let go, but written on");
     downloaded(&mut app, &jobs);
-    assert_eq!(subject(&app).as_deref(), Some("Let go, but written on"));
-    assert!(matches!(app.dialog, Some(Dialog::DiscardDraft { .. })));
+    assert!(app.dialog.is_none());
+    assert!(subject(&app).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(&app));
+    assert!(kept_open(&app, "Let go, but written on"));
 }
 
 #[test]
@@ -160,13 +162,12 @@ fn a_form_being_changed_when_it_came_stays_until_it_is_closed() {
         // Unsaved Message would have taken the form's place, and what was typed in it with it.
         assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "{name}: {:?}", w.state().dialog.as_ref().map(|d| d.name()));
         assert_eq!(subject(w.state()).as_deref(), Some("Mine"), "{name}");
-        // Closed, the reply goes on, and asks about the message being written as usual.
+        // Closed, the reply goes on, beside the message being written.
         w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
         w.run_steps(3);
-        assert!(matches!(w.state().dialog, Some(Dialog::DiscardDraft { .. })), "{name}");
-        crate::dialogs::leave_message(w.state_mut(), "save", "mail.reply", json!({"id": waiting}));
-        assert!(draft_with(w.state(), "Mine"), "{name}");
+        assert!(w.state().dialog.is_none(), "{name}");
         assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{name}: {:?}", subject(w.state()));
+        assert!(kept_open(w.state(), "Mine"), "{name}");
     }
 }
 

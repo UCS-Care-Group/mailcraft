@@ -2419,6 +2419,15 @@ fn hostile_params_never_panic() {
     junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
     junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
     junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Several messages being written (#286): ids of messages being written that are none, of
+    // another kind, the largest there is, and ones open beside others.
+    junk.push(json!({"compose": null, "text": "x"}));
+    junk.push(json!({"compose": "1", "from": 0, "to": 1e300}));
+    junk.push(json!({"compose": -1, "discard": true}));
+    junk.push(json!({"compose": 18446744073709551615u64, "body": "\u{0}"}));
+    junk.push(json!({"compose": [1], "id": 1}));
+    junk.push(json!({"compose": 1, "subject": "\r\nBcc: x@example.org", "discard": true}));
+    junk.push(json!({"compose": 2, "text": "x".repeat(10_000), "from": 18446744073709551615u64}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {
@@ -2434,6 +2443,8 @@ fn hostile_params_never_panic() {
                 let _ = s.run("file.new", &json!({"sample": true}));
                 let first = s.rows().first().map(|r| r.id).unwrap_or(0);
                 let _ = s.run("mail.select", &json!({"id": first}));
+                let _ = s.run("mail.new", &json!({}));
+                // And another beside it, so that `compose` names one that isn't current.
                 let _ = s.run("mail.new", &json!({}));
                 let e = s.mailbox.events.keys().next().copied().unwrap_or(0);
                 let _ = s.run("calendar.select", &json!({"id": e}));

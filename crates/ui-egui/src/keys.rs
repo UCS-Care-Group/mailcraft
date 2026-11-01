@@ -149,7 +149,7 @@ fn suggestions(id: egui::Id) -> LayerId {
 /// Whether a widget types the new lines of a held Enter: a text field (egui's), or the body of a
 /// message being written.
 fn types(ctx: &egui::Context, id: egui::Id) -> bool {
-    egui::text_edit::TextEditState::load(ctx, id).is_some() || id == crate::compose::editor::id()
+    egui::text_edit::TextEditState::load(ctx, id).is_some() || crate::compose::editor::is_body(ctx, id)
 }
 
 /// Which window is active, from what happened since the last gate: a window that came up
