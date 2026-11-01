@@ -589,6 +589,11 @@ msgstr ""
 msgid "Add filters"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Add step"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -7073,7 +7078,7 @@ msgid "Reminders Window"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 msgid "Remove"
 msgstr ""
 
@@ -8805,6 +8810,11 @@ msgid "Status:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+msgid "Steps"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Still indexing: some older mail is searched more slowly"
 msgstr ""
@@ -9840,6 +9850,11 @@ msgstr ""
 msgid "The system's credential store: {key}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks.rs
+msgid "The task steps changed while this editor was open. Reopen the task to edit its current steps."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "The test appointment (\"MailCraft connection check\", a year from today) could not be deleted: please delete it in the calendar. Nothing else was read or changed."
@@ -10490,6 +10505,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
 msgstr ""
 
 #. what a command says

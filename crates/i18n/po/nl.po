@@ -710,6 +710,12 @@ msgstr "Toevoegen als Microsoft-account"
 msgid "Add filters"
 msgstr "Filters toevoegen"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add step"
+msgstr "Stap toevoegen"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8547,7 +8553,7 @@ msgid "Reminders Window"
 msgstr "Herinneringenvenster"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Verwijderen"
@@ -10651,6 +10657,12 @@ msgid "Status:"
 msgstr "Status:"
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Steps"
+msgstr "Stappen"
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Still indexing: some older mail is searched more slowly"
@@ -11897,6 +11909,12 @@ msgstr "De referentieopslag van het systeem is vergrendeld, of het ontgrendelen 
 msgid "The system's credential store: {key}"
 msgstr "De referentieopslag van het systeem: {key}"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "The task steps changed while this editor was open. Reopen the task to edit its current steps."
+msgstr "De taakstappen zijn gewijzigd terwijl deze editor open was. Open de taak opnieuw om de huidige stappen te bewerken."
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -12676,6 +12694,12 @@ msgstr "Het account van dit gedeelde postvak is verdwenen"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Het account van dit gedeelde postvak is verdwenen: verwijder het gedeelde postvak en voeg het opnieuw toe"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr "Deze taak heeft te veel stappen om ze hier te bewerken. Bewerk ze in To Do en synchroniseer opnieuw."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs

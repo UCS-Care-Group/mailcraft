@@ -680,6 +680,12 @@ msgstr ""
 msgid "Add filters"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add step"
+msgstr "Schritt hinzufügen"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8145,7 +8151,7 @@ msgid "Reminders Window"
 msgstr "Erinnerungsfenster"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Entfernen"
@@ -10145,6 +10151,12 @@ msgid "Status:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Steps"
+msgstr "Schritte"
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Still indexing: some older mail is searched more slowly"
@@ -11291,6 +11303,12 @@ msgstr "Der Anmeldeinformationsspeicher des Systems ist gesperrt, oder das Entsp
 msgid "The system's credential store: {key}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "The task steps changed while this editor was open. Reopen the task to edit its current steps."
+msgstr "Die Aufgabenschritte wurden geändert, während dieser Editor geöffnet war. Öffnen Sie die Aufgabe erneut, um die aktuellen Schritte zu bearbeiten."
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -12037,6 +12055,12 @@ msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden: Entfernen Sie das freigegebene Postfach und fügen Sie es erneut hinzu"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This task has too many steps to edit here. Edit them in To Do and sync again."
+msgstr "Diese Aufgabe hat zu viele Schritte, um sie hier zu bearbeiten. Bearbeiten Sie sie in To Do und synchronisieren Sie erneut."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs

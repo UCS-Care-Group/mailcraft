@@ -9,12 +9,36 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Id, Importance, Origin};
 
+/// Most checklist items read in one download or added through a whole-checklist edit.
+pub const MAX_TASK_STEPS: usize = 200;
+/// A merge may retain a full remote checklist and a full set of pending local additions.
+/// Editors and acknowledgements must preserve this union, even above the intake limit.
+pub const MAX_MERGED_TASK_STEPS: usize = MAX_TASK_STEPS * 2;
+
+/// A task's checklist item. The id is server-owned after upload; before that it is local.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TaskStep {
+    pub id: String,
+    pub title: String,
+    pub completed: bool,
+}
+
+impl TaskStep {
+    /// Normalize a checklist identity and its single-line title before keeping or sending it.
+    pub fn tidy(&mut self) {
+        self.id = crate::remote::key(&self.id);
+        self.title = crate::remote::line(&self.title, 255);
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Task {
     pub id: Id,
     pub title: String,
     pub notes: String,
+    pub steps: Vec<TaskStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +68,7 @@ pub struct Task {
     /// is what is left to tell it ([`Task::patch`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced: Option<TaskFields>,
-    /// The server refused to make this to-do: it stays on this computer.
+    /// A change was refused or a step creation was not confirmed: keep changes here until edited.
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
 }
@@ -59,6 +83,7 @@ fn is_false(b: &bool) -> bool {
 pub struct TaskFields {
     pub title: String,
     pub notes: String,
+    pub steps: Vec<TaskStep>,
     pub start: Option<Date>,
     pub due: Option<Date>,
     pub completed: Option<Timestamp>,
@@ -75,6 +100,8 @@ pub struct TaskPatch {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steps: Option<Vec<TaskStep>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<Option<Date>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -104,6 +131,7 @@ impl TaskFields {
         TaskPatch {
             title: diff(&self.title, &base.title),
             notes: diff(&self.notes, &base.notes),
+            steps: diff(&self.steps, &base.steps),
             start: diff(&self.start, &base.start),
             due: diff(&self.due, &base.due),
             completed: diff(&self.completed, &base.completed),
@@ -125,6 +153,9 @@ impl TaskFields {
         }
         if let Some(v) = &patch.notes {
             self.notes = v.clone();
+        }
+        if let Some(v) = &patch.steps {
+            self.steps = v.clone();
         }
         if let Some(v) = patch.start {
             self.start = v;
@@ -150,8 +181,29 @@ impl TaskFields {
     /// Per field: what `here` has when it was changed since `base` (this is `base`), else what
     /// `there` has. The three-way merge a download makes with a to-do that was changed here.
     pub fn merged(&self, here: &TaskFields, there: &TaskFields) -> TaskFields {
-        let mine = here.since(self);
-        there.clone().after(&mine)
+        let mut mine = here.since(self);
+        mine.steps = None;
+        let mut merged = there.clone().after(&mine);
+        // Merge each step independently. An edit to one must not replace additions or
+        // changes to another on the server; a deletion here wins over an edit there.
+        merged.steps.retain(|step| !self.steps.iter().any(|base| base.id == step.id) || here.steps.iter().any(|local| local.id == step.id));
+        for local in &here.steps {
+            let base = self.steps.iter().find(|base| base.id == local.id);
+            if base == Some(local) {
+                continue;
+            }
+            if let Some(remote) = merged.steps.iter_mut().find(|remote| remote.id == local.id) {
+                if base.is_none_or(|base| base.title != local.title) {
+                    remote.title = local.title.clone();
+                }
+                if base.is_none_or(|base| base.completed != local.completed) {
+                    remote.completed = local.completed;
+                }
+            } else {
+                merged.steps.push(local.clone());
+            }
+        }
+        merged
     }
 }
 
@@ -159,6 +211,7 @@ impl TaskPatch {
     fn with_all(mut self, f: &TaskFields) -> TaskPatch {
         self.title = Some(f.title.clone());
         self.notes = Some(f.notes.clone());
+        self.steps = Some(f.steps.clone());
         self.start = Some(f.start);
         self.due = Some(f.due);
         self.completed = Some(f.completed);
@@ -248,6 +301,7 @@ impl Task {
     pub fn same_on_server(&self, other: &Task) -> bool {
         self.title == other.title
             && self.notes == other.notes
+            && self.steps == other.steps
             && self.start == other.start
             && self.due == other.due
             && self.completed == other.completed
@@ -264,6 +318,7 @@ impl Task {
         TaskFields {
             title: self.title.clone(),
             notes: self.notes.clone(),
+            steps: self.steps.clone(),
             start: self.start,
             due: self.due,
             completed: self.completed,
@@ -277,6 +332,7 @@ impl Task {
     pub fn set_fields(&mut self, fields: TaskFields) {
         self.title = fields.title;
         self.notes = fields.notes;
+        self.steps = fields.steps;
         self.start = fields.start;
         self.due = fields.due;
         self.completed = fields.completed;

@@ -16,7 +16,7 @@ mod status_tests;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("tasks.new", "New Task", "Home › New", new).key("Mod+Shift+K").params(TASK),
-        CommandSpec::new("tasks.edit", "Edit Task", "Task", edit).params(r#"{"id"?: number, …the fields of tasks.new}"#).selection(needs_task),
+        CommandSpec::new("tasks.edit", "Edit Task", "Task", edit).params(r#"{"id"?: number, "stepsBase"?: [step] (when sending steps, refuse if the current checklist differs), …the fields of tasks.new}"#).selection(needs_task),
         CommandSpec::new("tasks.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_task),
         CommandSpec::new("tasks.complete", "Mark Complete", "Home › Manage Task", complete)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -39,7 +39,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected task). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const TASK: &str = r#"{"title": string, "notes"?: string, "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
+const TASK: &str = r#"{"title": string, "notes"?: string, "steps"?: [{"id"?: string (existing step only), "title": string, "completed"?: bool}] (whole checklist), "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null}"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
     if s.sel.task.is_none() { Some("select a task first") } else { None }
@@ -50,9 +50,38 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
-fn apply(s: &Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
+/// Validate and apply explicit task fields; oversized merges may be edited or reduced, never expanded.
+fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
     if let Some(title) = p::str(v, "title") {
         t.title = title.replace(['\r', '\n'], " ").trim().chars().take(500).collect();
+    }
+    if let Some(value) = v.get("steps") {
+        if let Some(base) = v.get("stepsBase") {
+            let base: Vec<mailcraft_model::TaskStep> = serde_json::from_value(base.clone()).map_err(|_| bad("`stepsBase` must be a checklist"))?;
+            if base != t.steps {
+                return Err(fail("The task steps changed while this editor was open. Reopen the task to edit its current steps."));
+            }
+        }
+        let mut steps: Vec<mailcraft_model::TaskStep> =
+            serde_json::from_value(value.clone()).map_err(|_| bad("`steps` must be a list of {id?, title, completed?}"))?;
+        let limit = mailcraft_model::MAX_TASK_STEPS.max(t.steps.len().min(mailcraft_model::MAX_MERGED_TASK_STEPS));
+        if steps.len() > limit || steps.len() > mailcraft_model::MAX_TASK_STEPS && steps.iter().any(|step| step.id.is_empty()) {
+            return Err(bad("too many task steps"));
+        }
+        let mut seen = std::collections::HashSet::new();
+        for step in &mut steps {
+            if !step.id.is_empty() && !t.steps.iter().any(|old| old.id == step.id) {
+                return Err(bad("a step id must belong to this task; omit the id for a new step"));
+            }
+            if step.id.is_empty() {
+                step.id = format!("local:{}", s.mailbox.alloc_id());
+            }
+            step.tidy();
+            if step.title.is_empty() || !seen.insert(step.id.clone()) {
+                return Err(bad("steps need titles and unique ids"));
+            }
+        }
+        t.steps = steps;
     }
     if let Some(n) = p::str(v, "notes") {
         t.notes = n.to_string();
@@ -144,9 +173,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
+/// The task fields returned by commands, including every stored checklist item.
 fn task_json(s: &Session, t: &Task) -> Value {
     json!({
-        "id": t.id, "title": t.title, "notes": t.notes, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
+        "id": t.id, "title": t.title, "notes": t.notes, "steps": t.steps, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
         "complete": t.is_complete(), "completed": t.completed.map(mailcraft_time::format_iso_utc), "overdue": t.is_overdue(s.today()),
         "dueLabel": t.due_label(s.today()), "importance": t.importance, "categories": t.categories, "message": t.message,
         "reminder": t.reminder.map(|r| s.local(r).iso()),
