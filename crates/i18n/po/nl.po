@@ -248,6 +248,11 @@ msgstr ""
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount. Alleen op deze computer bewaard"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy

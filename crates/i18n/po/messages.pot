@@ -208,6 +208,11 @@ msgstr ""
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "A copy of the mailbox is being saved for a switch already: wait for it to finish."
