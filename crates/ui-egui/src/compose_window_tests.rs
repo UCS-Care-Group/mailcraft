@@ -158,7 +158,9 @@ fn new_email_opens_in_a_window_of_its_own() {
     for tab in crate::windows::compose_window::TABS {
         assert!(h.state().hit.rect_in(w, "ribbonTab", crate::ribbon::hit_id(tab)).is_some(), "{tab}");
     }
-    assert!(h.state().hit.rect_in(w, "ribbon", crate::ribbon::hit_id("compose.send")).is_some());
+    // Send is beside its lines, not in its ribbon too.
+    assert!(h.state().hit.rect_in(w, "composeSend", 0).is_some());
+    assert!(h.state().hit.rect_in(w, "ribbon", crate::ribbon::hit_id("compose.send")).is_none());
     assert!(h.state().hit.rect_in(w, "ribbon", crate::ribbon::hit_id("compose.popOut")).is_none(), "nothing to pop out of");
     type_text(&mut h, "maya@lumen.example");
     assert_eq!(h.state().session.composing_by_id(compose).map(|c| c.to.as_str()), Some("maya@lumen.example"));
@@ -197,8 +199,7 @@ fn pop_out_moves_the_reading_panes_message_into_a_window() {
     assert_eq!(windows(&mut h)[0]["title"], "Inline - Message");
     // By command too, for another: one that has a window already only comes forward.
     let other = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
-    // (Named: a script's call that names none acts on the window that has the keyboard's.)
-    let answer = script(&mut h, "compose.popOut", json!({"compose": other}));
+    let answer = script(&mut h, "compose.popOut", json!({}));
     assert_eq!((answer["compose"].as_u64(), answer["window"].as_u64()), (Some(other), h.state().windows.of_compose(other)));
     assert_eq!(script(&mut h, "ui.openWindow", json!({"compose": other}))["window"].as_u64(), h.state().windows.of_compose(other));
     assert_eq!(h.state().windows.len(), 2);
@@ -589,6 +590,39 @@ fn at_the_bound_a_double_clicked_draft_in_the_reading_pane_stays_there() {
     let said = script(&mut h, "ui.openWindow", json!({"message": draft}));
     assert_eq!(said["compose"], compose, "{said}");
     assert_eq!((pane(&h), h.state().windows.of_compose(compose)), (Some(compose), None));
+}
+
+#[test]
+fn a_message_a_script_starts_stays_current_for_its_next_call_while_the_owner_is_elsewhere() {
+    let mut h = window(app());
+    // The owner wrote in a window of their own, then went to another program: the window keeps
+    // the keyboard as far as MailCraft knows.
+    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    script(&mut h, "compose.set", json!({"compose": mine, "subject": "Half written"}));
+    // A script starts a message, and goes on with it without naming it.
+    let theirs = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    assert_eq!(pane(&h), Some(theirs));
+    script(&mut h, "compose.set", json!({"subject": "The script's"}));
+    let subject = |c: u64| h.state().session.composing_by_id(c).map(|c| c.subject.clone()).unwrap_or_default();
+    assert_eq!((subject(mine), subject(theirs)), ("Half written".to_string(), "The script's".to_string()));
+}
+
+#[test]
+fn an_agents_command_never_takes_the_reading_pane_from_the_owners_message() {
+    let mut h = window(app());
+    // A message put aside, saved to Drafts, and the owner's in the reading pane.
+    let aside = script(&mut h, "mail.new", json!({"subject": "Put aside"}))["compose"].as_u64().unwrap();
+    script(&mut h, "compose.set", json!({"compose": aside, "body": "Earlier"}));
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    let mine = owner(&mut h, "mail.reply", json!({"id": message}))["compose"].as_u64().unwrap();
+    assert_eq!(pane(&h), Some(mine));
+    let draft = h.state().session.composing_by_id(aside).and_then(|c| c.draft).expect("saved first");
+    // An agent opens that draft again: it is current for the agent, the reading pane stays the owner's.
+    let said = agent(h.state_mut(), "mail.editDraft", json!({"id": draft}), Class::ALL.to_vec()).expect("done at once");
+    assert_eq!(said["ok"], true, "{said}");
+    assert_eq!(pane(&h), Some(mine));
+    h.run_steps(3);
+    assert_eq!(pane(&h), Some(mine));
 }
 
 #[test]

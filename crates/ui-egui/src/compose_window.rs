@@ -117,6 +117,8 @@ pub(crate) fn after_run(app: &mut MailApp, id: &str, before: &[u64], r: Result<V
     };
     let mut window = None;
     let agent = app.session.agent.is_some();
+    // (What it made current goes back to the owner's on the next frame, [`follow_focus`].)
+    app.windows.restore |= agent;
     if id == "compose.popOut"
         && let Some(compose) = answer.get("compose").and_then(Value::as_u64)
     {
@@ -297,10 +299,12 @@ pub(super) fn follow_focus(app: &mut MailApp, ctx: &egui::Context) {
             None => None,
         }
     };
+    let mut changed = false;
     if let Some(target) = target
         && target != app.windows.focus
     {
         app.windows.focus = target;
+        changed = true;
         if let Some(compose) = target
             && let Some(w) = app.windows.open.iter_mut().find(|w| w.what.compose() == Some(compose))
         {
@@ -308,10 +312,13 @@ pub(super) fn follow_focus(app: &mut MailApp, ctx: &egui::Context) {
             w.behind = false;
         }
     }
-    // Every frame, not only when the keyboard moves: what opened meanwhile (an agent's message,
-    // behind) doesn't stay current, so the menu bar, a picked or dropped file and a key all act on
-    // the message of the window that has the keyboard.
-    if let Some(want) = self::target(app) {
+    // When the keyboard moved, and after an agent's command: what an agent opened behind doesn't
+    // stay current, so the menu bar, a key and a dropped file act on the message of the window
+    // that has the keyboard. Not otherwise: a message a script just started stays current for
+    // the script's next call, until the owner moves (#286).
+    if (changed || std::mem::take(&mut app.windows.restore))
+        && let Some(want) = self::target(app)
+    {
         app.session.show_compose(want);
     }
 }

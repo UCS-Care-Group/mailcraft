@@ -153,6 +153,10 @@ pub struct Windows {
     focus: Option<u64>,
     /// Where the next message being written that a command opens goes ([`compose_window::hint`]).
     pub(crate) place: Option<Opens>,
+    /// An agent's command ran: the message of the window with the keyboard is made current again
+    /// on the next frame, so what the agent opened behind doesn't stay current
+    /// ([`compose_window::follow_focus`]).
+    pub(crate) restore: bool,
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,

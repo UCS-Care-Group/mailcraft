@@ -125,8 +125,8 @@ owner's. At most 12 windows of their own are open at a time: at the bound every 
 starts is refused (opening a draft already being written isn't: it stays where it is).
 `compose.popOut {"compose"}` (safe) moves a message into a window of its own, behind the owner's
 when an agent asks, and changes nothing of it; headless, it does nothing but answer the message's
-id. A call that names no message acts on the one in the window that has the keyboard, or else the
-reading pane's.
+id. After an agent's call, the current message is again the one in the window that has the
+keyboard, or else the reading pane's: an agent names the message it means.
  `ui.closeWindow` of a window with a
 message being written closes the message with it and needs `"save": true` (it goes to Drafts) or
 `"discard": true`: neither is an error; `discard` of a message the owner wrote in, with changes not

@@ -411,9 +411,11 @@ pub fn local_path(text: &str) -> String {
 pub(crate) fn drain_inbox(app: &mut MailApp) {
     let Some(inbox) = app.services.inbox.clone() else { return };
     let files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
+    // What the picker was opened for is what every file it delivered is for.
+    let asked = if files.is_empty() { None } else { app.pending_open.take() };
     for (name, bytes) in files {
-        let (purpose, asking) =
-            app.pending_open.take().unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
+        let (purpose, asking) = asked.clone().unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
+
         let data = encode(&bytes);
         let r = match purpose.as_str() {
             "mailbox" => app.run("file.open", json!({"name": name, "data": data})),

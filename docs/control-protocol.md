@@ -200,14 +200,16 @@ keyboard, and never takes the reading pane. At most 12 windows of their own are 
 every kind together (12 and the reading pane's are the 13 messages): at the bound the owner's reply
 or forward stays in the reading pane, a draft already being written stays where it is, and
 anything else (every message an agent starts) is refused, said in the status bar for the owner.
-From one frame to the next, the current message is the one in the window that has the keyboard,
-or else the reading pane's: what an agent opens behind doesn't stay current, and the menu bar,
-Search commands, a file picked or dropped and a script's call that names no message act on it
-(from the main window without a message in its reading pane, the commands that act on a message
-being written are off). A file asked for by Attach or Insert › Pictures goes to the message that
-asked, wherever the keyboard is by then. A window's ribbon has the tabs Message, Insert, Format
-Text and Review, in the main ribbon's layout, with Search commands, and Send beside the To line
-(no bar of actions over it); what it runs acts on its own message, and so do its keys (Ctrl+Enter,
+When the keyboard moves to another window (or to the main one), its message becomes the current
+one (the main window's: the reading pane's), and so it does again after every call of an agent's:
+what an agent opens behind doesn't stay current, and the menu bar, Search commands and keys act on
+the message of the window that has the keyboard (from the main window without a message in its
+reading pane, the commands that act on a message being written are off). Otherwise what a call
+made current stays so: a script's next call that names no message acts on the message it just
+started. A file asked for by Attach or Insert › Pictures goes to the message that asked, wherever
+the keyboard is by then. A window's ribbon has the tabs Message, Insert, Format Text and Review,
+in the main ribbon's layout, with Search commands, and Send beside the To line rather than in its
+ribbon (no bar of actions over it); what it runs acts on its own message, and so do its keys (Ctrl+Enter,
 Ctrl+S, Ctrl+K…). Closing such a
 
 window with changes asks Save (to Drafts), Don't Save or Cancel; without changes it closes at once.

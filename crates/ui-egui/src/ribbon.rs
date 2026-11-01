@@ -2028,10 +2028,12 @@ pub(crate) fn show_window(app: &mut MailApp, ui: &mut Ui, window: u64, tab: &mut
         *tab = chosen;
     }
     let mut described = describe_tab(app, tab);
-    // (It is in a window of its own already.)
+    // (It is in a window of its own already; and Send is beside its lines, as a message's window
+    // has it in classic Outlook, not in its ribbon too.)
     for group in &mut described.groups {
-        group.items.retain(|item| item.command.as_ref().is_none_or(|(id, _)| *id != "compose.popOut"));
+        group.items.retain(|item| item.command.as_ref().is_none_or(|(id, _)| !matches!(*id, "compose.popOut" | "compose.send")));
     }
+    described.groups.retain(|group| !group.items.is_empty());
     band(app, ui, &described, egui::Id::unique(("ribbon", window)));
 }
 
