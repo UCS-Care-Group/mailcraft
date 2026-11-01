@@ -166,11 +166,6 @@ impl MailApp {
         {
             errors.push(crate::i18n::fmt(tl!("The calendar changes couldn't be taken in: {error}"), &[("error", &e.to_string())]));
         }
-        if let Some(uploaded) = &result.uploaded_contacts
-            && let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded)
-        {
-            errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
-        }
         if let Some(calendars) = &result.calendars {
             let mut calendars = calendars.clone();
             calendars.account = account;
@@ -207,6 +202,14 @@ impl MailApp {
             if let Err(e) = remote::apply_contacts(&mut self.session, &contacts) {
                 errors.push(crate::i18n::fmt(tl!("The contacts couldn't be taken in: {error}"), &[("error", &e.to_string())]));
             }
+        }
+        // After the list, never before: the list was read before the contact was sent, so it
+        // cannot know the URL the send has just given it. Applying the URL first would make the
+        // empty list take the new contact for one the server no longer has.
+        if let Some(uploaded) = &result.uploaded_contacts
+            && let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded)
+        {
+            errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
         }
         if self.session.mailbox.account(account).is_some() {
             self.note_sync_problems(account, &errors, false);

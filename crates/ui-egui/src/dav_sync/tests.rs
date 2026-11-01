@@ -4,8 +4,11 @@
 
 use super::*;
 use mailcraft_engine::Session;
-use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, RemoteCalendar, RemoteContact, RemoteEvent};
-use mailcraft_model::{Account, AccountKind, Calendar, DavServer, Mailbox, Origin, Security, Server};
+use mailcraft_model::remote::{
+    CalendarsDownload, ContactOp, ContactOutcome, ContactsDownload, ContactsUploaded, EventResult, EventsDownload, RemoteAddressBook, RemoteCalendar,
+    RemoteContact, RemoteEvent,
+};
+use mailcraft_model::{Account, AccountKind, Calendar, Contact, DavServer, Mailbox, Origin, Rights, Security, Server};
 use serde_json::json;
 use std::sync::mpsc;
 
@@ -146,4 +149,49 @@ fn an_event_made_here_is_asked_for_at_once() {
     app.execute("calendar.new", json!({"title": "Now"})).unwrap();
     assert!(app.dav.requested.contains(&account), "the change asks for a run");
     assert!(app.dav_tick_at(1_800_000_000_000.0), "the run starts");
+}
+
+#[test]
+fn a_contact_sent_is_not_taken_away_by_the_list_read_before_it() {
+    let (mut app, account) = app();
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    let id = app.session.mailbox.add_contact(Contact {
+        first: "Ada".into(),
+        uid: "one-uid".into(),
+        book: "My contacts".into(),
+        book_id: book.into(),
+        origin: Origin { account, ..Default::default() },
+        ..Default::default()
+    });
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    let remote = format!("{book}one-uid.vcf");
+    tx.send(DavResult {
+        account,
+        // The read ran before the send, so it cannot know the contact was just made.
+        contacts: Some(ContactsDownload {
+            account,
+            email: "ada@example.org".into(),
+            complete: true,
+            books: vec![RemoteAddressBook { id: book.into(), name: "My contacts".into(), rights: Rights::Edit }],
+            contacts: Vec::new(),
+        }),
+        uploaded_contacts: Some(ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: ContactOp { contact: id, book: book.into(), uid: "one-uid".into(), card: String::new(), ..Default::default() },
+                result: EventResult::Done,
+                remote: remote.clone(),
+                status: 201,
+                ..Default::default()
+            }],
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    let contact = app.session.mailbox.contact(id).expect("the just-sent contact stays");
+    assert_eq!(contact.origin.id, remote);
+    assert_eq!(app.session.mailbox.contact_books[0].name, "My contacts");
 }
