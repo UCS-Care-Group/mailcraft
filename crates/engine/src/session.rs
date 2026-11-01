@@ -2788,11 +2788,13 @@ impl Session {
         // the folder in view) has no copy of it taken: copying the map of a few hundred thousand
         // messages, comparing it afterwards and letting it go took longer than the command, at
         // every keystroke of a search. The guard against a panic can't put the mailbox back for
-        // one, and needn't: it changes nothing of it (in tests the copy is taken and that claim is
-        // checked). An agent's command is copied whatever it is: what it did is checked against
-        // the copy.
-        let light = spec.reads && self.agent.is_none() && !cfg!(test);
+        // one, and needn't: it changes nothing of it (in tests that claim is checked against a
+        // copy of its own, `claimed`, so that the tests run the path the program runs). An
+        // agent's command is copied whatever it is: what it did is checked against the copy.
+        let light = spec.reads && self.agent.is_none();
         let before = if light { self.snapshot_light(spec.label) } else { self.snapshot(spec.label) };
+        #[cfg(test)]
+        let claimed = spec.reads.then(|| self.mailbox.clone());
         // What was counted of the mailbox is counted again after the command, and by a command
         // that changes the mailbox and then asks of its list ([`Session::folder_counts`]).
         if spec.mutates {
@@ -2817,6 +2819,15 @@ impl Session {
                 before.mailbox.messages.insert(swap.id, swap.new.clone());
             }
         }
+        #[cfg(test)]
+        let claimed = claimed.map(|mut claimed| {
+            for swap in &swaps.list {
+                if claimed.messages.get(&swap.id).is_some_and(|m| Arc::ptr_eq(m, &swap.old)) {
+                    claimed.messages.insert(swap.id, swap.new.clone());
+                }
+            }
+            claimed
+        });
         if let Some(outer) = &mut self.swaps {
             for swap in swaps.list {
                 outer.push(swap);
@@ -2882,7 +2893,7 @@ impl Session {
                     crate::cmd::calendar_settings::forget_gone_hours(self);
                 }
                 #[cfg(test)]
-                assert!(!spec.reads || self.mailbox == before.mailbox, "`{id}` says it reads (`CommandSpec::reads`) but changed the mailbox");
+                assert!(claimed.is_none_or(|claimed| self.mailbox == claimed), "`{id}` says it reads (`CommandSpec::reads`) but changed the mailbox");
                 if !light && self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);
                     // Read marks alone: the list and the counts stand, put right ([`Session::read_marks_only`]).
