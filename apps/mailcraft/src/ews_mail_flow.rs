@@ -100,8 +100,7 @@ fn answer(mut stream: TcpStream, standin: &StandIn, url: &str) -> std::io::Resul
 
 /// A window with one Exchange server account on `server`, and the host's own runners.
 fn window(server: &Server) -> (MailApp, Id) {
-    let mut session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
-    session.ews = true;
+    let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
     (app.autosave, app.auto_sync) = (false, false);
     let ctx = egui::Context::default();
@@ -264,16 +263,6 @@ fn a_password_the_server_turns_down_is_forgotten_and_asked_for_again() {
     app.dialog = None;
     send_receive(&mut app, json!({"account": account, "password": PASSWORD}));
     assert!(here(&app, account, "Kickoff").is_some());
-}
-
-#[test]
-fn nothing_is_read_while_the_switch_is_off() {
-    let server = serve();
-    let (mut app, account) = window(&server);
-    app.session.ews = false;
-    let said = app.execute("ui.sync", json!({"account": account, "password": PASSWORD})).unwrap_err();
-    assert!(said.contains("MAILCRAFT_EWS=1"), "{said}");
-    assert!(server.standin.state().requests.is_empty());
 }
 
 #[test]
