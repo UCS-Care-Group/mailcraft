@@ -234,3 +234,48 @@ fn the_widths_are_the_widths_drawn() {
         }
     }
 }
+
+#[test]
+fn search_commands_gives_way_before_the_tabs() {
+    use super::fit::{SEARCH_GAP, SEARCH_ICON_W, Search, search};
+    assert_eq!(search(200.0, 140.0), Search::Named);
+    assert_eq!(search(140.0 + SEARCH_GAP, 140.0), Search::Named);
+    assert_eq!(search(140.0, 140.0), Search::Icon);
+    assert_eq!(search(SEARCH_ICON_W + SEARCH_GAP, 140.0), Search::Icon);
+    assert_eq!(search(SEARCH_ICON_W, 140.0), Search::Hidden);
+    assert_eq!(search(-10.0, 140.0), Search::Hidden);
+    assert_eq!(search(f32::NAN, 140.0), Search::Hidden);
+}
+
+/// Search commands never covers a tab (#712): at every width from 600 to 2000, at 100 %, 150 %
+/// and 200 %, on every set of tabs, it is to the right of the last one with room between them, or
+/// not there; and both its forms are seen.
+#[test]
+fn search_commands_never_covers_a_tab() {
+    let (mut named, mut icon) = (false, false);
+    for percent in [100, 150, 200] {
+        let mut harness = window(percent);
+        for (name, commands) in every_tab() {
+            for (command, params) in commands {
+                harness.state_mut().run(command, params).unwrap();
+            }
+            for width in (600..=2000).rev().step_by(20) {
+                harness.set_size(vec2(width as f32, 700.0));
+                harness.run_steps(3);
+                let name = format!("{name} at {width} px, {percent} %");
+                let app = harness.state();
+                let Some(search) = app.hit.rect("ribbonSearch", 0) else { continue };
+                let tabs: Vec<egui::Rect> = super::tabs(app).iter().filter_map(|tab| app.hit.rect("ribbonTab", hit_id(tab))).collect();
+                assert!(!tabs.is_empty(), "{name}: no tabs");
+                let last = tabs.iter().map(|r| r.max.x).fold(f32::MIN, f32::max);
+                assert!(search.min.x >= last + 7.5, "{name}: Search commands at {search:?}, the tabs end at {last}");
+                if search.width() > 30.0 {
+                    named = true;
+                } else {
+                    icon = true;
+                }
+            }
+        }
+    }
+    assert!(named && icon, "Search commands was not seen both with its name ({named}) and as the magnifier alone ({icon})");
+}
