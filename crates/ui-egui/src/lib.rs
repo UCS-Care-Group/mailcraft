@@ -174,6 +174,7 @@ mod view_source;
 mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
+pub mod window_places;
 pub mod windows;
 #[cfg(test)]
 mod writing_tools_tests;
@@ -204,10 +205,13 @@ pub struct Services {
     /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
     /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
     pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
-    /// Web: open a file picker; the file arrives later through `inbox`. The argument says what
-    /// for (`mailbox`, `import`, `attach`).
+    /// Web: open a file picker; the file arrives later through `picked`. The argument says what
+    /// for (`mailbox`, `import`, `attach`). A picker that is cancelled delivers nothing.
     pub open_async: Option<Box<dyn Fn(&str)>>,
-    /// Files (name, bytes) delivered asynchronously (the web picker, drag and drop).
+    /// Files (name, bytes) the picker of `open_async` delivered, each for what it was opened for.
+    pub picked: Option<Inbox>,
+    /// Files (name, bytes) delivered asynchronously otherwise (dropped in the browser): each goes
+    /// where its kind says, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -782,6 +786,9 @@ pub struct UiState {
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
     pub window: Option<window_geometry::WindowGeometry>,
+    /// Desktop: the size and place each kind of window of its own last had (#286), for the next
+    /// one of its kind.
+    pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
     /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
@@ -869,6 +876,7 @@ impl Default for UiState {
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
+            window_places: Default::default(),
             language: i18n::AUTO.into(),
             options: mailcraft_engine::Prefs::default(),
             view: mailcraft_engine::ViewState::default(),
@@ -1509,8 +1517,9 @@ pub struct MailApp {
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
     last_autosave: f64,
-    /// When the draft being written was last saved by itself (ms; 0: not since it was opened).
-    draft_saved_at: f64,
+    /// When the messages being written were last saved by themselves, by the session's clock
+    /// (seconds; `None`: none has had changes since one was opened).
+    draft_saved_at: Option<i64>,
     saved_rev: u64,
     /// How far the background saver has got with what it was handed, as of this frame (`None`:
     /// nothing waiting or being written).
@@ -1537,7 +1546,8 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
-    /// Web: what the file the picker will deliver is for.
+    /// Web: what the file the picker will deliver is for ([`Services::picked`]): a picker that was
+    /// cancelled leaves it until the next one is opened, and it is never what a dropped file is for.
     pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
@@ -1724,7 +1734,7 @@ impl MailApp {
             push_only_next: Default::default(),
             push_seen: Default::default(),
             last_autosave: 0.0,
-            draft_saved_at: 0.0,
+            draft_saved_at: None,
             saved_rev,
             save_progress: None,
             closing_after_save: None,
@@ -1773,6 +1783,18 @@ impl MailApp {
         ui.view.search.clear();
         ui.view.people_search.clear();
         ui
+    }
+
+    /// Whether a window of its own is about to open as a window of the system: the host lists the
+    /// monitors connected now for it ([`MailApp::set_monitors`]), so that it opens on one (#286).
+    pub fn wants_monitors(&self) -> bool {
+        self.windows.wants_monitors()
+    }
+
+    /// The monitors connected now, in points ([`window_geometry::monitors_in_points`]), for the
+    /// windows about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<egui::Rect>) {
+        self.windows.monitors = Some(monitors);
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
@@ -4070,39 +4092,33 @@ impl MailApp {
     /// Save a moment after the last change: to the mailbox file on the desktop (through the
     /// host's background saver when it has one, so the window never waits for the disk), to the
     /// host's storage in the browser. A failure shows in the status bar and is tried again later.
-    /// A draft of a Microsoft account that is being written is saved every five minutes while
-    /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
-    fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
-        const EVERY_MS: f64 = 5.0 * 60_000.0;
-        if self.session.compose.is_none() {
-            self.draft_saved_at = 0.0;
-            return;
-        }
-        // Every message being written, the ones put aside too (#286).
-        let mb = &self.session.mailbox;
-        let due: Vec<u64> = self
-            .session
-            .all_composing()
-            .filter(|c| c.dirty && mb.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft))
-            .map(|c| c.id)
-            .collect();
+    /// Every message being written that has changes, the ones in windows, put aside or in the
+    /// reading pane, is saved to Drafts every five minutes, for every kind of account, as Save
+    /// Draft saves it (#286): a Microsoft or Exchange account's goes up to its server with the
+    /// next Send/Receive (R3.4.1), another's is kept in Drafts here. The clock is the session's.
+    /// It is saved as the owner's Save Draft is, which leaves what is written in it as it was: a
+    /// message an agent is writing doesn't become the owner's by being saved (#577).
+    pub(crate) fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
+        const EVERY_SECS: i64 = 5 * 60;
+        let due: Vec<u64> = self.session.all_composing().filter(|c| c.dirty).map(|c| c.id).collect();
         if due.is_empty() {
+            // The five minutes start again with the next change.
+            self.draft_saved_at = None;
             return;
         }
-        let now = now_ms();
-        if self.draft_saved_at == 0.0 {
-            self.draft_saved_at = now;
-        }
-        let waited = now - self.draft_saved_at;
-        if waited >= EVERY_MS {
-            self.draft_saved_at = now;
+        let now = self.session.now();
+        let since = *self.draft_saved_at.get_or_insert(now);
+        let waited = now.saturating_sub(since);
+        if !(0..EVERY_SECS).contains(&waited) {
+            self.draft_saved_at = Some(now);
             for compose in due {
                 if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose})) {
-                    log::info!("the draft couldn't be saved by itself: {e}");
+                    log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
                 }
             }
         } else {
-            ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
+            let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
+            ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }
     }
 

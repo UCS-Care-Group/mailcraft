@@ -183,6 +183,33 @@ fn files_arriving_from_the_browser_go_where_they_belong() {
 }
 
 #[test]
+fn a_file_dropped_after_the_browsers_picker_was_cancelled_goes_where_its_kind_says() {
+    let mut a = app();
+    let (inbox, picked): (crate::Inbox, crate::Inbox) = Default::default();
+    (a.services.inbox, a.services.picked) = (Some(inbox.clone()), Some(picked.clone()));
+    a.services.open_async = Some(Box::new(|_| {}));
+    a.execute("mail.new", json!({})).unwrap();
+    // Attach opens the picker, and the owner cancels it: nothing is delivered. Then the message
+    // is closed.
+    a.run("compose.attach", json!({})).unwrap();
+    crate::files::drain_inbox(&mut a);
+    a.run("compose.close", json!({"discard": true})).unwrap();
+    // A calendar file dropped next is brought in, not taken for the attachment asked for.
+    let events = a.session.mailbox.events.len();
+    let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:drop-1@example.org\r\nDTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Dropped\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    inbox.lock().unwrap().push(("dropped.ics".into(), ics.to_vec()));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.mailbox.events.len(), events + 1, "{:?}", a.status_msg);
+    // What the picker delivers is for what it was opened for: an attachment, whatever it is.
+    let compose = a.execute("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
+    a.run("compose.attach", json!({})).unwrap();
+    picked.lock().unwrap().push(("invite.ics".into(), ics.to_vec()));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.composing_by_id(compose).map(|c| c.attachments.len()), Some(1));
+    assert_eq!(a.session.mailbox.events.len(), events + 1);
+}
+
+#[test]
 fn saved_settings_come_back_and_bad_ones_are_tamed() {
     let mut a = app();
     a.execute("ui.theme", json!({"value": "dark"})).unwrap();

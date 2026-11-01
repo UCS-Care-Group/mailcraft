@@ -42,6 +42,7 @@ use crate::forms::kit::Host;
 use crate::forms::{Ask, Form, Verdict};
 use crate::reading::Place;
 use crate::theme::{Tokens, semibold};
+use crate::window_places::{self, Kind};
 use crate::{MailApp, keys};
 
 /// Most windows open at a time.
@@ -117,6 +118,15 @@ impl What {
     fn dirty(&self) -> bool {
         self.form().is_some_and(Form::dirty)
     }
+
+    /// The kind of window it is, as its place is remembered.
+    fn kind(&self) -> Kind {
+        match self {
+            What::Message { .. } | What::File { .. } => Kind::Message,
+            What::Compose { .. } => Kind::Compose,
+            What::Event { .. } => Kind::Appointment,
+        }
+    }
 }
 
 /// A window that is open.
@@ -135,6 +145,13 @@ pub(crate) struct Open {
     asking: bool,
     /// What its form is asked to do when it is next laid out (the answer to that question).
     ask: Option<Ask>,
+    /// A window of the system: the size it opened at and where (`None`: where the system put it),
+    /// once that is settled ([`window_places::place_new`]).
+    start: Option<(egui::Vec2, Option<egui::Pos2>)>,
+    /// It waited a frame for the host's list of monitors before it opened.
+    waited: bool,
+    /// Its size and place as the system last said.
+    seen: Option<window_places::Place>,
 }
 
 /// The windows that are open, in the order they were opened or brought forward.
@@ -160,6 +177,9 @@ pub struct Windows {
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,
+    /// The monitors connected now, in points, as the host listed them this frame for a window
+    /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
+    pub(crate) monitors: Option<Vec<egui::Rect>>,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -208,7 +228,19 @@ impl Windows {
 
     fn add(&mut self, what: What) -> u64 {
         self.last = self.last.saturating_add(1);
-        self.open.push(Open { id: self.last, what, raise: true, behind: false, embedded: true, title: String::new(), asking: false, ask: None });
+        self.open.push(Open {
+            id: self.last,
+            what,
+            raise: true,
+            behind: false,
+            embedded: true,
+            title: String::new(),
+            asking: false,
+            ask: None,
+            start: None,
+            waited: false,
+            seen: None,
+        });
         self.last
     }
 
@@ -240,6 +272,12 @@ impl Windows {
     /// How many windows have something in them that was changed and is not saved.
     pub fn unsaved(&self) -> usize {
         self.open.iter().filter(|w| w.what.dirty()).count()
+    }
+
+    /// Whether a window of the system is about to open, which the host lists the monitors for
+    /// ([`MailApp::set_monitors`]).
+    pub fn wants_monitors(&self) -> bool {
+        self.open.iter().any(|w| w.start.is_none() && !w.embedded)
     }
 }
 
@@ -831,13 +869,32 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     // Inside the main window the active one is the one of them that has the keyboard: the one
     // last clicked or typed in (#406), not the one in front.
     let active = crate::keys::active(ctx);
+    // Where the last window of each kind that is open is, for the next to cascade from.
+    let mut last: Vec<(Kind, egui::Rect)> = Vec::new();
+    for w in &open {
+        if let Some(rect) = placed(w) {
+            last.retain(|(k, _)| *k != w.what.kind());
+            last.push((w.what.kind(), rect));
+        }
+    }
     let mut kept = Vec::with_capacity(open.len());
     for mut window in open {
         window.embedded = embedded;
         window.title = title(app, &window.what);
         // A dialog of the main window is answered first: it has the keyboard.
         let behind = embedded && (active != embedded_layer(window.id) || app.dialog.is_some());
-        let closed = if embedded { show_embedded(app, ctx, &mut window, behind) } else { show_native(app, ctx, &mut window) };
+        let closed = if embedded {
+            show_embedded(app, ctx, &mut window, behind)
+        } else {
+            let kind = window.what.kind();
+            let of_kind = last.iter().find(|(k, _)| *k == kind).map(|(_, r)| *r);
+            let closed = show_native(app, ctx, &mut window, of_kind);
+            if let Some(rect) = placed(&window) {
+                last.retain(|(k, _)| *k != kind);
+                last.push((kind, rect));
+            }
+            closed
+        };
         if closed {
             app.windows.out.retain(|(w, _)| *w != window.id);
         } else {
@@ -845,6 +902,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
     }
     app.windows.out.clear();
+    // A list of monitors is for the frame it was made in.
+    app.windows.monitors = None;
     // What ran inside may have opened more: nothing twice, and no more than there may be.
     for new in std::mem::take(&mut app.windows.open) {
         let twice = |window: &Open| {
@@ -996,15 +1055,39 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
     builder
 }
 
-/// A window of the system. `true` when it is to close.
-fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> bool {
+/// Where a window of the system is, or opens: as the system last said, else where it was put.
+fn placed(window: &Open) -> Option<egui::Rect> {
+    let started = window.start.and_then(|(size, at)| Some(egui::Rect::from_min_size(at?, size)));
+    window.seen.and_then(|p| p.rect()).or(started)
+}
+
+/// A window of the system. `last`: where the last other window of its kind that is open is, for
+/// it to cascade from when it opens. `true` when it is to close.
+fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: Option<egui::Rect>) -> bool {
     let viewport = viewport_of(window.id);
-    let size = match window.what.form() {
-        None if window.what.compose().is_some() => compose_window::SIZE,
-        None => MESSAGE_SIZE,
-        Some(form) => [form.window_width(), FORM_HEIGHT],
-    };
+    let kind = window.what.kind();
+    if window.start.is_none() {
+        // The host lists the monitors in the frame after a window was asked for: it waits for
+        // them one frame, no more (a host that lists none has the system place it).
+        if app.windows.monitors.is_none() && !std::mem::replace(&mut window.waited, true) {
+            ctx.request_repaint();
+            return false;
+        }
+        let default = match window.what.form() {
+            None if window.what.compose().is_some() => compose_window::SIZE,
+            None => MESSAGE_SIZE,
+            Some(form) => [form.window_width(), FORM_HEIGHT],
+        };
+        let monitors = app.windows.monitors.as_deref().unwrap_or(&[]);
+        let min = vec2(MIN_SIZE[0], MIN_SIZE[1]);
+        window.start = Some(window_places::place_new(app.ui.window_places.get(kind), default.into(), min, last, monitors));
+    }
+    let (size, at) = window.start.unwrap_or((vec2(MESSAGE_SIZE[0], MESSAGE_SIZE[1]), None));
     let builder = egui::ViewportBuilder::default().with_title(window.title.clone()).with_inner_size(size).with_min_inner_size(MIN_SIZE);
+    let builder = match at {
+        Some(at) => builder.with_position(at),
+        None => builder,
+    };
     // One an agent opened comes up behind the owner's window, without the keyboard (#286).
     let builder = like_main(ctx, if window.behind { builder.with_active(false) } else { builder });
     if std::mem::take(&mut window.raise) {
@@ -1027,6 +1110,14 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
             crate::keys::gate(&ctx, waits);
         }
         let wish = keys_of(&ctx, window, ui.layer_id());
+        // Where it is now is where the next of its kind opens (#286).
+        if let Some(place) = ctx.input(|i| window_places::Place::of(i.viewport()))
+            && !inside
+            && window.seen != Some(place)
+        {
+            window.seen = Some(place);
+            app.ui.window_places.set(kind, place);
+        }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });

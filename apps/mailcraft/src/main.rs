@@ -184,6 +184,10 @@ impl eframe::App for App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             }
         }
+        // A window of its own about to open is put on a monitor that is connected (#286).
+        if self.0.wants_monitors() {
+            self.0.set_monitors(connected_monitors(ctx, frame));
+        }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
