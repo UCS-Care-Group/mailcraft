@@ -98,7 +98,7 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(_) => return Err(bad("`auth` is password or oauth2")),
     }
     let provider = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
@@ -139,7 +139,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         _ => return Err(bad(format!("\"{email}\" isn't an e-mail address"))),
     };
     let asked = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     // The owner says whose the account is: that settles it.
@@ -153,6 +153,9 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let exchangers = v.get("mx").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     let by_mx = || exchangers.iter().take(20).filter_map(Value::as_str).find_map(provider::by_mx);
     let (found, via) = match (asked, own) {
+        // Explicitly choosing Google OAuth beats an app-password provider preset.
+        // Ordinary discovery without that choice keeps the password flow.
+        (Some(OAuthProvider::Google), own) => (Some(provider::google(own.is_some_and(|p| p.service == "Gmail"))), "asked"),
         _ if named.is_some() => (named, "asked"),
         // Said to be Microsoft's: Outlook.com when the domain is, work or school mail otherwise.
         (Some(OAuthProvider::Microsoft), own) => {

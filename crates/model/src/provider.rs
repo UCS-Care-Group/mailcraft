@@ -46,6 +46,19 @@ pub fn microsoft(consumer: bool) -> Preset {
     }
 }
 
+/// Gmail or Google Workspace, when the owner explicitly chooses Google OAuth (#232).
+/// Automatic discovery remains app-password-based until desktop sign-in is ready.
+pub fn google(consumer: bool) -> Preset {
+    let name = if consumer { "Gmail" } else { "Google Workspace" };
+    Preset {
+        service: name,
+        oauth: Some(OAuthProvider::Google),
+        incoming: server("imap.gmail.com", 993, Security::Tls),
+        outgoing: server("smtp.gmail.com", 465, Security::Tls),
+        note: "Google sign-in opens the provider's page; MailCraft does not ask for your Google password.",
+    }
+}
+
 /// Whether `host` is the IMAP server of Microsoft's own mail (Exchange Online, Outlook.com).
 pub fn is_microsoft_imap_host(host: &str) -> bool {
     let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
