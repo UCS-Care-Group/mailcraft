@@ -407,14 +407,21 @@ pub fn local_path(text: &str) -> String {
     }
 }
 
-/// Files that arrived asynchronously (the web picker, drops in the browser).
+/// Files that arrived asynchronously: from the web picker, each for what it was opened for, and
+/// dropped in the browser, each for what its kind says. A picker that was cancelled delivers
+/// nothing, so what it was opened for is never what a dropped file is taken for.
 pub(crate) fn drain_inbox(app: &mut MailApp) {
-    let Some(inbox) = app.services.inbox.clone() else { return };
-    let files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
+    let take = |inbox: &Option<crate::Inbox>| {
+        inbox.as_ref().map(|inbox| std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()))).unwrap_or_default()
+    };
+    let picked = take(&app.services.picked);
     // What the picker was opened for is what every file it delivered is for.
-    let asked = if files.is_empty() { None } else { app.pending_open.take() };
-    for (name, bytes) in files {
-        let (purpose, asking) = asked.clone().unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
+    let asked = if picked.is_empty() { None } else { app.pending_open.take() };
+    let picked = picked.into_iter().map(|file| (file, asked.clone()));
+    let dropped = take(&app.services.inbox).into_iter().map(|file| (file, None));
+    let files: Vec<_> = picked.chain(dropped).collect();
+    for ((name, bytes), asked) in files {
+        let (purpose, asking) = asked.unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
 
         let data = encode(&bytes);
         let r = match purpose.as_str() {
