@@ -674,6 +674,17 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_mail_goes_to_a_server() {
     let m = arriving(&mut s, account, "digest@news.example", "x");
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"folder": deleted, "id": m})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"folder": deleted, "id": m, "server": false})), Access::Owner(Class::Settings));
+    // So is moving it into a folder under Deleted Items, at any depth; a folder elsewhere isn't.
+    let under = s.mailbox.add_folder(account, Some(deleted), "Old").unwrap();
+    let deeper = s.mailbox.add_folder(account, Some(under), "Older").unwrap();
+    let elsewhere = s.mailbox.add_folder(account, None, "Kept").unwrap();
+    for (folder, class) in [(under, Class::Delete), (deeper, Class::Delete), (elsewhere, Class::Settings)] {
+        s.mailbox.folder_mut(folder).unwrap().server = Some(ServerFolder { id: format!("f{folder}"), ..Default::default() });
+        let moves = json!({"actions": [{"type": "moveTo", "value": folder}]});
+        assert_eq!(classify(&s, "rules.add", &params(account, moves)), Access::Owner(class), "{folder}");
+    }
+    let m = arriving(&mut s, account, "digest@news.example", "y");
+    assert_eq!(classify(&s, "rules.fromMessage", &json!({"folder": deeper, "id": m})), Access::Owner(Class::Delete));
 }
 
 #[test]

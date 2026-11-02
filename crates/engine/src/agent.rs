@@ -863,11 +863,12 @@ fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) ->
 /// delete it again itself (#566).
 fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     let named = || p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r));
-    // Moving mail into Deleted Items is deleting it.
+    // Moving mail into Deleted Items, or a folder under it, is deleting it.
+    let binned = |id: &Id| s.mailbox.folders.iter().filter(|f| f.kind == FolderKind::Deleted).any(|f| s.mailbox.subtree(f.id).contains(id));
     let deletes = |r: &mailcraft_model::Rule| {
         r.actions.iter().any(|a| match a {
             mailcraft_model::Action::Delete => true,
-            mailcraft_model::Action::MoveTo(f) => s.mailbox.folder(*f).is_some_and(|f| f.kind == FolderKind::Deleted),
+            mailcraft_model::Action::MoveTo(f) => binned(f),
             _ => false,
         })
     };
