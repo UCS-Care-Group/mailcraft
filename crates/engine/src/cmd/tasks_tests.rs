@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::tasks::{new_task_place, shown_account};
 use super::tasks_remote::{local_task_count, merge_tasks, task_upload};
-use crate::agent::{Access, Class, classify};
+use crate::agent::{Access, Class, Verdict, check, classify, describe};
 use crate::{Session, TaskFilter};
 
 const NOW: i64 = 1_790_000_000;
@@ -352,7 +352,39 @@ fn an_agent_is_asked_before_a_task_goes_to_an_account() {
     let message = s.mailbox.messages.keys().copied().next().unwrap();
     s.mailbox.message_mut(message).unwrap().account = home;
     assert_eq!(classify(&s, "tasks.fromMessage", &json!({"id": message})), ask);
-    assert!(crate::agent::describe(&s, "tasks.fromMessage", &json!({"id": message})).contains("home@example.org"));
+    assert!(describe(&s, "tasks.fromMessage", &json!({"id": message})).contains("home@example.org"));
+}
+
+#[test]
+fn an_agent_is_asked_however_it_names_the_message() {
+    let (mut s, work, home) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    let ask = Access::Owner(Class::Send);
+    let mut ids = s.mailbox.messages.keys().copied();
+    let (message, other) = (ids.next().unwrap(), ids.next().unwrap());
+    s.mailbox.message_mut(message).unwrap().account = home;
+    s.mailbox.message_mut(other).unwrap().account = work;
+    s.sel.messages.clear();
+    assert_eq!(classify(&s, "tasks.fromMessage", &json!({"id": message})), ask);
+    assert_eq!(classify(&s, "tasks.fromMessage", &json!({"ids": [message]})), ask);
+    // The message the owner is on says nothing for the one named.
+    s.sel.messages = vec![other];
+    assert_eq!(classify(&s, "tasks.fromMessage", &json!({"ids": [message]})), ask);
+    assert_eq!(classify(&s, "tasks.fromMessage", &json!({})), Access::Safe);
+    assert!(describe(&s, "tasks.fromMessage", &json!({"ids": [message]})).contains("home@example.org"));
+    // Named wrongly, nothing can be said of where it goes: it isn't taken for the selection, and
+    // the owner isn't asked about it.
+    for wrong in [
+        json!({"ids": [message, other]}),
+        json!({"ids": []}),
+        json!({"id": null}),
+        json!({"id": message.to_string()}),
+        json!({"id": other, "ids": [message]}),
+    ] {
+        assert_eq!(classify(&s, "tasks.fromMessage", &wrong), ask, "{wrong}");
+        assert!(matches!(check(&s, "tasks.fromMessage", &wrong, &[Class::Send]), Verdict::Refuse(_)), "{wrong}");
+        assert!(s.run("tasks.fromMessage", &wrong).is_err(), "{wrong}");
+    }
 }
 
 #[test]

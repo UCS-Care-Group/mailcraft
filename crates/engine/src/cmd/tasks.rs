@@ -126,16 +126,17 @@ fn place_of_message(s: &Session, message: &Message) -> Option<Id> {
 }
 
 /// Where the task `id` would make with `v` goes, for the agent gate: `None` when it makes none or
-/// nobody has said.
-pub fn place_of(s: &Session, id: &str, v: &Value) -> Option<Id> {
+/// nobody has said. The message is read as [`from_message`] reads it, so one named wrongly is an
+/// error here too.
+pub fn place_of(s: &Session, id: &str, v: &Value) -> Result<Option<Id>, CmdError> {
     match id {
-        "tasks.new" if v.get("title").is_some_and(|title| !title.is_null()) => place_of_new(s, v).ok().flatten(),
+        "tasks.new" if v.get("title").is_some_and(|title| !title.is_null()) => Ok(place_of_new(s, v).ok().flatten()),
         "tasks.fromMessage" => {
-            let message = p::id(v, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m))?;
+            let Some(message) = p::message_strict(v)?.or(s.sel.focus()).and_then(|m| s.mailbox.message(m)) else { return Ok(None) };
             let made = s.mailbox.tasks.values().any(|t| t.message == Some(message.id));
-            if made { None } else { place_of_message(s, message) }
+            Ok(if made { None } else { place_of_message(s, message) })
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 

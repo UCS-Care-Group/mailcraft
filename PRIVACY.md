@@ -81,7 +81,7 @@ computer, for you, and for nothing else:
   done go to your own Microsoft account and come back from it, and nowhere else. It is never asked for
   on a sign-in page, so signing in for mail never waits on it: it is asked for by itself, for a new account
   and an old one alike, the first time its tasks would be kept in step, after the program has asked you,
-  and File › Info shows whether it was given. Until it is, tasks stay on this computer and nothing of them is sent. Even then, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. After a yes, the tasks you make from then on are kept in step too;
+  and File › Info shows whether it was given. Until it is, tasks stay on this computer and nothing of them is sent. Even then, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
 - reading and changing the mail of shared mailboxes you have been given access to, if you open one;
 - sending from a shared mailbox, asked for by itself the first time you send from one (an

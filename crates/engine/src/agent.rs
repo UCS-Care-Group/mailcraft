@@ -763,9 +763,11 @@ fn unsaved(params: &Value) -> bool {
 
 /// The account whose To Do a to-do made by `id` would go to, unless it is the account the owner
 /// sent their local to-dos to. That answer is the owner's alone, where an agent can move the list
-/// and with it the place a new to-do goes.
+/// and with it the place a new to-do goes. A message named wrongly says nothing of where the to-do
+/// would go, so it counts as going elsewhere: 0, no account in particular.
 fn new_task_onto(s: &Session, id: &str, params: &Value) -> Option<Id> {
-    let place = crate::cmd::tasks::place_of(s, id, params).filter(|place| *place != 0)?;
+    let Ok(place) = crate::cmd::tasks::place_of(s, id, params) else { return Some(0) };
+    let place = place.filter(|place| *place != 0)?;
     (crate::cmd::tasks_remote::tasks_home(&s.mailbox) != Some(place)).then_some(place)
 }
 
@@ -955,6 +957,12 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         {
             return Verdict::Refuse(format!("`{id}`: {e}"));
         }
+    }
+    // Add to Tasks may take the selection, but a message named wrongly is refused all the same.
+    if id == "tasks.fromMessage"
+        && let Err(e) = p::message_strict(params)
+    {
+        return Verdict::Refuse(format!("`{id}`: {e}"));
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
