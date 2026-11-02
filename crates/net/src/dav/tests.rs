@@ -112,6 +112,37 @@ fn hostile_xml_gives_nothing_and_never_panics() {
 }
 
 #[test]
+fn a_change_to_an_event_named_only_by_its_path_reaches_the_server() {
+    use mailcraft_model::remote::{EventChangeKind, EventFields, EventOp, EventsUpload};
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e-1\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20261012T130000Z\r\nDTEND:20261012T140000Z\r\nSUMMARY:Before\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nContent-Type: text/calendar\r\nContent-Length: {}\r\n\r\n{}", ics.len(), ics).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        zone: "UTC".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Update,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics".into(),
+            fields: EventFields { title: Some("After".into()), ..Default::default() },
+            ..Default::default()
+        }],
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Done);
+    assert_eq!(uploaded.outcomes[0].remote, "/caldav/ada%40example.org/Calendar/e-1.ics");
+    assert!(server.request(0).starts_with("GET /caldav/ada%40example.org/Calendar/e-1.ics HTTP/1.1\r\n"), "{}", server.request(0));
+    assert!(server.request(1).starts_with("PUT /caldav/ada%40example.org/Calendar/e-1.ics HTTP/1.1\r\n"), "{}", server.request(1));
+    assert!(server.request(1).contains("SUMMARY:After\r\n"), "{}", server.request(1));
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()

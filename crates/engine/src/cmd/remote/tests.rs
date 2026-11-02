@@ -1353,6 +1353,23 @@ fn snapshot_without_changes(s: &Session) -> mailcraft_model::Mailbox {
 }
 
 #[test]
+fn an_event_is_matched_when_the_server_names_a_different_url() {
+    let (mut s, account, first, _, calendar) = served();
+    let absolute = "https://mail.example.org/caldav/ada%40example.org/Calendar/e-1.ics";
+    s.mailbox.event_mut(first).unwrap().origin.id = absolute.into();
+    let merged = apply_events(
+        &mut s,
+        &october(account, vec![remote("/caldav/ada%40example.org/Calendar/e-1.ics", "Budget review", at(2026, 10, 12, 13, 0), 60)]),
+    )
+    .unwrap();
+    assert_eq!(merged["updated"].as_u64(), Some(1));
+    let matches: Vec<_> = s.mailbox.events.values().filter(|event| event.title == "Budget review").collect();
+    assert_eq!(matches.len(), 1, "the answer and the download are one event");
+    assert_eq!((matches[0].id, matches[0].calendar, matches[0].origin.id.as_str()), (first, calendar, "/caldav/ada%40example.org/Calendar/e-1.ics"));
+    assert!(s.mailbox.event_changes.is_empty(), "nothing waits to be sent");
+}
+
+#[test]
 fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     let (mut s, account) = session();
     let before = own(&s);

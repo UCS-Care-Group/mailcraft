@@ -482,6 +482,23 @@ fn resolve(base: &str, href: &str) -> Option<String> {
     Url::parse(&format!("{origin}{dir}/{href}")).ok().map(|url| canonical(&url))
 }
 
+/// An event's URL as the server addresses it: the path only, without scheme or host. A CalDAV
+/// answer often names the whole address while the download that follows names only the path;
+/// they are the same resource, and a client that kept both spellings would list it twice.
+fn resource_path(url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    if let Some((_, rest)) = path.split_once("://") {
+        return rest.find('/').map(|at| rest[at..].to_string()).unwrap_or_else(|| "/".to_string());
+    }
+    path.to_string()
+}
+
+/// A stored event URL made absolute for a request: one written by an older client may be only the
+/// path the server lists, while the transport needs an address.
+fn request_url(base: &str, url: &str) -> String {
+    resolve(base, url.trim()).unwrap_or_else(|| url.trim().to_string())
+}
+
 fn canonical(url: &Url) -> String {
     format!(
         "{}://{}{}{}",
@@ -492,25 +509,6 @@ fn canonical(url: &Url) -> String {
     )
 }
 
-/// The path of an event or card on its server, without scheme or host. A write's answer may name
-/// the whole URL while a download names only the path, and the two are the same resource.
-#[allow(dead_code)]
-fn resource_path(url: &str) -> String {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    if let Some((_, rest)) = path.split_once("://") {
-        return rest.find('/').map(|at| rest[at..].to_string()).unwrap_or_else(|| "/".to_string());
-    }
-    path.to_string()
-}
-
-/// A stored resource URL made absolute for a request: one written by an older client may be only
-/// the path the server lists, while the transport needs an address.
-#[allow(dead_code)]
-fn request_url(base: &str, url: &str) -> Option<String> {
-    let url = url.split('#').next().unwrap_or(url).trim();
-    resolve(base, url)
-}
-
 // --- what changes here go up --------------------------------------------------------------
 
 /// Tell a CalDAV server what was made, changed or deleted here. `main_calendar` is the calendar
@@ -518,23 +516,23 @@ fn request_url(base: &str, url: &str) -> Option<String> {
 /// be done is in the outcomes, never an error as a whole.
 ///
 /// This blocks; a host calls it on a background thread.
-pub fn upload_events(_caldav: &str, username: &str, password: &str, upload: &EventsUpload, main_calendar: &str) -> EventsUploaded {
+pub fn upload_events(caldav: &str, username: &str, password: &str, upload: &EventsUpload, main_calendar: &str) -> EventsUploaded {
     let auth = basic(username, password);
     let mut out = EventsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     for op in upload.ops.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
-        out.outcomes.push(one_change(&auth, op, main_calendar));
+        out.outcomes.push(one_change(&auth, op, main_calendar, caldav));
     }
     out
 }
 
 /// One change, as the server made of it.
-fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
+fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> EventOutcome {
     let mut outcome = EventOutcome { op: op.clone(), ..Default::default() };
     let calendar = if op.calendar.trim().is_empty() { main_calendar.trim() } else { op.calendar.trim() };
     match op.kind {
         EventChangeKind::Create | EventChangeKind::Update => {
             let mut event = if op.kind == EventChangeKind::Update {
-                match fetch_event(&op.remote, auth) {
+                match fetch_event(&request_url(caldav, &op.remote), auth) {
                     Ok(Some(event)) => event,
                     Ok(None) => {
                         outcome.result = EventResult::Gone;
@@ -559,7 +557,7 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
             event.uid.clone_from(&uid);
             apply_fields(&mut event, &op.fields);
             let url = if op.kind == EventChangeKind::Update && !op.remote.trim().is_empty() {
-                op.remote.trim().to_string()
+                request_url(caldav, &op.remote)
             } else {
                 let base = if calendar.ends_with('/') { calendar.to_string() } else { format!("{calendar}/") };
                 format!("{base}{}.ics", http::encode(&uid))
@@ -574,7 +572,7 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
             match send(&url, "PUT", None, Some(&text), auth, CALENDAR, 64 * 1024) {
                 Ok(reply) if matches!(reply.status, 200 | 201 | 204) => {
                     outcome.result = EventResult::Done;
-                    outcome.remote = url;
+                    outcome.remote = resource_path(&url);
                     outcome.uid = uid;
                     outcome.modified = mailcraft_time::now();
                     outcome.status = reply.status;
@@ -600,7 +598,7 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
                 outcome.error = "the event has no address on the server".into();
                 return outcome;
             }
-            match send(op.remote.trim(), "DELETE", None, None, auth, XML, 64 * 1024) {
+            match send(&request_url(caldav, &op.remote), "DELETE", None, None, auth, XML, 64 * 1024) {
                 Ok(reply) if matches!(reply.status, 200 | 204) => outcome.result = EventResult::Done,
                 Ok(reply) if reply.status == 404 || reply.status == 410 => outcome.result = EventResult::Gone,
                 Ok(reply) if reply.status == 403 => outcome.result = EventResult::Denied,
