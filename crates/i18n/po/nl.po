@@ -251,8 +251,9 @@ msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount
 
 #. what a command says
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
-msgstr ""
+msgstr "Een kopie kan niet in dit Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -5516,8 +5517,9 @@ msgstr "Beperkte details: en de titels"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Line Spacing"
-msgstr ""
+msgstr "Regelafstand"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -7597,8 +7599,9 @@ msgstr "Terugkerend item openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Replies and Forwards in a New Window"
-msgstr ""
+msgstr "Antwoorden en doorgestuurde berichten in een nieuw venster openen"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -7638,8 +7641,9 @@ msgstr "In een eigen venster openen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Open new messages, replies and forwards in a new window"
-msgstr ""
+msgstr "Nieuwe berichten, antwoorden en doorgestuurde berichten in een nieuw venster openen"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -7817,8 +7821,9 @@ msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
-msgstr ""
+msgstr "Anders beginnen ze in het leesvenster, waar Loskoppelen ze naar een eigen venster verplaatst."
 
 #. name
 #: crates/model/src/calendar.rs
@@ -7930,8 +7935,9 @@ msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoe
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Paragraph"
-msgstr ""
+msgstr "Alinea"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8133,10 +8139,13 @@ msgstr "Vastgemaakt"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Plain\n"
 "Text"
 msgstr ""
+"Tekst\n"
+"zonder opmaak"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -8170,15 +8179,19 @@ msgstr "Beleid"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Pop\n"
 "Out"
 msgstr ""
+"Los\n"
+"koppelen"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pop Out"
-msgstr ""
+msgstr "Loskoppelen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8972,8 +8985,9 @@ msgstr "Lintindeling"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Rich Text"
-msgstr ""
+msgstr "Tekst met opmaak"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -9249,8 +9263,9 @@ msgstr "Geef op wat er gebeurde (`what`)"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
+#, fuzzy
 msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr ""
+msgstr "Zeg wat er moet worden geopend: `message` of `event` op het id, `compose` (een bericht dat wordt geschreven) op het id, of `new` (\"appointment\" of \"meeting\")"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10718,8 +10733,9 @@ msgstr "Sterkere tekst en randen, in het lichte of het donkere thema."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Styles"
-msgstr ""
+msgstr "Stijlen"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -13147,8 +13163,9 @@ msgstr "Niet-opgeslagen bericht"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
+#, fuzzy
 msgid "Untitled"
-msgstr ""
+msgstr "Naamloos"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14194,8 +14211,9 @@ msgstr "een lijst bevat hoogstens {n} vermeldingen"
 
 #. what a command says
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
-msgstr ""
+msgstr "een bericht wordt op de achtergrond alleen door de eigen timer van het venster opgeslagen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14771,8 +14789,9 @@ msgstr "er is geen opmaak gekopieerd: druk eerst op Opmaak kopiëren op de tekst
 
 #. what a command says
 #: crates/engine/src/composing.rs
+#, fuzzy
 msgid "no message being written has the id {id}"
-msgstr ""
+msgstr "geen bericht dat wordt geschreven, heeft het id {id}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
@@ -16590,15 +16609,17 @@ msgstr[1] "{n} berichten worden definitief verwijderd."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "{n} message you are writing has changes that aren't saved."
 msgid_plural "{n} messages you are writing have changes that aren't saved."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht dat u schrijft, heeft wijzigingen die niet zijn opgeslagen."
+msgstr[1] "{n} berichten die u schrijft, hebben wijzigingen die niet zijn opgeslagen."
 
 #. what a command says
 #: crates/engine/src/composing.rs
+#, fuzzy
 msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
-msgstr ""
+msgstr "{n} berichten worden al geschreven, het maximum tegelijk; verzend, sla op of sluit er eerst een"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
@@ -16946,8 +16967,9 @@ msgstr "{service}-account"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
+#, fuzzy
 msgid "{subject} - Message"
-msgstr ""
+msgstr "{subject} - Bericht"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
