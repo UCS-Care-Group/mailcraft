@@ -15,7 +15,9 @@
 //! keeps it going on steady frames for that long afterwards, for a profiler to look at (with
 //! `MAILCRAFT_FRAME_BENCH_OPEN` set, with a message open in the reading pane; with
 //! `MAILCRAFT_FRAME_BENCH_CHANGES` set, with a change to the mailbox before every frame; with
-//! `MAILCRAFT_FRAME_BENCH_SELECT` set, with another message selected before every frame).
+//! `MAILCRAFT_FRAME_BENCH_SELECT` set, with another message selected before every frame; with
+//! `MAILCRAFT_FRAME_BENCH_RANGE=n` set, with the first row clicked and then Shift+clicked to row
+//! `n` before every frame).
 //!
 //! Measured on 2026-11-01 (8 cores, release build), `main` before the counts (e26e4ad, with this
 //! file added) against after; a frame's time in milliseconds, the median of a steady run or the
@@ -37,6 +39,19 @@
 //!
 //! The frame after a change or a selection, which builds the Inbox's list again, is the hitch
 //! that is left.
+//!
+//! A Shift+click, measured on 2026-11-02 before and after selecting became a reading command
+//! (no copy of the mailbox taken and compared; the message opened is marked read after it): the
+//! command's own time in milliseconds.
+//!
+//! | Shift+click over        | Before | After |
+//! |-------------------------|--------|-------|
+//! | 10 rows                 | 38–56  | 0.1–0.2 |
+//! | 1,000 rows              | 34–47  | 0.7–1.3 |
+//! | 10,000 rows             | 47–60  | 16    |
+//! | 50,000 rows (33,807 messages) | 132–152 | 65 |
+//!
+//! A click or an arrow key that opens a message saves the same 40 ms of copying.
 
 use std::time::Instant;
 
@@ -212,6 +227,26 @@ fn frame_bench() {
     let _ = harness.state_mut().execute("view.clearSearch", serde_json::json!({}));
     harness.step();
 
+    // A Shift+click from the first row to rows further down, as the list's own click runs it.
+    let rows: Vec<(Id, u16)> = harness.state_mut().session.rows().iter().map(|r| (r.id, r.copy)).collect();
+    for reach in [10usize, 100, 1_000, 10_000, 50_000] {
+        let Some(&(first, _)) = rows.first() else { break };
+        let Some(&(to, copy)) = rows.get(reach.min(rows.len().saturating_sub(1))) else { break };
+        let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": first}));
+        harness.step();
+        let t = Instant::now();
+        let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": to, "copy": copy, "range": true}));
+        let command = ms(t.elapsed());
+        let t = Instant::now();
+        harness.step();
+        let frame = ms(t.elapsed());
+        let selected = harness.state().session.sel.messages.len();
+        eprintln!("FRAME_BENCH shift+click over {reach} rows ({selected} selected): command {command:.1} ms, next frame {frame:.1} ms");
+        report(&format!("steady with {selected} selected"), &mut harness, 5);
+    }
+    let _ = harness.state_mut().run("mail.select", serde_json::json!({"ids": []}));
+    harness.step();
+
     if std::env::var_os("MAILCRAFT_FRAME_BENCH_OPEN").is_some() {
         let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": ids[6]}));
         harness.run_steps(2);
@@ -223,12 +258,20 @@ fn frame_bench() {
         let mut n = 0usize;
         let changes = std::env::var_os("MAILCRAFT_FRAME_BENCH_CHANGES").is_some();
         let selects = std::env::var_os("MAILCRAFT_FRAME_BENCH_SELECT").is_some();
+        let ranges = std::env::var_os("MAILCRAFT_FRAME_BENCH_RANGE").is_some();
         while Instant::now() < until {
             if changes {
                 let _ = harness.state_mut().execute("mail.toggleRead", serde_json::json!({"id": ids[n % 5]}));
             }
             if selects {
                 let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": ids[10 + n % 20]}));
+            }
+            if ranges {
+                let reach: usize = std::env::var("MAILCRAFT_FRAME_BENCH_RANGE").ok().and_then(|s| s.parse().ok()).unwrap_or(200);
+                let from = rows.first().copied().unwrap_or_default();
+                let to = rows.get(reach).or(rows.last()).copied().unwrap_or_default();
+                let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": from.0, "copy": from.1}));
+                let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": to.0, "copy": to.1, "range": true}));
             }
             harness.step();
             n += 1;

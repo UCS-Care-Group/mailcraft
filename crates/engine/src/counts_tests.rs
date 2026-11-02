@@ -195,3 +195,52 @@ fn counts_built_as_a_command_runs_are_not_carried_through_its_read_marks() {
     }
     assert!(!s.mailbox.message(other).unwrap().read, "redone: unread again");
 }
+
+/// Selecting is a reading command (no copy of the mailbox is taken for it), and the message it
+/// opens is marked read once it is done: the list stands, the counts follow, the mailbox is to be
+/// saved, and no step of the history is made. A range or a selection that fails marks nothing.
+#[test]
+fn a_selection_marks_what_it_opens_read_after_it_without_a_step() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let inbox = s.mailbox.inbox().unwrap();
+    let rows = s.rows();
+    let unread: Vec<_> = rows.iter().filter(|r| r.unread > 0 && r.members.len() == 1).map(|r| r.id).collect();
+    assert!(unread.len() >= 2, "the sample's Inbox has unread mail");
+    drop(rows);
+    let (builds, steps, unread_before) = (s.list_builds(), s.history.len(), s.folder_counts().unread(inbox));
+    s.dirty = false;
+
+    // A selection that fails changes nothing.
+    assert!(s.run("mail.select", &json!({"id": unread[0], "copy": 99})).is_err());
+    assert!(!s.mailbox.message(unread[0]).unwrap().read);
+    assert!(!s.dirty);
+
+    s.run("mail.select", &json!({"id": unread[0]})).unwrap();
+    assert!(s.mailbox.message(unread[0]).unwrap().read, "opened: read");
+    assert!(s.dirty, "and to be saved");
+    assert_eq!(s.history.len(), steps, "no step of the history");
+    assert_eq!(s.folder_counts().unread(inbox), unread_before - 1);
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+    assert_eq!(s.rows().iter().find(|r| r.id == unread[0]).map(|r| r.unread), Some(0));
+    assert_eq!(s.list_builds(), builds, "the list stands");
+
+    // A Shift+click over unread mail marks none of it: more than one is selected.
+    s.run("mail.select", &json!({"id": unread[1], "range": true})).unwrap();
+    assert!(s.sel.messages.len() > 1);
+    assert!(!s.mailbox.message(unread[1]).unwrap().read, "a range opens nothing");
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+
+    // An arrow key that lands on an unread message marks it read the same way.
+    s.run("mail.select", &json!({"id": unread[1]})).unwrap();
+    assert!(s.mailbox.message(unread[1]).unwrap().read);
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+    assert_eq!(s.history.len(), steps);
+
+    // Under the Unread filter the list is built again, and the message opened stays in it (#428).
+    s.run("mail.markUnread", &json!({"ids": [unread[0], unread[1]]})).unwrap();
+    s.run("view.filter", &json!({"value": "unread"})).unwrap();
+    s.run("mail.select", &json!({"id": unread[0]})).unwrap();
+    assert!(s.mailbox.message(unread[0]).unwrap().read);
+    assert!(s.rows().iter().any(|r| r.id == unread[0]), "kept while it is selected");
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+}

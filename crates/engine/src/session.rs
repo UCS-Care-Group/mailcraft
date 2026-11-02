@@ -1092,6 +1092,10 @@ pub struct Session {
     conversation_cache: Option<((u64, usize, Id), Arc<Vec<Id>>)>,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
+    /// The message a selection just opened, to be marked read once the command that selected it
+    /// has done ([`Session::mark_opened`]): selecting is a reading command, so that a click or
+    /// an arrow key doesn't copy the mailbox and compare it afterwards.
+    pub(crate) opened: Option<Id>,
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
@@ -1228,6 +1232,7 @@ impl Session {
             counts_cache: None,
             conversation_cache: None,
             list_builds: 0,
+            opened: None,
             sender_checks: Default::default(),
             content_source: None,
             loads: 0,
@@ -1499,8 +1504,12 @@ impl Session {
             }
             self.show_whole_folder();
             self.select_in_view();
+            self.keep_clicked();
+            return;
         }
-        self.keep_clicked();
+        // All of it is listed: what `keep_clicked` would ask again (a Shift+click over thousands
+        // of rows asked it of each of them twice).
+        self.sel.stays = Some(Arc::new(Stays::of(shown, &selection, &self.list_of())));
     }
 
     /// Another list is in view: of what was selected, only what it shows stays selected (#485),
@@ -1691,6 +1700,31 @@ impl Session {
         self.mailbox.messages = mine;
         before.messages = theirs;
         rest_same.then_some(changed)
+    }
+
+    /// The message a selection opened ([`Session::opened`]) is marked read, once the command
+    /// that selected it has done. After a command on the light path (`light`), whose copy of the
+    /// mailbox wasn't taken, this is the one change: the list, the counts and the conversation
+    /// are carried through it as through any read mark alone ([`Session::read_marks_only`]).
+    /// Otherwise the command's own comparison sees it.
+    fn mark_opened_read(&mut self, id: Id, light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
+        let Some(old) = self.mailbox.messages.get(&id).cloned().filter(|m| !m.read && !m.draft) else { return };
+        let carried = light
+            && self.view.filter == Filter::All
+            && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
+            && self.list_cache.as_ref().is_some_and(|c| c.key == self.list_key());
+        let Ok(m) = self.mailbox.message_mut(id) else { return };
+        m.read = true;
+        self.dirty = true;
+        if !light {
+            return;
+        }
+        self.hold([&old]);
+        let rev_before = self.rev;
+        self.rev += 1;
+        if carried {
+            self.keep_through_read_marks(&[id], rev_before, counts_before);
+        }
     }
 
     /// The list, the counts and the conversation stand through the read marks of `changed`
@@ -2902,6 +2936,11 @@ impl Session {
                 Err(failed!("{command} failed unexpectedly; nothing was changed", command = mailcraft_i18n::Arg::words(spec.label)))
             }
         };
+        // The message a selection opened is marked read now that the command is done; one that
+        // failed marks nothing.
+        if let Some(opened) = self.opened.take().filter(|_| result.is_ok()) {
+            self.mark_opened_read(opened, light, if light { counts_before.clone() } else { None });
+        }
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
         // gone for good, an appointment the owner is changing taken away) is undone, whatever
         // path it took there.
