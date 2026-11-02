@@ -254,6 +254,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         // the sent message, and only what was changed here stays a draft.
         let mut copy = new_message(folder, server_folder, there);
         copy.draft = there.draft.unwrap_or(true);
+        // The server's own version, a draft on its word: so kept through a save and the repair
+        // of sent copies an earlier version took for drafts, wherever the server has it.
+        if copy.draft {
+            copy.server_draft = Some(mailcraft_model::sync::ServerDraft { theirs: true, ..Default::default() });
+        }
         return super::graph_drafts::keep_twice(mb, id, Some(copy)).is_some();
     }
     // Where the server last had it, as this mailbox has that folder: a message still there here

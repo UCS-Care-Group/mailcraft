@@ -96,6 +96,18 @@ fn a_draft_changed_here_and_sent_elsewhere_keeps_the_sent_copy_as_sent() {
     moved.messages[0].server.change_key = "CK2".into();
     take_page(&mut mb, &mut index, account, &moved, &mut Down::default());
     assert!(mb.message(here).unwrap().draft && only_in(&mb, account, "FS").draft);
+    // The server's copy, a draft on the server's word, is one still when the mailbox is saved
+    // and opened again, before and after it is fetched whole: the repair of sent copies an
+    // earlier version took for drafts leaves it alone.
+    let copy = only_in(&mb, account, "FS").id;
+    let reopened = |mb: &Mailbox| crate::io::read_mailbox(&crate::io::write_mailbox(mb).unwrap()).unwrap();
+    assert!(reopened(&mb).message(copy).unwrap().draft, "the unsent server copy lost its draft mark on reopen");
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkD2", b"From: avery@mail.example\r\nSubject: Quarterly figures\r\n\r\nSoon.\r\n"));
+    let opened = reopened(&mb);
+    assert!(opened.message(copy).unwrap().draft, "lost its draft mark on reopen after a fetch");
+    assert!(opened.message(copy).unwrap().server_draft.as_ref().is_some_and(|d| d.theirs && d.synced.is_some()));
+    // What was changed here is still a draft to go up anew.
+    assert!(opened.message(here).unwrap().draft);
 }
 
 /// A draft that came down from Drafts and that the owner moves into Sent Items by mistake:
