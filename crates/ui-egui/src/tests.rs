@@ -1450,7 +1450,7 @@ fn what_cant_be_taken_back_is_asked_about_first() {
     assert_eq!(a.run("mail.delete", json!({"ids": [first]})).unwrap()["pending"], "confirm");
     assert!(asked(&a) && a.session.mailbox.message(first).is_some());
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
-    assert!(ask.text.contains("for good") && !ask.text.contains("server"), "{}", ask.text);
+    assert!(ask.text.contains("permanently") && !ask.text.contains("server"), "{}", ask.text);
     // Cancelled: still there. Confirmed: gone.
     a.dialog = None;
     assert_eq!(a.session.mailbox.messages.len(), total);
@@ -1503,7 +1503,7 @@ fn deleting_a_contact_is_asked_about_first() {
     assert_eq!(a.run("people.delete", json!({"id": id})).unwrap()["pending"], "confirm");
     let Some(crate::dialogs::Dialog::Confirm { ask, command, .. }) = &a.dialog else { panic!("no question") };
     assert_eq!((command.as_str(), ask.title.as_str(), ask.action.as_str()), ("people.delete", "Delete Contact", "Delete"));
-    assert_eq!(ask.text, "\"Ivana Horvat\" will be deleted for good. Contacts don't go to Deleted Items.");
+    assert_eq!(ask.text, "\"Ivana Horvat\" will be permanently deleted. Contacts don't go to Deleted Items.");
     // Cancelled: still there. Confirmed: gone, and Undo brings it back.
     a.dialog = None;
     assert_eq!(a.session.mailbox.contacts.len(), total);
@@ -1523,7 +1523,7 @@ fn deleting_a_contact_is_asked_about_first() {
     let only = a.execute("people.new", json!({"email": "kim@example.org"})).unwrap()["id"].as_u64().unwrap();
     a.run("people.delete", json!({"id": only})).unwrap();
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
-    assert!(ask.text.starts_with("\"kim@example.org\" will be deleted for good."), "{}", ask.text);
+    assert!(ask.text.starts_with("\"kim@example.org\" will be permanently deleted."), "{}", ask.text);
     let a = frames(a, (1280.0, 800.0), 3);
     assert!(a.session.mailbox.contact(only).is_some());
 }
@@ -2294,7 +2294,7 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let kept = mailcraft_model::Message { folder: inbox, subject: "Kept there".into(), ..Default::default() };
     let kept = a.session.mailbox.add_message(kept).unwrap();
     let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
-    assert_eq!(ask.text, "This message will be deleted for good.");
+    assert_eq!(ask.text, "This message will be permanently deleted.");
 }
 
 /// A noisy PNG far over a signature picture's cap.

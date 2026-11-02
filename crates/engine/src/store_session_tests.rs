@@ -421,7 +421,7 @@ fn an_agents_delete_for_good_in_a_search_is_asked_about_what_it_deletes() {
     let (mut s, newer, older) = found_on_disk(&tmp, mailcraft_model::FolderKind::Deleted);
     let asked = asked_then_run(&mut s, "mail.delete", newer, json!({}));
     let gone = [newer, older].into_iter().filter(|id| s.mailbox.message(*id).is_none()).count();
-    assert_eq!((asked.as_str(), gone), ("delete 2 messages (\u{201c}Brewing notes\u{201d}, \u{201c}Brewing notes\u{201d}) for good", 2));
+    assert_eq!((asked.as_str(), gone), ("permanently delete 2 messages (\u{201c}Brewing notes\u{201d}, \u{201c}Brewing notes\u{201d})", 2));
 }
 
 #[test]
