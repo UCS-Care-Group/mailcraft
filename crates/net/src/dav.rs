@@ -676,15 +676,16 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
             outcome.error = "the contact's address can't be used".into();
             return outcome;
         };
+        // The address is known before the request, and every outcome needs it: a refused
+        // deletion is settled against the same queued change as a successful one.
+        outcome.remote = resource_path(&url);
         match send(&url, "DELETE", None, None, auth, XML, 64 * 1024) {
             Ok(reply) if matches!(reply.status, 200 | 204) => {
                 outcome.result = EventResult::Done;
-                outcome.remote = resource_path(&url);
                 outcome.status = reply.status;
             }
             Ok(reply) if reply.status == 404 || reply.status == 410 => {
                 outcome.result = EventResult::Gone;
-                outcome.remote = resource_path(&url);
                 outcome.status = reply.status;
             }
             Ok(reply) if reply.status == 403 => {
@@ -725,10 +726,11 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
         let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
         format!("{base}{}.vcf", http::encode(op.uid.trim()))
     };
+    // As for a deletion, a refusal must name the resource it refused.
+    outcome.remote = resource_path(&url);
     match send(&url, "PUT", None, Some(&op.card), auth, VCARD, 64 * 1024) {
         Ok(reply) if matches!(reply.status, 200 | 201 | 204) => {
             outcome.result = EventResult::Done;
-            outcome.remote = resource_path(&url);
             outcome.status = reply.status;
         }
         Ok(reply) => {

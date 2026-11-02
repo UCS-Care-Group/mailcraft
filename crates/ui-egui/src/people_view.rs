@@ -825,8 +825,12 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
 /// from a server that did not name its book, is left to the command (and then the server) to
 /// decide.
 pub(crate) fn contact_writable(app: &MailApp, c: &Contact) -> bool {
-    if c.origin.account == 0 || c.book_id.is_empty() {
+    if c.origin.account == 0 {
         return true;
+    }
+    if c.book_id.is_empty() {
+        // A contact a server keeps outside an address book (Microsoft Graph) is still read only.
+        return false;
     }
     app.session
         .mailbox

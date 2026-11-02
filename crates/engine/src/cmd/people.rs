@@ -114,14 +114,18 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
-/// [`target`] for a command that changes or deletes the contact. A contact that an account's
-/// server keeps is refused: changes are not sent back yet, and the next download would undo
-/// them. (Its categories and whether it is a favourite are kept here, so those don't ask.)
-/// Refuse to change a contact in an address book that the account may only read. A book that is
-/// not in the list (a mailbox from before books had rights) is left to the server to decide.
+/// [`target`] for a command that changes or deletes the contact. A CardDAV contact may be changed
+/// in a book that is writable, and refused in one that is only readable. A contact an account's
+/// server keeps outside such a book (Microsoft Graph) is refused as before: changes are not sent
+/// back, and the next download would undo them. (Its categories and whether it is a favourite are
+/// kept here, so those don't ask.) A book that is not in the list (a mailbox from before books had
+/// rights) is left to the server to decide.
 fn writable_contact(s: &Session, contact: &Contact) -> Result<(), CmdError> {
-    if contact.origin.account == 0 || contact.book_id.is_empty() {
+    if contact.origin.account == 0 {
         return Ok(());
+    }
+    if contact.book_id.is_empty() {
+        return remote::changeable(&s.mailbox, &contact.origin, "contact");
     }
     if let Some(book) = s
         .mailbox

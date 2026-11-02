@@ -3674,7 +3674,8 @@ pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: Cont
 pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> CmdResult {
     let mut saved = 0usize;
     for outcome in uploaded.outcomes.iter().take(MAX_OUTCOMES) {
-        let remote = resource_key(&outcome.remote);
+        // Older or partial answers may not carry the address; the change itself does.
+        let remote = resource_key(if outcome.remote.trim().is_empty() { &outcome.op.remote } else { &outcome.remote });
         // Done and Gone are settled. A refusal is settled too: asking again would meet the same
         // permission, and dropping the note lets the next read put back what the server has.
         let settled = matches!(outcome.result, EventResult::Done | EventResult::Gone | EventResult::Denied);

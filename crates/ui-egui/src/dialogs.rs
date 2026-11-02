@@ -480,11 +480,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
             Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
-        // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
-        // account's server keeps can't be deleted here, and the command says so without asking.
+        // A contact has no Deleted Items to go to: deleting one is for good (#186), whether it
+        // lives here or in one of the account's address books.
         "people.delete" => {
             let c = mb.contact(mailcraft_engine::p::id_strict(params, "id").ok()?.or(app.session.sel.contact)?)?;
-            if mailcraft_engine::cmd::remote::keeper(mb, &c.origin).is_some() {
+            // A read-only book keeps its contacts: the command says so without asking.
+            if !crate::people_view::contact_writable(app, c) {
                 return None;
             }
             let name = c.name();

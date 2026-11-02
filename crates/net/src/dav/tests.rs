@@ -198,6 +198,23 @@ fn a_card_changed_or_deleted_here_reaches_the_server() {
 }
 
 #[test]
+fn a_refused_card_change_still_names_the_card() {
+    let server = FakeHttp::answering(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Delete,
+            remote: "/carddav/ada@example.org/contacts/~book-7/two.vcf".into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Denied);
+    assert_eq!(out.outcomes[0].remote, "/carddav/ada@example.org/contacts/~book-7/two.vcf");
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()

@@ -88,6 +88,22 @@ fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
     ContactsDownload { account, email: "ada@example.org".into(), complete: true, books: Vec::new(), contacts }
 }
 
+const CARDDAV_BOOK: &str = "/carddav/ada@example.org/contacts/personal/";
+
+/// A contact as CardDAV gives one: it names the book it came from, which decides whether it may
+/// be changed here.
+fn in_book(mut contact: RemoteContact) -> RemoteContact {
+    contact.book = "My contacts".into();
+    contact.book_id = CARDDAV_BOOK.into();
+    contact
+}
+
+fn carddav(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
+    let mut download = everybody(account, contacts);
+    download.books = vec![RemoteAddressBook { id: CARDDAV_BOOK.into(), name: "My contacts".into(), rights: Rights::Edit }];
+    download
+}
+
 /// The events that came from `account`'s server, by start.
 fn from_server(s: &Session, account: Id) -> Vec<Event> {
     let mut events: Vec<Event> = s.mailbox.events.values().filter(|e| e.origin.account == account).map(|e| e.as_ref().clone()).collect();
@@ -1381,9 +1397,9 @@ fn contacts_are_merged_and_changes_go_to_their_server() {
         phones: vec![Labeled::new("mobile", "+44 7700 900000")],
         birthday: Date::new(1815, 12, 10),
         notes: "Met at the Royal Society.".into(),
-        ..person("c-ada", "Ada", "ada@example.org")
+        ..in_book(person("c-ada", "Ada", "ada@example.org"))
     };
-    let download = everybody(account, vec![ada.clone(), person("c-bo", "Bo", "bo@example.org"), person("c-cy", "Cy", "cy@example.org")]);
+    let download = carddav(account, vec![ada.clone(), person("c-bo", "Bo", "bo@example.org"), person("c-cy", "Cy", "cy@example.org")]);
     let (step, rev) = (s.undo_label(), s.rev());
     let merged = run(&mut s, "sync.applyContacts", json!({"download": download}));
     assert_eq!((counts(&merged), merged["complete"].as_bool(), merged["calendar"].is_null()), ((3, 0, 0, 0, 0), Some(true), true));
@@ -1402,6 +1418,8 @@ fn contacts_are_merged_and_changes_go_to_their_server() {
             phones: vec![Labeled::new("mobile", "+44 7700 900000")],
             birthday: Date::new(1815, 12, 10),
             notes: "Met at the Royal Society.".into(),
+            book: "My contacts".into(),
+            book_id: CARDDAV_BOOK.into(),
             origin: Origin { account, id: "c-ada".into(), change_key: "ck-c-ada-1".into(), ..Default::default() },
             ..Default::default()
         }
@@ -1538,14 +1556,14 @@ fn the_address_books_a_server_lists_are_kept_for_a_new_contact() {
 #[test]
 fn a_remote_contact_is_deleted_through_its_server() {
     let (mut s, account) = session();
-    apply_contacts(&mut s, &everybody(account, vec![person("c-bob", "Bob", "bob@example.org")])).unwrap();
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-bob", "Bob", "bob@example.org"))])).unwrap();
     let bob = contact_called(&s, account, "c-bob");
     run(&mut s, "people.delete", json!({"id": bob.id}));
     assert!(s.mailbox.contact(bob.id).is_none(), "it goes from the list at once");
     let upload = super::contact_upload(&s, account).expect("the deletion waits for the server");
     assert_eq!((upload.ops[0].kind, upload.ops[0].remote.as_str()), (mailcraft_model::remote::ContactChangeKind::Delete, "c-bob"));
     // A read before the delete goes out still lists it; the tombstone keeps it from returning.
-    apply_contacts(&mut s, &everybody(account, vec![person("c-bob", "Bob", "bob@example.org")])).unwrap();
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-bob", "Bob", "bob@example.org"))])).unwrap();
     assert!(s.mailbox.contacts.values().all(|contact| contact.origin.id != "c-bob"));
     super::apply_contact_outcomes(
         &mut s,
@@ -1563,6 +1581,31 @@ fn a_remote_contact_is_deleted_through_its_server() {
     )
     .unwrap();
     assert!(s.mailbox.contact_changes.is_empty(), "the answer settles the deletion");
+
+    // A server that refuses the deletion settles it too, even when the answer does not repeat
+    // the address. The next read then brings the contact back, as the server still has it.
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-denied", "Denied", "denied@example.org"))])).unwrap();
+    let denied = contact_called(&s, account, "c-denied");
+    run(&mut s, "people.delete", json!({"id": denied.id}));
+    let upload = super::contact_upload(&s, account).expect("the deletion waits for the server");
+    super::apply_contact_outcomes(
+        &mut s,
+        &mailcraft_model::remote::ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![mailcraft_model::remote::ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Denied,
+                status: 403,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact_changes.is_empty(), "a refusal is not retried forever");
+    assert!(s.mailbox.contact(denied.id).is_none(), "the local copy went at once");
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-denied", "Denied", "denied@example.org"))])).unwrap();
+    assert_eq!(contact_called(&s, account, "c-denied").first, "Denied", "the server's copy is back");
 
     // A book shared read only refuses both changes here, before the server sees them.
     s.mailbox.contact_books.push(ContactBook { account, id: "book-ro".into(), name: "Team".into(), rights: Rights::Read });

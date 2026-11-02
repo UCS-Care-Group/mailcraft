@@ -15,7 +15,9 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_engine::cmd::remote;
-use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, ContactsUpload, ContactsUploaded, EventsDownload, EventsUpload, EventsUploaded};
+use mailcraft_model::remote::{
+    CalendarsDownload, ContactsDownload, ContactsUpload, ContactsUploaded, EventResult, EventsDownload, EventsUpload, EventsUploaded,
+};
 use mailcraft_model::{Account, Id};
 use mailcraft_time::Timestamp;
 use std::sync::mpsc::Receiver;
@@ -206,10 +208,16 @@ impl MailApp {
         // After the list, never before: the list was read before the contact was sent, so it
         // cannot know the URL the send has just given it. Applying the URL first would make the
         // empty list take the new contact for one the server no longer has.
-        if let Some(uploaded) = &result.uploaded_contacts
-            && let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded)
-        {
-            errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
+        if let Some(uploaded) = &result.uploaded_contacts {
+            if let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded) {
+                errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
+            }
+            // A refused or vanished card is settled by dropping its queued change. Read the
+            // server again at once so its copy replaces a local edit, or comes back after a
+            // deletion the server did not make.
+            if uploaded.outcomes.iter().any(|outcome| matches!(outcome.result, EventResult::Denied | EventResult::Gone)) {
+                self.dav.requested.insert(account);
+            }
         }
         if self.session.mailbox.account(account).is_some() {
             self.note_sync_problems(account, &errors, false);
