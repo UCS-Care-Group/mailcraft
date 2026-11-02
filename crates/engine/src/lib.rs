@@ -29,6 +29,7 @@ pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
 pub mod composing;
+pub mod counts;
 pub mod import_tree;
 pub mod io;
 #[cfg(test)]
@@ -121,6 +122,9 @@ pub struct CommandSpec {
     pub params: &'static str,
     /// Changes the mailbox (so it is undoable and marks the mailbox as edited).
     pub mutates: bool,
+    /// Changes nothing of the mailbox, ever ([`CommandSpec::reads`]): no copy of it is taken
+    /// before the command runs, which over a large mailbox takes longer than the command.
+    pub reads: bool,
     /// `None` = enabled; `Some(reason)` = disabled.
     pub enabled: fn(&Session) -> Option<&'static str>,
     /// `enabled` only asks for a selection: the command still runs for a caller that names what
@@ -138,7 +142,19 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, enabled: always, selection: false, writing: false, run }
+        CommandSpec {
+            id,
+            label,
+            location,
+            shortcut: "",
+            params: "{}",
+            mutates: true,
+            reads: false,
+            enabled: always,
+            selection: false,
+            writing: false,
+            run,
+        }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -148,9 +164,18 @@ impl CommandSpec {
         self.params = p;
         self
     }
-    /// Doesn't change the mailbox (navigation, view, export, composing).
+    /// Isn't a step of the history (navigation, view, export, composing, mail that came from
+    /// a server): what it changes of the mailbox is noted and saved, but not undone.
     pub const fn pure(mut self) -> Self {
         self.mutates = false;
+        self
+    }
+    /// [`CommandSpec::pure`], and changes nothing of the mailbox at all (the view, the search, the
+    /// folder in view, a listing): the copy of the mailbox every other command is checked against
+    /// is not taken for it. Tests check the claim for every command that makes it.
+    pub const fn reads(mut self) -> Self {
+        self.mutates = false;
+        self.reads = true;
         self
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
@@ -366,6 +391,8 @@ mod agent_tests;
 mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
+#[cfg(test)]
+mod counts_tests;
 #[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]
