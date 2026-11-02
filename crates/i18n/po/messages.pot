@@ -13309,6 +13309,11 @@ msgstr ""
 msgid "{name} answered this invitation."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read ({why})"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "{name} couldn't be saved: the folder has too many files of that name"

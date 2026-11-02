@@ -94,7 +94,9 @@ fn a_file_that_cant_be_attached_doesnt_keep_the_others_out() {
     assert_eq!(attached(&app), ["minutes.txt", "budget.csv"]);
     // The status bar says how many went in and why one didn't, in one line.
     let said = said(&app);
-    assert!(said.starts_with("Attached 2 files · ") && said.contains("not-there.txt"), "{said}");
+    // The file that isn't there is never handed to the engine: its size can't be read, and that
+    // is what is said.
+    assert!(said.starts_with("Attached 2 files · not-there.txt couldn't be read ("), "{said}");
 }
 
 /// None could be attached: the reason, and an error.
