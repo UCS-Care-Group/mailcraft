@@ -112,7 +112,7 @@ fn favorites_command(s: &mut Session, v: &Value) -> CmdResult {
     Ok(favorites_json(s))
 }
 
-const FOLDER: &str = r#"{"id"?: number} (default: the folder in view)"#;
+const FOLDER: &str = r#"{"id"?: number} (default: the folder in view). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 
 /// Why `folder.favorite` refuses for an account whose Favorites are its server's.
 pub const FROM_OUTLOOK: &str =
@@ -142,7 +142,7 @@ fn can_delete(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").unwrap_or(s.view.folder);
+    let id = p::id_strict(v, "id")?.unwrap_or(s.view.folder);
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
@@ -159,7 +159,7 @@ pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account");
-    let id = if let Some(id) = p::id(v, "id") {
+    let id = if let Some(id) = p::id_strict(v, "id")? {
         s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?
     } else if let Some(kind) = p::str(v, "kind") {
         let kind = FolderKind::parse(kind).ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted, junk, archive or outbox"))?;

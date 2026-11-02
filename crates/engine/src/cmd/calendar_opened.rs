@@ -204,7 +204,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
-    let (account, address) = match (p::id(v, "id"), p::str(v, "address")) {
+    let (account, address) = match (p::id_strict(v, "id")?, p::str(v, "address")) {
         (Some(id), _) => {
             let calendar = s.mailbox.calendar(id).ok_or_else(|| failed!("no calendar with id {id}", id))?;
             let address = opened_address(&calendar.origin.id)

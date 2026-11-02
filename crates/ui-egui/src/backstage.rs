@@ -24,7 +24,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let top = if app.integrated_titlebar { crate::chrome::MAC_TITLE_BAR } else { 0.0 };
     // The column of pages: the accent with its ink on a light window; in the dark a neutral
     // column, where the accent only marks the page in view.
-    let (column, ink) = if t.dark { (t.panel, t.text) } else { (t.accent, t.on_accent) };
+    let (column, ink) = (t.backstage_column, t.backstage_ink);
     egui::Panel::left("backstage_nav").exact_size(210.0).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(column)).show(
         ui,
         |ui| {
@@ -44,11 +44,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             for (code, label, icon) in PAGES {
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
                 let active = app.ui.backstage_page == *code;
-                if active || resp.hovered() {
-                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 5.0, ink.linear_multiply(if active { 0.22 } else { 0.12 }));
+                if active {
+                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 6.0, t.accent_soft);
+                } else if resp.hovered() {
+                    ui.painter().rect_filled(r.shrink2(vec2(8.0, 2.0)), 6.0, t.hover);
                 }
-                if active && t.dark {
-                    ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x + 8.0, r.center().y - 9.0), vec2(3.0, 18.0)), 1.5, t.accent);
+                let ink = if active { t.accent_soft_text } else { ink };
+                if active {
+                    ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x + 8.0, r.center().y - 9.0), vec2(3.0, 18.0)), 1.5, t.backstage_mark);
                 }
                 icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 28.0, r.center().y), vec2(16.0, 16.0)), icon, ink, ink);
                 ui.painter().text(
@@ -151,32 +154,22 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     }
 }
 
-/// An Exchange server account's line (#252): the name of its server alone, and, while the switch
-/// is off, why it isn't kept in step. Where it connects, as whom and the certificate it trusts are
-/// under its card ([`crate::ews_setup::info_rows`]).
+/// An Exchange server account's line (#252): the name of its server alone. Where it connects, as
+/// whom and the certificate it trusts are under its card ([`crate::ews_setup::info_rows`]).
 pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     let host = a.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
     let Some(host) = host else { return tl!("Exchange server · no usable server address").to_string() };
-    if app.session.ews {
-        let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
-        // A certificate the system doesn't trust, which only the owner can decide about.
-        if app.ews_certificate.contains_key(&a.id) {
-            line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+    let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
+    // A certificate the system doesn't trust, which only the owner can decide about.
+    if app.ews_certificate.contains_key(&a.id) {
+        line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+    }
+    // The folders the last run couldn't read, as the owner knows them.
+    match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
+        Some(folders) => {
+            crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
         }
-        // The folders the last run couldn't read, as the owner knows them.
-        match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
-            Some(folders) => {
-                crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
-            }
-            None => line,
-        }
-    } else {
-        crate::i18n::fmt(
-            tl!(
-                "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
-            ),
-            &[("host", host)],
-        )
+        None => line,
     }
 }
 
@@ -292,6 +285,34 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
+        // Where the automatic replies stand, and whether MailCraft may change them, with a way
+        // to sign in again or to ask for that permission again.
+        if let Some((line, again)) = app.auto_replies_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                match again {
+                    Some(crate::auto_replies::Again::SignIn) => {
+                        let tip = tl!(
+                            "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+                        );
+                        if ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
+                            let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
+                        }
+                    }
+                    Some(crate::auto_replies::Again::Ask) => {
+                        let tip = tl!(
+                            "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+                        );
+                        if ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                            app.auto_replies_ask_again(a.id);
+                        }
+                    }
+                    None => {}
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
@@ -330,6 +351,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ) {
         let _ = app.run("ui.dialog", json!({"name": "account"}));
     }
+    crate::auto_replies::info_tiles(app, ui, t);
     // The calendar of an account that signs in with Microsoft is kept on its server: the owner
     // can see for himself that what is changed here arrives there.
     let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
@@ -479,6 +501,42 @@ fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     });
 }
 
+/// The accent choices: four named swatches, the one in use marked with a ring and a tick, each
+/// reachable and pressable from the keyboard.
+fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let cur = app.ui.accent;
+    for a in crate::theme::Accent::ALL {
+        let name = match a {
+            crate::theme::Accent::Blue => tl!("Blue"),
+            crate::theme::Accent::Teal => tl!("Teal"),
+            crate::theme::Accent::Violet => tl!("Violet"),
+            crate::theme::Accent::Graphite => tl!("Graphite"),
+        };
+        let ink = a.ink(t.dark, app.ui.high_contrast);
+        let w = ui.fonts_mut(|f| f.layout_no_wrap(name.to_string(), regular(12.5), t.text).size().x) + 40.0;
+        let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
+        resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, true, a == cur, name));
+        let on = a == cur;
+        if on || resp.hovered() {
+            ui.painter().rect_filled(r, 4.0, if on { t.checked } else { t.hover });
+        }
+        let disc = pos2(r.min.x + 14.0, r.center().y);
+        ui.painter().circle_filled(disc, 7.0, ink.accent);
+        if on {
+            ui.painter().circle_stroke(disc, 9.5, Stroke::new(1.5, t.text));
+            let tick = [disc + vec2(-3.5, 0.0), disc + vec2(-1.0, 3.0), disc + vec2(3.5, -3.0)];
+            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, ink.on_accent)));
+        }
+        ui.painter().text(pos2(r.min.x + 28.0, r.center().y), Align2::LEFT_CENTER, name, regular(12.5), t.text);
+        if resp.has_focus() {
+            ui.painter().rect_stroke(r, 4.0, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+        }
+        if resp.clicked() {
+            let _ = app.run("ui.accent", json!({"accent": a.code()}));
+        }
+    }
+}
+
 fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Options"), t);
     section(ui, tl!("General"), t);
@@ -491,6 +549,16 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 }
             }
         });
+    });
+    let mut strong = app.ui.high_contrast;
+    if ui.checkbox(&mut strong, tl!("High contrast")).on_hover_text(tl!("Stronger text and edges, in the light or the dark theme.")).changed() {
+        let _ = app.run("ui.highContrast", json!({"on": strong}));
+    }
+    // The swatches wrap under the label in a narrow window rather than widening the page.
+    ui.horizontal_wrapped(|ui| {
+        let (r, _) = ui.allocate_exact_size(vec2(210.0, 24.0), Sense::hover());
+        ui.painter().text(pos2(r.min.x, r.center().y), Align2::LEFT_CENTER, tl!("Accent"), regular(12.5), t.text);
+        accent_swatches(app, ui, t);
     });
     let mut light = app.ui.light_messages;
     if ui
@@ -543,6 +611,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let mut quote = prefs.quote_on_reply;
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));
+    }
+    let mut in_window = app.ui.replies_in_window;
+    let switch = ui
+        .checkbox(&mut in_window, tl!("Open replies and forwards in a new window"))
+        .on_hover_text(tl!("Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."));
+    app.hit.add("optionRepliesInWindow", 0, switch.rect);
+    if switch.changed() {
+        let _ = app.run("ui.repliesInWindow", json!({"value": in_window}));
     }
     row(ui, tl!("Preview lines in the message list"), |ui| {
         egui::ComboBox::from_id_salt("opt_preview").selected_text(prefs.preview_lines.to_string()).show_ui(ui, |ui| {

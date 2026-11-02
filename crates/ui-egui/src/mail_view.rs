@@ -121,7 +121,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         // Hidden: a narrow strip stays, with the button that brings the pane back.
         crate::nav::folder_pane_strip(app, ui);
     }
-    let composing = app.session.compose.is_some();
+    // The reading pane's message being written (#286): one in a window of its own isn't here.
+    let composing = crate::windows::compose_window::pane_compose(app).is_some_and(|c| app.session.compose_id() == Some(c));
     let pane = app.session.view.reading_pane;
     // The list takes the whole width when the reading pane is off, unless a message is being written.
     if pane == Pane::Off && !composing {
@@ -149,7 +150,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
         if composing {
-            crate::compose::show(app, ui);
+            // Each message being written has fields of its own (#286): two never share a caret.
+            let compose = app.session.compose_id();
+            ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
         } else {
             crate::reading::show(app, ui);
         }
@@ -653,7 +656,7 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
     if scrolls && !overlay {
-        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, if t.dark { t.panel } else { t.canvas });
+        ui.painter().rect_filled(lane, SCROLL_TRACK / 2.0, t.lane);
     }
     // The handle keeps clear of the arrows at the ends of its lane (a lane too short for them
     // has none).
@@ -700,27 +703,15 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
                 break;
             }
             if let Some(group) = &row.group {
-                // A box a step lighter than the list (a step darker on a light one), with a line round it.
+                // Text on the list itself: no bar, no box.
                 let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                let fill = t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 });
-                let line = Stroke::new(1.0, t.border_strong);
-                ui.painter().rect_filled(gr, 0.0, fill);
-                // The line under the row above is this box's top edge, except for the first box.
-                let (left, right, bottom) = (gr.min.x + 0.5, gr.max.x - 0.5, gr.max.y - 0.5);
-                let top = if i == 0 { gr.min.y + 0.5 } else { gr.min.y };
-                ui.painter().line_segment([pos2(left, top), pos2(left, gr.max.y)], line);
-                ui.painter().line_segment([pos2(right, top), pos2(right, gr.max.y)], line);
-                ui.painter().line_segment([pos2(gr.min.x, bottom), pos2(gr.max.x, bottom)], line);
-                if i == 0 {
-                    ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
-                }
                 paint_clipped(
                     ui.painter(),
-                    pos2(gr.min.x + 10.0, gr.center().y),
-                    gr.width() - 16.0,
+                    pos2(gr.min.x + 16.0, gr.center().y + 3.0),
+                    gr.width() - 22.0,
                     group_name(group, row.category),
                     semibold(GROUP_TEXT),
-                    t.text,
+                    t.group_label,
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
@@ -815,28 +806,6 @@ fn preview(ui: &Ui, rev: u64, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
     })
 }
 
-/// A line of dots round `r`, one pixel on and one off: the mark of the row the keys act on.
-fn dotted_frame(p: &egui::Painter, r: Rect, color: Color32) {
-    // A dot is a pixel of the screen, on the screen's own grid, so the line stays one of dots
-    // at any scale. They go out as one mesh: shapes this small are smoothed away otherwise.
-    let dot = 1.0 / p.pixels_per_point().max(0.25);
-    let r = egui::emath::GuiRounding::round_to_pixels(r, p.pixels_per_point());
-    let steps = |length: f32| ((length / (2.0 * dot)).ceil() as usize).min(4000);
-    let mut dots = egui::Mesh::default();
-    let mut put = |x: f32, y: f32| dots.add_colored_rect(Rect::from_min_size(pos2(x, y), vec2(dot, dot)), color);
-    for i in 0..steps(r.width()) {
-        let x = r.min.x + i as f32 * 2.0 * dot;
-        put(x, r.min.y);
-        put(x, r.max.y - dot);
-    }
-    for i in 0..steps(r.height()) {
-        let y = r.min.y + i as f32 * 2.0 * dot;
-        put(r.min.x, y);
-        put(r.max.x - dot, y);
-    }
-    p.add(egui::Shape::mesh(dots));
-}
-
 /// Where a message's follow-up flag stands, as its row in the list shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FollowUp {
@@ -862,7 +831,7 @@ impl FollowUp {
 /// one's tint, or nothing (the list shows through).
 pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: bool) -> Option<Color32> {
     match (selected, follow_up) {
-        (true, _) => Some(if focus { t.selection } else { t.selection.linear_multiply(0.7) }),
+        (true, _) => Some(if focus { t.selection } else { t.selection_unfocused }),
         (false, FollowUp::Flagged | FollowUp::Overdue) => Some(t.flagged_row),
         (false, FollowUp::None) => None,
     }
@@ -954,35 +923,44 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
     let follow_up = FollowUp::of(&m, &app.session);
     let fill = row_fill(&t, follow_up, selected, focus);
-    if let Some(fill) = fill {
-        p.rect_filled(body, 0.0, fill);
-        if fill == t.flagged_row {
+    // A selected row is a rounded card a little in from the list's edges: its fill and an
+    // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
+    // through the selection rather than being replaced by it.
+    let card = body.shrink2(vec2(4.0, 1.0));
+    let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
+    if flag_tint {
+        if selected {
+            p.rect_filled(card, 6.0, t.flagged_row);
+        } else {
+            p.rect_filled(card, 6.0, t.flagged_row);
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
+    if let (true, Some(fill)) = (selected, fill) {
+        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
+        let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
+        p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+    }
     if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
         // The pointer's shade goes over a flagged row's tint.
-        p.rect_filled(body, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(card, 6.0, t.hover_subtle);
     }
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
     if overdue {
         app.hit.add("messageOverdue", row.id, body);
     }
-    // Unread wears the bar; under the pointer it widens, and a read message shows a faint one
-    // so the switch can be found.
-    let bar = Rect::from_min_max(body.min, pos2(body.min.x + if read_resp.hovered() { 6.0 } else { 4.0 }, body.max.y));
+    // Unread wears a dot in the accent; under the pointer a read message shows a ring, so the
+    // switch can be found.
+    let dot = pos2(body.min.x + 13.0, line1);
     if unread {
-        p.rect_filled(bar, 0.0, t.accent);
+        p.circle_filled(dot, 4.0, t.accent);
     } else if read_resp.hovered() {
-        p.rect_filled(bar, 0.0, t.accent.linear_multiply(0.4));
+        p.circle_stroke(dot, 3.5, Stroke::new(1.2, t.selection_edge_unfocused));
     }
-    if selected && focus {
-        // The message the keys act on has a line of dots round it.
-        dotted_frame(p, body, t.text_dim);
+    if !selected {
+        p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.border_faint));
     }
-    let rule = if t.dark { t.border_strong } else { t.border };
-    p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
     // What is in the row is laid out from its top as in a row of the full height, moved up with
     // its lines (the background and the line under it are the row's own, above).
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
@@ -1099,7 +1077,7 @@ fn lines(app: &mut MailApp, ui: &mut Ui, m: Arc<Message>, row: &Row, rect: Rect,
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
-        (true, false) => (semibold(LIST_TEXT), t.accent_text),
+        (true, false) => (semibold(LIST_TEXT), t.text),
         (true, true) => (semibold(LIST_TEXT), t.overdue),
         (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
     };
@@ -1228,7 +1206,7 @@ fn lines(app: &mut MailApp, ui: &mut Ui, m: Arc<Message>, row: &Row, rect: Rect,
     }
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
     let (sfont, scolor) = match (unread, overdue) {
-        (true, false) => (semibold(LIST_TEXT), t.accent_text),
+        (true, false) => (semibold(LIST_TEXT), t.text),
         (true, true) => (semibold(LIST_TEXT), t.overdue),
         (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
     };
@@ -1258,9 +1236,10 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
     if resp.clicked() {
         let _ = app.run("mail.select", json!({"id": id, "copy": copy, "extend": mods.command, "range": mods.shift}));
     }
-    // A double click opens the message: a draft in the composer, any other in a window of its own.
+    // A double click opens the message in a window of its own: a draft ready to be written in
+    // (#286), any other to read.
     if resp.double_clicked() {
-        let _ = if m.draft { app.run("mail.editDraft", json!({"id": id})) } else { app.run("ui.openWindow", json!({"message": id})) };
+        let _ = app.run("ui.openWindow", json!({"message": id}));
     }
     // A right click on a row outside the selection acts on that row (a conversation's row and
     // its newest message's own row under it are two rows, #503).

@@ -222,7 +222,10 @@ fn open_links(ctx: &egui::Context) {
 }
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
-    let open_inbox = inbox.clone();
+    // What the picker delivers comes in apart from what is dropped: it is for what the picker
+    // was opened for, and a dropped file never is.
+    let picked = Inbox::default();
+    let open_inbox = picked.clone();
     Services {
         open_async: Some(Box::new(move |purpose: &str| {
             let inbox = open_inbox.clone();
@@ -243,6 +246,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
             });
         })),
         download: Some(Box::new(download)),
+        picked: Some(picked),
         inbox: Some(inbox),
         persist: Some(Box::new(persist)),
         // The browser's language, for an interface language left on Automatic; and the page says

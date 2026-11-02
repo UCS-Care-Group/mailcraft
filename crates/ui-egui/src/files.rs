@@ -30,8 +30,9 @@ pub enum FileDialogRequest {
 
 /// What to do with the path picked in a dialog.
 pub(crate) enum AfterPick {
-    /// Open the picked mailbox, bring the picked file in, or attach it (by purpose).
-    Open(String),
+    /// Open the picked mailbox, bring the picked file in, or attach it (by purpose), to the
+    /// message being written that asked for it (#286: the keyboard may be elsewhere by then).
+    Open(String, Option<u64>),
     /// Run this command with the picked path as `path`.
     Export { command: String, params: Value },
     /// Show what is in the picked folder, ready to import ([`crate::import_tree`]).
@@ -152,12 +153,13 @@ fn download_all(app: &mut MailApp, params: Value) -> Result<Value, String> {
 
 /// Pick a file to open (`mailbox`), bring in (`import`) or attach (`attach`).
 pub(crate) fn open(app: &mut MailApp, purpose: &str) {
+    let asking = if matches!(purpose, "attach" | "bodyPicture") { app.session.compose_id() } else { None };
     if let Some(f) = &app.services.open_async {
         f(purpose);
-        app.pending_open = Some(purpose.to_string());
+        app.pending_open = Some((purpose.to_string(), asking));
         return;
     }
-    let _ = ask(app, FileDialogRequest::Open { purpose: purpose.to_string() }, AfterPick::Open(purpose.to_string()));
+    let _ = ask(app, FileDialogRequest::Open { purpose: purpose.to_string() }, AfterPick::Open(purpose.to_string(), asking));
 }
 
 fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Value, String> {
@@ -187,7 +189,7 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     let d = app.file_dialog.take()?;
     let Some(path) = picked else { return Some(Ok(json!({"cancelled": true}))) };
     let r = match d.after {
-        AfterPick::Open(purpose) => opened_path(app, &purpose, &path),
+        AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),
         AfterPick::Export { command, mut params } => {
             if let Some(o) = params.as_object_mut() {
@@ -218,21 +220,32 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
 
 /// What a file is for when nobody said: a mailbox opens, a message/calendar/contact file is
 /// brought in, anything else is attached while a message is being written.
+/// (The message is the one the window with the keyboard writes, [`crate::windows::compose_window::target`]:
+/// from the main window, the reading pane's alone, never one in a window behind it.)
 fn purpose_of(app: &MailApp, name: &str) -> &'static str {
     use mailcraft_engine::io::Format;
+    let writing = crate::windows::compose_window::target(app).is_some();
     match Format::from_extension(name) {
         Some(Format::Mailbox) => "mailbox",
-        Some(_) if app.session.compose.is_none() => "import",
-        _ if app.session.compose.is_some() => "attach",
+        Some(_) if !writing => "import",
+        _ if writing => "attach",
         _ => "import",
     }
 }
 
-fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, String> {
+/// `params` for a command on the message being written `asking` (none: the current one).
+fn on_message(mut params: Value, asking: Option<u64>) -> Value {
+    if let (Some(compose), Some(map)) = (asking, params.as_object_mut()) {
+        map.insert("compose".into(), json!(compose));
+    }
+    params
+}
+
+fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>) -> Result<Value, String> {
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
-        "attach" => app.run("compose.attach", json!({"path": path})),
-        "bodyPicture" => app.run("insert.picture", json!({"path": path})),
+        "attach" => app.run("compose.attach", on_message(json!({"path": path}), asking)),
+        "bodyPicture" => app.run("insert.picture", on_message(json!({"path": path}), asking)),
         "picture" => {
             crate::signatures::add_picture(app, json!({"path": path}));
             return Ok(json!({"picture": path}));
@@ -277,7 +290,7 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
     }
     let path = local_path(path);
     let purpose = purpose_of(app, &path);
-    let _ = opened_path(app, purpose, &path);
+    let _ = opened_path(app, purpose, &path, crate::windows::compose_window::target(app));
 }
 
 /// The most calendar and contact files waiting to be asked about; more are left alone.
@@ -394,17 +407,28 @@ pub fn local_path(text: &str) -> String {
     }
 }
 
-/// Files that arrived asynchronously (the web picker, drops in the browser).
+/// Files that arrived asynchronously: from the web picker, each for what it was opened for, and
+/// dropped in the browser, each for what its kind says. A picker that was cancelled delivers
+/// nothing, so what it was opened for is never what a dropped file is taken for.
 pub(crate) fn drain_inbox(app: &mut MailApp) {
-    let Some(inbox) = app.services.inbox.clone() else { return };
-    let files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
-    for (name, bytes) in files {
-        let purpose = app.pending_open.take().unwrap_or_else(|| purpose_of(app, &name).to_string());
+    let take = |inbox: &Option<crate::Inbox>| {
+        inbox.as_ref().map(|inbox| std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()))).unwrap_or_default()
+    };
+    let picked = take(&app.services.picked);
+    // What the picker was opened for is what every file it delivered is for.
+    let asked = if picked.is_empty() { None } else { app.pending_open.take() };
+    let picked = picked.into_iter().map(|file| (file, asked.clone()));
+    let dropped = take(&app.services.inbox).into_iter().map(|file| (file, None));
+    let files: Vec<_> = picked.chain(dropped).collect();
+    for ((name, bytes), asked) in files {
+        let (purpose, asking) = asked.unwrap_or_else(|| (purpose_of(app, &name).to_string(), crate::windows::compose_window::target(app)));
+
         let data = encode(&bytes);
         let r = match purpose.as_str() {
             "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
-            "attach" => app.run("compose.attach", json!({"name": name, "data": data})),
-            "bodyPicture" => app.run("insert.picture", json!({"file": name, "data": data})),
+            "attach" => app.run("compose.attach", on_message(json!({"name": name, "data": data}), asking)),
+            "bodyPicture" => app.run("insert.picture", on_message(json!({"file": name, "data": data}), asking)),
+
             _ => app.run("file.import", json!({"name": name, "data": data})),
         };
         if r.is_ok() {

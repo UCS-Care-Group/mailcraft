@@ -5,6 +5,10 @@
 //!
 //! Sizes and positions are in egui points: what [`egui::ViewportInfo`] reports and what
 //! [`egui::ViewportBuilder`] takes.
+//!
+//! A restored place is checked against the monitors connected now ([`on_screen`]), so a window
+//! whose monitor is gone opens on the main one (#719). The rule is about any window, not only the
+//! main one: a window of its own that remembers its place is checked the same way.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +30,8 @@ pub struct WindowGeometry {
     pub width: f32,
     pub height: f32,
     pub maximized: bool,
-    /// Size of the monitor the window was on, to notice when that monitor is gone.
+    /// Size of the monitor the window was on: where no list of monitors can be had, a different
+    /// size now is how a lost monitor is noticed.
     pub monitor: Option<[f32; 2]>,
 }
 
@@ -74,142 +79,136 @@ impl WindowGeometry {
         }
     }
 
-    /// After a restore: where to move the window when the monitor it now reports differs from the
-    /// one it was saved on (an external monitor was unplugged, say), so a window restored to a
-    /// position no monitor covers any more doesn't open off screen. Centred on the primary
-    /// monitor, whose top-left corner is the origin. A maximized window fills whichever monitor
-    /// the system picks, so it stays put.
-    pub fn rescue_position(&self, info: &egui::ViewportInfo) -> Option<egui::Pos2> {
-        if self.maximized || self.position.is_none() {
+    /// After a restore: where to move the window so that it doesn't open off screen, given the
+    /// monitors connected now (in points, as [`monitors_in_points`] makes them). `None`: it stays.
+    ///
+    /// With a list of monitors, the rule is [`on_screen`]'s. Without one, the window is moved
+    /// only when the monitor it now reports is a different size from the one it was saved on,
+    /// centred on that monitor. A maximized window fills whichever monitor the system picks, and a
+    /// window without a saved position (Wayland) is where the system put it: both stay.
+    pub fn rescue(&self, monitors: &[egui::Rect], monitor_now: Option<egui::Vec2>) -> Option<egui::Pos2> {
+        if self.maximized {
             return None;
+        }
+        let [x, y] = self.position?;
+        let size = egui::vec2(self.width, self.height);
+        if usable_monitors(monitors).next().is_some() {
+            return match on_screen(egui::Rect::from_min_size(egui::pos2(x, y), size), monitors) {
+                Placement::Keep => None,
+                Placement::Move(to) => Some(to),
+            };
         }
         let saved = egui::Vec2::from(self.monitor?);
-        let now = info.monitor_size.filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0)?;
-        if (now - saved).length() <= 1.0 {
+        let now = monitor_now.filter(|s| usable_size(*s))?;
+        if !saved.is_finite() || (now - saved).length() <= 1.0 {
             return None;
         }
-        let free = now - egui::vec2(self.width, self.height);
-        Some(egui::pos2((free.x / 2.0).max(0.0), (free.y / 2.0).max(0.0)))
+        Some(centred(egui::Rect::from_min_size(egui::Pos2::ZERO, now), size))
     }
 }
 
-/// Checks the restored geometry in `pending` once, and only once the monitor size is known: while
-/// `info` doesn't report a usable one, `pending` is left in place for a later frame. Then it is taken
-/// and [`WindowGeometry::rescue_position`] decides where to move the window, if anywhere.
-pub fn take_rescue(pending: &mut Option<WindowGeometry>, info: &egui::ViewportInfo) -> Option<egui::Pos2> {
-    info.monitor_size.filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0)?;
-    pending.take()?.rescue_position(info)
+/// Where a window goes, by [`on_screen`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Placement {
+    /// Where it was: some monitor shows enough of it.
+    Keep,
+    /// Its top-left corner goes here, in the middle of the main monitor.
+    Move(egui::Pos2),
+}
+
+/// The part of a window's top that a monitor has to show for the window to stay where it was:
+/// enough of its title bar to take hold of it and drag it.
+pub const TITLE_BAR_SHOWN: egui::Vec2 = egui::vec2(100.0, 40.0);
+
+/// Whether a window at `window` (its top-left corner and size, in points) can be seen and taken
+/// hold of on one of `monitors` (in points): some monitor shows at least [`TITLE_BAR_SHOWN`] of
+/// the strip along its top. Otherwise it goes in the middle of the main monitor (the one at the
+/// origin, or else the first listed), its top-left corner on that monitor if it is larger.
+///
+/// Monitors that can't be real (not finite, no size, farther out than any desk) are left out;
+/// with none left, the window is kept where the system put it. A window whose place or size can't
+/// be real is moved.
+pub fn on_screen(window: egui::Rect, monitors: &[egui::Rect]) -> Placement {
+    let Some(main) = main_monitor(monitors) else { return Placement::Keep };
+    let size = window.size();
+    if !window.min.is_finite() || !size.is_finite() {
+        return Placement::Move(centred(main, size));
+    }
+    let need = TITLE_BAR_SHOWN.min(size.max(egui::Vec2::ZERO));
+    let strip = egui::Rect::from_min_size(window.min, egui::vec2(size.x, need.y));
+    let shown = usable_monitors(monitors).any(|m| {
+        let both = m.intersect(strip);
+        both.is_positive() && both.width() >= need.x && both.height() >= need.y
+    });
+    if shown { Placement::Keep } else { Placement::Move(centred(main, size)) }
+}
+
+/// The main monitor: the one whose top-left corner is the origin (or else that holds it), else
+/// the first one listed.
+fn main_monitor(monitors: &[egui::Rect]) -> Option<egui::Rect> {
+    let mut usable = usable_monitors(monitors);
+    let first = usable.next()?;
+    let at_origin = usable_monitors(monitors).find(|m| m.min == egui::Pos2::ZERO);
+    Some(at_origin.or_else(|| usable_monitors(monitors).find(|m| m.contains(egui::Pos2::ZERO))).unwrap_or(first))
+}
+
+/// Whether `monitors` lists one that can be real: where none is listed (Wayland), a window is
+/// put where the system puts it.
+pub fn any_monitor(monitors: &[egui::Rect]) -> bool {
+    usable_monitors(monitors).next().is_some()
+}
+
+/// The monitor that holds `point`, among those that can be real.
+pub fn monitor_holding(monitors: &[egui::Rect], point: egui::Pos2) -> Option<egui::Rect> {
+    usable_monitors(monitors).find(|m| m.contains(point))
+}
+
+fn usable_monitors(monitors: &[egui::Rect]) -> impl Iterator<Item = egui::Rect> + '_ {
+    monitors.iter().copied().filter(usable_monitor)
+}
+
+fn usable_monitor(m: &egui::Rect) -> bool {
+    m.min.is_finite() && m.min.x.abs() <= MAX_COORD && m.min.y.abs() <= MAX_COORD && usable_size(m.size())
+}
+
+fn usable_size(s: egui::Vec2) -> bool {
+    s.is_finite() && s.x > 0.0 && s.y > 0.0 && s.x <= MAX_SIZE.x && s.y <= MAX_SIZE.y
+}
+
+/// The top-left corner that puts a window of `size` in the middle of `monitor`, never above or to
+/// the left of the monitor's own corner. A size that can't be real is taken as [`MIN_SIZE`].
+fn centred(monitor: egui::Rect, size: egui::Vec2) -> egui::Pos2 {
+    let size = if size.is_finite() { size.max(egui::Vec2::ZERO) } else { MIN_SIZE };
+    let free = monitor.size() - size;
+    monitor.min + egui::vec2((free.x / 2.0).max(0.0), (free.y / 2.0).max(0.0))
+}
+
+/// The monitors as winit lists them (top-left corner and size in physical pixels), in the points
+/// a window's place is in: divided by the window's points-per-pixel (its scale factor times
+/// egui's zoom), as egui does for the window's own rect. Nothing that can't be real comes out.
+pub fn monitors_in_points(monitors: impl IntoIterator<Item = ([i32; 2], [u32; 2])>, pixels_per_point: f32) -> Vec<egui::Rect> {
+    if !pixels_per_point.is_finite() || pixels_per_point <= 0.0 {
+        return Vec::new();
+    }
+    let rects = monitors
+        .into_iter()
+        .take(64)
+        .map(|([x, y], [w, h])| egui::Rect::from_min_size(egui::pos2(x as f32, y as f32), egui::vec2(w as f32, h as f32)) / pixels_per_point);
+    rects.filter(usable_monitor).collect()
+}
+
+/// Checks the restored geometry in `pending` once there is something to check it against: a list
+/// of monitors, or else the size of the monitor the window is on. Until then `pending` is left in
+/// place for a later frame. Then it is taken, and [`WindowGeometry::rescue`] says where to move
+/// the window, if anywhere.
+pub fn take_rescue(pending: &mut Option<WindowGeometry>, info: &egui::ViewportInfo, monitors: &[egui::Rect]) -> Option<egui::Pos2> {
+    let monitor_now = info.monitor_size.filter(|s| usable_size(*s));
+    if usable_monitors(monitors).next().is_none() && monitor_now.is_none() {
+        return None;
+    }
+    pending.take()?.rescue(monitors, monitor_now)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn info(rect: egui::Rect, monitor: egui::Vec2) -> egui::ViewportInfo {
-        egui::ViewportInfo { inner_rect: Some(rect), outer_rect: Some(rect), monitor_size: Some(monitor), ..Default::default() }
-    }
-
-    fn saved() -> WindowGeometry {
-        WindowGeometry { position: Some([100.0, 50.0]), width: 1200.0, height: 800.0, maximized: false, monitor: Some([1920.0, 1080.0]) }
-    }
-
-    #[test]
-    fn records_the_window_and_restores_it() {
-        let rect = egui::Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(1200.0, 800.0));
-        let g = WindowGeometry::track(None, &info(rect, egui::vec2(1920.0, 1080.0)), egui::Vec2::ZERO);
-        assert_eq!(g, Some(saved()));
-        let b = saved().apply(egui::ViewportBuilder::default());
-        assert_eq!(b.inner_size, Some(egui::vec2(1200.0, 800.0)));
-        assert_eq!(b.position, Some(egui::pos2(100.0, 50.0)));
-        assert_eq!(b.maximized, Some(false));
-    }
-
-    #[test]
-    fn maximized_keeps_the_normal_size_and_position() {
-        let full = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1040.0));
-        let mut i = info(full, egui::vec2(1920.0, 1080.0));
-        i.maximized = Some(true);
-        let g = WindowGeometry::track(Some(saved()), &i, egui::Vec2::ZERO);
-        if cfg!(target_os = "macos") {
-            // The zoomed frame is saved as the size; the window never reopens "maximized".
-            assert_eq!(g.map(|g| (g.position, g.width, g.height, g.maximized)), Some((Some([0.0, 0.0]), 1920.0, 1040.0, false)));
-        } else {
-            assert_eq!(g, Some(WindowGeometry { maximized: true, ..saved() }));
-        }
-        // Minimized or full screen: nothing changes.
-        i.maximized = Some(false);
-        i.minimized = Some(true);
-        assert_eq!(WindowGeometry::track(Some(saved()), &i, egui::Vec2::ZERO), Some(saved()));
-        i.minimized = None;
-        i.fullscreen = Some(true);
-        assert_eq!(WindowGeometry::track(Some(saved()), &i, egui::Vec2::ZERO), Some(saved()));
-    }
-
-    #[test]
-    fn without_a_position_the_content_size_is_kept() {
-        // Wayland reports neither rect.
-        let i = egui::ViewportInfo::default();
-        let g = WindowGeometry::track(None, &i, egui::vec2(1000.0, 700.0));
-        assert_eq!(g, Some(WindowGeometry { position: None, width: 1000.0, height: 700.0, maximized: false, monitor: None }));
-        assert_eq!(g.map(|g| g.apply(egui::ViewportBuilder::default()).position), Some(None));
-    }
-
-    #[test]
-    fn insane_values_are_clamped_or_dropped() {
-        let zero = WindowGeometry { width: 0.0, height: 800.0, ..saved() };
-        assert_eq!(zero.sanitized(), None);
-        assert_eq!(WindowGeometry::default().sanitized(), None);
-        let nan = WindowGeometry { width: f32::NAN, ..saved() };
-        assert_eq!(nan.sanitized(), None);
-        let tiny = WindowGeometry { width: 10.0, height: 1.0e9, ..saved() }.sanitized();
-        assert_eq!(tiny.map(|g| (g.width, g.height)), Some((MIN_SIZE.x, 16384.0)));
-        let far = WindowGeometry { position: Some([1.0e7, 0.0]), monitor: Some([f32::INFINITY, 1080.0]), ..saved() }.sanitized();
-        assert_eq!(far.map(|g| (g.position, g.monitor)), Some((None, None)));
-        assert_eq!(saved().sanitized(), Some(saved()));
-    }
-
-    #[test]
-    fn a_window_whose_monitor_is_gone_is_moved_on_screen() {
-        let on = egui::Rect::from_min_size(egui::pos2(2000.0, 50.0), egui::vec2(1200.0, 800.0));
-        // Same monitor: stays where it was.
-        assert_eq!(saved().rescue_position(&info(on, egui::vec2(1920.0, 1080.0))), None);
-        // A different (smaller) monitor now: centred on it.
-        assert_eq!(saved().rescue_position(&info(on, egui::vec2(1600.0, 900.0))), Some(egui::pos2(200.0, 50.0)));
-        // Larger than that monitor: its top-left corner.
-        assert_eq!(saved().rescue_position(&info(on, egui::vec2(1024.0, 768.0))), Some(egui::Pos2::ZERO));
-        // Nothing to compare, or no saved position: no move.
-        assert_eq!(WindowGeometry { monitor: None, ..saved() }.rescue_position(&info(on, egui::vec2(1600.0, 900.0))), None);
-        assert_eq!(WindowGeometry { position: None, ..saved() }.rescue_position(&info(on, egui::vec2(1600.0, 900.0))), None);
-        assert_eq!(WindowGeometry { maximized: true, ..saved() }.rescue_position(&info(on, egui::vec2(1600.0, 900.0))), None);
-        assert_eq!(saved().rescue_position(&egui::ViewportInfo::default()), None);
-    }
-
-    #[test]
-    fn the_rescue_waits_for_the_monitor_size() {
-        let on = egui::Rect::from_min_size(egui::pos2(2000.0, 50.0), egui::vec2(1200.0, 800.0));
-        // The first frame doesn't know the monitor yet: nothing happens and the geometry is kept.
-        let mut pending = Some(saved());
-        assert_eq!(take_rescue(&mut pending, &egui::ViewportInfo::default()), None);
-        assert_eq!(pending, Some(saved()));
-        // A later frame reports a different monitor: centred on it, and the check is done.
-        assert_eq!(take_rescue(&mut pending, &info(on, egui::vec2(1600.0, 900.0))), Some(egui::pos2(200.0, 50.0)));
-        assert_eq!(pending, None);
-        assert_eq!(take_rescue(&mut pending, &info(on, egui::vec2(1024.0, 768.0))), None);
-        // The same monitor: no move, and the check is done as well.
-        let mut pending = Some(saved());
-        assert_eq!(take_rescue(&mut pending, &info(on, egui::vec2(1920.0, 1080.0))), None);
-        assert_eq!(pending, None);
-    }
-
-    #[test]
-    fn survives_the_prefs_round_trip() {
-        let ui = crate::UiState { window: Some(saved()), ..Default::default() };
-        let json = serde_json::to_string(&ui).unwrap();
-        let back: crate::UiState = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.window, Some(saved()));
-        // Prefs written before #23 have no window.
-        let old: crate::UiState = serde_json::from_str(r#"{"tab":"Insert"}"#).unwrap();
-        assert_eq!(old.window, None);
-        assert_eq!(old.tab, "Insert");
-    }
-}
+#[path = "window_geometry_tests.rs"]
+mod window_geometry_tests;

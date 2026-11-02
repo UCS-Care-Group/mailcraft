@@ -658,6 +658,9 @@ pub struct Compose {
     pub quote: Option<Quote>,
     pub attachments: Vec<Attachment>,
     pub importance: Importance,
+    /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub read_receipt: bool,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays
@@ -679,6 +682,29 @@ pub struct Compose {
     /// is closed. Never read from a file: only [`Session::run`] sets it.
     #[serde(skip)]
     pub owner_changed: bool,
+    /// It is in Drafts only because it was saved in the background (`compose.saveDraft` with
+    /// `background`) and wasn't a draft when it was opened (#286): closing it with `discard`
+    /// (Don't Save) takes that copy out of Drafts again. A draft opened from Drafts never is.
+    #[serde(skip)]
+    pub autosaved: bool,
+    /// Which message being written this is, among those open at once (#286): given when it opens
+    /// ([`Session::open_compose`]), never read from a file.
+    #[serde(skip)]
+    pub id: u64,
+}
+
+/// Who a Save Draft is for ([`Session::saving`]), which says whether the copy it makes is one
+/// Don't Save takes out of Drafts again ([`Compose::autosaved`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Saving {
+    /// Somebody asked for it (Save Draft, Save, closing with changes, quitting): a draft for good.
+    #[default]
+    Asked,
+    /// The five-minute timer ([`Session::save_in_background`]): no step to undo, and a message
+    /// that was no draft before is one Don't Save takes out of Drafts again.
+    Background,
+    /// A message put aside for another, unasked: it stays as the timer left it.
+    Unasked,
 }
 
 impl Compose {
@@ -982,8 +1008,14 @@ pub struct Session {
     pub mailbox: Mailbox,
     pub view: ViewState,
     pub sel: Selection,
-    /// The message being written, if one is open.
+    /// The current message being written, if one is open: the one a command acts on when it names
+    /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
+    /// The other messages being written, open at the same time, the one opened or put aside last
+    /// at the end ([`crate::composing`]).
+    pub composing: Vec<Compose>,
+    /// The last id given to a message being written.
+    pub(crate) compose_seq: u64,
     /// A signature open in File › Signatures. While there is one, the editing commands
     /// work on it instead of the message being written ([`Session::doc`]).
     pub signature_edit: Option<SignatureEdit>,
@@ -1041,21 +1073,23 @@ pub struct Session {
     /// set by the window while an agent's command runs: a command that takes one away is undone,
     /// as the owner wasn't asked about it (#494). Never saved.
     pub owner_changing: Vec<Id>,
+    /// Who the Save Draft that is running is for (#286): the five-minute timer, a message put
+    /// aside unasked, or anybody's asking for it. Never a command's parameter.
+    pub(crate) saving: Saving,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
-    /// Exchange server accounts may be added and kept in step through Exchange Web Services
-    /// (#252): the switch for testing, off until a tester has confirmed it on a server of their
-    /// own. Set by the host (`MAILCRAFT_EWS=1`), never by a command's params. Never saved.
-    pub ews: bool,
     /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
     /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
     pub staged_tree: Option<crate::import_tree::Parsed>,
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
+    /// The automatic replies of each account that signs in with Microsoft, as its server last
+    /// said (`sync.applyAutomaticReplies`). The server's, read again each session: never saved.
+    pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
@@ -1162,6 +1196,8 @@ impl Session {
             view: ViewState::default(),
             sel: Selection::default(),
             compose: None,
+            composing: Vec::new(),
+            compose_seq: 0,
             signature_edit: None,
             prefs: Prefs::default(),
             registry: Arc::new(crate::cmd::registry()),
@@ -1183,10 +1219,11 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             owner_changing: Vec::new(),
+            saving: Saving::Asked,
             graph_switch_backup: None,
-            ews: false,
             staged_tree: None,
             server_search: Default::default(),
+            auto_replies: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
             undo_said: Vec::new(),
@@ -1230,6 +1267,20 @@ impl Session {
     }
 
     // ---- time ----
+
+    /// Save the message being written `compose` to Drafts as the five-minute timer does (#286),
+    /// as Save Draft saves it but as no step to undo: one that wasn't a draft before is marked
+    /// ([`Compose::autosaved`]) so that Don't Save takes it out of Drafts again. For the host's
+    /// timer alone, never a command: refused while an agent's command runs.
+    pub fn save_in_background(&mut self, compose: u64) -> Result<Value, CmdError> {
+        if self.agent.is_some() {
+            return Err(CmdError::Failed("a message is saved in the background by the window's own timer alone".into()));
+        }
+        let was = std::mem::replace(&mut self.saving, Saving::Background);
+        let r = self.run("compose.saveDraft", &serde_json::json!({"compose": compose}));
+        self.saving = was;
+        r
+    }
 
     pub fn now(&self) -> Timestamp {
         self.clock.now.unwrap_or_else(mailcraft_time::now)
@@ -2377,10 +2428,11 @@ impl Session {
         if self.sel.task.is_some_and(|t| mb.task(t).is_none()) {
             self.sel.task = None;
         }
-        if let Some(c) = &mut self.compose
-            && mb.account(c.account).is_none()
-        {
-            c.account = mb.default_account().map_or(0, |a| a.id);
+        let fallback = mb.default_account().map_or(0, |a| a.id);
+        for c in self.compose.iter_mut().chain(self.composing.iter_mut()) {
+            if mb.account(c.account).is_none() {
+                c.account = fallback;
+            }
         }
         // And its times are by the clock of the zone the calendar is shown in.
         self.settle_zone();
@@ -2431,11 +2483,13 @@ impl Session {
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
+        self.auto_replies.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();
         self.sel = Selection::default();
         self.compose = None;
+        self.composing.clear();
         self.view.folder = 0;
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
@@ -2597,6 +2651,11 @@ impl Session {
 
     // ---- commands ----
 
+    /// Whether a command is running: one it runs itself is run inside it.
+    pub(crate) fn in_command(&self) -> bool {
+        self.swaps.is_some()
+    }
+
     /// Whether a command exists and is enabled now.
     pub fn enabled(&self, id: &str) -> bool {
         self.registry.get(id).is_some_and(|s| (s.enabled)(self).is_none())
@@ -2608,6 +2667,11 @@ impl Session {
     /// (`cmd::compose::saves_first`, #442) saves it to Drafts first, as a Save Draft step of its
     /// own; when the command then fails, that Save Draft step stays behind, and the draft with it.
     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
+        self.run_on_message(id, params)
+    }
+
+    /// [`Session::run`] on the message being written that is current now.
+    pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).
@@ -2624,16 +2688,22 @@ impl Session {
         }
         // A message being written isn't let go of with what isn't saved of it (#442): it goes to
         // Drafts first, in a step of its own, and a save that fails stops here.
-        if crate::cmd::compose::saves_first(self, id, params) || crate::cmd::calendar::share::saves_first(self, id, params) {
-            self.run("compose.saveDraft", &Value::Null)?;
+        for unsaved in crate::cmd::compose::saves_first(self, id, params) {
+            // (Nobody chose to keep it: one only the background saves had put in Drafts still is.)
+            let was = std::mem::replace(&mut self.saving, Saving::Unasked);
+            let saved = self.run("compose.saveDraft", &serde_json::json!({"compose": unsaved}));
+            self.saving = was;
+            saved?;
         }
-        // Undo and redo manage the history themselves.
-        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo");
+        // Undo and redo manage the history themselves; a save in the background is no step.
+        let background = self.saving == Saving::Background;
+        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background;
         // The computer may have been carried to another zone since the last command: the
         // mailbox is put by that zone's clock first, and that is not this command's to undo.
         self.settle_zone();
         let before = self.snapshot(spec.label);
         let compose = self.compose.clone();
+        let composing = self.composing.clone();
         let signature_edit = self.signature_edit.clone();
         let view = self.view.clone();
         let list_before = self.list_of();
@@ -2687,10 +2757,12 @@ impl Session {
                 }
                 // A message being written that the owner (or a script of theirs) changed is theirs
                 // until it is closed (#494); an agent's own changes don't make it the agent's.
+                // (One put aside before and current again isn't changed by being so.)
                 if self.agent.is_none()
                     && let Some(c) = self.compose.as_mut()
                     && c.dirty
                     && !c.owner_changed
+                    && !composing.iter().any(|other| other.id == c.id)
                     && !compose.as_ref().is_some_and(|before| as_it_was(before, c))
                 {
                     c.owner_changed = true;
@@ -2731,6 +2803,9 @@ impl Session {
                             self.history.remove(0);
                         }
                         self.redo.clear();
+                    } else if background {
+                        // Not to undo, but to keep: the file is written.
+                        self.dirty = true;
                     }
                 }
                 self.normalize();
@@ -2746,6 +2821,7 @@ impl Session {
                 }
                 self.sel = before.sel;
                 self.compose = compose;
+                self.composing = composing;
                 self.signature_edit = signature_edit;
                 self.view = view;
             }
@@ -2774,11 +2850,12 @@ fn as_it_was(before: &Compose, now: &Compose) -> bool {
 /// place (which the owner was asked about) is nobody's yet, so it isn't.
 fn changes_owners_message(before: Option<&Compose>, now: Option<&Compose>) -> bool {
     let (Some(before), Some(now)) = (before, now) else { return false };
-    if !before.owner_changed || !now.owner_changed {
+    // Another one current now (the one before was closed, or put aside) isn't that one changed.
+    if before.id != now.id || !before.owner_changed || !now.owner_changed {
         return false;
     }
     let mut saved = before.clone();
-    (saved.dirty, saved.draft) = (now.dirty, now.draft);
+    (saved.dirty, saved.draft, saved.autosaved) = (now.dirty, now.draft, now.autosaved);
     saved != *now && !as_it_was(&saved, now)
 }
 

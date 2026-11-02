@@ -90,7 +90,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
-    let edge = if t.dark { t.group_label } else { t.border_strong };
+    let edge = t.field_edge;
     ui.painter().rect(
         rect,
         4.0,
@@ -339,7 +339,10 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
             let mut right_start = full.max.x;
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                // Quick Access Toolbar: Send/Receive, Undo, Redo.
+                // MailCraft's mark, then the Quick Access Toolbar: Send/Receive, Undo, Redo.
+                let (mark, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+                icons::app_mark(ui.painter(), mark);
+                ui.add_space(8.0);
                 let sync_tip = if app.syncing() { tl!("Sending and receiving…") } else { tl!("Send/Receive All Folders") };
                 qat_button(ui, app, "sync", sync_tip, "ui.sync");
                 let undo = crate::i18n::fmt(tl!("Undo {what}"), &[("what", tl!(app.session.undo_label().unwrap_or("")))]);
@@ -533,6 +536,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);
+                    // Automatic replies are on for an account: said, and a click opens them.
+                    crate::auto_replies::status_item(app, ui, &t, STATUS_TEXT);
                     // The last Send/Receive had problems: one click shows them, in Send/Receive
                     // Progress under their accounts.
                     if app.has_sync_problems() {
@@ -636,7 +641,7 @@ fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) 
     }
     let track = Rect::from_min_size(pos2(r.max.x - bar_w, r.center().y - SYNC_BAR.y / 2.0), vec2(bar_w, SYNC_BAR.y));
     let radius = SYNC_BAR.y / 2.0;
-    ui.painter().rect_filled(track, radius, if t.dark { t.border } else { t.border_strong.linear_multiply(0.6) });
+    ui.painter().rect_filled(track, radius, t.track);
     if shown > 0.0 {
         let fill = Rect::from_min_max(track.min, pos2(track.min.x + (bar_w * shown).max(SYNC_BAR.y), track.max.y));
         ui.painter().rect_filled(fill, radius, t.accent);

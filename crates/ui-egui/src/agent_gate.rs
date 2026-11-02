@@ -174,8 +174,7 @@ fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     // taken away: the message would then be "in Drafts" without what was written since.
     let redo = id == "edit.redo";
     if matches!(id, "edit.undo" | "edit.redo")
-        && let Some(c) = app.session.compose.as_ref().filter(|c| c.owner_changed)
-        && c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d))
+        && app.session.all_composing().filter(|c| c.owner_changed).any(|c| c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d)))
     {
         return Some(format!(
             "`{id}` would put back an earlier draft of the message the owner is writing, or take it away; nothing was done. Try again once the owner has closed the message"
@@ -380,7 +379,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(160.0, 460.0);
-    egui::Modal::new(layer().id).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(ctx, |ui| {
+    egui::Modal::new(layer().id).frame(frame).backdrop_color(t.scrim).show(ctx, |ui| {
         ui.set_width(width);
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         ui.label(egui::RichText::new(tl!("An Agent Is Asking")).font(semibold(14.0)).color(t.text));

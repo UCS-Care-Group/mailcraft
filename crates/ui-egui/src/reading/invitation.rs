@@ -880,7 +880,7 @@ fn day_strip(ui: &Ui, rect: Rect, info: &Info, when: &When, t: &Tokens, twelve_h
     }
     // The meeting itself.
     let r = block(starts, ends.max(starts + 1), lane.min.x, if clash { half - 1.0 } else { lane.max.x });
-    p.rect(r, 2.0, t.accent.linear_multiply(if t.dark { 0.35 } else { 0.16 }), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    p.rect(r, 2.0, t.band_chosen, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     if r.height() >= 13.0 {
         paint_clipped(&p, pos2(r.min.x + 6.0, r.min.y + 7.0), r.width() - 9.0, tl!("This meeting"), semibold(10.5), t.text);
     }

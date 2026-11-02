@@ -39,6 +39,8 @@
 //! kept to go back to.
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
+//! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
+//! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
 //! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
 //! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
@@ -62,7 +64,7 @@
 //! theme is given here. The opening screen shows after 0.3 s: `{"wait": 400}` before a shot.
 //!
 //! A folder of mailboxes being looked at (#420, `ui.dialog` `importTree`) never finishes; `{"host": {"treeProgress": [folders, files, messages]}}` sets the counts it shows, and `{"host": {"treeDir": "/path"}}` has it look into that folder at once.
-//! And setting up an Exchange server account (#252, E7; needs `MAILCRAFT_EWS=1`): `{"host": {"ews":
+//! And setting up an Exchange server account (#252, E7): `{"host": {"ews":
 //! …}}` is how the job of Add Account for one ends, from that line on and for the job waiting when the
 //! line comes: `"waits"` (it is searching), `"consent autodiscover.other.example"` (the owner is
 //! asked before the sign-in goes to that host), `"works"`, `"online"` (the mailbox is in Microsoft
@@ -665,8 +667,6 @@ fn main() {
     // A word index beside a mailbox opened from a file (`file.open`), as the window keeps one
     // (R6.2); the sample is kept in no file and has none.
     session.index_words = true;
-    // Exchange server accounts, for the runs that try them (#252).
-    session.ews = std::env::var("MAILCRAFT_EWS").is_ok_and(|value| value.trim() == "1");
     // A stand-in for the host's part in signing in, when a line of the script speaks to one.
     let host: Arc<Mutex<Host>> = Default::default();
     let stood_in = lines.iter().any(|l| l.get("host").is_some());
@@ -770,6 +770,22 @@ fn main() {
             // Every Microsoft account's To Do works (the question about the local tasks follows).
             if said.get("tasksWork").is_some() {
                 harness.state_mut().stand_in_tasks_work();
+            }
+            // Every Microsoft account's automatic replies as a server has them: on (`"on"`), or
+            // on and only readable with the sign-in it has (`"readOnly"`).
+            if let Some(how) = said.get("autoReplies").and_then(|v| v.as_str()) {
+                let app = harness.state_mut();
+                let setting = mailcraft_model::auto_replies::AutoReplies::from_graph(&serde_json::json!({
+                    "status": "scheduled",
+                    "externalAudience": "contactsOnly",
+                    "scheduledStartDateTime": {"dateTime": "2026-10-14T09:00:00", "timeZone": "UTC"},
+                    "scheduledEndDateTime": {"dateTime": "2026-10-23T17:00:00", "timeZone": "UTC"},
+                    "internalReplyMessage": "<p>I'm away until Friday 23 October.</p><p>For anything urgent, ask bo@example.org.</p>",
+                    "externalReplyMessage": "<p>Thank you for your message. I'm out of the office until 23 October.</p>",
+                }));
+                for account in mailcraft_engine::cmd::auto_replies::reply_accounts(&app.session.mailbox) {
+                    let _ = app.stand_in_auto_replies(account, &setting, how != "readOnly");
+                }
             }
             // A search on the server is asked with a token of this session (invented).
             if said.get("serverSearch").is_some() {

@@ -119,6 +119,8 @@ const SAFE: &[&str] = &[
     "file.exportCalendar",
     "file.exportContacts",
     "file.info",
+    // Reads what is known of the automatic replies (and has the window read them again).
+    "account.automaticReplies",
     "edit.undo",
     "edit.redo",
     // Mail.
@@ -169,6 +171,7 @@ const SAFE: &[&str] = &[
     // Writing (sending is not).
     "compose.set",
     "compose.replyTo",
+    "compose.readReceipt",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -182,6 +185,8 @@ const SAFE: &[&str] = &[
     "compose.lowImportance",
     "compose.saveDraft",
     "compose.close",
+    // Moves a message being written into a window of its own (#286): nothing of it changes.
+    "compose.popOut",
     "compose.select",
     "compose.type",
     "compose.delete",
@@ -344,6 +349,7 @@ const SAFE: &[&str] = &[
     "sync.cancel",
     // Help: the addresses of the project's own pages, and what this copy is.
     "help.help",
+    "help.training",
     "help.support",
     "help.feedback",
     "help.whatsNew",
@@ -356,6 +362,8 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.highContrast",
+    "ui.accent",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
@@ -386,6 +394,8 @@ const SAFE: &[&str] = &[
 
 const SEND: &[&str] = &[
     "compose.send",
+    // The server answers mail on the owner's behalf with what it says.
+    "account.setAutomaticReplies",
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
@@ -436,10 +446,12 @@ const ACCOUNTS: &[&str] = &[
     "ui.keepOffline",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
+    "ui.automaticRepliesSignIn",
     "ui.connectFavorites",
     "ui.allowSharedSend",
     "ui.allowSharedCalendars",
     "ui.allowTasks",
+    "ui.allowAutomaticReplies",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",
@@ -491,6 +503,7 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
@@ -529,6 +542,7 @@ const NEVER: &[&str] = &[
     "sync.applyCategories",
     "sync.applyFavorites",
     "sync.applyMailboxSettings",
+    "sync.applyAutomaticReplies",
     "sync.forgetRemote",
     // File pickers are the owner's; agents pass `data`.
     "ui.open",
@@ -659,7 +673,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     // (#494): Discard throws the message away with its draft; a window closed with changes in its
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
     // view closes the message without saving it, and the windows of its appointments.
-    let writing = owner_writing(s);
+    let writing = owner_writing(s, params);
     // A draft opened in a window opens where messages are written, as `mail.editDraft`.
     if let Some(draft) = draft_in_window(s, id, params) {
         return classify(s, "mail.editDraft", &json!({"id": draft}));
@@ -667,7 +681,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     match id {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
         "ui.closeWindow" if unsaved(params) => return Access::Asked(Class::Delete),
-        "file.new" | "file.open" if writing || unsaved(params) => return Access::Asked(Class::Mailbox),
+        "file.new" | "file.open" if owner_writing_any(s) || unsaved(params) => return Access::Asked(Class::Mailbox),
         _ => {}
     }
     if base != Access::Safe {
@@ -695,8 +709,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // away. When the owner wrote in it, the window asks them every time either way, saved or
         // not, until it is closed (#494); an agent's own message, headless too, is the agent's to
         // leave.
-        _ if leaves(id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
-            let lost = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c)) && p::bool(params, "discard") == Some(true);
+        _ if leaves(id) && s.compose_named(params).is_some_and(|c| unsaved_message(s, c) || c.owner_changed) => {
+            let lost = s.compose_named(params).is_some_and(|c| unsaved_message(s, c)) && p::bool(params, "discard") == Some(true);
             match (writing, lost) {
                 (true, true) => Access::Asked(Class::Delete),
                 (true, false) => Access::Asked(Class::Leave),
@@ -714,21 +728,28 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     }
 }
 
-/// Whether `id` closes the message being written, or puts another in its place: [`LEAVING`],
-/// and the commands of the calendar, People and Tasks that start a new message.
+/// Whether `id` closes the message being written: [`LEAVING`]. Those that start another open it
+/// beside it (#286).
 fn leaves(id: &str) -> bool {
-    LEAVING.contains(&id) || crate::cmd::calendar::share::starts_message(id)
+    LEAVING.contains(&id)
 }
 
-/// Whether what is written in the message isn't all in Drafts: changed since it was saved, or
-/// its draft is gone (#494).
+/// Whether what is written in the message isn't all in Drafts to stay: changed since it was
+/// saved, its draft is gone (#494), or it is there only by the background saves, which `discard`
+/// takes out again (#286).
 fn unsaved_message(s: &Session, c: &crate::Compose) -> bool {
-    c.dirty || draft_gone(s, c)
+    c.dirty || c.autosaved || draft_gone(s, c)
 }
 
-/// Whether the owner wrote in the message being written (#494): it is theirs until it is closed.
-fn owner_writing(s: &Session) -> bool {
-    s.compose.as_ref().is_some_and(|c| c.owner_changed)
+/// Whether the owner wrote in the message being written that a call acts on (`compose`, else the
+/// current one, #494): it is theirs until it is closed.
+fn owner_writing(s: &Session, params: &Value) -> bool {
+    s.compose_named(params).is_some_and(|c| c.owner_changed)
+}
+
+/// Whether the owner wrote in any message being written (#286): another mailbox closes them all.
+fn owner_writing_any(s: &Session) -> bool {
+    s.all_composing().any(|c| c.owner_changed)
 }
 
 /// The draft that `ui.openWindow` would open, which it opens as `mail.editDraft` does.
@@ -752,7 +773,7 @@ fn shared_task<'a>(s: &'a Session, id: &str, params: &Value) -> Option<&'a mailc
     if !matches!(id, "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.delete") {
         return None;
     }
-    p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
+    p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
 }
 
 /// Whether `id` renames or deletes a category that a to-do in a shared list has: the to-do is
@@ -1058,9 +1079,6 @@ fn invitees(s: &Session, params: &Value) -> Vec<String> {
 /// What a call would do, in a sentence that follows "An agent wants to …" (for the owner's
 /// question; never trusted for anything else).
 pub fn describe(s: &Session, id: &str, params: &Value) -> String {
-    if let Some(draft) = draft_in_window(s, id, params) {
-        return leaving_text(s, "mail.editDraft", &json!({"id": draft}));
-    }
     // What the window would lose (`unsaved`) is said in words, never shown as params.
     let form = matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow");
     let mut bare = params.clone();
@@ -1070,14 +1088,18 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
     let mut what = what_it_does(s, id, &bare);
     // Another mailbox in view closes the message the owner is writing (#494); what isn't saved of
     // it goes to Drafts first, unless it is let go of (`discard`, #470).
-    if matches!(id, "file.new" | "file.open") && owner_writing(s) {
-        let unsaved = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c));
+    if matches!(id, "file.new" | "file.open") && owner_writing_any(s) {
+        let unsaved = s.all_composing().any(|c| unsaved_message(s, c));
         let how = match (unsaved, p::bool(params, "discard") == Some(true)) {
             (true, true) => " without being saved",
             (true, false) => "; what isn't saved of it goes to Drafts first",
             (false, _) => "",
         };
-        what.push_str(&format!("; the message {} that the owner is writing is closed{how}", writing(s)));
+        let owners: Vec<&crate::Compose> = s.all_composing().filter(|c| c.owner_changed).collect();
+        match owners.as_slice() {
+            [one] => what.push_str(&format!("; the message {} that the owner is writing is closed{how}", writing(s, &json!({"compose": one.id})))),
+            many => what.push_str(&format!("; the {} messages the owner is writing are closed{how}", many.len())),
+        }
     }
     // And the windows of appointments with changes that aren't saved, as does taking the
     // appointments away.
@@ -1093,7 +1115,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     let label = s.registry.get(id).map(|c| c.label).unwrap_or(id);
     let st = |k: &str| p::str(params, k).unwrap_or("");
     match id {
-        "compose.send" => match &s.compose {
+        "compose.send" => match s.compose_named(params) {
             Some(c) => {
                 let to: Vec<String> =
                     [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()].into_iter().flat_map(|l| addresses(Some(&Value::String(l.to_string())))).collect();
@@ -1131,11 +1153,25 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {
-            let f = p::id(params, "id").unwrap_or(s.view.folder);
+            let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
             let n = s.mailbox.count(f);
             let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
             format!("{verb} {name} and the {} in it, for good", plural(n, "{n} message", "{n} messages"))
+        }
+        "account.setAutomaticReplies" => {
+            let account = p::id(params, "account")
+                .and_then(|a| s.mailbox.account(a))
+                .map_or_else(|| "the first Microsoft account".to_string(), |a| clip(&a.email, 80));
+            match st("status") {
+                "disabled" => format!("turn off the automatic replies of {account}"),
+                status => {
+                    let when =
+                        if status == "scheduled" { format!(" from {} to {}", clip(st("start"), 20), clip(st("end"), 20)) } else { String::new() };
+                    let reply = |k: &str| p::str(params, k).map(|t| format!(", {k}: {}", quoted(&clip(t, 200)))).unwrap_or_default();
+                    format!("have the server of {account} answer mail on the owner's behalf{when}{}{}", reply("internal"), reply("external"))
+                }
+            }
         }
         "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
@@ -1160,7 +1196,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
         "people.delete" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!(
                 "delete the contact {} for good; contacts don't go to Deleted Items",
                 c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
@@ -1181,7 +1217,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             )
         }
         "tasks.delete" => {
-            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             let shared = if shared_task(s, id, params).is_some() { SHARED_TASK } else { "" };
             format!("delete the task {} for good{shared}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
@@ -1196,11 +1232,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
         }
-        _ if leaves(id) => leaving_text(s, id, params),
+        _ if leaves(id) => leaving_text(s, params),
+        _ if let Some(text) = starting_text(s, id, params) => text,
         "ui.closeDialog" | "ui.dialog" => form_text(id, params),
         "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => form_text(id, params),
-        "compose.discard" if owner_writing(s) => {
-            format!("throw away the message {} that the owner is writing, and its draft in Drafts, if it has one", writing(s))
+        "compose.discard" if owner_writing(s, params) => {
+            format!("throw away the message {} that the owner is writing, and its draft in Drafts, if it has one", writing(s, params))
         }
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
@@ -1260,7 +1297,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "junk.blockSender" | "junk.neverBlockSender" | "junk.neverBlockDomain" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default();
             let domain = id == "junk.neverBlockDomain";
             let mut who: Vec<String> = Vec::new();
             for m in ids.iter().filter_map(|m| s.mailbox.message(*m)) {
@@ -1321,7 +1358,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }
         "calendar.removeShared" => {
-            let named = p::id(params, "id")
+            let named = p::id_strict(params, "id")
+                .ok()
+                .flatten()
                 .and_then(|c| s.mailbox.calendar(c))
                 .and_then(|c| mailcraft_model::remote::opened_address(&c.origin.id))
                 .unwrap_or_else(|| st("address").to_string());
@@ -1338,7 +1377,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "account.removeSharedMailbox" => {
-            let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());
+            let a = p::id_strict(params, "id")
+                .ok()
+                .flatten()
+                .and_then(|a| s.mailbox.account(a))
+                .map(|a| a.email.clone())
+                .unwrap_or_else(|| st("address").to_string());
             format!("close the shared mailbox {} and remove its mail from this computer", clip(&a, 80))
         }
         "account.graphSwitch" | "ui.switchToGraph" => {
@@ -1382,13 +1426,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     }
 }
 
-/// What a command that closes the message being written, or puts another in its place, does,
-/// and what becomes of that message (#494).
-fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
+/// What a command that starts another message being written does (beside those open, #286).
+fn starting_text(s: &Session, id: &str, params: &Value) -> Option<String> {
     let message = |m: Option<Id>| m.and_then(|m| s.mailbox.message(m)).map(|m| quoted(&m.subject)).unwrap_or_else(|| "(none selected)".to_string());
     let one = || message(p::message_strict(params).ok().and_then(|m| m.or(s.sel.focus())));
     let several = || messages_text(s, &p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default());
-    let instead = match id {
+    let contact = || {
+        let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
+        c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
+    };
+    Some(match id {
         "mail.new" => "start a new message".to_string(),
         "mail.reply" => format!("reply to {}", one()),
         "mail.replyAll" => format!("reply to all on {}", one()),
@@ -1397,38 +1444,46 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
         "mail.editDraft" => format!("open the draft {}", one()),
         "mail.resend" => format!("open {} again as a new message to send", one()),
-        "people.email" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
-            format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
-        }
+        "people.email" => format!("start a new message to the contact {}", contact()),
         "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
         "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
         "calendar.respondEmail" => format!("start a new message to the organizer of {}", event_title(s, id, params)),
-        "people.forward" => {
-            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
-            format!("start a new message with the contact {} attached", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
-        }
+        "people.forward" => format!("start a new message with the contact {} attached", contact()),
         "tasks.statusReport" => {
-            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             format!("start a new message about the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
-        _ => String::new(),
-    };
-    let writing = writing(s);
+        _ => return None,
+    })
+}
+
+/// What Close Message does to the message being written it closes, and what becomes of that
+/// message (#494).
+fn leaving_text(s: &Session, params: &Value) -> String {
+    let writing = writing(s, params);
     // Saved as it is, it stays in Drafts as it was saved, `discard` or not.
-    let saved = s.compose.as_ref().is_some_and(|c| !unsaved_message(s, c));
-    let then = if saved { "it stays in Drafts as it was last saved" } else { "what isn't saved of it goes to Drafts first" };
-    match (instead.is_empty(), p::bool(params, "discard") == Some(true) && !saved) {
-        (true, true) => format!("close the message {writing} without saving what the owner wrote in it"),
-        (true, false) => format!("close the message {writing} that the owner is writing; {then}"),
-        (false, true) => format!("{instead} in place of the message {writing}, without saving what the owner wrote in it"),
-        (false, false) => format!("{instead} in place of the message {writing} that the owner is writing; {then}"),
+    let c = s.compose_named(params);
+    let saved = c.is_some_and(|c| !unsaved_message(s, c));
+    // In Drafts as it is, but only by the background saves (#286): kept when it is closed, thrown
+    // away with `discard`.
+    let kept = c.is_some_and(|c| !c.dirty && !draft_gone(s, c));
+    let then = if kept { "it stays in Drafts as it was last saved" } else { "what isn't saved of it goes to Drafts first" };
+    let autosaved = c.is_some_and(|c| c.autosaved);
+    if p::bool(params, "discard") == Some(true) && autosaved {
+        format!("close the message {writing} without saving it: it will be thrown away, with the copy saved by itself in Drafts")
+    } else if p::bool(params, "discard") == Some(true) && !saved {
+        format!("close the message {writing} without saving what the owner wrote in it")
+    } else {
+        format!("close the message {writing} that the owner is writing; {then}")
     }
 }
 
-/// The message being written, as a question names it: its subject.
-fn writing(s: &Session) -> String {
-    s.compose.as_ref().map(|c| quoted(&c.subject)).unwrap_or_else(|| "being written".to_string())
+/// The message being written that a call acts on (`compose`, else the current one), as a
+/// question names it: its subject, and which of several it is when more than one is open (#286).
+fn writing(s: &Session, params: &Value) -> String {
+    let Some(c) = s.compose_named(params) else { return "being written".to_string() };
+    let subject = if c.subject.trim().is_empty() { "(no subject)".to_string() } else { quoted(&c.subject) };
+    if s.composing_count() > 1 { format!("{subject} (message being written {})", c.id) } else { subject }
 }
 
 /// A dialog with changes that aren't saved, which the command closes or opens another in place
@@ -1448,7 +1503,7 @@ fn form_text(id: &str, params: &Value) -> String {
 fn unsaved_item(params: &Value) -> (String, bool) {
     let field = |k: &str| params.get("unsaved").and_then(|u| u.get(k)).and_then(Value::as_str).unwrap_or("");
     let kind = match field("form") {
-        kind @ ("appointment" | "meeting" | "contact" | "task") => kind,
+        kind @ ("appointment" | "meeting" | "contact" | "task" | "message") => kind,
         _ => "item",
     };
     let title = clip(field("title"), 80);
