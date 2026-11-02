@@ -169,3 +169,11 @@ fn quick_actions_stay_in_view_when_the_columns_run_past_the_pane() {
     let (flag, delete) = (w.state().hit.rect("messageFlag", id).unwrap(), w.state().hit.rect("messageDelete", id).unwrap());
     assert!(flag.max.x <= edge && delete.min.x > row.min.x, "{flag:?} {delete:?} past {edge}");
 }
+
+#[test]
+fn the_sort_arrow_stays_inside_its_heading_or_is_left_out() {
+    let cell = egui::Rect::from_min_size(egui::pos2(100.0, 0.0), egui::vec2(60.0, 24.0));
+    let x = super::sort_mark_x(cell, 20.0).unwrap();
+    assert!(x > cell.min.x + 7.0 + 20.0 && x + 4.0 <= cell.max.x);
+    assert_eq!(super::sort_mark_x(cell, 60.0), None);
+}

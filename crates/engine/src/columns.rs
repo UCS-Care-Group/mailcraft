@@ -206,10 +206,10 @@ fn server_answer(m: &mailcraft_model::Message) -> Option<bool> {
 /// Whether a calendar part is meeting mail (a request, a counter-proposal, a cancellation or an
 /// answer), from its `METHOD` in its first lines: the window's glance at it for the row's mark.
 pub fn is_meeting_mail(data: &[u8]) -> bool {
-    let head = &data[..data.len().min(16 * 1024)];
+    let head = data.get(..16 * 1024).unwrap_or(data);
     let method = head.split(|byte| *byte == b'\n').take(400).find_map(|line| {
         let line = line.trim_ascii();
-        line.get(..7).filter(|start| start.eq_ignore_ascii_case(b"METHOD:")).map(|_| line[7..].trim_ascii())
+        line.get(..7).filter(|start| start.eq_ignore_ascii_case(b"METHOD:")).and_then(|_| line.get(7..)).map(<[u8]>::trim_ascii)
     });
     method.is_some_and(|method| [&b"REQUEST"[..], b"COUNTER", b"CANCEL", b"REPLY"].iter().any(|word| method.eq_ignore_ascii_case(word)))
 }

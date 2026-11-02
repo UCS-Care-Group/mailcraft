@@ -106,12 +106,12 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
             ui.painter().rect_filled(clickable, 0.0, t.hover);
         }
         let active = column.sort() == Some(app.session.view.sort);
-        let title = if active {
-            format!("{} {}", label(column, outgoing), if app.session.view.sort_descending { "↓" } else { "↑" })
-        } else {
-            label(column, outgoing).to_string()
-        };
-        paint_clipped(ui.painter(), pos2(cell.min.x + 7.0, cell.center().y), cell.width() - 14.0, &title, regular(12.0), t.text);
+        // The column sorted by wears the arrow drawn beside the list's arrangement.
+        let room = cell.width() - 14.0 - if active { SORT_MARK } else { 0.0 };
+        let written = paint_clipped(ui.painter(), pos2(cell.min.x + 7.0, cell.center().y), room, label(column, outgoing), regular(12.0), t.text);
+        if active && let Some(x) = sort_mark_x(cell, written) {
+            super::paint_direction(ui.painter(), pos2(x, cell.center().y), !app.session.view.sort_descending, t.text);
+        }
         ui.painter().line_segment([cell.right_top(), cell.right_bottom()], Stroke::new(1.0, t.border));
         response.context_menu(|ui| heading_menu(app, ui));
         if response.clicked()
@@ -123,6 +123,15 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
             }
         }
     }
+}
+
+/// The room a heading keeps after its name for the arrow of the column sorted by.
+const SORT_MARK: f32 = 14.0;
+
+/// Where the arrow goes after a heading's name `written` wide; none where it would leave the cell.
+fn sort_mark_x(cell: Rect, written: f32) -> Option<f32> {
+    let x = cell.min.x + 7.0 + written + SORT_MARK / 2.0;
+    (x + SORT_MARK / 2.0 <= cell.max.x).then_some(x)
 }
 
 /// Metadata only: no body or attachment is loaded to paint a column.
