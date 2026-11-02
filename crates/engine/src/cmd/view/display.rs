@@ -15,14 +15,14 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"value"?: "compact"|"single"|"preview"} — compact: rows of two lines with a line of their text, the reading pane on the right; single: rows of one line, the reading pane on the right; preview: rows with three lines of their text and no reading pane. Omit to read which the list is in ("custom": none of them)"#,
         ),
         CommandSpec::new("view.density", "Tighter Spacing", "View › Messages", density)
-            .pure()
+            .reads()
             .params(r#"{"value"?: bool} (default: toggle) — the message list's rows closer together"#),
-        CommandSpec::new("view.zoom", "Zoom", "View › Zoom", zoom).pure().params(
+        CommandSpec::new("view.zoom", "Zoom", "View › Zoom", zoom).reads().params(
             r#"{"value"?: 50-300 (percent), "step"?: "in"|"out"|"reset"} — how large the text of the message being read is (in the reading pane and in a window of its own); omit both to read it"#,
         ),
-        CommandSpec::new("view.zoomIn", "Zoom In", "View › Zoom", zoom_in).pure().key("Mod+Plus"),
-        CommandSpec::new("view.zoomOut", "Zoom Out", "View › Zoom", zoom_out).pure().key("Mod+Minus"),
-        CommandSpec::new("view.zoomReset", "Actual Size", "View › Zoom", zoom_reset).pure().key("Mod+0"),
+        CommandSpec::new("view.zoomIn", "Zoom In", "View › Zoom", zoom_in).reads().key("Mod+Plus"),
+        CommandSpec::new("view.zoomOut", "Zoom Out", "View › Zoom", zoom_out).reads().key("Mod+Minus"),
+        CommandSpec::new("view.zoomReset", "Actual Size", "View › Zoom", zoom_reset).reads().key("Mod+0"),
         CommandSpec::new("view.recentSearches", "Recent Searches", "Search", recent_searches).pure().params(
             r#"{"remember"?: string, "clear"?: bool} — the searches run lately, the latest first (10 at most), kept in this computer's settings and never sent anywhere. "remember" puts one first; "clear": true forgets them all. Answers the list"#,
         ),

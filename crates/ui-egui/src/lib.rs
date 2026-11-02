@@ -86,6 +86,8 @@ pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
 mod forms_date_tests;
+#[cfg(test)]
+mod frame_bench_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
