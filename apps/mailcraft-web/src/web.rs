@@ -249,14 +249,21 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                     return;
                 };
                 // Each file as it was picked for: a picker's answer is never taken for another's.
-                // What is read is decided from the files' sizes before any is read: a page can't
-                // hold a pick of large files, and the message being written would go down with
-                // it (never crash). A file over the most a message carries, one past the most
-                // files of a pick, and every one from the first that would take the pick past
-                // the most bytes together are delivered unread, saying why.
-                let sizes: Vec<u64> = files.iter().map(|f| f.inner().size() as u64).collect();
+                // Of files to attach, what is read is decided from their sizes before any is
+                // read: a page can't hold a pick of large files, and the message being written
+                // would go down with it (never crash). A file over the most a message carries,
+                // one past the most files of a pick, and every one from the first that would
+                // take the pick past the most bytes together are delivered unread, saying why.
+                // The one file of any other pick (a mailbox, a file to import) is read whole,
+                // whatever its size: those caps are an attachment's, not a mailbox's.
+                let plan = if many {
+                    let sizes: Vec<u64> = files.iter().map(|f| f.inner().size() as u64).collect();
+                    mailcraft_ui_egui::files::reads_of_pick(&sizes)
+                } else {
+                    vec![None; files.len()]
+                };
                 let mut read = Vec::with_capacity(files.len());
-                for (file, unread) in files.iter().zip(mailcraft_ui_egui::files::reads_of_pick(&sizes)) {
+                for (file, unread) in files.iter().zip(plan) {
                     let name = file.file_name();
                     if let Some(why) = unread {
                         read.push(Delivered::unread(name, why, &picked_for, asking, pick));
