@@ -201,6 +201,10 @@ fn is_zero(n: &u32) -> bool {
     *n == 0
 }
 
+fn is_no_id(id: &Id) -> bool {
+    *id == 0
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Security {
@@ -984,6 +988,11 @@ pub struct Mailbox {
     /// (R3 spec S18, #633): their colours are Outlook's. No entry until such a list was read.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub server_categories: BTreeMap<Id, Vec<String>>,
+    /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
+    /// account with a lower id was here while one list served them all, so
+    /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
+    #[serde(skip_serializing_if = "is_no_id", deserialize_with = "crate::sync::lenient_or_default")]
+    own_lists_began: Id,
     /// The time zone the wall-clock times of the events are written in ([`Event::start`]): the
     /// zone the calendar was shown in when they were written, by its name in the IANA database
     /// (`Europe/Berlin`) or as an offset (`UTC+05:30`). Empty in a mailbox written before zones
@@ -1028,6 +1037,7 @@ impl Default for Mailbox {
             queued: Vec::new(),
             account_categories: BTreeMap::new(),
             server_categories: BTreeMap::new(),
+            own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
             next_id: 1,
@@ -1100,6 +1110,22 @@ fn subject_said(m: &Message) -> String {
 /// Why a message can't go elsewhere before it is fetched whole.
 fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
+}
+
+/// Whether `x` is of the conversation whose key ([`Message::thread_key`]) is `key`, with a cheap
+/// no first: the topic is what is left of the subject once its prefixes are taken off, so an
+/// ASCII subject that doesn't end in the key (letter case aside; lower case keeps an ASCII text's
+/// length) isn't of it, and the key of one that might be is worked out, which takes a string.
+fn same_thread(x: &Message, key: &str) -> bool {
+    let s = x.subject.trim();
+    if s.is_ascii() && key.is_ascii() {
+        let ends_in_key =
+            s.len().checked_sub(key.len()).and_then(|at| s.as_bytes().get(at..)).is_some_and(|end| end.eq_ignore_ascii_case(key.as_bytes()));
+        if !ends_in_key {
+            return false;
+        }
+    }
+    x.thread_key() == key
 }
 
 impl Mailbox {
@@ -2490,10 +2516,21 @@ impl Mailbox {
     /// The messages of the conversation `id` is part of (same account, same topic), oldest first.
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
-        let key = m.thread_key();
         let skips = self.conversation_skips(m.account, m.folder);
-        let mut v: Vec<&Arc<Message>> =
-            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
+        let among = self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account && !skips.contains(&x.folder));
+        self.conversation_among(m, among)
+    }
+
+    /// [`Mailbox::conversation`] of `m`, looked for among `among`: the messages of its account
+    /// but for those of the folders a conversation leaves out ([`Mailbox::conversation_skips`]),
+    /// for a caller that has them listed by folder and needn't walk every message.
+    pub fn conversation_among<'a>(&self, m: &Message, among: impl Iterator<Item = &'a Message>) -> Vec<Id> {
+        let key = m.thread_key();
+        // A message without a subject is a conversation of its own ([`Message::thread_key`]).
+        if key.starts_with('\0') {
+            return vec![m.id];
+        }
+        let mut v: Vec<&Message> = among.filter(|x| same_thread(x, &key)).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }
@@ -2908,6 +2945,9 @@ impl Mailbox {
         if self.account_categories.contains_key(&owner) {
             return;
         }
+        if self.own_lists_began == 0 {
+            self.own_lists_began = self.next_id;
+        }
         let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
         let mut list: Vec<Category> = self.categories.iter().filter(|c| !elsewhere(&c.name)).cloned().collect();
         for name in self.category_names_of(owner) {
@@ -2917,14 +2957,16 @@ impl Mailbox {
         }
         list.truncate(MAX_CATEGORIES);
         self.account_categories.insert(owner, list);
-        self.settle_earlier_lists(owner, on_server);
+        if owner < self.own_lists_began {
+            self.settle_earlier_lists(owner, on_server);
+        }
     }
 
-    /// The first read of `owner`'s server shows names that an account read before it, which
-    /// couldn't know them, took for the owner's own: each leaves that list, with this server's
-    /// list `on_server` deciding as if it had been read first. What that account's items carry,
-    /// what its own server lists and what changed on its list since stay, and so does the shared
-    /// list, where the name still is.
+    /// The first read of the server of `owner`, an account that was here while one list served
+    /// them all, shows names that an account read before it, which couldn't know them, took for
+    /// the owner's own: each leaves that list, with this server's list `on_server` deciding as if
+    /// it had been read first. What that account's items carry, what its own server lists and
+    /// what changed on its list since stay, and so does the shared list, where the name still is.
     fn settle_earlier_lists(&mut self, owner: Id, on_server: &[String]) {
         let earlier: Vec<Id> = self.account_categories.keys().copied().filter(|id| *id != owner).collect();
         for account in earlier {

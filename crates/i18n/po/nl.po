@@ -42,7 +42,7 @@ msgstr "„{name}” maakt deel uit van een reeks. Bedoelt u alleen het exemplaa
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "\"{name}\" will be deleted for good."
+msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}” wordt definitief verwijderd."
 
 #. what a command says
@@ -3008,6 +3008,12 @@ msgstr "Vergaderverzoeken verwijderen na het reageren"
 msgid "Delete My Copy"
 msgstr "Mijn exemplaar verwijderen"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Delete Permanently"
+msgstr "Definitief verwijderen"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -3043,12 +3049,6 @@ msgstr "Dit exemplaar verwijderen"
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Uw exemplaar van deze vergadering verwijderen?"
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Delete for Good"
-msgstr "Definitief verwijderen"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3797,7 +3797,7 @@ msgstr "Alles hier in één .mailcraft-bestand"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "Everything in \"{folder}\" will be deleted for good."
+msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "Alles in „{folder}” wordt definitief verwijderd."
 
 #. interface
@@ -5573,6 +5573,11 @@ msgstr "Licht"
 #, fuzzy
 msgid "Limited details: and the titles"
 msgstr "Beperkte details: en de titels"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Line Spacing"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -7657,6 +7662,11 @@ msgid "Open Recurring Item"
 msgstr "Terugkerend item openen"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Replies and Forwards in a New Window"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Open Result from the Server"
@@ -7691,6 +7701,11 @@ msgstr "In een venster openen"
 #, fuzzy
 msgid "Open in a Window of Its Own"
 msgstr "In een eigen venster openen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -7872,6 +7887,11 @@ msgstr "Agenda's van anderen kunnen worden geopend onder een werk- of schoolacco
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -7980,6 +8000,11 @@ msgstr "Pagina {page} van {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoerd. Open die alleen als u weet wie die heeft verzonden en u die verwacht."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Paragraph"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8010,8 +8035,8 @@ msgstr "Wachtwoord"
 msgid "Password for {account}"
 msgstr "Wachtwoord voor {account}"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Plakken"
@@ -8045,12 +8070,6 @@ msgstr "In ontwikkeling"
 #, fuzzy
 msgid "People"
 msgstr "Personen"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Permanently Delete"
-msgstr "Definitief verwijderen"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -8184,6 +8203,13 @@ msgstr "Bovenaan de lijst vastmaken"
 msgid "Pinned"
 msgstr "Vastgemaakt"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Plain\n"
+"Text"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8213,6 +8239,18 @@ msgstr "Plaats de aanwijzer op een ervan om te zien waarom."
 #, fuzzy
 msgid "Policy"
 msgstr "Beleid"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Pop\n"
+"Out"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+msgid "Pop Out"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9004,6 +9042,11 @@ msgstr ""
 msgid "Ribbon Layout"
 msgstr "Lintindeling"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Rich Text"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -9278,9 +9321,8 @@ msgstr "Geef op wat er gebeurde (`what`)"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-#, fuzzy
-msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr "Geef op wat u wilt openen: `message` of `event` op het id, of `new` („appointment” of „meeting”)"
+msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10751,6 +10793,11 @@ msgstr "Straat"
 #, fuzzy
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "Sterkere tekst en randen, in het lichte of het donkere thema."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Styles"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -12279,7 +12326,7 @@ msgstr "Die van deze computer, waar die ook naartoe gaat"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This contact will be deleted for good."
+msgid "This contact will be permanently deleted."
 msgstr "Deze contactpersoon wordt definitief verwijderd."
 
 #. interface
@@ -12639,7 +12686,7 @@ msgstr "Dit bericht is verzonden met Laag belang."
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This message will be deleted for good."
+msgid "This message will be permanently deleted."
 msgstr "Dit bericht wordt definitief verwijderd."
 
 #. interface
@@ -12963,7 +13010,7 @@ msgid "Too many shared mailboxes are listed twice"
 msgstr "Te veel gedeelde postvakken worden twee keer vermeld"
 
 #. interface
-#: crates/ui-egui/src/windows.rs
+#: crates/ui-egui/src/compose_window.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Too many windows are open: close one first"
 msgstr "Er zijn te veel vensters geopend: sluit er eerst een"
@@ -13175,6 +13222,11 @@ msgstr "Niet-opgeslagen wijzigingen"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Niet-opgeslagen bericht"
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "Untitled"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14219,6 +14271,11 @@ msgid "a list holds {n} entries at most"
 msgstr "een lijst bevat hoogstens {n} vermeldingen"
 
 #. what a command says
+#: crates/engine/src/session.rs
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
@@ -14790,6 +14847,11 @@ msgstr "geen inkomende server"
 msgid "no look was copied: press Format Painter on the text to copy it from first"
 msgstr "er is geen opmaak gekopieerd: druk eerst op Opmaak kopiëren op de tekst waarvan u die wilt kopiëren"
 
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "no message being written has the id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
@@ -14922,7 +14984,7 @@ msgstr "niets van deze zoekopdracht kan aan de server worden gevraagd"
 msgid "nothing to redo"
 msgstr "niets om opnieuw te doen"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to redo in the message"
@@ -14934,7 +14996,7 @@ msgstr "niets om opnieuw te doen in het bericht"
 msgid "nothing to undo"
 msgstr "niets om ongedaan te maken"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to undo in the message"
@@ -16599,10 +16661,22 @@ msgstr[1] "{n} berichten verwijderd"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} bericht wordt definitief verwijderd."
 msgstr[1] "{n} berichten worden definitief verwijderd."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} message you are writing has changes that aren't saved."
+msgid_plural "{n} messages you are writing have changes that aren't saved."
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
@@ -16949,6 +17023,11 @@ msgid "{service} account"
 msgstr "{service}-account"
 
 #. interface
+#: crates/ui-egui/src/windows.rs
+msgid "{subject} - Message"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "{time} ago"
@@ -17039,6 +17118,14 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
 #~ msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
+
+#, fuzzy
+#~ msgid "Permanently Delete"
+#~ msgstr "Definitief verwijderen"
+
+#, fuzzy
+#~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
+#~ msgstr "Geef op wat u wilt openen: `message` of `event` op het id, of `new` („appointment” of „meeting”)"
 
 #, fuzzy
 #~ msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"

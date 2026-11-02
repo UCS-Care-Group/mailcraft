@@ -395,7 +395,11 @@ fn block(app: &MailApp, title: &str, rows: &[Row], taken: &mut HashSet<Chord>) -
 /// can: the text field that has the focus decides what they do.
 pub fn enabled(app: &MailApp, action: &Action) -> bool {
     match action {
-        Action::Command { id, .. } => keys::takes_commands(app) && keys::window_command(app, id).is_some_and(|run| app.enabled(run)),
+        Action::Command { id, .. } => {
+            keys::takes_commands(app)
+                && keys::window_command(app, id).is_some_and(|run| app.enabled(run) && crate::windows::compose_window::acts_here(app, run))
+        }
+
         Action::Edit(_) => true,
     }
 }

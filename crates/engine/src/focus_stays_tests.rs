@@ -537,20 +537,18 @@ fn a_message_being_written_saved_first_leaves_the_list_as_it_was() {
         run(s, "compose.set", json!({"to": "ada@example.org", "subject": "Half", "body": "Half a thought"}));
     };
     let drafts = |s: &Session| s.mailbox.messages.values().filter(|m| m.draft && m.subject == "Half").count();
-    // Each of these saves the message being written to Drafts first (#442), a change to the
-    // mailbox of its own, so the list is built again: the opened message is still in it.
-    for (command, params) in [("mail.new", json!({})), ("compose.close", json!({})), ("mail.reply", json!({}))] {
-        write(&mut s);
-        let before = drafts(&s);
-        run(&mut s, command, params);
-        assert_eq!(drafts(&s), before + 1, "{command}: saved to Drafts first");
-        assert_eq!(s.sel.focus(), Some(listed[1]), "{command}");
-        assert_eq!(ids(&mut s), listed, "{command}");
-    }
+    // Closing saves the message being written to Drafts first (#442), a change to the mailbox of
+    // its own, so the list is built again: the opened message is still in it.
+    write(&mut s);
+    let before = drafts(&s);
+    run(&mut s, "compose.close", json!({}));
+    assert_eq!(drafts(&s), before + 1, "saved to Drafts first");
+    assert_eq!(s.sel.focus(), Some(listed[1]));
+    assert_eq!(ids(&mut s), listed);
     // Also when the command then fails: the draft stays saved, and the list as it was.
     write(&mut s);
     let before = drafts(&s);
-    assert!(s.run("mail.reply", &json!({"id": 999_999})).is_err());
+    assert!(s.run("file.open", &json!({"name": "other.mailcraft", "data": "not a mailbox"})).is_err());
     assert_eq!(drafts(&s), before + 1);
     assert_eq!(s.sel.focus(), Some(listed[1]));
     assert_eq!(ids(&mut s), listed);

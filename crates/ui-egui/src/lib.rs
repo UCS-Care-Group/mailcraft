@@ -86,6 +86,8 @@ pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
 mod forms_date_tests;
+#[cfg(test)]
+mod frame_bench_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
@@ -174,6 +176,7 @@ mod view_source;
 mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
+pub mod window_places;
 pub mod windows;
 #[cfg(test)]
 mod writing_tools_tests;
@@ -204,10 +207,13 @@ pub struct Services {
     /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
     /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
     pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
-    /// Web: open a file picker; the file arrives later through `inbox`. The argument says what
-    /// for (`mailbox`, `import`, `attach`).
+    /// Web: open a file picker; the file arrives later through `picked`. The argument says what
+    /// for (`mailbox`, `import`, `attach`). A picker that is cancelled delivers nothing.
     pub open_async: Option<Box<dyn Fn(&str)>>,
-    /// Files (name, bytes) delivered asynchronously (the web picker, drag and drop).
+    /// Files (name, bytes) the picker of `open_async` delivered, each for what it was opened for.
+    pub picked: Option<Inbox>,
+    /// Files (name, bytes) delivered asynchronously otherwise (dropped in the browser): each goes
+    /// where its kind says, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -774,10 +780,17 @@ pub struct UiState {
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
+    /// File › Options › Mail, "Open new messages, replies and forwards in a new window" (#286):
+    /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
+    /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
+    pub replies_in_window: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
     pub window: Option<window_geometry::WindowGeometry>,
+    /// Desktop: the size and place each kind of window of its own last had (#286), for the next
+    /// one of its kind.
+    pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
     /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
@@ -862,8 +875,10 @@ impl Default for UiState {
             high_contrast: false,
             accent: theme::Accent::default(),
             light_messages: false,
+            replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
+            window_places: Default::default(),
             language: i18n::AUTO.into(),
             options: mailcraft_engine::Prefs::default(),
             view: mailcraft_engine::ViewState::default(),
@@ -923,6 +938,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Messages on a Light Background",
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
+    ),
+    (
+        "ui.repliesInWindow",
+        "Open Replies and Forwards in a New Window",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
@@ -1107,13 +1128,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.openWindow",
         "Open in a Window of Its Own",
         "Window",
-        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens in the composer instead; a new appointment or meeting is made when its window is saved"#,
+        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"compose": number (a message being written, as `ui.inspect` lists it under `beingWritten`: as compose.popOut does)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens ready to be written in, in a window of its own; a new appointment or meeting is made when its window is saved. At most 12 windows of their own are open at a time"#,
     ),
     (
         "ui.closeWindow",
         "Close Window",
         "Window",
-        r#"{"window": number} | {"message": number} | {"event": number} | {"all": true} (default: the one in front) — closes without asking, also an appointment with unsaved changes"#,
+        r#"{"window": number} | {"message": number} | {"event": number} | {"compose": number} | {"all": true} (default: the one in front), "save"?: true, "discard"?: true — closes without asking, also an appointment with unsaved changes. A window with a message being written closes with its message, and needs `save` (it goes to Drafts first) or `discard` (it closes as it was last saved): neither, or both, is an error and closes nothing"#,
     ),
     (
         "ui.moveWindowMessage",
@@ -1271,11 +1292,11 @@ pub struct MailApp {
     pub(crate) advanced_search: Option<advanced_search::Panel>,
     /// Whether the title bar had room for the search box when it was last drawn.
     pub(crate) search_box_shown: bool,
-    /// The Bcc line of the message being written is shown.
-    pub(crate) compose_bcc: bool,
-    /// The body of the message being written takes the keyboard back at its next frame (after a
-    /// ribbon button or a dialog changed its text).
-    pub(crate) body_focus_wanted: bool,
+    /// The messages being written whose Bcc line is shown, by their ids (#286).
+    pub(crate) compose_bcc: std::collections::HashSet<u64>,
+    /// The message being written whose body takes the keyboard back at its next frame (after a
+    /// ribbon button or a dialog changed its text), by its id (#286).
+    pub(crate) body_focus_wanted: Option<u64>,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1498,8 +1519,9 @@ pub struct MailApp {
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
     last_autosave: f64,
-    /// When the draft being written was last saved by itself (ms; 0: not since it was opened).
-    draft_saved_at: f64,
+    /// When the messages being written were last saved by themselves, by the session's clock
+    /// (seconds; `None`: none has had changes since one was opened).
+    draft_saved_at: Option<i64>,
     saved_rev: u64,
     /// How far the background saver has got with what it was handed, as of this frame (`None`:
     /// nothing waiting or being written).
@@ -1526,8 +1548,9 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
-    /// Web: what the file the picker will deliver is for.
-    pub(crate) pending_open: Option<String>,
+    /// Web: what the file the picker will deliver is for ([`Services::picked`]): a picker that was
+    /// cancelled leaves it until the next one is opened, and it is never what a dropped file is for.
+    pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,
@@ -1616,8 +1639,8 @@ impl MailApp {
             search_focus: false,
             advanced_search: None,
             search_box_shown: false,
-            compose_bcc: false,
-            body_focus_wanted: false,
+            compose_bcc: Default::default(),
+            body_focus_wanted: None,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -1713,7 +1736,7 @@ impl MailApp {
             push_only_next: Default::default(),
             push_seen: Default::default(),
             last_autosave: 0.0,
-            draft_saved_at: 0.0,
+            draft_saved_at: None,
             saved_rev,
             save_progress: None,
             closing_after_save: None,
@@ -1762,6 +1785,18 @@ impl MailApp {
         ui.view.search.clear();
         ui.view.people_search.clear();
         ui
+    }
+
+    /// Whether a window of its own is about to open as a window of the system: the host lists the
+    /// monitors connected now for it ([`MailApp::set_monitors`]), so that it opens on one (#286).
+    pub fn wants_monitors(&self) -> bool {
+        self.windows.wants_monitors()
+    }
+
+    /// The monitors connected now, in the system's pixels with each one's scale, for the windows
+    /// about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
+        self.windows.monitors = Some(monitors);
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
@@ -1894,6 +1929,9 @@ impl MailApp {
             return Ok(json!({"pending": "confirm"}));
         }
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
+        // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
+        // Options says so or the caller asked for one.
+        let place = self.windows.place.take().or_else(|| windows::compose_window::hint(self, id));
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.
         let r = match id {
@@ -1902,7 +1940,12 @@ impl MailApp {
             updates::GO_BACK => self.go_back_a_version(),
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
-            _ => self.execute(id, params),
+            _ => {
+                self.windows.place = place;
+                let r = self.execute(id, params);
+                self.windows.place = None;
+                r
+            }
         };
         // View Source pressed by the owner: its window, with what it answered.
         if let (Ok(v), "mail.viewSource") = (&r, id) {
@@ -1944,9 +1987,24 @@ impl MailApp {
             && (id.starts_with("format.")
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
-            self.body_focus_wanted = true;
+            self.want_body_focus();
         }
         r
+    }
+
+    /// The body of the current message being written takes the keyboard back at its next frame.
+    pub(crate) fn want_body_focus(&mut self) {
+        self.body_focus_wanted = self.session.compose_id();
+    }
+
+    /// Whether the body of the current message being written is to take the keyboard back now; asked once.
+    pub(crate) fn take_body_focus(&mut self) -> bool {
+        self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the Bcc line of the current message being written is shown.
+    pub(crate) fn bcc_shown(&self) -> bool {
+        self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
     }
 
     /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
@@ -1982,7 +2040,8 @@ impl MailApp {
         if let Some(r) = self.ui_command(id, &params) {
             return r;
         }
-        let composing = self.session.compose.is_some();
+        // (The main window's: the reading pane's message being written, #286.)
+        let composing = windows::compose_window::pane_compose(self).is_some();
         // An account that goes takes what was remembered for it along.
         let leaving = if id == "account.remove" {
             params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
@@ -2001,10 +2060,18 @@ impl MailApp {
         if let Some(r) = send_receive::before(self, id) {
             return r;
         }
+        // No room for the window a message would open in (#286).
+        if let Err(e) = windows::compose_window::before_run(self, id, &params) {
+            self.windows.place = None;
+            return Err(e);
+        }
+        let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
         let r = self.session.run(id, &params);
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
+        // A message it opened goes where it is to: the reading pane or a window of its own.
+        let r = windows::compose_window::after_run(self, id, &before, r);
         // Work Offline, File › Account.
         send_receive::after(self, id, &r);
         // Asked for the reminders: their window comes up, due or not.
@@ -2086,8 +2153,10 @@ impl MailApp {
             }
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
-        if r.is_ok() && composing != self.session.compose.is_some() {
-            self.compose_bcc = false;
+        // (What is remembered of a message being written goes with it.)
+        let open: std::collections::HashSet<u64> = self.session.all_composing().map(|c| c.id).collect();
+        self.compose_bcc.retain(|id| open.contains(id));
+        if r.is_ok() && composing != windows::compose_window::pane_compose(self).is_some() {
             self.ui.tab = if composing { "Home".into() } else { "Message".into() };
             self.ui.backstage = false;
         }
@@ -2141,6 +2210,17 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.repliesInWindow" => {
+                let value = match p.get("value").filter(|v| !v.is_null()) {
+                    None => !self.ui.replies_in_window,
+                    Some(v) => match v.as_bool() {
+                        Some(value) => value,
+                        None => return Some(Err("`value` is true or false".into())),
+                    },
+                };
+                self.ui.replies_in_window = value;
+                Ok(json!({"value": value}))
             }
             "ui.lightMessages" => {
                 self.ui.light_messages = b("value").unwrap_or(!self.ui.light_messages);
@@ -4017,30 +4097,39 @@ impl MailApp {
     /// Save a moment after the last change: to the mailbox file on the desktop (through the
     /// host's background saver when it has one, so the window never waits for the disk), to the
     /// host's storage in the browser. A failure shows in the status bar and is tried again later.
-    /// A draft of a Microsoft account that is being written is saved every five minutes while
-    /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
-    fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
-        const EVERY_MS: f64 = 5.0 * 60_000.0;
-        let Some(c) = &self.session.compose else {
-            self.draft_saved_at = 0.0;
-            return;
-        };
-        let graph = self.session.mailbox.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
-        if !graph || !c.dirty {
+    /// Every message being written that has changes, the ones in windows, put aside or in the
+    /// reading pane, is saved to Drafts every five minutes, for every kind of account, as Save
+    /// Draft saves it (#286): a Microsoft or Exchange account's goes up to its server with the
+    /// next Send/Receive (R3.4.1), another's is kept in Drafts here. The clock is the session's.
+    /// It is saved as the owner's Save Draft is, which leaves what is written in it as it was: a
+    /// message an agent is writing doesn't become the owner's by being saved (#577).
+    pub(crate) fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
+        const EVERY_SECS: i64 = 5 * 60;
+        let due: Vec<u64> = self.session.all_composing().filter(|c| c.dirty).map(|c| c.id).collect();
+        if due.is_empty() {
+            // The five minutes start again with the next change.
+            self.draft_saved_at = None;
             return;
         }
-        let now = now_ms();
-        if self.draft_saved_at == 0.0 {
-            self.draft_saved_at = now;
-        }
-        let waited = now - self.draft_saved_at;
-        if waited >= EVERY_MS {
-            self.draft_saved_at = now;
-            if let Err(e) = self.run("compose.saveDraft", json!({})) {
-                log::info!("the draft couldn't be saved by itself: {e}");
+        let now = self.session.now();
+        let since = *self.draft_saved_at.get_or_insert(now);
+        let waited = now.saturating_sub(since);
+        // While the owner is asked whether to save a message (Unsaved Message, a window's own
+        // question, an agent's question), nothing is saved behind the answer: once it is given,
+        // a save that is due comes at once.
+        let asked = matches!(self.dialog, Some(dialogs::Dialog::DiscardDraft { .. })) || self.windows.asks() || !self.asking.is_empty();
+        if !(0..EVERY_SECS).contains(&waited) && !asked {
+            self.draft_saved_at = Some(now);
+            for compose in due {
+                // (No command: no agent or script can save one in the background, #286. One that
+                // was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.session.save_in_background(compose) {
+                    log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
+                }
             }
-        } else {
-            ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
+        } else if !asked {
+            let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
+            ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }
     }
 
@@ -4362,6 +4451,8 @@ impl MailApp {
         // Windows of their own (a message, an appointment), before the shortcuts: their keys are
         // not also the main window's where they are inside it.
         windows::show(self, &ctx);
+        // The main window acts on the reading pane's message being written (#286).
+        let fronted = windows::compose_window::front_pane(self);
         sync_panel::escape(self, &ctx);
         // Advanced Search closes when what it was opened for has gone, and on Escape, before the
         // window's Escape ends the search (#329).
@@ -4390,6 +4481,7 @@ impl MailApp {
                 mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
             });
         }
+        windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
         reminders::show(self, &ctx);
@@ -4424,8 +4516,9 @@ impl MailApp {
         if self.opening.is_some() {
             return true;
         }
-        // (Its saved draft gone, what is written is saved nowhere: #494.)
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&self.session, c)) {
+        // Every message being written goes to Drafts, unasked (#286); one that can't be is asked
+        // about, as before.
+        if !windows::compose_window::save_all_for_quit(self) && dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }

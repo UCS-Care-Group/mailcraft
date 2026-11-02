@@ -115,7 +115,7 @@ fn writing(body: &str, board: Option<&Board>) -> Window {
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"subject": "Plan for Friday", "body": body})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     window(a)
 }
 
@@ -1238,7 +1238,7 @@ fn a_menu_paste_that_was_dropped_leaves_nothing_for_the_next_ctrl_v() {
         held.text = Some("new".into());
     }
     h.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
-    h.state_mut().body_focus_wanted = true;
+    h.state_mut().want_body_focus();
     settle(&mut h, 2);
     frame(&mut h, vec![Event::Paste("new".into())]);
     settle(&mut h, 2);

@@ -41,7 +41,7 @@ msgstr "„{name}“ gehört zu einer Serie. Meinen Sie nur das Element am {day}
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "\"{name}\" will be deleted for good."
+msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}“ wird endgültig gelöscht."
 
 #. what a command says
@@ -2860,6 +2860,12 @@ msgstr "Besprechungsanfragen nach dem Antworten löschen"
 msgid "Delete My Copy"
 msgstr "Meine Kopie löschen"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Delete Permanently"
+msgstr "Endgültig löschen"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2895,12 +2901,6 @@ msgstr "Dieses Vorkommen löschen"
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Ihre Kopie dieser Besprechung löschen?"
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Delete for Good"
-msgstr "Endgültig löschen"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3617,7 +3617,7 @@ msgstr "Alles hier in einer .mailcraft-Datei"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "Everything in \"{folder}\" will be deleted for good."
+msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "Alles in „{folder}“ wird endgültig gelöscht."
 
 #. interface
@@ -5298,6 +5298,11 @@ msgstr "Hell"
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Limited details: and the titles"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Line Spacing"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -7305,6 +7310,11 @@ msgid "Open Recurring Item"
 msgstr "Serienelement öffnen"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Replies and Forwards in a New Window"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Open Result from the Server"
@@ -7337,6 +7347,11 @@ msgstr "In einem Fenster öffnen"
 #, fuzzy
 msgid "Open in a Window of Its Own"
 msgstr "In eigenem Fenster öffnen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -7506,6 +7521,11 @@ msgstr ""
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -7610,6 +7630,11 @@ msgstr "Seite {page} von {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Seiten wie diese werden im Browser geöffnet, wo darin enthaltene Skripts ausgeführt werden. Öffnen Sie sie nur, wenn Sie den Absender kennen und die Datei erwarten."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Paragraph"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Paragraphs"
@@ -7638,8 +7663,8 @@ msgstr "Kennwort"
 msgid "Password for {account}"
 msgstr "Kennwort für {account}"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Einfügen"
@@ -7671,12 +7696,6 @@ msgstr ""
 #, fuzzy
 msgid "People"
 msgstr "Kontakte"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Permanently Delete"
-msgstr "Endgültig löschen"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -7804,6 +7823,13 @@ msgstr "Oben in der Liste anheften"
 msgid "Pinned"
 msgstr "Angeheftet"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Plain\n"
+"Text"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7830,6 +7856,18 @@ msgstr "Zeigen Sie auf eines, um den Grund zu sehen."
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Policy"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Pop\n"
+"Out"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+msgid "Pop Out"
 msgstr ""
 
 #. interface
@@ -8578,6 +8616,11 @@ msgstr "Menüband-Layout"
 msgid "Ribbon Layout"
 msgstr "Menüband-Layout"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Rich Text"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Rich text"
@@ -8843,9 +8886,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-#, fuzzy
-msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr "Geben Sie an, was geöffnet werden soll: `message` oder `event` über die ID, oder `new` (\"appointment\" oder \"meeting\")"
+msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10242,6 +10284,11 @@ msgstr "Straße"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Stronger text and edges, in the light or the dark theme."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Styles"
 msgstr ""
 
 #. interface
@@ -11655,7 +11702,7 @@ msgstr "Die dieses Computers, wo immer er ist"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This contact will be deleted for good."
+msgid "This contact will be permanently deleted."
 msgstr "Dieser Kontakt wird endgültig gelöscht."
 
 #. interface
@@ -12004,7 +12051,7 @@ msgstr "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet."
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This message will be deleted for good."
+msgid "This message will be permanently deleted."
 msgstr "Diese Nachricht wird endgültig gelöscht."
 
 #. interface
@@ -12294,7 +12341,7 @@ msgid "Too many shared mailboxes are listed twice"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/windows.rs
+#: crates/ui-egui/src/compose_window.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Too many windows are open: close one first"
 msgstr "Zu viele Fenster sind geöffnet: Schließen Sie zuerst eines"
@@ -12501,6 +12548,11 @@ msgstr "Nicht gespeicherte Änderungen"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Nicht gespeicherte Nachricht"
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "Untitled"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13480,6 +13532,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/session.rs
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
@@ -14021,6 +14078,11 @@ msgstr "kein Posteingangsserver"
 msgid "no look was copied: press Format Painter on the text to copy it from first"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "no message being written has the id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
@@ -14149,7 +14211,7 @@ msgstr "nichts von dieser Suche kann beim Server abgefragt werden"
 msgid "nothing to redo"
 msgstr "nichts zu wiederholen"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to redo in the message"
@@ -14161,7 +14223,7 @@ msgstr "in der Nachricht ist nichts zu wiederholen"
 msgid "nothing to undo"
 msgstr "nichts rückgängig zu machen"
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to undo in the message"
@@ -15759,10 +15821,22 @@ msgstr[1] "{n} Nachrichten entfernt"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} Nachricht wird endgültig gelöscht."
 msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} message you are writing has changes that aren't saved."
+msgid_plural "{n} messages you are writing have changes that aren't saved."
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
@@ -16097,6 +16171,11 @@ msgid "{service} account"
 msgstr "{service}-Konto"
 
 #. interface
+#: crates/ui-egui/src/windows.rs
+msgid "{subject} - Message"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "{time} ago"
@@ -16179,6 +16258,14 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Permanently Delete"
+#~ msgstr "Endgültig löschen"
+
+#, fuzzy
+#~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
+#~ msgstr "Geben Sie an, was geöffnet werden soll: `message` oder `event` über die ID, oder `new` (\"appointment\" oder \"meeting\")"
 
 #, fuzzy
 #~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."

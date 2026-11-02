@@ -188,18 +188,19 @@ impl<G: Copy + PartialEq> Layout<G> {
 }
 
 /// Items arranged by categories, as Outlook lists them: each under each of its categories, those
-/// with none first, then the categories A to Z, in the order the items come in under each. Gives
-/// each row's heading (an index into the names given back, `None` for no category) and the names.
+/// with none first, then the categories A to Z, in the order the items come in under each. Takes
+/// each item's id, its account and its categories; gives each row's heading (an index into the
+/// names given back, `None` for no category) and the names.
 pub(crate) fn by_category<'a>(
     s: &mailcraft_engine::Session,
-    items: impl IntoIterator<Item = (Id, &'a [String])>,
+    items: impl IntoIterator<Item = (Id, Id, &'a [String])>,
 ) -> (Vec<(Id, Option<u32>)>, Vec<String>) {
     use mailcraft_engine::list::{category_names, category_spellings};
-    let items: Vec<(Id, &[String])> = items.into_iter().collect();
-    let spelling = category_spellings(s, items.iter().map(|(_, categories)| *categories));
+    let items: Vec<(Id, Id, &[String])> = items.into_iter().collect();
+    let spelling = category_spellings(s, items.iter().map(|(_, account, categories)| (*account, *categories)));
     // (the heading's folded name, the item)
     let mut placed: Vec<(Option<String>, Id)> = Vec::new();
-    for (id, categories) in items {
+    for (id, _, categories) in items {
         let filed = category_names(categories);
         if filed.is_empty() {
             placed.push((None, id));
@@ -346,7 +347,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
         // As Outlook lists them: a contact under each of its categories, those with none first,
         // then the categories A to Z, the contacts by name under each (the order they come in).
         PeopleSort::Categories => {
-            let (rows, filed) = by_category(s, contacts.map(|c| (c.id, c.categories.as_slice())));
+            let (rows, filed) = by_category(s, contacts.map(|c| (c.id, c.origin.account, c.categories.as_slice())));
             names = filed;
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }

@@ -289,12 +289,13 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
     // What the session kept of the messages that went.
     let mb = &s.mailbox;
     s.sel.messages.retain(|id| mb.messages.contains_key(id));
-    if let Some(c) = s.compose.as_mut()
-        && c.draft.is_some_and(|d| !mb.messages.contains_key(&d))
-    {
-        // What is written is saved nowhere now: closing the message asks (#573).
-        c.draft = None;
-        c.dirty = true;
+    // What is written is saved nowhere now: closing the message asks (#573); for every message
+    // being written, the ones put aside too (#286).
+    for c in s.compose.iter_mut().chain(s.composing.iter_mut()) {
+        if c.draft.is_some_and(|d| !mb.messages.contains_key(&d)) {
+            c.draft = None;
+            c.dirty = true;
+        }
     }
     if mb.folder(s.view.folder).is_none() {
         s.view.folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap_or(0);

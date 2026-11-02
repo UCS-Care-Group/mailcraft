@@ -35,7 +35,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "\"{name}\" will be deleted for good."
+msgid "\"{name}\" will be permanently deleted."
 msgstr ""
 
 #. what a command says
@@ -2491,6 +2491,11 @@ msgstr ""
 msgid "Delete My Copy"
 msgstr ""
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Delete Permanently"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Delete Recurring Item"
@@ -2519,11 +2524,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Delete Your Copy of This Meeting?"
-msgstr ""
-
-#. interface, ribbon
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-msgid "Delete for Good"
 msgstr ""
 
 #. interface
@@ -3143,7 +3143,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "Everything in \"{folder}\" will be deleted for good."
+msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -4608,6 +4608,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Limited details: and the titles"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Line Spacing"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -6328,6 +6333,11 @@ msgid "Open Recurring Item"
 msgstr ""
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Replies and Forwards in a New Window"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Open Result from the Server"
 msgstr ""
@@ -6355,6 +6365,11 @@ msgstr ""
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Open in a Window of Its Own"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Open new messages, replies and forwards in a new window"
 msgstr ""
 
 #. interface
@@ -6507,6 +6522,11 @@ msgstr ""
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 msgid "Out of Office"
@@ -6597,6 +6617,11 @@ msgstr ""
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Paragraph"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Paragraphs"
@@ -6622,8 +6647,8 @@ msgstr ""
 msgid "Password for {account}"
 msgstr ""
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Paste"
 msgstr ""
 
@@ -6650,11 +6675,6 @@ msgstr ""
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 msgid "People"
-msgstr ""
-
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-msgid "Permanently Delete"
 msgstr ""
 
 #. interface, name
@@ -6767,6 +6787,13 @@ msgstr ""
 msgid "Pinned"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Plain\n"
+"Text"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Plain Text"
@@ -6790,6 +6817,18 @@ msgstr ""
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Policy"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Pop\n"
+"Out"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+msgid "Pop Out"
 msgstr ""
 
 #. interface
@@ -7437,6 +7476,11 @@ msgstr ""
 msgid "Ribbon Layout"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Rich Text"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Rich text"
@@ -7662,7 +7706,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
+msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
 msgstr ""
 
 #. interface
@@ -8878,6 +8922,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Stronger text and edges, in the light or the dark theme."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Styles"
 msgstr ""
 
 #. interface
@@ -10148,7 +10197,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This contact will be deleted for good."
+msgid "This contact will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -10450,7 +10499,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This message will be deleted for good."
+msgid "This message will be permanently deleted."
 msgstr ""
 
 #. interface
@@ -10706,7 +10755,7 @@ msgid "Too many shared mailboxes are listed twice"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/windows.rs
+#: crates/ui-egui/src/compose_window.rs crates/ui-egui/src/windows.rs
 msgid "Too many windows are open: close one first"
 msgstr ""
 
@@ -10880,6 +10929,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Unsaved Message"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "Untitled"
 msgstr ""
 
 #. interface
@@ -11746,6 +11800,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/session.rs
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
 msgstr ""
@@ -12224,6 +12283,11 @@ msgstr ""
 msgid "no look was copied: press Format Painter on the text to copy it from first"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "no message being written has the id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 msgid "no message is being written"
@@ -12334,7 +12398,7 @@ msgstr ""
 msgid "nothing to redo"
 msgstr ""
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 msgid "nothing to redo in the message"
 msgstr ""
@@ -12344,7 +12408,7 @@ msgstr ""
 msgid "nothing to undo"
 msgstr ""
 
-#. what a command says, why a command can't run
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 msgid "nothing to undo in the message"
 msgstr ""
@@ -13743,10 +13807,22 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "{n} message will be deleted for good."
-msgid_plural "{n} messages will be deleted for good."
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} message you are writing has changes that aren't saved."
+msgid_plural "{n} messages you are writing have changes that aren't saved."
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/composing.rs
+msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
@@ -14042,6 +14118,11 @@ msgstr[1] ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{service} account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "{subject} - Message"
 msgstr ""
 
 #. interface
