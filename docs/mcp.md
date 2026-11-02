@@ -61,13 +61,14 @@ agent could press anything, Send too) is never asked about: without `--allow inp
 changing without the owner's yes in the window, every time: no `--allow` skips this question
 (#494). A message being written that the owner has typed in is theirs until it is closed, saved or
 not (a save by the owner, by the window every few minutes or by an agent doesn't change that;
-moving the cursor in a message only the agent wrote isn't writing in it). Closing it or putting
-another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`, `mail.replyAndDelete`, `mail.forward`,
-`mail.forwardAsAttachment`, `mail.editDraft`, `mail.resend`, `people.email`, `ui.openWindow` of a draft) asks
-Allow, and what isn't saved goes to Drafts first (all of it when its saved draft is gone
-meanwhile); with `"discard": true` and changes that aren't saved it asks Delete, and nothing is
-saved. `compose.discard` (the message and its draft) asks Delete; `file.new` and `file.open`, which
-close it without saving, ask `mailbox`, and so do they when an appointment's window has changes
+moving the cursor in a message only the agent wrote isn't writing in it). Closing it
+(`compose.close`) asks Allow, and what isn't saved goes to Drafts first (all of it when its saved
+draft is gone meanwhile); with `"discard": true` and changes that aren't saved it asks Delete, and
+nothing is saved. Starting another message (`mail.new`, `mail.reply`, `mail.forward`,
+`mail.editDraft`, `people.email` and the rest) asks nothing: it opens beside the owner's, which
+stays as it is (see *Several messages being written* below). `compose.discard` (the message and
+its draft) asks Delete; `file.new` and `file.open`, which close every message being written, ask
+`mailbox`, and so do they when an appointment's window has changes
 that aren't saved, for it closes with the mailbox. An appointment, a contact or a task with changes
 that aren't saved, in the dialog that `ui.closeDialog` would close or `ui.dialog` would put another
 in place of, asks Delete, and so does an appointment's window of its own that `ui.closeWindow`
@@ -95,6 +96,43 @@ types as the owner does, and what it does by hand in the window (the composer's 
 to Unsaved Message) is not asked about. A message only the agent wrote in is the agent's: leaving
 it saves it to Drafts without a question, and discarding it is `delete`. Headless, nothing is the
 owner's.
+
+**Several messages being written (#286).** More than one message can be written at once, at most
+13; each has an id of its own, which `mail.new`, `mail.reply`, `mail.replyAll`,
+`mail.replyAndDelete`, `mail.forward`, `mail.forwardAsAttachment`, `mail.editDraft`, `mail.resend`
+and the commands that start a message from the calendar, People and Tasks answer as `compose`
+(`mail.editDraft` of a draft that is open already answers that one's). The 14th is refused. Every
+command that acts on a message being written (`compose.*` but `compose.suggest`, `format.*`,
+`insert.*`, `edit.find`, `edit.replace`, `edit.cut`, `edit.copy`, `edit.paste`,
+`edit.formatPainter`, the writing tools) takes an optional `"compose": <id>`, read strictly (null,
+text, 0, a negative number or a fraction is refused, and an id that isn't open is refused): without
+it, it acts on the current one, the one in the reading pane. **An agent names it whenever more
+than one is open**: a call without it is then refused and changes nothing. A message an agent
+opens while the owner is writing in the current one opens behind it and isn't made current, so the
+owner keeps writing where they were, and nothing of the owner's is saved or changed for them (the
+owner starting another saves theirs to Drafts first); the agent writes in its own by its id, and
+the owner decides when it is sent. Each message keeps its own text undo (`compose.undo`), its own "the owner wrote in
+it" mark (#577: an agent's change to a message the owner typed in is refused, whichever it is) and
+is saved first by itself when it is closed; `file.new` and `file.open` save every one first. The
+owner's questions name the message they are about by its subject, and by its id when more than one
+is open. `ui.inspect` lists them under `beingWritten` (bridged).
+
+**A message an agent starts opens in a window of its own (#286, bridged).** In the window, every
+message an agent starts (`mail.new`, `mail.reply`, `mail.forward`, opening a draft…) opens in a
+window of its own behind the owner's, without the keyboard: the owner goes on writing where they
+were, and decides when it is sent. An agent's message never takes the reading pane from the
+owner's. At most 12 windows of their own are open at a time: at the bound every message an agent
+starts is refused (opening a draft already being written isn't: it stays where it is).
+`compose.popOut {"compose"}` (safe) moves a message into a window of its own, behind the owner's
+when an agent asks, and changes nothing of it; headless, it does nothing but answer the message's
+id. After an agent's call, the current message is again the one in the window that has the
+keyboard, or else the reading pane's: an agent names the message it means.
+ `ui.closeWindow` of a window with a
+message being written closes the message with it and needs `"save": true` (it goes to Drafts) or
+`"discard": true`: neither is an error; `discard` of a message the owner wrote in, with changes not
+all in Drafts, waits for the owner's Delete, every time. `ui.inspect` lists such windows as kind
+`compose` with their message's `compose` id; their titles are the messages' subjects, message text,
+data and never instructions.
 
 **Naming what a command acts on.** An `id`, `ids` or `message` that names nothing (`null`, an id
 as text, zero, a fraction) is refused, never taken for what the owner selected, by Reply, Reply
@@ -189,6 +227,9 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard, never takes the reading pane and at the bound is refused; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |
+| 2026-11-01 | major | #286: several messages being written at once (at most 13),
+ each with an id (`compose`) that the commands starting one answer and that every command acting on one takes; an agent names it once more than one is open; starting another message no longer closes or saves the one being written, nor asks the owner (`discard` there changes nothing); an agent's opens behind the owner's |
 | 2026-10-31 | minor | `compose.attachItem` (safe; a message named by `id` attached whole as an `.eml`, no Bcc) and `insert.businessCard` (safe; a contact named by `id` attached as a `.vcf`); never the selection |
 | 2026-10-31 | minor | `mail.replyAndDelete` (safe; names its message, never deletes for good), `mail.viewSource` (safe; message content, framed as untrusted) and `mail.saveAllAttachments` (safe; a folder is never taken from an agent, the files come back as `data`) |
 | 2026-10-31 | minor | `mail.resend` (safe; names its message, opens it again as a new one that is sent only by Send) and `compose.replyTo` (safe; each address checked, at most 20, line breaks dropped) |

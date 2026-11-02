@@ -342,7 +342,11 @@ fn a_close_held_by_a_question_waits_for_the_saver_again_next_time() {
     let rev = app.session.rev();
     *script.progress.lock().unwrap() = Some(busy);
     assert!(!app.close_requested());
-    // Meanwhile a message is being written, and something is typed into it.
+    // Meanwhile a message is being written, and something is typed into it. (With no Drafts to
+    // save it to, so that closing asks about it rather than saving it unasked, #286.)
+    for f in app.session.mailbox.folders.iter_mut().filter(|f| f.kind == mailcraft_model::FolderKind::Drafts) {
+        f.kind = mailcraft_model::FolderKind::Custom;
+    }
     app.session.run("mail.new", &json!({})).unwrap();
     app.session.compose.as_mut().unwrap().dirty = true;
     // Written: the window would close, but the draft is asked about and the owner keeps it.

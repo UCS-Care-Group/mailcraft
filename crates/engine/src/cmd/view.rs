@@ -18,44 +18,44 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.reminders", "Reminders Window", "View › Window", reminders)
             .pure()
             .params("{} — answers the reminders that are due now: events inside their reminder time, or that ended less than a day ago"),
-        CommandSpec::new("view.mail", "Mail", "Navigation", mail).pure().key("Mod+1"),
-        CommandSpec::new("view.calendar", "Calendar", "Navigation", calendar).pure().key("Mod+2"),
-        CommandSpec::new("view.people", "People", "Navigation", people).pure().key("Mod+3"),
-        CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).pure().key("Mod+4"),
-        CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).pure().params(r#"{"value": "right"|"bottom"|"off"}"#),
-        CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).pure().params(TOGGLE),
-        CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).pure().params(TOGGLE),
+        CommandSpec::new("view.mail", "Mail", "Navigation", mail).reads().key("Mod+1"),
+        CommandSpec::new("view.calendar", "Calendar", "Navigation", calendar).reads().key("Mod+2"),
+        CommandSpec::new("view.people", "People", "Navigation", people).reads().key("Mod+3"),
+        CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).reads().key("Mod+4"),
+        CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).reads().params(r#"{"value": "right"|"bottom"|"off"}"#),
+        CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
+        CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).reads().params(TOGGLE),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
-            .pure()
+            .reads()
             .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),
-        CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).pure(),
+        CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).reads(),
         CommandSpec::new("view.filter", "Filter Email", "Home › Find", filter)
-            .pure()
+            .reads()
             .params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"toMe"}"#),
         CommandSpec::new("view.search", "Search", "Search", search)
-            .pure()
+            .reads()
             .key("Mod+E / F3")
             .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
-        CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
-        CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).pure().params(
+        CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).reads(),
+        CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).reads().params(
             r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
         ),
-        CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).pure().params(r#"{"value": 0-3}"#),
-        CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).pure().params(TOGGLE),
-        CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).pure().params(TOGGLE),
-        CommandSpec::new("view.day", "Day", "Home › Arrange", day).pure().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
-        CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).pure().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
-        CommandSpec::new("view.week", "Week", "Home › Arrange", week).pure().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
-        CommandSpec::new("view.month", "Month", "Home › Arrange", month).pure().key(mac_or("Mod+Ctrl+4", "Mod+Alt+4")),
-        CommandSpec::new("view.today", "Today", "Home › Go To", today).pure(),
-        CommandSpec::new("view.next", "Forward", "Home › Go To", forward).pure(),
-        CommandSpec::new("view.previous", "Back", "Home › Go To", back).pure(),
-        CommandSpec::new("view.goToDate", "Go to Date", "Home › Go To", go_to_date).pure().key("Mod+G").params(r#"{"date": "YYYY-MM-DD"}"#),
+        CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).reads().params(r#"{"value": 0-3}"#),
+        CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).reads().params(TOGGLE),
+        CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).reads().params(TOGGLE),
+        CommandSpec::new("view.day", "Day", "Home › Arrange", day).reads().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
+        CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).reads().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
+        CommandSpec::new("view.week", "Week", "Home › Arrange", week).reads().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
+        CommandSpec::new("view.month", "Month", "Home › Arrange", month).reads().key(mac_or("Mod+Ctrl+4", "Mod+Alt+4")),
+        CommandSpec::new("view.today", "Today", "Home › Go To", today).reads(),
+        CommandSpec::new("view.next", "Forward", "Home › Go To", forward).reads(),
+        CommandSpec::new("view.previous", "Back", "Home › Go To", back).reads(),
+        CommandSpec::new("view.goToDate", "Go to Date", "Home › Go To", go_to_date).reads().key("Mod+G").params(r#"{"date": "YYYY-MM-DD"}"#),
         CommandSpec::new("view.taskFilter", "Filter Tasks", "Home › Current View", task_filter)
-            .pure()
+            .reads()
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
-        CommandSpec::new("view.inspect", "Inspect View", "View", inspect).pure(),
+        CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
     ];
     specs.extend(display::specs());
     specs

@@ -25,7 +25,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
         CommandSpec::new("tasks.statusReport", "Send Status Report", "Home › Manage Task", status::report)
             .pure()
-            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number (default: the selected task), "discard"?: true} — starts a new message saying how the task stands (its title, status, dates, importance, categories and notes), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_task),
         CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all"}"#),

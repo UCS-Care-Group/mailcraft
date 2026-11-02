@@ -229,8 +229,8 @@ impl Refusals {
                     Kind::Several => format!("change {what}"),
                     Kind::Move => format!("move {what}{to}"),
                     Kind::Copy => format!("copy {what}{to}"),
-                    Kind::Delete if subject.is_empty() && !many => "delete a message for good".to_string(),
-                    Kind::Delete => format!("delete {what} for good"),
+                    Kind::Delete if subject.is_empty() && !many => "permanently delete a message".to_string(),
+                    Kind::Delete => format!("permanently delete {what}"),
                     Kind::MovedOut => format!("remove {what} from the server after moving it here"),
                 };
                 match (kind, why) {

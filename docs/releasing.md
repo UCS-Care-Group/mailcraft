@@ -1,9 +1,8 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-31 · **Change:** patch · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-01 · **Change:** patch · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
-The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
-this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
+This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
 permissions, its own installer identity), so a release has exactly the files a Craft app's has,
 under the same names.
@@ -294,6 +293,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
 | 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |
 | 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |
 | 2026-10-26 | #505: the macOS bundle's file types, one per kind and never the default; the hand-over brings the window to the front |

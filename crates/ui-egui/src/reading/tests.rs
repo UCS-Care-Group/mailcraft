@@ -4028,7 +4028,7 @@ fn the_original_under_a_reply_can_be_copied() {
     app.execute("mail.reply", json!({"id": id})).unwrap();
     app.execute("compose.set", json!({"body": "Mine alone"})).unwrap();
     app.execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
-    app.body_focus_wanted = true;
+    app.want_body_focus();
     let mut harness = window(app, (1280.0, 900.0));
     harness.run_steps(4);
     assert!(crate::compose::editor::has_focus(&harness.ctx), "the owner's text has the keyboard");
