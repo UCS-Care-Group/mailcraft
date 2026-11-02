@@ -398,6 +398,18 @@ fn an_undo_past_the_first_read_keeps_a_category_an_account_added_later_lists() {
 }
 
 #[test]
+fn removing_the_account_read_first_makes_no_later_account_an_older_one() {
+    let (mut s, a) = one_account();
+    s.mailbox.categories = vec![tag("Travel", WINE)];
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let (b, c) = (add(&mut s, "b@example.org"), add(&mut s, "c@example.org"));
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    read(&mut s, b, vec![tag("Blue", RED)]);
+    read(&mut s, c, vec![tag("Travel", WINE)]);
+    assert!(names(&s, b).contains(&"Travel"));
+}
+
+#[test]
 fn a_name_of_an_account_from_before_the_lists_leaves_those_made_since() {
     let (mut s, a, b) = rig();
     s.mailbox.set_category(0, "Invoices", WINE).unwrap();

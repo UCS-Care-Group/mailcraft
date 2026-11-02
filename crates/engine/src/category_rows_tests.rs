@@ -127,6 +127,7 @@ fn a_heading_has_the_spelling_of_its_accounts_own_list() {
     let (account, other) = (s.mailbox.message(first).unwrap().account, s.mailbox.alloc_id());
     s.mailbox.account_categories.insert(other, vec![mailcraft_model::Category { name: "tRAVEL".into(), color: mailcraft_model::Rgb(1, 2, 3) }]);
     s.mailbox.account_categories.insert(account, vec![mailcraft_model::Category { name: "Travel".into(), color: mailcraft_model::Rgb(1, 2, 3) }]);
+    s.mailbox_changed();
     run(&mut s, "view.sort", json!({"by": "categories"}));
     assert!(headings(&s.rows()).contains(&"Travel"), "{:?}", headings(&s.rows()));
 }

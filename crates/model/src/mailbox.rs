@@ -981,7 +981,7 @@ pub struct Mailbox {
     pub server_categories: BTreeMap<Id, Vec<String>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
-    /// [`Mailbox::categories`] may hold its server's names. One added since never put any there.
+    /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
     #[serde(skip_serializing_if = "is_no_id", deserialize_with = "crate::sync::lenient_or_default")]
     own_lists_began: Id,
     /// The time zone the wall-clock times of the events are written in ([`Event::start`]): the
@@ -2899,7 +2899,7 @@ impl Mailbox {
         if self.account_categories.contains_key(&owner) {
             return;
         }
-        if self.account_categories.is_empty() {
+        if self.own_lists_began == 0 {
             self.own_lists_began = self.next_id;
         }
         let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
