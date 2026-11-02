@@ -1366,6 +1366,13 @@ msgid "Attach the same as an iCalendar file"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "Attached {n} file"
+msgid_plural "Attached {n} files"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Attachment keywords"
 msgstr ""
@@ -15239,6 +15246,11 @@ msgstr "{name} hat diese Besprechung zugesagt."
 msgid "{name} answered this invitation."
 msgstr "{name} hat diese Einladung beantwortet."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read ({why})"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "{name} couldn't be saved: the folder has too many files of that name"
@@ -15314,8 +15326,8 @@ msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} wird gerade gesendet und empfangen. Verwenden Sie „Anhalten“."
 
-#. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} ist größer als {mb} MB"
@@ -15787,6 +15799,20 @@ msgid "{n} more question is waiting."
 msgid_plural "{n} more questions are waiting."
 msgstr[0] "{n} weitere Frage wartet."
 msgstr[1] "{n} weitere Fragen warten."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {mb} MB at a time"
+msgid_plural "{n} more were left out: at most {mb} MB at a time"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {most} files at a time"
+msgid_plural "{n} more were left out: at most {most} files at a time"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs

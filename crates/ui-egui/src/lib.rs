@@ -204,16 +204,23 @@ pub struct Services {
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
     /// Desktop: show a native file dialog without blocking the UI thread. The host sends the
-    /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
-    /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
-    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
-    /// Web: open a file picker; the file arrives later through `picked`. The argument says what
-    /// for (`mailbox`, `import`, `attach`). A picker that is cancelled delivers nothing.
-    pub open_async: Option<Box<dyn Fn(&str)>>,
-    /// Files (name, bytes) the picker of `open_async` delivered, each for what it was opened for.
+    /// picked paths (`None` when cancelled; several only for files to attach, one otherwise)
+    /// through the returned channel and wakes the UI; a dropped sender counts as cancelled. The
+    /// app shows one dialog at a time ([`files`]).
+    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>>,
+    /// Web: open a file picker; what is picked arrives later through `picked`, each file with
+    /// what the picker was opened for (`mailbox`, `import`, `attach`, …) and the message being
+    /// written that asked, as given here ([`Delivered::picked`]): the picker's answer is never
+    /// taken for another's, however the pickers overlap, and a cancelled one delivers nothing
+    /// and leaves nothing behind. Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
+    /// of one pick, none larger than a message may carry, and none once the pick would pass
+    /// [`files::MOST_ATTACHED_BYTES`]; each left unread is delivered saying why
+    /// ([`Delivered::unread`]), and nothing past the caps is ever read.
+    pub open_async: Option<Box<dyn Fn(&str, Option<u64>)>>,
+    /// Files the picker of `open_async` delivered, each saying what it was picked for.
     pub picked: Option<Inbox>,
-    /// Files (name, bytes) delivered asynchronously otherwise (dropped in the browser): each goes
-    /// where its kind says, whatever a picker was last opened for.
+    /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
+    /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -478,8 +485,55 @@ pub fn clipboard_picture_png(width: usize, height: usize, rgba: &[u8]) -> Option
     Some(out)
 }
 
-/// Files delivered asynchronously.
-pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
+/// Files delivered asynchronously ([`Delivered`]).
+pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<Delivered>>>;
+
+/// A file that arrived asynchronously: picked in the browser's picker, or dropped on the page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Delivered {
+    pub name: String,
+    /// Its bytes, or why it has none ([`Unread`]): said, and the other files of its pick go in.
+    pub bytes: Result<Vec<u8>, Unread>,
+    /// What the picker it was picked in was opened for (`mailbox`, `import`, `attach`, …) and
+    /// the message being written that asked, if one did; none for a drop, which goes by its
+    /// kind and to the message with the keyboard.
+    pub asked: Option<(String, Option<u64>)>,
+    /// Which pick it came in, counted by the host: two picks for one message that arrive in the
+    /// same frame are two batches, each said by itself. `0` for a drop.
+    pub pick: u64,
+}
+
+/// Why a file that was picked has no bytes: the host read nothing of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// The browser couldn't read it (the file moved or changed since it was picked).
+    Failed(String),
+    /// Larger than a message may carry ([`files::MOST_ATTACHMENT_BYTES`]): never read.
+    TooLarge,
+    /// Past the most files of one pick ([`files::MOST_ATTACHED`]): never read.
+    PastMost,
+    /// Past the most bytes of one pick together ([`files::MOST_ATTACHED_BYTES`]): never read,
+    /// nor anything picked after it.
+    PastTotal,
+}
+
+impl Delivered {
+    /// A file dropped on the page.
+    pub fn dropped(name: String, bytes: Vec<u8>) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: None, pick: 0 }
+    }
+
+    /// A file picked in the picker [`Services::open_async`] opened for `purpose`, on behalf of
+    /// the message `asking`, read; `pick` numbers the pick it came in.
+    pub fn picked(name: String, bytes: Vec<u8>, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: Some((purpose.to_string(), asking)), pick }
+    }
+
+    /// A file picked as [`Delivered::picked`], of which nothing was read, for `why`.
+    pub fn unread(name: String, why: Unread, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Err(why), asked: Some((purpose.to_string(), asking)), pick }
+    }
+}
 
 /// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
 /// and `refresh:<address>`.
@@ -1548,9 +1602,6 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
-    /// Web: what the file the picker will deliver is for ([`Services::picked`]): a picker that was
-    /// cancelled leaves it until the next one is opened, and it is never what a dropped file is for.
-    pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,
@@ -1747,7 +1798,6 @@ impl MailApp {
             running_after_save: false,
             ctx: None,
             file_dialog: None,
-            pending_open: None,
             opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),

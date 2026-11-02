@@ -1427,6 +1427,13 @@ msgid "Attach the same as an iCalendar file"
 msgstr "Hetzelfde bijvoegen als een iCalendar-bestand"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "Attached {n} file"
+msgid_plural "Attached {n} files"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Attachment keywords"
@@ -16062,6 +16069,11 @@ msgstr "{name} heeft deze vergadering geaccepteerd."
 msgid "{name} answered this invitation."
 msgstr "{name} heeft deze uitnodiging beantwoord."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read ({why})"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
@@ -16140,8 +16152,8 @@ msgstr "{name} is een gedeeld postvak waarvan het account is verdwenen: verwijde
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} wordt nu verzonden en ontvangen. Gebruik Stoppen."
 
-#. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} is groter dan {mb} MB"
@@ -16631,6 +16643,20 @@ msgid "{n} more question is waiting."
 msgid_plural "{n} more questions are waiting."
 msgstr[0] "{n} vraag wacht nog."
 msgstr[1] "{n} vragen wachten nog."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {mb} MB at a time"
+msgid_plural "{n} more were left out: at most {mb} MB at a time"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {most} files at a time"
+msgid_plural "{n} more were left out: at most {most} files at a time"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
