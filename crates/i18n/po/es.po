@@ -13482,6 +13482,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/session.rs
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
@@ -15340,8 +15345,8 @@ msgstr "{name} es un buzón compartido cuya cuenta ya no existe: quítelo y vuel
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} se está enviando y recibiendo ahora. Use Detener."
 
-#. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} ocupa más de {mb} MB"
@@ -15813,6 +15818,13 @@ msgid "{n} more question is waiting."
 msgid_plural "{n} more questions are waiting."
 msgstr[0] "Hay {n} pregunta más en espera."
 msgstr[1] "Hay {n} preguntas más en espera."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {mb} MB at a time"
+msgid_plural "{n} more were left out: at most {mb} MB at a time"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/files.rs

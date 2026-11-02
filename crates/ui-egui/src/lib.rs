@@ -86,6 +86,8 @@ pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
 mod forms_date_tests;
+#[cfg(test)]
+mod frame_bench_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
@@ -174,6 +176,7 @@ mod view_source;
 mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
+pub mod window_places;
 pub mod windows;
 #[cfg(test)]
 mod writing_tools_tests;
@@ -205,12 +208,19 @@ pub struct Services {
     /// through the returned channel and wakes the UI; a dropped sender counts as cancelled. The
     /// app shows one dialog at a time ([`files`]).
     pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>>,
-    /// Web: open a file picker; what is picked arrives later through `inbox`, each file with
+    /// Web: open a file picker; what is picked arrives later through `picked`, each file with
     /// what the picker was opened for (`mailbox`, `import`, `attach`, …) and the message being
     /// written that asked, as given here ([`Delivered::picked`]): the picker's answer is never
-    /// taken for another's, however the pickers overlap, and a cancelled one owes nothing.
+    /// taken for another's, however the pickers overlap, and a cancelled one delivers nothing
+    /// and leaves nothing behind. Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
+    /// of one pick, none larger than a message may carry, and none once the pick would pass
+    /// [`files::MOST_ATTACHED_BYTES`]; each left unread is delivered saying why
+    /// ([`Delivered::unread`]), and nothing past the caps is ever read.
     pub open_async: Option<Box<dyn Fn(&str, Option<u64>)>>,
-    /// Files delivered asynchronously (the web picker, drag and drop).
+    /// Files the picker of `open_async` delivered, each saying what it was picked for.
+    pub picked: Option<Inbox>,
+    /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
+    /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -482,25 +492,46 @@ pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<Delivered>>>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Delivered {
     pub name: String,
-    /// Its bytes, or why the browser couldn't read it (the file moved or changed since it was
-    /// picked): said, and the other files of its pick go in.
-    pub bytes: Result<Vec<u8>, String>,
+    /// Its bytes, or why it has none ([`Unread`]): said, and the other files of its pick go in.
+    pub bytes: Result<Vec<u8>, Unread>,
     /// What the picker it was picked in was opened for (`mailbox`, `import`, `attach`, …) and
     /// the message being written that asked, if one did; none for a drop, which goes by its
     /// kind and to the message with the keyboard.
     pub asked: Option<(String, Option<u64>)>,
+    /// Which pick it came in, counted by the host: two picks for one message that arrive in the
+    /// same frame are two batches, each said by itself. `0` for a drop.
+    pub pick: u64,
+}
+
+/// Why a file that was picked has no bytes: the host read nothing of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// The browser couldn't read it (the file moved or changed since it was picked).
+    Failed(String),
+    /// Larger than a message may carry ([`files::MOST_ATTACHMENT_BYTES`]): never read.
+    TooLarge,
+    /// Past the most files of one pick ([`files::MOST_ATTACHED`]): never read.
+    PastMost,
+    /// Past the most bytes of one pick together ([`files::MOST_ATTACHED_BYTES`]): never read,
+    /// nor anything picked after it.
+    PastTotal,
 }
 
 impl Delivered {
     /// A file dropped on the page.
     pub fn dropped(name: String, bytes: Vec<u8>) -> Self {
-        Delivered { name, bytes: Ok(bytes), asked: None }
+        Delivered { name, bytes: Ok(bytes), asked: None, pick: 0 }
     }
 
     /// A file picked in the picker [`Services::open_async`] opened for `purpose`, on behalf of
-    /// the message `asking`.
-    pub fn picked(name: String, bytes: Result<Vec<u8>, String>, purpose: &str, asking: Option<u64>) -> Self {
-        Delivered { name, bytes, asked: Some((purpose.to_string(), asking)) }
+    /// the message `asking`, read; `pick` numbers the pick it came in.
+    pub fn picked(name: String, bytes: Vec<u8>, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: Some((purpose.to_string(), asking)), pick }
+    }
+
+    /// A file picked as [`Delivered::picked`], of which nothing was read, for `why`.
+    pub fn unread(name: String, why: Unread, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Err(why), asked: Some((purpose.to_string(), asking)), pick }
     }
 }
 
@@ -811,6 +842,9 @@ pub struct UiState {
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
     pub window: Option<window_geometry::WindowGeometry>,
+    /// Desktop: the size and place each kind of window of its own last had (#286), for the next
+    /// one of its kind.
+    pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
     /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
@@ -898,6 +932,7 @@ impl Default for UiState {
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
+            window_places: Default::default(),
             language: i18n::AUTO.into(),
             options: mailcraft_engine::Prefs::default(),
             view: mailcraft_engine::ViewState::default(),
@@ -1538,8 +1573,9 @@ pub struct MailApp {
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
     last_autosave: f64,
-    /// When the draft being written was last saved by itself (ms; 0: not since it was opened).
-    draft_saved_at: f64,
+    /// When the messages being written were last saved by themselves, by the session's clock
+    /// (seconds; `None`: none has had changes since one was opened).
+    draft_saved_at: Option<i64>,
     saved_rev: u64,
     /// How far the background saver has got with what it was handed, as of this frame (`None`:
     /// nothing waiting or being written).
@@ -1751,7 +1787,7 @@ impl MailApp {
             push_only_next: Default::default(),
             push_seen: Default::default(),
             last_autosave: 0.0,
-            draft_saved_at: 0.0,
+            draft_saved_at: None,
             saved_rev,
             save_progress: None,
             closing_after_save: None,
@@ -1799,6 +1835,18 @@ impl MailApp {
         ui.view.search.clear();
         ui.view.people_search.clear();
         ui
+    }
+
+    /// Whether a window of its own is about to open as a window of the system: the host lists the
+    /// monitors connected now for it ([`MailApp::set_monitors`]), so that it opens on one (#286).
+    pub fn wants_monitors(&self) -> bool {
+        self.windows.wants_monitors()
+    }
+
+    /// The monitors connected now, in the system's pixels with each one's scale, for the windows
+    /// about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
+        self.windows.monitors = Some(monitors);
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
@@ -4096,39 +4144,39 @@ impl MailApp {
     /// Save a moment after the last change: to the mailbox file on the desktop (through the
     /// host's background saver when it has one, so the window never waits for the disk), to the
     /// host's storage in the browser. A failure shows in the status bar and is tried again later.
-    /// A draft of a Microsoft account that is being written is saved every five minutes while
-    /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
-    fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
-        const EVERY_MS: f64 = 5.0 * 60_000.0;
-        if self.session.compose.is_none() {
-            self.draft_saved_at = 0.0;
-            return;
-        }
-        // Every message being written, the ones put aside too (#286).
-        let mb = &self.session.mailbox;
-        let due: Vec<u64> = self
-            .session
-            .all_composing()
-            .filter(|c| c.dirty && mb.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft))
-            .map(|c| c.id)
-            .collect();
+    /// Every message being written that has changes, the ones in windows, put aside or in the
+    /// reading pane, is saved to Drafts every five minutes, for every kind of account, as Save
+    /// Draft saves it (#286): a Microsoft or Exchange account's goes up to its server with the
+    /// next Send/Receive (R3.4.1), another's is kept in Drafts here. The clock is the session's.
+    /// It is saved as the owner's Save Draft is, which leaves what is written in it as it was: a
+    /// message an agent is writing doesn't become the owner's by being saved (#577).
+    pub(crate) fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
+        const EVERY_SECS: i64 = 5 * 60;
+        let due: Vec<u64> = self.session.all_composing().filter(|c| c.dirty).map(|c| c.id).collect();
         if due.is_empty() {
+            // The five minutes start again with the next change.
+            self.draft_saved_at = None;
             return;
         }
-        let now = now_ms();
-        if self.draft_saved_at == 0.0 {
-            self.draft_saved_at = now;
-        }
-        let waited = now - self.draft_saved_at;
-        if waited >= EVERY_MS {
-            self.draft_saved_at = now;
+        let now = self.session.now();
+        let since = *self.draft_saved_at.get_or_insert(now);
+        let waited = now.saturating_sub(since);
+        // While the owner is asked whether to save a message (Unsaved Message, a window's own
+        // question, an agent's question), nothing is saved behind the answer: once it is given,
+        // a save that is due comes at once.
+        let asked = matches!(self.dialog, Some(dialogs::Dialog::DiscardDraft { .. })) || self.windows.asks() || !self.asking.is_empty();
+        if !(0..EVERY_SECS).contains(&waited) && !asked {
+            self.draft_saved_at = Some(now);
             for compose in due {
-                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose})) {
-                    log::info!("the draft couldn't be saved by itself: {e}");
+                // (No command: no agent or script can save one in the background, #286. One that
+                // was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.session.save_in_background(compose) {
+                    log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
                 }
             }
-        } else {
-            ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
+        } else if !asked {
+            let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
+            ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }
     }
 

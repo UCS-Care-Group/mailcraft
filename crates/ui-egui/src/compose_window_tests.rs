@@ -610,19 +610,61 @@ fn a_message_a_script_starts_stays_current_for_its_next_call_while_the_owner_is_
 #[test]
 fn an_agents_command_never_takes_the_reading_pane_from_the_owners_message() {
     let mut h = window(app());
-    // A message put aside, saved to Drafts, and the owner's in the reading pane.
+    // A message a script started in the reading pane, put aside (saved to Drafts) when the owner
+    // replied there; then the owner's New Email in a window of its own, current.
     let aside = script(&mut h, "mail.new", json!({"subject": "Put aside"}))["compose"].as_u64().unwrap();
     script(&mut h, "compose.set", json!({"compose": aside, "body": "Earlier"}));
     let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
     let mine = owner(&mut h, "mail.reply", json!({"id": message}))["compose"].as_u64().unwrap();
-    assert_eq!(pane(&h), Some(mine));
-    let draft = h.state().session.composing_by_id(aside).and_then(|c| c.draft).expect("saved first");
-    // An agent opens that draft again: it is current for the agent, the reading pane stays the owner's.
-    let said = agent(h.state_mut(), "mail.editDraft", json!({"id": draft}), Class::ALL.to_vec()).expect("done at once");
+    let new = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    let w = window_of(&h, new);
+    assert_eq!((pane(&h), h.state().session.compose_id()), (Some(mine), Some(new)));
+    assert_eq!(h.state().windows.of_compose(aside), None);
+    // The one put aside last is the script's (the owner had it current before going to the
+    // window): when the current one closes, the engine makes it current.
+    assert!(h.state_mut().session.show_compose(aside) && h.state_mut().session.show_compose(new));
+    // An agent closes the window: the script's, in no window, is current now, but the reading
+    // pane stays the owner's reply.
+    let said = agent(h.state_mut(), "ui.closeWindow", json!({"window": w, "save": true}), Class::ALL.to_vec()).expect("done at once");
     assert_eq!(said["ok"], true, "{said}");
+    assert_eq!(h.state().windows.of_compose(new), None);
+    assert_eq!(h.state().session.compose_id(), Some(aside));
     assert_eq!(pane(&h), Some(mine));
     h.run_steps(3);
     assert_eq!(pane(&h), Some(mine));
+    assert_eq!(h.state().session.compose_id(), Some(mine));
+}
+
+#[test]
+fn a_message_an_agent_is_writing_saved_by_itself_stays_the_agents() {
+    let mut h = window(app());
+    // The owner writes in a window of their own; an agent writes another, behind it.
+    let mine = owner(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    into_body(&mut h, mine);
+    type_text(&mut h, "Mine");
+    let said = agent(h.state_mut(), "mail.new", json!({"subject": "The agent's"}), Class::ALL.to_vec()).expect("done at once");
+    let theirs = said["result"]["compose"].as_u64().unwrap_or_else(|| panic!("{said}"));
+    let said = agent(h.state_mut(), "compose.set", json!({"compose": theirs, "body": "Drafted"}), Class::ALL.to_vec()).expect("done at once");
+    assert_eq!(said["ok"], true, "{said}");
+    h.run_steps(3);
+    let c = |h: &Harness, id: u64| h.state().session.composing_by_id(id).cloned().unwrap();
+    assert_eq!((c(&h, mine).dirty, c(&h, mine).owner_changed), (true, true));
+    assert_eq!((c(&h, theirs).dirty, c(&h, theirs).owner_changed), (true, false));
+    // Five minutes on, a frame saves both to Drafts.
+    h.state_mut().session.clock.now = Some(NOW + 5 * 60);
+    h.run_steps(1);
+    assert!(!c(&h, mine).dirty && !c(&h, theirs).dirty);
+    assert_eq!((drafts(&h, "The agent's"), c(&h, theirs).draft.is_some()), (1, true));
+    // What the owner wrote is still theirs; the agent's message is still the agent's to write in
+    // and to close without asking the owner anything.
+    assert_eq!((c(&h, mine).owner_changed, c(&h, theirs).owner_changed), (true, false));
+    let said = agent(h.state_mut(), "compose.set", json!({"compose": theirs, "body": "Drafted, again"}), Class::ALL.to_vec()).expect("done at once");
+    assert_eq!(said["ok"], true, "{said}");
+    let w = window_of(&h, theirs);
+    let said = agent(h.state_mut(), "ui.closeWindow", json!({"window": w, "discard": true}), Class::ALL.to_vec()).expect("done at once");
+    assert_eq!(said["ok"], true, "{said}");
+    assert!(h.state().session.composing_by_id(theirs).is_none());
+    assert!(text_of(&h, mine).starts_with("Mine"));
 }
 
 #[test]

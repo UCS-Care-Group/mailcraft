@@ -858,10 +858,7 @@ pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
 /// saved draft that is gone (#494): every one for another mailbox, else the current one.
 pub(crate) fn unsaved_closed_by(app: &MailApp, id: &str, params: &Value) -> usize {
     let s = &app.session;
-    mailcraft_engine::cmd::compose::closed_by(s, id, params)
-        .into_iter()
-        .filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c))
-        .count()
+    mailcraft_engine::cmd::compose::closed_by(s, id, params).into_iter().filter(|c| mailcraft_engine::cmd::compose::unsaved(s, c)).count()
 }
 
 /// Whether what waits for Unsaved Message closes every message being written (quitting, another
@@ -874,7 +871,7 @@ fn closes_all(then: &str) -> bool {
 /// Drafts: `false`, with why said, at the first that can't be.
 fn save_all(app: &mut MailApp) -> bool {
     let s = &app.session;
-    let unsaved: Vec<u64> = s.all_composing().filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)).map(|c| c.id).collect();
+    let unsaved: Vec<u64> = s.all_composing().filter(|c| mailcraft_engine::cmd::compose::unsaved(s, c)).map(|c| c.id).collect();
     unsaved.into_iter().all(|id| app.run("compose.saveDraft", json!({"compose": id})).is_ok())
 }
 

@@ -182,6 +182,42 @@ fn files_arriving_from_the_browser_go_where_they_belong() {
     assert!(a.status_msg.is_some());
 }
 
+/// A cancelled picker delivers nothing and leaves nothing behind: a file dropped after it goes
+/// by its kind. What the picker does deliver says what it was picked for, and for which message.
+#[test]
+fn a_file_dropped_after_the_browsers_picker_was_cancelled_goes_where_its_kind_says() {
+    let mut a = app();
+    let (inbox, picked): (crate::Inbox, crate::Inbox) = Default::default();
+    (a.services.inbox, a.services.picked) = (Some(inbox.clone()), Some(picked.clone()));
+    // What the picker was last opened for, and for which message, as the host is told.
+    let opened: std::sync::Arc<std::sync::Mutex<Option<(String, Option<u64>)>>> = Default::default();
+    let noted = opened.clone();
+    a.services.open_async = Some(Box::new(move |purpose, asking| *noted.lock().unwrap() = Some((purpose.to_string(), asking))));
+    a.execute("mail.new", json!({})).unwrap();
+    // Attach opens the picker, and the owner cancels it: nothing is delivered. Then the message
+    // is closed.
+    a.run("compose.attach", json!({})).unwrap();
+    assert_eq!(opened.lock().unwrap().as_ref().map(|(p, _)| p.as_str()), Some("attach"));
+    crate::files::drain_inbox(&mut a);
+    a.run("compose.close", json!({"discard": true})).unwrap();
+    // A calendar file dropped next is brought in, not taken for the attachment asked for.
+    let events = a.session.mailbox.events.len();
+    let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:drop-1@example.org\r\nDTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Dropped\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    inbox.lock().unwrap().push(crate::Delivered::dropped("dropped.ics".into(), ics.to_vec()));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.mailbox.events.len(), events + 1, "{:?}", a.status_msg);
+    // What the picker delivers is for what it was opened for, and for the message that asked:
+    // an attachment, whatever the file is.
+    let compose = a.execute("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
+    a.run("compose.attach", json!({})).unwrap();
+    let (purpose, asking) = opened.lock().unwrap().clone().unwrap();
+    assert_eq!((purpose.as_str(), asking), ("attach", Some(compose)));
+    picked.lock().unwrap().push(crate::Delivered::picked("invite.ics".into(), ics.to_vec(), &purpose, asking, 1));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.composing_by_id(compose).map(|c| c.attachments.len()), Some(1));
+    assert_eq!(a.session.mailbox.events.len(), events + 1);
+}
+
 #[test]
 fn saved_settings_come_back_and_bad_ones_are_tamed() {
     let mut a = app();

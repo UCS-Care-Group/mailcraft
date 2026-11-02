@@ -1,1 +1,0 @@
-- **Attach several files at once.** Attach File's dialog lets you pick more than one file (Ctrl or Shift and click; the browser's picker too), and each is attached in the order picked. One that can't be attached, say a file too large, is said in the status bar and doesn't keep the others out. Every other dialog still picks one file.

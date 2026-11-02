@@ -8,7 +8,7 @@ use std::rc::Rc;
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
 use mailcraft_ui_egui::opening::{Arrival, Trouble};
-use mailcraft_ui_egui::{Delivered, Inbox, MailApp, Services, UiState};
+use mailcraft_ui_egui::{Delivered, Inbox, MailApp, Services, UiState, Unread};
 use wasm_bindgen::JsCast as _;
 
 use crate::page;
@@ -222,12 +222,19 @@ fn open_links(ctx: &egui::Context) {
 }
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
-    let open_inbox = inbox.clone();
+    // What the picker delivers comes in apart from what is dropped: it is for what the picker
+    // was opened for, and a dropped file never is.
+    let picked = Inbox::default();
+    let open_inbox = picked.clone();
+    // Each pick is numbered, so that two for one message are never one batch.
+    let picks = std::cell::Cell::new(0u64);
     Services {
         open_async: Some(Box::new(move |purpose: &str, asking: Option<u64>| {
             let inbox = open_inbox.clone();
             let ctx = ctx.clone();
             let picked_for = purpose.to_string();
+            let pick = picks.get().wrapping_add(1);
+            picks.set(pick);
             let dialog = match purpose {
                 "mailbox" => rfd::AsyncFileDialog::new().add_filter("MailCraft mailbox", MAILBOX_EXTS),
                 "import" => rfd::AsyncFileDialog::new().add_filter("Mail, calendar and contact files", IMPORT_EXTS),
@@ -242,20 +249,33 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                     return;
                 };
                 // Each file as it was picked for: a picker's answer is never taken for another's.
+                // What is read is decided from the files' sizes before any is read: a page can't
+                // hold a pick of large files, and the message being written would go down with
+                // it (never crash). A file over the most a message carries, one past the most
+                // files of a pick, and every one from the first that would take the pick past
+                // the most bytes together are delivered unread, saying why.
+                let sizes: Vec<u64> = files.iter().map(|f| f.inner().size() as u64).collect();
                 let mut read = Vec::with_capacity(files.len());
-                for file in files {
+                for (file, unread) in files.iter().zip(mailcraft_ui_egui::files::reads_of_pick(&sizes)) {
                     let name = file.file_name();
-                    let bytes = read_file(file.inner()).await.map_err(|e| {
-                        log::error!("couldn't read picked file {name}: {e}");
-                        format!("{name} couldn't be read")
+                    if let Some(why) = unread {
+                        read.push(Delivered::unread(name, why, &picked_for, asking, pick));
+                        continue;
+                    }
+                    read.push(match read_file(file.inner()).await {
+                        Ok(bytes) => Delivered::picked(name, bytes, &picked_for, asking, pick),
+                        Err(e) => {
+                            log::error!("couldn't read picked file {name}: {e}");
+                            Delivered::unread(name.clone(), Unread::Failed(format!("{name} couldn't be read")), &picked_for, asking, pick)
+                        }
                     });
-                    read.push(Delivered::picked(name, bytes, &picked_for, asking));
                 }
                 inbox.lock().unwrap_or_else(|e| e.into_inner()).extend(read);
                 ctx.request_repaint();
             });
         })),
         download: Some(Box::new(download)),
+        picked: Some(picked),
         inbox: Some(inbox),
         persist: Some(Box::new(persist)),
         // The browser's language, for an interface language left on Automatic; and the page says

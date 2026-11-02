@@ -238,23 +238,68 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
 }
 
 /// The most files attached from one pick: a person picks a handful, a stuck key a great many.
-const MOST_ATTACHED: usize = 100;
+pub const MOST_ATTACHED: usize = 100;
 
-/// Attach each of `paths`, in the order picked, to the message being written `asking` (#286).
-/// Said once: how many went in, and why one didn't ([`attached_said`]).
-fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
-    let mut batch = Batch::default();
-    for path in paths.iter().take(MOST_ATTACHED) {
-        batch.took(app.run("compose.attach", on_message(json!({"path": path}), asking)));
-    }
-    attached_said(app, batch, paths.len())
+/// The most bytes one file to attach may have: a larger one is never read
+/// ([`mailcraft_engine::cmd::compose::MAX_ATTACHMENT`], which refuses it after reading).
+pub const MOST_ATTACHMENT_BYTES: u64 = mailcraft_engine::cmd::compose::MAX_ATTACHMENT as u64;
+
+/// The most bytes read for one pick together: on the desktop that much memory, in the browser
+/// more than a page can hold at all, and the message being written would go down with it.
+pub const MOST_ATTACHED_BYTES: u64 = 256 << 20;
+
+/// Which of a pick's files are read, from their sizes alone, before any is read: in order, at
+/// most [`MOST_ATTACHED`], none larger than [`MOST_ATTACHMENT_BYTES`] (never read; a message
+/// couldn't carry it), and none from the first that would take the pick past
+/// [`MOST_ATTACHED_BYTES`] together. `None` is read; `Some` says why it isn't. The host that
+/// picks in the browser does this before reading anything, and so does the desktop.
+pub fn reads_of_pick(sizes: &[u64]) -> Vec<Option<crate::Unread>> {
+    let mut total: u64 = 0;
+    let mut past_total = false;
+    sizes
+        .iter()
+        .enumerate()
+        .map(|(i, size)| {
+            if i >= MOST_ATTACHED {
+                return Some(crate::Unread::PastMost);
+            }
+            if *size > MOST_ATTACHMENT_BYTES {
+                return Some(crate::Unread::TooLarge);
+            }
+            past_total |= total.saturating_add(*size) > MOST_ATTACHED_BYTES;
+            if past_total {
+                return Some(crate::Unread::PastTotal);
+            }
+            total = total.saturating_add(*size);
+            None
+        })
+        .collect()
 }
 
-/// What attaching several files came to: how many went in, and the first reason one didn't.
+/// Attach each of `paths`, in the order the dialog lists them, to the message being written
+/// `asking` (#286), reading only what [`reads_of_pick`] allows by their sizes. Said once: how
+/// many went in, and why one didn't ([`attached_said`]).
+fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
+    // A file whose size can't be read is read as a file of no size: attaching it says what is wrong.
+    let sizes: Vec<u64> = paths.iter().map(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)).collect();
+    let mut batch = Batch::default();
+    for (path, unread) in paths.iter().zip(reads_of_pick(&sizes)) {
+        match unread {
+            None => batch.took(app.run("compose.attach", on_message(json!({"path": path}), asking))),
+            Some(why) => batch.unread(path.rsplit(['/', '\\']).next().unwrap_or(path), &why),
+        }
+    }
+    attached_said(app, batch)
+}
+
+/// What attaching several files came to: how many went in, the first reason one didn't, and
+/// how many weren't read at all, past the most files or the most bytes of one pick.
 #[derive(Default)]
 struct Batch {
     attached: usize,
     failed: Option<String>,
+    past_most: usize,
+    past_total: usize,
 }
 
 impl Batch {
@@ -264,24 +309,42 @@ impl Batch {
             Err(e) => self.failed = self.failed.take().or(Some(e)),
         }
     }
+
+    /// `name` wasn't read, for `why`.
+    fn unread(&mut self, name: &str, why: &crate::Unread) {
+        match why {
+            crate::Unread::Failed(e) => self.took(Err(e.clone())),
+            crate::Unread::TooLarge => {
+                let mb = (MOST_ATTACHMENT_BYTES >> 20).to_string();
+                self.took(Err(crate::i18n::fmt(tl!("{name} is larger than {mb} MB"), &[("name", name), ("mb", &mb)])));
+            }
+            crate::Unread::PastMost => self.past_most += 1,
+            crate::Unread::PastTotal => self.past_total += 1,
+        }
+    }
 }
 
-/// Say once what attaching `picked` files came to: how many went in, the first reason one
-/// didn't, and that the rest were left out when more than [`MOST_ATTACHED`] were picked. An
-/// error only when none went in.
-fn attached_said(app: &mut MailApp, batch: Batch, picked: usize) -> Result<Value, String> {
+/// Say once what attaching a pick of files came to: how many went in, the first reason one
+/// didn't, and that the rest were left out when more than [`MOST_ATTACHED`] were picked or
+/// they would come to more than [`MOST_ATTACHED_BYTES`] together. An error only when none
+/// went in.
+fn attached_said(app: &mut MailApp, batch: Batch) -> Result<Value, String> {
     app.ui.backstage = false;
-    let Batch { attached, failed } = batch;
-    let left_out = picked.saturating_sub(MOST_ATTACHED);
+    let Batch { attached, failed, past_most, past_total } = batch;
     let mut said = tln!(attached, "Attached {n} file", "Attached {n} files");
-    if left_out > 0 {
+    if past_most > 0 {
         let most = MOST_ATTACHED.to_string();
-        let rest = tln!(left_out, "{n} more was left out: at most {most} files at a time", "{n} more were left out: at most {most} files at a time");
+        let rest = tln!(past_most, "{n} more was left out: at most {most} files at a time", "{n} more were left out: at most {most} files at a time");
         said = format!("{said} · {}", crate::i18n::fmt(&rest, &[("most", &most)]));
     }
+    if past_total > 0 {
+        let mb = (MOST_ATTACHED_BYTES >> 20).to_string();
+        let rest = tln!(past_total, "{n} more was left out: at most {mb} MB at a time", "{n} more were left out: at most {mb} MB at a time");
+        said = format!("{said} · {}", crate::i18n::fmt(&rest, &[("mb", &mb)]));
+    }
     let mut r = json!({"attached": attached});
-    if left_out > 0 {
-        r["leftOut"] = json!(left_out);
+    if past_most + past_total > 0 {
+        r["leftOut"] = json!(past_most + past_total);
     }
     match failed {
         Some(e) if attached == 0 => {
@@ -489,36 +552,46 @@ pub fn local_path(text: &str) -> String {
     }
 }
 
-/// Files that arrived asynchronously (the web picker, drops in the browser). Each goes where it
-/// was picked for, to the message that asked ([`crate::Delivered::asked`]); a drop goes by its
-/// kind, to the message with the keyboard. Several picked to attach for one message are a batch,
-/// as on the desktop: each in turn, up to the most at a time, and said once ([`attached_said`]).
+/// Files that arrived asynchronously: from the web picker, each for what it was opened for and
+/// for the message that asked ([`crate::Delivered::asked`]); dropped in the browser, each for
+/// what its kind says, to the message with the keyboard. A picker that was cancelled delivers
+/// nothing, so what it was opened for is never what a dropped file is taken for. Files picked
+/// to attach arrive together, and the files of one pick for one message are a batch, as on the
+/// desktop: each in turn, and said once ([`attached_said`]); two picks for the same message
+/// ([`crate::Delivered::pick`]) are said each by itself.
 pub(crate) fn drain_inbox(app: &mut MailApp) {
-    let Some(inbox) = app.services.inbox.clone() else { return };
-    let mut files = std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()));
-    while !files.is_empty() {
-        let first = files.remove(0);
+    let take = |inbox: &Option<crate::Inbox>| {
+        inbox.as_ref().map(|inbox| std::mem::take(&mut *inbox.lock().unwrap_or_else(|e| e.into_inner()))).unwrap_or_default()
+    };
+    let mut files = take(&app.services.picked);
+    files.extend(take(&app.services.inbox));
+    let mut files = files.into_iter().peekable();
+    while let Some(first) = files.next() {
         let Some(("attach", asking)) = first.asked.as_ref().map(|(purpose, asking)| (purpose.as_str(), *asking)) else {
             delivered_one(app, first);
             continue;
         };
-        // The rest of its pick: what else was picked to attach for the same message.
-        let (mut pick, rest): (Vec<_>, Vec<_>) =
-            files.into_iter().partition(|d| d.asked.as_ref().is_some_and(|(p, a)| p == "attach" && *a == asking));
-        files = rest;
-        if pick.is_empty() {
-            delivered_one(app, first);
+        // The rest of its pick: what follows it, picked to attach for the same message in the
+        // same pick (a pick is delivered whole, under one lock).
+        let number = first.pick;
+        let mut pick = vec![first];
+        while let Some(next) = files.next_if(|d| d.pick == number && d.asked.as_ref().is_some_and(|(p, a)| p == "attach" && *a == asking)) {
+            pick.push(next);
+        }
+        if pick.len() == 1
+            && let Some(one) = pick.pop()
+        {
+            delivered_one(app, one);
             continue;
         }
-        pick.insert(0, first);
         let mut batch = Batch::default();
-        for d in pick.iter().take(MOST_ATTACHED) {
-            batch.took(match &d.bytes {
-                Ok(bytes) => app.run("compose.attach", on_message(json!({"name": d.name, "data": encode(bytes)}), asking)),
-                Err(why) => Err(why.clone()),
-            });
+        for d in pick {
+            match d.bytes {
+                Ok(bytes) => batch.took(app.run("compose.attach", on_message(json!({"name": d.name, "data": encode(&bytes)}), asking))),
+                Err(why) => batch.unread(&d.name, &why),
+            }
         }
-        let _ = attached_said(app, batch, pick.len());
+        let _ = attached_said(app, batch);
     }
 }
 
@@ -527,7 +600,12 @@ fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
     let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
     let bytes = match d.bytes {
         Ok(bytes) => bytes,
-        Err(why) => return app.status(why),
+        Err(why) => {
+            let mut batch = Batch::default();
+            batch.unread(&d.name, &why);
+            let _ = attached_said(app, batch);
+            return;
+        }
     };
     let (name, data) = (d.name, encode(&bytes));
     let r = match purpose.as_str() {
