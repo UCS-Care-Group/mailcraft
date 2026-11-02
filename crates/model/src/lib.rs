@@ -33,6 +33,9 @@ pub mod sender_warnings;
 pub mod signature;
 pub mod sync;
 mod task;
+pub mod threads;
+#[cfg(test)]
+mod threads_tests;
 pub mod update;
 pub mod words;
 pub mod zoned;

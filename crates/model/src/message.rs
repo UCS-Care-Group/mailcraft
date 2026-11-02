@@ -493,17 +493,22 @@ impl Message {
 /// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `Re[2]:`; German `AW:`, `WG:`;
 /// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`; Dutch `Antw:`, `Doorst:`), however many there are.
 pub fn normalize_subject(subject: &str) -> String {
+    topic_of(subject).to_string()
+}
+
+/// [`normalize_subject`] as a part of `subject`, without a copy.
+pub(crate) fn topic_of(subject: &str) -> &str {
+    const PREFIXES: [&str; 13] = ["re", "fw", "fwd", "aw", "wg", "sv", "vs", "tr", "rv", "r", "i", "antw", "doorst"];
     let mut s = subject.trim();
     while let Some((prefix, rest)) = s.split_once(':') {
-        let p = prefix.trim().to_ascii_lowercase();
-        let p = p.split('[').next().unwrap_or("").trim();
-        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i" | "antw" | "doorst") {
+        let p = prefix.trim().split('[').next().unwrap_or("").trim();
+        if PREFIXES.iter().any(|x| p.eq_ignore_ascii_case(x)) {
             s = rest.trim();
         } else {
             break;
         }
     }
-    s.to_string()
+    s
 }
 
 #[cfg(test)]

@@ -1090,6 +1090,11 @@ pub struct Session {
     /// The conversation last asked for ([`Session::conversation`]), as of the revision, message
     /// count and message it was worked out for.
     conversation_cache: Option<((u64, usize, Id), Arc<Vec<Id>>)>,
+    /// The conversations of the mailbox by topic, brought in step with it when one is asked for
+    /// ([`Session::conversation`]).
+    threads: mailcraft_model::threads::Threads,
+    /// The revision and the number of messages [`Session::threads`] is in step with.
+    threads_at: Option<(u64, usize)>,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
     /// The message a selection just opened, to be marked read once the command that selected it
@@ -1231,6 +1236,8 @@ impl Session {
             list_cache: None,
             counts_cache: None,
             conversation_cache: None,
+            threads: Default::default(),
+            threads_at: None,
             list_builds: 0,
             opened: None,
             sender_checks: Default::default(),
@@ -1627,7 +1634,7 @@ impl Session {
 
     /// The messages of the conversation `id` is part of ([`Mailbox::conversation`]: same
     /// account, same topic, oldest first), kept while the mailbox doesn't change: the reading
-    /// pane asks at every frame, and the answer is a walk over every message.
+    /// pane asks at every frame.
     pub fn conversation(&mut self, id: Id) -> Arc<Vec<Id>> {
         let key = (self.rev, self.mailbox.messages.len(), id);
         if let Some((at, thread)) = &self.conversation_cache
@@ -1635,19 +1642,14 @@ impl Session {
         {
             return thread.clone();
         }
-        let thread = {
-            let mb = &self.mailbox;
-            match (self.fresh_counts(), mb.message(id)) {
-                // From the account's folders' own lists, not a walk over every account's messages.
-                (Some(counts), Some(m)) => {
-                    let skips = mb.conversation_skips(m.account, m.folder);
-                    let folders = mb.folders.iter().filter(|f| f.account == m.account && !skips.contains(&f.id));
-                    mb.conversation_among(m, folders.flat_map(|f| counts.ids(f.id)).filter_map(|i| mb.message(*i)))
-                }
-                _ => mb.conversation(id),
-            }
-        };
-        let thread = Arc::new(thread);
+        // From the index of conversations, brought in step with what changed since it was last
+        // asked, not a walk over every message of the account.
+        let now = (self.rev, self.mailbox.messages.len());
+        if self.threads_at != Some(now) {
+            self.threads.update(&self.mailbox);
+            self.threads_at = Some(now);
+        }
+        let thread = Arc::new(self.threads.conversation(&self.mailbox, id));
         self.conversation_cache = Some((key, thread.clone()));
         thread
     }
@@ -1767,6 +1769,10 @@ impl Session {
             && at.0 == rev_before
         {
             at.0 = rev;
+        }
+        // The index of conversations follows the marked messages alone, without its walk.
+        if self.threads_at.is_some_and(|(at, _)| at == rev_before) && self.threads.renew(&self.mailbox, changed) {
+            self.threads_at = Some((rev, self.mailbox.messages.len()));
         }
     }
 

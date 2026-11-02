@@ -52,6 +52,12 @@
 //! | 50,000 rows (33,807 messages) | 132–152 | 65 |
 //!
 //! A click or an arrow key that opens a message saves the same 40 ms of copying.
+//!
+//! The frame after a selection, measured on 2026-11-02 before and after the reading pane's
+//! conversation came from an index of the conversations (`mailcraft_model::threads`) rather
+//! than a walk over the account's 108,000 messages: 65–90 ms before, 1.5–3.6 ms after. The
+//! first selection builds the index (120–145 ms, once); after a change other than read marks,
+//! which it follows message by message, the next selection walks it in step (about 11 ms).
 
 use std::time::Instant;
 
@@ -158,6 +164,15 @@ fn frame_bench() {
     let mb = make(messages);
     eprintln!("FRAME_BENCH made {} messages in {:.0} ms", mb.messages.len(), ms(making.elapsed()));
     let inbox = mb.inbox().unwrap();
+    {
+        let mut threads = mailcraft_model::threads::Threads::default();
+        let t = Instant::now();
+        threads.update(&mb);
+        eprintln!("FRAME_BENCH the index of conversations, built: {:.1} ms", ms(t.elapsed()));
+        let t = Instant::now();
+        threads.update(&mb);
+        eprintln!("FRAME_BENCH the index of conversations, brought in step with no change: {:.1} ms", ms(t.elapsed()));
+    }
     let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
     app.autosave = false;
     app.auto_sync = false;
