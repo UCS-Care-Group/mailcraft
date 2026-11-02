@@ -641,14 +641,20 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
 /// The Outbox here is the queue mail is sent from; it follows no folder of the server (AU2-V2).
 /// 0.8.0 and before bound it to the server's Outbox, whose items were then sent from here with
 /// the owner's rights. A listing that now has that folder as a folder like another lets go of the
-/// bond; what the server delivered into it is forgotten here (it comes down again into the
+/// bond; so does a complete one that leaves it out (an empty server Outbox isn't listed, so that
+/// the folder pane doesn't show two), which would otherwise take this Outbox away with what waits
+/// in it. What the server delivered into it is forgotten here (it comes down again into the
 /// server's Outbox as a folder of its own) and is not sent.
 fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing) {
+    let let_go = |server: &str| {
+        let mut there = listing.folders.iter().filter(|l| l.id == server).peekable();
+        if there.peek().is_none() { listing.complete } else { there.any(|l| l.kind != FolderKind::Outbox) }
+    };
     let bound: Vec<Id> = mb
         .folders
         .iter()
         .filter(|f| f.account == account && f.kind == FolderKind::Outbox)
-        .filter(|f| f.server.as_ref().is_some_and(|s| listing.folders.iter().any(|l| l.id == s.id && l.kind != FolderKind::Outbox)))
+        .filter(|f| f.server.as_ref().is_some_and(|s| let_go(&s.id)))
         .map(|f| f.id)
         .collect();
     for folder in bound {

@@ -67,6 +67,40 @@ fn what_the_server_delivered_into_the_outbox_is_never_sent() {
 }
 
 #[test]
+fn an_outbox_bound_to_an_empty_server_outbox_that_isnt_listed_stays_with_its_mail() {
+    let (mut s, account, outbox) = setup();
+    let mine = queued(&mut s, account, outbox, "Mine", None);
+    let theirs = queued(&mut s, account, outbox, "Theirs", delivered());
+    // A complete listing without the server's Outbox (empty, so left out): this Outbox is let go
+    // of, not taken away as a folder the server no longer has.
+    let listing = FolderListing { folders: Vec::new(), complete: true };
+    take_listing(&mut s.mailbox, account, &listing, &mut Taken::default());
+    assert_eq!(s.mailbox.folder_of_kind(account, FolderKind::Outbox), Some(outbox));
+    assert_eq!(s.mailbox.folder(outbox).unwrap().server, None);
+    assert!(s.mailbox.message(mine).is_some() && s.mailbox.message(theirs).is_none());
+    assert_eq!(subjects(&s, account), ["Mine"]);
+    // One cut short lets nothing go and takes nothing away.
+    let (mut s, account, outbox) = setup();
+    take_listing(&mut s.mailbox, account, &FolderListing { folders: Vec::new(), complete: false }, &mut Taken::default());
+    assert!(s.mailbox.folder(outbox).unwrap().server.is_some());
+}
+
+#[test]
+fn the_servers_outbox_listed_before_goes_once_the_listing_leaves_it_out() {
+    // The folder pane showed two Outboxes: this one, and the server's, empty.
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let theirs = GraphFolder { id: "F-ou".into(), name: "Outbox".into(), kind: FolderKind::Custom, ..Default::default() };
+    take_listing(&mut s.mailbox, account, &FolderListing { folders: vec![theirs], complete: true }, &mut Taken::default());
+    let named = |s: &Session| s.mailbox.folders.iter().filter(|f| f.account == account && f.name == "Outbox").count();
+    assert_eq!(named(&s), 2);
+    take_listing(&mut s.mailbox, account, &FolderListing { folders: Vec::new(), complete: true }, &mut Taken::default());
+    assert_eq!(named(&s), 1);
+    assert_eq!(s.mailbox.folder_of_kind(account, FolderKind::Outbox), Some(outbox));
+}
+
+#[test]
 fn a_draft_saved_here_and_queued_is_still_sent() {
     let (mut s, account, outbox) = setup();
     let id = queued(&mut s, account, outbox, "Saved", delivered());

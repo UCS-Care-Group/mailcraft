@@ -64,9 +64,12 @@ const MAX_NAME: usize = 255;
 ///
 /// The server's Outbox is not among them: what Exchange holds there is queued for sending with
 /// the owner's rights, and MailCraft's own Outbox (the queue it sends from) is never bound to
-/// it. It is listed as any folder is (AU2-V2).
-const WELL_KNOWN: [(&str, Option<FolderKind>); 7] = [
+/// it (AU2-V2). It is asked for by [`OUTBOX`] only to be told apart: an empty one is left out
+/// of the listing, as an Exchange mailbox's is over IMAP, so the folder pane doesn't show two
+/// Outboxes; one that holds mail is listed as any folder is.
+const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
     ("msgfolderroot", None),
+    (OUTBOX, None),
     ("inbox", Some(FolderKind::Inbox)),
     ("drafts", Some(FolderKind::Drafts)),
     ("sentitems", Some(FolderKind::Sent)),
@@ -74,6 +77,8 @@ const WELL_KNOWN: [(&str, Option<FolderKind>); 7] = [
     ("archive", Some(FolderKind::Archive)),
     ("junkemail", Some(FolderKind::Junk)),
 ];
+/// The well-known name of the server's Outbox.
+const OUTBOX: &str = "outbox";
 
 /// Make the folder changes of `request` on the server and list the mailbox's folders, as the
 /// owner of `token` (an access token for Graph that covers `Mail.ReadWrite`).
@@ -414,6 +419,8 @@ fn shared_address(request: &GraphMailRequest) -> Option<&str> {
 struct Known {
     root: String,
     kinds: HashMap<String, FolderKind>,
+    /// The server's Outbox, when it has one: never MailCraft's own (AU2-V2).
+    outbox: Option<String>,
 }
 
 impl Known {
@@ -489,9 +496,10 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         };
     }
     let mut known = Known::default();
-    for ((_, kind), answer) in WELL_KNOWN.iter().zip(answers) {
+    for ((name, kind), answer) in WELL_KNOWN.iter().zip(answers) {
         let Some(Some(id)) = answer else { continue };
         match kind {
+            None if *name == OUTBOX => known.outbox = Some(id),
             None => known.root = id,
             Some(kind) => {
                 known.kinds.entry(id).or_insert(*kind);
@@ -580,6 +588,11 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                     // A hidden folder or a search folder is not shown, nor what lies under it;
                     // one that came twice is the first one.
                     if entry.unseen || !seen.insert(entry.id.clone()) {
+                        continue;
+                    }
+                    // The server's Outbox while it holds nothing: MailCraft's own Outbox is the
+                    // one shown.
+                    if known.outbox.as_deref() == Some(entry.id.as_str()) && entry.counted && entry.total == 0 && entry.children == 0 {
                         continue;
                     }
                     if entry.children > 0 {
