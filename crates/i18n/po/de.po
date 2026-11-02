@@ -40,8 +40,9 @@ msgstr "„{name}“ gehört zu einer Serie. Meinen Sie nur das Element am {day}
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "\"{name}\" will be permanently deleted."
-msgstr ""
+msgstr "„{name}“ wird endgültig gelöscht."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -2806,8 +2807,9 @@ msgstr "Meine Kopie löschen"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Delete Permanently"
-msgstr ""
+msgstr "Endgültig löschen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3559,8 +3561,9 @@ msgstr "Alles hier in einer .mailcraft-Datei"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
-msgstr ""
+msgstr "Alles in „{folder}“ wird endgültig gelöscht."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11617,8 +11620,9 @@ msgstr "Die dieses Computers, wo immer er ist"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This contact will be permanently deleted."
-msgstr ""
+msgstr "Dieser Kontakt wird endgültig gelöscht."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11965,8 +11969,9 @@ msgstr "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This message will be permanently deleted."
-msgstr ""
+msgstr "Diese Nachricht wird endgültig gelöscht."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15734,10 +15739,11 @@ msgstr[1] "{n} Nachrichten entfernt"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht wird endgültig gelöscht."
+msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16173,34 +16179,8 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
 
 #, fuzzy
-#~ msgid "\"{name}\" will be deleted for good."
-#~ msgstr "„{name}“ wird endgültig gelöscht."
-
-#, fuzzy
-#~ msgid "Delete for Good"
-#~ msgstr "Endgültig löschen"
-
-#, fuzzy
-#~ msgid "Everything in \"{folder}\" will be deleted for good."
-#~ msgstr "Alles in „{folder}“ wird endgültig gelöscht."
-
-#, fuzzy
 #~ msgid "Permanently Delete"
 #~ msgstr "Endgültig löschen"
-
-#, fuzzy
-#~ msgid "This contact will be deleted for good."
-#~ msgstr "Dieser Kontakt wird endgültig gelöscht."
-
-#, fuzzy
-#~ msgid "This message will be deleted for good."
-#~ msgstr "Diese Nachricht wird endgültig gelöscht."
-
-#, fuzzy
-#~ msgid "{n} message will be deleted for good."
-#~ msgid_plural "{n} messages will be deleted for good."
-#~ msgstr[0] "{n} Nachricht wird endgültig gelöscht."
-#~ msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
 
 #, fuzzy
 #~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"

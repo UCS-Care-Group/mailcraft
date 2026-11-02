@@ -1155,8 +1155,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
             let n = s.mailbox.count(f);
-            let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
-            format!("{verb} {name} and the {} in it, for good", plural(n, "{n} message", "{n} messages"))
+            let verb = if id == "folder.empty" { "permanently empty" } else { "permanently delete the folder" };
+            format!("{verb} {name} and the {} in it", plural(n, "{n} message", "{n} messages"))
         }
         "account.setAutomaticReplies" => {
             let account = p::id(params, "account")

@@ -618,6 +618,24 @@ fn at_the_bound_a_double_clicked_draft_in_the_reading_pane_stays_there() {
 }
 
 #[test]
+fn at_the_bound_the_owners_double_click_on_a_draft_not_open_is_refused() {
+    let mut h = window(app());
+    let mine = script(&mut h, "mail.new", json!({}))["compose"].as_u64().unwrap();
+    for _ in 0..MAX_WINDOWS {
+        new_window(&mut h);
+    }
+    assert!(h.state().windows.full());
+    let draft = h.state().session.mailbox.messages.values().find(|m| m.draft).map(|m| m.id).unwrap();
+    assert!(h.state().session.all_composing().all(|c| c.draft != Some(draft)), "not open yet");
+    let count = h.state().session.composing_count();
+    let refused = h.state_mut().execute("ui.openWindow", json!({"message": draft})).unwrap_err();
+    assert!(refused.contains("Too many windows"), "{refused}");
+    h.run_steps(3);
+    assert_eq!(h.state().session.composing_count(), count);
+    assert_eq!(pane(&h), Some(mine));
+}
+
+#[test]
 fn a_message_a_script_starts_stays_current_for_its_next_call_while_the_owner_is_elsewhere() {
     let mut h = window(app());
     // The owner wrote in a window of their own, then went to another program: the window keeps

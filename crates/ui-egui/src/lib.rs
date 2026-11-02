@@ -1925,7 +1925,8 @@ impl MailApp {
             return Ok(json!({"pending": "confirm"}));
         }
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
-        // Where a message it opens goes (#286): New Email into a window of its own, and so on.
+        // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
+        // Options says so or the caller asked for one.
         let place = self.windows.place.take().or_else(|| windows::compose_window::hint(self, id));
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.

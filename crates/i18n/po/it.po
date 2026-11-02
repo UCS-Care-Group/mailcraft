@@ -40,8 +40,9 @@ msgstr "«{name}» fa parte di una serie. Si intende solo quello del {day} o l'i
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "\"{name}\" will be permanently deleted."
-msgstr ""
+msgstr "«{name}» verrà eliminato definitivamente."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -2808,8 +2809,9 @@ msgstr "Elimina la mia copia"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Delete Permanently"
-msgstr ""
+msgstr "Elimina definitivamente"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3561,8 +3563,9 @@ msgstr "Tutto quanto in un unico file .mailcraft"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
-msgstr ""
+msgstr "Tutto il contenuto di «{folder}» verrà eliminato definitivamente."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11629,8 +11632,9 @@ msgstr "Quello di questo computer, ovunque si trovi"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This contact will be permanently deleted."
-msgstr ""
+msgstr "Questo contatto verrà eliminato definitivamente."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11977,8 +11981,9 @@ msgstr "Questo messaggio è stato inviato con priorità bassa."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This message will be permanently deleted."
-msgstr ""
+msgstr "Questo messaggio verrà eliminato definitivamente."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15750,10 +15755,11 @@ msgstr[1] "{n} messaggi rimossi"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} messaggio verrà eliminato definitivamente."
+msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16189,34 +16195,8 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
 
 #, fuzzy
-#~ msgid "\"{name}\" will be deleted for good."
-#~ msgstr "«{name}» verrà eliminato definitivamente."
-
-#, fuzzy
-#~ msgid "Delete for Good"
-#~ msgstr "Elimina definitivamente"
-
-#, fuzzy
-#~ msgid "Everything in \"{folder}\" will be deleted for good."
-#~ msgstr "Tutto il contenuto di «{folder}» verrà eliminato definitivamente."
-
-#, fuzzy
 #~ msgid "Permanently Delete"
 #~ msgstr "Elimina definitivamente"
-
-#, fuzzy
-#~ msgid "This contact will be deleted for good."
-#~ msgstr "Questo contatto verrà eliminato definitivamente."
-
-#, fuzzy
-#~ msgid "This message will be deleted for good."
-#~ msgstr "Questo messaggio verrà eliminato definitivamente."
-
-#, fuzzy
-#~ msgid "{n} message will be deleted for good."
-#~ msgid_plural "{n} messages will be deleted for good."
-#~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
-#~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
 #, fuzzy
 #~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
