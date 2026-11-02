@@ -1,1 +1,0 @@
-- Insert › Item attaches a message from your mailbox to the one you're writing, whole, as an .eml file: find it by subject or sender. Its Bcc and your own marks on it stay behind.
