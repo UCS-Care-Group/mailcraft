@@ -553,8 +553,8 @@ fn list_notices(app: &mut MailApp, ui: &mut Ui) {
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
     if !app.session.view.search.trim().is_empty() {
-        let in_view = mailcraft_engine::list::in_view(&app.session);
-        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && in_view(m)).count();
+        // (Counted as the list was built, not at every frame.)
+        let partly = app.session.unfetched_in_view();
         if partly > 0 {
             let said = crate::i18n::fmt(
                 tl!("{count} messages weren't searched in full: only their beginning is here until they download."),
