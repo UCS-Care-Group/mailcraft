@@ -1,0 +1,1 @@
+- A message sent from a Microsoft account without first being saved as a draft no longer shows in Sent Items with the red draft text: its server files the copy as a draft, and the copy is now taken for what it is, sent. Mail sent that way before is put right when the mailbox opens ([#611](https://github.com/GITHUB_REPOSITORY/issues/611)).

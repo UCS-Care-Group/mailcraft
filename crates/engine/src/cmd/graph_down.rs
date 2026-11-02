@@ -92,6 +92,9 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
     // shared mailbox: the rules, like the lists, are the owner's.
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
+    // (Of a Microsoft or Exchange server account alone, as the repair that puts right what an
+    // earlier version kept: a JMAP server's Sent folder is read through here too.)
+    let sent_items = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent) && mb.keeps_drafts_on_server(account);
     let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
@@ -165,7 +168,17 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
-                if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
+                let mut message = new_message(folder, &page.folder, there);
+                // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
+                // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
+                // #611) under an id this mailbox has never seen, with `isDraft` still true, and it
+                // would be shown as a draft for ever. A draft this mailbox knows that turns up in
+                // Sent Items (moved there by the owner, which Outlook keeps as a draft) is sent
+                // only when the server says so (`update`), and is a draft again when moved back.
+                if sent_items {
+                    message.draft = false;
+                }
+                if let Ok(m) = mb.add_message(message) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
                     // list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken
@@ -236,14 +249,23 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // A draft the server has changed (its change key differs from what was last seen of it).
     let changed_there = m.draft && !last.change_key.is_empty() && !there.server.change_key.is_empty() && last.change_key != there.server.change_key;
     if changed_there && m.server_draft.as_ref().is_some_and(|d| d.pending) {
-        // Changed here too: both are kept (S26).
-        let copy = new_message(folder, server_folder, there);
+        // Changed here too: both are kept (S26). The server's is a draft of its own, unless the
+        // server says it is one no longer: sent meanwhile and filed in Sent Items (#611), it is
+        // the sent message, and only what was changed here stays a draft.
+        let mut copy = new_message(folder, server_folder, there);
+        copy.draft = there.draft.unwrap_or(true);
+        // The server's own version, a draft on its word: so kept through a save and the repair
+        // of sent copies an earlier version took for drafts, wherever the server has it.
+        if copy.draft {
+            copy.server_draft = Some(mailcraft_model::sync::ServerDraft { theirs: true, ..Default::default() });
+        }
         return super::graph_drafts::keep_twice(mb, id, Some(copy)).is_some();
     }
     // Where the server last had it, as this mailbox has that folder: a message still there here
     // follows the server; one moved here since stays where it was put (that move goes up, R3.3).
     let was_here = mb.folder_by_server(account, &last.folder);
     let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
+    let in_drafts = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
     let Ok(m) = mb.message_mut(id) else { return false };
     let now = &there.server;
     if m.read == last.read {
@@ -285,7 +307,14 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         m.draft = false;
         m.server_draft = None;
     }
-    if changed_there || sent {
+    // And the other way: one taken for sent because it was new to this mailbox in Sent Items (a
+    // draft another program moved there, or in an account added fresh) is a draft again once the
+    // server lists it in Drafts and says so; what it is now is fetched afresh.
+    let drafted = !m.draft && in_drafts && there.draft == Some(true);
+    if drafted {
+        m.draft = true;
+    }
+    if changed_there || sent || drafted {
         // Changed elsewhere only: the server's version, fetched afresh.
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
         m.attachments_on_server = there.has_attachments;
@@ -562,6 +591,10 @@ fn keeps_whole(mb: &Mailbox, account: Id) -> Option<u64> {
 #[cfg(test)]
 #[path = "graph_down_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "graph_sent_not_draft_tests.rs"]
+mod sent_not_draft_tests;
 
 #[cfg(test)]
 mod tests {
