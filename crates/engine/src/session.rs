@@ -1730,21 +1730,24 @@ impl Session {
     }
 
     /// After a command changed the messages in `changes` (each as it was and is now), under the
-    /// revision after `rev_before`: the counts as they stood before it (`stood`, those of the
+    /// revision after `before`'s: the counts as they stood before it (`stood`, those of the
     /// cache then; `aside`, those a command that is a step of the history put aside) are brought
     /// in step with the change rather than counted again over every message. Counts the command
-    /// counted as it ran, or already in step (read marks alone), are left as they are.
+    /// counted as it ran, or already in step (read marks alone), are left as they are. Only
+    /// counts of the mailbox as the command found it (`before`: its revision and its number of
+    /// messages, the key of [`Session::folder_counts`]) are carried: a mailbox changed outside a
+    /// command under the same revision (mail that came) is counted again.
     fn counts_through(
         &mut self,
         changes: &[(Id, Option<Arc<Message>>, Option<Arc<Message>>)],
-        rev_before: u64,
+        before: (u64, usize),
         stood: Option<*const crate::counts::FolderCounts>,
         aside: Option<((u64, usize), Arc<crate::counts::FolderCounts>)>,
     ) {
         let now = (self.rev, self.mailbox.messages.len());
         let base = match self.counts_cache.take() {
-            None => aside.filter(|(at, _)| at.0 == rev_before),
-            Some(cached) if cached.0.0 == rev_before && stood.is_some_and(|p| std::ptr::eq(p, Arc::as_ptr(&cached.1))) => Some(cached),
+            None => aside.filter(|(at, _)| *at == before),
+            Some(cached) if cached.0 == before && stood.is_some_and(|p| std::ptr::eq(p, Arc::as_ptr(&cached.1))) => Some(cached),
             Some(cached) => {
                 self.counts_cache = Some(cached);
                 None
@@ -1820,9 +1823,11 @@ impl Session {
         // changing them doesn't copy them.)
         let stood = self.counts_cache.as_ref().is_some_and(|(_, counts)| counts_before.as_ref().is_some_and(|b| Arc::ptr_eq(b, counts)));
         drop(counts_before);
+        // (A read mark adds or takes away no message: counts of another number of messages are of
+        // a mailbox changed outside a command, and are counted again.)
         if stood
             && let Some((at, counts)) = &mut self.counts_cache
-            && at.0 == rev_before
+            && *at == (rev_before, mb.messages.len())
         {
             let counts = Arc::make_mut(counts);
             for m in read.iter().filter_map(|id| mb.message(*id)) {
@@ -2957,6 +2962,9 @@ impl Session {
         // (Undo and Redo bring the counts in step with what they put back themselves, [`Session::swap`].)
         let steps = matches!(id, "edit.undo" | "edit.redo");
         let counts_aside = if spec.mutates && !steps { self.counts_cache.take() } else { None };
+        // How many messages the command finds, beside the revision the counts are keyed by
+        // ([`Session::counts_through`]); no copy of the mailbox is needed for it.
+        let messages_at_run = self.mailbox.messages.len();
         if spec.mutates {
             self.conversation_cache = None;
         }
@@ -3088,7 +3096,7 @@ impl Session {
                     } else {
                         drop(counts_before);
                     }
-                    self.counts_through(&changes, rev_before, stood, counts_aside);
+                    self.counts_through(&changes, (rev_before, messages_at_run), stood, counts_aside);
                     if history && wipes_history(id) {
                         // The mail is gone from this computer (#177): no step brings it back,
                         // and none holds its content on disk.

@@ -299,3 +299,26 @@ fn counts_brought_in_step_with_a_change_are_those_counted_again() {
     // (Only the counts notice a change made outside a command, by the number of messages.)
     assert_eq!(*s.folder_counts(), FolderCounts::of(&s.mailbox), "after a message added outside a command");
 }
+
+/// Counts of a mailbox that changed outside a command under the same revision (mail arriving
+/// before the window notes it) aren't carried through the next command: they would leave out
+/// what came. The message count beside the revision tells them apart, as for
+/// [`Session::folder_counts`].
+#[test]
+fn counts_of_a_mailbox_changed_outside_a_command_are_counted_again_after_the_next() {
+    for command in ["mail.flag", "mail.markRead", "mail.move"] {
+        let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+        let inbox = s.mailbox.inbox().unwrap();
+        let account = s.mailbox.folder(inbox).unwrap().account;
+        let archive = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Archive).unwrap();
+        let id = s.mailbox.messages_in(inbox).find(|m| !m.read).map(|m| m.id).unwrap();
+        let mut m = (**s.mailbox.messages.get(&id).unwrap()).clone();
+        m.subject = "Arrived".into();
+        m.read = false;
+        let _ = s.folder_counts();
+        s.mailbox.add_message(m).unwrap();
+        let params = if command == "mail.move" { json!({"id": id, "folder": archive}) } else { json!({"id": id}) };
+        s.run(command, &params).unwrap();
+        assert_eq!(*s.folder_counts(), FolderCounts::of(&s.mailbox), "after `{command}`");
+    }
+}
