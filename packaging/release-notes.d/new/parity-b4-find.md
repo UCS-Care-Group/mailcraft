@@ -1,1 +1,0 @@
-- Find and Replace in the message you are writing (Message › Editing): look for plain text, with or without matching letter case, and replace one place at a time or every place at once, which one Undo takes back.

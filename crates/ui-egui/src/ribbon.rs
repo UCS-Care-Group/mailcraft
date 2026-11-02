@@ -360,7 +360,7 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big("delete", "Delete", "mail.delete", no()).at(1, 1).plain(),
                 Item::big("archive", "Archive", "mail.archive", no()).at(1, 2).plain(),
                 junk.under("mail.delete"),
-                Item::small("deletePermanently", "Delete for Good", "Permanently Delete", "mail.deletePermanently", no()).under("mail.delete"),
+                Item::small("deletePermanently", "Delete Permanently", "Delete Permanently", "mail.deletePermanently", no()).under("mail.delete"),
             ],
         ),
         g(
@@ -2648,12 +2648,14 @@ mod tests {
         harness.run_steps(3);
         assert_eq!(message(&harness).folder, junk);
 
-        // And the main part of that button: New Email starts a message, in a window of its own (#286).
+        // And the main part of that button: New Email starts a message, in the reading pane, as a
+        // reply does (#286).
         let pos = at(&harness, "ribbon", "mail.new");
         click(&mut harness, pos);
         let compose = harness.state().session.compose_id().expect("a message");
-        assert!(harness.state().windows.of_compose(compose).is_some());
-        assert_eq!(harness.state().ui.tab, "Home");
+        assert!(harness.state().windows.of_compose(compose).is_none());
+        assert_eq!(crate::windows::compose_window::pane_compose(harness.state()), Some(compose));
+        assert_eq!(harness.state().ui.tab, "Message");
     }
 
     /// The layout is chosen at the right end of the band, in View and by command; it is kept with
@@ -2799,7 +2801,7 @@ mod tests {
             groups,
             [
                 ("New", vec!["New\nEmail", "New\nItems"]),
-                ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
+                ("Delete", vec!["Delete", "Archive", "Junk", "Delete Permanently"]),
                 (
                     "Respond",
                     vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Reply and Delete", "View Source", "Meeting", "Add Sender"]

@@ -40,6 +40,9 @@ the writer’s baseline, so an absolute reminder cannot silently stay at its old
 Alternate keys for contact favourites, event importance, online-meeting links and free/busy
 status are checked together before changing their shared field. Parameterised BEGIN/END
 delimiters are refused rather than preserved as ordinary properties.
+A changed recurrence rule must have a recognisable effective DTSTART. Its UNTIL uses a matching
+DATE, floating DATE-TIME or UTC DATE-TIME form (UTC for a named-zone start), as required by
+RFC 5545 section 3.3.10; ambiguous starts, duplicate UNTIL values and unknown forms are refused.
 These cases return an error rather than silently discard information. They can be handled by
 later, separately reviewed operations. A text is limited to 4 MiB, 65,536 physical lines,
 256 KiB per unfolded line and a nesting depth of 16 components.
@@ -79,6 +82,7 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Validate changed recurrence UNTIL against the effective surviving DTSTART |
 | 2026-11-02 | Refuse lossy alarm and alias edits; strengthen unsafe-edit assertions |
 | 2026-11-01 | Timing and recurrence changes refuse a lossy writer baseline |
 | 2026-10-24 | Inserted properties and folds use the source line endings |

@@ -209,6 +209,83 @@ fn time_form(line: &str) -> Result<(Option<String>, bool, bool), InvalidDocument
     Ok((zone, date, utc))
 }
 
+// Recognise compact RFC 5545 DATE / DATE-TIME values before comparing their forms.
+// No offsets or partially parsed timestamps: an unknown representation stays read-only.
+fn compact_time_form(value: &str) -> Result<(bool, bool), InvalidDocument> {
+    let utc = value.ends_with('Z');
+    let local = value.strip_suffix('Z').unwrap_or(value);
+    let (date, clock) = local.split_once('T').map_or((local, None), |(date, clock)| (date, Some(clock)));
+    if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(InvalidDocument);
+    }
+    let number = |range: Range<usize>| date.get(range).and_then(|s| s.parse::<u32>().ok()).ok_or(InvalidDocument);
+    let year = number(0..4)?;
+    let month = number(4..6)?;
+    let day = number(6..8)?;
+    let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return Err(InvalidDocument),
+    };
+    if year == 0 || day == 0 || day > days {
+        return Err(InvalidDocument);
+    }
+    if let Some(clock) = clock {
+        if clock.len() != 6 || !clock.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(InvalidDocument);
+        }
+        let number = |range: Range<usize>| clock.get(range).and_then(|s| s.parse::<u8>().ok()).ok_or(InvalidDocument);
+        if number(0..2)? > 23 || number(2..4)? > 59 || number(4..6)? > 60 {
+            return Err(InvalidDocument);
+        }
+        Ok((false, utc))
+    } else if utc {
+        Err(InvalidDocument)
+    } else {
+        Ok((true, false))
+    }
+}
+
+fn validate_rule_until(start: &str, rule: &str) -> Result<(), InvalidDocument> {
+    let (zone, date, utc) = time_form(start)?;
+    let (head, start_value) = parts(start)?;
+    let mut value_type = false;
+    let mut has_zone = false;
+    for parameter in head.split(';').skip(1) {
+        if let Some((name, value)) = parameter.split_once('=') {
+            if name.eq_ignore_ascii_case("VALUE") {
+                if value_type || !(value.eq_ignore_ascii_case("DATE") && date || value.eq_ignore_ascii_case("DATE-TIME") && !date) {
+                    return Err(InvalidDocument);
+                }
+                value_type = true;
+            } else if name.eq_ignore_ascii_case("TZID") {
+                if has_zone {
+                    return Err(InvalidDocument);
+                }
+                has_zone = true;
+            }
+        }
+    }
+    if compact_time_form(start_value)? != (date, utc) || zone.as_ref().is_some_and(|z| z.is_empty()) {
+        return Err(InvalidDocument);
+    }
+    let (_, value) = parts(rule)?;
+    let mut seen = false;
+    for part in value.split(';') {
+        let (name, value) = part.split_once('=').ok_or(InvalidDocument)?;
+        if name.eq_ignore_ascii_case("UNTIL") {
+            if seen || compact_time_form(value)? != (date, !date && (utc || zone.is_some())) {
+                return Err(InvalidDocument);
+            }
+            seen = true;
+        }
+    }
+    Ok(())
+}
+
 fn difference<'a>(left: &'a Document, right: &Document, changed: &BTreeSet<&str>) -> BTreeMap<&'a str, usize> {
     let mut counts = BTreeMap::new();
     for p in left.properties.iter().filter(|p| changed.contains(p.key.as_str())) {
@@ -297,6 +374,16 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
             && (timing.iter().any(|key| source_values.get(key) != old_values.get(key)) || source.nested != old.nested)
         {
             return Err(InvalidDocument);
+        }
+        if changed.contains("RRULE")
+            && let Some(rules) = new_values.get("RRULE")
+        {
+            let effective = if changed.contains("DTSTART") { &new_values } else { &source_values };
+            let starts = effective.get("DTSTART").ok_or(InvalidDocument)?;
+            if rules.len() != 1 || starts.len() != 1 {
+                return Err(InvalidDocument);
+            }
+            validate_rule_until(starts.first().ok_or(InvalidDocument)?, rules.first().ok_or(InvalidDocument)?)?;
         }
         for document in [&source_values, &old_values, &new_values] {
             if document.contains_key("DTEND") && document.contains_key("DURATION") {

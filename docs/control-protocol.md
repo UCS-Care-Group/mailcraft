@@ -135,7 +135,7 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `ui.dialog {"name", …}`, `ui.closeDialog` | open a form or dialog in the main window by name, close it. A refusal of what the owner just did by hand in the window (a drag and drop, a ribbon button, a menu item, a shortcut, which `ui.click`, `ui.drag` and `ui.key` stand in for) also comes up as a message box with OK, dialog name `refused` (kind `refusedOk`; #152); a command run through this channel (`engine.execute`, a shorthand, the MCP bridge) never opens it and only answers the error. `"syncProgress"` opens Send/Receive Progress (#120), a panel over the foot of the window rather than a dialog: one row per account of the run under way or the last one (waiting, its phase and counts while it runs, what it came to), each account's problems under its row, Skip (`ui.skipSync`) on each row that waits its turn, under a Microsoft account's row how far its messages have been fetched whole ("Full messages: 40 of 900", with "Paused until the next Send/Receive" after Stop), and Stop (`ui.cancelSync`) while a run goes on; it answers `{"panel": "syncProgress"}`, `ui.inspect` says `"panel": "syncProgress"` while it is open, and Escape, a click elsewhere, `ui.closeDialog` or another dialog closes it. `"syncProblems"` opens the same panel scrolled to the first problem (there is no problems dialog any more). Its size is the owner's: wider by its left edge, taller by its top edge, both at its top left corner (`ui.drag` on `syncPanelLeft`, `syncPanelTop`, `syncPanelCorner`), kept as `syncPanelWidth` and `syncPanelHeight` (0: as tall as its list) with the other UI state (#145). Its kinds: `syncPanel`, `syncList`, `syncScrollBar` (only while the list is longer than the panel), `syncRow` (by account id), `syncProblem` (counted from 0), `syncStop`, `syncSkip` (by account id), `syncPanelClose`; and in the status bar `syncStatus` (the Send/Receive text, which opens it) and `syncProblemsLink` |
 | `ui.openWindow {"message": id}` \| `{"event": id}` \| `{"new": "appointment"\|"meeting", "start"?, "end"?, "allDay"?, "calendar"?, …}`, `ui.closeWindow {"window"\|"message"\|"event"\|"all"}` | a message or an appointment in a window of its own (a new appointment is made when its window is saved). With `{"event": id, "proposed": {"start", "end"}}` the meeting opens with another time in its fields (one somebody proposed): nothing is changed or sent until it is sent from there |
 | `ui.openWindow {"compose": id}`, `ui.closeWindow {"window"\|"compose"\|"all", "save"?: true, "discard"?: true}` | a message being written in a window of its own, as Pop Out does (#286); a window with one closes with it, saved to Drafts (`save`) or as it was last saved (`discard`): one of them is needed. See [Several messages being written](#several-messages-being-written) |
-| `ui.repliesInWindow {"value"?}` | File › Options › Mail, "Open replies and forwards in a new window" (off by default, kept in `ui.json`; without `value`, turns it over) |
+| `ui.repliesInWindow {"value"?}` | File › Options › Mail, "Open new messages, replies and forwards in a new window": New Email, a reply or a forward the owner starts opens in a window of its own (off by default, kept in `ui.json` as `repliesInWindow`; without `value`, turns it over) |
 | `ui.moveWindowMessage {"folder", "window"?}`, `ui.saveWindowMessage {"window"?, "path"?}` | the window of a message file the system opened (#515; `ui.inspect` lists it as kind `file`, closed with `ui.closeWindow`): the file is in no folder. Move to Folder files it into `folder` (the mailbox gains that one message and the window is about it from then on); Save As writes the file to `path`, or answers its bytes as `data`. Never for an agent |
 | `ui.joinMeeting {"event"?}` | open the link to join an online meeting by in the system's browser: only an `https` link, and only on this command |
 | `ui.theme`, `ui.interfaceSize`, `ui.lightMessages {"value"?}` | light, dark or the system's; interface size 80–200; a message's body on a light page in its own colours, also in the dark theme (#634; without `value`, turns it over) |
@@ -188,17 +188,18 @@ to Drafts, unasked. `ui.inspect` lists them under `beingWritten`.
 
 Where each is shown: in a window of its own, in the reading pane (one at most), or nowhere for now
 (one put aside for another in the reading pane, saved to Drafts first; it shows again once it is
-current). The owner's New Email (the ribbon, New Items › E-mail Message, Ctrl+N) opens a window of
-its own, and so do a draft double-clicked in the list (or `ui.openWindow {"message": draft}`) and a
-reply or forward started in a message's own window; a reply or forward started in the main window
-starts in the reading pane unless File › Options › Mail says otherwise (`ui.repliesInWindow`).
+current). A draft double-clicked in the list (or `ui.openWindow {"message": draft}`) and a reply or
+forward started in a message's own window open a window of their own; the owner's New Email (the
+ribbon, New Items › E-mail Message, Ctrl+N) and a reply or forward started in the main window start
+in the reading pane unless File › Options › Mail says otherwise (`ui.repliesInWindow`, "Open new
+messages, replies and forwards in a new window").
 `compose.popOut {"compose"?}` (Pop Out, at the top right of the message in the reading pane and on
 the Message tab) moves a message into a window of its own, as `ui.openWindow {"compose": id}` does;
 nothing of it changes. A script's `mail.new`, `mail.reply` and the rest start in the reading pane as
 before. Every message an agent starts opens in a window of its own behind the owner's, without the
 keyboard, and never takes the reading pane. At most 12 windows of their own are open at a time, of
-every kind together (12 and the reading pane's are the 13 messages): at the bound the owner's reply
-or forward stays in the reading pane, a draft already being written stays where it is, and
+every kind together (12 and the reading pane's are the 13 messages): at the bound the owner's New
+Email, reply or forward stays in the reading pane, a draft already being written stays where it is, and
 anything else (every message an agent starts) is refused, said in the status bar for the owner.
 When the keyboard moves to another window (or to the main one), its message becomes the current
 one (the main window's: the reading pane's), and so it does again after every call of an agent's:
@@ -352,6 +353,7 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-10-31 | minor | Parity B1: `sync.cancel` beside `ui.cancelSync`; Work Offline refuses `ui.sync` and shows `workingOffline` in the status bar |
 | 2026-11-01 | minor | #286: a message being written in a window of its own: `compose.popOut`, `ui.openWindow {"compose"}`, `ui.closeWindow` with `save` or `discard`, `ui.repliesInWindow`; `windows` lists kind `compose`, `beingWritten` says `window` and `pane`; the owner's New Email, a double-clicked draft and a reply from a message's window open one, an agent's message one behind; quitting saves every message being written to Drafts unasked; the hit map's items in a window of its own carry `window` |
 | 2026-11-01 | patch | #712: `ribbonSearch`, Search commands at the right of the tab row |
+| 2026-11-01 | minor | #286: the owner's New Email starts in the reading pane, as a reply does; `ui.repliesInWindow` covers new messages too |
 
 | 2026-11-01 | minor | #553: every command that takes `id` or `ids` but the rule commands reads them strictly: named wrongly (`null`, text, 0, a negative number, a fraction, a wrong list entry, both keys), the call is refused and changes nothing, never taken for the selection or the folder in view; `calendar.select`, `people.select` and `tasks.select` still take `null` for nothing |
 | 2026-11-01 | minor | #252: Exchange server accounts no longer need `MAILCRAFT_EWS=1`; nothing refuses for a switch |

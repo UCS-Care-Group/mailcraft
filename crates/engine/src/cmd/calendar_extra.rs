@@ -26,14 +26,14 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"start": "YYYY-MM-DDTHH:MM" (a date alone for whole days), "end"?: same (default: keep the length; for whole days it names the last day), "allDay"?: bool (default: as the original), "calendar"?: number (default: the original's), "id"?: number} — the copy happens once, whatever the original does, and nobody is invited to it"#)
             .selection(needs_event),
         CommandSpec::new("view.days", "Number of Days", "Home › Arrange", days)
-            .pure()
+            .reads()
             .params(r#"{"count": 1-14, "start"?: "YYYY-MM-DD" (default: the day in view)} — the Day view with that many days side by side"#),
-        CommandSpec::new("view.next7Days", "Next 7 Days", "Home › Go To", next_7_days).pure(),
+        CommandSpec::new("view.next7Days", "Next 7 Days", "Home › Go To", next_7_days).reads(),
         CommandSpec::new("view.timeScale", "Time Scale", "View › Arrangement", time_scale_set)
-            .pure()
+            .reads()
             .params(r#"{"minutes": 60|30|15|10|6|5} — what one row of the calendar's hours stands for"#),
         CommandSpec::new("view.weekNumbers", "Week Numbers", "File › Options", week_numbers)
-            .pure()
+            .reads()
             .params(r#"{"value"?: bool} (default: toggle) — the week of the year beside each week of the date navigator and the Month view"#),
     ]
 }

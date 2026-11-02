@@ -441,3 +441,36 @@ fn removing_an_online_link_refuses_a_surviving_alias() {
     let got = real_writer_edit(&source, |e| e.title = "New".into()).unwrap();
     assert!(got.contains("CONFERENCE;VALUE=URI:https://meeting.example.org/old\r\n"));
 }
+
+#[test]
+fn changed_until_must_match_the_surviving_start_form() {
+    let zone = "BEGIN:VTIMEZONE\r\nTZID:Example/Local\r\nEND:VTIMEZONE\r\n";
+    for (start, valid, invalid) in [
+        ("DTSTART:20261024T120000", "20261031T120000", "20261031T120000Z"),
+        ("DTSTART:20261024T120000Z", "20261031T120000Z", "20261031T120000"),
+        ("DTSTART;VALUE=DATE:20261024", "20261031", "20261031T120000Z"),
+        ("DTSTART;TZID=Example/Local:20261024T120000", "20261031T120000Z", "20261031T120000"),
+    ] {
+        let source = EVENT.replace("BEGIN:VEVENT", &format!("{zone}BEGIN:VEVENT")).replace("SUMMARY:Old", &format!("SUMMARY:Old\r\n{start}"));
+        for suffix in [invalid, "nonsense", "20261031T1200", "20261031T120000+0100", "20260230", "20261031T250000Z"] {
+            let after = source.replace("END:VEVENT", &format!("RRULE:FREQ=DAILY;UNTIL={suffix}\r\nEND:VEVENT"));
+            assert!(patch(&source, &source, &after, Component::Event).is_err(), "{start}: {suffix}");
+        }
+        for rule in [format!("FREQ=DAILY;UNTIL={valid}"), "FREQ=DAILY;COUNT=3".into()] {
+            let after = source.replace("END:VEVENT", &format!("RRULE:{rule}\r\nEND:VEVENT"));
+            assert_eq!(patch(&source, &source, &after, Component::Event).unwrap(), after);
+        }
+    }
+}
+
+#[test]
+fn changed_rule_requires_one_recognisable_effective_start() {
+    for start in ["", "DTSTART:nonsense\r\n", "DTSTART;VALUE=TEXT:20261024T120000\r\n", "DTSTART:20261024T120000\r\nDTSTART:20261024T130000\r\n"] {
+        let source = EVENT.replace("END:VEVENT", &format!("{start}END:VEVENT"));
+        let after = source.replace("END:VEVENT", "RRULE:FREQ=DAILY;COUNT=2\r\nEND:VEVENT");
+        assert!(patch(&source, &source, &after, Component::Event).is_err());
+    }
+    let source = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000");
+    let after = source.replace("END:VEVENT", "RRULE:FREQ=DAILY;UNTIL=20261031T120000;UNTIL=20261101T120000\r\nEND:VEVENT");
+    assert!(patch(&source, &source, &after, Component::Event).is_err());
+}

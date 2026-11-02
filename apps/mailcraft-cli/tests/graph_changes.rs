@@ -236,7 +236,7 @@ fn a_refused_delete_for_good_is_put_back_at_once_with_what_was_fetched() {
     assert!(!rig.has("Invoice 42"));
     let from = rig.asked();
     let answers = rig.run();
-    let said = "Couldn't delete 'Invoice 42' for good: the server doesn't allow it.";
+    let said = "Couldn't permanently delete 'Invoice 42': the server doesn't allow it.";
     assert_eq!(Rig::errors(&answers).iter().filter(|e| e.as_str() == Some(said)).count(), 1, "said once: {answers:?}");
     assert!(rig.s.sync_status.contains(said), "{}", rig.s.sync_status);
     // Back at once, as the server has it (unread, in the Inbox), with all that was fetched.
@@ -282,8 +282,8 @@ fn emptying_deleted_items_puts_back_what_the_server_refuses_and_a_busy_server_wa
     let answers = rig.run();
     let errors = Rig::errors(&answers);
     for said in [
-        "Couldn't delete 'Not allowed' for good: the server doesn't allow it.",
-        "Couldn't delete 'Odd one' for good: the server says it can't make that change.",
+        "Couldn't permanently delete 'Not allowed': the server doesn't allow it.",
+        "Couldn't permanently delete 'Odd one': the server says it can't make that change.",
     ] {
         assert_eq!(errors.iter().filter(|e| e.as_str() == Some(said)).count(), 1, "said once: {said} in {errors:?}");
     }

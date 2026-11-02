@@ -1077,6 +1077,22 @@ fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
 }
 
+/// Whether `x` is of the conversation whose key ([`Message::thread_key`]) is `key`, with a cheap
+/// no first: the topic is what is left of the subject once its prefixes are taken off, so an
+/// ASCII subject that doesn't end in the key (letter case aside; lower case keeps an ASCII text's
+/// length) isn't of it, and the key of one that might be is worked out, which takes a string.
+fn same_thread(x: &Message, key: &str) -> bool {
+    let s = x.subject.trim();
+    if s.is_ascii() && key.is_ascii() {
+        let ends_in_key =
+            s.len().checked_sub(key.len()).and_then(|at| s.as_bytes().get(at..)).is_some_and(|end| end.eq_ignore_ascii_case(key.as_bytes()));
+        if !ends_in_key {
+            return false;
+        }
+    }
+    x.thread_key() == key
+}
+
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
@@ -2446,10 +2462,21 @@ impl Mailbox {
     /// The messages of the conversation `id` is part of (same account, same topic), oldest first.
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
-        let key = m.thread_key();
         let skips = self.conversation_skips(m.account, m.folder);
-        let mut v: Vec<&Arc<Message>> =
-            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
+        let among = self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account && !skips.contains(&x.folder));
+        self.conversation_among(m, among)
+    }
+
+    /// [`Mailbox::conversation`] of `m`, looked for among `among`: the messages of its account
+    /// but for those of the folders a conversation leaves out ([`Mailbox::conversation_skips`]),
+    /// for a caller that has them listed by folder and needn't walk every message.
+    pub fn conversation_among<'a>(&self, m: &Message, among: impl Iterator<Item = &'a Message>) -> Vec<Id> {
+        let key = m.thread_key();
+        // A message without a subject is a conversation of its own ([`Message::thread_key`]).
+        if key.starts_with('\0') {
+            return vec![m.id];
+        }
+        let mut v: Vec<&Message> = among.filter(|x| same_thread(x, &key)).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }
