@@ -30,14 +30,14 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(
                 r#"{"format": "long" (Monday, October 26, 2026) | "longDate" (October 26, 2026) | "medium" (Oct 26, 2026) | "numeric" (10/26/2026) | "iso" (2026-10-26) | "numericTime" (10/26/2026 2:05 PM) | "time" (2:05 PM) | "monthYear" (October 2026), "at"?: number (seconds since 1970 UTC; default now)} — that time, in the interface language and on the owner's clock, typed over the selection; answers the text put in"#,
             )
-            .when(needs_doc),
+            .when_writing(needs_doc),
         CommandSpec::new("review.wordCount", "Word Count", "Review › Proofing", word_count)
             .pure()
             .key("Mod+Shift+G")
             .params(
                 r#"{"from"?: number, "to"?: number} (with either: from `from`, default the start, to `to`, default the end; with neither: the selection, else the whole body) — answers {"words", "characters" (without spaces), "charactersWithSpaces", "paragraphs", "selection": bool (a part was counted, not the whole body)}; changes nothing. Words are Unicode's (UAX #29): an e-mail or web address, or `e-mail`, counts as several"#,
             )
-            .when(needs_doc),
+            .when_writing(needs_doc),
     ]
 }
 

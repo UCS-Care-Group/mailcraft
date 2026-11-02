@@ -79,6 +79,6 @@ pub(super) fn report(s: &mut Session, v: &Value) -> CmdResult {
     let lang = s.interface_language;
     let subject = format!("{} {}", lang.t("Task Status Report:"), mailcraft_names::shown(&t.title, 200));
     let body = text(s, &t);
-    s.run("mail.new", &json!({"subject": subject, "body": body, "discard": p::bool(v, "discard") == Some(true)}))?;
-    Ok(json!({"composing": true, "task": t.id}))
+    let compose = s.run("mail.new", &json!({"subject": subject, "body": body}))?["compose"].clone();
+    Ok(json!({"composing": true, "task": t.id, "compose": compose}))
 }

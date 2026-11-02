@@ -35,6 +35,8 @@ mod clipboard;
 mod control_challenge_flow;
 mod control_server;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+mod desktop_icons;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
@@ -104,7 +106,7 @@ use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
     GraphRequest, GraphResult, MailApp, Services, SettingsUnread, SignInRequest, UiState,
-    window_geometry::{WindowGeometry, take_rescue},
+    window_geometry::{self, WindowGeometry, take_rescue},
 };
 
 /// The app, the restored window geometry until the first frame has checked it, the control
@@ -178,8 +180,17 @@ impl eframe::App for App {
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
-        if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport())) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        // A window restored onto a monitor that is gone is moved onto the main one (#719): the
+        // monitors are asked for only until that check is done.
+        if self.1.is_some() {
+            let monitors = connected_monitors(ctx, frame);
+            if let Some(pos) = ctx.input(|i| take_rescue(&mut self.1, i.viewport(), &monitors)) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+            }
+        }
+        // A window of its own about to open is put on a monitor that is connected (#286).
+        if self.0.wants_monitors() {
+            self.0.set_monitors(monitors_in_pixels(frame));
         }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
@@ -468,6 +479,39 @@ fn open_in_browser(url: &str) -> bool {
 /// set once as the window is made.
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 static DESKTOP_THEME: std::sync::OnceLock<desktop_theme::DesktopTheme> = std::sync::OnceLock::new();
+
+/// The monitors connected now, in the points the window's place is in, from the window eframe made
+/// (egui doesn't list them). None while there is no window; where the system lists none, none.
+fn connected_monitors(ctx: &egui::Context, frame: &eframe::Frame) -> Vec<egui::Rect> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    // As egui turns the window's own rect into points (`egui_winit::pixels_per_point`).
+    let pixels_per_point = ctx.zoom_factor() * window.scale_factor() as f32;
+    let listed = window.available_monitors().map(|m| {
+        let (at, size) = (m.position(), m.size());
+        ([at.x, at.y], [size.width, size.height])
+    });
+    window_geometry::monitors_in_points(listed, pixels_per_point)
+}
+
+/// The monitors connected now, in the system's pixels with each one's scale, for the windows of
+/// their own about to open (#286): one space for every monitor, whatever its scale.
+fn monitors_in_pixels(frame: &eframe::Frame) -> Vec<mailcraft_ui_egui::window_places::Monitor> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    window
+        .available_monitors()
+        .take(64)
+        .map(|m| {
+            let (at, size) = (m.position(), m.size());
+            // (In points on macOS, where winit gives each monitor's place by its own scale.)
+            mailcraft_ui_egui::window_places::monitor(
+                [at.x, at.y],
+                [size.width, size.height],
+                m.scale_factor(),
+                mailcraft_ui_egui::window_places::POINTS,
+            )
+        })
+        .collect()
+}
 
 /// The pages waiting for the window's activation token (`browser`), set once before the window opens.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -1941,6 +1985,12 @@ fn main() -> eframe::Result {
         if found == install::Install::MacApp && updates.is_none() {
             self_update::clear_mac_data(&folders);
         }
+    }
+    // The icons of MailCraft in the owner's own data folder, brought up to this version's: an
+    // update replaces the program, not the icons a copy put in place by hand came with (#732).
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+    if build_sha() != "dev" && prefs_enabled() {
+        desktop_icons::refresh();
     }
     // The settings folder holds the mailbox, the control key and the logs: for the owner alone.
     // One an earlier version left open to others is closed; best effort, never a reason not to

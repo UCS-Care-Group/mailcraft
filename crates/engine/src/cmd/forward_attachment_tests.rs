@@ -58,7 +58,7 @@ fn the_message_goes_whole_as_an_eml_with_nothing_quoted() {
     assert!(!original.attachments.is_empty() && !original.body.text.is_empty());
 
     let r = s.run("mail.forwardAsAttachment", &json!({"id": id})).unwrap();
-    assert_eq!(r, json!({"composing": true, "mode": "forward"}));
+    assert_eq!(r, json!({"composing": true, "mode": "forward", "compose": 1}));
     let c = s.compose.as_ref().unwrap();
     assert_eq!((c.mode, c.source, c.account), (ComposeMode::Forward, Some(id), original.account));
     assert!(c.as_attachment);
@@ -282,7 +282,7 @@ fn a_message_named_is_that_one_whatever_is_selected() {
     }
     // Named wrongly, it is refused, never the selected message taken for it (#360): a forward goes
     // to other people.
-    s.compose = None;
+    s.close_all_composing();
     for command in ["mail.forwardAsAttachment", "mail.forward"] {
         for junk in [
             json!({"id": other.to_string()}),
@@ -305,7 +305,7 @@ fn a_message_named_is_that_one_whatever_is_selected() {
             assert!(s.compose.is_none(), "{command} {junk}: nothing written");
         }
     }
-    // A message being written may be let go by the caller.
+    // `discard` changes nothing any more: the forward opens beside the message being written (#286).
     s.run("mail.forward", &json!({"id": other, "discard": true})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().source, Some(other));
 }
