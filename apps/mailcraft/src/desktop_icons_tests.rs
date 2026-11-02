@@ -78,3 +78,38 @@ fn an_icon_that_is_a_link_is_left_alone() {
     assert_eq!(fs::read(&elsewhere).unwrap(), b"a package's");
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn an_icon_in_a_linked_folder_is_left_alone() {
+    let dir = data("linked-folder");
+    put(&launcher_path(&dir), b"[Desktop Entry]\n");
+    // The size's `apps` folder is a link into somebody's own files (GNU Stow, say).
+    let theirs = dir.join("dotfiles").join("apps");
+    put(&theirs.join("io.github.billsecond.mailcraft.png"), b"their own");
+    let icon = icon_path(&dir, "256x256", "png");
+    fs::create_dir_all(icon.parent().unwrap().parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&theirs, icon.parent().unwrap()).unwrap();
+    assert_eq!(refresh_in(&dir).unwrap(), 0);
+    assert_eq!(fs::read(theirs.join("io.github.billsecond.mailcraft.png")).unwrap(), b"their own");
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_left_where_the_new_file_is_written_is_never_followed() {
+    let dir = data("planted");
+    put(&launcher_path(&dir), b"[Desktop Entry]\n");
+    let icon = icon_path(&dir, "256x256", "png");
+    put(&icon, b"old picture");
+    let elsewhere = dir.join("elsewhere");
+    put(&elsewhere, b"not ours");
+    let temp = icon.with_file_name("io.github.billsecond.mailcraft.png.new");
+    std::os::unix::fs::symlink(&elsewhere, &temp).unwrap();
+    assert_eq!(refresh_in(&dir).unwrap(), 1);
+    assert_eq!(fs::read(&elsewhere).unwrap(), b"not ours");
+    let (_, _, bytes) = ICONS.iter().copied().find(|(size, _, _)| *size == "256x256").unwrap();
+    assert_eq!(fs::read(&icon).unwrap(), bytes);
+    assert!(fs::symlink_metadata(&temp).is_err(), "nothing left beside it");
+    fs::remove_dir_all(&dir).unwrap();
+}

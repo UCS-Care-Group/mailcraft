@@ -9,15 +9,15 @@
 //! for the icon of the app id. An update replaces the program and not those, so the panel went
 //! on showing the old icon. At every start ([`refresh`]), when the launcher is there and an icon
 //! there differs from the one this program carries, each icon file that is there is written anew
-//! with this program's: never one that isn't there, one that is a link, or anything outside that
-//! folder (what a package manager put in the system's folders is its own). The desktop's icon
-//! caches are then told, when their tools are installed. Whatever goes wrong is logged and left:
-//! it never stops the program.
+//! with this program's: never one that isn't there, one that is a link or is reached through a
+//! linked folder, or anything outside that folder (what a package manager put in the system's
+//! folders is its own). The desktop's icon caches are then told. Whatever goes wrong is logged
+//! and left: it never stops the program.
 
 use std::ffi::OsStr;
 use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::io::{self, Write as _};
+use std::path::{Component, Path, PathBuf};
 
 /// The application id the desktop knows MailCraft by.
 const APP_ID: &str = "io.github.billsecond.mailcraft";
@@ -43,9 +43,23 @@ pub(crate) fn data_home(xdg: Option<&OsStr>, home: Option<&OsStr>) -> Option<Pat
     absolute(xdg).or_else(|| absolute(home).map(|h| h.join(".local").join("share")))
 }
 
-/// A regular file (not a link) at `path`.
-fn plain_file(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_file())
+/// A regular file at `path` inside the data folder `data`, reached through folders that are no
+/// links: nothing outside the data folder (a folder linked into somebody's own files, say) is
+/// ever written to. (The data folder itself may be a link: it is the owner's.)
+fn plain_file(data: &Path, path: &Path) -> bool {
+    let Ok(inside) = path.strip_prefix(data) else { return false };
+    let parts: Vec<Component<'_>> = inside.components().collect();
+    let mut at = data.to_path_buf();
+    for (n, part) in parts.iter().enumerate() {
+        let Component::Normal(name) = part else { return false };
+        at.push(name);
+        let Ok(m) = fs::symlink_metadata(&at) else { return false };
+        let last = n.saturating_add(1) == parts.len();
+        if (last && !m.file_type().is_file()) || (!last && !m.file_type().is_dir()) {
+            return false;
+        }
+    }
+    !parts.is_empty()
 }
 
 /// The icon file of `size` in the data folder `data`.
@@ -66,14 +80,22 @@ fn holds(path: &Path, bytes: &[u8]) -> bool {
     }
 }
 
-/// Write `bytes` over the file at `path`, through a file beside it renamed into place.
+/// Write `bytes` over the file at `path`, through a file beside it renamed into place. That file
+/// is made new: one left there before (or a link put there) is removed first, never followed.
 fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let name = path.file_name().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
     let mut temp = name.to_os_string();
     temp.push(".new");
     let temp = path.with_file_name(temp);
-    fs::write(&temp, bytes)?;
-    fs::rename(&temp, path).inspect_err(|_| {
+    match fs::remove_file(&temp) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
+    let written = fs::OpenOptions::new().write(true).create_new(true).open(&temp).and_then(|mut file| {
+        file.write_all(bytes)?;
+        file.sync_all()
+    });
+    written.and_then(|()| fs::rename(&temp, path)).inspect_err(|_| {
         let _ = fs::remove_file(&temp);
     })
 }
@@ -81,13 +103,13 @@ fn replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// Bring the icons in the data folder `data` up to this program's, when its launcher is there:
 /// the number of files written anew (0 when they were all as new already, or there are none).
 pub(crate) fn refresh_in(data: &Path) -> io::Result<usize> {
-    if !plain_file(&launcher_path(data)) {
+    if !plain_file(data, &launcher_path(data)) {
         return Ok(0);
     }
     let mut written = 0usize;
     for (size, ext, bytes) in ICONS {
         let path = icon_path(data, size, ext);
-        if plain_file(&path) && !holds(&path, bytes) {
+        if plain_file(data, &path) && !holds(&path, bytes) {
             replace(&path, bytes)?;
             written = written.saturating_add(1);
         }
@@ -95,23 +117,19 @@ pub(crate) fn refresh_in(data: &Path) -> io::Result<usize> {
     Ok(written)
 }
 
-/// Tell the desktop's icon caches that the icons in `data` changed, with whichever of their
-/// tools is installed; none being installed is no fault.
+/// Tell the desktop's icon caches that the icons in `data` changed. The `hicolor` folder is
+/// marked as changed, which has GTK read it again (no `icon-theme.cache` is made: one where there
+/// was none would hide the icons other programs add later), and KDE's cache is built again when
+/// its tool is installed; none being installed is no fault.
 fn nudge(data: &Path) {
     let hicolor = data.join("icons").join("hicolor");
-    // (A folder that changed is what an icon cache looks at first.)
     if let Ok(dir) = fs::File::open(&hicolor) {
         let _ = dir.set_modified(std::time::SystemTime::now());
     }
-    let tools: [(&str, Vec<&OsStr>); 3] = [
-        ("gtk-update-icon-cache", vec![OsStr::new("--force"), OsStr::new("--ignore-theme-index"), OsStr::new("--quiet"), hicolor.as_os_str()]),
-        ("kbuildsycoca6", vec![OsStr::new("--noincremental")]),
-        ("kbuildsycoca5", vec![OsStr::new("--noincremental")]),
-    ];
-    for (tool, args) in tools {
+    for tool in ["kbuildsycoca6", "kbuildsycoca5"] {
         // A program with fixed arguments, never a shell; one that isn't installed is skipped.
         let run = std::process::Command::new(tool)
-            .args(&args)
+            .arg("--noincremental")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
