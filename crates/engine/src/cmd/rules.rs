@@ -9,7 +9,7 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
-use mailcraft_model::{Action, Condition, Id, Importance, Keep, Mailbox, Rule, RuleGone, clean_name};
+use mailcraft_model::{Action, Condition, Id, Importance, Keep, Mailbox, Rule, RuleGone, ServerRule, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message};
@@ -486,7 +486,7 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
 
 /// Give the rules the server of `account` has the places they now stand in: the same numbers as
 /// before, in their new order (all of them afresh when two had the same). One the server doesn't
-/// let be changed keeps its number: a new one would never be sent.
+/// let be changed keeps its number, which no other is given: a new one would never be sent.
 pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
     let mut numbers: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref().map(|s| s.sequence)).collect();
@@ -494,9 +494,14 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     // (The server's places start at 1: one below is sent as 1, and would stand with that one.)
     let distinct = numbers.windows(2).all(|w| w.first() < w.get(1)) && numbers.first().is_none_or(|n| *n >= 1);
     if !distinct {
+        let servers: Vec<&ServerRule> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref()).collect();
+        let taken: Vec<i32> = servers.iter().filter(|s| s.read_only).map(|s| s.sequence).collect();
         let mut next = numbers.first().copied().unwrap_or(1).max(1);
         let mut afresh = Vec::with_capacity(on.len());
-        for server in on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref()) {
+        for server in servers {
+            while taken.contains(&next) && next < i32::MAX {
+                next = next.saturating_add(1);
+            }
             let number = if server.read_only { server.sequence } else { next };
             next = next.max(number.saturating_add(1));
             afresh.push(number);

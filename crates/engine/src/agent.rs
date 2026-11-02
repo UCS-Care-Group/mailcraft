@@ -863,10 +863,18 @@ fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) ->
 /// delete it again itself (#566).
 fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     let named = || p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r));
-    let deletes = |r: &mailcraft_model::Rule| r.actions.contains(&mailcraft_model::Action::Delete);
+    // Moving mail into Deleted Items is deleting it.
+    let deletes = |r: &mailcraft_model::Rule| {
+        r.actions.iter().any(|a| match a {
+            mailcraft_model::Action::Delete => true,
+            mailcraft_model::Action::MoveTo(f) => s.mailbox.folder(*f).is_some_and(|f| f.kind == FolderKind::Deleted),
+            _ => false,
+        })
+    };
     let there = |r: &mailcraft_model::Rule| r.keep == mailcraft_model::Keep::Server;
     match id {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
+        "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),
         "rules.keepOnServer" => named().is_some_and(|r| !there(r) && deletes(r)),
         // Read as the command reads it, as `rules_onto_another_server` does.
         "rules.enable" => {

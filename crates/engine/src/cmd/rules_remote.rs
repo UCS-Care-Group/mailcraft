@@ -243,9 +243,12 @@ fn deleted_elsewhere(name: &str) -> String {
 }
 
 /// A rule made here that went to the server and the server's `remote` (its actions as the
-/// mailbox has them) are the same one, as far as can be told.
+/// mailbox has them) are the same one, as far as can be told. One with more to it than is known
+/// here, or that can't be changed, was made elsewhere.
 fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action]) -> bool {
-    here.name.eq_ignore_ascii_case(&remote.name)
+    remote.unknown.is_empty()
+        && !remote.read_only
+        && here.name.eq_ignore_ascii_case(&remote.name)
         && same_words(&here.conditions, &remote.conditions)
         && same_actions(&here.actions, actions)
         && here.stop == remote.stop
@@ -327,7 +330,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         let unmade = mailbox.rule_gone.iter().position(|g| g.account == account && g.made.as_deref().is_some_and(|r| alike(r, &remote, &actions)));
         if let Some(gone) = unmade.and_then(|i| mailbox.rule_gone.get_mut(i)) {
             (gone.id, gone.made) = (remote.id.clone(), None);
-            merged.skipped += 1;
+            merged.updated += 1;
             continue;
         }
         // A rule made here whose answer was lost (the server made it, the word didn't come) is the
@@ -483,7 +486,11 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 failed += 1;
             }
             (RuleOpKind::Create, RuleResult::Refused) => {
-                forget_made(mailbox, account, outcome.rule);
+                // (An answer of 2xx with no name for it is a refusal too, and the server has that
+                // one: it is still to be found and deleted.)
+                if !(200..300).contains(&outcome.status) {
+                    forget_made(mailbox, account, outcome.rule);
+                }
                 // (One deleted here meanwhile is kept nowhere, and that is what the owner wanted.)
                 if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
                     rule.keep = Keep::Here;
