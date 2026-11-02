@@ -860,17 +860,19 @@ fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) ->
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
 /// it runs there whether MailCraft is open or not, undo doesn't reach it, and the agent couldn't
-/// delete it again itself (#566).
+/// delete it again itself (#566). What a rule with parts not known here does isn't known: it may
+/// delete mail, or send it away.
 fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     let named = || p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r));
     // Moving mail into Deleted Items, or a folder under it, is deleting it.
     let binned = |id: &Id| s.mailbox.folders.iter().filter(|f| f.kind == FolderKind::Deleted).any(|f| s.mailbox.subtree(f.id).contains(id));
     let deletes = |r: &mailcraft_model::Rule| {
-        r.actions.iter().any(|a| match a {
-            mailcraft_model::Action::Delete => true,
-            mailcraft_model::Action::MoveTo(f) => binned(f),
-            _ => false,
-        })
+        !r.known()
+            || r.actions.iter().any(|a| match a {
+                mailcraft_model::Action::Delete => true,
+                mailcraft_model::Action::MoveTo(f) => binned(f),
+                _ => false,
+            })
     };
     let there = |r: &mailcraft_model::Rule| r.keep == mailcraft_model::Keep::Server;
     match id {
@@ -1631,7 +1633,7 @@ const SHARED_TASK: &str = ", which is in a To Do list shared with other people: 
 fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
     let addresses = s.mailbox.rule_reads_addresses(r);
     let when = r.conditions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" and ");
-    let then = r
+    let mut then: Vec<String> = r
         .actions
         .iter()
         .map(|a| match a {
@@ -1644,9 +1646,11 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
             mailcraft_model::Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
             other => plain(&other.describe()),
         })
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("when {when}: {then}")
+        .collect();
+    if let Some(server) = r.server.as_ref().filter(|s| !s.unknown.is_empty()) {
+        then.push(format!("and more that MailCraft can't show ({})", some(&server.unknown, 6)));
+    }
+    format!("when {when}: {}", then.join(", "))
 }
 
 fn rule_text(s: &Session, params: &Value) -> String {

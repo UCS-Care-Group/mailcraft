@@ -403,7 +403,13 @@ fn a_rule_the_server_found_for_one_deleted_while_made_is_saved_to_be_deleted_at_
 
 #[test]
 fn a_rule_on_the_server_with_more_to_it_than_one_made_here_isnt_taken_for_it() {
-    for theirs in [RemoteRule { unknown: vec!["forwardTo".into()], ..receipts_there() }, RemoteRule { read_only: true, ..receipts_there() }] {
+    let theirs = [
+        RemoteRule { unknown: vec!["forwardTo".into()], ..receipts_there() },
+        RemoteRule { read_only: true, ..receipts_there() },
+        // It also moves mail to a folder that isn't known here.
+        RemoteRule { move_to: "not-here".into(), ..receipts_there() },
+    ];
+    for theirs in theirs {
         // One deleted while it was being made, with no answer: that rule isn't deleted for it.
         let (mut s, account, _, _) = session();
         let id = receipts_here(&mut s, account);
@@ -685,6 +691,29 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_mail_goes_to_a_server() {
     }
     let m = arriving(&mut s, account, "digest@news.example", "y");
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"folder": deeper, "id": m})), Access::Owner(Class::Delete));
+}
+
+#[test]
+fn an_agent_asks_the_owner_before_it_switches_on_a_server_rule_with_parts_not_known_here() {
+    use crate::agent::{Access, Class, Verdict, check, classify};
+    let (mut s, account, _, _) = session();
+    let mut forward = remote("r1", "Forward to Bo", 1);
+    forward.enabled = false;
+    forward.unknown = vec!["forwardTo".into()];
+    merge_rules(&mut s.mailbox, &download(account, vec![forward])).unwrap();
+    let id = s.mailbox.rules.iter().find(|r| r.name == "Forward to Bo").unwrap().id;
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": true})), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": id})), Access::Owner(Class::Delete));
+    // Off stops it.
+    run(&mut s, "rules.enable", json!({"id": id, "value": true}));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": false})), Access::Owner(Class::Settings));
+    run(&mut s, "rules.enable", json!({"id": id, "value": false}));
+    // The question says there is more to it than it can show.
+    let Verdict::Ask(class, text) = check(&s, "rules.enable", &json!({"id": id, "value": true}), &[Class::Settings]) else {
+        panic!("not asked");
+    };
+    assert_eq!(class, Class::Delete);
+    assert!(text.contains("forwardTo"), "{text}");
 }
 
 #[test]

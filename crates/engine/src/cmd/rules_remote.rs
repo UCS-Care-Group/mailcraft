@@ -242,11 +242,11 @@ fn deleted_elsewhere(name: &str) -> String {
     format!("The rule \"{name}\" was deleted in Outlook or on the web, so it is deleted here too, with the change made to it here")
 }
 
-/// A rule made here that went to the server and the server's `remote` (its actions as the
-/// mailbox has them) are the same one, as far as can be told. One with more to it than is known
-/// here, or that can't be changed, was made elsewhere.
-fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action]) -> bool {
-    remote.unknown.is_empty()
+/// A rule made here that went to the server and the server's `remote` (its actions and the parts
+/// not known here, as [`local_of`] has them) are the same one, as far as can be told. One with
+/// more to it than is known here, or that can't be changed, was made elsewhere.
+fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String]) -> bool {
+    unknown.is_empty()
         && !remote.read_only
         && here.name.eq_ignore_ascii_case(&remote.name)
         && same_words(&here.conditions, &remote.conditions)
@@ -327,7 +327,8 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         }
         // One deleted here while the server was making it, with no answer: the server made it,
         // and is told to delete it.
-        let unmade = mailbox.rule_gone.iter().position(|g| g.account == account && g.made.as_deref().is_some_and(|r| alike(r, &remote, &actions)));
+        let unmade =
+            mailbox.rule_gone.iter().position(|g| g.account == account && g.made.as_deref().is_some_and(|r| alike(r, &remote, &actions, &unknown)));
         if let Some(gone) = unmade.and_then(|i| mailbox.rule_gone.get_mut(i)) {
             (gone.id, gone.made) = (remote.id.clone(), None);
             merged.updated += 1;
@@ -335,7 +336,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         }
         // A rule made here whose answer was lost (the server made it, the word didn't come) is the
         // same one: taken in, not made twice. Only one that went out without an answer is.
-        let twin = mailbox.rules.iter().position(|r| r.account == account && r.waiting() && r.unanswered && alike(r, &remote, &actions));
+        let twin = mailbox.rules.iter().position(|r| r.account == account && r.waiting() && r.unanswered && alike(r, &remote, &actions, &unknown));
         if let Some(i) = twin
             && let Some(rule) = mailbox.rules.get_mut(i)
         {
