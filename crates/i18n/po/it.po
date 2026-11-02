@@ -75,7 +75,7 @@ msgid "(no recipients)"
 msgstr "(nessun destinatario)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(nessun oggetto)"
@@ -1372,8 +1372,8 @@ msgstr ""
 msgid "Attachment keywords"
 msgstr ""
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Allegati"
@@ -1660,6 +1660,11 @@ msgstr "Entro il"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+msgid "By Attachments"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "By Categories"
 msgstr "Per categorie"
@@ -1669,6 +1674,11 @@ msgstr "Per categorie"
 #, fuzzy
 msgid "By Date"
 msgstr "Per data"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "By Flag"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -1842,7 +1852,7 @@ msgid "Cancelled"
 msgstr "Annullato"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Categorie"
@@ -2308,6 +2318,11 @@ msgstr "Comprimi la barra multifunzione"
 msgid "Colour"
 msgstr "Colore"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Columns"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2643,8 +2658,8 @@ msgstr "Scuro"
 msgid "Data on this computer"
 msgstr ""
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Date"
 msgstr "Data"
@@ -3828,8 +3843,8 @@ msgstr ""
 msgid "First name"
 msgstr "Nome"
 
-#. name
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Contrassegno"
@@ -3859,7 +3874,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Comprimi i calendari di questo gruppo"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Cartella"
@@ -4118,7 +4133,7 @@ msgid "Friday"
 msgstr "venerdì"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "Da"
@@ -4617,7 +4632,7 @@ msgid "Import the contacts in {name} into Contacts?"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Importance"
 msgstr "Priorità"
@@ -5768,6 +5783,11 @@ msgstr "Segna come letto"
 #, fuzzy
 msgid "Mark as unread"
 msgstr "Segna come da leggere"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Marked on top"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -8518,7 +8538,7 @@ msgstr ""
 "ordinamento"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Reverse Sort"
 msgstr "Inverti ordinamento"
@@ -9967,7 +9987,7 @@ msgid "Single Line"
 msgstr "Riga singola"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Dimensione"
@@ -10236,7 +10256,7 @@ msgid "Subfolders"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Subject"
 msgstr "Oggetto"
@@ -12171,7 +12191,7 @@ msgid "Title"
 msgstr "Titolo"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "A"
@@ -12441,6 +12461,11 @@ msgstr "Annulla digitazione"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "Annulla {what}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Unmarked on top"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
@@ -13356,7 +13381,7 @@ msgid "Zoom the Message"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "[Draft]"
 msgstr "[Bozza]"

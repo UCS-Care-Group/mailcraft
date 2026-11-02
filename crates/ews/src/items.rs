@@ -254,7 +254,8 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         sent: time(item, "DateTimeSent"),
         received: time(item, "DateTimeReceived"),
         preview: line(item.child_in(TYPES, "Preview").map_or("", |n| n.text.as_str()), MAX_PREVIEW),
-        has_attachments: flag(item, "HasAttachments"),
+        // Nothing said (an element left out) is no answer, as with Graph and JMAP (#575).
+        has_attachments: item.child_in(TYPES, "HasAttachments").map(|_| flag(item, "HasAttachments")),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
     })
 }

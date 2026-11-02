@@ -145,13 +145,17 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
+    // What the server says of a message's attachments is kept for a Microsoft account's alone,
+    // whose answer is Outlook's (#575): a JMAP server may count an invitation's own calendar part
+    // (RFC 8621 §4.1.4), and an Exchange server of another make may count as it likes.
+    let answers = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
     for there in &page.messages {
         if there.server.id.is_empty() {
             continue;
         }
         match index.find(mb, account, &there.server.id) {
             Some(m) => {
-                if update(mb, account, m, folder, &page.folder, there) {
+                if update(mb, account, m, folder, &page.folder, there, answers) {
                     down.changed += 1;
                 }
             }
@@ -165,7 +169,9 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
-                if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
+                let mut fresh = new_message(folder, &page.folder, there);
+                fresh.server_attachments = fresh.server_attachments.filter(|_| answers);
+                if let Ok(m) = mb.add_message(fresh) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
                     // list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken
@@ -222,14 +228,15 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         draft: there.draft.unwrap_or(false),
         server: Some(server),
         unfetched: true,
-        attachments_on_server: there.has_attachments,
+        attachments_on_server: there.has_attachments.unwrap_or(false),
+        server_attachments: there.has_attachments,
         ..Default::default()
     }
 }
 
 /// Bring a message this mailbox has in step with what the server says of it now. Whether
 /// anything changed.
-fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str, there: &GraphMessage) -> bool {
+fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str, there: &GraphMessage, answers: bool) -> bool {
     let Some(m) = mb.message(id) else { return false };
     let before = m.clone();
     let last = m.server.clone().unwrap_or_default();
@@ -274,8 +281,20 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if follows {
         m.folder = folder;
     }
-    if m.unfetched {
-        m.attachments_on_server = there.has_attachments;
+    // What the server says now of its attachments, fetched or not (#575), kept for a Microsoft
+    // account; nothing said, nothing changes (an answer an earlier build kept for another
+    // account goes). One not fetched wears the paperclip by it. Not one whose attachments were
+    // removed here: the server, never told, would put back the one removed.
+    if !answers {
+        m.server_attachments = None;
+    }
+    if let Some(has) = there.has_attachments {
+        if answers {
+            m.server_attachments = Some(has);
+        }
+        if m.unfetched && m.attachments_changed_here.is_none() {
+            m.attachments_on_server = has;
+        }
     }
     // Sent, the draft is filed in Sent Items under its id: no longer a draft (#611), when the
     // server says so and not merely leaves it out. One saved here that waits to go up stays one.
@@ -288,7 +307,7 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if changed_there || sent {
         // Changed elsewhere only: the server's version, fetched afresh.
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
-        m.attachments_on_server = there.has_attachments;
+        m.attachments_on_server = there.has_attachments.unwrap_or(m.attachments_on_server);
         if let Some(sd) = m.server_draft.as_mut() {
             sd.synced = None;
         }
@@ -470,6 +489,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
+    // The server's parts are back: what it says of them holds again.
+    m.attachments_changed_here = None;
     m.headers = read.headers;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
@@ -492,12 +513,18 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     Some(here)
 }
 
+/// Whether a message about to be no longer fetched wears the paperclip meanwhile: what it sorts
+/// by now (its server's answer while that holds, else its parts), so that it doesn't move (#575).
+fn until_fetched(m: &Message) -> bool {
+    crate::columns::sorts_with_files(m)
+}
+
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the
 /// message is not fetched again, as it was when it came down. Everything else stays as it is:
 /// where it is, its marks, the server's state of it, what waits to go up, its headers. It wears
 /// the paperclip still when it had attachments; opening it fetches it whole again.
 pub fn thin_message(m: &mut Message, preview: String) {
-    m.attachments_on_server = m.has_attachments();
+    m.attachments_on_server = until_fetched(m);
     m.body = Body { text: preview, html: None };
     // What the sender hid goes with the text it came from: search and agents don't see it
     // for a message that is no longer here in full.
@@ -543,7 +570,7 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
             && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
         if whole_from_server && unreadable(m) {
             let m = std::sync::Arc::make_mut(m);
-            m.attachments_on_server = m.has_attachments();
+            m.attachments_on_server = until_fetched(m);
             m.unfetched = true;
             marked = marked.saturating_add(1);
         }
@@ -626,7 +653,7 @@ mod tests {
             messages: vec![GraphMessage {
                 server: ServerMessage { id: id.into(), ..Default::default() },
                 subject: "Quarterly figures".into(),
-                has_attachments,
+                has_attachments: Some(has_attachments),
                 ..Default::default()
             }],
             ..Default::default()
@@ -759,6 +786,10 @@ Content-Type: text/html; charset=windows-1250\r\nContent-Transfer-Encoding: quot
         assert!(m.size() > 4000);
     }
 }
+
+#[cfg(test)]
+#[path = "graph_down_attachments_tests.rs"]
+mod attachments_tests;
 
 #[cfg(test)]
 #[path = "graph_down_hidden_tests.rs"]

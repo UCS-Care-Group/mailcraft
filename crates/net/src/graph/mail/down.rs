@@ -563,7 +563,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         sent: when("sentDateTime").unwrap_or(received),
         received,
         preview: capped(value, "bodyPreview", MAX_PREVIEW),
-        has_attachments: value.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false),
+        has_attachments: value.get("hasAttachments").and_then(Value::as_bool),
         draft: value.get("isDraft").and_then(Value::as_bool),
     })))
 }
@@ -593,5 +593,23 @@ mod tests {
         // A whole message whose isRead is text is read as it says.
         let whole = json!({"id": ID, "receivedDateTime": "2027-01-15T08:00:00Z", "isRead": "true"});
         assert!(matches!(entry_of(&whole, "F"), Some(Entry::Message(m)) if m.server.read));
+    }
+
+    /// Whether it has attachments, as Graph says it; not said, or not as it should be, it is
+    /// none, which changes nothing of what is kept (#575).
+    #[test]
+    fn has_attachments_is_what_graph_says_and_none_when_it_doesnt() {
+        let has = |value: serde_json::Value| {
+            let mut entry = json!({"id": ID, "receivedDateTime": "2027-01-15T08:00:00Z"});
+            entry["hasAttachments"] = value;
+            match entry_of(&entry, "F") {
+                Some(Entry::Message(m)) => m.has_attachments,
+                _ => panic!("{entry}"),
+            }
+        };
+        assert_eq!((has(json!(true)), has(json!(false))), (Some(true), Some(false)));
+        for nothing in [json!(null), json!("true"), json!(1)] {
+            assert_eq!(has(nothing.clone()), None, "{nothing}");
+        }
     }
 }

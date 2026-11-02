@@ -99,7 +99,8 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
     }
     match s.view.sort {
         SortBy::Date => Some(DateGroup::of(s.local(when(m)).date, s.today(), s.prefs.week_start).label().to_string()),
-        SortBy::From => Some(m.from.display().to_string()),
+        // In Sent Items, Drafts and the Outbox, who the mail is to, as it is sorted.
+        SortBy::From => Some(crate::columns::person(&s.mailbox, m)),
         SortBy::Importance => Some(
             match m.importance {
                 Importance::High => "High",
@@ -110,7 +111,7 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
         ),
         // Each row of a message arranged by categories has a heading of its own (`by_category`).
         SortBy::Categories => None,
-        SortBy::Subject | SortBy::Size => None,
+        SortBy::Subject | SortBy::Size | SortBy::Attachments | SortBy::Flag => None,
     }
 }
 
@@ -143,6 +144,14 @@ pub fn category_names(categories: &[String]) -> Vec<String> {
     names.sort();
     names.dedup();
     names
+}
+
+fn flag_order(flag: FlagStatus) -> u8 {
+    match flag {
+        FlagStatus::None => 0,
+        FlagStatus::Complete => 1,
+        FlagStatus::Flagged => 2,
+    }
 }
 
 pub fn rows(s: &Session) -> Vec<Row> {
@@ -271,15 +280,29 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         .collect();
 
     let desc = s.view.sort_descending;
+    // The sender's name and whether a message has files cost more than a comparison should (a
+    // look at the folder, text in lower case, the list of parts), so each is worked out once per
+    // message here rather than in every comparison.
+    let names: HashMap<Id, String> = match s.view.sort {
+        SortBy::From => shown.iter().map(|m| (m.id, crate::columns::person_key(mb, m))).collect(),
+        _ => HashMap::new(),
+    };
+    let files: HashMap<Id, bool> = match s.view.sort {
+        SortBy::Attachments => shown.iter().map(|m| (m.id, crate::columns::sorts_with_files(m))).collect(),
+        _ => HashMap::new(),
+    };
     shown.sort_by(|a, b| {
         let key = match s.view.sort {
             SortBy::Date => when(a).cmp(&when(b)),
-            // Within one sender or subject, newest first when the names run A to Z.
-            SortBy::From => a.from.display().to_lowercase().cmp(&b.from.display().to_lowercase()).then(when(b).cmp(&when(a))),
+            // Within one sender or subject, newest first when the names run A to Z. In Sent Items,
+            // Drafts and the Outbox, by who the mail is to, as the rows name them.
+            SortBy::From => names.get(&a.id).cmp(&names.get(&b.id)).then(when(b).cmp(&when(a))),
             SortBy::Subject => a.topic().to_lowercase().cmp(&b.topic().to_lowercase()).then(when(b).cmp(&when(a))),
             // As the row says it (#273): the server's size for what isn't here; one not known
             // counts as the smallest.
             SortBy::Size => a.list_size().cmp(&b.list_size()),
+            SortBy::Attachments => files.get(&a.id).cmp(&files.get(&b.id)).then(when(a).cmp(&when(b))),
+            SortBy::Flag => flag_order(a.flag).cmp(&flag_order(b.flag)).then(when(a).cmp(&when(b))),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             // Newest first; `by_category` then lists each under its categories.
             SortBy::Categories => when(b).cmp(&when(a)),

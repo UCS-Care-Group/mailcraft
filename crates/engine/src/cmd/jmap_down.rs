@@ -319,17 +319,12 @@ fn more_than_marks(there: &GraphMessage) -> bool {
 pub(crate) fn take_window(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, first: bool, down: &mut Down) {
     let mut window = page.clone();
     window.afresh &= first;
-    window.messages.retain_mut(|there| {
+    window.messages.retain(|there| {
         if more_than_marks(there) {
             return true;
         }
-        match index.find(mb, account, &there.server.id).and_then(|id| mb.message(id)) {
-            Some(here) => {
-                there.has_attachments = here.attachments_on_server;
-                true
-            }
-            None => false,
-        }
+        // It says nothing of attachments (`None`), which leaves them as they are (#575).
+        index.find(mb, account, &there.server.id).and_then(|id| mb.message(id)).is_some()
     });
     graph_down::take_page(mb, index, account, &window, down);
 }

@@ -560,6 +560,15 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
         m.kept = t.kept.clone();
         m.hidden_text = t.hidden_text.clone();
     }
+    // With its attachments, what stood for them (#575), whether or not the change changed that:
+    // the server's answer then, if it has said otherwise since.
+    if t.attachments != a.attachments && !m.draft {
+        m.attachments_changed_here = match t.attachments_changed_here {
+            None if m.server_attachments != t.server_attachments => t.server_attachments,
+            kept => kept,
+        };
+    }
+    back!(attachments_on_server);
     if t.account != c.account {
         m.folder = t.folder;
     }

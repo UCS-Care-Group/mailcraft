@@ -1815,6 +1815,7 @@ impl MailApp {
         self.ui.confirmed_mailboxes.truncate(200);
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
+        self.ui.options.columns.sanitize();
         self.session.prefs = self.ui.options.clone();
         // Layout choices carry over; the folder, the day and the search start fresh.
         let saved = self.ui.view.clone();

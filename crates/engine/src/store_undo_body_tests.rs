@@ -222,3 +222,96 @@ fn undo_of_a_body_really_changed_puts_back_the_text_on_disk_and_redo_the_new_one
     let m = saved(&path, old);
     assert_eq!((m.body.text.as_str(), &m.body.html), ("Rewritten.", &None));
 }
+
+/// #575 review: a file removed from an invitation of a Microsoft account whose body and calendar
+/// part are on disk, then the removal undone: the calendar part is read to know the invitation,
+/// without bringing it or the body into the message, so the text is whole after the undo, here
+/// and in the file once it is saved.
+#[test]
+fn a_file_removed_then_put_back_keeps_a_body_kept_on_disk() {
+    let tmp = Temp::new("remove-undo-body");
+    let path = tmp.file();
+    let (s, _, old) = opened(&path, AccountKind::Microsoft);
+    drop(s);
+    let mut mb = whole(&path);
+    let mut ics = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n".to_vec();
+    ics.extend("X-PAD:0123456789\r\n".repeat(200).bytes());
+    ics.extend(b"END:VEVENT\r\nEND:VCALENDAR\r\n");
+    let m = mb.message_mut(old).unwrap();
+    m.attachments = vec![Attachment::new("agenda.pdf", "application/pdf", vec![7; 64]), Attachment::new("invite.ics", "text/calendar", ics)];
+    m.server_attachments = Some(true);
+    let was = m.body.text.clone();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    assert!(s.mailbox.message(old).unwrap().body_is_kept());
+    assert!(!s.mailbox.message(old).unwrap().attachments[1].is_loaded());
+
+    s.run("mail.removeAttachment", &json!({"id": old, "index": 0})).unwrap();
+    let m = s.mailbox.message(old).unwrap();
+    assert!(m.body_is_kept() && !m.attachments[0].is_loaded(), "nothing brought in");
+    assert_eq!((crate::columns::has_files(m), crate::columns::sorts_with_files(m), m.attachments_changed_here), (false, false, Some(false)));
+
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.message(old).unwrap().attachments.len(), 2);
+    assert_eq!(text_of(&s, old), was);
+    save(&path, &s.mailbox).unwrap();
+    clear_cache();
+    let reopened = whole(&path);
+    let m = reopened.message(old).unwrap();
+    assert_eq!((m.attachments.len(), &m.body.text, m.attachments_changed_here), (2, &was, None));
+}
+
+/// #575 review: a PDF removed from a message whose HTML is on disk and which has a picture marked
+/// inline that the HTML doesn't show: the picture is still a file, read so from the HTML on disk,
+/// and the paperclip stays.
+#[test]
+fn a_file_removed_beside_a_picture_the_html_on_disk_does_not_show_leaves_the_paperclip() {
+    let tmp = Temp::new("remove-beside-logo");
+    let path = tmp.file();
+    let (s, _, old) = opened(&path, AccountKind::Microsoft);
+    drop(s);
+    let mut mb = whole(&path);
+    let m = mb.message_mut(old).unwrap();
+    m.body.html = Some(format!("<p>{}</p>", "Regards. ".repeat(300)));
+    m.attachments = vec![
+        Attachment::new("agenda.pdf", "application/pdf", vec![7; 64]),
+        Attachment { content_id: "logo@x.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![7; 64]) },
+    ];
+    m.server_attachments = Some(true);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    assert!(s.mailbox.message(old).unwrap().body.html.is_none(), "the HTML is on disk");
+
+    s.run("mail.removeAttachment", &json!({"id": old, "index": 0})).unwrap();
+    let m = s.mailbox.message(old).unwrap();
+    assert!(m.body_is_kept() && m.body.html.is_none(), "nothing brought in");
+    assert_eq!((crate::columns::has_files(m), crate::columns::sorts_with_files(m), m.attachments_changed_here), (true, true, Some(true)));
+    assert!(s.load_message(old).unwrap());
+    assert_eq!(s.mailbox.message(old).unwrap().listed_attachments().count(), 1, "opened, the picture is listed");
+}
+
+/// #575 review: a calendar part too large to be read isn't read to judge what is left: like any
+/// that can't be read, it is taken for a file, whatever its first lines say.
+#[test]
+fn a_file_removed_beside_a_calendar_part_too_large_to_read_leaves_the_paperclip() {
+    let tmp = Temp::new("remove-beside-huge-ics");
+    let path = tmp.file();
+    let (s, _, old) = opened(&path, AccountKind::Microsoft);
+    drop(s);
+    let mut mb = whole(&path);
+    let mut ics = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n".to_vec();
+    ics.resize(crate::session::MAX_CALENDAR_PART + 1, b'x');
+    let m = mb.message_mut(old).unwrap();
+    m.attachments = vec![Attachment::new("agenda.pdf", "application/pdf", vec![7; 64]), Attachment::new("invite.ics", "text/calendar", ics)];
+    m.server_attachments = Some(true);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+
+    s.run("mail.removeAttachment", &json!({"id": old, "index": 0})).unwrap();
+    let m = s.mailbox.message(old).unwrap();
+    assert!(m.body_is_kept() && !m.attachments[0].is_loaded(), "nothing brought in");
+    assert_eq!((crate::columns::has_files(m), m.attachments_changed_here), (true, Some(true)));
+}
