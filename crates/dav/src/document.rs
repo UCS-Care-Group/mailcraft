@@ -112,6 +112,12 @@ fn parse(text: &str, component: Component) -> Result<Document, InvalidDocument> 
             continue;
         }
         let (head, value) = parts(&line.text)?;
+        // Lenient readers can treat parameterised delimiters as structure. Never
+        // preserve them as ordinary properties while reasoning about another tree.
+        let name = head.split(';').next().ok_or(InvalidDocument)?;
+        if (name.eq_ignore_ascii_case("BEGIN") || name.eq_ignore_ascii_case("END")) && name != head {
+            return Err(InvalidDocument);
+        }
         if head.eq_ignore_ascii_case("BEGIN") {
             if stack.last().is_some_and(|s| s == component.name()) {
                 nested_start = Some(line.span.start);
@@ -151,6 +157,9 @@ fn parse(text: &str, component: Component) -> Result<Document, InvalidDocument> 
             }
             let name = head.split(';').next().ok_or(InvalidDocument)?;
             let (group, key) = name.split_once('.').map_or((None, name), |(g, k)| (Some(g.to_ascii_uppercase()), k));
+            if key.eq_ignore_ascii_case("BEGIN") || key.eq_ignore_ascii_case("END") {
+                return Err(InvalidDocument);
+            }
             if key.is_empty() || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
                 return Err(InvalidDocument);
             }
@@ -265,11 +274,28 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
     if source_values.get("VERSION") != old_values.get("VERSION") {
         return Err(InvalidDocument);
     }
+    // Several readers accept alternate keys for one model field. An edit must
+    // account for every alias, including one the writer no longer emits.
+    let aliases: &[&[&str]] = match component {
+        Component::Card => &[&["X-FAVORITE", "X-MAILCRAFT-FAVORITE"]],
+        Component::Event => &[
+            &["PRIORITY", "X-MICROSOFT-CDO-IMPORTANCE"],
+            &["CONFERENCE", "X-MICROSOFT-SKYPETEAMSMEETINGURL"],
+            &["TRANSP", "X-MICROSOFT-CDO-BUSYSTATUS"],
+        ],
+    };
+    for keys in aliases {
+        if keys.iter().any(|key| changed.contains(key)) && keys.iter().any(|key| source_values.get(key) != old_values.get(key)) {
+            return Err(InvalidDocument);
+        }
+    }
     if component == Component::Event {
         // Recurrence and timing share DTSTART's representation. Refuse a partial edit
         // when the writer did not retain the source's complete timing information.
         let timing = ["DTSTART", "DTEND", "DURATION", "RRULE", "RDATE", "EXDATE", "EXRULE"];
-        if timing.iter().any(|key| changed.contains(key)) && timing.iter().any(|key| source_values.get(key) != old_values.get(key)) {
+        if timing.iter().any(|key| changed.contains(key))
+            && (timing.iter().any(|key| source_values.get(key) != old_values.get(key)) || source.nested != old.nested)
+        {
             return Err(InvalidDocument);
         }
         for document in [&source_values, &old_values, &new_values] {

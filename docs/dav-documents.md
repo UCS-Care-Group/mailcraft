@@ -1,6 +1,6 @@
 # DAV model and documents
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-01 · **Change:** minor
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-02 · **Change:** patch
 
 **Status:** foundation only.
 
@@ -35,7 +35,11 @@ cannot safely edit its times; conflicting DTEND and DURATION are refused.
 Timing and recurrence properties form one unit: changing DTSTART, DTEND, DURATION, RRULE,
 RDATE, EXDATE or EXRULE requires all of their source lines to match the writer’s baseline.
 This refuses edits that would leave an unmodelled recurrence date behind or mix a floating
-start with a UTC rule produced by normalisation.
+start with a UTC rule produced by normalisation. Timing edits also require nested alarms to match
+the writer’s baseline, so an absolute reminder cannot silently stay at its old time.
+Alternate keys for contact favourites, event importance, online-meeting links and free/busy
+status are checked together before changing their shared field. Parameterised BEGIN/END
+delimiters are refused rather than preserved as ordinary properties.
 These cases return an error rather than silently discard information. They can be handled by
 later, separately reviewed operations. A text is limited to 4 MiB, 65,536 physical lines,
 256 KiB per unfolded line and a nesting depth of 16 components.
@@ -75,6 +79,7 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Refuse lossy alarm and alias edits; strengthen unsafe-edit assertions |
 | 2026-11-01 | Timing and recurrence changes refuse a lossy writer baseline |
 | 2026-10-24 | Inserted properties and folds use the source line endings |
 | 2026-10-24 | Separate portable DAV crate, property ordering, end-form guards and fuzz coverage |

@@ -110,9 +110,7 @@ fn a_moved_event_never_carries_both_dtend_and_duration() {
     let before = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z");
     let after = before.replace("T120000Z", "T140000Z").replace("T130000Z", "T150000Z");
     // Refusing is fine; RFC 5545 forbids writing both.
-    if let Ok(got) = patch(&original, &before, &after, Component::Event) {
-        assert!(!(got.contains("\nDTEND") && got.contains("\nDURATION")), "{got}");
-    }
+    assert!(patch(&original, &before, &after, Component::Event).is_err());
 }
 
 #[test]
@@ -121,10 +119,7 @@ fn editing_one_phone_keeps_the_other_phones_bytes() {
     // What a 3.0 writer makes of the same card, before and after the second number changes.
     let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:A\r\nTEL;TYPE=CELL:+1-555-0101\r\nTEL;TYPE=WORK:+1-555-0102\r\nEND:VCARD\r\n";
     let after = before.replace("0102", "0199");
-    if let Ok(got) = patch(original, before, &after, Component::Card) {
-        assert!(got.contains("TEL;VALUE=uri;TYPE=\"voice,cell\";PREF=1:tel:+1-555-0101\r\n"), "{got}");
-        assert!(!got.contains("TYPE=CELL"), "3.0 lines spliced into a 4.0 card: {got}");
-    }
+    assert!(patch(original, before, &after, Component::Card).is_err());
 }
 
 #[test]
@@ -336,16 +331,15 @@ fn an_unmodelled_rdate_is_never_left_behind_by_a_recurrence_edit() {
         "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRDATE:20261110T120000Z",
     );
     // Removing the rule would leave Nov 10 on the server.
-    if let Ok(got) = real_writer_edit(&series, |e| e.recurrence = None) {
-        assert!(!got.contains("RDATE"), "{got}");
-    }
+    assert!(real_writer_edit(&series, |e| e.recurrence = None).is_err());
     // Moving the series would leave Nov 10 at the old time.
-    if let Ok(got) = real_writer_edit(&series, |e| {
-        e.start = e.start.add_minutes(60);
-        e.end = e.end.add_minutes(60);
-    }) {
-        assert!(!got.contains("RDATE:20261110T120000Z"), "{got}");
-    }
+    assert!(
+        real_writer_edit(&series, |e| {
+            e.start = e.start.add_minutes(60);
+            e.end = e.end.add_minutes(60);
+        })
+        .is_err()
+    );
 }
 
 #[test]
@@ -358,9 +352,7 @@ fn a_new_rule_matches_a_floating_start() {
         ..Default::default()
     };
     // RFC 5545 §3.3.10: with a floating DTSTART, UNTIL is floating too.
-    if let Ok(got) = real_writer_edit(&floating, |e| e.recurrence = Some(rule.clone())) {
-        assert!(!got.lines().any(|l| l.starts_with("RRULE") && l.contains('Z')), "{got}");
-    }
+    assert!(real_writer_edit(&floating, |e| e.recurrence = Some(rule.clone())).is_err());
 }
 
 #[test]
@@ -374,4 +366,78 @@ fn timing_guards_allow_lossless_recurrence_and_unrelated_title_edits() {
     let got = real_writer_edit(&series, |event| event.title = "New".into()).unwrap();
     assert!(got.contains("SUMMARY:New\r\n"));
     assert!(got.contains("RDATE:20261110T120000Z\r\n"));
+}
+
+#[test]
+fn moving_an_event_refuses_an_unmodelled_absolute_reminder() {
+    let alarm = "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:R\r\nTRIGGER;VALUE=DATE-TIME:20261024T114500Z\r\nEND:VALARM\r\n";
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z")
+        .replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    assert!(
+        real_writer_edit(&source, |e| {
+            e.start = e.start.add_minutes(120);
+            e.end = e.end.add_minutes(120);
+        })
+        .is_err()
+    );
+    // A title edit does not change the alarm's meaning and retains its exact bytes.
+    let got = real_writer_edit(&source, |e| e.title = "New".into()).unwrap();
+    assert!(got.contains(alarm));
+}
+
+#[test]
+fn unfavouriting_refuses_an_unmodelled_favourite_alias() {
+    let source = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:A\r\nX-FAVORITE:TRUE\r\nX-MAILCRAFT-FAVORITE:TRUE\r\nEND:VCARD\r\n";
+    let mut contacts = mailcraft_vcard::parse(source);
+    let contact = contacts.first_mut().unwrap();
+    let before = mailcraft_vcard::write(&[contact]);
+    contact.favorite = false;
+    let after = mailcraft_vcard::write(&[contact]);
+    assert!(patch(source, &before, &after, Component::Card).is_err());
+    assert!(patch(&before, &before, &after, Component::Card).is_ok());
+}
+
+#[test]
+fn normal_importance_refuses_a_surviving_cdo_alias() {
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nPRIORITY:1\r\nX-MICROSOFT-CDO-IMPORTANCE:2");
+    assert!(real_writer_edit(&source, |e| e.importance = mailcraft_model::Importance::Normal).is_err());
+    let standard = source.replace("X-MICROSOFT-CDO-IMPORTANCE:2\r\n", "");
+    let got = real_writer_edit(&standard, |e| e.importance = mailcraft_model::Importance::Normal).unwrap();
+    assert_eq!(mailcraft_ical::parse(&got, &|_| 0).events.first().unwrap().importance, mailcraft_model::Importance::Normal);
+}
+
+#[test]
+fn structural_names_with_parameters_are_refused() {
+    for source in [EVENT.replace("END:VEVENT", "END;X=1:VEVENT"), EVENT.replace("END:VEVENT", "BEGIN;X=1:VALARM\r\nEND;X=1:VALARM\r\nEND:VEVENT")] {
+        assert!(patch(&source, EVENT, &EVENT.replace("Old", "New"), Component::Event).is_err());
+    }
+}
+
+#[test]
+fn moving_an_event_with_a_lossless_relative_reminder_still_works() {
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z")
+        .replace("END:VEVENT", "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:R\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nEND:VEVENT");
+    let file = mailcraft_ical::parse(&source, &|_| 0);
+    let event = file.events.first().unwrap();
+    let canonical = mailcraft_ical::write_in(&[event], &[], &mailcraft_ical::WriteOptions::default(), Some(mailcraft_time::Zone::UTC));
+    let got = real_writer_edit(&canonical, |e| {
+        e.start = e.start.add_minutes(120);
+        e.end = e.end.add_minutes(120);
+    })
+    .unwrap();
+    let parsed = mailcraft_ical::parse(&got, &|_| 0);
+    let moved = parsed.events.first().unwrap();
+    assert_eq!(moved.reminder_minutes, Some(15));
+    assert_eq!(moved.start, event.start.add_minutes(120));
+}
+
+#[test]
+fn removing_an_online_link_refuses_a_surviving_alias() {
+    let source = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nCONFERENCE;VALUE=URI:https://meeting.example.org/old\r\nX-MICROSOFT-SKYPETEAMSMEETINGURL:https://meeting.example.org/teams");
+    assert!(real_writer_edit(&source, |e| e.online = None).is_err());
+    let got = real_writer_edit(&source, |e| e.title = "New".into()).unwrap();
+    assert!(got.contains("CONFERENCE;VALUE=URI:https://meeting.example.org/old\r\n"));
 }
