@@ -77,40 +77,26 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
     let mut g = graph_accounts(before);
     g.extend(graph_accounts(after));
     let mut t = Touched::default();
-    // One walk of both maps, in order of id (a lookup for each of a few hundred thousand
-    // messages took longer than the command it followed).
-    let mut was = before.messages.iter().peekable();
-    let mut is = after.messages.iter().peekable();
-    loop {
-        match (was.peek(), is.peek()) {
-            (None, None) => break,
-            (Some((id, b)), Some((n, a))) if id == n => {
-                if !(Arc::ptr_eq(a, b) || a == b) {
-                    t.changed_messages.insert(**id);
-                    if relevant(b, &g) || relevant(a, &g) {
-                        t.messages.insert(**id, Some((*a).clone()));
-                    }
+    // Only the messages the two differ in: the chunks of the map the two share aren't looked
+    // into (a walk of every message took longer than the command it followed).
+    for (id, b, a) in after.messages.changes(&before.messages) {
+        match (b, a) {
+            (Some(b), Some(a)) if a != b => {
+                t.changed_messages.insert(id);
+                if relevant(b, &g) || relevant(a, &g) {
+                    t.messages.insert(id, Some(a.clone()));
                 }
-                was.next();
-                is.next();
             }
             // Gone since: `before` has it and `after` has none of its id.
-            (Some((id, b)), Some((n, _))) if id < n => {
-                gone(&mut t, **id, b, &g);
-                was.next();
-            }
-            (Some((id, b)), None) => {
-                gone(&mut t, **id, b, &g);
-                was.next();
-            }
+            (Some(b), None) => gone(&mut t, id, b, &g),
             // Come since.
-            (_, Some((id, a))) => {
-                t.changed_messages.insert(**id);
+            (None, Some(a)) => {
+                t.changed_messages.insert(id);
                 if relevant(a, &g) {
-                    t.messages.insert(**id, Some((*a).clone()));
+                    t.messages.insert(id, Some(a.clone()));
                 }
-                is.next();
             }
+            _ => {}
         }
     }
     for b in &before.folders {

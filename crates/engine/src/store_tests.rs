@@ -1991,7 +1991,7 @@ fn content_let_go_of_goes_from_disk_once_a_state_that_new_is_saved_in_the_backgr
     assert!(before >= 4, "{before}");
     // Message 0's own text goes; the file it shares with another message stays for that one.
     let id = *mb.messages.keys().next().unwrap();
-    let names = content_names(id, &mb.messages[&id]);
+    let names = content_names(id, mb.messages.get(&id).unwrap());
     assert!(names.len() >= 2, "{names:?}");
     forget_when_saved(&path, 2, names.clone());
     // A save of an older state removes nothing.

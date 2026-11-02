@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::search::Query;
 use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
-use mailcraft_time::{DateGroup, Timestamp};
+use mailcraft_time::{Date, DateGroup, Timestamp};
 use serde::Serialize;
 
 use crate::{Filter, Scope, Session, SortBy};
@@ -91,6 +91,30 @@ pub fn when(m: &Message) -> Timestamp {
 pub fn preview(m: &Message, max_chars: usize) -> String {
     let said = m.body.html.as_deref().map(|html| mailcraft_html::preview(html, max_chars)).unwrap_or_default();
     if said.is_empty() { mailcraft_html::text_preview(&m.body.text, max_chars) } else { said }
+}
+
+/// A row's heading, compared with the last row's as it is: the words of a date's are written
+/// only for the rows a heading starts at (two date groups never have the same words).
+#[derive(PartialEq)]
+enum Heading {
+    Date(DateGroup),
+    Words(String),
+}
+
+impl Heading {
+    fn label(&self) -> String {
+        match self {
+            Heading::Date(d) => d.label().to_string(),
+            Heading::Words(w) => w.clone(),
+        }
+    }
+}
+
+fn heading(s: &Session, m: &Message, today: Date) -> Option<Heading> {
+    match s.view.sort {
+        SortBy::Date if !m.pinned => Some(Heading::Date(DateGroup::of(s.local(when(m)).date, today, s.prefs.week_start))),
+        _ => group_label(s, m).map(Heading::Words),
+    }
 }
 
 fn group_label(s: &Session, m: &Message) -> Option<String> {
@@ -196,7 +220,7 @@ fn looked_at<'a>(s: &'a Session, everywhere: bool, folders: &HashSet<Id>) -> Vec
     let mb = &s.mailbox;
     match s.fresh_counts() {
         Some(counts) if !everywhere => {
-            folders.iter().flat_map(|f| counts.ids(*f)).filter_map(|id| mb.message(*id)).filter(|m| folders.contains(&m.folder)).collect()
+            folders.iter().flat_map(|f| mb.messages.get_sorted(counts.ids(*f))).map(|m| m.as_ref()).filter(|m| folders.contains(&m.folder)).collect()
         }
         _ => mb.messages.values().map(|m| m.as_ref()).filter(|m| folders.contains(&m.folder) != everywhere).collect(),
     }
@@ -271,25 +295,11 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         .collect();
 
     let desc = s.view.sort_descending;
-    shown.sort_by(|a, b| {
-        let key = match s.view.sort {
-            SortBy::Date => when(a).cmp(&when(b)),
-            // Within one sender or subject, newest first when the names run A to Z.
-            SortBy::From => a.from.display().to_lowercase().cmp(&b.from.display().to_lowercase()).then(when(b).cmp(&when(a))),
-            SortBy::Subject => a.topic().to_lowercase().cmp(&b.topic().to_lowercase()).then(when(b).cmp(&when(a))),
-            // As the row says it (#273): the server's size for what isn't here; one not known
-            // counts as the smallest.
-            SortBy::Size => a.list_size().cmp(&b.list_size()),
-            SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
-            // Newest first; `by_category` then lists each under its categories.
-            SortBy::Categories => when(b).cmp(&when(a)),
-        };
-        // Pinned messages stay on top whichever way the list is sorted; ids break ties so the
-        // order never depends on the map's iteration.
-        // The categories, not the dates, are what turning the list over turns over.
-        let key = if desc && s.view.sort != SortBy::Categories { key.reverse() } else { key };
-        b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
-    });
+    if matches!(s.view.sort, SortBy::Date | SortBy::Importance | SortBy::Categories) {
+        sort_by_dates(&mut shown, s.view.sort, desc);
+    } else {
+        sort_by_words(&mut shown, s.view.sort, desc);
+    }
 
     if s.view.sort == SortBy::Categories {
         return (by_category(s, &shown, desc), kept_only, unfetched);
@@ -321,8 +331,14 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
         for row in &mut out {
             // Newest first inside a conversation, and the row shows the newest.
-            row.members.sort_by_key(newest);
-            row.others.sort_by_key(newest);
+            // (Each one's key worked out once: a lookup at every comparison took a third of the
+            // time a list of 100,000 messages took to build.)
+            if row.members.len() > 1 {
+                row.members.sort_by_cached_key(newest);
+            }
+            if row.others.len() > 1 {
+                row.others.sort_by_cached_key(newest);
+            }
             if let Some(first) = row.members.first() {
                 row.id = *first;
             }
@@ -334,17 +350,74 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         out.extend(shown.iter().map(|m| Row::of(m, 0)));
     }
 
-    let mut last: Option<String> = None;
     // Show in Groups off: the sorted rows, no headings. (A message under its open conversation is
-    // under its conversation's heading.)
-    for row in out.iter_mut().filter(|r| s.prefs.show_groups && r.under.is_none()) {
-        let label = mb.message(row.id).and_then(|m| group_label(s, m));
-        if label != last {
-            row.group = label.clone();
-            last = label;
+    // under its conversation's heading.) A row of each message `shown` has, in its order, is
+    // that message's, without looking it up.
+    if s.prefs.show_groups {
+        let direct = out.len() == shown.len() && out.iter().zip(&shown).all(|(r, m)| r.id == m.id);
+        let mut last: Option<Heading> = None;
+        let today = s.today();
+        for (i, row) in out.iter_mut().enumerate().filter(|(_, r)| r.under.is_none()) {
+            let m = if direct { shown.get(i).copied() } else { mb.message(row.id) };
+            let heading = m.and_then(|m| heading(s, m, today));
+            if heading != last {
+                row.group = heading.as_ref().map(Heading::label);
+                last = heading;
+            }
         }
     }
     (out, kept_only, unfetched)
+}
+
+/// `shown` in the order of a sort by name or size (From, Subject, Size): pinned first, ids
+/// breaking ties. A sender's or a subject's name is folded once for each message, not at each
+/// comparison.
+fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
+    let name = |m: &Message| match sort {
+        SortBy::From => m.from.display().to_lowercase(),
+        SortBy::Subject => m.topic().to_lowercase(),
+        _ => String::new(),
+    };
+    let mut keyed: Vec<(String, &Message)> = shown.iter().map(|m| (name(m), *m)).collect();
+    keyed.sort_by(|(an, a), (bn, b)| {
+        let key = match sort {
+            // Within one sender or subject, newest first when the names run A to Z.
+            SortBy::From | SortBy::Subject => an.cmp(bn).then(when(b).cmp(&when(a))),
+            // As the row says it (#273): the server's size for what isn't here; one not known
+            // counts as the smallest.
+            SortBy::Size => a.list_size().cmp(&b.list_size()),
+            SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
+            // Newest first; `by_category` then lists each under its categories.
+            SortBy::Categories => when(b).cmp(&when(a)),
+            SortBy::Date => when(a).cmp(&when(b)),
+        };
+        // Pinned messages stay on top whichever way the list is sorted; ids break ties so the
+        // order never depends on the map's iteration.
+        // The categories, not the dates, are what turning the list over turns over.
+        let key = if desc && sort != SortBy::Categories { key.reverse() } else { key };
+        b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
+    });
+    shown.clear();
+    shown.extend(keyed.into_iter().map(|k| k.1));
+}
+
+/// `shown` in the order of a sort by date, importance or categories, as [`sort_by_words`]
+/// would put it: from what the order needs of each message, taken once and side by side,
+/// rather than read from both messages at each of the two million comparisons a list of
+/// 100,000 makes.
+fn sort_by_dates(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
+    let mut keyed: Vec<(bool, Timestamp, Importance, Id, &Message)> = shown.iter().map(|m| (m.pinned, when(m), m.importance, m.id, *m)).collect();
+    keyed.sort_unstable_by(|a, b| {
+        let key = match sort {
+            SortBy::Importance => a.2.cmp(&b.2).then(a.1.cmp(&b.1)),
+            SortBy::Categories => b.1.cmp(&a.1),
+            _ => a.1.cmp(&b.1),
+        };
+        let key = if desc && sort != SortBy::Categories { key.reverse() } else { key };
+        b.0.cmp(&a.0).then(key).then(b.3.cmp(&a.3))
+    });
+    shown.clear();
+    shown.extend(keyed.into_iter().map(|k| k.4));
 }
 
 /// The messages of the conversations of `rows` in the account's other folders (#503), as the

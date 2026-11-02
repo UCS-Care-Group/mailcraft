@@ -731,30 +731,37 @@ fn shows_folder(s: &mailcraft_engine::Session) -> bool {
 }
 
 /// The previews of the rows the list drew last, so that drawing them again reads no message a
-/// second time. Kept for as long as the mailbox stays as it is.
+/// second time. Each is kept while its message and body are the ones it was made from.
 #[derive(Clone, Default)]
 struct Previews {
-    /// The mailbox's revision the lines were made at.
-    rev: u64,
     /// Per message: what its line was made from, and the line.
     lines: std::collections::HashMap<Id, (PreviewOf, Arc<str>)>,
 }
 
-/// What a preview was made from: where the message and its body are and how long they are (a
-/// body that is written again is somewhere else, or another length), and how much was asked for.
-type PreviewOf = (usize, usize, usize, usize);
+/// What a preview was made from: where the message and its body's text and HTML are and how
+/// long they are (a body that is written again is somewhere else, or another length), and how
+/// much was asked for.
+type PreviewOf = (usize, (usize, usize), (usize, usize), usize);
 
 /// Most previews kept: a few screens of rows.
 const MAX_PREVIEWS: usize = 512;
 
 /// The first words of `m` for its row: [`mailcraft_engine::list::preview`], remembered.
-fn preview(ui: &Ui, rev: u64, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
-    let of: PreviewOf = (Arc::as_ptr(m) as usize, m.body.text.len(), m.body.html.as_ref().map_or(0, String::len), max_chars);
+fn preview(ui: &Ui, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
+    let html = m.body.html.as_ref();
+    let of: PreviewOf = (
+        Arc::as_ptr(m) as usize,
+        (m.body.text.as_ptr() as usize, m.body.text.len()),
+        (html.map_or(0, |h| h.as_ptr() as usize), html.map_or(0, String::len)),
+        max_chars,
+    );
     ui.data_mut(|data| {
         let kept = data.get_temp_mut_or_default::<Previews>(egui::Id::unique("message_list_previews"));
-        if kept.rev != rev || kept.lines.len() > MAX_PREVIEWS {
+        // Kept through changes to the mailbox: a line is made again when its message, or its
+        // body, isn't the one it was made from (a change to the mailbox every minute, as mail is
+        // looked for, made every row on screen read its message's body again).
+        if kept.lines.len() > MAX_PREVIEWS {
             kept.lines.clear();
-            kept.rev = rev;
         }
         match kept.lines.get(&m.id) {
             Some((made_of, line)) if *made_of == of => line.clone(),
@@ -1099,7 +1106,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // Then the preview: whole words, as many lines as asked for, and no mark where it stops.
     let preview_end = text_end.min(sx - 6.0);
     if lines > 0 && preview_end - left > 4.0 {
-        let said = preview(ui, app.session.rev(), &m, usize::from(lines) * 200);
+        let said = preview(ui, &m, usize::from(lines) * 200);
         let format =
             egui::text::TextFormat { font_id: regular(LIST_TEXT), color: t.text_dim, line_height: Some(PREVIEW_PITCH), ..Default::default() };
         let mut job = egui::text::LayoutJob::default();
@@ -1667,16 +1674,16 @@ mod tests {
             .collect();
         egui::__run_test_ui(|ui| {
             for m in &messages {
-                assert_eq!(&*preview(ui, 7, m, 40), format!("Message number {} says hello", m.id).as_str());
+                assert_eq!(&*preview(ui, m, 40), format!("Message number {} says hello", m.id).as_str());
             }
             let kept = ui.data(|data| data.get_temp::<Previews>(egui::Id::unique("message_list_previews"))).unwrap();
             assert!(kept.lines.len() <= MAX_PREVIEWS + 1, "{}", kept.lines.len());
             // Asked again, the same line; asked for less, a shorter one; after a change, a new one.
             let first = messages.last().unwrap();
-            assert!(Arc::ptr_eq(&preview(ui, 7, first, 40), &preview(ui, 7, first, 40)));
-            assert_eq!(preview(ui, 7, first, 14).chars().count(), 15);
+            assert!(Arc::ptr_eq(&preview(ui, first, 40), &preview(ui, first, 40)));
+            assert_eq!(preview(ui, first, 14).chars().count(), 15);
             let changed = Arc::new(Message { body: Body { text: "Other words".into(), html: None }, ..(**first).clone() });
-            assert_eq!(&*preview(ui, 8, &changed, 40), "Other words");
+            assert_eq!(&*preview(ui, &changed, 40), "Other words");
         });
     }
 
@@ -1693,7 +1700,7 @@ mod tests {
         a.execute("mail.flag", json!({"ids": [ids[2]]})).unwrap();
         a.execute("mail.flag", json!({"ids": [ids[3]], "due": "2026-10-01"})).unwrap();
         a.execute("mail.complete", json!({"ids": [ids[3]]})).unwrap();
-        let follow_ups: Vec<FollowUp> = ids.iter().map(|id| FollowUp::of(&a.session.mailbox.messages[id], &a.session)).collect();
+        let follow_ups: Vec<FollowUp> = ids.iter().map(|id| FollowUp::of(a.session.mailbox.messages.get(id).unwrap(), &a.session)).collect();
         assert_eq!(follow_ups, [FollowUp::Overdue, FollowUp::Flagged, FollowUp::Flagged, FollowUp::None, FollowUp::None], "due today is not overdue");
         a.execute("mail.select", json!({"id": ids[4]})).unwrap();
         let mut harness = window(a, (1440.0, 900.0));

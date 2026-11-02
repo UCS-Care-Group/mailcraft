@@ -1659,55 +1659,86 @@ impl Session {
         self.list_builds
     }
 
-    /// After a command changed the mailbox, before the revision moves on: the messages whose read
-    /// state alone changed, when that is all that changed of the mailbox (at most
-    /// `MOST_READ_MARKS` of them), and the list in view is unfiltered, unsearched and built: it
-    /// then stands with its rows' unread counts put right rather than being built again
-    /// ([`Session::keep_through_read_marks`]), as a click that opens an unread message, or a read
-    /// mark coming down from the server, would otherwise cost a frame of the list over a large
-    /// folder. `None` when anything else changed, or nothing did.
-    fn read_marks_only(&mut self, before: &mut Mailbox) -> Option<Vec<Id>> {
-        const MOST_READ_MARKS: usize = 64;
+    /// After a command changed the mailbox, before the revision moves on: when nothing the list
+    /// is built from changed with the messages it changed (at most `MOST` of them; the same
+    /// messages, in the same folders, with the same dates, subjects, senders, pins, importance,
+    /// categories and sizes: a flag, a read mark, a category's colour), and the list in view is
+    /// unfiltered, unsearched and built, those of them whose read state changed. The list
+    /// then stands, with its rows' unread counts put right, rather than being built again
+    /// ([`Session::keep_through_read_marks`]), as a click that opens an unread message, a flag,
+    /// or a read mark coming down from the server would otherwise cost a frame of the list over
+    /// a large folder. `None` when anything else changed, or nothing did.
+    fn list_stands(&self, before: &Mailbox, changes: &[(Id, Option<Arc<Message>>, Option<Arc<Message>>)]) -> Option<Vec<Id>> {
+        const MOST: usize = 1024;
         if self.view.filter != Filter::All || !mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
             return None;
         }
-        if !self.list_cache.as_ref().is_some_and(|c| c.key == self.list_key()) || before.messages.len() != self.mailbox.messages.len() {
+        if changes.is_empty() || changes.len() > MOST || !self.list_cache.as_ref().is_some_and(|c| c.key == self.list_key()) {
             return None;
         }
-        let mut changed = Vec::new();
-        for ((was_id, was), (id, now)) in before.messages.iter().zip(&self.mailbox.messages) {
-            if was_id != id {
-                return None;
-            }
-            if Arc::ptr_eq(was, now) {
-                continue;
-            }
-            if changed.len() >= MOST_READ_MARKS || was.read == now.read {
-                return None;
-            }
-            let mut as_was = (**now).clone();
-            as_was.read = was.read;
-            if as_was != **was {
-                return None;
-            }
-            changed.push(*id);
-        }
-        if changed.is_empty() {
+        // What the list reads of the rest of the mailbox: which folders there are, where and of
+        // what kind (a conversation leaves out Deleted Items and what is under it), the accounts'
+        // addresses, the categories. Not what a synchronisation notes in a folder or an account
+        // at each run (how far it has read, the server's ids), which would build the list again
+        // every time mail is looked for.
+        let folders = |mb: &Mailbox| mb.folders.iter().map(|f| (f.id, f.account, f.parent, f.kind)).collect::<Vec<_>>();
+        let accounts = |mb: &Mailbox| mb.accounts.iter().map(|a| (a.id, a.kind, a.email.clone())).collect::<Vec<_>>();
+        if folders(before) != folders(&self.mailbox) || accounts(before) != accounts(&self.mailbox) || before.categories != self.mailbox.categories {
             return None;
         }
-        // And nothing else of the mailbox changed: but for the messages, the two are the same.
-        let mine = std::mem::take(&mut self.mailbox.messages);
-        let theirs = std::mem::take(&mut before.messages);
-        let rest_same = self.mailbox == *before;
-        self.mailbox.messages = mine;
-        before.messages = theirs;
-        rest_same.then_some(changed)
+        let same = |a: &Message, b: &Message| {
+            (a.folder, a.account, a.received, a.date, a.pinned, a.importance, a.unfetched)
+                == (b.folder, b.account, b.received, b.date, b.pinned, b.importance, b.unfetched)
+                && a.subject == b.subject
+                && a.from == b.from
+                && a.categories == b.categories
+                && a.list_size() == b.list_size()
+        };
+        let mut read = Vec::new();
+        for (id, was, now) in changes {
+            let (Some(was), Some(now)) = (was, now) else { return None };
+            if !same(was, now) {
+                return None;
+            }
+            if was.read != now.read {
+                read.push(*id);
+            }
+        }
+        Some(read)
+    }
+
+    /// After a command changed the messages in `changes` (each as it was and is now), under the
+    /// revision after `rev_before`: the counts as they stood before it (`stood`, those of the
+    /// cache then; `aside`, those a command that is a step of the history put aside) are brought
+    /// in step with the change rather than counted again over every message. Counts the command
+    /// counted as it ran, or already in step (read marks alone), are left as they are.
+    fn counts_through(
+        &mut self,
+        changes: &[(Id, Option<Arc<Message>>, Option<Arc<Message>>)],
+        rev_before: u64,
+        stood: Option<*const crate::counts::FolderCounts>,
+        aside: Option<((u64, usize), Arc<crate::counts::FolderCounts>)>,
+    ) {
+        let now = (self.rev, self.mailbox.messages.len());
+        let base = match self.counts_cache.take() {
+            None => aside.filter(|(at, _)| at.0 == rev_before),
+            Some(cached) if cached.0.0 == rev_before && stood.is_some_and(|p| std::ptr::eq(p, Arc::as_ptr(&cached.1))) => Some(cached),
+            Some(cached) => {
+                self.counts_cache = Some(cached);
+                None
+            }
+        };
+        if let Some((_, mut counts)) = base
+            && Arc::make_mut(&mut counts).apply(changes)
+        {
+            self.counts_cache = Some((now, counts));
+        }
     }
 
     /// The message a selection opened ([`Session::opened`]) is marked read, once the command
     /// that selected it has done. After a command on the light path (`light`), whose copy of the
     /// mailbox wasn't taken, this is the one change: the list, the counts and the conversation
-    /// are carried through it as through any read mark alone ([`Session::read_marks_only`]).
+    /// are carried through it as through any read mark alone ([`Session::list_stands`]).
     /// Otherwise the command's own comparison sees it.
     fn mark_opened_read(&mut self, id: Id, light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
         let Some(old) = self.mailbox.messages.get(&id).cloned().filter(|m| !m.read && !m.draft) else { return };
@@ -1730,7 +1761,7 @@ impl Session {
     }
 
     /// The list, the counts and the conversation stand through the read marks of `changed`
-    /// ([`Session::read_marks_only`]), with the rows' and the folders' unread counts put right,
+    /// ([`Session::list_stands`]), with the rows' and the folders' unread counts put right,
     /// under the revision after them. Only what was of the mailbox as it was before them
     /// (`rev_before`, the revision the command ran under) is carried over: counts or a
     /// conversation left from an earlier revision, which a command that is no step of the
@@ -1740,13 +1771,14 @@ impl Session {
     /// (Undo and Redo show what they select again, which builds the list, and so the counts, for
     /// a message listed under its open conversation), already have them, and would have them
     /// twice; they are let go of, to be counted again when asked.
-    fn keep_through_read_marks(&mut self, changed: &[Id], rev_before: u64, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
+    fn keep_through_read_marks(&mut self, read: &[Id], rev_before: u64, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
         let key = self.list_key();
         let rev = self.rev;
         let mb = &self.mailbox;
         if let Some(cache) = &mut self.list_cache {
-            let rows = Arc::make_mut(&mut cache.rows);
-            for row in rows.iter_mut().filter(|r| r.members.iter().any(|m| changed.contains(m))) {
+            let marked: HashSet<Id> = read.iter().copied().collect();
+            let rows = if marked.is_empty() { None } else { Some(Arc::make_mut(&mut cache.rows)) };
+            for row in rows.into_iter().flatten().filter(|r| r.members.iter().any(|m| marked.contains(m))) {
                 row.unread = row.members.iter().filter(|m| mb.message(**m).is_some_and(|m| !m.read)).count();
             }
             cache.key = key;
@@ -1760,7 +1792,7 @@ impl Session {
             && at.0 == rev_before
         {
             let counts = Arc::make_mut(counts);
-            for m in changed.iter().filter_map(|id| mb.message(*id)) {
+            for m in read.iter().filter_map(|id| mb.message(*id)) {
                 counts.read_changed(m.folder, m.account, m.read);
             }
             *at = (rev, mb.messages.len());
@@ -1769,10 +1801,6 @@ impl Session {
             && at.0 == rev_before
         {
             at.0 = rev;
-        }
-        // The index of conversations follows the marked messages alone, without its walk.
-        if self.threads_at.is_some_and(|(at, _)| at == rev_before) && self.threads.renew(&self.mailbox, changed) {
-            self.threads_at = Some((rev, self.mailbox.messages.len()));
         }
     }
 
@@ -2250,21 +2278,11 @@ impl Session {
         let _ = messages;
     }
 
-    /// After a command changed the mailbox: the messages of the state before it (`before`, its
-    /// Undo step) that the mailbox no longer has as they were, kept from the sweep while that
-    /// step holds them. One walk of both, in order of id.
-    fn hold_replaced(&self, before: &Mailbox) {
-        let mut now = self.mailbox.messages.iter().peekable();
-        let mut gone = Vec::new();
-        for (id, m) in &before.messages {
-            while now.peek().is_some_and(|(n, _)| *n < id) {
-                now.next();
-            }
-            if !now.peek().is_some_and(|(n, x)| *n == id && Arc::ptr_eq(x, m)) {
-                gone.push(m);
-            }
-        }
-        self.hold(gone);
+    /// After a command changed the mailbox: the messages of the state before it (its Undo step)
+    /// that the mailbox no longer has as they were (`changes`, as they were and are now), kept
+    /// from the sweep while that step holds them.
+    fn hold_replaced(&self, changes: &[(Id, Option<Arc<Message>>, Option<Arc<Message>>)]) {
+        self.hold(changes.iter().filter_map(|(_, was, _)| was.as_ref()));
     }
 
     /// Message `id` was just used, with `brought` more bytes in memory: it goes to the back of
@@ -2770,7 +2788,7 @@ impl Session {
         self.mailbox
             .messages
             .iter()
-            .filter(|(id, m)| m.draft && then.get(*id).is_none_or(|t| !Arc::ptr_eq(t, m) && t != *m))
+            .filter(|(id, m)| m.draft && then.get(id).is_none_or(|t| !Arc::ptr_eq(t, m) && t != *m))
             .map(|(id, _)| *id)
             .collect()
     }
@@ -2890,8 +2908,10 @@ impl Session {
         let claimed = spec.reads.then(|| self.mailbox.clone());
         // What was counted of the mailbox is counted again after the command, and by a command
         // that changes the mailbox and then asks of its list ([`Session::folder_counts`]).
+        // (Put aside, not thrown away: once the command is done they are brought in step with
+        // what it changed, [`FolderCounts::apply`](crate::counts::FolderCounts::apply).)
+        let counts_aside = if spec.mutates { self.counts_cache.take() } else { None };
         if spec.mutates {
-            self.counts_cache = None;
             self.conversation_cache = None;
         }
         let compose = self.compose.clone();
@@ -3000,14 +3020,23 @@ impl Session {
                     crate::cmd::calendar_settings::forget_gone_hours(self);
                 }
                 if !light && self.mailbox != before.mailbox {
-                    self.hold_replaced(&before.mailbox);
-                    // Read marks alone: the list and the counts stand, put right ([`Session::read_marks_only`]).
-                    let read_marks = self.read_marks_only(&mut before.mailbox);
+                    // The messages the command changed, once: the chunks of the map it left
+                    // alone aren't looked into ([`mailcraft_model::Messages::changes`]).
+                    let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
+                        self.mailbox.messages.changes(&before.mailbox.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
+                    self.hold_replaced(&changes);
+                    // Read marks alone: the list and the counts stand, put right ([`Session::list_stands`]).
+                    let read_marks = self.list_stands(&before.mailbox, &changes);
                     let rev_before = self.rev;
                     self.rev += 1;
-                    if let Some(changed) = &read_marks {
-                        self.keep_through_read_marks(changed, rev_before, counts_before);
+                    // The counts that stood before the command, while nothing counted again as it ran.
+                    let stood = counts_before.as_ref().map(Arc::as_ptr);
+                    if let Some(read) = &read_marks {
+                        self.keep_through_read_marks(read, rev_before, counts_before);
+                    } else {
+                        drop(counts_before);
                     }
+                    self.counts_through(&changes, rev_before, stood, counts_aside);
                     if history && wipes_history(id) {
                         // The mail is gone from this computer (#177): no step brings it back,
                         // and none holds its content on disk.
@@ -3028,6 +3057,9 @@ impl Session {
                         // Not to undo, but to keep: the file is written.
                         self.dirty = true;
                     }
+                } else if self.counts_cache.is_none() {
+                    // Nothing changed: what was put aside stands.
+                    self.counts_cache = counts_aside;
                 }
                 self.normalize();
             }

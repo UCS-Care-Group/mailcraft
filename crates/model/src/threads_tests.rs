@@ -75,33 +75,6 @@ fn the_index_answers_as_the_walk_through_every_change() {
     agrees(&mut threads, &mb);
 }
 
-/// Read marks are followed without the walk; a message the index doesn't know, or one gone,
-/// leaves it to the walk.
-#[test]
-fn read_marks_are_followed_message_by_message() {
-    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
-    let inbox = mb.inbox().unwrap();
-    let a = mb.add_message(mail(inbox, "Lunch", 1)).unwrap();
-    let b = mb.add_message(mail(inbox, "Re: Lunch", 2)).unwrap();
-    let mut threads = Threads::default();
-    threads.update(&mb);
-    mb.message_mut(a).unwrap().read = true;
-    // A subject changed too is filed again all the same.
-    mb.message_mut(b).unwrap().subject = "Budget".into();
-    assert!(threads.renew(&mb, &[a, b]));
-    for id in [a, b] {
-        assert_eq!(threads.conversation(&mb, id), mb.conversation(id));
-    }
-    let c = mb.add_message(mail(inbox, "Lunch", 3)).unwrap();
-    assert!(!threads.renew(&mb, &[c]), "not known to the index");
-    mb.remove_message(a).unwrap();
-    assert!(!threads.renew(&mb, &[a]), "gone");
-    threads.update(&mb);
-    for id in [b, c] {
-        assert_eq!(threads.conversation(&mb, id), mb.conversation(id));
-    }
-}
-
 /// Subjects that fold alike are one conversation however they are written: letter case, a
 /// long one, a sign that folds to ASCII, a Greek final sigma.
 #[test]

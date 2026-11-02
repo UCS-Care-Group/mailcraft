@@ -58,6 +58,23 @@
 //! than a walk over the account's 108,000 messages: 65–90 ms before, 1.5–3.6 ms after. The
 //! first selection builds the index (120–145 ms, once); after a change other than read marks,
 //! which it follows message by message, the next selection walks it in step (about 11 ms).
+//!
+//! A change to the mailbox, measured on 2026-11-02 before and after the messages were kept in
+//! chunks shared between the mailbox and its copies (`mailcraft_model::Messages`), the folder
+//! counts were brought in step with a change rather than counted again, and a change that
+//! touches nothing the list is built from left the list standing:
+//!
+//! | What                                         | Before   | After    |
+//! |----------------------------------------------|----------|----------|
+//! | The mailbox's messages copied (each change)  | 19       | 0.1      |
+//! | Compared with the copy                       | 14       | 0.1      |
+//! | The copy let go of                           | 18       | 0.1      |
+//! | Frame after a read mark                      | 40–65    | 0.7–3.7  |
+//! | A flag: the command, then the frame          | ~40, 40–58 | 0.2, 0.8–1.5 |
+//! | A move: the command, then the frame          | ~40, 40–58 | 0.7, 27–31 |
+//! | The index of conversations brought in step   | 10       | 0.1      |
+//!
+//! A move changes what the Inbox lists, which is built again (98,000 rows, 27 ms).
 
 use std::time::Instant;
 
@@ -202,6 +219,26 @@ fn frame_bench() {
     }
     report("steady after changes", &mut harness, 10);
 
+    // A flag and a move, which change what the list shows (not read marks alone): the command,
+    // and the frame after it.
+    let archive = harness.state().session.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Archive).map(|f| f.id).unwrap();
+    for (i, (command, params)) in [
+        ("mail.flag", serde_json::json!({"id": ids[30]})),
+        ("mail.flag", serde_json::json!({"id": ids[31]})),
+        ("mail.move", serde_json::json!({"id": ids[32], "folder": archive})),
+        ("mail.move", serde_json::json!({"id": ids[33], "folder": archive})),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let t = Instant::now();
+        let _ = harness.state_mut().run(command, params);
+        let took = ms(t.elapsed());
+        let t = Instant::now();
+        harness.step();
+        eprintln!("FRAME_BENCH {command} {i}: command {took:.1} ms, next frame {:.1} ms", ms(t.elapsed()));
+    }
+
     for (i, id) in ids.iter().skip(5).take(5).enumerate() {
         let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": id}));
         let t = Instant::now();
@@ -276,7 +313,9 @@ fn frame_bench() {
         let ranges = std::env::var_os("MAILCRAFT_FRAME_BENCH_RANGE").is_some();
         while Instant::now() < until {
             if changes {
-                let _ = harness.state_mut().execute("mail.toggleRead", serde_json::json!({"id": ids[n % 5]}));
+                let command =
+                    if std::env::var("MAILCRAFT_FRAME_BENCH_CHANGES").is_ok_and(|v| v == "flag") { "mail.toggleFlag" } else { "mail.toggleRead" };
+                let _ = harness.state_mut().execute(command, serde_json::json!({"id": ids[n % 5]}));
             }
             if selects {
                 let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": ids[10 + n % 20]}));

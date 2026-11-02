@@ -9,10 +9,10 @@
 //! a 60 ms frame on a mailbox of three Microsoft 365 accounts). [`Session::folder_counts`] counts
 //! once per change ([`Session::rev`]) and hands the same counts to everyone until the next.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use mailcraft_model::{Id, Mailbox};
+use mailcraft_model::{Id, Mailbox, Message};
 
 use crate::Session;
 
@@ -30,6 +30,29 @@ impl Held {
             self.unread = self.unread.saturating_add(1);
         }
     }
+
+    fn take(&mut self, read: bool) {
+        self.total = self.total.saturating_sub(1);
+        if !read {
+            self.unread = self.unread.saturating_sub(1);
+        }
+    }
+}
+
+/// Two lists of ids, each in order, as one in order.
+fn merge(a: impl Iterator<Item = Id>, b: Vec<Id>) -> Vec<Id> {
+    let mut out = Vec::new();
+    let mut b = b.into_iter().peekable();
+    for x in a {
+        while let Some(y) = b.next_if(|y| *y < x) {
+            out.push(y);
+        }
+        // (One listed twice, as a damaged mailbox might have it, is listed once.)
+        let _ = b.next_if(|y| *y == x);
+        out.push(x);
+    }
+    out.extend(b);
+    out
 }
 
 /// A folder's messages: what they come to, and which they are.
@@ -94,6 +117,59 @@ impl FolderCounts {
     /// How many messages were counted.
     pub fn messages(&self) -> usize {
         self.messages
+    }
+
+    /// The counts of a mailbox that has since changed in `changes` alone (each message as it
+    /// was and as it is now, `None` where there was or is none): what they come to then, as
+    /// [`FolderCounts::of`] would count it. Each folder touched has its list of messages put
+    /// together once, however many of its messages changed. `false`, with the counts as they
+    /// were, for a change to more messages than counting again takes (a large synchronisation).
+    pub fn apply(&mut self, changes: &[(Id, Option<Arc<Message>>, Option<Arc<Message>>)]) -> bool {
+        if changes.len() > (self.messages / 16).max(256) {
+            return false;
+        }
+        let mut gone: HashMap<Id, Vec<Id>> = HashMap::new();
+        let mut come: HashMap<Id, Vec<Id>> = HashMap::new();
+        for (id, was, now) in changes {
+            if let Some(w) = was {
+                if let Some(f) = self.folders.get_mut(&w.folder) {
+                    f.held.take(w.read);
+                }
+                if let Some(a) = self.accounts.get_mut(&w.account) {
+                    a.take(w.read);
+                }
+                self.messages = self.messages.saturating_sub(1);
+            }
+            if let Some(n) = now {
+                self.folders.entry(n.folder).or_default().held.add(n.read);
+                self.accounts.entry(n.account).or_default().add(n.read);
+                self.messages = self.messages.saturating_add(1);
+            }
+            match (was, now) {
+                // In the same folder still: its list stands.
+                (Some(w), Some(n)) if w.folder == n.folder => {}
+                _ => {
+                    if let Some(w) = was {
+                        gone.entry(w.folder).or_default().push(*id);
+                    }
+                    if let Some(n) = now {
+                        come.entry(n.folder).or_default().push(*id);
+                    }
+                }
+            }
+        }
+        let touched: HashSet<Id> = gone.keys().chain(come.keys()).copied().collect();
+        for folder in touched {
+            let Some(f) = self.folders.get_mut(&folder) else { continue };
+            let gone: HashSet<Id> = gone.remove(&folder).unwrap_or_default().into_iter().collect();
+            let mut come = come.remove(&folder).unwrap_or_default();
+            come.sort_unstable();
+            let kept = f.ids.iter().copied().filter(|id| !gone.contains(id));
+            f.ids = merge(kept, come);
+        }
+        self.folders.retain(|_, f| f.held.total > 0 || !f.ids.is_empty());
+        self.accounts.retain(|_, a| a.total > 0);
+        true
     }
 
     /// A message of `folder`, in `account`, is now read (`read`) or unread: its folder's and its

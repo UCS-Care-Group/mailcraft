@@ -68,6 +68,11 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
     deserializer.deserialize_seq(V(PhantomData))
 }
 
+/// `deserialize_with` for the messages of a mailbox ([`crate::Messages`]).
+pub(crate) fn capped_messages<'de, D: Deserializer<'de>>(deserializer: D) -> Result<crate::Messages, D::Error> {
+    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::from)
+}
+
 /// `deserialize_with` for a map by id.
 pub(crate) fn capped_map<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<BTreeMap<Id, T>, D::Error> {
     struct V<T>(PhantomData<T>);

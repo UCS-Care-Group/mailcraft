@@ -198,7 +198,7 @@ fn hostile_messages_never_panic_mail_get() {
 }
 
 fn banner_dismissed(s: &mut Session, subject: &str) -> bool {
-    let m = s.mailbox.messages[&id_of(s, subject)].clone();
+    let m = s.mailbox.messages.get(&id_of(s, subject)).unwrap().clone();
     let warnings = s.sender_warnings(&m, true);
     mailcraft_model::sender_warnings::dismissed(&warnings, &m.warnings_dismissed)
 }
