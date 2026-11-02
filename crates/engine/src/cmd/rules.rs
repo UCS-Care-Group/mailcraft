@@ -485,7 +485,8 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Give the rules the server of `account` has the places they now stand in: the same numbers as
-/// before, in their new order (all of them afresh when two had the same).
+/// before, in their new order (all of them afresh when two had the same). One the server doesn't
+/// let be changed keeps its number: a new one would never be sent.
 pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
     let mut numbers: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref().map(|s| s.sequence)).collect();
@@ -493,11 +494,17 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     // (The server's places start at 1: one below is sent as 1, and would stand with that one.)
     let distinct = numbers.windows(2).all(|w| w.first() < w.get(1)) && numbers.first().is_none_or(|n| *n >= 1);
     if !distinct {
-        let first = numbers.first().copied().unwrap_or(1).max(1);
-        numbers = (0..on.len()).map(|n| first.saturating_add(i32::try_from(n).unwrap_or(i32::MAX))).collect();
+        let mut next = numbers.first().copied().unwrap_or(1).max(1);
+        let mut afresh = Vec::with_capacity(on.len());
+        for server in on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref()) {
+            let number = if server.read_only { server.sequence } else { next };
+            next = next.max(number.saturating_add(1));
+            afresh.push(number);
+        }
+        numbers = afresh;
     }
     for (i, number) in on.into_iter().zip(numbers) {
-        if let Some(server) = mb.rules.get_mut(i).and_then(|r| r.server.as_mut()) {
+        if let Some(server) = mb.rules.get_mut(i).and_then(|r| r.server.as_mut()).filter(|s| !s.read_only) {
             server.sequence = number;
         }
     }

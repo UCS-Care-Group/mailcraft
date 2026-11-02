@@ -8,7 +8,7 @@ use mailcraft_model::remote_rules::{RemoteRule, RuleOpKind, RuleOutcome, RuleRes
 use mailcraft_model::{Action, Address, Condition, FolderKind, Id, Keep, Message, Rule, ServerFolder};
 use serde_json::{Value, json};
 
-use super::rules_remote::{apply_rule_changes, apply_rules, mark_sent, merge_rules, rule_upload};
+use super::rules_remote::{apply_rule_changes, apply_rules, mark_sent, merge_rules, not_sent, rule_upload};
 use crate::Session;
 
 const EMAIL: &str = "owner@example.org";
@@ -326,6 +326,82 @@ fn a_rule_deleted_while_the_server_was_making_it_is_deleted_there_too() {
     assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
 }
 
+#[test]
+fn an_answer_for_a_rule_deleted_while_it_was_made_leaves_a_look_alike_on_the_server_alone() {
+    // The owner adds it, its job starts, and it is deleted before the answer comes. The server
+    // has a rule of somebody else's that looks the same, not known here yet.
+    let deleted_while_sent = || {
+        let (mut s, account, _, _) = session();
+        let id = receipts_here(&mut s, account);
+        let upload = rule_upload(&s.mailbox, account).unwrap();
+        mark_sent(&mut s, &upload);
+        run(&mut s, "rules.remove", json!({"id": id}));
+        (s, account, id, upload)
+    };
+    let theirs = || RemoteRule { id: "theirs".into(), ..receipts_there() };
+    let left_alone = |s: &Session, account: Id, told: &[&str]| {
+        let ops = rule_upload(&s.mailbox, account).unwrap().ops;
+        assert_eq!(
+            ops.iter().map(|op| (op.kind, op.id.as_str())).collect::<Vec<_>>(),
+            told.iter().map(|id| (RuleOpKind::Delete, *id)).collect::<Vec<_>>()
+        );
+        assert!(s.mailbox.rules.iter().any(|r| r.server.as_ref().is_some_and(|x| x.id == "theirs")), "it is shown here");
+        assert!(s.mailbox.rule_gone.iter().all(|g| g.made.is_none()));
+    };
+    // The server made it, and said what it is called: that one goes, by its id.
+    let (mut s, account, id, _) = deleted_while_sent();
+    let made = RuleOutcome { kind: RuleOpKind::Create, rule: id, id: "s1".into(), result: RuleResult::Done, ..Default::default() };
+    apply_rule_changes(&mut s, &answered(account, vec![made])).unwrap();
+    merge_rules(&mut s.mailbox, &download(account, vec![RemoteRule { id: "s1".into(), ..receipts_there() }, theirs()])).unwrap();
+    left_alone(&s, account, &["s1"]);
+    // The server didn't make it, and said so: there is nothing to look for.
+    for result in [RuleResult::Refused, RuleResult::Denied] {
+        let (mut s, account, id, _) = deleted_while_sent();
+        let told = RuleOutcome { kind: RuleOpKind::Create, rule: id, result, ..Default::default() };
+        let merged = apply_rule_changes(&mut s, &answered(account, vec![told])).unwrap();
+        assert!(merged.messages.iter().all(|m| !m.contains("kept on this computer")), "{:?}", merged.messages);
+        merge_rules(&mut s.mailbox, &download(account, vec![theirs()])).unwrap();
+        left_alone(&s, account, &[]);
+        // Undone and done again, it isn't looked for again.
+        assert!(s.run("edit.undo", &json!({})).is_err());
+    }
+    // The job stopped before it, or nothing went out at all: the same, and that is saved.
+    let (mut s, account, _, upload) = deleted_while_sent();
+    let rev = s.rev();
+    not_sent(&mut s, &upload, &[]);
+    assert_ne!(s.rev(), rev);
+    assert!(s.run("edit.undo", &json!({})).is_err());
+    merge_rules(&mut s.mailbox, &download(account, vec![theirs()])).unwrap();
+    left_alone(&s, account, &[]);
+    // No answer at all: the server may have made it, and it is still looked for.
+    let (mut s, account, id, upload) = deleted_while_sent();
+    let lost = RuleOutcome { kind: RuleOpKind::Create, rule: id, result: RuleResult::Failed, ..Default::default() };
+    not_sent(&mut s, &upload, std::slice::from_ref(&lost));
+    apply_rule_changes(&mut s, &answered(account, vec![lost])).unwrap();
+    assert_eq!(s.mailbox.rule_gone.iter().filter(|g| g.made.is_some()).count(), 1);
+}
+
+#[test]
+fn a_rule_with_an_action_said_twice_isnt_made_twice_after_a_lost_answer() {
+    let (mut s, account, _, _) = session();
+    let blue = json!({"type": "categorize", "value": "Blue"});
+    let id = add(&mut s, account, "Blue", json!([{"type": "hasAttachment"}]), json!([blue, blue, {"type": "markRead"}, {"type": "markRead"}]));
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    // The server keeps each once.
+    let there = RemoteRule {
+        conditions: vec![Condition::HasAttachment],
+        actions: vec![Action::MarkRead, Action::Categorize("blue".into())],
+        ..remote("r9", "Blue", 1)
+    };
+    let other = RemoteRule { actions: vec![Action::Categorize("Blue".into())], id: "r8".into(), ..there.clone() };
+    let merged = merge_rules(&mut s.mailbox, &download(account, vec![other, there])).unwrap();
+    // What is left out or put in beside them is still another rule.
+    assert_eq!((merged.added, merged.updated), (1, 1));
+    assert_eq!(rule(&s, id).server.as_ref().map(|x| x.id.as_str()), Some("r9"));
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+}
+
 /// The server's copy of the rule `add` made as "Receipts", looking for "receipt".
 fn receipts_there() -> RemoteRule {
     let mut made = remote("made-1", "Receipts", 1);
@@ -466,6 +542,72 @@ fn moving_a_rule_among_the_servers_sends_where_each_stands() {
     let mut places: Vec<i32> = s.mailbox.rules.iter().filter_map(|r| r.server.as_ref()).map(|s| s.sequence).collect();
     places.sort_unstable();
     assert!(places.first().is_some_and(|p| *p >= 1) && places.windows(2).all(|w| w[0] < w[1]), "{places:?}");
+}
+
+#[test]
+fn numbering_rules_afresh_goes_round_one_the_server_wont_let_be_moved() {
+    let (mut s, account, _, _) = session();
+    let locked = RemoteRule { read_only: true, ..remote("ro", "Locked", 5) };
+    let rules = vec![remote("m1", "M1", 1), remote("m2", "M2", 1), locked, remote("m3", "M3", 6)];
+    merge_rules(&mut s.mailbox, &download(account, rules)).unwrap();
+    let m2 = s.mailbox.rules.iter().find(|r| r.name == "M2").unwrap().id;
+    run(&mut s, "rules.move", json!({"id": m2, "direction": "up"}));
+    let order = s.mailbox.rules_in_order(account);
+    let places: Vec<(&str, i32)> =
+        order.iter().map(|i| &s.mailbox.rules[*i]).map(|r| (r.name.as_str(), r.server.as_ref().unwrap().sequence)).collect();
+    assert_eq!(places, [("M2", 1), ("M1", 2), ("Locked", 5), ("M3", 6)]);
+    assert!(s.mailbox.rules.iter().find(|r| r.name == "Locked").is_some_and(|r| !r.changed_here()));
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.iter().all(|op| op.id != "ro"));
+}
+
+#[test]
+fn a_switch_the_server_wasnt_told_of_yet_doesnt_decide_whether_later_rules_run() {
+    let (mut s, account, _, _) = session();
+    let mut stop = remote("r1", "Invoices", 1);
+    stop.stop = true;
+    merge_rules(&mut s.mailbox, &download(account, vec![stop])).unwrap();
+    let id = s.mailbox.rules[0].id;
+    add(&mut s, account, "Flag", json!([{"type": "subjectContains", "value": "invoice"}]), json!([{"type": "flag"}]));
+    // Off here, still on there: the server ran it, and the rest stop as they would have.
+    run(&mut s, "rules.enable", json!({"id": id, "value": false}));
+    let m = arriving(&mut s, account, "billing@example.org", "Invoice 12");
+    assert!(s.mailbox.apply_rules(m).is_empty());
+    assert_eq!(s.mailbox.message(m).unwrap().flag, mailcraft_model::FlagStatus::None);
+    // Told, and on here again, still off there: the server didn't, and they run.
+    all_taken(&mut s, account);
+    run(&mut s, "rules.enable", json!({"id": id, "value": true}));
+    let m = arriving(&mut s, account, "billing@example.org", "Invoice 13");
+    assert_eq!(s.mailbox.apply_rules(m), ["Flag"]);
+    assert_eq!(s.mailbox.message(m).unwrap().flag, mailcraft_model::FlagStatus::Flagged);
+}
+
+#[test]
+fn an_agent_asks_the_owner_before_a_rule_that_deletes_mail_goes_to_a_server() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, local, _) = session();
+    let params = |account: Id, more: Value| {
+        let mut p = json!({"name": "Bin", "account": account, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "delete"}]});
+        p.as_object_mut().unwrap().extend(more.as_object().unwrap().clone());
+        p
+    };
+    assert_eq!(classify(&s, "rules.add", &params(account, json!({}))), Access::Owner(Class::Delete));
+    // On this computer, undo reaches it.
+    assert_eq!(classify(&s, "rules.add", &params(account, json!({"server": false}))), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.add", &params(local, json!({}))), Access::Owner(Class::Settings));
+    // Neither does a rule that doesn't delete need more than any other.
+    let keeps = json!({"actions": [{"type": "markRead"}]});
+    assert_eq!(classify(&s, "rules.add", &params(account, keeps)), Access::Owner(Class::Settings));
+    // Sent to the server afterwards.
+    let here = run(&mut s, "rules.add", params(account, json!({"server": false})))["id"].as_u64().unwrap();
+    assert_eq!(classify(&s, "rules.keepOnServer", &json!({"id": here})), Access::Owner(Class::Delete));
+    // Switched on there: not off, which stops it.
+    run(&mut s, "rules.keepOnServer", json!({"id": here}));
+    run(&mut s, "rules.enable", json!({"id": here, "value": false}));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": here, "value": true})), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": here})), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": here, "value": false})), Access::Owner(Class::Settings));
+    // Asked of a rule already there, keeping it there is nothing new.
+    assert_eq!(classify(&s, "rules.keepOnServer", &json!({"id": here})), Access::Owner(Class::Settings));
 }
 
 #[test]

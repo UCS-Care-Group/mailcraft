@@ -674,6 +674,9 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if rules_onto_another_server(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    if server_rule_deletes(s, id, params) {
+        return Access::Owner(Class::Delete);
+    }
     // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
     // able to make it again (#566), as `tasks.delete`; so is one that went to be made there and
     // had no answer, which the server may have.
@@ -853,6 +856,24 @@ fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) ->
         mailcraft_model::Action::MoveTo(f) => folder_onto_server(s, *f, from),
         _ => None,
     })
+}
+
+/// Whether this command puts a rule that deletes mail on its server, or switches one on there:
+/// it runs there whether MailCraft is open or not, undo doesn't reach it, and the agent couldn't
+/// delete it again itself (#566).
+fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
+    let named = || p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r));
+    let deletes = |r: &mailcraft_model::Rule| r.actions.contains(&mailcraft_model::Action::Delete);
+    let there = |r: &mailcraft_model::Rule| r.keep == mailcraft_model::Keep::Server;
+    match id {
+        "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
+        "rules.keepOnServer" => named().is_some_and(|r| !there(r) && deletes(r)),
+        // Read as the command reads it, as `rules_onto_another_server` does.
+        "rules.enable" => {
+            p::opt_bool(params, "value").is_ok_and(|value| named().is_some_and(|r| value.unwrap_or(!r.enabled) && there(r) && deletes(r)))
+        }
+        _ => false,
+    }
 }
 
 /// The account whose mail a rule files, or `None` for a rule for every account's.

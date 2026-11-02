@@ -157,7 +157,7 @@ pub struct RuleGone {
     /// A rule deleted here while the server was making it, of which no answer came: the server
     /// may have it under an id nobody here knows, and `id` is empty. The next full read of the
     /// server's rules finds the one there that looks the same, which is then deleted there, or
-    /// doesn't, and this is let go of.
+    /// doesn't, and this is let go of. So is it when an answer comes after all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub made: Option<Box<Rule>>,
 }

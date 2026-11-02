@@ -2603,8 +2603,13 @@ impl Mailbox {
         let mut ran = Vec::new();
         let Some(account) = self.message(id).map(|m| m.account) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
-        for rule in order {
+        for mut rule in order {
             let Some(m) = self.message(id) else { break };
+            // New mail: a rule its server has ran there as the server last had it, which is what
+            // says whether the rules after it run, whatever was switched here and not sent yet.
+            if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
+                rule.enabled = server.synced_enabled;
+            }
             if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
                 continue;
             }

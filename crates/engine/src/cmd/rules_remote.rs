@@ -22,8 +22,9 @@
 //! taken for one of the server's that looks the same: a rule never sent is never taken for one
 //! made elsewhere. One deleted here meanwhile is remembered by what it is
 //! ([`mailcraft_model::RuleGone::made`]): the next whole read deletes the one there that looks the
-//! same, or, finding none, lets it go. A job sends before it reads, and its answer is taken in in
-//! that order, so a whole read that comes with it is later than what it sent.
+//! same, or, finding none, lets it go. An answer that says what became of it ends that, for a rule
+//! there that looks the same is then somebody else's. A job sends before it reads, and its answer
+//! is taken in in that order, so a whole read that comes with it is later than what it sent.
 //!
 //! **Conflicts.** A download is the server's word on everything but what was changed here and not
 //! sent yet. A rule the server no longer has goes from here too, even one switched or moved here
@@ -162,17 +163,31 @@ pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
 /// job stopped before, of which `told` says nothing (a sign-in refused, a busy server or a lost
 /// connection ended it). They go with the next job.
 pub fn not_sent(s: &mut Session, upload: &RulesUpload, told: &[RuleOutcome]) {
-    let mut unmarked = false;
+    let (mut unmarked, mut let_go) = (false, false);
     let reached = |op: &RuleOp| told.iter().any(|o| o.kind == RuleOpKind::Create && o.rule == op.rule);
     for op in upload.ops.iter().filter(|op| op.kind == RuleOpKind::Create && !reached(op)) {
         if let Some(rule) = s.mailbox.rules.iter_mut().find(|r| r.id == op.rule && r.account == upload.account && r.waiting()) {
             unmarked |= rule.unanswered;
             rule.unanswered = false;
         }
+        let_go |= forget_made(&mut s.mailbox, upload.account, op.rule);
     }
-    if unmarked {
+    // Undone and done again, a rule let go of would be looked for on the server again.
+    if let_go {
+        s.forget_history();
+    }
+    if unmarked || let_go {
         s.mailbox_changed();
     }
+}
+
+/// What was kept of `rule`, deleted here while the server was making it, is let go of: it is known
+/// now what became of it, and a rule there that looks the same is somebody else's. Whether
+/// anything was.
+fn forget_made(mailbox: &mut Mailbox, account: Id, rule: Id) -> bool {
+    let had = mailbox.rule_gone.len();
+    mailbox.rule_gone.retain(|g| !(g.account == account && g.made.as_deref().is_some_and(|r| r.id == rule)));
+    mailbox.rule_gone.len() != had
 }
 
 /// What `account`'s server is to be told.
@@ -222,7 +237,6 @@ fn same_words(here: &[Condition], there: &[Condition]) -> bool {
     same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
 }
 
-/// The same with the categories it gives.
 /// What is said of a rule deleted on the server while it was switched or moved here.
 fn deleted_elsewhere(name: &str) -> String {
     format!("The rule \"{name}\" was deleted in Outlook or on the web, so it is deleted here too, with the change made to it here")
@@ -237,11 +251,14 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action]) -> bool {
         && here.stop == remote.stop
 }
 
+/// Whether two rules do the same, whichever way the categories are written. An action said twice
+/// counts once: it goes to the server once, which gives it back so.
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
-    same_parts(here, there, |a, b| match (a, b) {
+    let same = |a: &Action, b: &Action| match (a, b) {
         (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
         _ => a == b,
-    })
+    };
+    here.iter().all(|a| there.iter().any(|b| same(a, b))) && there.iter().all(|b| here.iter().any(|a| same(a, b)))
 }
 
 /// Merge the rules a server has into the mailbox (see the module). Nothing is changed when this
@@ -426,9 +443,12 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     rule.refused.clear();
                     rule.unanswered = false;
                     merged.added += 1;
-                } else if mailbox.rule_gone.len() < MAX_RULE_GONE {
+                } else {
                     // Deleted here while it was being made: the server is told to delete it.
-                    mailbox.rule_gone.push(RuleGone { account, id: outcome.id.clone(), made: None });
+                    forget_made(mailbox, account, outcome.rule);
+                    if mailbox.rule_gone.len() < MAX_RULE_GONE {
+                        mailbox.rule_gone.push(RuleGone { account, id: outcome.id.clone(), made: None });
+                    }
                 }
             }
             (RuleOpKind::Update, RuleResult::Done) => {
@@ -463,20 +483,23 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 failed += 1;
             }
             (RuleOpKind::Create, RuleResult::Refused) => {
+                forget_made(mailbox, account, outcome.rule);
+                // (One deleted here meanwhile is kept nowhere, and that is what the owner wanted.)
                 if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
                     rule.keep = Keep::Here;
                     rule.unanswered = false;
                     rule.refused = if outcome.error.is_empty() { "it was refused".to_string() } else { outcome.error.clone() };
+                    merged.say(format!("The server didn't take the rule \"{name}\"; it is kept on this computer{why}"));
+                    failed += 1;
                 }
-                merged.say(format!("The server didn't take the rule \"{name}\"; it is kept on this computer{why}"));
-                failed += 1;
             }
             (kind, RuleResult::Denied) => {
                 // Refused before anything was made: it goes again once the account may.
-                if kind == RuleOpKind::Create
-                    && let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i))
-                {
-                    rule.unanswered = false;
+                if kind == RuleOpKind::Create {
+                    forget_made(mailbox, account, outcome.rule);
+                    if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
+                        rule.unanswered = false;
+                    }
                 }
                 merged.say(format!("This account may not change its rules on the server{why}"));
                 failed += 1;
@@ -522,10 +545,9 @@ pub fn apply_rules(s: &mut Session, download: &RulesDownload) -> Result<Merged, 
 pub fn apply_rule_changes(s: &mut Session, uploaded: &RulesUploaded) -> Result<Merged, CmdError> {
     let merged = apply_rule_outcomes(&mut s.mailbox, uploaded)?;
     // What a server was told can't be undone there: going back to a mailbox from before would
-    // undo it here only (the to-dos do the same), and one that may have made a rule would have it
-    // made again.
-    let told =
-        |o: &RuleOutcome| matches!(o.result, RuleResult::Done | RuleResult::Gone) || (o.kind == RuleOpKind::Create && o.result == RuleResult::Failed);
+    // undo it here only (the to-dos do the same), one that may have made a rule would have it made
+    // again, and one deleted here since, undone and done again, would be looked for there again.
+    let told = |o: &RuleOutcome| matches!(o.result, RuleResult::Done | RuleResult::Gone) || o.kind == RuleOpKind::Create;
     if uploaded.outcomes.iter().any(told) {
         s.forget_history();
     }
