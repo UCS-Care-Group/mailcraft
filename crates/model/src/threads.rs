@@ -61,6 +61,13 @@ impl Threads {
     /// went since the last call are filed again; the rest aren't looked at. The first call files
     /// every message.
     pub fn update(&mut self, mb: &Mailbox) {
+        self.update_some(mb, usize::MAX);
+    }
+
+    /// [`Threads::update`], filing again at most `most` chunks of messages (about a millisecond
+    /// for two of them), so that a window can build the index a few chunks a frame rather than
+    /// in one go at the first click. Whether the index is in step with `mb` now.
+    pub fn update_some(&mut self, mb: &Mailbox, most: usize) -> bool {
         let chunks = mb.messages.chunks();
         // Chunks gone since.
         let gone: Vec<Id> = self.seen.keys().filter(|k| !chunks.contains_key(k)).copied().collect();
@@ -71,10 +78,15 @@ impl Threads {
                 }
             }
         }
+        let mut filed = 0usize;
         for (k, chunk) in chunks {
             if self.seen.get(k).is_some_and(|s| std::ptr::eq(s.chunk.as_ptr(), Arc::as_ptr(chunk))) {
                 continue;
             }
+            if filed >= most {
+                return false;
+            }
+            filed = filed.saturating_add(1);
             let keys: Vec<(Id, Option<u64>)> = chunk.iter().map(|(id, m)| (*id, key_of(&self.hasher, m))).collect();
             let was = self.seen.remove(k).map(|s| s.keys).unwrap_or_default();
             // Both in order of id: what each message was filed under and is to be now.
@@ -97,6 +109,7 @@ impl Threads {
             }
             self.seen.insert(*k, Seen { chunk: Arc::downgrade(chunk), keys });
         }
+        true
     }
 
     /// [`Mailbox::conversation`] of `id`, from the index as the last [`Threads::update`] left

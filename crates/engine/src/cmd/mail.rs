@@ -142,6 +142,22 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
         return Err(bad("`copy` names none of the rows the list shows the message in"));
     }
+    // A Shift+click from an anchor the list shows, in the list in view: the selection is that
+    // span of the list's own rows, every one of them listed, so none of what is asked below of
+    // whether the list shows them is (over a span of thousands of messages, that took 60 ms).
+    if p::bool(v, "range") == Some(true) && p::bool(v, "elsewhere") != Some(true) {
+        let rows = s.rows();
+        if let Some((anchor, anchor_copy)) = s.sel.anchor_row.filter(|(id, _)| s.sel.messages.contains(id))
+            && let (Some(a), Some(b)) = (s.sel.row_in(&rows, anchor, anchor_copy), position_of(&rows, last, copy))
+        {
+            s.sel.messages = span(&rows, anchor, a, last, b);
+            s.sel.whole = heads_in(&rows, a, b);
+            s.sel.focus_row = Some((last, copy));
+            s.keep_listed();
+            mark_opened(s);
+            return Ok(json!({"selected": s.sel.messages}));
+        }
+    }
     // Which of their rows the focus and a range's start were on, for those that stay them.
     let rows_before = [s.sel.focus_row, s.sel.anchor_row];
     let mut placed = None;

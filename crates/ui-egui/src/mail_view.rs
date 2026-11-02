@@ -810,18 +810,19 @@ pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: b
 /// category marks and the size of a conversation at the right of the preview's.
 /// What the list's `rows` draw selected ([`mailcraft_engine::Session::drawn`]), kept while they
 /// and the selection stay as they are: in a large list, working it out goes through every row,
-/// which a frame can't afford (#503).
+/// which a frame can't afford (#503). The rows are held weakly: held, the session would copy
+/// all of them to put one row's unread count right after a read mark.
 fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
     let sel = &app.session.sel;
     if let Some((was, messages, whole, drawn)) = &app.drawn
-        && Arc::ptr_eq(was, rows)
+        && std::ptr::eq(was.as_ptr(), Arc::as_ptr(rows))
         && *messages == sel.messages
         && *whole == sel.whole
     {
         return drawn.clone();
     }
     let drawn = Arc::new(app.session.drawn(rows));
-    app.drawn = Some((rows.clone(), sel.messages.clone(), sel.whole.clone(), drawn.clone()));
+    app.drawn = Some((Arc::downgrade(rows), sel.messages.clone(), sel.whole.clone(), drawn.clone()));
     drawn
 }
 

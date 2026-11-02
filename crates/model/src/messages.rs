@@ -24,7 +24,8 @@ const SHIFT: u32 = 10;
 /// How many consecutive ids a chunk holds.
 pub const CHUNK: u64 = 1 << SHIFT;
 
-pub(crate) type Chunk = BTreeMap<Id, Arc<Message>>;
+/// The messages of one chunk of consecutive ids ([`Messages::chunks`]).
+pub type Chunk = BTreeMap<Id, Arc<Message>>;
 
 fn chunk_of(id: Id) -> Id {
     id >> SHIFT
@@ -53,8 +54,9 @@ impl Messages {
     }
 
     /// The chunks, in order: for an index of the messages that follows the map chunk by chunk
-    /// (`crate::threads`).
-    pub(crate) fn chunks(&self) -> &BTreeMap<Id, Arc<Chunk>> {
+    /// (`crate::threads`, the known correspondents of the sender warnings): one that is the same
+    /// allocation as before holds the same messages, and no chunk is ever empty.
+    pub fn chunks(&self) -> &BTreeMap<Id, Arc<Chunk>> {
         &self.chunks
     }
 

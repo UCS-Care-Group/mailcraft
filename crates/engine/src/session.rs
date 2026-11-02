@@ -1455,6 +1455,13 @@ impl Session {
         self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.list_of())));
     }
 
+    /// The selection has just been made of rows of the list in view: all of it stays in the list
+    /// while it is selected (#428).
+    pub(crate) fn keep_listed(&mut self) {
+        let ids: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        self.sel.stays = Some(Arc::new(Stays::of(ids, &self.sel.messages, &self.list_of())));
+    }
+
     /// A click has just changed the selection: keep those of its messages the list in view lists
     /// (#428).
     pub(crate) fn keep_clicked(&mut self) {
@@ -1654,6 +1661,21 @@ impl Session {
         thread
     }
 
+    /// Brings the index of conversations [`Session::conversation`] looks in in step with the
+    /// mailbox, filing again at most `most` chunks of messages (1,024 each): for a window to build
+    /// it a little at each frame. Whether there is more to do.
+    pub fn prepare_conversations(&mut self, most: usize) -> bool {
+        let now = (self.rev, self.mailbox.messages.len());
+        if self.threads_at == Some(now) {
+            return false;
+        }
+        let done = self.threads.update_some(&self.mailbox, most);
+        if done {
+            self.threads_at = Some(now);
+        }
+        !done
+    }
+
     /// How many times the message list was built ([`Session::rows`]): for tests and diagnostics.
     pub fn list_builds(&self) -> u64 {
         self.list_builds
@@ -1777,9 +1799,20 @@ impl Session {
         let mb = &self.mailbox;
         if let Some(cache) = &mut self.list_cache {
             let marked: HashSet<Id> = read.iter().copied().collect();
-            let rows = if marked.is_empty() { None } else { Some(Arc::make_mut(&mut cache.rows)) };
-            for row in rows.into_iter().flatten().filter(|r| r.members.iter().any(|m| marked.contains(m))) {
-                row.unread = row.members.iter().filter(|m| mb.message(**m).is_some_and(|m| !m.read)).count();
+            // The rows found first: the rows are this list's own to change only when one is
+            // to be (a copy of all of them, while the window holds them too).
+            let at: Vec<usize> = if marked.is_empty() {
+                Vec::new()
+            } else {
+                cache.rows.iter().enumerate().filter(|(_, r)| r.members.iter().any(|m| marked.contains(m))).map(|(i, _)| i).collect()
+            };
+            if !at.is_empty() {
+                let rows = Arc::make_mut(&mut cache.rows);
+                for i in at {
+                    if let Some(row) = rows.get_mut(i) {
+                        row.unread = row.members.iter().filter(|m| mb.message(**m).is_some_and(|m| !m.read)).count();
+                    }
+                }
             }
             cache.key = key;
         }
@@ -2738,6 +2771,17 @@ impl Session {
         let touched = crate::undo::touched(&now, &back);
         self.mailbox = back;
         self.recount(&now);
+        // The counts of the mailbox as it was, brought in step with what this puts back, under
+        // the revision after (rather than counted again over every message).
+        let counted = (self.rev, now.messages.len());
+        let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
+            self.mailbox.messages.changes(&now.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
+        let after = (self.rev + 1, self.mailbox.messages.len());
+        self.counts_cache = self
+            .counts_cache
+            .take()
+            .filter(|(at, _)| *at == counted)
+            .and_then(|(_, mut counts)| Arc::make_mut(&mut counts).apply(&changes).then_some((after, counts)));
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
@@ -2910,7 +2954,9 @@ impl Session {
         // that changes the mailbox and then asks of its list ([`Session::folder_counts`]).
         // (Put aside, not thrown away: once the command is done they are brought in step with
         // what it changed, [`FolderCounts::apply`](crate::counts::FolderCounts::apply).)
-        let counts_aside = if spec.mutates { self.counts_cache.take() } else { None };
+        // (Undo and Redo bring the counts in step with what they put back themselves, [`Session::swap`].)
+        let steps = matches!(id, "edit.undo" | "edit.redo");
+        let counts_aside = if spec.mutates && !steps { self.counts_cache.take() } else { None };
         if spec.mutates {
             self.conversation_cache = None;
         }
@@ -2927,6 +2973,7 @@ impl Session {
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
+        let rev_at_run = self.rev;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
         // Content the command brought in or let go of is in the state it started from too: it
         // is no change to undo, and a command that fails keeps it (and what is counted of it).
@@ -3028,7 +3075,12 @@ impl Session {
                     // Read marks alone: the list and the counts stand, put right ([`Session::list_stands`]).
                     let read_marks = self.list_stands(&before.mailbox, &changes);
                     let rev_before = self.rev;
-                    self.rev += 1;
+                    // An Undo or Redo moved the revision on itself once it put the other version
+                    // in place, and nothing has changed since: what it built and counted for that
+                    // revision (the list it showed what it selects in) stands.
+                    if !(steps && self.rev != rev_at_run) {
+                        self.rev += 1;
+                    }
                     // The counts that stood before the command, while nothing counted again as it ran.
                     let stood = counts_before.as_ref().map(Arc::as_ptr);
                     if let Some(read) = &read_marks {

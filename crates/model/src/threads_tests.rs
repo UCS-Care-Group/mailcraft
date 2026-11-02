@@ -90,3 +90,29 @@ fn subjects_folded_alike_are_one_conversation() {
     let mut threads = Threads::default();
     agrees(&mut threads, &mb);
 }
+
+/// Built a chunk at a time, with changes in between, the index ends up as one built at once.
+#[test]
+fn an_index_built_a_chunk_at_a_time_is_the_one_built_at_once() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let inbox = mb.inbox().unwrap();
+    let subjects = ["Lunch", "Re: Lunch", "Budget", "Plans", ""];
+    for i in 0..(3 * crate::messages::CHUNK as usize) {
+        mb.add_message(mail(inbox, subjects[i % subjects.len()], i as i64)).unwrap();
+    }
+    let mut threads = Threads::default();
+    let mut steps = 0;
+    while !threads.update_some(&mb, 1) {
+        steps += 1;
+        if steps == 2 {
+            // A change half way: a chunk already filed is filed again.
+            let first = *mb.messages.keys().next().unwrap();
+            mb.message_mut(first).unwrap().subject = "Plans".into();
+        }
+        assert!(steps < 20, "it gets there");
+    }
+    assert!(steps >= 3, "a chunk at a time");
+    for id in mb.messages.keys() {
+        assert_eq!(threads.conversation(&mb, *id), mb.conversation(*id), "message {id}");
+    }
+}

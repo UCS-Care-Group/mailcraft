@@ -1310,7 +1310,7 @@ pub struct MailApp {
     /// The rows the message list was last drawn from, the selection then (its messages, and those
     /// picked as their conversation) and what the rows drew selected: worked out again only when
     /// one of them changes, not at every frame (#503).
-    pub(crate) drawn: Option<(std::sync::Arc<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
+    pub(crate) drawn: Option<(std::sync::Weak<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
     /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
     /// by (#426).
     pub(crate) list_page_rows: usize,
@@ -3974,6 +3974,12 @@ impl MailApp {
             return;
         }
         opening::after(self, ctx);
+        // The index of conversations the reading pane looks a message's up in, a few chunks of
+        // messages a frame (about 2 ms) from the mailbox's opening on, rather than all at once at
+        // the first click (150 ms in a mailbox of 326,000).
+        if self.session.prepare_conversations(4) {
+            ctx.request_repaint();
+        }
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);
