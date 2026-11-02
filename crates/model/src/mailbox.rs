@@ -201,6 +201,10 @@ fn is_zero(n: &u32) -> bool {
     *n == 0
 }
 
+fn is_no_id(id: &Id) -> bool {
+    *id == 0
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Security {
@@ -975,6 +979,11 @@ pub struct Mailbox {
     /// (R3 spec S18, #633): their colours are Outlook's. No entry until such a list was read.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub server_categories: BTreeMap<Id, Vec<String>>,
+    /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
+    /// account with a lower id was here while one list served them all, so
+    /// [`Mailbox::categories`] may hold its server's names. One added since never put any there.
+    #[serde(skip_serializing_if = "is_no_id", deserialize_with = "crate::sync::lenient_or_default")]
+    own_lists_began: Id,
     /// The time zone the wall-clock times of the events are written in ([`Event::start`]): the
     /// zone the calendar was shown in when they were written, by its name in the IANA database
     /// (`Europe/Berlin`) or as an offset (`UTC+05:30`). Empty in a mailbox written before zones
@@ -1018,6 +1027,7 @@ impl Default for Mailbox {
             queued: Vec::new(),
             account_categories: BTreeMap::new(),
             server_categories: BTreeMap::new(),
+            own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
             next_id: 1,
@@ -2862,6 +2872,9 @@ impl Mailbox {
         if self.account_categories.contains_key(&owner) {
             return;
         }
+        if self.account_categories.is_empty() {
+            self.own_lists_began = self.next_id;
+        }
         let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
         let mut list: Vec<Category> = self.categories.iter().filter(|c| !elsewhere(&c.name)).cloned().collect();
         for name in self.category_names_of(owner) {
@@ -2871,14 +2884,16 @@ impl Mailbox {
         }
         list.truncate(MAX_CATEGORIES);
         self.account_categories.insert(owner, list);
-        self.settle_earlier_lists(owner, on_server);
+        if owner < self.own_lists_began {
+            self.settle_earlier_lists(owner, on_server);
+        }
     }
 
-    /// The first read of `owner`'s server shows names that an account read before it, which
-    /// couldn't know them, took for the owner's own: each leaves that list, with this server's
-    /// list `on_server` deciding as if it had been read first. What that account's items carry,
-    /// what its own server lists and what changed on its list since stay, and so does the shared
-    /// list, where the name still is.
+    /// The first read of the server of `owner`, an account that was here while one list served
+    /// them all, shows names that an account read before it, which couldn't know them, took for
+    /// the owner's own: each leaves that list, with this server's list `on_server` deciding as if
+    /// it had been read first. What that account's items carry, what its own server lists and
+    /// what changed on its list since stay, and so does the shared list, where the name still is.
     fn settle_earlier_lists(&mut self, owner: Id, on_server: &[String]) {
         let earlier: Vec<Id> = self.account_categories.keys().copied().filter(|id| *id != owner).collect();
         for account in earlier {

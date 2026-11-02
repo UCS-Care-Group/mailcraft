@@ -365,6 +365,52 @@ fn the_owners_own_come_across_to_each_account_and_another_servers_dont() {
 }
 
 #[test]
+fn a_category_made_here_stays_when_an_account_added_later_lists_it() {
+    let (mut s, a) = one_account();
+    s.mailbox.categories = vec![tag("Travel", WINE)];
+    read(&mut s, a, vec![tag("Red", RED)]);
+    assert!(names(&s, a).contains(&"Travel"));
+    // The file keeps which accounts came after.
+    s.mailbox = serde_json::from_slice(&serde_json::to_vec(&s.mailbox).unwrap()).unwrap();
+    let b = add(&mut s, "b@example.org");
+    read(&mut s, b, vec![tag("Travel", WINE)]);
+    assert!(names(&s, a).contains(&"Travel"), "nothing of b's was ever on the shared list");
+    assert_eq!(s.mailbox.category_color_of(a, "Travel"), WINE);
+    assert_eq!(names(&s, b), ["Travel"]);
+}
+
+#[test]
+fn an_undo_past_the_first_read_keeps_a_category_an_account_added_later_lists() {
+    let (mut s, a) = one_account();
+    s.mailbox.categories = vec![tag("Travel", WINE)];
+    s.run("category.set", &json!({"name": "Step", "color": "#112233"})).unwrap();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let b = add(&mut s, "b@example.org");
+    read(&mut s, b, vec![tag("Travel", WINE)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.account(b).is_none());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(names(&s, a).contains(&"Travel"));
+    // Made again on the mailbox of then, an account added now still comes after the lists.
+    let c = add(&mut s, "c@example.org");
+    read(&mut s, c, vec![tag("Travel", WINE)]);
+    assert!(names(&s, a).contains(&"Travel"));
+}
+
+#[test]
+fn a_name_of_an_account_from_before_the_lists_leaves_those_made_since() {
+    let (mut s, a, b) = rig();
+    s.mailbox.set_category(0, "Invoices", WINE).unwrap();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    let c = add(&mut s, "c@example.org");
+    read(&mut s, c, vec![tag("Blue", RED)]);
+    assert!(names(&s, a).contains(&"Invoices") && names(&s, c).contains(&"Invoices"));
+    read(&mut s, b, vec![tag("Invoices", WINE)]);
+    assert_eq!(names(&s, a), ["Red"]);
+    assert_eq!(names(&s, c), ["Blue"]);
+}
+
+#[test]
 fn what_is_used_or_changed_on_a_list_stays_when_another_server_lists_it() {
     let (mut s, a, b) = rig();
     for name in ["Unused", "On an item", "Recoloured", "On both"] {

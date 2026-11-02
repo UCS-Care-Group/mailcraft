@@ -224,7 +224,7 @@ fn lists(app: &MailApp, ctx: &egui::Context) -> Lists {
             // As Outlook lists them: a task under each of its categories, those with none first,
             // then the categories A to Z, by when each is due under each (the order they come in).
             TaskSort::Categories => {
-                let (rows, filed) = by_category(s, shown.map(|x| (x.id, x.categories.as_slice())));
+                let (rows, filed) = by_category(s, shown.map(|x| (x.id, x.origin.account, x.categories.as_slice())));
                 names = filed;
                 Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Heading::NoCategory, Heading::Category))))
             }
