@@ -231,6 +231,7 @@ item's original zone when another program made the item.
 | Date | Change |
 |---|---|
 | 2026-11-04 | #755: an answered meeting request goes from the Inbox to Deleted Items by default in a new install (`calendar.deleteAnsweredRequests`), off for the command line and headless MCP; only from an Inbox of the owner's own accounts |
+| 2026-11-02 | A Linchange event made here is sent on the next frame, not only at Send/Receive; a team calendar owned by a workgroup is shown among the shared calendars; and the account's main calendar is named with its account beside the others |
 | 2026-11-01 | CalDAV calendars say whose they are: the account's own other calendars and the ones shared with it are ticked when first listed, shared ones are under Shared Calendars, and a calendar listed before its owner was known is shown once when the owner arrives |
 | 2026-10-31 | Email Calendar, Insert › Calendar, Search Calendar, Contact Attendees, Reply by Email and Tracking (`calendar.email`, `insert.calendar`, `calendar.search`, `calendar.contactAttendees`, `calendar.respondEmail`, `calendar.tracking`) |
 | 2026-10-26 | #521: the Scheduling Assistant is called Find a Time |

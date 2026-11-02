@@ -112,8 +112,18 @@ impl MailApp {
                 continue;
             };
             let (from, to) = self.calendar_window();
-            let changes = remote::event_upload(&self.session, account).ok().filter(|upload| !upload.ops.is_empty());
             let main_calendar = self.dav.main.get(&account).cloned().unwrap_or_default();
+            let changes = remote::event_upload(&self.session, account)
+                .ok()
+                .map(|mut upload| {
+                    // An event with no calendar of its own goes into the main one, whose URL this
+                    // run has not been told yet: the read below finds it, and the next run sends it.
+                    if main_calendar.trim().is_empty() {
+                        upload.ops.retain(|op| !op.calendar.trim().is_empty());
+                    }
+                    upload
+                })
+                .filter(|upload| !upload.ops.is_empty());
             let job = DavJob { username: found.login().to_string(), password, from, to, account: found, changes, main_calendar };
             let Some(dav) = &self.services.dav else { return false };
             self.dav.checked.insert(account, now);
@@ -160,6 +170,11 @@ impl MailApp {
             }
             if let Err(e) = remote::apply_calendars(&mut self.session, &calendars) {
                 errors.push(crate::i18n::fmt(tl!("The calendars couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+            }
+            // An event made before the main calendar's URL was known was held back rather than
+            // sent into nothing; now that it is known, the next run sends it.
+            if self.dav.main.contains_key(&account) && remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                self.dav.requested.insert(account);
             }
         }
         for events in &result.events {

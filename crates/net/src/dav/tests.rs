@@ -38,6 +38,19 @@ fn a_multistatus_names_its_collections() {
 }
 
 #[test]
+fn a_team_calendar_is_owned_by_its_group() {
+    let body = br#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+      <D:response><D:href>/caldav/workgroup/7/Rota/</D:href><D:propstat><D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:owner><D:href>/caldav/workgroup/7/</D:href></D:owner>
+      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+    </D:multistatus>"#;
+    let responses = multistatus(body).unwrap();
+    let owner = calendar_owner(&responses[0]).expect("the group owns it");
+    assert_eq!((owner.address.as_str(), owner.name.as_str()), ("workgroup-7", "Workgroup"));
+}
+
+#[test]
 fn an_absolute_address_must_be_on_the_service_and_never_keeps_a_fragment() {
     let base = "https://mail.example.org/caldav/";
     assert_eq!(

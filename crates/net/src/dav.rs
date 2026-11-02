@@ -415,6 +415,15 @@ fn slug(url: &str) -> String {
 fn calendar_owner(response: &Response) -> Option<CalendarOwner> {
     let href = response.href_of("owner")?;
     let path = href.split(['?', '#']).next()?.trim_end_matches('/');
+    // A team calendar is owned by its workgroup, which is not a person: there is no address to
+    // read. It is still somebody else's calendar, so it keeps an owner (and is listed among the
+    // shared ones) instead of looking like a feed nobody owns.
+    if let Some((_, group)) = path.split_once("/workgroup/") {
+        let id = group.trim_end_matches('/').split('/').next().unwrap_or_default();
+        if !id.is_empty() {
+            return CalendarOwner { address: format!("workgroup-{id}"), name: "Workgroup".into() }.cleaned();
+        }
+    }
     let address = percent_decoded(path.rsplit('/').next()?);
     (address.contains('@')).then(|| CalendarOwner { address, name: String::new() }.cleaned()).flatten()
 }

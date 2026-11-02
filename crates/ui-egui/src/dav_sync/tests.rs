@@ -5,7 +5,8 @@
 use super::*;
 use mailcraft_engine::Session;
 use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, RemoteCalendar, RemoteContact, RemoteEvent};
-use mailcraft_model::{Account, AccountKind, DavServer, Mailbox, Security, Server};
+use mailcraft_model::{Account, AccountKind, Calendar, DavServer, Mailbox, Origin, Security, Server};
+use serde_json::json;
 use std::sync::mpsc;
 
 fn app() -> (MailApp, Id) {
@@ -120,4 +121,29 @@ fn the_calendars_and_every_shared_address_book_are_taken_in() {
     assert!(app.session.mailbox.events.values().any(|e| e.title == "Team event" && e.calendar == team));
     let contact = app.session.mailbox.contacts.values().find(|c| c.display_name == "Ada Lovelace").unwrap();
     assert_eq!(contact.book, "Suppliers");
+}
+
+#[test]
+fn an_event_made_here_is_asked_for_at_once() {
+    let (mut app, account) = app();
+    let main = app.session.mailbox.alloc_id();
+    app.session.mailbox.calendars.push(Calendar {
+        id: main,
+        name: "Calendar".into(),
+        visible: true,
+        origin: Origin { account, ..Default::default() },
+        ..Default::default()
+    });
+    app.dav.main.insert(account, "https://mail.example.org/caldav/ada@example.org/calendar/".into());
+    app.passwords.insert(account, "invented".into());
+    app.auto_sync = true;
+    app.services.dav = Some(Box::new(move |job: DavJob| {
+        assert!(job.changes.as_ref().is_some_and(|upload| upload.ops.iter().any(|op| op.calendar.is_empty())), "the event made here is in the run");
+        let (tx, rx) = mpsc::channel();
+        tx.send(DavResult { account: job.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    app.execute("calendar.new", json!({"title": "Now"})).unwrap();
+    assert!(app.dav.requested.contains(&account), "the change asks for a run");
+    assert!(app.dav_tick_at(1_800_000_000_000.0), "the run starts");
 }
