@@ -7,7 +7,7 @@ use mailcraft_model::remote::{
     ContactsDownload, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime,
     EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteContact, RemoteEvent, RemoteEventKind,
 };
-use mailcraft_model::{Address, Attendee, Contact, Event, Freq, Id, Labeled, Origin, Recurrence, Response, ShowAs};
+use mailcraft_model::{Address, Attendee, Contact, ContactBook, Event, Freq, Id, Labeled, Origin, Recurrence, Response, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
 use proptest::prelude::*;
 use serde_json::{Value, json};
@@ -1370,7 +1370,7 @@ fn an_event_is_matched_when_the_server_names_a_different_url() {
 }
 
 #[test]
-fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
+fn contacts_are_merged_and_changes_go_to_their_server() {
     let (mut s, account) = session();
     let before = own(&s);
     let ada = RemoteContact {
@@ -1411,16 +1411,31 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     let found = run(&mut s, "people.list", json!({"query": "Lovelace"}));
     assert_eq!(found["contacts"][0]["email"], "ada@example.org");
 
-    // A contact from the server isn't changed or deleted here…
-    let why =
-        "This contact is kept by the server of ada@example.org. Changes made here are not sent back yet, so it can't be changed or deleted here.";
-    let snapshot = s.mailbox.clone();
-    assert_eq!(refused(&mut s, "people.edit", json!({"id": kept.id, "first": "Augusta"})), why);
-    assert_eq!(refused(&mut s, "people.delete", json!({"id": kept.id})), why);
-    run(&mut s, "people.select", json!({"id": kept.id}));
-    assert_eq!(refused(&mut s, "people.delete", json!({})), why);
-    assert!(s.mailbox == snapshot);
-    // …but what is only kept here is: its categories, and whether it is a favourite.
+    // A contact from the server is changed here and sent to it on the next sync.
+    run(&mut s, "people.edit", json!({"id": kept.id, "first": "Augusta"}));
+    let upload = super::contact_upload(&s, account).expect("the edit waits for the server");
+    assert_eq!((upload.ops[0].kind, upload.ops[0].remote.as_str()), (mailcraft_model::remote::ContactChangeKind::Update, "c-ada"));
+    assert!(upload.ops[0].card.contains("Augusta"), "{}", upload.ops[0].card);
+    // The server's older card must not overwrite the edit while it is on its way.
+    apply_contacts(&mut s, &ContactsDownload { complete: false, ..everybody(account, vec![ada.clone()]) }).unwrap();
+    assert_eq!(s.mailbox.contact(kept.id).map(|contact| contact.first.as_str()), Some("Augusta"));
+    super::apply_contact_outcomes(
+        &mut s,
+        &mailcraft_model::remote::ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![mailcraft_model::remote::ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: "c-ada".into(),
+                status: 204,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact_changes.is_empty(), "the answer settles the edit");
+    // What is only kept here is: its categories, and whether it is a favourite.
     run(&mut s, "people.categorize", json!({"id": kept.id, "category": "Red category"}));
     run(&mut s, "people.favorite", json!({"id": kept.id, "value": true}));
     assert_eq!(run(&mut s, "people.get", json!({"id": kept.id}))["company"], "Analytical Engines Ltd");
@@ -1518,6 +1533,51 @@ fn the_address_books_a_server_lists_are_kept_for_a_new_contact() {
     // A later list that is all there is replaces them; the chosen book is then gone.
     apply_contacts(&mut s, &everybody(account, Vec::new())).unwrap();
     assert!(s.mailbox.contact_books.is_empty());
+}
+
+#[test]
+fn a_remote_contact_is_deleted_through_its_server() {
+    let (mut s, account) = session();
+    apply_contacts(&mut s, &everybody(account, vec![person("c-bob", "Bob", "bob@example.org")])).unwrap();
+    let bob = contact_called(&s, account, "c-bob");
+    run(&mut s, "people.delete", json!({"id": bob.id}));
+    assert!(s.mailbox.contact(bob.id).is_none(), "it goes from the list at once");
+    let upload = super::contact_upload(&s, account).expect("the deletion waits for the server");
+    assert_eq!((upload.ops[0].kind, upload.ops[0].remote.as_str()), (mailcraft_model::remote::ContactChangeKind::Delete, "c-bob"));
+    // A read before the delete goes out still lists it; the tombstone keeps it from returning.
+    apply_contacts(&mut s, &everybody(account, vec![person("c-bob", "Bob", "bob@example.org")])).unwrap();
+    assert!(s.mailbox.contacts.values().all(|contact| contact.origin.id != "c-bob"));
+    super::apply_contact_outcomes(
+        &mut s,
+        &mailcraft_model::remote::ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![mailcraft_model::remote::ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: "c-bob".into(),
+                status: 204,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact_changes.is_empty(), "the answer settles the deletion");
+
+    // A book shared read only refuses both changes here, before the server sees them.
+    s.mailbox.contact_books.push(ContactBook { account, id: "book-ro".into(), name: "Team".into(), rights: Rights::Read });
+    let ro = s.mailbox.add_contact(Contact {
+        display_name: "Read Only".into(),
+        uid: "ro-1".into(),
+        book: "Team".into(),
+        book_id: "book-ro".into(),
+        origin: Origin { account, id: "c-ro".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let why = "The address book \"Team\" can only be read: the server hasn't given this account permission to change its contacts.";
+    assert_eq!(refused(&mut s, "people.edit", json!({"id": ro, "first": "Changed"})), why);
+    assert_eq!(refused(&mut s, "people.delete", json!({"id": ro})), why);
+    assert!(s.mailbox.contact(ro).is_some() && s.mailbox.contact_changes.is_empty());
 }
 
 #[test]

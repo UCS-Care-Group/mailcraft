@@ -2274,16 +2274,15 @@ impl MailApp {
                 }
             }
         }
-        // A contact put into an address book of a Linchange account: written there at once.
-        if let (Ok(made), "people.new") = (&r, id)
-            && let Some(account) = made
-                .get("id")
-                .and_then(Value::as_u64)
-                .and_then(|id| self.session.mailbox.contact(id))
-                .map(|contact| contact.origin.account)
-                .filter(|account| *account != 0)
-        {
-            self.dav_sync_soon(account);
+        // A contact made, changed or deleted in a Linchange address book: written there at
+        // once, not only at the next Send/Receive.
+        if r.is_ok() && matches!(id, "people.new" | "people.edit" | "people.delete" | "people.fromMessage") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_linchange()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::contact_upload(&self.session, account).is_some() {
+                    self.dav_sync_soon(account);
+                }
+            }
         }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)

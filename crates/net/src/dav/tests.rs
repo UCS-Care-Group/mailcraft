@@ -168,6 +168,36 @@ fn a_new_contact_goes_to_the_book_it_was_given() {
 }
 
 #[test]
+fn a_card_changed_or_deleted_here_reaches_the_server() {
+    let server = FakeHttp::answering(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![
+            ContactOp {
+                kind: ContactChangeKind::Update,
+                contact: 7,
+                remote: "/carddav/ada@example.org/contacts/personal/one.vcf".into(),
+                uid: "one".into(),
+                card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+                ..Default::default()
+            },
+            ContactOp {
+                kind: ContactChangeKind::Delete,
+                contact: 0,
+                remote: "/carddav/ada@example.org/contacts/personal/two.vcf".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [EventResult::Done, EventResult::Done]);
+    assert!(server.request(0).starts_with("PUT /carddav/ada@example.org/contacts/personal/one.vcf HTTP/1.1\r\n"));
+    assert!(server.request(0).contains("FN:Ada Lovelace\r\n"));
+    assert!(server.request(1).starts_with("DELETE /carddav/ada@example.org/contacts/personal/two.vcf HTTP/1.1\r\n"));
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()

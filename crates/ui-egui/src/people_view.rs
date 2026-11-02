@@ -10,7 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox, Rights};
 use mailcraft_time::Date;
 use serde_json::json;
 
@@ -692,6 +692,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         let _ = app.execute("people.select", json!({"id": id}));
     }
     let (favorite, has_email) = (c.favorite, c.address().is_some());
+    let writable = contact_writable(app, &c);
     let several = picked && app.people_picked.len() >= 2;
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
@@ -710,7 +711,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
             let _ = app.run("people.email", json!({"id": id}));
             ui.close();
         }
-        mi(ui, app, "Edit", "people.edit", json!({}));
+        if writable {
+            mi(ui, app, "Edit", "people.edit", json!({}));
+        }
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
@@ -728,7 +731,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         });
         ui.separator();
         mi(ui, app, "Export…", "file.exportContacts", json!({"ids": [id]}));
-        mi(ui, app, "Delete", "people.delete", json!({"id": id}));
+        if writable {
+            mi(ui, app, "Delete", "people.delete", json!({"id": id}));
+        }
     });
 }
 
@@ -816,22 +821,38 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
     });
 }
 
+/// Whether the contact's address book lets this account change it. A contact kept here, or one
+/// from a server that did not name its book, is left to the command (and then the server) to
+/// decide.
+pub(crate) fn contact_writable(app: &MailApp, c: &Contact) -> bool {
+    if c.origin.account == 0 || c.book_id.is_empty() {
+        return true;
+    }
+    app.session
+        .mailbox
+        .contact_books
+        .iter()
+        .find(|book| book.account == c.origin.account && book.id == c.book_id)
+        .is_none_or(|book| book.rights == Rights::Edit)
+}
+
 fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let id = c.id;
+    let writable = contact_writable(app, c);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
         if c.address().is_some() && widgets::primary_button(ui, tl!("Email"), true).clicked() {
             let _ = app.run("people.email", json!({"id": id}));
         }
         // The card shows the selected contact, so Edit opens its form.
-        if widgets::icon_text_button(ui, "edit", tl!("Edit"), true).clicked() {
+        if widgets::icon_text_button(ui, "edit", tl!("Edit"), writable).clicked() {
             let _ = app.run("people.edit", json!({}));
         }
         let tip = if c.favorite { tl!("Remove from Favorites") } else { tl!("Add to Favorites") };
         if widgets::icon_text_button(ui, if c.favorite { "starOn" } else { "star" }, tl!("Favorite"), true).on_hover_text(tip).clicked() {
             let _ = app.run("people.favorite", json!({"id": id}));
         }
-        if widgets::icon_text_button(ui, "delete", tl!("Delete"), true).clicked() {
+        if widgets::icon_text_button(ui, "delete", tl!("Delete"), writable).clicked() {
             let _ = app.run("people.delete", json!({"id": id}));
         }
     });

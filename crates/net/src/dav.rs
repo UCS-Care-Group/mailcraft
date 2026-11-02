@@ -23,8 +23,9 @@ use std::time::Duration;
 use mailcraft_charset::base64::STANDARD as BASE64;
 use mailcraft_model::dav::DavServer;
 use mailcraft_model::remote::{
-    CalendarsDownload, ContactOp, ContactOutcome, ContactsDownload, ContactsUpload, ContactsUploaded, EventChangeKind, EventFields, EventOp,
-    EventOutcome, EventResult, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
+    CalendarsDownload, ContactChangeKind, ContactOp, ContactOutcome, ContactsDownload, ContactsUpload, ContactsUploaded, EventChangeKind,
+    EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteCalendar, RemoteContact, RemoteEvent,
+    RemoteEventKind,
 };
 use mailcraft_model::{CalendarOwner, Event, Rgb, Rights};
 use mailcraft_time::{DateTime, Timestamp};
@@ -652,35 +653,82 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
 /// run of an upload whose answer was lost writes the same card again rather than a second one.
 ///
 /// This blocks; a host calls it on a background thread.
-pub fn upload_contacts(_carddav: &str, username: &str, password: &str, upload: &ContactsUpload) -> ContactsUploaded {
+pub fn upload_contacts(carddav: &str, username: &str, password: &str, upload: &ContactsUpload) -> ContactsUploaded {
     let auth = basic(username, password);
     let mut out = ContactsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     for op in upload.ops.iter().take(mailcraft_model::remote::MAX_CONTACT_OPS) {
-        out.outcomes.push(one_contact(&auth, op));
+        out.outcomes.push(one_contact(&auth, op, carddav));
     }
     out
 }
 
-/// One new contact, as the server made of it.
-fn one_contact(auth: &str, op: &ContactOp) -> ContactOutcome {
+/// One contact change, as the server made of it.
+fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
     let mut outcome = ContactOutcome { op: op.clone(), ..Default::default() };
-    let book = op.book.trim();
-    if book.is_empty() {
-        outcome.result = EventResult::Failed;
-        outcome.error = "the address book is not known yet".into();
+    if op.kind == ContactChangeKind::Delete {
+        if op.remote.trim().is_empty() {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact has no address on the server".into();
+            return outcome;
+        }
+        let Some(url) = request_url(carddav, &op.remote) else {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact's address can't be used".into();
+            return outcome;
+        };
+        match send(&url, "DELETE", None, None, auth, XML, 64 * 1024) {
+            Ok(reply) if matches!(reply.status, 200 | 204) => {
+                outcome.result = EventResult::Done;
+                outcome.remote = resource_path(&url);
+                outcome.status = reply.status;
+            }
+            Ok(reply) if reply.status == 404 || reply.status == 410 => {
+                outcome.result = EventResult::Gone;
+                outcome.remote = resource_path(&url);
+                outcome.status = reply.status;
+            }
+            Ok(reply) if reply.status == 403 => {
+                outcome.result = EventResult::Denied;
+                outcome.status = reply.status;
+            }
+            Ok(reply) => {
+                outcome.result = EventResult::Failed;
+                outcome.status = reply.status;
+            }
+            Err(e) => {
+                outcome.result = EventResult::Failed;
+                outcome.error = e.to_string();
+            }
+        }
         return outcome;
     }
+
+    let book = op.book.trim();
     if op.uid.trim().is_empty() {
         outcome.result = EventResult::Failed;
         outcome.error = "the contact has no UID to be saved under".into();
         return outcome;
     }
-    let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
-    let url = format!("{base}{}.vcf", http::encode(op.uid.trim()));
+    let url = if op.kind == ContactChangeKind::Update && !op.remote.trim().is_empty() {
+        let Some(url) = request_url(carddav, &op.remote) else {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact's address can't be used".into();
+            return outcome;
+        };
+        url
+    } else {
+        if book.is_empty() {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the address book is not known yet".into();
+            return outcome;
+        }
+        let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
+        format!("{base}{}.vcf", http::encode(op.uid.trim()))
+    };
     match send(&url, "PUT", None, Some(&op.card), auth, VCARD, 64 * 1024) {
         Ok(reply) if matches!(reply.status, 200 | 201 | 204) => {
             outcome.result = EventResult::Done;
-            outcome.remote = url;
+            outcome.remote = resource_path(&url);
             outcome.status = reply.status;
         }
         Ok(reply) => {

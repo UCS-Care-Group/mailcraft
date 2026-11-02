@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! People: contacts.
 
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, clean_name};
+use mailcraft_model::remote::ContactChangeKind;
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, Rights, clean_name};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
 use super::tasks::kept_at;
-use super::{bad, done, fail, needs_message};
+use super::{bad, done, fail, needs_message, remote};
 use crate::session::parse_enum;
 use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 
@@ -116,12 +117,25 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 /// [`target`] for a command that changes or deletes the contact. A contact that an account's
 /// server keeps is refused: changes are not sent back yet, and the next download would undo
 /// them. (Its categories and whether it is a favourite are kept here, so those don't ask.)
-fn own_target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = target(s, v)?;
-    if let Some(c) = s.mailbox.contact(id) {
-        super::remote::changeable(&s.mailbox, &c.origin, "contact")?;
+/// Refuse to change a contact in an address book that the account may only read. A book that is
+/// not in the list (a mailbox from before books had rights) is left to the server to decide.
+fn writable_contact(s: &Session, contact: &Contact) -> Result<(), CmdError> {
+    if contact.origin.account == 0 || contact.book_id.is_empty() {
+        return Ok(());
     }
-    Ok(id)
+    if let Some(book) = s
+        .mailbox
+        .contact_books
+        .iter()
+        .find(|book| book.account == contact.origin.account && book.id == contact.book_id)
+        .filter(|book| book.rights != Rights::Edit)
+    {
+        return Err(failed!(
+            "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts.",
+            name = book.name
+        ));
+    }
+    Ok(())
 }
 
 fn line(v: &Value, k: &str) -> Option<String> {
@@ -250,13 +264,15 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
-    let id = own_target(s, v)?;
+    let id = target(s, v)?;
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
+    writable_contact(s, &c)?;
     apply(&mut c, v)?;
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
     }
-    *s.mailbox.contact_mut(id)? = c;
+    *s.mailbox.contact_mut(id)? = c.clone();
+    remote::note_contact_changed(&mut s.mailbox, &c, ContactChangeKind::Update);
     Ok(json!({"id": id}))
 }
 
@@ -286,7 +302,14 @@ fn arrange(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = own_target(s, v)?;
+    let id = target(s, v)?;
+    // A contact that lives on a CardDAV server is deleted there by the next sync. Its local
+    // copy goes now, so it disappears from the list at once; the tombstone below keeps a read
+    // of the server from bringing it back before the delete has gone out.
+    if let Some(contact) = s.mailbox.contact(id).cloned() {
+        writable_contact(s, &contact)?;
+        remote::note_contact_changed(&mut s.mailbox, &contact, ContactChangeKind::Delete);
+    }
     // The selection moves to the neighbour in the list.
     let order = sorted(s, &s.view.people_search);
     let at = order.iter().position(|x| *x == id);

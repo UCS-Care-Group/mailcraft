@@ -480,15 +480,44 @@ impl ContactsDownload {
     }
 }
 
-/// One new contact to put into an address book: the contact's id here, the book's URL on the
-/// server, its vCard `UID`, and the card itself.
+/// What is done to a contact that a server keeps.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactChangeKind {
+    #[default]
+    Create,
+    Update,
+    Delete,
+}
+
+/// One contact change for an address book: the contact's id here, its URL on the server, its
+/// vCard `UID`, and the card itself. `remote` is empty for a creation.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ContactOp {
+    pub kind: ContactChangeKind,
     pub contact: Id,
     pub book: String,
+    pub remote: String,
     pub uid: String,
     pub card: String,
+}
+
+/// A change to a contact that lives on an account's CardDAV server and that server is yet to
+/// receive. It is kept in the mailbox so closing MailCraft does not lose it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactChange {
+    pub account: Id,
+    pub kind: ContactChangeKind,
+    /// The contact here; 0 for a deletion whose local copy is already gone.
+    pub contact: Id,
+    pub book: String,
+    pub remote: String,
+    pub uid: String,
+    pub card: String,
+    /// The contact's name when it was changed, for a line to the owner.
+    pub name: String,
 }
 
 /// The contacts made here that a server is yet to receive.
@@ -543,6 +572,8 @@ pub struct ContactsUploaded {
 
 /// Most contacts one upload carries: the rest go with the next.
 pub const MAX_CONTACT_OPS: usize = 50;
+/// Most contact changes waiting for a server at once.
+pub const MAX_CONTACT_CHANGES: usize = 5_000;
 
 /// Most changes to events that may wait for a server at once ([`crate::Mailbox::event_changes`]),
 /// and most that one [`EventsUpload`] carries: the rest go with the next.
