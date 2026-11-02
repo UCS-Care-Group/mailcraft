@@ -12,12 +12,14 @@
 //! ([`follow_focus`]). While a window is laid out its message is current, and while the main
 //! window is, the reading pane's is ([`front_pane`]): what each runs acts on its own message.
 //!
-//! What opens in a window ([`place`]): New Email; a message being written that Pop Out moves out
-//! of the reading pane (`compose.popOut`); a draft opened from the list by a double click; a reply
-//! or a forward started in a message's own window, or anywhere once File › Options says so; and
-//! every message an agent starts, behind the owner's window and without the keyboard. At the
-//! bound of windows ([`super::MAX_WINDOWS`]) a reply or forward stays in the reading pane, and
-//! anything else is refused with a line in the status bar.
+//! What opens in a window ([`place`]): a message being written that Pop Out moves out of the
+//! reading pane (`compose.popOut`); a draft opened from the list by a double click; a reply or a
+//! forward started in a message's own window; New Email, a reply or a forward anywhere once File ›
+//! Options says so; and every message an agent starts, behind the owner's window and without the
+//! keyboard, so that it never takes the reading pane from the owner. Everything else the owner
+//! starts, New Email included, starts in the reading pane, with Pop Out at its top right. At the
+//! bound of windows ([`super::MAX_WINDOWS`]) New Email, a reply or a forward stays in the reading
+//! pane, and anything else is refused with a line in the status bar.
 
 use egui::{Key, Ui};
 use serde_json::{Value, json};
@@ -35,6 +37,13 @@ pub(crate) const TABS: [&str; 4] = ["Message", "Insert", "Format Text", "Review"
 /// The commands that answer a message: the reading pane is theirs, and a window only from a
 /// message's own window or when File › Options says so; at the bound they stay in the pane.
 pub(crate) const ANSWERS: [&str; 5] = ["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.forward", "mail.forwardAsAttachment"];
+
+/// The commands the owner's File › Options switch sends to a window ("Open new messages, replies
+/// and forwards in a new window"): New Email and the answers. Each starts in the reading pane
+/// otherwise, and stays there at the bound of windows.
+fn pane_first(id: &str) -> bool {
+    id == "mail.new" || ANSWERS.contains(&id)
+}
 
 /// What the window says when there is no room for another window.
 fn too_many() -> String {
@@ -61,20 +70,15 @@ pub(crate) fn settle_pane(app: &mut MailApp) {
 }
 
 /// Where a command the owner runs opens a message being written, unless the caller said
-/// ([`Opens`]): New Email in a window of its own; a reply or a forward too when File › Options
-/// says so ("Open replies and forwards in a new window").
+/// ([`Opens`]): New Email, a reply or a forward in a window of its own when File › Options says so
+/// ("Open new messages, replies and forwards in a new window"); else the reading pane.
 pub(crate) fn hint(app: &MailApp, id: &str) -> Option<Opens> {
-    let window = Opens::Window { behind: false };
-    match id {
-        "mail.new" => Some(window),
-        _ if ANSWERS.contains(&id) && app.ui.replies_in_window => Some(window),
-        _ => None,
-    }
+    (pane_first(id) && app.ui.replies_in_window).then_some(Opens::Window { behind: false })
 }
 
 /// Before a command runs ([`MailApp::execute`]): one that would open a message in a window of
-/// its own when there is no room for one is refused, unless the owner answers a message (that one
-/// stays in the reading pane). An agent's are all refused: the reading pane is the owner's. Pop
+/// its own when there is no room for one is refused, unless the owner starts a new message or
+/// answers one (that one stays in the reading pane). An agent's are all refused: the reading pane is the owner's. Pop
 /// Out too, for a message that has no window yet.
 pub(crate) fn before_run(app: &MailApp, id: &str, params: &Value) -> Result<(), String> {
     if !app.windows.full() {
@@ -83,7 +87,7 @@ pub(crate) fn before_run(app: &MailApp, id: &str, params: &Value) -> Result<(), 
     let starting = mailcraft_engine::cmd::compose::STARTING.contains(&id);
     let agent = app.session.agent.is_some();
     let window = matches!(app.windows.place, Some(Opens::Window { .. })) || agent;
-    if starting && window && (agent || !ANSWERS.contains(&id)) {
+    if starting && window && (agent || !pane_first(id)) {
         // (A draft being written already only comes forward, in its window or the reading pane.)
         let open = id == "mail.editDraft" && being_written(app, params).is_some();
         if !open {
@@ -132,7 +136,7 @@ pub(crate) fn after_run(app: &mut MailApp, id: &str, before: &[u64], r: Result<V
             Opens::Window { behind } if !app.windows.full() => window = Some(put_in_window(app, *compose, behind)?),
             // (An agent's never takes the reading pane: at the bound it was refused.)
             _ if agent => {}
-            // At the bound, it stays in the reading pane (only a reply or forward gets this far).
+            // At the bound, it stays in the reading pane (only New Email, a reply or a forward gets this far).
             _ => app.windows.pane = Some(*compose),
         }
     }

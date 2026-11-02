@@ -693,7 +693,8 @@ pub(crate) enum Saving {
     /// The five-minute timer ([`Session::save_in_background`]): no step to undo, and a message
     /// that was no draft before is one Don't Save takes out of Drafts again.
     Background,
-    /// A message put aside for another, unasked: it stays as the timer left it.
+    /// A message put aside for another, unasked: as for the timer, a message that was no draft
+    /// before is one Don't Save takes out of Drafts again.
     Unasked,
 }
 

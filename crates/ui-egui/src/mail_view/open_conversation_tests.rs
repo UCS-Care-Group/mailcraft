@@ -475,7 +475,7 @@ fn an_agents_delete_for_good_takes_only_what_the_owner_was_asked_about() {
     let request = request.from_agent(Vec::new());
     assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Pending)));
     let what = w.state().asking.front().map(|a| a.what.clone()).unwrap();
-    assert!(what.starts_with("delete 2 messages"), "{what}");
+    assert!(what.starts_with("permanently delete 2 messages"), "{what}");
     // A newer message of the conversation comes in before the owner says yes.
     let s = &mut w.state_mut().session;
     let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
