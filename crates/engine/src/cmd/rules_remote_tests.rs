@@ -713,7 +713,7 @@ fn an_agent_asks_the_owner_before_it_switches_on_a_server_rule_with_parts_not_kn
         panic!("not asked");
     };
     assert_eq!(class, Class::Delete);
-    assert!(text.contains("forwardTo"), "{text}");
+    assert!(text.contains("forwardTo") && text.contains("switch on the rule"), "{text}");
 }
 
 #[test]

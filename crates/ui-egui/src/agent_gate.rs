@@ -333,10 +333,12 @@ pub fn expire(app: &mut MailApp, now: f64) {
     }
 }
 
-/// The buttons: going ahead, and not (the default).
-fn verbs(class: Class) -> (&'static str, &'static str) {
+/// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
+/// does, and answering it deletes nothing: Delete would read as getting rid of that rule (#566).
+fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
+        Class::Delete if id.starts_with("rules.") && id != "rules.remove" => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }
@@ -374,7 +376,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
-    let (yes_label, no_label) = verbs(a.class);
+    let (yes_label, no_label) = verbs(a.class, &a.id);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
@@ -423,6 +425,16 @@ mod tests {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
         app
+    }
+
+    #[test]
+    fn a_rule_made_or_switched_on_isnt_answered_with_delete() {
+        for id in ["rules.add", "rules.fromMessage", "rules.keepOnServer", "rules.enable"] {
+            assert_eq!(verbs(Class::Delete, id), (tl!("Allow"), tl!("Don't Allow")), "{id}");
+        }
+        for id in ["rules.remove", "mail.delete"] {
+            assert_eq!(verbs(Class::Delete, id), (tl!("Delete"), tl!("Don't Delete")), "{id}");
+        }
     }
 
     /// Send `method` as an agent allowed `allow`; the answer, if there is one yet.

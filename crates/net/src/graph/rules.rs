@@ -79,7 +79,7 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
         }
     }
     for (asked, found) in &mut named {
-        *found = folder_id(&graph, asked)?;
+        *found = folder_id(&graph, asked, &mut download.complete)?;
     }
     for rule in &mut download.rules {
         if let Some(Some(id)) = named.get(&rule.move_to) {
@@ -90,8 +90,10 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
     Ok(download)
 }
 
-/// The immutable id of the folder Graph knows as `asked`; none when it doesn't say.
-fn folder_id(graph: &Graph<'_>, asked: &str) -> Result<Option<String>, NetError> {
+/// The immutable id of the folder Graph knows as `asked`; none when it doesn't say. A look-up
+/// that gets no answer clears `whole`: nothing can be told of a rule that moves mail there, and a
+/// read that isn't whole decides nothing.
+fn folder_id(graph: &Graph<'_>, asked: &str, whole: &mut bool) -> Result<Option<String>, NetError> {
     if !valid_id(asked) {
         return Ok(None);
     }
@@ -102,10 +104,17 @@ fn folder_id(graph: &Graph<'_>, asked: &str) -> Result<Option<String>, NetError>
             Ok(Some(text(&json, "id").to_string()).filter(|id| valid_id(id)))
         }
         Ok(reply) if reply.status == 401 => Err(graph.refusal(Doing::Rules, &reply, "")),
-        // Gone, or not to be read now: the rule says it moves mail to a folder that isn't known.
-        Ok(_) => Ok(None),
+        // Gone: the rule says it moves mail to a folder that isn't known.
+        Ok(reply) if reply.status == 404 => Ok(None),
+        Ok(_) => {
+            *whole = false;
+            Ok(None)
+        }
         Err(e) if e.is_refused_sign_in() => Err(e),
-        Err(_) => Ok(None),
+        Err(_) => {
+            *whole = false;
+            Ok(None)
+        }
     }
 }
 

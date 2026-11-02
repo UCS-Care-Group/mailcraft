@@ -1377,7 +1377,14 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.enable" | "rules.remove" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
-            let verb = if id == "rules.remove" { "delete" } else { "switch on or off" };
+            // Read as the command reads it.
+            let on = p::opt_bool(params, "value").ok().flatten();
+            let verb = match r {
+                _ if id == "rules.remove" => "delete",
+                Some(r) if on.unwrap_or(!r.enabled) => "switch on",
+                Some(_) => "switch off",
+                None => "switch on or off",
+            };
             match r {
                 Some(r) => {
                     // A rule the server has, or may have (sent with no answer yet), changes there too.

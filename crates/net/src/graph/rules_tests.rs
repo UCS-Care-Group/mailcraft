@@ -22,6 +22,8 @@ struct Server {
     folders: Vec<(String, String)>,
     /// Answer every write with this status instead of doing it.
     write_status: Option<u16>,
+    /// Answer every look-up of a folder with this status.
+    folder_status: Option<u16>,
     /// Every request, as `METHOD target` with its `Prefer` header.
     asked: Vec<String>,
     next: u32,
@@ -49,6 +51,7 @@ fn serve(state: &Arc<Mutex<Server>>) -> FakeHttp {
             return raw("404 Not Found");
         }
         match (method, pieces.get(4), pieces.get(5), pieces.get(6)) {
+            ("GET", Some(_), None, None) if server.folder_status.is_some() => raw(&format!("{} Other", server.folder_status.unwrap_or(0))),
             ("GET", Some(folder), None, None) => match server.folders.iter().find(|f| f.0 == *folder) {
                 Some((_, id)) => json_answer("200 OK", &json!({"id": id}).to_string()),
                 None => raw("404 Not Found"),
@@ -185,6 +188,19 @@ fn rules_are_read_and_their_folders_named_as_the_mail_names_them() {
     assert!(asked.iter().all(|a| a.contains("IdType=\"ImmutableId\"")), "{asked:?}");
     // The folder the mail knows is not looked up.
     assert!(!asked.iter().any(|a| a.contains("IMM-done")), "{asked:?}");
+}
+
+#[test]
+fn a_folder_that_couldnt_be_looked_up_leaves_the_read_unfinished() {
+    let s = state(vec![json!({"id": "A", "displayName": "One", "sequence": 1, "isEnabled": true,
+           "conditions": {"subjectContains": ["x"]}, "actions": {"moveToFolder": "OLD-news"}})]);
+    let server = serve(&s);
+    // Not to be had now: nothing can be told of that rule, and nothing is decided from this read.
+    s.lock().unwrap().folder_status = Some(503);
+    assert!(!rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
+    // A folder the server says isn't there is an answer.
+    s.lock().unwrap().folder_status = None;
+    assert!(rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
 }
 
 #[test]
