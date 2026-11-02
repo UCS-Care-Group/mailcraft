@@ -336,7 +336,7 @@ pub fn expire(app: &mut MailApp, now: f64) {
 /// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
 /// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
 /// (#566). One made from a message does: it runs at once on the mail from that sender.
-fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
+pub(crate) fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
         Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable") => (tl!("Allow"), tl!("Don't Allow")),
@@ -426,16 +426,6 @@ mod tests {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
         app
-    }
-
-    #[test]
-    fn a_rule_made_or_switched_on_isnt_answered_with_delete() {
-        for id in ["rules.add", "rules.keepOnServer", "rules.enable"] {
-            assert_eq!(verbs(Class::Delete, id), (tl!("Allow"), tl!("Don't Allow")), "{id}");
-        }
-        for id in ["rules.fromMessage", "rules.remove", "mail.delete"] {
-            assert_eq!(verbs(Class::Delete, id), (tl!("Delete"), tl!("Don't Delete")), "{id}");
-        }
     }
 
     /// Send `method` as an agent allowed `allow`; the answer, if there is one yet.

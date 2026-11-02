@@ -40,6 +40,8 @@ mod account_setup;
 mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
+mod agent_gate_tests;
+#[cfg(test)]
 mod agent_leaves_tests;
 #[cfg(test)]
 mod agent_names_tests;
