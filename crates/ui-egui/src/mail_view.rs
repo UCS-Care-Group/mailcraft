@@ -266,7 +266,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
     if arrow_resp.hovered() {
         ui.painter().rect_filled(arrow, 4.0, t.hover);
     }
-    paint_direction(ui.painter(), arrow.center(), descending == sort.starts_high(), t.text);
+    paint_direction(ui.painter(), arrow.center(), direction_up(sort, descending), t.text);
     if arrow_resp.clicked() {
         let _ = app.run("view.reverseSort", json!({}));
     }
@@ -347,6 +347,12 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
         }
         x = tab.max.x + TAB_GAP;
     }
+}
+
+/// Which way the arrows that say how the list runs point: up while it starts where its
+/// arrangement naturally starts, down once it is turned over.
+fn direction_up(sort: SortBy, descending: bool) -> bool {
+    descending == sort.starts_high()
 }
 
 /// The arrow that says which way the list runs: a stem with a head, 7 wide and 12 tall.

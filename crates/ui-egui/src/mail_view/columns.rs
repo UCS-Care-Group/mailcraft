@@ -106,11 +106,16 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
             ui.painter().rect_filled(clickable, 0.0, t.hover);
         }
         let active = column.sort() == Some(app.session.view.sort);
-        // The column sorted by wears the arrow drawn beside the list's arrangement.
+        // The column sorted by wears the arrow beside the list's arrangement, pointing as it does.
         let room = cell.width() - 14.0 - if active { SORT_MARK } else { 0.0 };
         let written = paint_clipped(ui.painter(), pos2(cell.min.x + 7.0, cell.center().y), room, label(column, outgoing), regular(12.0), t.text);
         if active && let Some(x) = sort_mark_x(cell, written) {
-            super::paint_direction(ui.painter(), pos2(x, cell.center().y), !app.session.view.sort_descending, t.text);
+            super::paint_direction(
+                ui.painter(),
+                pos2(x, cell.center().y),
+                super::direction_up(app.session.view.sort, app.session.view.sort_descending),
+                t.text,
+            );
         }
         ui.painter().line_segment([cell.right_top(), cell.right_bottom()], Stroke::new(1.0, t.border));
         response.context_menu(|ui| heading_menu(app, ui));

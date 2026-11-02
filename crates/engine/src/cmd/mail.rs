@@ -959,9 +959,9 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
         // What is left is judged as it reads whole: a calendar file by its bytes (meeting mail or
         // not), a picture by whether the HTML shows it. Both are read from where they are kept
         // into a copy, without bringing them, or the body, into the message (#575 review); what
-        // can't be read is judged as the message stands.
+        // can't be read, or a calendar part too large to be read, is judged as the message stands.
         let whole = s
-            .loaded_message_where(id, crate::session::is_calendar_part)
+            .loaded_message_where(id, crate::session::is_readable_calendar_part)
             .map_err(|e| log::warn!("message {id}: its content couldn't be read ({e})"))
             .ok();
         let m = s.mailbox.message_mut(id)?;

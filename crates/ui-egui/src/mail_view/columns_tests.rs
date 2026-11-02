@@ -177,3 +177,11 @@ fn the_sort_arrow_stays_inside_its_heading_or_is_left_out() {
     assert!(x > cell.min.x + 7.0 + 20.0 && x + 4.0 <= cell.max.x);
     assert_eq!(super::sort_mark_x(cell, 60.0), None);
 }
+
+#[test]
+fn the_sort_arrow_points_up_while_the_arrangement_starts_where_it_naturally_does() {
+    assert!(crate::mail_view::direction_up(SortBy::Date, true), "newest first");
+    assert!(!crate::mail_view::direction_up(SortBy::Date, false));
+    assert!(crate::mail_view::direction_up(SortBy::Subject, false), "A first");
+    assert!(!crate::mail_view::direction_up(SortBy::Subject, true));
+}

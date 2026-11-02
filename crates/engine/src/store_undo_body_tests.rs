@@ -291,3 +291,27 @@ fn a_file_removed_beside_a_picture_the_html_on_disk_does_not_show_leaves_the_pap
     assert!(s.load_message(old).unwrap());
     assert_eq!(s.mailbox.message(old).unwrap().listed_attachments().count(), 1, "opened, the picture is listed");
 }
+
+/// #575 review: a calendar part too large to be read isn't read to judge what is left: like any
+/// that can't be read, it is taken for a file, whatever its first lines say.
+#[test]
+fn a_file_removed_beside_a_calendar_part_too_large_to_read_leaves_the_paperclip() {
+    let tmp = Temp::new("remove-beside-huge-ics");
+    let path = tmp.file();
+    let (s, _, old) = opened(&path, AccountKind::Microsoft);
+    drop(s);
+    let mut mb = whole(&path);
+    let mut ics = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n".to_vec();
+    ics.resize(crate::session::MAX_CALENDAR_PART + 1, b'x');
+    let m = mb.message_mut(old).unwrap();
+    m.attachments = vec![Attachment::new("agenda.pdf", "application/pdf", vec![7; 64]), Attachment::new("invite.ics", "text/calendar", ics)];
+    m.server_attachments = Some(true);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+
+    s.run("mail.removeAttachment", &json!({"id": old, "index": 0})).unwrap();
+    let m = s.mailbox.message(old).unwrap();
+    assert!(m.body_is_kept() && !m.attachments[0].is_loaded(), "nothing brought in");
+    assert_eq!((crate::columns::has_files(m), m.attachments_changed_here), (true, Some(true)));
+}
