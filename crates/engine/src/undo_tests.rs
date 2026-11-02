@@ -89,7 +89,7 @@ fn a_folder_deleted_for_good_stays_deleted_and_one_never_on_the_server_comes_bac
         said.extend(undo(&mut s));
     }
     assert!(s.mailbox.folder(local_only).is_some_and(|f| f.parent.is_none()), "never on the server: back as ever");
-    assert_eq!(said, ["The folder 'Receipts' was deleted for good: that can't be undone here."]);
+    assert_eq!(said, ["The folder 'Receipts' was permanently deleted: that can't be undone here."]);
     assert!(s.mailbox.folder(made).is_none());
 }
 

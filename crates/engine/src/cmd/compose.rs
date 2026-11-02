@@ -1339,12 +1339,11 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
 
 fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
-    // Saved by the timer, a message that was no draft before is one that Don't Save takes out of
-    // Drafts again (#286), and put aside unasked it stays so; saved on anybody's asking, it is a
-    // draft for good.
+    // Saved by the timer or put aside unasked for another message, a message that was no draft
+    // before is one that Don't Save takes out of Drafts again (#286); saved on anybody's asking,
+    // it is a draft for good.
     let autosaved = match s.saving {
-        crate::session::Saving::Background => c.draft.is_none() || c.autosaved,
-        crate::session::Saving::Unasked => c.autosaved,
+        crate::session::Saving::Background | crate::session::Saving::Unasked => c.draft.is_none() || c.autosaved,
         crate::session::Saving::Asked => false,
     };
     // Whole, so that what the server had of it is worked out from its real content (R6.1); as it

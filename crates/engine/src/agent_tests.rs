@@ -84,7 +84,7 @@ fn agents_are_asked_before_deleting_contacts_tasks_events_and_categories() {
         assert_eq!(check(&s, id, &params, &[Class::Delete]), Verdict::Run, "{id}");
     }
     let d = describe(&s, "people.delete", &json!({"id": c}));
-    assert!(d.contains("Ada Example") && d.contains("for good"), "{d}");
+    assert!(d.contains("Ada Example") && d.contains("permanently"), "{d}");
     assert!(describe(&s, "tasks.delete", &json!({"id": t})).contains("Pay the invoice"));
     // Telling the people invited too is the stronger question.
     assert!(matches!(check(&s, "calendar.delete", &json!({"id": e, "send": true}), &[Class::Delete]), Verdict::Ask(Class::Send, _)));
