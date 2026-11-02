@@ -128,6 +128,16 @@ pub struct ServerDraft {
     pub saves: u32,
 }
 
+impl ServerDraft {
+    /// Whether nothing but a fetch made this: a draft fetched whole gets one that holds what the
+    /// server had (`synced`) and nothing else, where one written or saved here has a marker, what
+    /// it answers, a save waiting or saves counted. A message that was never a draft here may
+    /// carry one of these (a sent copy taken for a draft, #611).
+    pub fn only_fetched(&self) -> bool {
+        self.marker.is_empty() && !self.pending && self.of.is_none() && self.saves == 0
+    }
+}
+
 fn is_false(b: &bool) -> bool {
     !*b
 }

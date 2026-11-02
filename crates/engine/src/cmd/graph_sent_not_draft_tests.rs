@@ -195,6 +195,71 @@ fn sent_messages_kept_as_drafts_before_are_put_right_when_the_mailbox_opens() {
     assert!(fixed.is_empty(), "{fixed:?}");
 }
 
+/// A sent copy an earlier version kept as a draft and that was fetched whole since (opening it,
+/// or the background fetch): the fetch gives a draft a `server_draft` holding what the server
+/// had of it, and that alone doesn't make it a draft written here. Put right as the mailbox
+/// opens, as one never fetched is.
+#[test]
+fn a_sent_copy_kept_as_a_draft_and_fetched_whole_is_put_right_when_the_mailbox_opens() {
+    const MIME: &[u8] = b"From: Avery <avery@mail.example>\r\nTo: Kit <kit@example.org>\r\nSubject: Quarterly figures\r\nMessage-ID: <q1@mail.example>\r\n\r\nThe figures.\r\n";
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FS", "AAkS1", Some(true)), &mut Down::default());
+    let sent = only_in(&mb, account, "FS").id;
+    mb.message_mut(sent).unwrap().draft = true;
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkS1", MIME));
+    let m = mb.message(sent).unwrap();
+    assert!(m.server_draft.as_ref().is_some_and(|d| d.only_fetched()) && !m.unfetched, "the fetch gave it a server_draft");
+    let bytes = crate::io::write_mailbox(&mb).unwrap();
+    let opened = crate::io::read_mailbox(&bytes).unwrap();
+    let m = opened.message(sent).unwrap();
+    assert!(!m.draft && m.server_draft.is_none(), "still a draft after a fetch");
+    // A draft in Drafts fetched whole has the same server_draft, and stays a draft.
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let draft = only_in(&mb, account, "FD").id;
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkD1", MIME));
+    let bytes = crate::io::write_mailbox(&mb).unwrap();
+    let opened = crate::io::read_mailbox(&bytes).unwrap();
+    assert!(opened.message(draft).unwrap().draft);
+}
+
+/// A draft new to this mailbox in Sent Items (another program moved it there, or the account
+/// was added fresh) is taken for sent, as a MIME-sent copy is; moved back to Drafts, where the
+/// server says it is a draft, it is one again.
+#[test]
+fn a_draft_new_to_the_mailbox_in_sent_items_is_a_draft_again_once_back_in_drafts() {
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FS", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FS").id;
+    assert!(!mb.message(id).unwrap().draft);
+    // Moved back to Drafts in Outlook: the delta lists it there, a draft.
+    let mut gone = MessagePage { folder: "FS".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    gone.link = "next".into();
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    let mut back = page("FD", "AAkD1", Some(true));
+    back.messages[0].server.change_key = "CK2".into();
+    let mut down = Down::default();
+    take_page(&mut mb, &mut index, account, &back, &mut down);
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.unfetched, "a draft again, to be fetched afresh");
+    assert_eq!(mb.folder_by_server(account, "FD"), Some(m.folder));
+    assert_eq!(down.changed, 1);
+}
+
+/// A JMAP account's Sent folder is read through the same path; its server keeps its own word
+/// on what is a draft, and nothing is taken for sent there.
+#[test]
+fn a_jmap_accounts_sent_folder_keeps_the_servers_word() {
+    let (mut mb, account) = mailbox();
+    mb.accounts[0].kind = AccountKind::Jmap;
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FS", "j1", Some(true)), &mut Down::default());
+    assert!(only_in(&mb, account, "FS").draft);
+}
+
 /// Saved through the file and read back, as the program opens it.
 #[test]
 fn a_mailbox_file_with_sent_messages_kept_as_drafts_opens_with_them_sent() {

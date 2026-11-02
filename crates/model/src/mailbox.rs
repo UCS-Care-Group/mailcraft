@@ -2964,8 +2964,10 @@ impl Mailbox {
         // message sent as MIME with `isDraft` still true, and a mailbox kept before that was
         // known took it for a draft (#611); the server never says it again, so it is put right
         // here. Only a copy that came down from the server's own Sent Items: it is kept with no
-        // `server_draft`, as a draft written or saved here never is, and its server copy lies in
-        // that folder. A draft moved into Sent Items here whose move hasn't gone up (its server
+        // `server_draft`, or with one that only a fetch made (opening one, or the background
+        // fetch, gives a draft fetched whole what the server had of it and nothing else), as a
+        // draft written or saved here never is, and its server copy lies in that folder. A draft
+        // moved into Sent Items here whose move hasn't gone up (its server
         // copy still lies in Drafts) is left alone: Outlook keeps it as a draft, and it is one
         // again when moved back. What this can't tell apart: a draft that came down from Drafts,
         // was never written in here, and was then moved into Sent Items by the owner, once that
@@ -2983,14 +2985,15 @@ impl Mailbox {
             .values()
             .filter(|m| {
                 m.draft
-                    && m.server_draft.is_none()
+                    && m.server_draft.as_ref().is_none_or(|d| d.only_fetched())
                     && sent_items.get(&m.folder).is_some_and(|sent| m.server.as_ref().is_some_and(|s| s.folder == *sent))
             })
             .map(|m| m.id)
             .collect();
         for id in sent_copies {
             if let Some(m) = self.messages.get_mut(&id) {
-                Arc::make_mut(m).draft = false;
+                let m = Arc::make_mut(m);
+                (m.draft, m.server_draft) = (false, None);
             }
         }
         // What is kept about the server's copies must hang together: a UID names one message of
