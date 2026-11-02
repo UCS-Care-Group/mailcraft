@@ -11,7 +11,7 @@
 //!
 //! Folders are named by their immutable ids, as the account's mail has them: every request asks
 //! for those, and a folder a rule names by another id is looked up by it once
-//! ([`MAX_FOLDER_LOOKUPS`] at most).
+//! ([`MAX_FOLDER_LOOKUPS`] at most). A rule whose folder gets no answer waits for the next read.
 //!
 //! What comes back is hostile JSON like everything else from a server: the list is capped, an
 //! entry that is no rule is skipped, and [`RemoteRule::tidy`] cuts the rest to size.
@@ -78,8 +78,19 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
             named.insert(rule.move_to.clone(), None);
         }
     }
+    let mut no_answer: Vec<String> = Vec::new();
     for (asked, found) in &mut named {
-        *found = folder_id(&graph, asked, &mut download.complete)?;
+        match folder_id(&graph, asked)? {
+            Looked::Is(id) => *found = Some(id),
+            Looked::NotKnown => {}
+            Looked::NoAnswer => no_answer.push(asked.clone()),
+        }
+    }
+    // Nothing can be told of such a rule now, not even that it isn't one made here: it waits for
+    // the next read, which is not whole without it.
+    if !no_answer.is_empty() {
+        download.rules.retain(|rule| !no_answer.contains(&rule.move_to));
+        download.complete = false;
     }
     for rule in &mut download.rules {
         if let Some(Some(id)) = named.get(&rule.move_to) {
@@ -90,31 +101,33 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
     Ok(download)
 }
 
-/// The immutable id of the folder Graph knows as `asked`; none when it doesn't say. A look-up
-/// that gets no answer clears `whole`: nothing can be told of a rule that moves mail there, and a
-/// read that isn't whole decides nothing.
-fn folder_id(graph: &Graph<'_>, asked: &str, whole: &mut bool) -> Result<Option<String>, NetError> {
+/// What a look-up of a rule's folder came to.
+enum Looked {
+    /// The immutable id it goes by.
+    Is(String),
+    /// The server won't say: the rule moves mail to a folder that isn't known.
+    NotKnown,
+    /// Not to be had now (a time-out, the server busy or failing).
+    NoAnswer,
+}
+
+/// What Graph says of the folder it knows as `asked`.
+fn folder_id(graph: &Graph<'_>, asked: &str) -> Result<Looked, NetError> {
     if !valid_id(asked) {
-        return Ok(None);
+        return Ok(Looked::NotKnown);
     }
     let url = graph.url(&format!("{FOLDERS}/{}?{}", http::encode(asked), http::form(&[("$select", "id")])));
     match graph.ask(&url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE) {
         Ok(reply) if reply.status == 200 => {
             let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-            Ok(Some(text(&json, "id").to_string()).filter(|id| valid_id(id)))
+            let id = text(&json, "id");
+            Ok(if valid_id(id) { Looked::Is(id.to_string()) } else { Looked::NotKnown })
         }
         Ok(reply) if reply.status == 401 => Err(graph.refusal(Doing::Rules, &reply, "")),
-        // Gone: the rule says it moves mail to a folder that isn't known.
-        Ok(reply) if reply.status == 404 => Ok(None),
-        Ok(_) => {
-            *whole = false;
-            Ok(None)
-        }
+        Ok(reply) if reply.status == 429 || reply.status >= 500 => Ok(Looked::NoAnswer),
+        Ok(_) => Ok(Looked::NotKnown),
         Err(e) if e.is_refused_sign_in() => Err(e),
-        Err(_) => {
-            *whole = false;
-            Ok(None)
-        }
+        Err(_) => Ok(Looked::NoAnswer),
     }
 }
 

@@ -191,16 +191,28 @@ fn rules_are_read_and_their_folders_named_as_the_mail_names_them() {
 }
 
 #[test]
-fn a_folder_that_couldnt_be_looked_up_leaves_the_read_unfinished() {
-    let s = state(vec![json!({"id": "A", "displayName": "One", "sequence": 1, "isEnabled": true,
-           "conditions": {"subjectContains": ["x"]}, "actions": {"moveToFolder": "OLD-news"}})]);
+fn a_rule_whose_folder_gets_no_answer_waits_for_the_next_read() {
+    let s = state(vec![
+        json!({"id": "A", "displayName": "One", "sequence": 1, "isEnabled": true,
+               "conditions": {"subjectContains": ["x"]}, "actions": {"moveToFolder": "OLD-news"}}),
+        json!({"id": "B", "displayName": "Two", "sequence": 2, "isEnabled": true,
+               "conditions": {"subjectContains": ["y"]}, "actions": {"markAsRead": true}}),
+    ]);
     let server = serve(&s);
-    // Not to be had now: nothing can be told of that rule, and nothing is decided from this read.
-    s.lock().unwrap().folder_status = Some(503);
-    assert!(!rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
-    // A folder the server says isn't there is an answer.
-    s.lock().unwrap().folder_status = None;
-    assert!(rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
+    // Not to be had now: nothing can be told of that rule, not even that it isn't ours.
+    for status in [429, 500, 503] {
+        s.lock().unwrap().folder_status = Some(status);
+        let got = rules_at(&server.url(""), TOKEN, &[]).unwrap();
+        assert!(!got.complete, "{status}");
+        assert_eq!(got.rules.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["B"], "{status}");
+    }
+    // A folder the server won't give is an answer: the rule moves mail to one that isn't known.
+    for status in [None, Some(400), Some(403)] {
+        s.lock().unwrap().folder_status = status;
+        let got = rules_at(&server.url(""), TOKEN, &[]).unwrap();
+        assert!(got.complete, "{status:?}");
+        assert_eq!(got.rules[0].move_to, "OLD-news", "{status:?}");
+    }
 }
 
 #[test]

@@ -1377,13 +1377,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.enable" | "rules.remove" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
-            // Read as the command reads it.
-            let on = p::opt_bool(params, "value").ok().flatten();
-            let verb = match r {
+            // Read as the command reads it, which refuses a `value` that isn't one.
+            let verb = match (r, p::opt_bool(params, "value")) {
                 _ if id == "rules.remove" => "delete",
-                Some(r) if on.unwrap_or(!r.enabled) => "switch on",
-                Some(_) => "switch off",
-                None => "switch on or off",
+                (Some(r), Ok(on)) if on.unwrap_or(!r.enabled) => "switch on",
+                (Some(_), Ok(_)) => "switch off",
+                _ => "switch on or off",
             };
             match r {
                 Some(r) => {

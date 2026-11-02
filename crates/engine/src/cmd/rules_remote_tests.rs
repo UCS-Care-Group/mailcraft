@@ -431,6 +431,26 @@ fn a_rule_on_the_server_with_more_to_it_than_one_made_here_isnt_taken_for_it() {
 }
 
 #[test]
+fn a_lost_answer_waits_through_a_read_that_left_a_rule_out() {
+    let (mut s, account, _, news) = session();
+    let id = news_rule(&mut s, account, news);
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    // Its folder couldn't be looked up: the read leaves it out, and isn't whole.
+    apply_rules(&mut s, &RulesDownload { complete: false, ..download(account, Vec::new()) }).unwrap();
+    assert!(rule(&s, id).unanswered);
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+    let mut there = remote("r9", "News", 1);
+    there.conditions = vec![Condition::FromContains("DIGEST".into())];
+    there.actions.clear();
+    there.move_to = "news".into();
+    apply_rules(&mut s, &download(account, vec![there])).unwrap();
+    assert!(rule(&s, id).on_server());
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+    assert_eq!(s.mailbox.rules.len(), 1);
+}
+
+#[test]
 fn a_rule_with_an_action_said_twice_isnt_made_twice_after_a_lost_answer() {
     let (mut s, account, _, _) = session();
     let blue = json!({"type": "categorize", "value": "Blue"});
