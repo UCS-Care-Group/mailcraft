@@ -9,7 +9,7 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
-use mailcraft_model::{Action, Condition, Id, Importance, Keep, Mailbox, Rule, RuleGone, ServerRule, clean_name};
+use mailcraft_model::{Action, Condition, Id, Importance, Keep, Mailbox, Rule, RuleGone, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message};
@@ -489,27 +489,31 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
 /// let be changed keeps its number, which no other is given: a new one would never be sent.
 pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
-    let mut numbers: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref().map(|s| s.sequence)).collect();
+    let locked = |i: &&usize| mb.rules.get(**i).is_some_and(Rule::read_only);
+    let number = |i: &usize| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence);
+    let taken: Vec<i32> = on.iter().filter(locked).filter_map(number).collect();
+    let mut numbers: Vec<i32> = on.iter().filter(|i| !locked(i)).filter_map(number).collect();
     numbers.sort_unstable();
     // (The server's places start at 1: one below is sent as 1, and would stand with that one.)
     let distinct = numbers.windows(2).all(|w| w.first() < w.get(1)) && numbers.first().is_none_or(|n| *n >= 1);
-    if !distinct {
-        let servers: Vec<&ServerRule> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref()).collect();
-        let taken: Vec<i32> = servers.iter().filter(|s| s.read_only).map(|s| s.sequence).collect();
+    if !distinct || numbers.iter().any(|n| taken.contains(n)) {
         let mut next = numbers.first().copied().unwrap_or(1).max(1);
-        let mut afresh = Vec::with_capacity(on.len());
-        for server in servers {
+        numbers.clear();
+        for i in &on {
+            if locked(&i) {
+                next = next.max(number(i).unwrap_or(0).saturating_add(1));
+                continue;
+            }
             while taken.contains(&next) && next < i32::MAX {
                 next = next.saturating_add(1);
             }
-            let number = if server.read_only { server.sequence } else { next };
-            next = next.max(number.saturating_add(1));
-            afresh.push(number);
+            numbers.push(next);
+            next = next.saturating_add(1);
         }
-        numbers = afresh;
     }
-    for (i, number) in on.into_iter().zip(numbers) {
-        if let Some(server) = mb.rules.get_mut(i).and_then(|r| r.server.as_mut()).filter(|s| !s.read_only) {
+    let movable: Vec<usize> = on.iter().filter(|i| !locked(i)).copied().collect();
+    for (i, number) in movable.into_iter().zip(numbers) {
+        if let Some(server) = mb.rules.get_mut(i).and_then(|r| r.server.as_mut()) {
             server.sequence = number;
         }
     }

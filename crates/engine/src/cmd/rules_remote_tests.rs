@@ -606,12 +606,15 @@ fn numbering_rules_afresh_goes_round_one_the_server_wont_let_be_moved() {
         let (mut s, account, _, _) = session();
         let rules = vec![remote("a", "A", a), remote("b", "B", b), RemoteRule { read_only: true, ..remote("ro", "Locked", locked) }];
         merge_rules(&mut s.mailbox, &download(account, rules)).unwrap();
-        let id = s.mailbox.rules.iter().find(|r| r.name == "B").unwrap().id;
-        run(&mut s, "rules.move", json!({"id": id, "direction": "up"}));
-        let mut places: Vec<i32> = s.mailbox.rules.iter().filter_map(|r| r.server.as_ref()).map(|s| s.sequence).collect();
-        places.sort_unstable();
-        assert!(places.windows(2).all(|w| w[0] < w[1]), "{places:?}");
-        assert_eq!(s.mailbox.rules.iter().find(|r| r.name == "Locked").unwrap().server.as_ref().unwrap().sequence, locked);
+        // And a second move, before anything has put them in the order of their numbers.
+        for name in ["B", "A"] {
+            let id = s.mailbox.rules.iter().find(|r| r.name == name).unwrap().id;
+            run(&mut s, "rules.move", json!({"id": id, "direction": "up"}));
+            let mut places: Vec<i32> = s.mailbox.rules.iter().filter_map(|r| r.server.as_ref()).map(|s| s.sequence).collect();
+            places.sort_unstable();
+            assert!(places.windows(2).all(|w| w[0] < w[1]), "{places:?}");
+            assert_eq!(s.mailbox.rules.iter().find(|r| r.name == "Locked").unwrap().server.as_ref().unwrap().sequence, locked);
+        }
     }
 }
 
