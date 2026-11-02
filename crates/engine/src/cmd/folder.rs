@@ -13,10 +13,10 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
-            .pure()
+            .reads()
             .key("Mod+Y")
             .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
-        CommandSpec::new("folder.list", "List Folders", "Folder", list).pure().params(
+        CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
@@ -179,10 +179,14 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     }
     // A search belongs to the folder it was typed in.
     s.view.search.clear();
-    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": s.mailbox.count(id), "unread": s.mailbox.unread_count(id)}))
+    // From the counts the window has anyway, not two walks over every message.
+    let counts = s.folder_counts();
+    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)}))
 }
 
-fn tree(s: &Session, account: Id, parent: Option<Id>, depth: usize) -> Vec<Value> {
+/// The folders under `parent`, each with its counts from `counts` (counted once for the whole
+/// mailbox, not by a walk over every message for every folder).
+fn tree(s: &Session, counts: &crate::counts::FolderCounts, account: Id, parent: Option<Id>, depth: usize) -> Vec<Value> {
     if depth > 40 {
         return Vec::new();
     }
@@ -190,32 +194,29 @@ fn tree(s: &Session, account: Id, parent: Option<Id>, depth: usize) -> Vec<Value
         .children(account, parent)
         .into_iter()
         .map(|f| {
+            let held = counts.folder(f.id);
             json!({
                 "id": f.id, "name": f.name, "kind": f.kind, "favorite": f.favorite,
-                "messages": s.mailbox.count(f.id), "unread": s.mailbox.unread_count(f.id),
-                "folders": tree(s, account, Some(f.id), depth + 1),
+                "messages": held.total, "unread": held.unread,
+                "folders": tree(s, counts, account, Some(f.id), depth + 1),
             })
         })
         .collect()
 }
 
 fn list(s: &mut Session, _: &Value) -> CmdResult {
-    // Each account's unread, in one pass over the mail: its own messages alone.
-    let mut unread: std::collections::HashMap<Id, usize> = std::collections::HashMap::new();
-    for m in s.mailbox.messages.values().filter(|m| !m.read) {
-        let n = unread.entry(m.account).or_default();
-        *n = n.saturating_add(1);
-    }
+    // Each account's unread: its own messages alone (counted once per change to the mailbox).
+    let counts = s.folder_counts();
     let accounts: Vec<Value> = s
         .mailbox
         .accounts
         .iter()
         .map(|a| {
-            let unread = unread.get(&a.id).copied().unwrap_or(0);
+            let unread = counts.account(a.id).unread;
             let mut entry = json!({
                 "id": a.id, "name": a.name, "email": a.email, "kind": a.kind, "unread": unread,
                 "favoritesFrom": if favorites_from_server(s, a.id) { "server" } else { "mailbox" },
-                "folders": tree(s, a.id, None, 0),
+                "folders": tree(s, &counts, a.id, None, 0),
             });
             // A shared mailbox (#70): its unread are its own, and the account it is opened
             // through is named.

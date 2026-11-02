@@ -454,7 +454,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let shown = mailcraft_engine::list::listed(&app.session.rows());
                         let folder = app.session.view.folder;
                         st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
-                        let unread = app.session.mailbox.unread_count(folder);
+                        // (Counted once per change, not at every frame: `Session::folder_counts`.)
+                        let unread = app.session.folder_counts().unread(folder);
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                         }
