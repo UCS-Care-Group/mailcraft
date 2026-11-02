@@ -56,7 +56,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("view.taskAccount", "Show Tasks Of", "Tasks", task_account)
-            .pure()
+            .reads()
             .params(r#"{"value": "all" | "here" | number} — every account's tasks, those kept on this computer (0 is the same), or one account's"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),

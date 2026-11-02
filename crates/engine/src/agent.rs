@@ -806,6 +806,18 @@ fn shared_category(s: &Session, id: &str, params: &Value) -> bool {
     s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && on_list(t) && s.mailbox.in_shared_task_list(t))
 }
 
+/// Whether going from `before` to `after` changes the owner's answer about their local to-dos, or
+/// puts a to-do on its way to an account's To Do that it wasn't on its way to, where
+/// [`new_task_onto`] would ask.
+pub(crate) fn places_tasks(before: &Mailbox, after: &Mailbox) -> bool {
+    let home = crate::cmd::tasks_remote::tasks_home(before);
+    let placed = |(k, t): (&Id, &std::sync::Arc<Task>)| {
+        let waiting = t.origin.account != 0 && t.origin.id.is_empty() && !t.local_only && Some(t.origin.account) != home;
+        waiting && before.tasks.get(k).is_none_or(|b| b.origin.account != t.origin.account)
+    };
+    before.local_tasks != after.local_tasks || after.tasks.iter().any(placed)
+}
+
 /// Whether going from `before` to `after` changes what a list shared with other people has, as
 /// the next Send/Receive of to-dos would tell its server: a to-do in one changed, brought back or
 /// added, or one deleted from one.
@@ -1287,7 +1299,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
-                Some(Class::Send) => "a change to a meeting or to a task in a shared list, which other people see",
+                Some(Class::Send) => {
+                    "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
+                }
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };

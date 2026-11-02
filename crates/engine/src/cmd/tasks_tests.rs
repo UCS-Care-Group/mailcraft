@@ -388,6 +388,27 @@ fn an_agent_is_asked_however_it_names_the_message() {
 }
 
 #[test]
+fn an_agent_is_asked_before_a_redo_puts_a_task_on_an_account() {
+    let (mut s, work, home) = session();
+    let ask = Access::Owner(Class::Send);
+    // The owner's answer, which they took back: only they give it.
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    assert!(s.undo());
+    assert_eq!(classify(&s, "edit.redo", &json!({})), ask);
+    assert!(describe(&s, "edit.redo", &json!({})).contains("To Do"));
+    assert!(s.redo());
+    assert_eq!(classify(&s, "edit.undo", &json!({})), ask);
+    // A task in another account than that one, which they took back.
+    run(&mut s, "tasks.new", json!({"title": "Mine", "account": home}));
+    assert!(s.undo());
+    assert_eq!(classify(&s, "edit.redo", &json!({})), ask);
+    // The account they sent their tasks to is free, as for a new task.
+    run(&mut s, "tasks.new", json!({"title": "Also mine", "account": work}));
+    assert!(s.undo());
+    assert_eq!(classify(&s, "edit.redo", &json!({})), Access::Safe);
+}
+
+#[test]
 fn an_agent_gets_no_further_by_moving_the_list() {
     let (mut s, _, home) = session();
     let ask = Access::Owner(Class::Send);

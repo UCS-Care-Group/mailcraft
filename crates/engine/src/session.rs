@@ -2761,6 +2761,10 @@ impl Session {
         if crate::agent::changes_shared_tasks(now, to) {
             return Some(Class::Send);
         }
+        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
+        if crate::agent::places_tasks(now, to) {
+            return Some(Class::Send);
+        }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
         let category_gone =
             |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
