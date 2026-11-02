@@ -184,6 +184,10 @@ impl eframe::App for App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             }
         }
+        // A window of its own about to open is put on a monitor that is connected (#286).
+        if self.0.wants_monitors() {
+            self.0.set_monitors(monitors_in_pixels(frame));
+        }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
@@ -483,6 +487,26 @@ fn connected_monitors(ctx: &egui::Context, frame: &eframe::Frame) -> Vec<egui::R
         ([at.x, at.y], [size.width, size.height])
     });
     window_geometry::monitors_in_points(listed, pixels_per_point)
+}
+
+/// The monitors connected now, in the system's pixels with each one's scale, for the windows of
+/// their own about to open (#286): one space for every monitor, whatever its scale.
+fn monitors_in_pixels(frame: &eframe::Frame) -> Vec<mailcraft_ui_egui::window_places::Monitor> {
+    let Some(window) = frame.winit_window() else { return Vec::new() };
+    window
+        .available_monitors()
+        .take(64)
+        .map(|m| {
+            let (at, size) = (m.position(), m.size());
+            // (In points on macOS, where winit gives each monitor's place by its own scale.)
+            mailcraft_ui_egui::window_places::monitor(
+                [at.x, at.y],
+                [size.width, size.height],
+                m.scale_factor(),
+                mailcraft_ui_egui::window_places::POINTS,
+            )
+        })
+        .collect()
 }
 
 /// The pages waiting for the window's activation token (`browser`), set once before the window opens.

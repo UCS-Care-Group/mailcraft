@@ -152,6 +152,17 @@ fn main_monitor(monitors: &[egui::Rect]) -> Option<egui::Rect> {
     Some(at_origin.or_else(|| usable_monitors(monitors).find(|m| m.contains(egui::Pos2::ZERO))).unwrap_or(first))
 }
 
+/// Whether `monitors` lists one that can be real: where none is listed (Wayland), a window is
+/// put where the system puts it.
+pub fn any_monitor(monitors: &[egui::Rect]) -> bool {
+    usable_monitors(monitors).next().is_some()
+}
+
+/// The monitor that holds `point`, among those that can be real.
+pub fn monitor_holding(monitors: &[egui::Rect], point: egui::Pos2) -> Option<egui::Rect> {
+    usable_monitors(monitors).find(|m| m.contains(point))
+}
+
 fn usable_monitors(monitors: &[egui::Rect]) -> impl Iterator<Item = egui::Rect> + '_ {
     monitors.iter().copied().filter(usable_monitor)
 }
