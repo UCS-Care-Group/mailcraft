@@ -317,6 +317,7 @@ enum Doing {
     Folders,
     Mail,
     Tasks,
+    Rules,
     /// Reading the automatic replies, and changing them.
     Replies,
     ChangingReplies,
@@ -334,6 +335,7 @@ impl Doing {
             Doing::Folders => "folders",
             Doing::Mail => "mail",
             Doing::Tasks => "tasks",
+            Doing::Rules => "rules",
             Doing::Replies | Doing::ChangingReplies => "automatic replies",
         }
     }
@@ -800,6 +802,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Folders => "this account may not read or change its folders through Microsoft Graph",
                 Doing::Mail => "this account may not read its mail through Microsoft Graph",
                 Doing::Tasks => "this account may not read or change its to-dos through Microsoft Graph",
+                Doing::Rules => "this account may not read or change its rules through Microsoft Graph",
                 Doing::Replies => "this account may not read its automatic replies through Microsoft Graph",
                 Doing::ChangingReplies => "this account may not change its automatic replies through Microsoft Graph",
             };
@@ -2221,6 +2224,9 @@ pub use people::{Opened, open_calendar};
 mod tasks;
 pub use tasks::{push_tasks, tasks};
 
+mod rules;
+pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2245,6 +2251,8 @@ pub mod standin;
 mod auto_replies_tests;
 #[cfg(test)]
 mod people_tests;
+#[cfg(test)]
+mod rules_tests;
 #[cfg(test)]
 mod shared_calendar_tests;
 #[cfg(test)]
