@@ -65,7 +65,7 @@ const MAX_NAME: usize = 255;
 /// The server's Outbox is not among them: what Exchange holds there is queued for sending with
 /// the owner's rights, and MailCraft's own Outbox (the queue it sends from) is never bound to
 /// it (AU2-V2). It is asked for by [`OUTBOX`] only to be told apart: an empty one is left out
-/// of the listing, as an Exchange mailbox's is over IMAP, so the folder pane doesn't show two
+/// of the listing (an Exchange mailbox's always is, over IMAP), so the folder pane doesn't show two
 /// Outboxes; one that holds mail is listed as any folder is.
 const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
     ("msgfolderroot", None),

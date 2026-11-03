@@ -584,7 +584,7 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
 /// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
 /// known by their ids as Graph's folders are).
 pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
-    release_outbox(mb, account, listing);
+    release_outbox(mb, account, listing, taken);
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
@@ -645,7 +645,7 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
 /// the folder pane doesn't show two), which would otherwise take this Outbox away with what waits
 /// in it. What the server delivered into it is forgotten here (it comes down again into the
 /// server's Outbox as a folder of its own) and is not sent.
-fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing) {
+fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
     let let_go = |server: &str| {
         let mut there = listing.folders.iter().filter(|l| l.id == server).peekable();
         if there.peek().is_none() { listing.complete } else { there.any(|l| l.kind != FolderKind::Outbox) }
@@ -664,6 +664,7 @@ fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing) {
         }
         if let Ok(f) = mb.folder_mut(folder) {
             f.server = None;
+            taken.updated += 1;
         }
     }
 }

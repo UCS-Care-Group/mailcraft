@@ -74,7 +74,10 @@ fn an_outbox_bound_to_an_empty_server_outbox_that_isnt_listed_stays_with_its_mai
     // A complete listing without the server's Outbox (empty, so left out): this Outbox is let go
     // of, not taken away as a folder the server no longer has.
     let listing = FolderListing { folders: Vec::new(), complete: true };
-    take_listing(&mut s.mailbox, account, &listing, &mut Taken::default());
+    let mut taken = Taken::default();
+    take_listing(&mut s.mailbox, account, &listing, &mut taken);
+    // Counted, so the run marks the mailbox changed and it is saved.
+    assert!(taken.updated > 0);
     assert_eq!(s.mailbox.folder_of_kind(account, FolderKind::Outbox), Some(outbox));
     assert_eq!(s.mailbox.folder(outbox).unwrap().server, None);
     assert!(s.mailbox.message(mine).is_some() && s.mailbox.message(theirs).is_none());
