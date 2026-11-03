@@ -164,6 +164,20 @@ fn show_columns_adds_moves_and_removes_as_outlooks_does() {
     assert!(w.state().session.prefs.columns.enabled, "OK shows the columns");
 }
 
+/// Show Columns chooses the message list's columns, so its button is only where that list is.
+#[test]
+fn add_columns_is_on_the_view_tab_only_with_the_message_list() {
+    let mut w = testing::window("view.mail");
+    let has = |w: &testing::Window| crate::ribbon::describe_tab(w.state(), "View").items().any(|item| item.key == "view.addColumns");
+    assert!(has(&w));
+    for module in ["view.people", "view.tasks", "view.calendar"] {
+        w.state_mut().execute(module, json!({})).unwrap();
+        assert!(!has(&w), "{module}");
+    }
+    w.state_mut().execute("view.mail", json!({})).unwrap();
+    assert!(has(&w));
+}
+
 #[test]
 fn cancel_leaves_the_columns_as_they_were() {
     let mut w = testing::window("view.mail");

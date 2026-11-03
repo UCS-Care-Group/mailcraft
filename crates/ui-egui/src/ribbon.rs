@@ -951,6 +951,12 @@ fn folder(app: &MailApp) -> Tab {
 fn view(app: &MailApp) -> Tab {
     let v = &app.session.view;
     let mut tab = view_of_any(app);
+    if v.module != Module::Mail {
+        // Show Columns chooses the message list's columns, and that list is only in Mail.
+        for group in &mut tab.groups {
+            group.items.retain(|item| item.key != "view.addColumns");
+        }
+    }
     if v.module == Module::Calendar {
         // The calendar's own, in place of the messages' preview and sorting, which mean nothing
         // here: its four views, as Home has them (Outlook's View tab has them too, and that is
