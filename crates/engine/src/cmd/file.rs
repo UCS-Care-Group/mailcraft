@@ -346,7 +346,7 @@ fn info(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({
         "path": s.path.as_ref().map(|p| p.to_string_lossy().to_string()),
         "dirty": s.dirty,
-        "accounts": mb.accounts.iter().map(|a| json!({"id": a.id, "name": a.name, "email": a.email, "kind": a.kind})).collect::<Vec<_>>(),
+        "accounts": mb.accounts_in_order().into_iter().map(|a| json!({"id": a.id, "name": a.name, "email": a.email, "kind": a.kind})).collect::<Vec<_>>(),
         "folders": mb.folders.len(),
         "messages": mb.messages.len(),
         "unread": mb.messages.values().filter(|m| !m.read).count(),

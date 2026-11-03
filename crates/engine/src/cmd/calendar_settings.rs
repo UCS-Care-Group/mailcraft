@@ -96,7 +96,9 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let mailbox = &s.mailbox;
     let keeper = |c: &Calendar| remote::keeper(mailbox, &c.origin).map(|account| account.id);
     let listed: Vec<&Calendar> = mailbox.calendars.iter().take(MAX_LISTED).collect();
-    let accounts: Vec<&Account> = mailbox.accounts.iter().take(50).filter(|a| listed.iter().any(|c| keeper(c) == Some(a.id))).collect();
+    // (In the order the owner put the accounts in, #702.)
+    let accounts: Vec<&Account> =
+        mailbox.accounts_in_order().into_iter().take(50).filter(|a| listed.iter().any(|c| keeper(c) == Some(a.id))).collect();
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
         let group_of = |c: &Calendar| {

@@ -3371,8 +3371,8 @@ msgid ""
 "Properties"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -5297,6 +5297,11 @@ msgstr ""
 msgid ""
 "Move\n"
 "Folder"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Move Account"
 msgstr ""
 
 #. interface
@@ -11785,6 +11790,11 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr ""
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
 msgstr ""
@@ -11842,6 +11852,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an account can't be put before itself"
 msgstr ""
 
 #. what a command says

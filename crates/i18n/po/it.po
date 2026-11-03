@@ -3884,8 +3884,8 @@ msgstr ""
 "Proprietà\n"
 "cartella"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Riquadro delle cartelle"
@@ -6096,6 +6096,12 @@ msgid ""
 msgstr ""
 "Sposta\n"
 "cartella"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Sposta account"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13522,6 +13528,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "una cassetta postale condivisa conserva offline tanta posta quanto l'account tramite cui è aperta: indicare quell'account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "una cassetta postale condivisa resta sotto l'account tramite cui è aperta: spostare quell'account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -13586,6 +13598,12 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "un account non può essere messo prima di sé stesso"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs

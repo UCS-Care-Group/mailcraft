@@ -3,7 +3,7 @@
 //! Getting around: the module bar (Mail, Calendar, People, Tasks) down the left edge, and the
 //! folder pane beside it in Mail.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
@@ -196,12 +196,16 @@ fn highlight(r: Rect) -> Rect {
 
 /// A heading of the pane (Favorites, an account): a chevron and the name, `height` tall with the
 /// name's line centred `text_y` under the top, and a rule above it when `ruled`. A click folds or
-/// unfolds what is under it; `true` when that shows.
-fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text_y: f32, ruled: bool) -> bool {
+/// unfolds what is under it; `true` when that shows. A `movable` one (an account of the owner's
+/// own, beside another, #702) is dragged up or down the pane by it.
+fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text_y: f32, ruled: bool, movable: bool) -> bool {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
-    let resp = ui.interact(r, ui.scope_id().with(("heading", id)), Sense::click());
+    let resp = ui.interact(r, ui.scope_id().with(("heading", id)), if movable { Sense::click_and_drag() } else { Sense::click() });
     app.hit.add("folderHeading", id, r);
+    if movable {
+        resp.dnd_set_drag_payload(AccountDrag(id));
+    }
     if ruled {
         let y = r.min.y + 9.5;
         ui.painter().line_segment([pos2(r.min.x + HIGHLIGHT_LEFT, y), pos2(r.max.x - HIGHLIGHT_RIGHT, y)], Stroke::new(1.0, t.border));
@@ -224,6 +228,93 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
         });
     }
     open
+}
+
+/// An account being dragged up or down the folder pane by its heading (#702).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AccountDrag(pub Id);
+
+/// The owner's own accounts, top to bottom: what a drag puts in another order. A shared mailbox
+/// goes with the account it is opened through.
+fn owners(mb: &Mailbox) -> Vec<Id> {
+    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
+}
+
+/// Where an account of the owner's own starts in the pane, for a drag of one (#702): its
+/// heading's top, and the height a line there is drawn at (on the rule above the heading).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Block {
+    account: Id,
+    top: f32,
+    line: f32,
+}
+
+/// The gap between the owner's accounts that a pointer at height `y` points at: 0 before the
+/// first, `blocks.len()` after the last. Over an account (its heading, its folders, its shared
+/// mailboxes) the gap above it in its upper half and the one below in its lower half; above the
+/// first (over Favorites) the first gap, below the last the last. `end` is where the last ends.
+fn gap_at(blocks: &[Block], end: f32, y: f32) -> usize {
+    for (n, block) in blocks.iter().enumerate() {
+        let bottom = blocks.get(n + 1).map_or(end, |next| next.top);
+        if y < block.top {
+            return n;
+        }
+        if y < bottom {
+            return if y < (block.top + bottom) / 2.0 { n } else { n + 1 };
+        }
+    }
+    blocks.len()
+}
+
+/// While an account is dragged by its heading (#702): over the pane, a line in the gap between
+/// two accounts where it would go, and on letting go there the move (`account.move`). Letting go
+/// where it already is changes nothing, and so do Escape and letting go outside the pane.
+fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
+    let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) else { return };
+    let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
+    let Some(from) = blocks.iter().position(|b| b.account == drag.0) else { return };
+    // (The part of the pane in view: the scroll area's.)
+    let pane = ui.clip_rect();
+    if !pane.contains(pos) {
+        return;
+    }
+    crate::drag_pointer::note_folder(ui.ctx(), true);
+    let gap = gap_at(blocks, end, pos.y);
+    let t = Tokens::get(ui.ctx());
+    let y = blocks.get(gap).map_or(end + 2.0, |b| b.line);
+    let (left, right) = (pane.min.x + HIGHLIGHT_LEFT, pane.max.x - HIGHLIGHT_RIGHT);
+    ui.painter().line_segment([pos2(left + 3.0, y), pos2(right, y)], Stroke::new(2.0, t.accent));
+    ui.painter().circle_stroke(pos2(left + 3.0, y), 3.0, Stroke::new(2.0, t.accent));
+    app.hit.add("accountGap", gap as u64, Rect::from_min_max(pos2(left, y - 3.0), pos2(right, y + 3.0)));
+    if ui.input(|i| i.pointer.any_released()) {
+        egui::DragAndDrop::clear_payload(ui.ctx());
+        if gap != from && gap != from + 1 {
+            let before = blocks.get(gap).map(|b| b.account);
+            let _ = app.run("account.move", json!({"id": drag.0, "before": before}));
+        }
+    }
+}
+
+/// While an account is being dragged: a small label by the pointer with its name.
+fn account_ghost(app: &MailApp, ui: &Ui) {
+    let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) else { return };
+    let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
+    let Some(a) = app.session.mailbox.account(drag.0) else { return };
+    let t = Tokens::get(ui.ctx());
+    let name = if a.name.trim().is_empty() { tl!("Mailbox").to_string() } else { a.name.clone() };
+    egui::Area::new(egui::Id::unique("account_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
+        ui.ctx(),
+        |ui| {
+            egui::Frame::NONE
+                .fill(t.menu)
+                .stroke(Stroke::new(1.0, t.border_strong))
+                .corner_radius(4.0)
+                .inner_margin(egui::Margin::symmetric(8, 4))
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(name).font(regular(12.0)).color(t.text));
+                });
+        },
+    );
 }
 
 /// Where the folder in view was last picked: `true` in its account's list, `false` under
@@ -552,14 +643,19 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
             let favorite_selected = among_favorites && !(in_a_list && picked_in_list(ui));
+            // The owner's own accounts are dragged up or down by their headings (#702), when there
+            // are two at least; a shared mailbox goes with its account.
+            let own = owners(&app.session.mailbox);
+            let movable: HashSet<Id> = if own.len() > 1 { own.into_iter().collect() } else { HashSet::new() };
             // The first heading sits right under the top of the pane; each later one starts a
             // new block, with a rule above it.
+            let pane_top = ui.cursor().min.y;
             let mut first = true;
             let mut head = |app: &mut MailApp, ui: &mut Ui, id: Id, name: &str| {
                 if std::mem::take(&mut first) {
-                    heading(app, ui, id, name, ROW_H, 7.5, false)
+                    heading(app, ui, id, name, ROW_H, 7.5, false, movable.contains(&id))
                 } else {
-                    heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true)
+                    heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true, movable.contains(&id))
                 }
             };
             if (!favorites.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
@@ -570,7 +666,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     folder_row(app, ui, f, 0, false, "fav", count(f), favorite_selected && f.id == current);
                 }
             }
+            // Where each of the owner's accounts starts, for a drag of one.
+            let mut blocks: Vec<Block> = Vec::new();
             for (account, name, rows) in &lists {
+                if movable.contains(account) {
+                    let top = ui.cursor().min.y;
+                    // (On the rule above a heading; at the top of the pane, just under it.)
+                    let line = if top <= pane_top { top + 1.0 } else { top + 9.5 };
+                    blocks.push(Block { account: *account, top, line });
+                }
                 if !head(app, ui, *account, if name.is_empty() { tl!("Mailbox") } else { name }) {
                     continue;
                 }
@@ -578,8 +682,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     folder_row(app, ui, f, *depth, *has_children, "tree", count(f), !favorite_selected && f.id == current);
                 }
             }
+            let end = ui.cursor().min.y;
+            account_drop(app, ui, &blocks, end);
             ui.add_space(8.0);
         });
+        account_ghost(app, ui);
     });
     app.ui.folder_pane_width = shown.response.rect.width();
 }
