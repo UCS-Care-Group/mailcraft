@@ -59,6 +59,7 @@ fn rendered_cells_align_with_headers_and_the_scrollbar_stays_on_screen() {
     w.state_mut().overlay_scroll_bars = false;
     w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
     w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
     w.run_steps(4);
     let check = |w: &testing::Window| {
         let id = w
@@ -81,7 +82,7 @@ fn rendered_cells_align_with_headers_and_the_scrollbar_stays_on_screen() {
         assert!(scrollbar.max.x <= sort.max.x + 50.0, "{scrollbar:?} outside {sort:?}");
     };
     check(&w);
-    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"bottom"})).unwrap();
     w.run_steps(4);
     check(&w);
 }
@@ -260,21 +261,115 @@ fn sent_items_name_who_mail_went_to() {
 }
 
 #[test]
-fn quick_actions_stay_in_view_when_the_columns_run_past_the_pane() {
+fn quick_actions_stay_in_the_row_beside_the_scroll_bar() {
     let mut w = testing::window("view.mail");
     w.state_mut().overlay_scroll_bars = false;
     w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
     w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
     w.run_steps(4);
     let id = w.state_mut().session.rows().first().unwrap().id;
     let row = w.state().hit.rect("message", id).unwrap();
     // The scroll bar's lane, which the rows end before.
     let edge = w.state().hit.rect("listScroll", 0).unwrap().min.x;
-    assert!(row.max.x > edge + 50.0, "the columns are wider than the pane: {row:?}, {edge}");
     w.input_mut().events.push(egui::Event::PointerMoved(pos2(row.min.x + 60.0, row.center().y)));
     w.run_steps(3);
     let (flag, delete) = (w.state().hit.rect("messageFlag", id).unwrap(), w.state().hit.rect("messageDelete", id).unwrap());
     assert!(flag.max.x <= edge && delete.min.x > row.min.x, "{flag:?} {delete:?} past {edge}");
+}
+
+/// The review of #344: beside the reading pane the default columns ran past the list, and Received
+/// and Flag could not be reached. They now give way to the usual rows until they all fit.
+#[test]
+fn columns_give_way_to_rows_until_they_all_fit() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.run_steps(4);
+    let headings = |w: &testing::Window| Column::ALL.iter().filter(|c| w.state().hit.rect("columnHeader", **c as u64).is_some()).count();
+    let id = w.state_mut().session.rows().first().unwrap().id;
+    let in_cells = |w: &testing::Window| w.state().hit.rect("messageColumn", id * 16 + Column::Subject as u64).is_some();
+    // Beside the pane: the usual rows, and the choice stays on.
+    assert_eq!(headings(&w), 0);
+    assert!(!in_cells(&w) && w.state().hit.rect("message", id).is_some());
+    assert!(w.state().session.prefs.columns.enabled);
+    // The list can still be sorted from its own menu, and the heading has it when it comes back.
+    w.state_mut().execute("view.sort", json!({"by":"subject"})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.run_steps(4);
+    let shown = w.state().session.prefs.columns.items.len();
+    assert_eq!(headings(&w), shown);
+    assert!(in_cells(&w));
+    assert_eq!(w.state().session.view.sort, SortBy::Subject);
+    // Every heading whole, inside the rows.
+    let edge = w.state().hit.rect("message", id).unwrap().max.x;
+    for spec in &w.state().session.prefs.columns.items {
+        let head = w.state().hit.rect("columnHeader", spec.column as u64).unwrap();
+        assert!(head.max.x <= edge, "{:?} at {head:?} past {edge}", spec.column);
+    }
+}
+
+/// Going past the width they need takes the columns away and coming back returns them, and each
+/// side stays as it is from frame to frame.
+#[test]
+fn a_window_narrowed_and_widened_crosses_between_columns_and_rows() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.run_steps(4);
+    let heading = |w: &testing::Window| w.state().hit.rect("columnHeader", Column::Subject as u64).is_some();
+    assert!(heading(&w));
+    let need = super::width(&w.state().session.prefs.columns, super::super::lane_width(w.state()));
+    // Past the threshold by a point, one way and the other.
+    let id = w.state_mut().session.rows().first().unwrap().id;
+    let row = w.state().hit.rect("message", id).unwrap().width();
+    let beside = 1280.0 - (row + super::super::lane_width(w.state()));
+    w.set_size(egui::vec2(beside + need - 1.0, 800.0));
+    w.run_steps(4);
+    assert!(!heading(&w), "1 pt short of {need}");
+    w.run_steps(4);
+    assert!(!heading(&w));
+    w.set_size(egui::vec2(beside + need, 800.0));
+    w.run_steps(4);
+    assert!(heading(&w), "exactly {need}");
+    w.run_steps(4);
+    assert!(heading(&w));
+}
+
+/// A column's edge dragged far past the list stops where the columns still fit, so the columns
+/// don't give way to rows under the pointer.
+#[test]
+fn a_column_dragged_wider_stops_at_what_the_list_has_room_for() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.run_steps(4);
+    let handle = w.state().hit.rect("columnResize", Column::Subject as u64).unwrap().center();
+    use egui::{Event, Modifiers};
+    w.input_mut().events.push(Event::PointerMoved(handle));
+    w.step();
+    w.input_mut().events.push(Event::PointerButton { pos: handle, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    w.step();
+    // A step at a time, as a hand does, and every frame on the way still in columns.
+    for step in 1..=8 {
+        w.input_mut().events.push(Event::PointerMoved(handle + vec2(step as f32 * 250.0, 0.0)));
+        w.step();
+        assert!(w.state().hit.rect("columnHeader", Column::Subject as u64).is_some(), "step {step}");
+    }
+    let end = handle + vec2(2000.0, 0.0);
+    w.input_mut().events.push(Event::PointerButton { pos: end, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    w.run_steps(3);
+    assert!(w.state().hit.rect("columnHeader", Column::Subject as u64).is_some(), "the columns stayed");
+    let id = w.state_mut().session.rows().first().unwrap().id;
+    let edge = w.state().hit.rect("message", id).unwrap().max.x;
+    for spec in &w.state().session.prefs.columns.items {
+        let head = w.state().hit.rect("columnHeader", spec.column as u64).unwrap();
+        assert!(head.max.x <= edge, "{:?} at {head:?} past {edge}", spec.column);
+    }
+    let room = w.state().session.prefs.columns.items.iter().find(|c| c.column == Column::Subject).unwrap().width;
+    assert!(room > 280, "it did grow: {room}");
 }
 
 #[test]

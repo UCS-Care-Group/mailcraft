@@ -535,16 +535,16 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
     list_notices(app, ui);
-    if app.session.prefs.columns.enabled {
-        let width = columns::width(&app.session.prefs.columns).max(ui.available_width());
-        egui::ScrollArea::horizontal().id_salt("message_columns_horizontal").auto_shrink([false, false]).show(ui, |ui| {
-            ui.set_min_width(width);
-            columns::header(app, ui);
-            list_body(app, ui);
-        });
-    } else {
-        list_body(app, ui);
+    // Columns only where all of them fit, as the target falls back to its compact rows; the choice
+    // stays on, and they come back when the list is wide enough. Decided here, for this frame's
+    // width, so that the heading and every row agree.
+    let room = ui.available_width();
+    let lane = lane_width(app);
+    let in_columns = app.session.prefs.columns.enabled && columns::fits(&app.session.prefs.columns, room, lane);
+    if in_columns {
+        columns::header(app, ui, room, lane);
     }
+    list_body(app, ui, in_columns);
 }
 
 fn list_notices(app: &mut MailApp, ui: &mut Ui) {
@@ -589,12 +589,12 @@ fn list_notices(app: &mut MailApp, ui: &mut Ui) {
     }
 }
 
-fn list_body(app: &mut MailApp, ui: &mut Ui) {
+fn list_body(app: &mut MailApp, ui: &mut Ui, in_columns: bool) {
     let t = Tokens::get(ui.ctx());
     let rows = app.session.rows();
-    let one_line = app.session.prefs.one_line || app.session.prefs.columns.enabled;
+    let one_line = app.session.prefs.one_line || in_columns;
     // The rows of a search on the server keep the height the preview lines ask for.
-    let server_h = if app.session.prefs.columns.enabled { ONE_LINE_H } else { row_height(app.session.prefs.preview_lines) };
+    let server_h = if in_columns { ONE_LINE_H } else { row_height(app.session.prefs.preview_lines) };
     let row_h = if one_line { ONE_LINE_H } else { server_h };
     let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
@@ -606,9 +606,7 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
     let lane_w = lane_width(app);
     if rows.is_empty() {
         let canvas = ui.available_rect_before_wrap();
-        // In column view the text and the scroll area stay on screen; the cells start where the
-        // headings do.
-        let r = if app.session.prefs.columns.enabled { canvas.intersect(ui.clip_rect()) } else { canvas };
+        let r = canvas;
         let msg = if searching {
             tl!("Nothing matches the search.")
         } else if app.session.view.filter != Filter::All {
@@ -622,12 +620,8 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
             ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
                     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
-                    let (left, width) = if app.session.prefs.columns.enabled {
-                        (canvas.min.x, (canvas.width() - lane_w).max(0.0))
-                    } else {
-                        (area.min.x, (area.width() - lane_w).max(0.0))
-                    };
-                    server_rows::show(app, ui, &local, left, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
+                    let (left, width) = (area.min.x, (area.width() - lane_w).max(0.0));
+                    server_rows::show(app, ui, &local, left, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()), in_columns);
                 });
             });
         }
@@ -655,10 +649,7 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
     let outer = ui.available_rect_before_wrap();
     // Page Up and Page Down move by the rows that fit (#426).
     app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
-    // In column view the canvas may be wider than the viewport. Keep the vertical
-    // scroll bar on screen while the columns move horizontally underneath it.
-    let visible = if app.session.prefs.columns.enabled { outer.intersect(ui.clip_rect()) } else { outer };
-    let lane = scroll_lane(visible);
+    let lane = scroll_lane(outer);
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
     if scrolls && !overlay {
@@ -667,7 +658,7 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
     // The handle keeps clear of the arrows at the ends of its lane (a lane too short for them
     // has none).
     let arrows = scrolls && !overlay && lane.height() >= 4.0 * SCROLL_END;
-    let travel = if arrows { visible.shrink2(vec2(0.0, SCROLL_END)) } else { visible };
+    let travel = if arrows { outer.shrink2(vec2(0.0, SCROLL_END)) } else { outer };
     let plain = ui.style().clone();
     if overlay {
         overlay_scroll_style(ui, &t);
@@ -681,11 +672,6 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
     let out = area.show_viewport(ui, |ui, viewport| {
         // The bar's looks are the bar's alone.
         ui.set_style(plain);
-        if app.session.prefs.columns.enabled && scrolls && !overlay {
-            let mut clip = ui.clip_rect();
-            clip.max.x = clip.max.x.min(lane.min.x - SCROLL_GAP);
-            ui.set_clip_rect(clip);
-        }
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), total), Sense::hover());
         let origin = area.min;
         // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
@@ -721,10 +707,10 @@ fn list_body(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &drawn, focus);
+            message_row(app, ui, row, rect, &drawn, focus, in_columns);
         }
         if below > 0.0 {
-            server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
+            server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()), in_columns);
         }
     });
     if arrows {
@@ -863,7 +849,7 @@ fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
     drawn
 }
 
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, in_columns: bool) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -880,7 +866,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
-    let one = app.session.prefs.one_line || app.session.prefs.columns.enabled;
+    let one = app.session.prefs.one_line || in_columns;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
@@ -903,8 +889,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     // Wide enough to hit without aiming, a gap between them, and short enough to stay off the
     // time on the subject's line.
-    // In column view the row may run past the pane: they stay at its visible right edge.
-    let right = if app.session.prefs.columns.enabled { rect.max.x.min(ui.clip_rect().max.x) } else { rect.max.x };
+    let right = rect.max.x;
     let flag_rect = Rect::from_center_size(pos2(right - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
     let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
@@ -975,7 +960,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         icons::paint(p, at, if row.open { "expanded" } else { "collapsed" }, if arrow.hovered() { t.text } else { t.icon }, t.accent);
     }
 
-    if app.session.prefs.columns.enabled {
+    if in_columns {
         // The count is the conversation's in every folder, as the row's lines give it (#503).
         let count = if row.conversation() { row.size() } else { 1 };
         columns::paint(app, ui, &m, rect, unread, count, row.under.is_some(), false);
