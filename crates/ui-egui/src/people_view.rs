@@ -10,7 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
-use mailcraft_model::{Address, Contact, Id, Mailbox};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
 use mailcraft_time::Date;
 use serde_json::json;
 
@@ -26,6 +26,8 @@ const RECENT: usize = 8;
 const CARD_W: f32 = 720.0;
 /// Characters of notes the card lays out; longer notes end with an ellipsis.
 const NOTES_MAX: usize = 20_000;
+/// The widest the account beside a row's name gets.
+const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
@@ -40,14 +42,16 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         .frame(frame)
         .show(ui, |ui| list(app, ui, &layout));
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui));
+    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui, layout.total));
 }
 
-/// The contacts picked together are those still there, and only while the selected contact is
-/// one of them: selecting another one alone (a click, the arrow keys, a command) ends the pick.
+/// The contacts picked together are those still there and in the list, and only while the
+/// selected contact is one of them: selecting another one alone (a click, the arrow keys, a
+/// command) ends the pick.
 pub(crate) fn keep_picked(app: &mut MailApp) {
     let contacts = &app.session.mailbox.contacts;
-    app.people_picked.retain(|id| contacts.contains_key(id));
+    let shown = people::shown_account(&app.session);
+    app.people_picked.retain(|id| contacts.get(id).is_some_and(|c| shown.shows(&c.origin)));
     if app.people_picked.len() < 2 || app.session.sel.contact.is_none_or(|c| !app.people_picked.contains(&c)) {
         app.people_picked.clear();
     }
@@ -313,6 +317,8 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
 struct PeopleList {
     layout: Layout<Group>,
     names: Vec<String>,
+    /// How many contacts the account in view has, whatever the search.
+    total: usize,
 }
 
 impl std::ops::Deref for PeopleList {
@@ -325,17 +331,18 @@ impl std::ops::Deref for PeopleList {
 /// The layout kept between frames, with what it was made from.
 #[derive(Clone)]
 struct CachedLayout {
-    key: (u64, usize, String, PeopleSort),
+    key: (u64, usize, String, PeopleSort, AccountChoice),
     list: Arc<PeopleList>,
 }
 
-/// The list for the search in view. Sorting every contact is the slow part, so the result is kept
-/// until the mailbox, the search or the arrangement changes.
+/// The list for the account and the search in view. Sorting every contact is the slow part, so the
+/// result is kept until the mailbox, the account, the search or the arrangement changes.
 fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
     let slot = egui::Id::unique("people_list_layout");
     let s = &app.session;
     let query = &s.view.people_search;
-    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort);
+    let shown = people::shown_account(s);
+    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown);
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
         return cached.list;
     }
@@ -352,9 +359,15 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }
     };
-    let list = Arc::new(PeopleList { layout, names });
+    let total = s.mailbox.contacts.values().filter(|c| shown.shows(&c.origin)).count();
+    let list = Arc::new(PeopleList { layout, names, total });
     ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, list: list.clone() }));
     list
+}
+
+/// How many contacts the list has, whatever the search: the status bar's count.
+pub(crate) fn shown_total(app: &MailApp, ctx: &egui::Context) -> usize {
+    list_layout(app, ctx).total
 }
 
 // ---- small pure pieces ----
@@ -542,7 +555,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let searching = !app.session.view.people_search.trim().is_empty();
-    let total = app.session.mailbox.contacts.len();
+    let total = layout.total;
     let count = if searching {
         crate::i18n::fmt(tl!("{n} of {total}"), &[("n", &listed(&layout.layout).to_string()), ("total", &total.to_string())])
     } else {
@@ -560,7 +573,17 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     if resp.on_hover_text(tl!("New Contact")).clicked() {
         let _ = app.run("people.new", json!({}));
     }
-    ui.painter().line_segment([pos2(header.min.x, header.max.y), pos2(header.max.x, header.max.y)], Stroke::new(1.0, t.border));
+    let accounts = people::contact_accounts(&app.session.mailbox);
+    let shown = people::shown_account(&app.session);
+    if !accounts.is_empty() {
+        ui.add_space(2.0);
+        if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
+            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
+        }
+        ui.add_space(8.0);
+    }
+    let line = ui.cursor().min.y;
+    ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
 
     if layout.rows.is_empty() {
         empty_list(app, ui, searching);
@@ -569,19 +592,33 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let selected = app.session.sel.contact;
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
-    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect));
+    let labelled = labelled(app);
+    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+}
+
+/// Whether each row says where its contact is: every account's contacts are in one list.
+fn labelled(app: &MailApp) -> bool {
+    people::shown_account(&app.session) == AccountChoice::All && !people::contact_accounts(&app.session.mailbox).is_empty()
 }
 
 fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
     let t = Tokens::get(ui.ctx());
+    // A new contact is kept on this computer, so it isn't offered as what this list lacks.
+    let of_account = matches!(people::shown_account(&app.session), AccountChoice::Account(_));
     ui.vertical_centered(|ui| {
         ui.add_space(56.0);
         let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
         icons::paint(ui.painter(), r, if searching { "search" } else { "people" }, t.border_strong, t.border_strong);
         ui.add_space(10.0);
-        let text = if searching { tl!("Nobody matches the search") } else { tl!("No contacts yet") };
+        let text = if searching {
+            tl!("Nobody matches the search")
+        } else if of_account {
+            tl!("This account has no contacts")
+        } else {
+            tl!("No contacts yet")
+        };
         ui.label(RichText::new(text).font(regular(12.5)).color(t.text_dim));
-        if !searching {
+        if !searching && !of_account {
             ui.add_space(14.0);
             if widgets::primary_button(ui, tl!("New Contact"), true).clicked() {
                 let _ = app.run("people.new", json!({}));
@@ -590,7 +627,7 @@ fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
     });
 }
 
-fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
+fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, labelled: bool) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the contact.
     let Some(c) = app.session.mailbox.contacts.get(&id).cloned() else { return };
@@ -626,7 +663,14 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     let width = (right - left).max(0.0);
     let second = subtitle(&c);
     let name_y = if second.is_empty() { rect.center().y } else { rect.min.y + 18.0 };
-    paint_clipped(p, pos2(left, name_y), width, &shown_name(&c), if selected { semibold(13.0) } else { regular(13.0) }, t.text);
+    // From the right of the name's line: where it is.
+    let mut name_w = width;
+    if labelled {
+        let place = widgets::place_name(&app.session.mailbox, c.origin.account);
+        let wide = p.layout_no_wrap(place.clone(), regular(11.5), t.text_dim).size().x.min(PLACE_W).min(width * 0.5);
+        name_w = (width - paint_clipped(p, pos2(right - wide, name_y), wide, &place, regular(11.5), t.text_dim) - 8.0).max(0.0);
+    }
+    paint_clipped(p, pos2(left, name_y), name_w, &shown_name(&c), if selected { semibold(13.0) } else { regular(13.0) }, t.text);
     paint_clipped(p, pos2(left, rect.min.y + 35.0), width, &second, regular(11.5), t.text_dim);
 
     // Ctrl-click (⌘ on a Mac) picks several contacts together, to merge (#506).
@@ -689,11 +733,12 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
 
 // ---- the card ----
 
-fn card(app: &mut MailApp, ui: &mut Ui) {
+/// The selected contact, with `total` contacts in the list.
+fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
     let t = Tokens::get(ui.ctx());
     let Some(c) = app.session.sel.contact.and_then(|id| app.session.mailbox.contacts.get(&id).cloned()) else {
         // With nobody to select, the list's own empty state says what to do.
-        if app.session.mailbox.contacts.is_empty() {
+        if total == 0 {
             return;
         }
         let r = ui.available_rect_before_wrap();
@@ -710,6 +755,7 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
             ui.add_space(12.0);
             card_actions(app, ui, &c);
             card_contact(app, ui, &c);
+            card_account(app, ui, &c);
             card_places(ui, &c);
             card_birthday(app, ui, &c);
             if !c.notes.trim().is_empty() {
@@ -818,6 +864,31 @@ fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui:
     let label_x = x + used + 12.0;
     paint_clipped(ui.painter(), pos2(label_x, r.center().y + 0.5), (r.max.x - label_x).max(0.0), label, regular(11.5), t.text_dim);
     resp
+}
+
+/// Where the contact is kept, where there is more than one place it could be.
+fn kept_in(app: &MailApp, c: &Contact) -> Option<String> {
+    let mailbox = &app.session.mailbox;
+    (c.origin.is_remote() || !people::contact_accounts(mailbox).is_empty()).then(|| widgets::place_name(mailbox, c.origin.account))
+}
+
+/// Whether the contact is a copy of what its account's server keeps, which can't be changed here
+/// (`remote::changeable`): the card says so beside whose it is, before Edit or Delete is tried.
+fn read_only_here(app: &MailApp, c: &Contact) -> bool {
+    mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &c.origin).is_some()
+}
+
+fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {
+    if let Some(place) = kept_in(app, c) {
+        section(ui, tl!("Account"));
+        if read_only_here(app, c) {
+            field(ui, "account", &place, tl!("Read-only"), false).on_hover_text(tl!(
+                "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+            ));
+        } else {
+            field(ui, "account", &place, "", false);
+        }
+    }
 }
 
 /// E-mail addresses (a click writes to that address) and phone numbers.
@@ -1024,6 +1095,8 @@ pub(crate) mod testing {
     }
 }
 
+#[cfg(test)]
+mod account_tests;
 #[cfg(test)]
 mod arrange_tests;
 

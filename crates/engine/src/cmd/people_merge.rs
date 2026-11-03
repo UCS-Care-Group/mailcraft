@@ -628,6 +628,7 @@ fn merge(s: &mut Session, v: &Value) -> CmdResult {
     }
     if s.sel.contact.is_none_or(|c| others.contains(&c) || c == keep) {
         s.sel.contact = Some(keep);
+        super::people::reveal(s, keep);
     }
     Ok(json!({"id": keep, "removed": others}))
 }

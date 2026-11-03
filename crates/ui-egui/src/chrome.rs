@@ -470,7 +470,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
                     }
                     Module::People => {
-                        st(ui, &tln!(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
+                        let shown = crate::people_view::shown_total(app, ui.ctx());
+                        st(ui, &tln!(shown, "{n} contact", "{n} contacts"), t.text_dim);
                     }
                     Module::Tasks => {
                         let shown = mailcraft_engine::cmd::tasks::shown_account(&app.session);

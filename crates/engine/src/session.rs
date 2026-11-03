@@ -309,6 +309,8 @@ pub struct ViewState {
     pub task_sort: TaskSort,
     /// Whose tasks Tasks shows.
     pub task_account: AccountChoice,
+    /// Whose contacts People shows.
+    pub people_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -336,6 +338,7 @@ impl Default for ViewState {
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
+            people_account: AccountChoice::All,
         }
     }
 }
@@ -2629,6 +2632,7 @@ impl Session {
         self.view.open.clear();
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
+        self.view.people_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
