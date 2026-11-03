@@ -1130,9 +1130,11 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
     // A rule that files mail onto another server and deletes it for good needs both grants;
-    // `classify` says the first.
+    // `classify` says the first. Until `delete` is allowed it is asked as a delete, whose
+    // question says both (the server it files onto, and the deleting): a yes to `send` alone,
+    // asked about the server, never makes it (#566).
     let access = match classify(s, id, params) {
-        Access::Owner(Class::Send) if allow.contains(&Class::Send) && rules_delete_for_good(s, id, params) => Access::Owner(Class::Delete),
+        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && rules_delete_for_good(s, id, params) => Access::Owner(Class::Delete),
         access => access,
     };
     match access {
@@ -1477,17 +1479,32 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let only = p::id_strict(params, "id").ok().flatten();
             let running: Vec<&mailcraft_model::Rule> =
                 s.mailbox.rules.iter().filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id)).collect();
-            let onto: Vec<String> = running
-                .iter()
-                .filter_map(|r| rule_onto_server(s, r, from))
-                .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
+            // The accounts whose servers the run moves mail onto, and those it copies mail onto,
+            // each once.
+            let (mut moves, mut copies): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+            for a in running.iter().flat_map(|r| &r.actions) {
+                let (list, f) = match a {
+                    mailcraft_model::Action::MoveTo(f) => (&mut moves, f),
+                    mailcraft_model::Action::CopyTo(f) => (&mut copies, f),
+                    _ => continue,
+                };
+                if let Some(email) = folder_onto_server(s, *f, from).and_then(|a| s.mailbox.account(a)).map(|a| clip(&a.email, 80))
+                    && !list.contains(&email)
+                {
+                    list.push(email);
+                }
+            }
+            let onto: Vec<String> = [("move", moves), ("copy", copies)]
+                .into_iter()
+                .filter(|(_, to)| !to.is_empty())
+                .map(|(verb, to)| format!("{verb} mail onto the server of {}", to.join(", ")))
                 .collect();
             // The rules of the run that delete mail for good, by name (#566).
             let gone: Vec<String> = running.iter().filter(|r| runs_for_good(r)).map(|r| quoted(&r.name)).collect();
             let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
             let mut text = format!("run the rules on {place}");
             if !onto.is_empty() {
-                text.push_str(&format!(", which move mail onto the server of {}", onto.join(", ")));
+                text.push_str(&format!(", which {}", onto.join(" and ")));
             }
             if !gone.is_empty() {
                 let more = gone.len().saturating_sub(5);

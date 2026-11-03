@@ -1443,15 +1443,35 @@ fn an_agent_needs_both_grants_for_a_rule_that_copies_onto_another_server_and_del
         Verdict::Run => None,
         Verdict::Refuse(why) => panic!("{why}"),
     };
-    assert_eq!(class(&[]), Some(Class::Send));
+    // Asked as a delete unless that is allowed: the question says both, and a yes to a question
+    // that names only the server never makes a rule that deletes for good.
+    assert_eq!(class(&[]), Some(Class::Delete));
     assert_eq!(class(&[Class::Send]), Some(Class::Delete));
+    assert_eq!(class(&[Class::Delete]), Some(Class::Send));
     assert_eq!(class(&[Class::Send, Class::Delete]), None);
-    // Run over the Inbox, the question says both.
+    let yes = |allow: &[Class], yes: Class| matches!(crate::agent::answered(&s, "rules.add", &params, allow, yes), Verdict::Run);
+    assert!(yes(&[], Class::Delete) && yes(&[Class::Send], Class::Delete) && yes(&[Class::Delete], Class::Send));
+    assert!(!yes(&[], Class::Send), "a yes to sending alone");
+    let asked = crate::agent::describe(&s, "rules.add", &params);
+    assert!(asked.contains("copy it onto the server of other@example.org") && asked.contains("delete it permanently"), "{asked}");
+    // Run over the Inbox, the question says both, and that the rule copies.
     run(&mut s, "rules.add", params.clone());
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let asked = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox}));
+    let running = json!({"folder": inbox});
+    let asked = crate::agent::describe(&s, "rules.run", &running);
+    assert_eq!(check(&s, "rules.run", &running, &[]), Verdict::Ask(Class::Delete, asked.clone()));
     assert!(
-        asked.contains("onto the server of other@example.org") && asked.contains("the rule \u{201c}Both\u{201d} deletes mail permanently"),
+        asked.contains(", which copy mail onto the server of other@example.org, and the rule \u{201c}Both\u{201d} deletes mail permanently")
+            && !asked.contains("move"),
+        "{asked}"
+    );
+    // Rules that move mail there are said apart from those that copy it, each account once.
+    let archive = s.mailbox.folder_of_kind(other, FolderKind::Archive).unwrap();
+    add(&mut s, account, "Moves", json!([{"type": "toMe"}]), json!([{"type": "moveTo", "value": archive}]));
+    add(&mut s, account, "Copies too", json!([{"type": "toMe"}]), json!([{"type": "copyTo", "value": archive}]));
+    let asked = crate::agent::describe(&s, "rules.run", &running);
+    assert!(
+        asked.contains(", which move mail onto the server of other@example.org and copy mail onto the server of other@example.org, and the rule"),
         "{asked}"
     );
 }
