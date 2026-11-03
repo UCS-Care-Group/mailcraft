@@ -409,7 +409,6 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // Refused: the server has no copy, and neither has this mailbox. A source that
                     // is gone leaves the copy here, which is all there is of it.
                     if matches!(outcome, MessageOutcome::Refused { .. }) {
-                        let copied = mb.forget_message(*copy).ok();
                         // Its original deleted for good here meanwhile, by the owner or by a rule
                         // that copies and then deletes: it is still on the server (its delete
                         // waited for this answer), and comes back rather than being lost (#566),
@@ -417,11 +416,30 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                         // the delete kept may have been read back from it without its content).
                         // (Not a delete of another kind, of a message moved out of the account
                         // say, which has nothing here to put back.)
-                        if let Some(mut kept) = take_delete(mb, account, id, true).flatten() {
-                            if let Some(copied) = &copied {
-                                kept.take_content_of(copied);
+                        match take_delete(mb, account, id, true).flatten() {
+                            // Unless the server said it is gone since (deleted on a phone, say):
+                            // then the copy is all there is of it, and is kept on this computer,
+                            // in Imported, as a copy into another account is.
+                            Some(kept) if kept.server.as_ref().is_some_and(|s| s.gone) => {
+                                if !super::graph_place::kept_in_imported(mb, *copy) {
+                                    let _ = mb.forget_message(*copy);
+                                }
                             }
-                            put_back(mb, account, id, Some(kept), None);
+                            Some(mut kept) => {
+                                if let Ok(copied) = mb.forget_message(*copy) {
+                                    kept.take_content_of(&copied);
+                                }
+                                put_back(mb, account, id, Some(kept), None);
+                                // Should the server say it is gone since, it is kept here instead.
+                                if let Some(m) =
+                                    mb.messages.values_mut().find(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == *id))
+                                {
+                                    std::sync::Arc::make_mut(m).returned = mailcraft_model::RETURNED_LISTINGS;
+                                }
+                            }
+                            None => {
+                                let _ = mb.forget_message(*copy);
+                            }
                         }
                     }
                     if let Some(why) = why {

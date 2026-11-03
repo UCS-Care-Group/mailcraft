@@ -388,6 +388,55 @@ fn a_delete_for_good_waits_for_a_copy_of_the_message_and_a_refused_copy_brings_i
     assert!(changes(&s, account).is_empty());
 }
 
+/// The same, with the message deleted on a phone meanwhile, before the refusal or after it: it
+/// stays, on this computer (#566), and isn't swept away with its server's.
+#[test]
+fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
+    for phone_first in [true, false] {
+        let (mut s, account, a, _) = setup();
+        let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+        s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
+        s.run("mail.deletePermanently", &json!({"ids": [a]})).unwrap();
+        let all = changes(&s, account);
+        let [change @ MessageChange::Copy { .. }] = all.as_slice() else { panic!("{all:?}") };
+        let change = change.clone();
+        let phone = |s: &mut Session, from: &str, state: &str| {
+            let page = EwsMessagePage {
+                folder: "F1".into(),
+                removed: vec!["A1".into()],
+                from: from.into(),
+                state: state.into(),
+                last: true,
+                ..Default::default()
+            };
+            took(s, account, mailcraft_model::sync::EwsMailResult { pages: vec![page], partial: true, ..piece(account) });
+        };
+        if phone_first {
+            phone(&mut s, "S1", "S2");
+        }
+        let done = MessageChangeDone { change, outcome: MessageOutcome::Refused { status: 403 }, there: None };
+        took(&mut s, account, mailcraft_model::sync::EwsMailResult { messages: vec![done], partial: true, ..piece(account) });
+        if !phone_first {
+            phone(&mut s, "S1", "S2");
+        }
+        // A fresh read of the Inbox, which has the other message alone, in a run that read every
+        // folder.
+        let budget = s.mailbox.messages.values().find(|m| m.subject == "Budget").map(|m| m.server.clone().unwrap()).unwrap();
+        let there = GraphMessage { server: budget, subject: "Budget".into(), ..Default::default() };
+        let page = EwsMessagePage { folder: "F1".into(), messages: vec![there], afresh: true, last: true, state: "S3".into(), ..Default::default() };
+        took(&mut s, account, mailcraft_model::sync::EwsMailResult { pages: vec![page], whole: true, ..piece(account) });
+        let local = s.mailbox.local_account();
+        let kickoff: Vec<_> = s.mailbox.messages.values().filter(|m| m.subject == "Kickoff").collect();
+        let [m] = kickoff.as_slice() else { panic!("phone first: {phone_first}: {kickoff:?}") };
+        assert_eq!(
+            (m.account, s.mailbox.folder(m.folder).map(|f| f.name.as_str()), m.server.is_none()),
+            (local, Some("Imported"), true),
+            "phone first: {phone_first}"
+        );
+        assert!(changes(&s, account).is_empty(), "phone first: {phone_first}");
+    }
+}
+
 #[test]
 fn a_folder_deleted_for_good_goes_up() {
     let (mut s, account, ..) = setup();

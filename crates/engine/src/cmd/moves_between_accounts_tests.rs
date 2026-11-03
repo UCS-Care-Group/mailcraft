@@ -2205,6 +2205,44 @@ fn copied_and_deleted(s: &mut Session, id: Id, to: Id) {
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
 }
 
+/// #765 small check: the same within one Microsoft account, a copy into another of its folders.
+/// Deleted on a phone while its delete for good here waited for the copy (said as removed, or
+/// left out of a fresh listing), which is then refused, or put back after the refusal and then
+/// deleted there: either way the message stays, on this computer, whole, and isn't swept away
+/// with its server's.
+#[test]
+fn a_refused_copy_within_microsoft_whose_original_went_on_a_phone_keeps_the_message() {
+    for phone in ["removed", "left out", "after"] {
+        let mut s = Session::empty();
+        let ms = microsoft(&mut s, OWNER);
+        let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+        let m = receipt(&mut s, ms, "AAkA7");
+        copied_and_deleted(&mut s, m, archive);
+        let seen = |s: &mut Session| {
+            let page = match phone {
+                "left out" => MessagePage { folder: "in".into(), afresh: true, ..Default::default() },
+                _ => MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], ..Default::default() },
+            };
+            apply_graph_mail(s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], ..Default::default() }).unwrap();
+        };
+        if phone != "after" {
+            seen(&mut s);
+        }
+        let copy = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+        let messages = vec![MessageChangeDone { change: copy, outcome: MessageOutcome::Refused { status: 403 }, there: None }];
+        apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, ..Default::default() }).unwrap();
+        if phone == "after" {
+            assert_eq!(where_titled(&s, "Receipt"), [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string()))], "put back");
+            seen(&mut s);
+        }
+        swept_twice(&mut s, ms);
+        let local = s.mailbox.local_account();
+        assert_eq!(where_titled(&s, "Receipt"), [(local, "Imported".to_string(), 0, None)], "{phone}");
+        assert!(s.mailbox.messages.values().any(|m| m.subject == "Receipt" && m.body.text == "Paid."));
+        assert!(graph_mail_request(&s, ms).unwrap().messages.is_empty(), "nothing more goes to the server");
+    }
+}
+
 /// #765 small check: deleted on a phone while its delete for good here waited for a copy of it,
 /// and then the copy refused. It isn't put back as a message its server no longer has (which the
 /// next fresh listing sweeps away, the refused copy taken away meanwhile): it comes back from the

@@ -470,9 +470,12 @@ fn back_on_imap(mb: &mut Mailbox, id: Id) -> bool {
 /// the server says is gone since (deleted elsewhere meanwhile): kept on this computer, in
 /// Imported, as all there is of it (#451). Whether it was one.
 pub(crate) fn kept_instead(mb: &mut Mailbox, id: Id) -> bool {
-    if !mb.message(id).is_some_and(|m| m.returned > 0) {
-        return false;
-    }
+    mb.message(id).is_some_and(|m| m.returned > 0) && kept_in_imported(mb, id)
+}
+
+/// The message `id` kept on this computer, in Imported, as all there is of it: none of its
+/// server's. Whether it is.
+pub(crate) fn kept_in_imported(mb: &mut Mailbox, id: Id) -> bool {
     let Ok(folder) = mb.imported_folder(false) else { return false };
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return false };
     let Ok(m) = mb.message_mut(id) else { return false };

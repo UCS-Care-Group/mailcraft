@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Rules on this computer that read what a server's list of new mail doesn't give (the text,
 //! headers such as Sensitivity, the size) have their say once the message is fetched whole (#566):
-//! for a Microsoft account, a JMAP account and an Exchange server account alike.
+//! for a Microsoft account and an Exchange server account, and through a JMAP account's fetch
+//! too, though its runs don't yet put new mail through the rules as it arrives.
 
 use mailcraft_model::sync::{
     EwsFolderDeltas, EwsMailResult, EwsMessagePage, FolderListing, GraphFetchResult, GraphFetched, GraphFolder, GraphMailResult, GraphMessage,

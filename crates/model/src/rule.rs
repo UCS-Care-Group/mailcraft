@@ -496,9 +496,10 @@ pub struct RuleGone {
 pub const MAX_RULE_GONE: usize = 500;
 
 /// The rules that couldn't tell of a message as it arrived ([`Rule::undecided_in`]), kept with it
-/// until it is here whole (#566): a Microsoft account, a JMAP account and an Exchange server
-/// account list new mail before it is fetched, and a rule that reads its text, its headers or its
-/// size has its say only then ([`Mailbox::run_waiting_rules`](crate::Mailbox::run_waiting_rules)).
+/// until it is here whole (#566): a Microsoft account and an Exchange server account list new mail
+/// before it is fetched (a JMAP account too, though its runs don't yet put new mail through the
+/// rules as it arrives), and a rule that reads its text, its headers or its size has its say only
+/// then ([`Mailbox::run_waiting_rules`](crate::Mailbox::run_waiting_rules)).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RulesWaiting {
