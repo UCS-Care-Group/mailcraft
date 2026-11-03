@@ -167,43 +167,52 @@ fn files_arriving_from_the_browser_go_where_they_belong() {
     a.services.inbox = Some(inbox.clone());
     let contacts = a.session.mailbox.contacts.len();
     let card = b"BEGIN:VCARD\r\nVERSION:3.0\r\nN:Haddad;Noor;;;\r\nFN:Noor Haddad\r\nEMAIL:noor@example.org\r\nEND:VCARD\r\n";
-    inbox.lock().unwrap().push(("noor.vcf".into(), card.to_vec()));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("noor.vcf".into(), card.to_vec()));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.mailbox.contacts.len(), contacts + 1);
     // While writing, an unknown file is an attachment.
     a.run("mail.new", json!({})).unwrap();
-    inbox.lock().unwrap().push(("notes.bin".into(), vec![1, 2, 3]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("notes.bin".into(), vec![1, 2, 3]));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.compose.as_ref().unwrap().attachments.len(), 1);
     // Junk is refused with a message, not a crash.
     a.run("compose.close", json!({})).unwrap();
-    inbox.lock().unwrap().push(("junk.bin".into(), vec![0, 159, 146, 150]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("junk.bin".into(), vec![0, 159, 146, 150]));
     crate::files::drain_inbox(&mut a);
     assert!(a.status_msg.is_some());
 }
 
+/// A cancelled picker delivers nothing and leaves nothing behind: a file dropped after it goes
+/// by its kind. What the picker does deliver says what it was picked for, and for which message.
 #[test]
 fn a_file_dropped_after_the_browsers_picker_was_cancelled_goes_where_its_kind_says() {
     let mut a = app();
     let (inbox, picked): (crate::Inbox, crate::Inbox) = Default::default();
     (a.services.inbox, a.services.picked) = (Some(inbox.clone()), Some(picked.clone()));
-    a.services.open_async = Some(Box::new(|_| {}));
+    // What the picker was last opened for, and for which message, as the host is told.
+    let opened: std::sync::Arc<std::sync::Mutex<Option<(String, Option<u64>)>>> = Default::default();
+    let noted = opened.clone();
+    a.services.open_async = Some(Box::new(move |purpose, asking| *noted.lock().unwrap() = Some((purpose.to_string(), asking))));
     a.execute("mail.new", json!({})).unwrap();
     // Attach opens the picker, and the owner cancels it: nothing is delivered. Then the message
     // is closed.
     a.run("compose.attach", json!({})).unwrap();
+    assert_eq!(opened.lock().unwrap().as_ref().map(|(p, _)| p.as_str()), Some("attach"));
     crate::files::drain_inbox(&mut a);
     a.run("compose.close", json!({"discard": true})).unwrap();
     // A calendar file dropped next is brought in, not taken for the attachment asked for.
     let events = a.session.mailbox.events.len();
     let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:drop-1@example.org\r\nDTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Dropped\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-    inbox.lock().unwrap().push(("dropped.ics".into(), ics.to_vec()));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("dropped.ics".into(), ics.to_vec()));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.mailbox.events.len(), events + 1, "{:?}", a.status_msg);
-    // What the picker delivers is for what it was opened for: an attachment, whatever it is.
+    // What the picker delivers is for what it was opened for, and for the message that asked:
+    // an attachment, whatever the file is.
     let compose = a.execute("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
     a.run("compose.attach", json!({})).unwrap();
-    picked.lock().unwrap().push(("invite.ics".into(), ics.to_vec()));
+    let (purpose, asking) = opened.lock().unwrap().clone().unwrap();
+    assert_eq!((purpose.as_str(), asking), ("attach", Some(compose)));
+    picked.lock().unwrap().push(crate::Delivered::picked("invite.ics".into(), ics.to_vec(), &purpose, asking, 1));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.composing_by_id(compose).map(|c| c.attachments.len()), Some(1));
     assert_eq!(a.session.mailbox.events.len(), events + 1);
