@@ -173,14 +173,39 @@ fn a_message_copied_then_deleted_for_good_comes_back_when_the_copy_is_refused() 
 }
 
 #[test]
-fn a_delete_waits_only_for_a_copy_that_can_go_and_a_refused_copy_keeps_another_delete() {
-    // A copy into a folder the server hasn't listed yet goes nowhere this run: the delete goes.
+fn a_delete_waits_for_a_copy_with_nowhere_to_go_yet_and_a_refused_copy_keeps_another_delete() {
+    // A copy into a folder the server hasn't listed yet goes nowhere this run, and goes later
+    // with the original's server id: the delete waits for it all the same. Gone first, the
+    // original was lost on both sides when the copy was then refused.
+    let (mut s, account, m, _) = setup();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let later = s.mailbox.add_folder(account, None, "Later").unwrap();
+    s.mailbox.folder_mut(later).unwrap().awaiting_listing = true;
+    let copy = s.run("mail.copy", &json!({"ids": [m], "folder": later})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    let all = changes(&s, account);
+    assert!(!all.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{all:?}");
+    // Listed: the copy goes there, still before the delete.
+    let listed = s.mailbox.folder_mut(later).unwrap();
+    (listed.awaiting_listing, listed.server) = (false, Some(ServerFolder { id: "F-la".into(), name: "Later".into(), ..Default::default() }));
+    let all = changes(&s, account);
+    let [change @ MessageChange::Copy { id, to, .. }] = all.as_slice() else { panic!("{all:?}") };
+    assert_eq!((id.as_str(), to.as_str()), ("M-1", "F-la"));
+    // Refused: the original, which the server still has, comes back where it was.
+    let refused = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    apply_graph_mail(&mut s, result(account, vec![refused])).unwrap();
+    assert!(s.mailbox.message(copy).is_none());
+    let back: Vec<&Message> = s.mailbox.messages.values().map(|m| m.as_ref()).filter(|m| m.subject == "Invoice 42").collect();
+    assert!(back.len() == 1 && back[0].folder == inbox && back[0].server.as_ref().is_some_and(|s| s.id == "M-1"), "{back:?}");
+    assert_eq!(changes(&s, account), []);
+    // A copy that won't be made after all (deleted here) doesn't hold the delete.
     let (mut s, account, m, _) = setup();
     let later = s.mailbox.add_folder(account, None, "Later").unwrap();
     s.mailbox.folder_mut(later).unwrap().awaiting_listing = true;
-    s.run("mail.copy", &json!({"ids": [m], "folder": later})).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [m], "folder": later})).unwrap()["copies"][0].as_u64().unwrap();
     s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
-    assert!(changes(&s, account).contains(&MessageChange::Delete { id: "M-1".into() }));
+    s.run("mail.deletePermanently", &json!({"ids": [copy]})).unwrap();
+    assert_eq!(changes(&s, account), [MessageChange::Delete { id: "M-1".into() }]);
     // A delete with nothing kept here (the original of a message moved out of the account) isn't
     // the copy's to drop when the copy is refused: it goes once the copy is answered.
     let (mut s, account, m, _) = setup();

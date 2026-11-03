@@ -62,18 +62,14 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     };
     // The server's messages a copy is still to be made of: one deleted for good here meanwhile is
     // deleted there once its copies are answered, so that one the server refuses leaves it there
-    // to put back (#566; the run makes copies before it deletes).
+    // to put back (#566; the run makes copies before it deletes). So is one whose copy has nowhere
+    // to go yet (a folder the server hasn't listed, say): that copy goes once the folder is listed
+    // or made, from the original's server id, which a delete before it would have taken away.
     let copying: Vec<&str> = mb
         .queued
         .iter()
         .filter_map(|q| match q {
-            // (Not one with nowhere to go yet: a folder the server hasn't listed, say. The run
-            // passes it by, and the delete would wait for it.)
-            Queued::CopyMessage { account: a, id, to, copy, .. }
-                if *a == account && copy_to(*copy, to).is_some_and(|(to, made)| !to.is_empty() || made.is_some()) =>
-            {
-                Some(id.as_str())
-            }
+            Queued::CopyMessage { account: a, id, to, copy, .. } if *a == account && copy_to(*copy, to).is_some() => Some(id.as_str()),
             _ => None,
         })
         .collect();
