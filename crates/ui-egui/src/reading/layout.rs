@@ -1164,9 +1164,10 @@ fn box_gap(table: &Table) -> f32 {
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
 /// as its contents want, wrapping to more lines when a box does not fit; the bottom. A box that
 /// asks for more than the line is held to it. The boxes of a line stand at its top, the line
-/// where the first of them says (`text-align` of what holds them); a table that floats right
-/// after others that don't (`align="right"`, a title beside a logo) goes to the right end, with
-/// those after it.
+/// where the first of them that doesn't float right says (`text-align` of what holds them); a
+/// table that floats right (`align="right"`, a title beside a logo, or the picture that a
+/// zig-zag row writes first for phones) goes to the right end whatever comes before it, the
+/// first such table rightmost.
 fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
     // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
     struct Slot<'a> {
@@ -1179,7 +1180,7 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
     let mut slots: Vec<Slot<'_>> = Vec::with_capacity(run.len());
     for block in run {
         let BlockKind::Table(table) = &block.kind else { continue };
-        let right = block.align == Align::Right;
+        let right = table.floats && block.align == Align::Right;
         let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
         let line = (width - clear).max(MIN_CELL.min(width));
         let (wide, room) = match table.width {
@@ -1194,7 +1195,9 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         let wide = wide.max(MIN_CELL.min(line));
         slots.push(Slot { table, wide, room: room.max(wide), clear, right });
     }
-    let align = run.first().map_or(Align::Left, |b| b.align);
+    // The line is aligned by the first box that doesn't float right: a float to the right that
+    // comes first in the source still goes to its own side.
+    let align = run.iter().zip(&slots).find(|(_, s)| !s.right).map_or(Align::Left, |(b, _)| b.align);
     let (mut y, mut first, mut start) = (y, true, 0);
     while start < slots.len() {
         // As many as fit in this line, at least one.
@@ -1208,31 +1211,47 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             used = next;
             end += 1;
         }
+        let line = slots.get(start..end).unwrap_or_default();
+        // Where each box of the line stands. Those that float right stand at the right end, the
+        // first of them rightmost; the others, in their order, where the line's alignment puts
+        // them in the room the floats leave.
+        let mut places = vec![0.0f32; line.len()];
+        let mut edge = x + width;
+        let mut taken = 0.0f32;
+        for (n, slot) in line.iter().enumerate().filter(|(_, s)| s.right) {
+            let gap = if taken > 0.0 { box_gap(slot.table) } else { 0.0 };
+            edge -= gap + slot.wide + slot.clear;
+            taken += gap + slot.wide + slot.clear;
+            if let Some(place) = places.get_mut(n) {
+                *place = edge;
+            }
+        }
+        let flow: f32 =
+            line.iter().filter(|s| !s.right).enumerate().map(|(i, s)| s.wide + s.clear + if i > 0 { box_gap(s.table) } else { 0.0 }).sum();
+        let room = (width - taken).max(0.0);
         let mut at = x + match align {
             Align::Left => 0.0,
-            Align::Center => ((width - used) / 2.0).max(0.0),
-            Align::Right => (width - used).max(0.0),
+            Align::Center => ((room - flow) / 2.0).max(0.0),
+            Align::Right => (room - flow).max(0.0),
         };
-        let line = slots.get(start..end).unwrap_or_default();
-        // Where the boxes that float right begin, after one that doesn't: they and those after
-        // them stand at the right end.
-        let split = if align == Align::Right { None } else { line.iter().position(|s| s.right).filter(|i| *i > 0) };
+        for (i, (n, slot)) in line.iter().enumerate().filter(|(_, s)| !s.right).enumerate() {
+            if i > 0 {
+                at += box_gap(slot.table);
+            }
+            if let Some(place) = places.get_mut(n) {
+                *place = at;
+            }
+            at += slot.wide + slot.clear;
+        }
         let mut bottom = y;
-        for (n, slot) in line.iter().enumerate() {
+        for (slot, place) in line.iter().zip(&places) {
             // A copy has a space between the boxes, whether they are on one line or more: it does
             // not go by the room there is.
             if !std::mem::take(&mut first) {
                 cx.beside();
             }
-            if split == Some(n) {
-                let rest: f32 = line.iter().skip(n).enumerate().map(|(i, s)| s.wide + s.clear + if i > 0 { box_gap(s.table) } else { 0.0 }).sum();
-                at = at.max(x + (width - rest).max(0.0));
-            } else if n > 0 {
-                at += box_gap(slot.table);
-            }
             let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
-            bottom = bottom.max(table_block(cx, slot.table, Align::Left, at + left, y, slot.room, paper, depth));
-            at += slot.wide + slot.clear;
+            bottom = bottom.max(table_block(cx, slot.table, Align::Left, place + left, y, slot.room, paper, depth));
         }
         y = bottom + if end < slots.len() { BOX_GAP } else { 0.0 };
         start = end.max(start + 1);

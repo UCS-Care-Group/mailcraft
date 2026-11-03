@@ -436,6 +436,11 @@ pub struct Table {
     /// A box on a line: the room its margins keep free left and right of it, in pixels.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub box_margin: [u8; 2],
+    /// A box on a line that floats (`<table align="left|right">`) to the side its block's
+    /// alignment says, whatever comes before it: floats to the right stand at the right end,
+    /// the first of them rightmost.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub floats: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

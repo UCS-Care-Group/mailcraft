@@ -425,6 +425,8 @@ struct TableBuild {
     /// A box on a line (`display: inline-block`, or a table that floats): what holds it, for
     /// telling whether a box before it is on its line ([`Frame::after_box`]).
     inline: Option<usize>,
+    /// It floats (`align="left|right"`) and is a box on a line.
+    floats: bool,
 }
 
 #[derive(Debug)]
@@ -1534,6 +1536,7 @@ impl Builder {
             radius: table.radius,
             spacing: table.spacing,
             inline: table.inline.is_some(),
+            floats: table.floats && table.inline.is_some(),
             ..Table::default()
         });
         // A box that follows another in what holds them, with nothing between them, stands in
@@ -1573,6 +1576,7 @@ impl Builder {
             last_row: false,
             spacing: None,
             inline: None,
+            floats: false,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1607,15 +1611,28 @@ impl Builder {
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
             inline,
+            floats: floats(tag),
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
         // The table stands where the alignment around it puts it. Inside centred alignment, what
-        // is in its cells starts again at the left unless the table, a row or a cell says
-        // otherwise, as Outlook shows it: a heading in the 504-pixel column of a newsletter
-        // centred by its outer cell (`<td align="center"><table width="504"><tr><td><h2>`) is at
-        // the left of its column. Any other alignment around it is inherited, as before.
-        let reset = css.align.is_none() && self.style().align == Align::Center;
+        // is in the cells of a table that keeps its box starts again at the left unless the
+        // table, a row or a cell says otherwise, as Outlook shows it: a heading in the 504-pixel
+        // column of a newsletter centred by its outer cell (`<td align="center"><table
+        // width="504"><tr><td><h2>`) is at the left of its column. A table that may only wrap
+        // what it holds (no width short of the line, no look of its own) inherits, so that the
+        // logo in a one-cell wrapper inside a centred cell stays centred when the wrapper is
+        // read as its contents ([`Builder::end_table`]). Any other alignment around it is
+        // inherited, as before.
+        let own_box = matches!(build.width, Some(Length::Px(_)))
+            || matches!(build.width, Some(Length::Percent(p)) if p < 100)
+            || build.background.is_some()
+            || build.outline
+            || build.lines.iter().any(Line::is_set)
+            || build.border
+            || build.margin != [0, 0]
+            || build.inline.is_some();
+        let reset = own_box && css.align.is_none() && self.style().align == Align::Center;
         let delta = Delta { hooked: hooked(tag), align: css.align.or(reset.then_some(Align::Left)), ..Delta::of(&css) };
         if !self.push_node("table", Kind::Table(Box::new(build)), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
@@ -1940,7 +1957,9 @@ impl Builder {
     /// [`Builder::end_block_box`].
     fn open_block_box(&mut self, name: &'static str, tag: &Tag<'_>, delta: &Delta) -> bool {
         let css = css_of(tag);
-        if !css.block || !has_box_look(&css) || left_out(tag, &css) || self.hidden > 0 {
+        // (While an inline element's end tag is owed to the overflow count, a link or a span is
+        // opened inline, so that its end tag is counted the same way and nothing stays open.)
+        if !css.block || !has_box_look(&css) || left_out(tag, &css) || self.hidden > 0 || self.inline_overflow > 0 {
             return false;
         }
         // (A list item's marker, a heading and preformatted text are kept as they are.)
@@ -1980,7 +1999,11 @@ impl Builder {
             // (White space between boxes is not a paragraph of its own.)
             self.spans.clear();
         }
-        self.close_paragraph();
+        // (A link or a span is phrasing: it never ends the `<p>` it is in, and the button it
+        // makes takes the paragraph's alignment, colour and size, as does the text after it.)
+        if own.is_none() {
+            self.close_paragraph();
+        }
         self.flush();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };

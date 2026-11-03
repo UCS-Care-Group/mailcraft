@@ -215,7 +215,11 @@ pub(crate) fn is_box(tag: &Tag<'_>, css: &Css) -> bool {
 /// and buttons that stand side by side, laid out as boxes on a line are, beside the others that
 /// float with it, when that is all its holder holds.
 pub(crate) fn floats(tag: &Tag<'_>) -> bool {
-    tag.name == "table" && tag.attr("align").is_some_and(|a| matches!(a.trim().to_ascii_lowercase().as_str(), "left" | "right"))
+    tag.name == "table"
+        && tag.attr("align").is_some_and(|a| {
+            let a = a.trim();
+            a.eq_ignore_ascii_case("left") || a.eq_ignore_ascii_case("right")
+        })
 }
 
 /// The elements that are read as runs of text.

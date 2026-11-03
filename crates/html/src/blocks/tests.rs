@@ -356,6 +356,28 @@ fn a_link_written_as_a_block_is_a_button_as_wide_as_its_line() {
     assert!(unclosed.iter().any(|b| b.contains("(p|b)")), "{unclosed:?}");
 }
 
+/// A link written as a block inside a paragraph is phrasing: the paragraph goes on round it, the
+/// button takes its alignment and colour, the text after it keeps them, and `</p>` adds no blank
+/// paragraph.
+#[test]
+fn a_block_link_inside_a_paragraph_stays_in_it() {
+    let html = r#"<p style="text-align:center;color:#333">Pay by Friday <a href="https://example.org/pay" style="display:block;padding:10px;background:#06c;color:#fff">Pay now</a> or call us.</p><p>Next</p>"#;
+    assert_eq!(
+        dump(html),
+        [
+            "p.c|[#333333:Pay by Friday]",
+            "layout w=100%[(@0066cc p.c|[#ffffff:Pay now→https://example.org/pay])]",
+            "p.c|[#333333:or call us.]",
+            "p|Next"
+        ]
+    );
+    // While an inline element's end tag is owed to the overflow count, a block link is opened
+    // inline, so its end tag closes it and what follows is not in the button.
+    let deep = format!("{}<a href='https://example.org' style='display:block;background:#000'>go</a>after", "<span>".repeat(MAX_DEPTH + 4));
+    let blocks = parse(&deep);
+    assert!(blocks.iter().all(|b| !matches!(b.kind, BlockKind::Table(_))), "{blocks:?}");
+}
+
 #[test]
 fn line_breaks() {
     assert_eq!(parse("a<br>b<br/>c"), [para("a\nb\nc")]);
@@ -686,6 +708,13 @@ fn alignment_positions_tables_and_starts_again_inside_them() {
     let own =
         "<table width='100%'><tr><td align=center><table width=300 style='text-align:center'><tr><td>a</td><td>b</td></tr></table></td></tr></table>";
     assert_eq!(dump(own), ["layout.c w=300[(p.c|a)(p.c|b)]"]);
+    // A one-cell wrapper with no width, read as its contents, keeps the centring around it: the
+    // logo in `<td align="center"><table><tr><td><img>` (or a `<table align="center">`) stays
+    // centred.
+    for wrapper in ["<table cellpadding=0 cellspacing=0>", "<table align=center cellpadding=0 cellspacing=0>"] {
+        let logo = format!("<table width='100%'><tr><td align=center>{wrapper}<tr><td><img src='cid:logo'></td></tr></table></td></tr></table>");
+        assert_eq!(dump(&logo), ["img(cid:logo).c|"], "{wrapper}");
+    }
     // Other alignment around a table is inherited, as before: right-aligned cells stay right.
     let right = "<table width='100%'><tr><td align=right><table width=300><tr><td>a</td></tr></table></td></tr></table>";
     assert_eq!(dump(right), ["layout.r w=300[(p.r|a)]"]);

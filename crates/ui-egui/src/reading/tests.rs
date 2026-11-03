@@ -667,6 +667,31 @@ fn tables_that_float_are_laid_out_side_by_side() {
     });
 }
 
+/// Each float goes to its own side whatever order the source writes them in: a zig-zag row that
+/// writes its picture first (for phones) and floats it right has it at the right, with the text
+/// floating left at the left; two that float right have the first rightmost.
+#[test]
+fn a_float_to_the_right_written_first_is_at_the_right() {
+    let float = |side: &str, word: &str| format!("<table align='{side}' width='280'><tr><td bgcolor='#0568ae'>{word}</td></tr></table>");
+    in_frame(false, |ctx| {
+        let zigzag =
+            html_message(1, ("Shop", "shop@example.org"), "Zig-zag", &format!("<div>{}{}</div>", float("right", "Picture"), float("left", "Words")));
+        let laid = lay_out(ctx, &zigzag, 800.0);
+        let (picture, words) = (find(&laid, "Picture"), find(&laid, "Words"));
+        assert!(words.rect.max.x < picture.rect.min.x && picture.rect.min.x > 400.0, "{:?} {:?}", words.rect, picture.rect);
+        assert!(words.rect.min.x < 100.0, "the left float is at the left: {:?}", words.rect);
+        let two = html_message(
+            2,
+            ("Shop", "shop@example.org"),
+            "Two right",
+            &format!("<div>{}{}</div>", float("right", "First"), float("right", "Second")),
+        );
+        let laid = lay_out(ctx, &two, 800.0);
+        let (first, second) = (find(&laid, "First"), find(&laid, "Second"));
+        assert!(second.rect.max.x < first.rect.min.x && first.rect.min.x > 400.0, "{:?} {:?}", first.rect, second.rect);
+    });
+}
+
 #[test]
 fn quoted_text_has_a_bar_for_every_level() {
     in_frame(false, |ctx| {
