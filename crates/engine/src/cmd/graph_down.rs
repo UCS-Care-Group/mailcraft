@@ -309,8 +309,12 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     }
     // And the other way: one taken for sent because it was new to this mailbox in Sent Items (a
     // draft another program moved there, or in an account added fresh) is a draft again once the
-    // server lists it in Drafts and says so; what it is now is fetched afresh.
-    let drafted = !m.draft && in_drafts && there.draft == Some(true);
+    // server lists it in Drafts and says so; what it is now is fetched afresh. Only one that is
+    // where the server has it and was never a draft here: a draft sent here waits in the Outbox
+    // with the server's id and its own draft state until the send clears, and the server may list
+    // it in Drafts meanwhile (the send refused or its answer lost, a listing afresh, another
+    // program touching the draft); it stays the message queued, not a [Draft] in the Outbox.
+    let drafted = !m.draft && in_drafts && follows && m.server_draft.is_none() && there.draft == Some(true);
     if drafted {
         m.draft = true;
     }

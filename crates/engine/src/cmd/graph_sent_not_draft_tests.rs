@@ -261,6 +261,39 @@ fn a_draft_new_to_the_mailbox_in_sent_items_is_a_draft_again_once_back_in_drafts
     assert_eq!(down.changed, 1);
 }
 
+/// A draft the server has, sent here: it waits in the Outbox with the draft's server id until the
+/// send clears. The server listing it in Drafts meanwhile (the send refused or its answer lost, a
+/// listing afresh, another program touching the draft) leaves it the message queued: not a
+/// [Draft] in the Outbox with the server's fields, which would hold it from going.
+#[test]
+fn a_draft_sent_here_and_still_listed_in_drafts_stays_queued_in_the_outbox() {
+    let (mut mb, account) = mailbox();
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    {
+        // As compose leaves it when the owner sends it.
+        let m = mb.message_mut(id).unwrap();
+        (m.folder, m.draft, m.unfetched) = (outbox, false, false);
+        m.subject = "Quarterly figures, final".into();
+        m.to = vec![Address::new("Kit", "kit@example.org"), Address::new("Lee", "lee@example.org")];
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, marker: "mc-1".into(), ..Default::default() });
+    }
+    for key in ["CK1", "CK2"] {
+        let mut listed = page("FD", "AAkD1", Some(true));
+        listed.messages[0].server.change_key = key.into();
+        take_page(&mut mb, &mut index, account, &listed, &mut Down::default());
+        let m = mb.message(id).unwrap();
+        assert!(!m.draft, "still the message queued ({key})");
+        assert_eq!(m.folder, outbox, "still in the Outbox ({key})");
+        assert_eq!(m.subject, "Quarterly figures, final");
+        assert_eq!(m.to.len(), 2);
+        assert!(!m.unfetched);
+        assert_eq!(super::super::graph_send::waiting(&mb, account), 1, "still waits to be sent ({key})");
+    }
+}
+
 /// A JMAP account's Sent folder is read through the same path; its server keeps its own word
 /// on what is a draft, and nothing is taken for sent there.
 #[test]
