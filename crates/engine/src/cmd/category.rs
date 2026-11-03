@@ -34,8 +34,8 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     let color = Rgb::parse(p::req_str(v, "color")?).ok_or_else(|| bad("`color` looks like #2E8B57"))?;
     let account = list_account(s, v)?;
     let name = p::req_str(v, "name")?;
-    if s.mailbox.categories_of(account).len() >= 200 && s.mailbox.category_of(account, name).is_none() {
-        return Err(super::fail("there are too many categories"));
+    if s.mailbox.category_of(account, name).is_none() {
+        check_room(s, account)?;
     }
     // A category on Outlook's list has Outlook's colour (R3 spec S18): nothing changes here or
     // on the server.
@@ -49,14 +49,23 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
 /// The spelling an item of `account` gives the category `name` it is put on: its list's own, or
 /// the name as given for one the list doesn't have yet. With `add` (the category is being put on,
 /// not taken off) that name joins the list in grey, so it can be given a colour.
-pub fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Result<String, CmdError> {
+pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Result<String, CmdError> {
     if let Some(c) = s.mailbox.category_of(account, name) {
         return Ok(c.name.clone());
     }
     if add {
+        check_room(s, account)?;
         s.mailbox.set_category(account, name, GREY_CATEGORY)?;
     }
     Ok(name.to_string())
+}
+
+/// Refuses a new category when the list `account`'s items use is full.
+fn check_room(s: &Session, account: Id) -> Result<(), CmdError> {
+    if s.mailbox.categories_of(account).len() >= 200 {
+        return Err(super::fail("there are too many categories"));
+    }
+    Ok(())
 }
 
 /// What changing the colour of a category on Outlook's list says.
