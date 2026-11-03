@@ -899,7 +899,7 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
         let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
-        return from.is_some_and(|a| mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && for_good(r)));
+        return from.is_some_and(|a| mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && runs_for_good(r)));
     }
     let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
     // The rule made or changed: its account and id, whether the command makes or switches on one
@@ -935,10 +935,16 @@ fn for_good(r: &mailcraft_model::Rule) -> bool {
     r.actions.contains(&mailcraft_model::Action::DeleteForGood)
 }
 
+/// A rule that deletes mail for good when it runs: it has conditions and every part of it is
+/// known here, as a rule that acts on a message has ([`mailcraft_model::Rule::matches_in`]).
+fn runs_for_good(r: &mailcraft_model::Rule) -> bool {
+    for_good(r) && r.known() && !r.conditions.is_empty()
+}
+
 /// A rule switched on that deletes mail for good here (one its server has runs there, among the
 /// server's rules).
 fn deletes_here(r: &mailcraft_model::Rule) -> bool {
-    r.enabled && for_good(r) && (r.keep.is_here() || !r.on_server())
+    r.enabled && runs_for_good(r) && (r.keep.is_here() || !r.on_server())
 }
 
 /// Whether an undo or redo from the rules of `now` to those of `to` changes them and leaves one
@@ -1477,7 +1483,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
                 .collect();
             // The rules of the run that delete mail for good, by name (#566).
-            let gone: Vec<String> = running.iter().filter(|r| for_good(r)).map(|r| quoted(&r.name)).collect();
+            let gone: Vec<String> = running.iter().filter(|r| runs_for_good(r)).map(|r| quoted(&r.name)).collect();
             let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
             let mut text = format!("run the rules on {place}");
             if !onto.is_empty() {

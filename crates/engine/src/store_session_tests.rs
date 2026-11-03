@@ -271,7 +271,8 @@ fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_sho
     asks.attachments.push(Attachment::new("invite.ics", "text/calendar", invite));
     let mut huge = Message { folder: inbox, subject: "Huge".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
     huge.attachments.push(Attachment::new("huge.ics", "text/calendar", noise(34, crate::session::MAX_CALENDAR_PART + 1)));
-    let (asks, huge) = (mb.add_message(asks).unwrap(), mb.add_message(huge).unwrap());
+    let plain = Message { folder: inbox, subject: "Lunch".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    let (asks, huge, plain) = (mb.add_message(asks).unwrap(), mb.add_message(huge).unwrap(), mb.add_message(plain).unwrap());
     save(&path, &mb).unwrap();
     clear_cache();
     let mut s = session_without_bodies(&path);
@@ -287,12 +288,28 @@ fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_sho
         stop: false,
         ..Default::default()
     });
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Not meetings".into(),
+        enabled: true,
+        conditions: vec![Condition::FromContains(vec!["ada".into()])],
+        exceptions: vec![Condition::MeetingRequest],
+        actions: vec![Action::DeleteForGood],
+        stop: false,
+        ..Default::default()
+    });
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    // The invitation is read and flagged; the part too large to be shown isn't asked for.
+    // The invitation is read, flagged and kept; mail that isn't one is deleted.
     assert_eq!(s.mailbox.message(asks).unwrap().flag, mailcraft_model::FlagStatus::Flagged);
+    assert!(s.mailbox.message(plain).is_none());
+    // The part too large to be shown isn't asked for, and what it is can't be told: neither rule
+    // acts on it, and it isn't deleted for not being an invitation.
     let large = (crate::session::MAX_CALENDAR_PART + 1) as u64;
     assert!(!noting.asked.lock().unwrap().contains(&large));
-    assert!(!s.mailbox.message(huge).unwrap().attachments[0].is_loaded());
+    let huge = s.mailbox.message(huge).unwrap();
+    assert!(!huge.attachments[0].is_loaded());
+    assert_eq!(huge.flag, mailcraft_model::FlagStatus::None);
 }
 
 #[test]

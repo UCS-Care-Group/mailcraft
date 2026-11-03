@@ -1472,13 +1472,24 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_for_good() {
     assert_eq!(classify(&s, "rules.enable", &json!({"id": id})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": true})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Settings));
+    // A rule from a file that has no conditions acts on nothing, so it deletes nothing.
+    let empty = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id: empty,
+        name: "Empty".into(),
+        account,
+        enabled: true,
+        actions: vec![Action::DeleteForGood],
+        ..Default::default()
+    });
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Settings));
     run(&mut s, "rules.enable", json!({"id": id, "value": true}));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": false})), Access::Owner(Class::Settings));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": id})), Access::Owner(Class::Delete));
     // The question says so, by the rule's name.
     let asked = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox}));
-    assert!(asked.contains("and the rule \u{201c}Gone\u{201d} deletes mail permanently"), "{asked}");
+    assert!(asked.contains("and the rule \u{201c}Gone\u{201d} deletes mail permanently") && !asked.contains("Empty"), "{asked}");
 }
 
 #[test]

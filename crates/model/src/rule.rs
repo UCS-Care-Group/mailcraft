@@ -272,6 +272,9 @@ impl Condition {
             Condition::HasAttachment => m.partly_here() && !m.unfetched,
             Condition::SizeBetween { .. } => !m.size_known(),
             Condition::HeaderContains(_) | Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete,
+            // A calendar part kept on disk and not brought in (one too large to be read) doesn't
+            // say whether it asks.
+            Condition::MeetingRequest => m.partly_here() || m.attachments.iter().any(|a| a.is_calendar() && !a.is_loaded()),
             other => other.reads_body() && m.partly_here(),
         }
     }
