@@ -14,6 +14,7 @@ pub mod auto_replies;
 mod calendar;
 pub mod confusables;
 mod contact;
+pub mod dav;
 mod ews_server;
 mod jmap_server;
 mod junk;
