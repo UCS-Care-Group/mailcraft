@@ -221,6 +221,20 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     if id != FAVORITES {
         resp.context_menu(|ui| {
             ui.set_min_width(190.0);
+            // The keyboard's and the menu's way of a drag (#702), for the accounts that drag.
+            if movable {
+                let own = owners(&app.session.mailbox);
+                for (label, up) in [(tl!("Move Up"), true), (tl!("Move Down"), false)] {
+                    let before = move_before(&own, id, up);
+                    if ui.add_enabled(before.is_some(), egui::Button::new(label).min_size(vec2(180.0, 0.0))).clicked() {
+                        if let Some(before) = before {
+                            let _ = app.run("account.move", json!({"id": id, "before": before}));
+                        }
+                        ui.close();
+                    }
+                }
+                ui.separator();
+            }
             if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
                 let _ = app.run("folder.properties", json!({"account": id}));
                 ui.close();
@@ -238,6 +252,35 @@ pub(crate) struct AccountDrag(pub Id);
 /// goes with the account it is opened through.
 fn owners(mb: &Mailbox) -> Vec<Id> {
     mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
+}
+
+/// What `account.move` is told to put `account` one place up (`up`) or down among the owner's
+/// own accounts `own`: the account it goes before, `None` inside for the end. `None` at the top
+/// for Move Up, at the bottom for Move Down, and for an account that isn't among them.
+fn move_before(own: &[Id], account: Id, up: bool) -> Option<Option<Id>> {
+    let at = own.iter().position(|a| *a == account)?;
+    if up {
+        own.get(at.checked_sub(1)?).map(|a| Some(*a))
+    } else {
+        own.get(at.checked_add(1)?)?;
+        Some(own.get(at.saturating_add(2)).copied())
+    }
+}
+
+/// How far the folder pane scrolls this frame while an account is dragged with the pointer at
+/// height `y` (#702): towards the top within a row of the top of the part in view, `pane`,
+/// towards the bottom within a row of its bottom, faster the nearer the edge; else nothing. A
+/// positive amount moves the rows down (shows what is above).
+fn edge_scroll(pane: Rect, y: f32) -> f32 {
+    const MOST: f32 = 12.0;
+    let (top, bottom) = (y - pane.min.y, pane.max.y - y);
+    if top < ROW_H {
+        MOST * (1.0 - top.max(0.0) / ROW_H)
+    } else if bottom < ROW_H {
+        -MOST * (1.0 - bottom.max(0.0) / ROW_H)
+    } else {
+        0.0
+    }
 }
 
 /// Where an account of the owner's own starts in the pane, for a drag of one (#702): its
@@ -280,6 +323,12 @@ fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
         return;
     }
     crate::drag_pointer::note_folder(ui.ctx(), true);
+    // Near the top or the bottom of what is in view the pane scrolls, to reach an account out of view.
+    let step = edge_scroll(pane, pos.y);
+    if step != 0.0 {
+        ui.scroll_with_delta(vec2(0.0, step));
+        ui.ctx().request_repaint();
+    }
     let gap = gap_at(blocks, end, pos.y);
     let t = Tokens::get(ui.ctx());
     let y = blocks.get(gap).map_or(end + 2.0, |b| b.line);

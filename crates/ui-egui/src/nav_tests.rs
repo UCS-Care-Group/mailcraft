@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The folder pane: what it lists, its counts and its chevrons.
 
+use egui_kittest::kittest::Queryable;
 use mailcraft_engine::Session;
 
 use super::*;
@@ -461,4 +462,80 @@ fn an_account_let_go_over_an_agents_question_stays() {
     crate::agent_gate::answer(harness.state_mut(), false);
     harness.run_steps(2);
     assert_eq!(owners(&harness.state().session.mailbox), [first, work, family]);
+}
+
+/// #702: Move Up and Move Down name the account to go before, the end for the last; none at the
+/// ends, and none for an account that isn't the owner's own (a shared mailbox).
+#[test]
+fn move_up_and_down_name_the_place() {
+    let own = [1, 2, 3];
+    assert_eq!(move_before(&own, 2, true), Some(Some(1)));
+    assert_eq!(move_before(&own, 3, true), Some(Some(2)));
+    assert_eq!(move_before(&own, 1, true), None, "the first goes no higher");
+    assert_eq!(move_before(&own, 1, false), Some(Some(3)));
+    assert_eq!(move_before(&own, 2, false), Some(None), "the second of three goes last");
+    assert_eq!(move_before(&own, 3, false), None, "the last goes no lower");
+    assert_eq!(move_before(&own, 99, true), None);
+    assert_eq!(move_before(&[], 1, false), None);
+}
+
+/// #702: a drag near the top of the pane in view scrolls up, near the bottom down, faster at the
+/// edge; in between, and with the pointer well outside, as at the edge at most.
+#[test]
+fn a_drag_near_an_edge_of_the_pane_scrolls_it() {
+    let pane = Rect::from_min_max(pos2(0.0, 100.0), pos2(200.0, 500.0));
+    assert_eq!(edge_scroll(pane, 300.0), 0.0);
+    assert_eq!(edge_scroll(pane, 100.0 + ROW_H), 0.0);
+    assert!(edge_scroll(pane, 102.0) > edge_scroll(pane, 115.0) && edge_scroll(pane, 115.0) > 0.0);
+    assert!(edge_scroll(pane, 498.0) < edge_scroll(pane, 485.0) && edge_scroll(pane, 485.0) < 0.0);
+    assert_eq!(edge_scroll(pane, 50.0), edge_scroll(pane, 100.0));
+    assert_eq!(edge_scroll(pane, 900.0), edge_scroll(pane, 500.0));
+}
+
+fn right_click(harness: &mut egui_kittest::Harness<'static, MailApp>, pos: Pos2) {
+    harness.event(egui::Event::PointerMoved(pos));
+    harness.step();
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE });
+        harness.step();
+    }
+    harness.run_steps(2);
+}
+
+/// #702: an account's right-click menu moves it up or down the pane, as a drag does; at the top
+/// Move Up does nothing. A lone account's menu doesn't offer them.
+#[test]
+fn an_accounts_menu_moves_it_up_and_down() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    // Alone, nothing to move it beside.
+    let at = harness.state().hit.rect("folderHeading", first).unwrap().center();
+    right_click(&mut harness, at);
+    assert!(harness.query_by_label("Move Up").is_none());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+
+    let mut add = |email: &str| harness.state_mut().session.run("account.add", &serde_json::json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (work, family) = (add("work@example.org"), add("family@example.org"));
+    for id in [first, work, family] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let order = |h: &egui_kittest::Harness<'static, MailApp>| owners(&h.state().session.mailbox);
+    let menu = |h: &mut egui_kittest::Harness<'static, MailApp>, id: Id, label: &str| {
+        let at = h.state().hit.rect("folderHeading", id).unwrap().center();
+        right_click(h, at);
+        h.get_by_label(label).click();
+        h.run_steps(3);
+    };
+    menu(&mut harness, family, "Move Up");
+    assert_eq!(order(&harness), [first, family, work]);
+    menu(&mut harness, first, "Move Down");
+    assert_eq!(order(&harness), [family, first, work]);
+    menu(&mut harness, first, "Move Down");
+    assert_eq!(order(&harness), [family, work, first]);
+    // Already at the top: greyed, and nothing moves.
+    menu(&mut harness, family, "Move Up");
+    assert_eq!(order(&harness), [family, work, first]);
+    assert_eq!(harness.state().session.mailbox.default_account().map(|a| a.id), Some(first));
 }
