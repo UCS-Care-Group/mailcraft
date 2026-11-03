@@ -109,6 +109,8 @@ fn bounded_deltas(deltas: &mut EwsFolderDeltas) -> bool {
     deltas.changed.retain_mut(bounded_folder);
     whole &= deltas.changed.len() == before;
     deltas.deleted.retain(|id| is_id(id));
+    deltas.left_out.truncate(MAX_LISTED_FOLDERS);
+    deltas.left_out.retain(|id| is_id(id));
     // (An afresh read that lists no folder is not a listing: an account always has an Inbox.)
     deltas.afresh &= whole && !deltas.changed.is_empty();
     whole
@@ -212,6 +214,7 @@ fn parents_first(folders: &mut [GraphFolder]) {
 /// it, but for the folders and mail that are only here: [`super::jmap_down::keep_what_is_only_here`]).
 /// Where each folder goes on from is kept ([`super::graph_mail::take_listing`] leaves it).
 pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> usize {
+    keep_left_out(mb, account, deltas);
     let mut folders: Vec<GraphFolder> = deltas.changed.clone();
     if !deltas.afresh {
         let named: HashSet<&str> = deltas.changed.iter().map(|f| f.id.as_str()).chain(deltas.deleted.iter().map(String::as_str)).collect();
@@ -236,6 +239,43 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
     let removed = super::jmap_down::keep_what_is_only_here(mb, account, &listing);
     super::graph_mail::take_listing(mb, account, &listing, taken);
     removed
+}
+
+/// Before a list that leaves out a folder the server still has ([`EwsFolderDeltas::left_out`]:
+/// its Outbox while it is empty, #747): the mail only this computer has in that folder here (moved
+/// or copied into it from another account or from this computer, which an Exchange server account
+/// doesn't put on its server, or a draft that is here whole) goes to the folder on this computer
+/// `Kept from <address>`, as on a switch to Graph ([`super::graph_switch`]). The folder then goes
+/// like any other the list doesn't have. Kept in the account for that mail, it would be a folder
+/// of this computer's that each run makes on the server, and the server refuses it every time:
+/// its Outbox is there.
+fn keep_left_out(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas) {
+    let left: HashSet<&str> = deltas.left_out.iter().filter(|id| deltas.deleted.contains(id)).map(String::as_str).collect();
+    if left.is_empty() {
+        return;
+    }
+    let folders: HashSet<Id> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && f.server.as_ref().is_some_and(|server| left.contains(server.id.as_str())))
+        .map(|f| f.id)
+        .collect();
+    let only_here: Vec<Id> = mb
+        .messages
+        .values()
+        .filter(|m| m.account == account && folders.contains(&m.folder) && (m.server.is_none() || super::jmap_down::draft_here(m)))
+        .map(|m| m.id)
+        .collect();
+    if only_here.is_empty() {
+        return;
+    }
+    let Some(of) = mb.account(account).cloned() else { return };
+    let Ok(kept) = super::graph_switch::kept_folder(mb, &of) else { return };
+    for id in only_here {
+        if let Ok(m) = mb.message_mut(id) {
+            (m.account, m.folder, m.server) = (kept.account, kept.folder, None);
+        }
+    }
 }
 
 /// Take in one page of a folder's changes with the sync state that goes on from it, when the page

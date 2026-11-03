@@ -10,7 +10,7 @@ use mailcraft_model::sync::{
     DraftDone, EwsFolderDeltas, EwsMessagePage, FolderChange, FolderChangeDone, GraphFolder, GraphMessage, MessageChange, MessageChangeDone,
     MessageOutcome, SendDone, SendOutcome, ServerMessage,
 };
-use mailcraft_model::{Address, FolderKind, Id};
+use mailcraft_model::{Address, FolderKind, Id, Message};
 use serde_json::{Value, json};
 
 use super::{apply_ews_mail, ews_inbox_request, ews_mail_request};
@@ -381,4 +381,33 @@ fn a_folder_deleted_for_good_goes_up() {
     assert!(s.mailbox.folder(projects).is_none());
     let request = ews_mail_request(&s, account, false).unwrap();
     assert!(request.changes.iter().any(|c| matches!(c, FolderChange::Delete { id } if id == "F5")), "{:?}", request.changes);
+}
+
+/// 0.10.0 listed the server's Outbox as a folder of its own, and mail moved into it from this
+/// computer stays only here (an Exchange server account doesn't put it on its server). When the
+/// list leaves that Outbox out while it is empty (#747), such mail goes to a folder on this
+/// computer and the folder goes, rather than staying for it and being made on the server with
+/// every run, which the server refuses: its Outbox is there.
+#[test]
+fn mail_only_here_in_the_servers_outbox_left_out_is_kept_on_this_computer_and_the_folder_is_not_made_again() {
+    let (mut s, account, ..) = setup();
+    let listed = EwsFolderDeltas { changed: vec![folder("FO", "Outbox", FolderKind::Custom)], ..Default::default() };
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { folders: Some(listed), partial: true, ..piece(account) });
+    let copy = s.mailbox.folder_by_server(account, "FO").unwrap();
+    let local = s.mailbox.local_account();
+    let notes = s.mailbox.add_folder(local, None, "Notes").unwrap();
+    let mine = s.mailbox.add_message(Message { account: local, folder: notes, subject: "Mine".into(), ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [mine], "folder": copy})).unwrap();
+    let moved = s.mailbox.messages.values().find(|m| m.subject == "Mine").unwrap();
+    assert!(moved.folder == copy && moved.account == account && moved.server.is_none(), "only here: {moved:?}");
+    let left_out = EwsFolderDeltas { deleted: vec!["FO".into()], left_out: vec!["FO".into()], ..Default::default() };
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { folders: Some(left_out), partial: true, ..piece(account) });
+    assert!(s.mailbox.folder(copy).is_none(), "the server's Outbox is left out");
+    let kept = s.mailbox.messages.values().find(|m| m.subject == "Mine").unwrap();
+    let there = s.mailbox.folder(kept.folder).unwrap();
+    assert_eq!((there.account, there.name.as_str()), (local, "Kept from ada@example.org"));
+    assert!(kept.account == local && kept.server.is_none());
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.changes.is_empty(), "nothing is made on the server: {:?}", request.changes);
+    assert!(s.mailbox.folders.iter().filter(|f| f.account == account && f.name == "Outbox").all(|f| f.kind == FolderKind::Outbox));
 }

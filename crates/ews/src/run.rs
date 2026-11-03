@@ -217,7 +217,9 @@ struct Specials {
 /// shows one Outbox, MailCraft's own, not two (#747). A list that had it loses it (its id is among
 /// the deleted). While it holds mail it is listed like any other folder, so nothing is hidden: a
 /// delta that doesn't bring it has it as the server says it is now, at the top of the mail, where
-/// every server keeps it. Never sent from, either way. The id it left out, if it did.
+/// every server keeps it. Never sent from, either way. The id it left out, if it did; it is said
+/// to be left out ([`EwsFolderDeltas::left_out`]), not gone, so that what only is here in it is
+/// kept on this computer rather than made on the server again.
 fn server_outbox(deltas: &mut EwsFolderDeltas, specials: &Specials) -> Option<String> {
     let outbox = specials.outbox.as_ref()?;
     let id = outbox.id.as_str();
@@ -225,6 +227,9 @@ fn server_outbox(deltas: &mut EwsFolderDeltas, specials: &Specials) -> Option<St
         deltas.changed.retain(|f| f.id != id);
         if !deltas.deleted.iter().any(|have| have == id) {
             deltas.deleted.push(id.to_owned());
+        }
+        if !deltas.left_out.iter().any(|have| have == id) {
+            deltas.left_out.push(id.to_owned());
         }
         return Some(id.to_owned());
     }
