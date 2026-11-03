@@ -355,7 +355,7 @@ fn info(s: &mut Session, _: &Value) -> CmdResult {
         "events": mb.events.len(),
         "tasks": mb.tasks.len(),
         "rules": mb.rules.len(),
-        "categories": mb.categories.len(),
+        "categories": mb.every_category().len(),
         "size": mb.messages.values().map(|m| m.size()).sum::<u64>(),
         "syncStatus": s.sync_status,
     }))

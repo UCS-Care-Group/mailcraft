@@ -295,7 +295,7 @@ fn row(ui: &mut Ui, label_w: Option<f32>, label: &str, add: impl FnOnce(&mut Ui,
 pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button: Rect) {
     let Some(mut panel) = app.advanced_search.take() else { return };
     let t = Tokens::get(ctx);
-    let names: Vec<String> = app.session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
+    let names: Vec<String> = app.session.mailbox.every_category().into_iter().map(|c| c.name).collect();
     let today = app.session.today();
     let today_iso = today.iso();
     let week_start = app.session.prefs.week_start;
