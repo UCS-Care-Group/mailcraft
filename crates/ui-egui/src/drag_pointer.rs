@@ -4,7 +4,9 @@
 //! is under it. Over a folder that takes the messages it is the ordinary arrow (the drag label
 //! beside it and the folder's outline say "drop here"; winit draws neither `Grabbing` nor `Move`
 //! as anything but the four-arrow cursor on Windows, and has no drop cursor there); over a folder
-//! that refuses them, or anywhere that is no folder, it is the "not allowed" one.
+//! that refuses them, or anywhere that is no folder, it is the "not allowed" one. An account
+//! dragged by its heading (#702) has the same: the arrow over the folder pane, where a line shows
+//! where it would go, and "not allowed" anywhere else.
 
 use egui::{CursorIcon, Id as EguiId};
 use mailcraft_model::{Id, Mailbox};
@@ -27,7 +29,8 @@ pub(crate) fn drag_pointer(over_folder: Option<bool>) -> CursorIcon {
     }
 }
 
-/// A folder row under the pointer says whether it takes the messages.
+/// A folder row under the pointer says whether it takes the messages (and the folder pane, that
+/// it takes an account dragged in it).
 pub(crate) fn note_folder(ctx: &egui::Context, takes: bool) {
     ctx.data_mut(|d| d.insert_temp(EguiId::NULL, OverFolder(Some(takes))));
 }
@@ -35,7 +38,9 @@ pub(crate) fn note_folder(ctx: &egui::Context, takes: bool) {
 /// At the end of the frame: the pointer for a drag in progress.
 pub(crate) fn apply(ctx: &egui::Context) {
     let over = ctx.data_mut(|d| d.remove_temp::<OverFolder>(EguiId::NULL).and_then(|o| o.0));
-    if egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(ctx) {
+    if egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(ctx)
+        || egui::DragAndDrop::has_payload_of_type::<crate::nav::AccountDrag>(ctx)
+    {
         ctx.set_cursor_icon(drag_pointer(over));
     }
 }

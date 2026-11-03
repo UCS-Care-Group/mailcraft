@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_order_tests;
+#[cfg(test)]
 mod agent_leaves_compose_tests;
 #[cfg(test)]
 mod agent_owners_message_tests;
