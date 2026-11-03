@@ -1616,13 +1616,16 @@ mod tests {
         let (inbox, bin) =
             (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap());
         let request = mail(&mut s, account, "REQUEST", "uid-1", "");
+        // (On for a new mailbox; this one has it off, as an owner who turned it off.)
+        assert!(s.prefs.delete_answered_requests && crate::Prefs::default().delete_answered_requests);
+        s.prefs.delete_answered_requests = false;
         let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
         assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(false), Some(inbox)));
         // The option, as a command: toggled, set, and whatever is said to it.
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({}))["value"], true);
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({"value": false}))["value"], false);
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({"value": true}))["value"], true);
-        assert!(s.prefs.delete_answered_requests && !crate::Prefs::default().delete_answered_requests);
+        assert!(s.prefs.delete_answered_requests);
         // The next answer files the request away, in one step that Undo takes back whole.
         let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "tentative"}));
         assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(true), Some(bin)));

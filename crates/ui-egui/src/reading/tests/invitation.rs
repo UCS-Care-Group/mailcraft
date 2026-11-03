@@ -662,8 +662,9 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     let (first, second) = (ids[0], ids[1]);
     let mut harness = window(app, (1280.0, 420.0));
     select(&mut harness, first);
-    // Unless the owner turns it on, an answered request stays where it is.
-    assert!(!harness.state().session.prefs.delete_answered_requests);
+    // On for a new mailbox; an owner who turned it off finds an answered request where it was.
+    assert!(harness.state().session.prefs.delete_answered_requests);
+    harness.state_mut().session.prefs.delete_answered_requests = false;
     let inbox = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let bin = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
     harness.state_mut().execute("calendar.respond", json!({"message": first, "response": "accept"})).unwrap();

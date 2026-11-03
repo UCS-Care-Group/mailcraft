@@ -127,3 +127,30 @@ fn a_cancellation_in_one_account_leaves_a_meeting_another_account_keeps() {
     let own = mail(&mut s, a, "bo@example.org", "CANCEL", "uid-1", "bo@example.org");
     assert!(removable(&mut s, own));
 }
+
+/// #755: a new mailbox files an answered request away; a saved choice is kept, on or off, and
+/// preferences saved without the option take the default.
+#[test]
+fn answered_requests_are_deleted_by_default_and_a_saved_choice_is_kept() {
+    let (mut s, account) = session();
+    let (inbox, bin) =
+        (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap());
+    let request = mail(&mut s, account, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
+    assert_eq!(s.mailbox.message(request).map(|m| m.folder), Some(inbox));
+    assert!(s.prefs.delete_answered_requests);
+    let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
+    assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(true), Some(bin)));
+
+    let saved = |on: bool| serde_json::to_value(crate::Prefs { delete_answered_requests: on, ..Default::default() }).unwrap();
+    assert!(!serde_json::from_value::<crate::Prefs>(saved(false)).unwrap().delete_answered_requests);
+    assert!(serde_json::from_value::<crate::Prefs>(saved(true)).unwrap().delete_answered_requests);
+    assert!(serde_json::from_value::<crate::Prefs>(json!({"weekNumbers": true})).unwrap().delete_answered_requests);
+
+    // An owner who turned it off keeps the request where it is.
+    let (mut s, account) = session();
+    s.prefs = serde_json::from_value(saved(false)).unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let request = mail(&mut s, account, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
+    let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
+    assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(false), Some(inbox)));
+}
