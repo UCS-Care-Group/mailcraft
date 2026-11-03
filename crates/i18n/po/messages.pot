@@ -213,6 +213,11 @@ msgstr ""
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "A copy can't go into this Outbox: the next Send/Receive would send it"

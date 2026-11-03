@@ -213,6 +213,44 @@ fn what_each_new_part_needs_is_said() {
 }
 
 #[test]
+fn a_rule_looks_for_no_more_words_than_rules_add_takes_and_the_box_for_the_server_says_so_of_the_rest() {
+    // The reason says 20.
+    assert_eq!(MAX_WORDS_EACH, 20);
+    let mut s = session();
+    let noor = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.choose(&s.mailbox, noor);
+    f.name = "News".into();
+    let words = |from: usize, to: usize| (from..to).map(|n| format!("w{n}")).collect::<Vec<_>>().join("; ");
+    // A condition.
+    f.conds[0] = Cond { kind: When::Subject, text: words(0, 21), ..Default::default() };
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    f.conds[0].text = words(0, 20);
+    assert_eq!(f.lacks(), None);
+    // Exceptions of one kind are one: a word both look for counts once, and other kinds apart.
+    f.unless = vec![
+        Cond { kind: When::Body, text: words(0, 12), ..Default::default() },
+        Cond { kind: When::Body, text: words(4, 20).to_uppercase(), ..Default::default() },
+        Cond { kind: When::Subject, text: words(30, 45), ..Default::default() },
+    ];
+    assert_eq!(f.lacks(), None);
+    let (command, params) = f.command();
+    s.run(command, &params).unwrap();
+    f.unless[1].text = words(4, 21);
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    let (command, params) = f.command();
+    assert!(s.run(command, &params).is_err(), "as `rules.add` refuses it");
+    // Meanwhile the box for the server judges the exceptions as they are, never as none: a name
+    // the server can't look for is said.
+    f.unless = vec![
+        Cond { kind: When::From, text: format!("{}; Noor Haddad", words(0, 12)), ..Default::default() },
+        Cond { kind: When::From, text: words(12, 21), ..Default::default() },
+    ];
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    assert_eq!(server_cannot_draft(&s, &f.command().1), Some(NotOnServer::Names));
+}
+
+#[test]
 fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     let mut s = session();
     let mut f = RulesForm::new(&s, &json!({}));

@@ -419,8 +419,10 @@ pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
     let account = p::id(v, "account").filter(|a| s.mailbox.account(*a).is_some())?;
     let parts = |key: &str| v.get(key).and_then(Value::as_array).map(|a| a.iter().take(MOST_PARTS).collect::<Vec<_>>()).unwrap_or_default();
     let conditions = parts("conditions").into_iter().filter_map(|c| condition(c).ok()).collect();
-    let exceptions =
-        mailcraft_model::fold_exceptions(parts("exceptions").into_iter().filter_map(|c| condition(c).ok()).collect()).unwrap_or_default();
+    // As `rules.add` keeps them; exceptions that can't be (more words of a kind than a rule keeps,
+    // which `rules.add` refuses and the builder says) are looked at as they are.
+    let exceptions: Vec<Condition> = parts("exceptions").into_iter().filter_map(|c| condition(c).ok()).collect();
+    let exceptions = mailcraft_model::fold_exceptions(exceptions.clone()).unwrap_or(exceptions);
     let actions = parts("actions").into_iter().filter_map(|a| action(s, a).ok()).collect();
     let alert = p::bool(v, "alert").unwrap_or(false);
     let rule = Rule { conditions, exceptions, actions, alert, account, ..Default::default() };

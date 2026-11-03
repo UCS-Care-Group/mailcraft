@@ -255,6 +255,12 @@ msgstr "Een codepunt, geschreven als U+2192 of 2192, of een decimaal getal na #.
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount. Alleen op deze computer bewaard"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "Een voorwaarde, of de uitzonderingen van één soort samen, kan naar hoogstens 20 woorden of adressen zoeken."
+
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy

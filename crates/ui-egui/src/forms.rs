@@ -5694,7 +5694,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
@@ -5845,6 +5845,11 @@ pub(crate) mod rules {
         }
     }
 
+    /// More words than `rules.add` takes ([`MAX_WORDS_EACH`], which the keep tests hold to 20).
+    fn too_many_words() -> &'static str {
+        tl!("A condition, or the exceptions of one kind together, can look for at most 20 words or addresses.")
+    }
+
     /// The words of a text field, set apart by semicolons as Outlook's search text is listed:
     /// trimmed, with the empty ones left out.
     fn split_words(text: &str) -> Vec<String> {
@@ -5896,6 +5901,9 @@ pub(crate) mod rules {
         /// What it still needs, in words, or `None` when it says all it needs to.
         fn lacks(&self) -> Option<&'static str> {
             let words = split_words(&self.text);
+            if self.kind.takes_text() && words.len() > MAX_WORDS_EACH {
+                return Some(too_many_words());
+            }
             let ok = match self.kind {
                 kind if kind.takes_people() => {
                     // One whole address each, as `rules.add` takes a person.
@@ -6508,6 +6516,28 @@ pub(crate) mod rules {
         fn lacks(&self) -> Option<&'static str> {
             if let Some(why) = self.conds.iter().chain(&self.unless).find_map(Cond::lacks) {
                 return Some(why);
+            }
+            // Exceptions of one kind are one, as `rules.add` keeps them (`fold_exceptions`): their
+            // words together, each once, are as many as a condition's.
+            let mut kinds: Vec<(When, Vec<String>)> = Vec::new();
+            for c in self.unless.iter().filter(|c| c.kind.takes_text()) {
+                let at = match kinds.iter().position(|(kind, _)| *kind == c.kind) {
+                    Some(at) => at,
+                    None => {
+                        kinds.push((c.kind, Vec::new()));
+                        kinds.len() - 1
+                    }
+                };
+                if let Some((_, all)) = kinds.get_mut(at) {
+                    for w in split_words(&c.text) {
+                        if !all.iter().any(|a| a.eq_ignore_ascii_case(&w)) {
+                            all.push(w);
+                        }
+                    }
+                    if all.len() > MAX_WORDS_EACH {
+                        return Some(too_many_words());
+                    }
+                }
             }
             if self.acts.is_empty() && !self.alert {
                 return Some(tl!("A rule needs something to do: an action, or a desktop alert."));
