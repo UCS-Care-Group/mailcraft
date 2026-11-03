@@ -1556,8 +1556,12 @@ fn an_agent_asks_the_owner_before_changing_the_rules_beside_one_that_deletes_for
             ("rules.remove", json!({"id": keep})),
         ]
     };
+    // Each question says why it is asked as a delete: Purge, by name.
+    let beside = "; the rule \u{201c}Purge\u{201d}, switched on here, deletes mail permanently, and a change to the rules may let more mail reach it";
     for (id, params) in changes(keep) {
         assert_eq!(ask(&s, id, params.clone()), delete, "{id} {params}");
+        let said = crate::agent::describe(&s, id, &params);
+        assert!(said.contains(beside), "{id} {params}: {said}");
     }
     // A yes to the rule from a message deletes nothing yet: the window's question says Allow.
     assert!(!crate::agent::rule_from_message_deletes(&s, &json!({"folder": news, "id": m})));
@@ -1573,9 +1577,17 @@ fn an_agent_asks_the_owner_before_changing_the_rules_beside_one_that_deletes_for
         ("rules.move", json!({"id": other, "direction": "up"})),
         ("rules.enable", json!({"id": other, "value": false})),
         ("rules.remove", json!({"id": other})),
+        ("rules.enable", json!({"id": purge, "value": false})),
+        ("rules.remove", json!({"id": purge})),
+        ("rules.add", tagger(local)),
     ] {
         assert_eq!(ask(&s, id, params.clone()), settings, "{id} {params}");
+        let said = crate::agent::describe(&s, id, &params);
+        assert!(!said.contains("switched on here"), "{id} {params}: {said}");
     }
+    // Nor is a switch the command refuses said to let more mail reach Purge.
+    let said = crate::agent::describe(&s, "rules.enable", &json!({"id": keep, "value": "yes"}));
+    assert!(!said.contains("Purge"), "{said}");
     // Switched off again, Keep switched on is asked too.
     run(&mut s, "rules.enable", json!({"id": keep, "value": false}));
     assert_eq!(ask(&s, "rules.enable", json!({"id": keep, "value": true})), delete);

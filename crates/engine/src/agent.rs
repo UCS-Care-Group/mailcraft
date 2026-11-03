@@ -928,7 +928,30 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
         },
         _ => return false,
     };
-    makes || mb.rules.iter().any(|x| deletes_here(x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
+    makes || beside_for_good(mb, account, rule, on).next().is_some()
+}
+
+/// The rules switched on here that delete mail for good and that a change to the rules of
+/// `account` reaches: for the same mail, and `rule` itself only when it is still on after the
+/// change (`on`).
+fn beside_for_good(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> impl Iterator<Item = &mailcraft_model::Rule> {
+    mb.rules.iter().filter(move |x| deletes_here(x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
+}
+
+/// What a question about a change to the rules adds when it is asked as a delete because rules
+/// beside it delete mail for good: their names (at most five), and why.
+fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> String {
+    let names: Vec<String> = beside_for_good(mb, account, rule, on).map(|r| quoted(&r.name)).collect();
+    if names.is_empty() {
+        return String::new();
+    }
+    let more = names.len().saturating_sub(5);
+    let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+    let (rule, verb, them) = if names.len() == 1 { ("rule", "deletes", "it") } else { ("rules", "delete", "them") };
+    format!(
+        "; the {rule} {}{more}, switched on here, {verb} mail permanently, and a change to the rules may let more mail reach {them}",
+        names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+    )
 }
 
 fn for_good(r: &mailcraft_model::Rule) -> bool {
@@ -1451,9 +1474,15 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             format!("{verb} {}, which also puts {what} back as they were", quoted(label.unwrap_or("the last change")))
         }
-        "rules.add" => rule_text(s, params),
+        // Each with the rules here that delete for good which the change reaches, when it is asked
+        // as a delete for them (as `rules_delete_for_good` reads them).
+        "rules.add" => {
+            let beside = crate::cmd::rules::rule_from_params(s, params).map(|r| beside_for_good_said(&s.mailbox, r.account, 0, true));
+            format!("{}{}", rule_text(s, params), beside.unwrap_or_default())
+        }
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
             Ok((r, _)) => {
+                let beside = beside_for_good_said(&s.mailbox, r.account, 0, true);
                 let folder = r.actions.iter().find_map(|a| if let mailcraft_model::Action::MoveTo(f) = a { Some(*f) } else { None });
                 let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
                 let from = r.conditions.iter().find_map(|c| match c {
@@ -1467,8 +1496,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     None => format!("make a rule that always moves mail from {from} to {to}"),
                 };
                 match s.mailbox.account(r.account).filter(|_| r.keep == mailcraft_model::Keep::Server) {
-                    Some(a) => format!("{made}, kept on the server of {} where it runs whether MailCraft is open or not", quoted(&plain(&a.email))),
-                    None => made,
+                    Some(a) => {
+                        format!("{made}, kept on the server of {} where it runs whether MailCraft is open or not{beside}", quoted(&plain(&a.email)))
+                    }
+                    None => format!("{made}{beside}"),
                 }
             }
             Err(_) => "make a rule from a message that can't be made as asked".to_string(),
@@ -1521,7 +1552,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
             match r {
-                Some(r) => format!("move the rule {} {way}, which changes which rules run first", quoted(&r.name)),
+                Some(r) => format!(
+                    "move the rule {} {way}, which changes which rules run first{}",
+                    quoted(&r.name),
+                    beside_for_good_said(&s.mailbox, r.account, r.id, true)
+                ),
                 None => "move a rule that isn't there".to_string(),
             }
         }
@@ -1531,9 +1566,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let to = account.map(|a| quoted(&plain(&a.email))).unwrap_or_else(|| "a Microsoft account".to_string());
             match r {
                 Some(r) => format!(
-                    "keep the rule {} on the server of {to}, where it runs whether MailCraft is open or not: {}",
+                    "keep the rule {} on the server of {to}, where it runs whether MailCraft is open or not: {}{}",
                     quoted(&r.name),
-                    rule_words(s, r)
+                    rule_words(s, r),
+                    beside_for_good_said(&s.mailbox, r.account, r.id, true)
                 ),
                 None => "keep a rule that isn't there on a server".to_string(),
             }
@@ -1541,11 +1577,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "rules.enable" | "rules.remove" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             // Read as the command reads it, which refuses a `value` that isn't one.
-            let verb = match (r, p::opt_bool(params, "value")) {
-                _ if id == "rules.remove" => "delete",
-                (Some(r), Ok(on)) if on.unwrap_or(!r.enabled) => "switch on",
-                (Some(_), Ok(_)) => "switch off",
-                _ => "switch on or off",
+            // (`on`: whether the rule is on after it, as the gate reads it; none for a `value` that
+            // the command refuses.)
+            let (verb, on) = match (r, p::opt_bool(params, "value")) {
+                _ if id == "rules.remove" => ("delete", Some(false)),
+                (Some(r), Ok(on)) if on.unwrap_or(!r.enabled) => ("switch on", Some(true)),
+                (Some(_), Ok(_)) => ("switch off", Some(false)),
+                _ => ("switch on or off", None),
             };
             match r {
                 Some(r) => {
@@ -1556,7 +1594,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         .filter(|_| r.on_server() || r.unanswered)
                         .map(|a| format!(", on the server of {} too", quoted(&plain(&a.email))))
                         .unwrap_or_default();
-                    format!("{verb} the rule {}{there}: {}", quoted(&r.name), rule_words(s, r))
+                    let beside = on.map(|on| beside_for_good_said(&s.mailbox, r.account, r.id, on)).unwrap_or_default();
+                    format!("{verb} the rule {}{there}: {}{beside}", quoted(&r.name), rule_words(s, r))
                 }
                 None => format!("{verb} a rule that isn't there"),
             }
