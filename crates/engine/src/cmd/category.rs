@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Colour categories.
 
-use mailcraft_model::{Id, Rgb};
+use mailcraft_model::{GREY_CATEGORY, Id, Rgb};
 use serde_json::{Value, json};
 
 use super::{bad, done};
@@ -44,6 +44,19 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     }
     s.mailbox.set_category(account, name, color)?;
     done()
+}
+
+/// The spelling an item of `account` gives the category `name` it is put on: its list's own, or
+/// the name as given for one the list doesn't have yet. With `add` (the category is being put on,
+/// not taken off) that name joins the list in grey, so it can be given a colour.
+pub fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Result<String, CmdError> {
+    if let Some(c) = s.mailbox.category_of(account, name) {
+        return Ok(c.name.clone());
+    }
+    if add {
+        s.mailbox.set_category(account, name, GREY_CATEGORY)?;
+    }
+    Ok(name.to_string())
 }
 
 /// What changing the colour of a category on Outlook's list says.

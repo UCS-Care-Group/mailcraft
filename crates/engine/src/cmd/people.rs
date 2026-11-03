@@ -271,11 +271,14 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let c = s.mailbox.contact_mut(id)?;
-    let has = c.categories.iter().any(|x| x.eq_ignore_ascii_case(&name));
+    let (account, has) = (c.origin.account, c.categories.iter().any(|x| x.eq_ignore_ascii_case(&name)));
     let on = p::bool(v, "value").unwrap_or(!has);
+    // The contact takes the spelling of its account's list; a new name joins that list.
+    let spelling = super::category::spelled(s, account, &name, on)?;
+    let c = s.mailbox.contact_mut(id)?;
     c.categories.retain(|x| !x.eq_ignore_ascii_case(&name));
     if on {
-        c.categories.push(name);
+        c.categories.push(spelling);
     }
     Ok(json!({"id": id, "categories": c.categories}))
 }
