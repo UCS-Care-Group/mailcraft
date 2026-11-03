@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-23 · **Change:** minor (a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-03 · **Change:** minor (#232: Google Desktop registration and verification release-readiness checks; a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -66,6 +66,44 @@ for a maintainer's approval; the Windows and macOS jobs that sign, and the job t
 draft, run in it, and only for a pushed version tag. Without the secrets the builds are unsigned
 (ad-hoc on macOS) and the scripts say so, so forks still build. None is set yet, so every
 release so far is unsigned. There is no riscv64 Linux build, and no Flathub manifest is published.
+
+## Google Desktop OAuth release readiness
+
+Desktop Google sign-in (#232) uses IMAP/SMTP XOAUTH2; it does not ship browser Gmail (#233).
+The [account guide](google-accounts.md) is the user-facing reference. Before advertising Google
+sign-in for general use, the maintainer should:
+
+1. Supply and own the official **Desktop app** registration and its matching ID/registration
+   value through the approved build configuration. Development accounts and personal test-client
+   values must not become release defaults. Verify the produced binary, not just a developer's
+   File → Options overrides. Blank or invalid registration must still explain the app-password
+   fallback rather than present a sign-in button that cannot work.
+2. Confirm the requested scopes (`https://mail.google.com/ openid email`), audience, support and
+   privacy information. Complete the applicable [restricted-scope verification][google-verification]
+   before unrestricted public rollout; review Google's assessment requirements for the actual
+   data flow rather than assuming either that a server assessment is always required or that a
+   native client is exempt from all verification. Changing publishing status alone is not proof
+   of approval. Development/testing exceptions and test-user warnings are not public verification.
+3. Exercise OAuth-first setup, explicit app-password fallback, unchanged existing accounts,
+   canceled and successful same-address conversion, restart/reconnect and token renewal against
+   the release configuration. Keep ordinary automated CI on synthetic accounts and stand-ins.
+   Manual real-account acceptance requires the account owner's approval and isolated saved data.
+   An SMTP AUTH/QUIT check proves authentication, not delivery; sending needs a separately
+   approved test recipient and message.
+4. Retest the final patch with an unskipped `cargo xtask ci` and the relevant platform packages.
+   Focused tests or a prior build's successful gates do not substitute for the final source tree.
+   Windows manual acceptance does not certify every platform, Workspace policy or public client.
+5. Keep review, merge and public release distinct. A development implementation can be reviewed
+   before Google verification is finished; maintainer approval, the contributor's own CLA,
+   project-owned registration and the applicable release requirements are still required.
+
+As of the November 3 desktop acceptance, developer registrations demonstrated Gmail and
+Workspace sign-in, legacy password restart/conversion, refresh and incoming synchronization;
+SMTP authentication was checked on TLS 465 and STARTTLS 587 without sending. The project's
+production registration and public verification are not claimed complete. The broader
+interoperability limits remain in [gaps](gaps.md) and [Google acceptance scope](google-accounts.md#what-has-been-verified-and-what-has-not).
+
+[google-verification]: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
 
 ## The release signature (`SHA256SUMS.txt.sig`)
 
@@ -262,6 +300,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-03 | #232: official Google Desktop registration, development versus public verification, scoped acceptance and final CI before release |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
 | 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |

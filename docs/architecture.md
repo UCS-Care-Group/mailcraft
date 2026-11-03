@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-23 · **Change:** minor (quitting on macOS is MailCraft's own code, no craft-libs dependency; #253: the macOS menu bar, a table of command ids in `ui-egui` made native with `muda` in the desktop app; `i18n`, L0: interface text, `.po` catalogues and plural rules in a crate of their own, i18n-1; an account of a kind this program doesn't know, one a newer MailCraft added, is kept as its file has it and written back so, `AccountKind::Unknown`; fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through `-[NSApplication terminate:]`, MailCraft's own code in the desktop app; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-03 · **Change:** minor (#232: Google Desktop OAuth, explicit conversion and registration/account-credential separation; quitting on macOS is MailCraft's own code, no craft-libs dependency; #253: the macOS menu bar, a table of command ids in `ui-egui` made native with `muda` in the desktop app; `i18n`, L0: interface text, `.po` catalogues and plural rules in a crate of their own, i18n-1; an account of a kind this program doesn't know, one a newer MailCraft added, is kept as its file has it and written back so, `AccountKind::Unknown`; fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through `-[NSApplication terminate:]`, MailCraft's own code in the desktop app; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -177,9 +177,17 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
   the operating system's credential store when the owner wants it remembered (`Services::secrets`;
   Windows, macOS, and the Secret Service on Linux and FreeBSD; a store that can't be used is
   `StoreTrouble`, said once a session). The mailbox file, `ui.json` and logs never hold one.
-- **Signing in on the provider's page.** Microsoft accounts use OAuth 2.0 (authorization code with
-  PKCE, a loopback redirect, the system's browser) and XOAUTH2. The engine only knows that an
-  account signs in that way (`Account::oauth`); the host with sockets does it and hands tokens in.
+- **Signing in on the provider's page.** Microsoft and Google desktop accounts use OAuth 2.0
+  (authorization code with PKCE, a loopback redirect and the system's browser) and XOAUTH2.
+  `OAuthProvider` selects provider-specific endpoints, scopes and refresh handling. Google's
+  implementation is in `crates/net/src/oauth/google.rs`; it does not add browser Gmail or Google
+  calendar/contact synchronization. The engine records the account's method (`Account::oauth`);
+  the host with sockets does the authorization and passes session tokens in. New Google accounts
+  prefer OAuth when the application's registration is configured. A legacy account changes only
+  through a successful, explicit same-address conversion; canceled/failed conversion retains its
+  credential and mail. The Desktop registration is application configuration, not a user password
+  or refresh token. Override precedence, persistence and fallback are documented in
+  [Google account setup](google-accounts.md#development-registration).
 - **Plain-text composing.** Rich text needs an editor component the project does not have yet.
 
 ## Testing and gates
@@ -205,6 +213,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | #232: Google provider, explicit conversion and the distinction between application registration and account credentials |
 | 2026-10-11 | major | First architecture doc |
 | 2026-10-15 | minor | Supply-chain gates: cargo-deny in `cargo xtask ci` and CI, pinned actions, zizmor, Scorecard; link to the threat model |
 | 2026-10-12 | patch | `html` also makes the line a message list shows (`preview`, `text_preview`) |
