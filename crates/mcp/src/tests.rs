@@ -98,3 +98,51 @@ fn resources() {
     let r = call(&mut s, 2, "resources/read", json!({"uri": "mailcraft://mailbox"}));
     assert!(r["result"]["contents"][0]["text"].as_str().unwrap().contains("accounts"));
 }
+
+#[test]
+fn list_tasks_shows_every_account_whatever_the_window_shows() {
+    let allow = vec![crate::Class::Accounts, crate::Class::Send];
+    let mut s = Server::new(Box::new(Headless::new(mailcraft_engine::Session::empty(), allow)));
+    let run = |s: &mut Server, command: &str, params: Value| tool(s, "execute", json!({"command": command, "params": params}));
+    let account = json!({"email": "work@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"});
+    let work = run(&mut s, "account.add", account)["id"].clone();
+    run(&mut s, "tasks.new", json!({"title": "In work", "account": work}));
+    run(&mut s, "tasks.new", json!({"title": "On this computer", "account": 0}));
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    let titles = |tasks: &Value| tasks["tasks"].as_array().unwrap().iter().map(|t| plain(&t["title"])).collect::<Vec<_>>();
+    let every = tool(&mut s, "list_tasks", json!({}));
+    assert_eq!(titles(&every).len(), 2, "{every}");
+    let here = tool(&mut s, "list_tasks", json!({"account": "here"}));
+    assert_eq!(titles(&here), ["On this computer"]);
+    let one = tool(&mut s, "list_tasks", json!({"account": work}));
+    assert_eq!(titles(&one), ["In work"]);
+}
+
+#[test]
+fn list_contacts_shows_every_account_whatever_the_window_shows() {
+    let mut session = mailcraft_engine::Session::empty();
+    let account = json!({"email": "work@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"});
+    let work = session.run("account.add", &account).unwrap()["id"].clone();
+    let contact = json!({"id": "w1", "displayName": "In work"});
+    let download = json!({"download": {"account": work, "email": "work@example.org", "complete": true, "contacts": [contact]}});
+    session.run("sync.applyContacts", &download).unwrap();
+    session.run("people.new", &json!({"displayName": "On this computer"})).unwrap();
+    session.run("view.peopleAccount", &json!({"value": work})).unwrap();
+    session.run("people.search", &json!({"query": "In work"})).unwrap();
+    let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));
+    let names = |list: &Value| list["contacts"].as_array().unwrap().iter().map(|c| plain(&c["name"])).collect::<Vec<_>>();
+    let every = tool(&mut s, "list_contacts", json!({}));
+    // A null account is no account, and the window's search is not the agent's.
+    let null = tool(&mut s, "list_contacts", json!({"account": null, "query": null}));
+    assert_eq!(null["account"], every["account"]);
+    assert_eq!(null["contacts"].as_array().unwrap().len(), every["contacts"].as_array().unwrap().len());
+    for query in [json!(5), json!(["x"]), json!({"q": "In work"})] {
+        let odd = tool(&mut s, "list_contacts", json!({"query": query}));
+        assert_eq!(names(&odd).len(), 2, "{query}: {odd}");
+    }
+    assert_eq!(names(&every).len(), 2, "{every}");
+    let here = tool(&mut s, "list_contacts", json!({"account": "here"}));
+    assert_eq!(names(&here), ["On this computer"]);
+    let one = tool(&mut s, "list_contacts", json!({"account": work}));
+    assert_eq!(names(&one), ["In work"]);
+}

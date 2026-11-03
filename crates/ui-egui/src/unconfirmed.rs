@@ -43,6 +43,7 @@ pub(crate) struct Held {
     graph_fetch: Option<Box<dyn Fn(crate::graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     graph_search: Option<Box<dyn Fn(crate::server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     graph_tasks: Option<Box<dyn Fn(crate::task_sync::TasksJob) -> Receiver<crate::task_sync::TasksResult>>>,
+    graph_rules: Option<Box<dyn Fn(crate::rule_sync::RulesJob) -> Receiver<crate::rule_sync::RulesResult>>>,
     graph_auto_replies: Option<Box<dyn Fn(crate::auto_replies::AutoRepliesJob) -> Receiver<crate::auto_replies::AutoRepliesResult>>>,
     jmap: Option<Box<dyn Fn(crate::jmap_mail::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
     jmap_fetch: Option<Box<dyn Fn(crate::jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
@@ -113,7 +114,7 @@ impl MailApp {
 
     /// Where each account of the open mailbox connects to, one line per account.
     pub fn account_servers(&self) -> Vec<String> {
-        self.session.mailbox.accounts.iter().filter(|a| a.kind.has_server()).map(line).collect()
+        self.session.mailbox.accounts_in_order().into_iter().filter(|a| a.kind.has_server()).map(line).collect()
     }
 
     /// A mailbox has just taken the place of the one before: it is unconfirmed when it names
@@ -147,6 +148,7 @@ impl MailApp {
             graph_fetch: s.graph_fetch.take(),
             graph_search: s.graph_search.take(),
             graph_tasks: s.graph_tasks.take(),
+            graph_rules: s.graph_rules.take(),
             graph_auto_replies: s.graph_auto_replies.take(),
             jmap: s.jmap.take(),
             jmap_fetch: s.jmap_fetch.take(),
@@ -164,6 +166,7 @@ impl MailApp {
         s.graph_fetch = held.graph_fetch.or(s.graph_fetch.take());
         s.graph_search = held.graph_search.or(s.graph_search.take());
         s.graph_tasks = held.graph_tasks.or(s.graph_tasks.take());
+        s.graph_rules = held.graph_rules.or(s.graph_rules.take());
         s.graph_auto_replies = held.graph_auto_replies.or(s.graph_auto_replies.take());
         s.jmap = held.jmap.or(s.jmap.take());
         s.jmap_fetch = held.jmap_fetch.or(s.jmap_fetch.take());
