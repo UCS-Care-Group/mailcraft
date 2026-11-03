@@ -98,7 +98,7 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
     Ok(download)
 }
 
-fn valid_id(id: &str) -> bool {
+pub(super) fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= MAX_ID && !id.chars().any(|c| c.is_control() || c.is_whitespace())
 }
 
