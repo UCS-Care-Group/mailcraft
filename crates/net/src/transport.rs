@@ -261,34 +261,50 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
         .collect();
     // No time at all would mean "wait for ever".
     let io = Some(io.max(Duration::from_millis(1)));
-    let deadline = Instant::now() + connect;
+    let started = Instant::now();
+    let tcp = connect_resolved(&addresses, connect, TcpStream::connect_timeout, || started.elapsed()).map_err(failed)?;
+    // Without timeouts a silent server would hang the thread: no connection then.
+    let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
+    if ready.is_err() {
+        return Err(failed("the connection couldn't be set up"));
+    }
+    let _ = tcp.set_nodelay(true);
+    Ok(tcp)
+}
+
+/// The bounded address loop, separated from DNS and socket setup so its deadline can be tested
+/// without public servers, real credentials, or wall-clock sleeps.
+fn connect_resolved<T>(
+    addresses: &[SocketAddr],
+    connect: Duration,
+    mut connector: impl FnMut(&SocketAddr, Duration) -> std::io::Result<T>,
+    elapsed: impl Fn() -> Duration,
+) -> Result<T, &'static str> {
     let mut reason = "no address was found for the name";
-    for address in &addresses {
-        let left = deadline.saturating_duration_since(Instant::now());
+    let count = addresses.len().min(MAX_ADDRESSES);
+    for (index, address) in addresses.iter().take(count).enumerate() {
+        let left = connect.saturating_sub(elapsed());
         if left.is_zero() {
             reason = "the server didn't answer";
             break;
         }
-        match TcpStream::connect_timeout(address, left) {
-            Ok(tcp) => {
-                // Without timeouts a silent server would hang the thread: no connection then.
-                let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
-                if ready.is_err() {
-                    return Err(failed("the connection couldn't be set up"));
-                }
-                let _ = tcp.set_nodelay(true);
-                return Ok(tcp);
-            }
-            Err(e) => {
-                reason = match e.kind() {
+        // One unreachable DNS result must not consume the entire connection deadline. Divide
+        // the remaining budget among the remaining bounded attempts. Fast failures leave their
+        // unused time for the next address; the final address gets all remaining time.
+        let remaining = u32::try_from(count.saturating_sub(index)).unwrap_or(1).max(1);
+        let attempt = (left / remaining).max(Duration::from_nanos(1));
+        match connector(address, attempt) {
+            Ok(connection) => return Ok(connection),
+            Err(error) => {
+                reason = match error.kind() {
                     ErrorKind::ConnectionRefused => "the server refused the connection",
                     ErrorKind::TimedOut | ErrorKind::WouldBlock => "the server didn't answer",
                     _ => "the network couldn't get there",
-                }
+                };
             }
         }
     }
-    Err(failed(reason))
+    Err(reason)
 }
 
 /// The TLS settings every connection shares: certificates must chain to one of Mozilla's roots
@@ -589,3 +605,7 @@ mod tests {
         assert!(!reason.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "transport_connect_tests.rs"]
+mod connect_tests;
