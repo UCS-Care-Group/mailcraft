@@ -1,1 +1,0 @@
-- Save All Attachments (right-click an attachment) saves every file of a message into a folder you pick, each under a safe name; a file already in the folder is never written over: the new one is numbered, `report (2).pdf`.
