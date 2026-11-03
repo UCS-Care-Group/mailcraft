@@ -189,6 +189,7 @@ fn the_servers_outbox_is_left_out_while_it_holds_nothing() {
     let folders = first.iter().find_map(|p| p.folders.as_ref()).unwrap();
     assert!(folders.changed.iter().all(|f| f.id != outbox && f.name != "Outbox"), "left out of the list");
     assert!(folders.deleted.contains(&outbox), "and taken off a list that had it");
+    assert_eq!(folders.left_out, vec![outbox.clone()], "as left out, not gone");
     assert!(first.iter().flat_map(|p| &p.pages).all(|page| page.folder != outbox), "with nothing in it to read");
     assert!(last(&first).whole);
     // Mail left in it (by another program): listed, at the top, and read.
@@ -198,7 +199,7 @@ fn the_servers_outbox_is_left_out_while_it_holds_nothing() {
     let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
     let listed = folders.changed.iter().find(|f| f.id == outbox).unwrap();
     assert_eq!((listed.name.as_str(), listed.kind, listed.parent.as_str(), listed.total), ("Outbox", FolderKind::Custom, "", 1));
-    assert!(!folders.deleted.contains(&outbox));
+    assert!(!folders.deleted.contains(&outbox) && folders.left_out.is_empty());
     assert_eq!(subjects(&pieces), vec!["Stuck".to_owned()]);
 }
 

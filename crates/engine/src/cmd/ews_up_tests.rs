@@ -10,7 +10,7 @@ use mailcraft_model::sync::{
     DraftDone, EwsFolderDeltas, EwsMessagePage, FolderChange, FolderChangeDone, GraphFolder, GraphMessage, MessageChange, MessageChangeDone,
     MessageOutcome, SendDone, SendOutcome, ServerMessage,
 };
-use mailcraft_model::{Address, FolderKind, Id};
+use mailcraft_model::{Address, FolderKind, Id, Message};
 use serde_json::{Value, json};
 
 use super::{apply_ews_mail, ews_inbox_request, ews_mail_request};
@@ -409,4 +409,112 @@ fn a_folder_deleted_for_good_goes_up() {
     assert!(s.mailbox.folder(projects).is_none());
     let request = ews_mail_request(&s, account, false).unwrap();
     assert!(request.changes.iter().any(|c| matches!(c, FolderChange::Delete { id, .. } if id == "F5")), "{:?}", request.changes);
+}
+
+/// 0.10.0 listed the server's Outbox as a folder of its own, and mail moved into it from this
+/// computer stays only here (an Exchange server account doesn't put it on its server). When the
+/// list leaves that Outbox out while it is empty (#747), such mail goes to a folder on this
+/// computer and the folder goes, rather than staying for it and being made on the server with
+/// every run, which the server refuses: its Outbox is there.
+#[test]
+fn mail_only_here_in_the_servers_outbox_left_out_is_kept_on_this_computer_and_the_folder_is_not_made_again() {
+    let (mut s, account, ..) = setup();
+    let listed = EwsFolderDeltas { changed: vec![folder("FO", "Outbox", FolderKind::Custom)], ..Default::default() };
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { folders: Some(listed), partial: true, ..piece(account) });
+    let copy = s.mailbox.folder_by_server(account, "FO").unwrap();
+    let local = s.mailbox.local_account();
+    let notes = s.mailbox.add_folder(local, None, "Notes").unwrap();
+    let mine = s.mailbox.add_message(Message { account: local, folder: notes, subject: "Mine".into(), ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [mine], "folder": copy})).unwrap();
+    let moved = s.mailbox.messages.values().find(|m| m.subject == "Mine").unwrap();
+    assert!(moved.folder == copy && moved.account == account && moved.server.is_none(), "only here: {moved:?}");
+    let left_out = EwsFolderDeltas { deleted: vec!["FO".into()], left_out: vec!["FO".into()], ..Default::default() };
+    let said = took(&mut s, account, mailcraft_model::sync::EwsMailResult { folders: Some(left_out), partial: true, ..piece(account) });
+    let told = said["errors"].to_string();
+    assert!(told.contains("1 message that was only on this computer") && told.contains("Kept from ada@example.org"), "the owner is told: {told}");
+    assert!(s.mailbox.folder(copy).is_none(), "the server's Outbox is left out");
+    let kept = s.mailbox.messages.values().find(|m| m.subject == "Mine").unwrap();
+    let there = s.mailbox.folder(kept.folder).unwrap();
+    assert_eq!((there.account, there.name.as_str()), (local, "Kept from ada@example.org"));
+    assert!(kept.account == local && kept.server.is_none());
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.changes.is_empty(), "nothing is made on the server: {:?}", request.changes);
+    assert!(s.mailbox.folders.iter().filter(|f| f.account == account && f.name == "Outbox").all(|f| f.kind == FolderKind::Outbox));
+}
+
+/// The server's Outbox is listed (as a folder of its own) while mail is in it, and 0.10.0 listed it
+/// always: put into `s` as the folder `FO`, with its local copy returned.
+fn with_listed_outbox(s: &mut Session, account: Id) -> Id {
+    let listed = EwsFolderDeltas { changed: vec![folder("FO", "Outbox", FolderKind::Custom)], ..Default::default() };
+    took(s, account, mailcraft_model::sync::EwsMailResult { folders: Some(listed), partial: true, ..piece(account) });
+    s.mailbox.folder_by_server(account, "FO").unwrap()
+}
+
+fn outbox_left_out() -> mailcraft_model::sync::EwsMailResult {
+    let left_out = EwsFolderDeltas { deleted: vec!["FO".into()], left_out: vec!["FO".into()], ..Default::default() };
+    mailcraft_model::sync::EwsMailResult { folders: Some(left_out), partial: true, ..Default::default() }
+}
+
+/// A draft that is here whole has not gone up yet: with the folder it is in left out it is kept on
+/// this computer too, and the server's own copy of a message (it has a server id) is not touched.
+#[test]
+fn a_draft_here_whole_is_kept_and_what_the_server_has_is_left_to_it() {
+    let (mut s, account, ..) = setup();
+    let copy = with_listed_outbox(&mut s, account);
+    let draft = s.mailbox.add_message(Message { account, folder: copy, subject: "Draft".into(), draft: true, ..Default::default() }).unwrap();
+    let theirs = s
+        .mailbox
+        .add_message(Message {
+            account,
+            folder: copy,
+            subject: "Theirs".into(),
+            server: Some(ServerMessage { id: "M9".into(), folder: "FO".into(), change_key: "CK".into(), ..Default::default() }),
+            ..Default::default()
+        })
+        .unwrap();
+    let said = took(&mut s, account, mailcraft_model::sync::EwsMailResult { account, ..outbox_left_out() });
+    let local = s.mailbox.local_account();
+    let kept = s.mailbox.message(draft).unwrap();
+    let there = s.mailbox.folder(kept.folder).unwrap();
+    assert_eq!((kept.account, there.name.as_str()), (local, "Kept from ada@example.org"));
+    assert!(kept.server.is_none() && kept.draft, "the draft is whole and still a draft: {kept:?}");
+    assert!(s.mailbox.message(theirs).is_none_or(|m| m.account == account), "the server's own message stays the server's");
+    assert!(said["errors"].to_string().contains("1 message that was only on this computer"), "{said}");
+}
+
+/// Mail moved here out of a Microsoft account is on its way out of that account (its original goes
+/// once the copy is safe here): keeping it on this computer leaves that as it is, so the original
+/// is still removed and the copy is not lost.
+#[test]
+fn mail_moved_in_from_a_microsoft_account_keeps_its_move_out() {
+    let (mut s, account, ..) = setup();
+    let copy = with_listed_outbox(&mut s, account);
+    let moving = mailcraft_model::sync::MovingOut { account: account + 100, id: "G1".into(), folder: "GF".into(), left: false };
+    let id = s
+        .mailbox
+        .add_message(Message { account, folder: copy, subject: "From Microsoft".into(), moving_out: Some(moving.clone()), ..Default::default() })
+        .unwrap();
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { account, ..outbox_left_out() });
+    let local = s.mailbox.local_account();
+    let kept = s.mailbox.message(id).unwrap();
+    assert_eq!(kept.account, local);
+    assert_eq!(kept.moving_out.as_ref(), Some(&moving), "still being moved out of its Microsoft account: {kept:?}");
+}
+
+/// A list that leaves out a folder of the server's by mistake (or an id that is the account's own
+/// Outbox) never sweeps MailCraft's own Outbox, which is sent from: only a folder that is the
+/// server's own custom folder can be kept from.
+#[test]
+fn the_accounts_own_outbox_is_never_swept() {
+    let (mut s, account, ..) = setup();
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let held = s.mailbox.add_message(Message { account, folder: outbox, subject: "Waiting".into(), ..Default::default() }).unwrap();
+    // (An id the Outbox could be given if a server's folder were ever mistaken for it.)
+    if let Ok(server) = s.mailbox.folder_mut(outbox) {
+        server.server = Some(mailcraft_model::ServerFolder { id: "FO".into(), ..Default::default() });
+    }
+    let said = took(&mut s, account, mailcraft_model::sync::EwsMailResult { account, ..outbox_left_out() });
+    let still = s.mailbox.message(held).unwrap();
+    assert_eq!((still.account, still.folder), (account, outbox), "left in the Outbox it is sent from: {still:?}");
+    assert!(!said["errors"].to_string().contains("only on this computer"), "{said}");
 }

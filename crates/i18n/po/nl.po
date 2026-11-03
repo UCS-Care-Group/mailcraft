@@ -17942,6 +17942,13 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerd verwijderen, wordt opnieuw gedownload."
 msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerd verwijderen, worden opnieuw gedownload."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy

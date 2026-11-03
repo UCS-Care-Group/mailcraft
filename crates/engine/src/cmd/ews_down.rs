@@ -115,6 +115,8 @@ fn bounded_deltas(deltas: &mut EwsFolderDeltas) -> bool {
     // (The server's own folders, #779: a mark, never a cut that matters.)
     deltas.well_known.truncate(MAX_LISTED_FOLDERS);
     deltas.well_known.retain(|id| is_id(id));
+    deltas.left_out.truncate(MAX_LISTED_FOLDERS);
+    deltas.left_out.retain(|id| is_id(id));
     // (An afresh read that lists no folder is not a listing: an account always has an Inbox.)
     deltas.afresh &= whole && !deltas.changed.is_empty();
     whole
@@ -212,6 +214,23 @@ fn parents_first(folders: &mut [GraphFolder]) {
     folders.sort_by_key(|f| depths.get(&f.id).copied().unwrap_or(0));
 }
 
+/// What taking in a run's folder list did, beyond the folders themselves.
+pub(crate) struct FoldersTaken {
+    /// How many folders went.
+    pub removed: usize,
+    /// Whether the folder list has to be read afresh next time.
+    pub lost: bool,
+    /// Mail only this computer had in a folder the list left out, kept here (#747).
+    pub kept: Option<KeptHere>,
+}
+
+/// Mail kept on this computer from a folder the server's list leaves out: how many messages, and
+/// the local folder they are in now.
+pub(crate) struct KeptHere {
+    pub count: usize,
+    pub folder: String,
+}
+
 /// Take in the folder list of a run: the folders created or updated, and those deleted, by server
 /// id. The server's folders this mailbox has that the delta doesn't mention are listed as they
 /// were, so that the listing is a complete one (a folder that isn't in it is gone, with the mail in
@@ -227,7 +246,8 @@ fn parents_first(folders: &mut [GraphFolder]) {
 /// earlier version queued of it was dropped, or the folder went here before the upgrade and its
 /// deletion is no longer queued (the server refused it then, and the refusal dropped it): a delta
 /// that names it as the server's own but neither brings it nor says it went.
-pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> (usize, bool) {
+pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> FoldersTaken {
+    let kept = keep_left_out(mb, account, deltas);
     let own: HashSet<String> = deltas.well_known.iter().cloned().collect();
     let have = |id: &str| deltas.changed.iter().any(|f| f.id == id) || mb.folder_by_server(account, id).is_some();
     let queued = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id, .. } if *a == account && own.contains(id) && !have(id)));
@@ -261,7 +281,51 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
     let listing = FolderListing { folders, complete: true };
     let removed = super::jmap_down::keep_what_is_only_here(mb, account, &listing);
     super::graph_mail::take_listing(mb, account, &listing, taken);
-    (removed, lost)
+    FoldersTaken { removed, lost, kept }
+}
+
+/// Before a list that leaves out a folder the server still has ([`EwsFolderDeltas::left_out`]:
+/// its Outbox while it is empty, #747): the mail only this computer has in that folder here (moved
+/// or copied into it from another account or from this computer, which an Exchange server account
+/// doesn't put on its server, or a draft that is here whole) goes to the folder on this computer
+/// `Kept from <address>`, as on a switch to Graph ([`super::graph_switch`]). The folder then goes
+/// like any other the list doesn't have. Kept in the account for that mail, it would be a folder
+/// of this computer's that each run makes on the server, and the server refuses it every time:
+/// its Outbox is there.
+fn keep_left_out(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas) -> Option<KeptHere> {
+    let deleted: HashSet<&str> = deltas.deleted.iter().map(String::as_str).collect();
+    let left: HashSet<&str> = deltas.left_out.iter().map(String::as_str).filter(|id| deleted.contains(id)).collect();
+    if left.is_empty() {
+        return None;
+    }
+    // (Custom folders only: the server's Outbox is listed as one while it holds mail, and the
+    // account's own Outbox, which is sent from, is never swept whatever the list says.)
+    let folders: HashSet<Id> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && f.kind == FolderKind::Custom)
+        .filter(|f| f.server.as_ref().is_some_and(|server| left.contains(server.id.as_str())))
+        .map(|f| f.id)
+        .collect();
+    let only_here: Vec<Id> = mb
+        .messages
+        .values()
+        .filter(|m| m.account == account && folders.contains(&m.folder) && (m.server.is_none() || super::jmap_down::draft_here(m)))
+        .map(|m| m.id)
+        .collect();
+    if only_here.is_empty() {
+        return None;
+    }
+    let of = mb.account(account).cloned()?;
+    let kept = super::graph_switch::kept_folder(mb, &of).ok()?;
+    let name = mb.folder(kept.folder).map(|f| f.name.clone()).unwrap_or_default();
+    let count = only_here.len();
+    for id in only_here {
+        if let Ok(m) = mb.message_mut(id) {
+            (m.account, m.folder, m.server) = (kept.account, kept.folder, None);
+        }
+    }
+    Some(KeptHere { count, folder: name })
 }
 
 /// Take in one page of a folder's changes with the sync state that goes on from it, when the page

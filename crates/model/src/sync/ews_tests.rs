@@ -47,7 +47,13 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         account: 3,
         email: ME.into(),
         url: URL.into(),
-        folders: Some(EwsFolderDeltas { changed: vec![inbox], deleted: vec!["F0".into()], afresh: true, well_known: vec!["F1".into()] }),
+        folders: Some(EwsFolderDeltas {
+            changed: vec![inbox],
+            deleted: vec!["F0".into()],
+            afresh: true,
+            well_known: vec!["F1".into()],
+            ..Default::default()
+        }),
         hierarchy: "H1".into(),
         pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
         errors: vec!["one".into()],
