@@ -90,6 +90,7 @@ fn sign_in_request(cancel: &Arc<AtomicBool>) -> SignInRequest {
         oauth: settings(),
         email: "avery@lumen.example".into(),
         refresh: String::new(),
+        google_client_secret: String::new(),
         cancel: cancel.clone(),
         quiet: false,
         graph: false,

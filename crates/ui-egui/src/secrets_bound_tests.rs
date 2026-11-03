@@ -154,3 +154,146 @@ fn removing_an_account_forgets_both_names() {
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert!(store.get(OLD).is_none() && store.get("password:avery@mail.example").is_none());
 }
+
+#[test]
+fn google_reconnect_does_not_accept_a_different_address_hidden_in_username() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut app = app(&store, &seen);
+    let id = add_google_account(&mut app, "one@example.org");
+    // A mailbox file could carry a separate or stale IMAP username. That must not let its
+    // OAuth reconnect switch accounts even when Google's identity matches the username.
+    app.execute("account.edit", json!({"id": id, "username": "two@example.org"})).unwrap();
+    let stranger = google_tokens("two@example.org", "stranger-access", "stranger-refresh");
+    assert!(app.signed_in_as_other(id, &stranger));
+    app.adopt_tokens(id, stranger);
+    assert!(!app.tokens.contains_key(&id));
+    let key = MailApp::secret_key("refresh", app.session.mailbox.account(id).unwrap());
+    assert!(store.get(&key).is_none());
+}
+
+#[test]
+fn converting_an_app_password_account_discards_old_password_and_refresh_credentials() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut app = app(&store, &seen);
+    let id = add_google_account(&mut app, "one@example.org");
+    // Start with the old password authentication, as a Gmail account discovered previously.
+    app.execute("account.edit", json!({"id": id, "auth": "password"})).unwrap();
+    let owner = app.session.mailbox.account(id).unwrap().clone();
+    let password_key = MailApp::secret_key("password", &owner);
+    let refresh_key = MailApp::secret_key("refresh", &owner);
+    store.set(&password_key, "old-app-password").unwrap();
+    store.set(&refresh_key, "old-refresh").unwrap();
+    app.passwords.insert(id, "old-app-password".into());
+    app.execute("account.edit", json!({"id": id, "auth": "oauth2", "provider": "google"})).unwrap();
+    assert!(store.get(&password_key).is_none() && store.get(&refresh_key).is_none());
+    assert!(!app.passwords.contains_key(&id) && !app.tokens.contains_key(&id));
+    assert_eq!(app.session.mailbox.account(id).unwrap().oauth.as_ref().map(|o| o.provider), Some(mailcraft_model::OAuthProvider::Google));
+}
+
+fn add_google_account(app: &mut MailApp, email: &str) -> Id {
+    app.execute(
+        "account.add",
+        json!({
+            "email": email, "auth": "oauth2", "provider": "google",
+            "incoming": {"host": "imap.gmail.com", "port": 993, "security": "tls"},
+            "outgoing": {"host": "smtp.gmail.com", "port": 465, "security": "tls"}
+        }),
+    )
+    .unwrap()["id"]
+        .as_u64()
+        .unwrap()
+}
+
+fn google_tokens(email: &str, access: &str, refresh: &str) -> mailcraft_model::sync::Tokens {
+    mailcraft_model::sync::Tokens {
+        email: email.into(),
+        access: access.into(),
+        refresh: refresh.into(),
+        expires_at: mailcraft_time::now() + 3600,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn google_accounts_keep_refresh_tokens_independently_and_remove_only_their_own() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let (first, second) = (add_google_account(&mut a, "one@example.org"), add_google_account(&mut a, "two@example.org"));
+    let (first_key, second_key) = (
+        MailApp::secret_key("refresh", a.session.mailbox.account(first).unwrap()),
+        MailApp::secret_key("refresh", a.session.mailbox.account(second).unwrap()),
+    );
+    assert_ne!(first_key, second_key);
+    a.adopt_tokens(first, google_tokens("one@example.org", "access-first-private", "refresh-first-private"));
+    a.adopt_tokens(second, google_tokens("two@example.org", "access-second-private", "refresh-second-private"));
+    assert_eq!(store.get(&first_key).as_deref(), Some("refresh-first-private"));
+    assert_eq!(store.get(&second_key).as_deref(), Some("refresh-second-private"));
+    for saved in [serde_json::to_string(&a.session.mailbox).unwrap(), serde_json::to_string(&a.ui).unwrap()] {
+        for token in ["access-first-private", "refresh-first-private", "access-second-private", "refresh-second-private"] {
+            assert!(!saved.contains(token), "saved state contains an OAuth token");
+        }
+    }
+
+    a.execute("account.remove", json!({"id": first})).unwrap();
+    assert!(store.get(&first_key).is_none() && !a.tokens.contains_key(&first));
+    assert_eq!(store.get(&second_key).as_deref(), Some("refresh-second-private"));
+    assert_eq!(a.tokens.get(&second).map(|t| t.email.as_str()), Some("two@example.org"));
+}
+
+#[test]
+fn google_sign_in_without_remembering_is_memory_only_and_switching_off_forgets_it() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let first = add_google_account(&mut a, "one@example.org");
+    let key = MailApp::secret_key("refresh", a.session.mailbox.account(first).unwrap());
+    a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
+    a.adopt_tokens(first, google_tokens("one@example.org", "access-in-memory", "refresh-in-memory"));
+    assert!(a.tokens.contains_key(&first) && store.get(&key).is_none());
+    assert!(a.remembered("refresh", "one@example.org").is_none());
+
+    a.execute("ui.rememberSignIn", json!({"value": true})).unwrap();
+    a.adopt_tokens(first, google_tokens("one@example.org", "access-replaced", "refresh-remembered"));
+    assert_eq!(store.get(&key).as_deref(), Some("refresh-remembered"));
+    a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
+    assert!(store.get(&key).is_none());
+    assert_eq!(a.tokens.get(&first).map(|t| t.refresh.as_str()), Some("refresh-remembered"));
+}
+
+#[test]
+fn late_google_sign_in_cannot_restore_a_removed_account_or_its_credential() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let first = add_google_account(&mut a, "one@example.org");
+    let key = MailApp::secret_key("refresh", a.session.mailbox.account(first).unwrap());
+    let observed = Arc::new(Mutex::new(None::<Arc<AtomicBool>>));
+    let pending = Arc::new(Mutex::new(None::<mpsc::Sender<Result<mailcraft_model::sync::Tokens, String>>>));
+    let (observed_flag, pending_sender) = (observed.clone(), pending.clone());
+    a.services.sign_in = Some(Box::new(move |req: crate::SignInRequest| {
+        *observed_flag.lock().unwrap() = Some(req.cancel.clone());
+        let (tx, rx) = mpsc::channel();
+        *pending_sender.lock().unwrap() = Some(tx);
+        rx
+    }));
+    let account = a.session.mailbox.account(first).unwrap().clone();
+    a.begin_sign_in(first, account.oauth.unwrap(), "one@example.org", String::new(), false, false).unwrap();
+    assert!(a.signing_in());
+    a.execute("account.remove", json!({"id": first})).unwrap();
+    assert!(!a.signing_in());
+    assert!(observed.lock().unwrap().as_ref().unwrap().load(Ordering::Relaxed));
+    assert!(pending.lock().unwrap().take().unwrap().send(Ok(google_tokens("one@example.org", "late-access", "late-refresh"))).is_err());
+    a.poll_sign_in();
+    assert!(!a.tokens.contains_key(&first) && store.get(&key).is_none());
+
+    // Defend even when some code path removed the account directly without cancelling the
+    // in-flight host receiver: accepting that answer must not resurrect an orphan token.
+    let second = add_google_account(&mut a, "two@example.org");
+    let owner = a.session.mailbox.account(second).unwrap().clone();
+    a.begin_sign_in(second, owner.oauth.unwrap(), "two@example.org", String::new(), false, false).unwrap();
+    a.session.run("account.remove", &json!({"id": second})).unwrap();
+    pending.lock().unwrap().take().unwrap().send(Ok(google_tokens("two@example.org", "late-second-access", "late-second-refresh"))).unwrap();
+    a.poll_sign_in();
+    assert!(!a.tokens.contains_key(&second));
+    assert!(!store.0.lock().unwrap().values().any(|secret| secret.contains("late-second")));
+}

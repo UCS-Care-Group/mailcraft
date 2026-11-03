@@ -47,7 +47,8 @@ pub fn microsoft(consumer: bool) -> Preset {
 }
 
 /// Gmail or Google Workspace, when the owner explicitly chooses Google OAuth (#232).
-/// Automatic discovery remains app-password-based until desktop sign-in is ready.
+/// Discovery still supplies compatible IMAP/SMTP settings; account setup recommends
+/// Google sign-in first when a desktop OAuth registration is available.
 pub fn google(consumer: bool) -> Preset {
     let name = if consumer { "Gmail" } else { "Google Workspace" };
     Preset {
