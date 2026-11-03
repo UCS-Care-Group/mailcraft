@@ -481,8 +481,11 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
             let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
             let Some(slot) = n.and_then(|n| answers.get_mut(n)) else { continue };
             let status = one.get("status").and_then(Value::as_u64);
-            // A shared mailbox that isn't to be opened says so in every answer (#70).
+            let extra = n.is_some_and(|n| n >= SPECIAL);
+            // A shared mailbox that isn't to be opened says so in every answer (#70): the first
+            // [`SPECIAL`] show it, so what is asked only to tell folders apart isn't heard.
             if graph.shared()
+                && !extra
                 && let Some(why) = super::shared_refusal(status.unwrap_or(0), one.get("body").unwrap_or(&Value::Null))
             {
                 return Err(NetError::SharedRefused(why));
@@ -491,6 +494,10 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
                 Some(200) => one.get("body").map(|body| id_of(text(body, "id"))).filter(Option::is_some),
                 // The mailbox has no such folder (an Archive, say).
                 Some(404) => Some(None),
+                // A folder only told apart (#756) that this mailbox won't answer for (a 400 for a
+                // name it doesn't know, a 403 for one it doesn't let the owner see) is taken as
+                // not there, not asked again name by name. Any other answer is asked again below.
+                Some(400 | 403) if extra => Some(None),
                 _ => None,
             };
         }
@@ -501,7 +508,9 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
     for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(_, (_, slot))| slot.is_none()) {
         let url = graph.url(&format!("{}/{name}?{select}", folders(graph)));
         let reply = graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)?;
+        let extra = n >= SPECIAL;
         if graph.shared()
+            && !extra
             && let Some(why) = super::shared_refusal(u64::from(reply.status), &serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null))
         {
             return Err(NetError::SharedRefused(why));
@@ -509,11 +518,17 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         *slot = match reply.status {
             200 => {
                 let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-                Some(Some(id_of(text(&json, "id")).ok_or_else(|| nonsense("Microsoft Graph named a folder without an id"))?))
+                match id_of(text(&json, "id")) {
+                    Some(id) => Some(Some(id)),
+                    None if extra => Some(None),
+                    None => return Err(nonsense("Microsoft Graph named a folder without an id")),
+                }
             }
             404 => Some(None),
-            // A folder only told apart (not needed to list the mailbox) that can't be asked about.
-            _ if n >= SPECIAL && !matches!(reply.status, 401 | 403 | 429 | 503 | 504) => Some(None),
+            // A folder only told apart (#756) is not needed to list the mailbox: what the server
+            // says of it besides "sign in again" (401), "slow down" (429) or its own trouble (5xx),
+            // which end the run as for any folder, is taken as "not there" (a 400 or 403, say).
+            _ if extra && !matches!(reply.status, 401 | 429 | 500..=599) => Some(None),
             _ => return Err(graph.refusal(Doing::Folders, &reply, "")),
         };
     }

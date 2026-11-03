@@ -195,6 +195,13 @@ fn is_false(b: &bool) -> bool {
 }
 
 impl Folder {
+    /// It is one of its server's own folders ([`ServerFolder::well_known`]), which can't be
+    /// renamed, moved or deleted. Only known once a listing has said so (#756): until the first
+    /// run after the update, a folder of that kind is still taken for one the owner made.
+    pub fn server_owned(&self) -> bool {
+        self.server.as_ref().is_some_and(|s| s.well_known)
+    }
+
     /// Whether the folder has been read whole once ([`Folder::whole`]); for a folder of a file
     /// from before that was kept, whether it was read up to some UID.
     pub fn read_whole(&self) -> bool {
@@ -1624,7 +1631,7 @@ impl Mailbox {
         if name.contains('/') && !self.names_may_hold_slashes(f.account) {
             return Err(invalid("a folder name can't contain /"));
         }
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be renamed", f.name)));
         }
         // Nor one of a JMAP account's server's mailboxes: its server wouldn't hear of the new name.
@@ -1641,7 +1648,7 @@ impl Mailbox {
     /// Move a folder the user made under `parent` (or to the top level).
     pub fn move_folder(&mut self, id: Id, parent: Option<Id>) -> Result<(), ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom || f.server.as_ref().is_some_and(|s| s.well_known) {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be moved", f.name)));
         }
         // Nor one holding what a JMAP account's server has: its server wouldn't hear of the move.
@@ -1652,6 +1659,11 @@ impl Mailbox {
             let pf = self.folder(p).ok_or(not_found("folder", p))?;
             if pf.account != f.account {
                 return Err(invalid("a folder can't move to another account"));
+            }
+            // Nor into one of the server's own that has no kind here (Conversation History, say):
+            // the server wouldn't take it. (The special folders, Inbox and Archive, do.)
+            if pf.kind == FolderKind::Custom && pf.server_owned() {
+                return Err(invalid(format!("a folder can't move into {}", pf.name)));
             }
             if self.subtree(id).contains(&p) {
                 return Err(invalid("a folder can't move into itself"));
@@ -1680,7 +1692,7 @@ impl Mailbox {
     /// ([`Queued::DeleteFolder`]), as Outlook does (ADR 0003).
     pub fn delete_folder(&mut self, id: Id) -> Result<bool, ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom || f.server.as_ref().is_some_and(|s| s.well_known) {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be deleted", f.name)));
         }
         // Nor one holding what a JMAP account's server has: the next run would bring it back.

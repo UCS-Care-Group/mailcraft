@@ -287,6 +287,28 @@ const SPECIAL_FOLDERS: [(&str, &str); 7] = [
     ("Outbox", "outbox"),
 ];
 
+/// Every well-known name Graph has for a folder of mail. A mailbox without the folder answers
+/// 404 for one; a name that is none of these is not an id either, and is answered 400.
+const MAIL_FOLDER_ALIASES: [&str; 17] = [
+    "archive",
+    "clutter",
+    "conflicts",
+    "conversationhistory",
+    "deleteditems",
+    "drafts",
+    "inbox",
+    "junkemail",
+    "localfailures",
+    "msgfolderroot",
+    "outbox",
+    "recoverableitemsdeletions",
+    "scheduled",
+    "searchfolders",
+    "sentitems",
+    "serverfailures",
+    "syncissues",
+];
+
 /// Whether the mailbox has the cached configuration of Outlook on the web, and may be asked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Configuration {
@@ -1147,6 +1169,10 @@ impl State {
     fn mail_folder(&self, named: &str) -> Result<&MailFolder, Refusal> {
         if let Some(folder) = self.folders.iter().find(|folder| !folder.well_known.is_empty() && folder.well_known == named) {
             return Ok(folder);
+        }
+        // A well-known name the mailbox has no folder for.
+        if MAIL_FOLDER_ALIASES.contains(&named) {
+            return Err(not_found());
         }
         // What can't be an id at all is told apart from one that names nothing. (An id is
         // written in an address in Graph's own alphabet: with `-` and `_`, never `/` or `+`.)

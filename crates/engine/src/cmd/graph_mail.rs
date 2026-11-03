@@ -205,6 +205,9 @@ pub(super) fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Fo
                 };
                 note(&|| FolderChange::Create { folder: f.id, name: f.name.clone(), parent: server_parent.clone(), parent_folder: local_parent });
             }
+            // One of the server's own folders is never renamed or moved (#756): the server would
+            // refuse it every run (a change an earlier version left is undone by the listing).
+            Some(server) if server.well_known => {}
             Some(server) => {
                 if f.kind == FolderKind::Custom && f.name != server.name {
                     note(&|| FolderChange::Rename { folder: f.id, id: server.id.clone(), name: f.name.clone() });
@@ -586,6 +589,10 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
 /// known by their ids as Graph's folders are).
 pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
     release_outbox(mb, account, listing, taken);
+    // A deletion an earlier version queued of a folder that is the server's own: the server
+    // keeps it, and would be asked every run (#756).
+    let own: HashSet<&str> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).collect();
+    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id.as_str())));
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
@@ -708,9 +715,11 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
     let last = f.server.clone().unwrap_or_default();
     // What the folder's parent is on the server, as this mailbox has it now.
     let parent_now = parent_on_server(mb, f);
-    let renamed_here = f.server.is_some() && f.name != last.name;
-    // (One of the server's own folders is never moved here: a move left by an earlier version is undone.)
-    let moved_here = f.server.is_some() && !there.well_known && parent_now.as_deref() != Some(last.parent.as_str());
+    // (One of the server's own folders is never renamed or moved here: a change left by an
+    // earlier version is undone.)
+    let own = there.well_known || last.well_known;
+    let renamed_here = f.server.is_some() && !own && f.name != last.name;
+    let moved_here = f.server.is_some() && !own && parent_now.as_deref() != Some(last.parent.as_str());
     // A place it can be: known here (or the top), and not inside itself (a move made here may
     // not have reached the server yet).
     let can_go = (there.parent.is_empty() || parent_here.is_some()) && !parent_here.is_some_and(|p| mb.subtree(id).contains(&p));
@@ -736,7 +745,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         counts: last.counts,
         // (An Exchange server account's folder goes on from its sync state; the other kinds have none.)
         sync_state: last.sync_state,
-        well_known: there.well_known,
+        // (Once the server's own, always: one odd answer doesn't clear it.)
+        well_known: own,
     });
     *f != before
 }
