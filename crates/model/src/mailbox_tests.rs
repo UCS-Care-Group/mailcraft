@@ -157,6 +157,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("digest".into())],
             actions: vec![Action::MoveTo(news), Action::MarkRead, Action::Categorize("Blue category".into())],
             stop: true,
+            ..Default::default()
         },
         Rule {
             id: 2,
@@ -165,6 +166,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::FromContains("bob".into())],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         },
         Rule {
             id: 3,
@@ -173,6 +175,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("hello".into())],
             actions: vec![Action::MoveTo(4242), Action::Delete],
             stop: false,
+            ..Default::default()
         },
     ];
     let digest = mb.add_message(mail(inbox, "Weekly Digest", 1)).unwrap();
@@ -192,19 +195,19 @@ fn categories_rename_and_remove_everywhere() {
     let inbox = mb.inbox().unwrap();
     let m = mb.add_message(Message { categories: vec!["Red category".into()], ..mail(inbox, "x", 1) }).unwrap();
     let c = mb.add_contact(Contact { first: "Bob".into(), categories: vec!["red CATEGORY".into(), "Other".into()], ..Default::default() });
-    mb.rename_category("red category", "Urgent").unwrap();
+    mb.rename_category(0, "red category", "Urgent").unwrap();
     assert_eq!(mb.message(m).unwrap().categories, ["Urgent"]);
     assert_eq!(mb.contact(c).unwrap().categories, ["Urgent", "Other"]);
-    assert!(mb.rename_category("Urgent", "Blue category").is_err());
-    assert!(mb.rename_category("Nope", "X").is_err());
-    mb.set_category("urgent", Rgb(1, 2, 3)).unwrap();
+    assert!(mb.rename_category(0, "Urgent", "Blue category").is_err());
+    assert!(mb.rename_category(0, "Nope", "X").is_err());
+    mb.set_category(0, "urgent", Rgb(1, 2, 3)).unwrap();
     assert_eq!(mb.category_color("Urgent"), Rgb(1, 2, 3));
     assert_eq!(mb.categories.len(), 6);
-    mb.remove_category("URGENT").unwrap();
+    mb.remove_category(0, "URGENT").unwrap();
     assert!(mb.message(m).unwrap().categories.is_empty());
     assert_eq!(mb.contact(c).unwrap().categories, ["Other"]);
     assert_eq!(mb.category_color("Urgent"), Rgb(0x8A, 0x8A, 0x8A));
-    assert!(mb.remove_category("Urgent").is_err());
+    assert!(mb.remove_category(0, "Urgent").is_err());
 }
 
 #[test]
@@ -246,6 +249,7 @@ fn a_mailbox_round_trips_as_json() {
         conditions: vec![Condition::HasAttachment],
         actions: vec![Action::Flag],
         stop: false,
+        ..Default::default()
     });
     let json = serde_json::to_string(&mb).unwrap();
     let mut back: Mailbox = serde_json::from_str(&json).unwrap();
@@ -1039,6 +1043,7 @@ fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
             conditions: vec![Condition::HasAttachment],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         });
     }
     let fixed = mb.repair();

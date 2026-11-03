@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 cargo-fuzz = true
 
 [dependencies]
+mailcraft-dav = { path = "../crates/dav" }
 libfuzzer-sys = "0.4"
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
@@ -143,6 +144,20 @@ bench = false
 [[bin]]
 name = "ews_ntlm"
 path = "fuzz_targets/ews_ntlm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_xml"
+path = "fuzz_targets/dav_xml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_document"
+path = "fuzz_targets/dav_document.rs"
 test = false
 doc = false
 bench = false
