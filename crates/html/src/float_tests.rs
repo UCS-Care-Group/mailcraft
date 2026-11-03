@@ -137,8 +137,9 @@ fn floated_tables_are_capped_as_boxes_are() {
 
 #[test]
 fn floated_tables_in_a_wrapper_in_an_aligned_cell_keep_their_sides() {
-    // The wrapper is unwrapped and stands where the cell's `align` puts it; the floats in it still
-    // stand at their own sides, the label first.
+    // The wrapper is unwrapped, and the floats in it still stand at their own sides, the label
+    // first. (They stand at the sides of the cell: a browser makes the wrapper as narrow as they
+    // are and puts it, with them together, where the cell's `align` says.)
     for align in ["right", "center"] {
         let html = format!(
             "<table width='600'><tr><td align='{align}'><table><tr><td>\
