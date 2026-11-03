@@ -102,7 +102,7 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
             let said = tl!("Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first.");
             ui.add(egui::Label::new(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim)).wrap());
         }
-        unreadable_line(ui, m, t);
+        unreadable_line(ui, m, doc.from_text, t);
     });
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
@@ -195,7 +195,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
-        unreadable_line(ui, m, t);
+        unreadable_line(ui, m, doc.from_text, t);
     });
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
@@ -262,29 +262,28 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     }
 }
 
-/// Whether `m`'s subject, sender or text holds U+FFFD, the mark a reader leaves for a character
-/// it couldn't read (bytes that aren't in the character set the message names, or no name for
-/// one that isn't UTF-8 or Windows-1252).
-pub(crate) fn has_unreadable(m: &Message) -> bool {
+/// Whether `m`'s subject, sender or what is shown of its body holds U+FFFD, the mark a reader
+/// leaves for a character it couldn't read (bytes that aren't in the character set the message
+/// names, or no name for one that isn't UTF-8 or Windows-1252). The text part counts only when it
+/// is what is shown (`text_shown`, [`view::Doc::from_text`] of the document on screen): a mark in
+/// the plain copy of a message read as HTML (a sender's program that lost a © there) is nothing
+/// the owner sees.
+pub(crate) fn has_unreadable(m: &Message, text_shown: bool) -> bool {
     const MARK: char = char::REPLACEMENT_CHARACTER;
-    let html = m.body.html.as_deref();
-    // The text part only when it is what is shown: the message has no HTML, or its HTML comes to
-    // nothing (`reading::view::Doc`). A mark in the text part alone of a message read as HTML
-    // (a sender's program that lost a © in the plain copy) is nothing the owner sees.
-    let text_shown = || html.is_none_or(|html| !mailcraft_html::has_text(&mailcraft_html::parse(html)));
-    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), html.unwrap_or("")].iter().any(|text| text.contains(MARK))
-        || (m.body.text.contains(MARK) && text_shown())
+    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), m.body.html.as_deref().unwrap_or("")].iter().any(|text| text.contains(MARK))
+        || (text_shown && m.body.text.contains(MARK))
 }
 
 /// The line above a message that shows a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
-fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens) {
-    let key = egui::Id::unique(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
+fn unreadable_line(ui: &mut Ui, m: &Message, text_shown: bool, t: &Tokens) {
+    let key =
+        egui::Id::unique(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len), text_shown));
     let unreadable = match ui.ctx().data(|d| d.get_temp::<bool>(key)) {
         Some(kept) => kept,
         None => {
-            let found = has_unreadable(m);
+            let found = has_unreadable(m, text_shown);
             ui.ctx().data_mut(|d| d.insert_temp(key, found));
             found
         }

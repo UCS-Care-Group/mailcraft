@@ -149,29 +149,34 @@ pub struct Paper {
     pub fill: Color32,
     /// The message asked for it.
     pub own: bool,
+    /// The colour the message asked for, as it wrote it (before the theme turned it): what a
+    /// line of the same colour is told apart from ([`Paper::border`]). None for the window's
+    /// surface and a shade worked out here.
+    pub asked: Option<Rgb>,
 }
 
 impl Paper {
     /// The window's surface.
     pub fn window(t: &Tokens) -> Paper {
-        Paper { fill: t.surface, own: false }
+        Paper { fill: t.surface, own: false, asked: None }
     }
 
     /// A background the message asks for, as it is painted in this theme.
     pub fn of(asked: Rgb, t: &Tokens) -> Paper {
+        let written = Some(asked);
         let asked = c32(asked);
         // (A message with its own design for dark windows has its backgrounds as it asks.)
         if !t.dark || t.sender_dark {
-            return Paper { fill: asked, own: true };
+            return Paper { fill: asked, own: true, asked: written };
         }
         let (h, s, l) = hsl(asked);
         if l <= 0.5 {
-            return Paper { fill: asked, own: true };
+            return Paper { fill: asked, own: true, asked: written };
         }
         // White lands on the window's surface; a half stays a half, so nothing jumps there.
         let floor = hsl(t.surface).2.clamp(0.0, 0.4);
         let dark = floor + (1.0 - l) * (1.0 - 2.0 * floor);
-        Paper { fill: from_hsl(h, s * 0.6, dark), own: true }
+        Paper { fill: from_hsl(h, s * 0.6, dark), own: true, asked: written }
     }
 
     /// The colour of text that names none.
@@ -203,12 +208,17 @@ impl Paper {
     /// The colour of a line round a box that asks for `asked`: as a background colour is turned
     /// for this theme, and then kept [`LINE_CONTRAST`] apart from the paper it is drawn on, so it
     /// is seen in light and dark and on any colour. The reader's own line colour when it asks for none.
-    /// A line in the very colour of the paper it is drawn on is kept so: the sender meant the box
-    /// to have no edge that shows (a button whose border is its own colour), as in a browser.
+    /// A line the sender wrote in the very colour they wrote for the paper it is drawn on is kept
+    /// as that paper is painted: the box was meant to have no edge that shows (a button whose
+    /// border is its own colour), as in a browser. The two are compared as the message wrote
+    /// them, before the theme turns them, and never against the window's own surface.
     pub fn border(&self, t: &Tokens, asked: Option<Rgb>) -> Color32 {
         let Some(asked) = asked else { return self.line(t) };
         let turned = Paper::of(asked, t).fill;
-        if contrast(turned, self.fill) >= LINE_CONTRAST || turned == self.fill {
+        if self.asked == Some(asked) {
+            return self.fill;
+        }
+        if contrast(turned, self.fill) >= LINE_CONTRAST {
             return turned;
         }
         let end = if contrast(Color32::BLACK, self.fill) >= contrast(Color32::WHITE, self.fill) { Color32::BLACK } else { Color32::WHITE };
@@ -290,7 +300,7 @@ mod tests {
         for asked in
             [Rgb(255, 255, 255), Rgb(0xf4, 0xf4, 0xf4), Rgb(0xff, 0xf8, 0xe1), Rgb(0x00, 0x66, 0xcc), Rgb(0x11, 0x11, 0x11), Rgb(255, 255, 0)]
         {
-            assert_eq!(Paper::of(asked, &light), Paper { fill: c32(asked), own: true });
+            assert_eq!(Paper::of(asked, &light), Paper { fill: c32(asked), own: true, asked: Some(asked) });
         }
         // White becomes the window's surface, a pale grey a little lighter than that.
         let white = Paper::of(Rgb(255, 255, 255), &dark).fill;

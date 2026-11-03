@@ -1610,11 +1610,13 @@ impl Builder {
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
-        // The table stands where the alignment around it puts it, but what is in its cells
-        // starts again at the left unless the table, a row or a cell says otherwise, as Outlook
-        // shows it: a heading in the 504-pixel column of a newsletter centred by its outer cell
-        // (`<td align="center"><table width="504"><tr><td><h2>`) is at the left of its column.
-        let delta = Delta { hooked: hooked(tag), align: Some(css.align.unwrap_or_default()), ..Delta::of(&css) };
+        // The table stands where the alignment around it puts it. Inside centred alignment, what
+        // is in its cells starts again at the left unless the table, a row or a cell says
+        // otherwise, as Outlook shows it: a heading in the 504-pixel column of a newsletter
+        // centred by its outer cell (`<td align="center"><table width="504"><tr><td><h2>`) is at
+        // the left of its column. Any other alignment around it is inherited, as before.
+        let reset = css.align.is_none() && self.style().align == Align::Center;
+        let delta = Delta { hooked: hooked(tag), align: css.align.or(reset.then_some(Align::Left)), ..Delta::of(&css) };
         if !self.push_node("table", Kind::Table(Box::new(build)), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         } else if inline.is_some() {
@@ -1959,13 +1961,15 @@ impl Builder {
         if self.inline_overflow > 0 {
             return false;
         }
-        let wanted = |n: &Node| n.name == name && matches!(n.kind, Kind::Block(_));
-        match self.find(wanted, |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
-            Some(index) => {
+        // The nearest open element of that name, whatever it is: an inline `<span>` inside a
+        // `<span>` opened as a block ends itself, not the block around it.
+        let named = self.find(|n| n.name == name, |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)));
+        match named {
+            Some(index) if self.nodes.get(index).is_some_and(|n| matches!(n.kind, Kind::Block(_))) => {
                 self.close_at(index, false);
                 true
             }
-            None => false,
+            _ => false,
         }
     }
 

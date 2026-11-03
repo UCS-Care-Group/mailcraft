@@ -346,6 +346,12 @@ fn a_link_written_as_a_block_is_a_button_as_wide_as_its_line() {
         dump(r#"<a href="https://a.example" style="display:block;background:#000">a<a href="https://b.example">b</a>c"#),
         ["layout w=100%[(@000000 p|[:a→https://a.example])]", "p|[:b→https://b.example]c"]
     );
+    // A `<span>` inside a span opened as a block ends itself, not the block: what follows it is
+    // still in the box.
+    assert_eq!(
+        dump(r#"<span style="display:block;background:#000">x <span style="color:red">y</span> z</span>after"#),
+        ["layout w=100%[(@000000 p|x [#ff0000:y] z)]", "p|after"]
+    );
     let unclosed = dump(r#"<td><a href="https://a.example" style="display:block;background:#000">a</td><td>b</td>"#);
     assert!(unclosed.iter().any(|b| b.contains("(p|b)")), "{unclosed:?}");
 }
@@ -680,6 +686,9 @@ fn alignment_positions_tables_and_starts_again_inside_them() {
     let own =
         "<table width='100%'><tr><td align=center><table width=300 style='text-align:center'><tr><td>a</td><td>b</td></tr></table></td></tr></table>";
     assert_eq!(dump(own), ["layout.c w=300[(p.c|a)(p.c|b)]"]);
+    // Other alignment around a table is inherited, as before: right-aligned cells stay right.
+    let right = "<table width='100%'><tr><td align=right><table width=300><tr><td>a</td></tr></table></td></tr></table>";
+    assert_eq!(dump(right), ["layout.r w=300[(p.r|a)]"]);
     // Text in the centred cell itself, beside no table, is centred as before.
     assert_eq!(dump("<table width='100%'><tr><td align=center>mid</td><td>x</td></tr></table>"), ["layout w=100%[(p.c|mid)(p|x)]"]);
     assert_eq!(

@@ -4249,15 +4249,21 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
         message(3, ("Mila Horvat", "mila@example.org"), "Hello", None, "We\u{fffd}ve met \u{fffd} twice.".into()),
         message(4, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We\u{fffd}ve met</p>".into()), String::new()),
     ];
-    assert!(!super::has_unreadable(&clean));
+    // As the pane decides: whether what is shown is the text part, by the document laid out.
+    let unreadable = |m: &Message| super::has_unreadable(m, Doc::of(m).from_text);
+    assert!(!unreadable(&clean));
     // A mark in the plain copy of a message read as HTML is not shown, and says nothing; in the
-    // plain copy of one whose HTML comes to nothing, it is.
+    // plain copy of one whose HTML comes to nothing, or that is all pictures the pane shows, it is
+    // shown only when the text is.
     let html_read = message(5, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We met</p>".into()), "\u{fffd}2026 Mila".into());
-    assert!(!super::has_unreadable(&html_read));
+    assert!(!unreadable(&html_read));
     let html_empty = message(6, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p> </p>".into()), "\u{fffd}2026 Mila".into());
-    assert!(super::has_unreadable(&html_empty));
+    assert!(unreadable(&html_empty));
+    // What the pane shows decides, not a parse of its own: a body the pane's own document shows as
+    // HTML says nothing of its text part, one it shows as text does.
+    assert!(!super::has_unreadable(&html_empty, false) && super::has_unreadable(&html_empty, true));
     for m in &marked {
-        assert!(super::has_unreadable(m), "{:?}", m.subject);
+        assert!(unreadable(m), "{:?}", m.subject);
     }
     let (app, ids) = app_with(std::iter::once(clean).chain(marked).collect());
     let mut harness = window(app, (1100.0, 700.0));
