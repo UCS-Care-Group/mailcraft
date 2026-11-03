@@ -30,7 +30,7 @@ msgstr "„{name}“ enthält nicht gespeicherte Änderungen. Speichern?"
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be merged here."
-msgstr "„{name}\“ wird auf dem Server von {who} gespeichert. Hier vorgenommene Änderungen wurden noch nicht zurückgesendet; daher kann der Kontakt hier nicht zusammengeführt werden."
+msgstr "„{name}“ wird auf dem Server von {who} gespeichert. Hier vorgenommene Änderungen wurden noch nicht zurückgesendet; daher kann der Kontakt hier nicht zusammengeführt werden."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3878,7 +3878,7 @@ msgstr "Ordner"
 msgid ""
 "Folder\n"
 "Pane"
-msgstr
+msgstr ""
 "Ordner-\n"
 "bereich"
 
@@ -5533,7 +5533,7 @@ msgstr "MailCraft verschiebt oder löscht E-Mails eines JMAP-Kontos noch nicht: 
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be informed"
+msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told"
 msgstr "MailCraft benennt Ordner eines JMAP-Kontos noch nicht um und verschiebt sie auch nicht: Der Server würde darüber nicht informiert."
 
 #. interface
@@ -8832,7 +8832,7 @@ msgstr "Angeben, dass dies mit \"confirmed\": true gemeint ist."
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Say what happened (`what`)"
-msgstr "Angeben, was passiert ist (`was`)"
+msgstr "Angeben, was passiert ist (`what`)"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -9491,7 +9491,7 @@ msgstr "Freigegebene Postfächer wurden nicht erlaubt: {error}"
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Freigegebene Kalender vom Postfach wurden nicht erlaubt: {error}"
+msgstr "Der Zugriff auf die Kalender freigegebener Postfächer wurde nicht erlaubt: {error}"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
