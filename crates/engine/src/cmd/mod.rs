@@ -92,6 +92,9 @@ pub mod remote;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+pub mod rules_remote;
+#[cfg(test)]
+mod rules_remote_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
@@ -107,6 +110,8 @@ pub mod tasks;
 pub mod tasks_remote;
 #[cfg(test)]
 mod tasks_remote_tests;
+#[cfg(test)]
+mod tasks_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -147,6 +152,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
+    v.extend(rules_remote::specs());
     v.extend(junk::specs());
     v.extend(category::specs());
     v.extend(account::specs());

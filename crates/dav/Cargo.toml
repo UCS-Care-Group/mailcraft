@@ -1,0 +1,20 @@
+[package]
+name = "mailcraft-dav"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure, bounded DAV document editing and XML readers, without sockets or browser APIs"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+quick-xml = { workspace = true }
+
+[dev-dependencies]
+mailcraft-ical = { workspace = true }
+mailcraft-vcard = { workspace = true }
+mailcraft-time = { workspace = true }
+proptest = { workspace = true }
