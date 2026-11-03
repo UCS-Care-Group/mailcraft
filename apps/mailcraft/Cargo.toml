@@ -21,7 +21,8 @@ mailcraft-ui-egui = { workspace = true }
 mailcraft-control-key = { workspace = true }
 # Sockets: Send/Receive runs on a background thread.
 mailcraft-net = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links"] }
+# Plain-text paste in native fields uses eframe/egui-winit, not the rich HTML clipboard below.
+eframe = { workspace = true, features = ["default_fonts", "clipboard", "wgpu", "accesskit", "wayland", "x11", "links"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
