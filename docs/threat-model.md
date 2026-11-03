@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -492,6 +492,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
 | 2026-10-29 | patch | #599 review: `@media` is tested against the width the body is laid out at, to the pixel; a picture shown only under a dark or narrow `@media` is fetched when that look is shown, which tells its server the theme or width |
