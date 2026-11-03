@@ -121,3 +121,49 @@ fn a_table_as_wide_as_what_it_holds_still_stands_where_the_centring_puts_it() {
     let inner = blocks.iter().find(|b| matches!(&b.kind, BlockKind::Table(t) if t.outline));
     assert_eq!(inner.map(|b| b.align), Some(Align::Left), "{blocks:?}");
 }
+
+#[test]
+fn the_align_of_a_heading_a_list_or_the_body_reaches_into_a_table() {
+    // A browser starts a table again at the left only from the `align` of a cell, a row, a
+    // `<div>` or a `<p>`, and from a `<center>`; any other `align` aligns as a style does.
+    let table = "<table width='100%'><tr><td>Hello</td></tr><tr><td>World</td></tr></table>";
+    for (open, close) in [
+        ("<body align='center'>", "</body>"),
+        ("<section align='center'>", "</section>"),
+        ("<ul align='center'><li>", "</li></ul>"),
+        ("<h2 align='center'>", "</h2>"),
+    ] {
+        let blocks = parse(&format!("{open}{table}{close}"));
+        assert_eq!(align_of(&blocks, "World"), Some(Align::Center), "{open}: {blocks:?}");
+    }
+}
+
+#[test]
+fn words_in_a_table_outside_its_cells_are_aligned_as_round_the_table() {
+    // They stand before the table, as in a browser, so the cell round it centres them.
+    let html = "<table width='600'><tr><td align='center'>\
+                  <table width='300' border='1'><tr><td>Item</td></tr>Thanks for your order<tr><td>Total</td></tr></table>\
+                </td></tr></table>";
+    let blocks = parse(html);
+    assert_eq!(align_of(&blocks, "Thanks for your order"), Some(Align::Center), "{blocks:?}");
+    assert_eq!(align_of(&blocks, "Item"), Some(Align::Left), "{blocks:?}");
+    // In a row, outside its cells, too; and a row's own `align` isn't theirs.
+    let blocks = parse(&html.replace("<tr><td>Total", "<tr align='right'>Paid<td>Total"));
+    assert_eq!(align_of(&blocks, "Paid"), Some(Align::Center), "{blocks:?}");
+    assert_eq!(align_of(&blocks, "Total"), Some(Align::Right), "{blocks:?}");
+}
+
+#[test]
+fn a_heading_cell_in_a_table_that_starts_again_at_the_left_is_centred() {
+    // A browser centres a `<th>` unless what is round it aligns it.
+    let html = "<table width='100%'><tr><td align='center'>\
+                  <table width='300'><tr><th>Item</th><th align='right'>Price</th></tr><tr><td>Tea</td><td>3</td></tr></table>\
+                </td></tr></table>";
+    let blocks = parse(html);
+    assert_eq!(align_of(&blocks, "Item"), Some(Align::Center), "{blocks:?}");
+    assert_eq!(align_of(&blocks, "Price"), Some(Align::Right), "{blocks:?}");
+    assert_eq!(align_of(&blocks, "Tea"), Some(Align::Left), "{blocks:?}");
+    // A row that aligns it: as the row says.
+    let blocks = parse(&html.replace("<tr><th>Item", "<tr align='left'><th>Item"));
+    assert_eq!(align_of(&blocks, "Item"), Some(Align::Left), "{blocks:?}");
+}

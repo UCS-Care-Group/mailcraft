@@ -198,9 +198,13 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
-    /// The alignment in force comes from an `align` attribute or a `<center>`, not from a style:
-    /// a table inside starts again at the left, as in a browser (the `-webkit-` alignments).
+    /// The alignment in force comes from the `align` of a cell, a row, a `<div>` or a `<p>`, or
+    /// from a `<center>`, not from a style: a table inside starts again at the left, as in a
+    /// browser (its `-webkit-` alignments).
     align_attr: bool,
+    /// The alignment in force is the left a table started again from: a `<th>` in it is
+    /// centred, as in a browser.
+    align_reset: bool,
     line_height: Option<LineHeight>,
     link: Option<Rc<str>>,
     /// The font size in force is too small to be meant to be read (2 pixels or less): text
@@ -259,7 +263,7 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
-    /// That alignment comes from an `align` attribute or a `<center>` ([`Style::align_attr`]).
+    /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
     align_attr: bool,
     /// A table: an alignment from an `align` attribute or a `<center>` outside does not reach its
     /// text (one from a style does).
@@ -295,7 +299,8 @@ impl Delta {
         }
     }
 
-    /// The alignment an `align` attribute (or a `<center>`) asks for, unless a style asks for one.
+    /// The alignment the `align` of a cell, a row, a `<div>` or a `<p>` (or a `<center>`) asks
+    /// for, unless a style asks for one.
     fn or_attr_align(&mut self, align: Option<Align>) {
         if self.align.is_none() && align.is_some() {
             self.align = align;
@@ -332,10 +337,12 @@ impl Delta {
         if self.table && style.align_attr {
             style.align = Align::Left;
             style.align_attr = false;
+            style.align_reset = true;
         }
         if let Some(align) = self.align {
             style.align = align;
             style.align_attr = self.align_attr;
+            style.align_reset = false;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -715,6 +722,17 @@ impl Builder {
         }
     }
 
+    /// The alignment of text or a picture that starts here. One written in a table or a row
+    /// outside its cells stands before the table, as in a browser, aligned as what is round the
+    /// table is (a table starts again at the left from some alignments: [`Style::align_attr`]).
+    fn loose_align(&self) -> Align {
+        if !matches!(self.nodes.last().map(|n| &n.kind), Some(Kind::Table(_) | Kind::Row(_))) {
+            return self.style().align;
+        }
+        let table = self.nodes.iter().rposition(|n| matches!(n.kind, Kind::Table(_))).unwrap_or(0);
+        self.nodes.get(..table).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align
+    }
+
     // ---- text ----
 
     /// An element that is not inline ends the word before it: what is hidden on both sides of it
@@ -828,7 +846,7 @@ impl Builder {
             } else {
                 BlockKind::Paragraph
             };
-            self.align = self.style().align;
+            self.align = self.loose_align();
             self.line_height = self.style().line_height;
             self.fresh = true;
         }
@@ -1060,7 +1078,7 @@ impl Builder {
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
                 let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string), data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: style.align, beside, ..Block::new(kind, spans) };
+                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -1771,6 +1789,9 @@ impl Builder {
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
         delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
+        if header && delta.align.is_none() && self.style().align_reset {
+            delta.align = Some(Align::Center);
+        }
         let hidden = css.hidden || tag.has("hidden");
         if !self.push_node(if header { "th" } else { "td" }, Kind::Cell(build), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
@@ -1976,10 +1997,13 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        if name == "center" {
-            delta.or_attr_align(Some(Align::Center));
+        let align = if name == "center" { Some(Align::Center) } else { tag.attr("align").and_then(|a| style::attr_align(&a)) };
+        if matches!(name, "div" | "p" | "center") {
+            delta.or_attr_align(align);
+        } else {
+            // (`<body align>`, `<section align>` and the like align as a style does.)
+            delta.align = delta.align.or(align);
         }
-        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         let mut background = css.background;
         if name == "body" {
             delta.color = delta.color.or_else(|| tag.attr("text").and_then(|c| style::attr_color(&c)).map(Some));
@@ -2101,7 +2125,8 @@ impl Builder {
     fn open_structure(&mut self, name: &'static str, kind: Kind, tag: &Tag<'_>) -> bool {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
+        // (A heading's or a list's `align` aligns as a style does, into a table too.)
+        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
         // A heading is bold unless it says it is not.
         if matches!(kind, Kind::Heading(_)) {
             delta.bold = delta.bold.or(Some(true));
