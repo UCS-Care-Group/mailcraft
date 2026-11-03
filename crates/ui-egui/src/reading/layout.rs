@@ -1141,11 +1141,13 @@ fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
 
 // ---- boxes on a line ----
 
-/// How many blocks from `index` are boxes on a line: the box and those that follow it.
+/// How many blocks from `index` are boxes on a line: the box and those that follow it (floated
+/// to a side or not, as it is).
 fn box_run(blocks: &[Block], index: usize) -> usize {
+    let float = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
     let inline = |b: &&Block| matches!(&b.kind, BlockKind::Table(t) if t.inline);
-    let quote = blocks.get(index).map_or(0, |b| b.quote);
-    1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote).count()
+    let (quote, floats) = blocks.get(index).map_or((0, false), |b| (b.quote, float(b)));
+    1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote && float(b) == floats).count()
 }
 
 /// The room a box on a line asks to be kept free left and right of it.
@@ -1162,7 +1164,9 @@ fn box_gap(table: &Table) -> f32 {
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
 /// as its contents want, wrapping to more lines when a box does not fit; the bottom. A box that
 /// asks for more than the line is held to it. The boxes of a line stand at its top, the line
-/// where the first of them says (`text-align` of what holds them).
+/// where the first of them says (`text-align` of what holds them); boxes floated to a side
+/// (`Table::float`) each at its own side, those at the right from the right edge in, the first
+/// outermost.
 fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
     // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
     struct Slot<'a> {
@@ -1189,6 +1193,12 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         slots.push(Slot { table, wide, room: room.max(wide), clear });
     }
     let align = run.first().map_or(Align::Left, |b| b.align);
+    // Where a floated box goes: its block's side.
+    let sides: Vec<Option<Align>> = run
+        .iter()
+        .filter(|b| matches!(b.kind, BlockKind::Table(_)))
+        .map(|b| matches!(&b.kind, BlockKind::Table(t) if t.float).then_some(b.align))
+        .collect();
     let (mut y, mut first, mut start) = (y, true, 0);
     while start < slots.len() {
         // As many as fit in this line, at least one.
@@ -1202,11 +1212,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             used = next;
             end += 1;
         }
+        let floats = sides.iter().any(Option::is_some);
         let mut at = x + match align {
+            _ if floats => 0.0,
             Align::Left => 0.0,
             Align::Center => ((width - used) / 2.0).max(0.0),
             Align::Right => (width - used).max(0.0),
         };
+        // The right edge of the room the boxes floated right have left.
+        let mut right_at = x + width;
         let mut bottom = y;
         for (n, slot) in slots.get(start..end).unwrap_or_default().iter().enumerate() {
             // A copy has a space between the boxes, whether they are on one line or more: it does
@@ -1214,10 +1228,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             if !std::mem::take(&mut first) {
                 cx.beside();
             }
+            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
+            if sides.get(start + n).copied().flatten() == Some(Align::Right) {
+                right_at -= slot.wide + slot.clear;
+                bottom = bottom.max(table_block(cx, slot.table, Align::Left, right_at.max(x) + left, y, slot.room, paper, depth));
+                continue;
+            }
             if n > 0 {
                 at += box_gap(slot.table);
             }
-            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
             bottom = bottom.max(table_block(cx, slot.table, Align::Left, at + left, y, slot.room, paper, depth));
             at += slot.wide + slot.clear;
         }
@@ -1587,8 +1606,19 @@ fn column_widths(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, room: f32, dep
     let mut total = asked.unwrap_or(most.min(room));
     if table.layout {
         // Stacked when its columns can't be had without breaking words, or would be narrow and
-        // squeezed; never when everything fits at the width it wants (a row of icons).
-        if n > 1 && (least > room + 0.5 || (most > room + 0.5 && room / (n as f32) < MIN_LAYOUT_COLUMN)) {
+        // squeezed; never when everything fits at the width it wants (a row of icons). A column
+        // that only makes room (a gutter, the corner of a frame drawn with cells' lines: no cell
+        // of its own holds anything) takes the room it asks for, and is not one of those squeezed.
+        let mut holds = vec![false; n];
+        for placed in grid.cells.iter().filter(|p| p.cols == 1 && !p.cell.blocks.is_empty()) {
+            if let Some(holds) = holds.get_mut(placed.col) {
+                *holds = true;
+            }
+        }
+        let room_kept: f32 = columns.max.iter().zip(&holds).filter(|(_, holds)| !**holds).map(|(max, _)| *max).sum();
+        let filled = holds.iter().filter(|h| **h).count();
+        let each = if filled == 0 { room / n as f32 } else { (room - room_kept).max(0.0) / filled as f32 };
+        if n > 1 && (least > room + 0.5 || (most > room + 0.5 && each < MIN_LAYOUT_COLUMN)) {
             return None;
         }
         total = total.min(room).max(least.min(room));

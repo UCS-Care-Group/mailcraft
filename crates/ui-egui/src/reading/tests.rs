@@ -4264,6 +4264,89 @@ fn a_link_tip_shows_the_host_of_addresses_written_to_mislead() {
     assert!(goes_to("https://\u{1f4a9}.example/").contains("xn--"));
 }
 
+// ---- tables floated to a side, and a frame drawn with the lines of cells ----
+
+/// A bill: a greeting beside a framed notice (two tables floated left, in shares of the width),
+/// and labels at the left with their values at the right (a table floated each way). The notice's
+/// frame is drawn with the lines of cells, its picture spanning the two corner columns.
+const BILL: &str = "<table width='100%' cellpadding=0 cellspacing=0><tr><td align='center'>\
+    <table width='100%' cellpadding=0 cellspacing=0><tr><td valign='top'>\
+      <table width='55%' align='left' cellpadding=0 cellspacing=0>\
+        <tr><td align='left' style='font-size:24px;font-weight:bold;padding:16px 0 10px 20px'>Good morning,</td></tr>\
+        <tr><td style='padding:0 0 20px 20px'>we have issued your invoice.</td></tr></table>\
+      <table width='42%' align='left'><tr><td>\
+        <table width='100%' align='right' cellpadding=0 cellspacing=0>\
+          <tr><td width=20 height=5></td><td width=20 style='border-left:2px solid #7f7f7f;border-top:2px solid #7f7f7f'></td><td style='border-right:2px solid #7f7f7f;border-top:2px solid #7f7f7f'></td></tr>\
+          <tr><td colspan=2 align=center><img src='cid:shield@notices.example' width=17></td><td style='padding:0 10px;border-right:2px solid #7f7f7f'>Stay safe</td></tr>\
+          <tr><td width=10>&nbsp;</td><td style='border-left:2px solid #7f7f7f;border-bottom:2px solid #7f7f7f'>&nbsp;</td>\
+              <td align='left' style='padding:0 10px 10px 10px;width:100%;border-right:2px solid #7f7f7f;border-bottom:2px solid #7f7f7f'>Check that the sender is ours.</td></tr>\
+        </table></td></tr></table>\
+    </td></tr>\
+    <tr><td style='padding:0 20px 5px 20px'>\
+      <table align='left' cellpadding=0 cellspacing=0><tr><td align='left' style='white-space:nowrap'>Invoice number</td></tr></table>\
+      <table align='right' cellpadding=0 cellspacing=0><tr><td align='right' style='white-space:nowrap'>INV-0001/10/26</td></tr></table>\
+    </td></tr>\
+    <tr><td style='padding:0 20px 5px 20px'>\
+      <table width='35%' align='left' cellpadding=0 cellspacing=0><tr><td align='left' style='white-space:nowrap'>Bank account</td></tr></table>\
+      <table align='right' cellpadding=0 cellspacing=0><tr><td align='right' style='white-space:nowrap'>00 1111 2222 3333 4444 5555 6666</td></tr></table>\
+    </td></tr></table></td></tr></table>";
+
+/// The nearest line down the side of a cell to the right of `item`, in its height.
+fn line_right_of(laid: &Laid, item: &Item) -> Option<egui::Rect> {
+    laid.items
+        .iter()
+        .filter(|i| matches!(i.kind, ItemKind::Fill { .. }) && i.rect.width() <= 4.0 && i.rect.height() >= 4.0)
+        .map(|i| i.rect)
+        .filter(|r| r.min.x >= item.rect.max.x - 0.5 && r.min.y < item.rect.max.y && r.max.y > item.rect.min.y)
+        .min_by(|a, b| a.min.x.total_cmp(&b.min.x))
+}
+
+#[test]
+fn tables_floated_left_and_right_stand_on_one_line_and_a_frame_keeps_its_heading() {
+    let m = html_message(53, ("Billing", "billing@notices.example"), "Invoice", BILL);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "bill");
+            // A label at the left of the line, its value at the right of the same line.
+            for (label, value) in [("Invoice number", "INV-0001/10/26"), ("Bank account", "00 1111 2222 3333 4444 5555 6666")] {
+                let (label, value) = (find_exact(&laid, label), find_exact(&laid, value));
+                assert!((label.rect.min.y - value.rect.min.y).abs() < 1.0, "{:?} {:?}", label.rect, value.rect);
+                assert!(label.rect.min.x < 40.0 && value.rect.max.x > 700.0 - 40.0, "{:?} {:?}", label.rect, value.rect);
+            }
+            // The greeting and the notice side by side, the notice at the right of the greeting.
+            let (greeting, heading) = (find_exact(&laid, "Good morning,"), find_exact(&laid, "Stay safe"));
+            assert!(
+                heading.rect.min.x > greeting.rect.max.x && heading.rect.min.y < greeting.rect.max.y + 30.0,
+                "{:?} {:?}",
+                greeting.rect,
+                heading.rect
+            );
+            // The heading is inside the frame: the line at its right is the frame's, the one at
+            // the right of the notice's text.
+            let text = find_exact(&laid, "Check that the sender is ours.");
+            let (beside_heading, beside_text) = (line_right_of(&laid, heading), line_right_of(&laid, text));
+            assert!(beside_heading.zip(beside_text).is_some_and(|(a, b)| (a.min.x - b.min.x).abs() < 1.0), "{beside_heading:?} {beside_text:?}");
+            assert!(heading.rect.min.x > text.rect.min.x - 1.0, "{:?} {:?}", heading.rect, text.rect);
+        });
+    }
+}
+
+#[test]
+fn a_label_and_its_value_never_overlap_however_narrow_the_pane() {
+    let m = html_message(54, ("Billing", "billing@notices.example"), "Invoice", BILL);
+    in_frame(false, |ctx| {
+        for width in [300.0, 360.0, 420.0, 520.0, 700.0, 1000.0] {
+            let laid = lay_out(ctx, &m, width);
+            check(&laid, &Tokens::get(ctx), "bill");
+            let (label, value) = (find_exact(&laid, "Bank account"), find_exact(&laid, "00 1111 2222 3333 4444 5555 6666"));
+            assert!(!label.rect.intersects(value.rect), "{width}: {:?} {:?}", label.rect, value.rect);
+            // At the right edge, on its line or the one below.
+            assert!(value.rect.max.x > width - 40.0 && value.rect.max.x <= width + 0.5, "{width}: {:?}", value.rect);
+        }
+    });
+}
+
 // ---- #596: where a cell sits in its row, and the gaps between cells ----
 
 #[test]
