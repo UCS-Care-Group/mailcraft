@@ -256,6 +256,7 @@ const SAFE: &[&str] = &[
     "view.previous",
     "view.goToDate",
     "view.taskFilter",
+    "view.taskAccount",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -673,6 +674,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if shared_task(s, id, params).is_some() || shared_category(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    // A to-do put in another account's To Do than the owner's own would go to is on that server
+    // at once, as mail moved there is (#632).
+    if new_task_onto(s, id, params).is_some() {
+        return Access::Owner(Class::Send);
+    }
     // A rule that files mail into another account's folder puts it on that server, as a move
     // there does (#451).
     if rules_onto_another_server(s, id, params) {
@@ -785,6 +791,16 @@ fn unsaved(params: &Value) -> bool {
     params.get("unsaved").is_some_and(|v| !v.is_null())
 }
 
+/// The account whose To Do a to-do made by `id` would go to, unless it is the account the owner
+/// sent their local to-dos to. That answer is the owner's alone, where an agent can move the list
+/// and with it the place a new to-do goes. A message named wrongly says nothing of where the to-do
+/// would go, so it counts as going elsewhere: 0, no account in particular.
+fn new_task_onto(s: &Session, id: &str, params: &Value) -> Option<Id> {
+    let Ok(place) = crate::cmd::tasks::place_of(s, id, params) else { return Some(0) };
+    let place = place.filter(|place| *place != 0)?;
+    (crate::cmd::tasks_remote::tasks_home(&s.mailbox) != Some(place)).then_some(place)
+}
+
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
 /// found as the command finds it (`id`, else the selected one); one that isn't there is left to
 /// the command, which changes nothing and says so.
@@ -808,6 +824,18 @@ fn shared_category(s: &Session, id: &str, params: &Value) -> bool {
     let list = s.mailbox.category_list_owner(p::id(params, "account").unwrap_or(0));
     let on_list = |t: &Task| s.mailbox.category_list_owner(t.origin.account) == list;
     s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && on_list(t) && s.mailbox.in_shared_task_list(t))
+}
+
+/// Whether going from `before` to `after` changes the owner's answer about their local to-dos, or
+/// puts a to-do on its way to an account's To Do that it wasn't on its way to, where
+/// [`new_task_onto`] would ask.
+pub(crate) fn places_tasks(before: &Mailbox, after: &Mailbox) -> bool {
+    let home = crate::cmd::tasks_remote::tasks_home(before);
+    let placed = |(k, t): (&Id, &std::sync::Arc<Task>)| {
+        let waiting = t.origin.account != 0 && t.origin.id.is_empty() && !t.local_only && Some(t.origin.account) != home;
+        waiting && before.tasks.get(k).is_none_or(|b| b.origin.account != t.origin.account)
+    };
+    before.local_tasks != after.local_tasks || after.tasks.iter().any(placed)
 }
 
 /// Whether going from `before` to `after` changes what a list shared with other people has, as
@@ -1015,6 +1043,12 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         {
             return Verdict::Refuse(format!("`{id}`: {e}"));
         }
+    }
+    // Add to Tasks may take the selection, but a message named wrongly is refused all the same.
+    if id == "tasks.fromMessage"
+        && let Err(e) = p::message_strict(params)
+    {
+        return Verdict::Refuse(format!("`{id}`: {e}"));
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
@@ -1283,6 +1317,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 name(p::id(params, "keep"))
             )
         }
+        "tasks.new" | "tasks.fromMessage" if new_task_onto(s, id, params).is_some() => {
+            let account = new_task_onto(s, id, params).and_then(|a| s.mailbox.account(a));
+            format!("put a task in the To Do of {}", account.map(|a| a.email.trim().to_string()).unwrap_or_else(|| "an account".to_string()))
+        }
         "tasks.delete" => {
             let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
             let shared = if shared_task(s, id, params).is_some() { SHARED_TASK } else { "" };
@@ -1326,7 +1364,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
-                Some(Class::Send) => "a change to a meeting or to a task in a shared list, which other people see",
+                Some(Class::Send) => {
+                    "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
+                }
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };
