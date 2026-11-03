@@ -274,15 +274,18 @@ pub(crate) fn a_copy_of_one_here(mb: &Mailbox, copy: bool, source: Option<Id>) -
 /// from what was kept of where and how it lay, with the copy's content (its text and files,
 /// which the copy names for the mailbox file), where its server has it, and the delete is called
 /// off (#566). It comes back once: put back on the Microsoft account it lay in, the deletion of
-/// the IMAP original it was moved there from goes as that move meant it to. Then
-/// [`a_copy_of_one_here`]: whether the copy is to be taken away. With nowhere here to put the
-/// original back (its folder gone here, or a mailbox its server numbered anew since), its delete
+/// the IMAP original it was moved there from goes as that move meant it to; put back on the IMAP
+/// account, so does the deletion of the Microsoft original it was moved there from; and one still
+/// being moved out of a Microsoft account, not on the IMAP server yet, goes back as that server's
+/// message, as a refused move does. Then [`a_copy_of_one_here`]: whether the copy is to be taken
+/// away. With nowhere here to put the original back (its folder gone here, a mailbox its server
+/// numbered anew since, or its server no longer has it: deleted on a phone, say), its delete
 /// goes, and the copy is kept on this computer instead.
 pub(crate) fn original_back(mb: &mut Mailbox, id: Id, copy: bool, source: Option<Id>) -> bool {
     if let Some(source) = source.filter(|s| mb.message(*s).is_none())
         && let Some(copied) = mb.message(id).cloned()
     {
-        if original_back_on_graph(mb, source, &copied) {
+        if original_back_on_graph(mb, source, &copied, false) {
             for p in &mut mb.pending {
                 if let Pending::Delete { kept, .. } = p
                     && kept.as_ref().is_some_and(|m| m.id == source)
@@ -290,8 +293,16 @@ pub(crate) fn original_back(mb: &mut Mailbox, id: Id, copy: bool, source: Option
                     *kept = None;
                 }
             }
+        } else if original_back_on_imap(mb, source, &copied) {
+            for q in &mut mb.queued {
+                if let Queued::DeleteMessage { kept, .. } = q
+                    && kept.as_ref().is_some_and(|m| m.id == source)
+                {
+                    *kept = None;
+                }
+            }
         } else {
-            original_back_on_imap(mb, source, &copied);
+            original_back_on_graph(mb, source, &copied, true);
         }
         if let Ok(m) = mb.message_mut(source) {
             // Should the server say it is gone since (deleted elsewhere meanwhile), it is kept.
@@ -301,30 +312,58 @@ pub(crate) fn original_back(mb: &mut Mailbox, id: Id, copy: bool, source: Option
     a_copy_of_one_here(mb, copy, source)
 }
 
-/// [`original_back`] for a Microsoft or an Exchange server account's message. Whether it is back.
-fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message) -> bool {
+/// [`original_back`] for a Microsoft or an Exchange server account's message, as it lay there,
+/// or (`moving`) as it was being moved out of there. Whether it is back.
+fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message, moving: bool) -> bool {
     let at = mb.queued.iter().position(|q| match q {
-        Queued::DeleteMessage { account, id, kept: Some(m) } => {
-            m.id == source && m.server.as_ref().is_some_and(|s| s.id == *id && mb.folder_by_server(*account, &s.folder).is_some())
+        Queued::DeleteMessage { account, id, kept: Some(m) } if m.id == source && !moving => {
+            m.server.as_ref().is_some_and(|s| s.id == *id && !s.gone && mb.folder_by_server(*account, &s.folder).is_some())
+        }
+        Queued::DeleteMessage { account, id, kept: Some(m) } if m.id == source => {
+            m.moving_out.as_ref().is_some_and(|out| out.account == *account && out.id == *id && !out.left && mb.is_graph(*account))
         }
         _ => false,
     });
-    if let Some(Queued::DeleteMessage { account, id, kept: Some(mut kept) }) = at.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at)) {
-        kept.take_content_of(copied);
-        super::graph_up::put_back(mb, account, &id, Some(kept), None);
-        return mb.message(source).is_some();
+    let Some(Queued::DeleteMessage { account, id, kept: Some(mut kept) }) = at.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at))
+    else {
+        return false;
+    };
+    kept.take_content_of(copied);
+    let out = if moving { kept.moving_out.take() } else { None };
+    match out {
+        Some(out) => {
+            let folder = mb.folder_by_server(account, &out.folder).or_else(|| mb.folder_of_kind(account, FolderKind::Inbox));
+            let Some(folder) = folder else { return false };
+            let server = ServerMessage {
+                id,
+                folder: out.folder,
+                read: kept.read,
+                flag: kept.flag,
+                flag_due: kept.flag_due,
+                categories: kept.categories.clone(),
+                importance: kept.importance,
+                ..Default::default()
+            };
+            kept.server = Some(server);
+            kept.lies_in(folder, account, 0, None);
+            let _ = mb.add_message(*kept);
+        }
+        None => {
+            super::graph_up::put_back(mb, account, &id, Some(kept), None);
+        }
     }
-    false
+    mb.message(source).is_some()
 }
 
 /// [`original_back`] for an IMAP account's message: into the folder that follows the mailbox
 /// the server has it in, under its UID there, as that account's message (not one a Microsoft
-/// server it was moved to has: that copy goes, as its delete is no longer held).
-fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) {
+/// server it was moved to has, or was being moved from: that copy goes, as its delete is no
+/// longer held). Whether it is back.
+fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) -> bool {
     let at = mb.pending.iter().position(|p| matches!(p, Pending::Delete { kept: Some(m), uid, .. } if m.id == source && *uid != 0));
-    let Some(Pending::Delete { account, from, uid, kept: Some(kept), .. }) = at.and_then(|at| mb.pending.get(at)).cloned() else { return };
+    let Some(Pending::Delete { account, from, uid, kept: Some(kept), .. }) = at.and_then(|at| mb.pending.get(at)).cloned() else { return false };
     let Some(folder) = mb.folders.iter().find(|f| f.account == account && !f.remote.is_empty() && f.remote == from).map(|f| f.id) else {
-        return;
+        return false;
     };
     if let Some(at) = at {
         mb.pending.remove(at);
@@ -333,8 +372,8 @@ fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) {
     m.take_content_of(copied);
     let synced = m.synced.take().map(|flags| flags.at(uid));
     m.lies_in(folder, account, uid, synced);
-    m.server = None;
-    let _ = mb.add_message(m);
+    (m.server, m.moving_out) = (None, None);
+    mb.add_message(m).is_ok()
 }
 
 /// A message the destination wouldn't take: a move back to where its original still is, as that
