@@ -645,6 +645,18 @@ fn numbering_rules_afresh_goes_round_one_the_server_wont_let_be_moved() {
 }
 
 #[test]
+fn two_rules_with_one_number_keep_the_lists_order_round_a_locked_one() {
+    let (mut s, account, _, _) = session();
+    let rules = vec![remote("a", "A", 5), remote("b", "B", 5), RemoteRule { read_only: true, ..remote("ro", "Locked", 5) }];
+    merge_rules(&mut s.mailbox, &download(account, rules)).unwrap();
+    let b = s.mailbox.rules.iter().find(|r| r.name == "B").unwrap().id;
+    run(&mut s, "rules.move", json!({"id": b, "direction": "up"}));
+    let place = |s: &Session, name: &str| s.mailbox.rules.iter().find(|r| r.name == name).unwrap().server.as_ref().unwrap().sequence;
+    assert_eq!(place(&s, "Locked"), 5);
+    assert!(place(&s, "B") < place(&s, "A") && place(&s, "A") < 5, "{} {}", place(&s, "B"), place(&s, "A"));
+}
+
+#[test]
 fn a_switch_the_server_wasnt_told_of_yet_doesnt_decide_whether_later_rules_run() {
     let (mut s, account, _, _) = session();
     let mut stop = remote("r1", "Invoices", 1);
@@ -690,6 +702,10 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_mail_goes_to_a_server() {
     assert_eq!(classify(&s, "rules.enable", &json!({"id": here, "value": true})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": here})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": here, "value": false})), Access::Owner(Class::Settings));
+    // Moving one that deletes, among the others there, is asked as well; one that doesn't isn't.
+    assert_eq!(classify(&s, "rules.move", &json!({"id": here, "direction": "up"})), Access::Owner(Class::Delete));
+    let quiet = run(&mut s, "rules.add", params(account, json!({"actions": [{"type": "markRead"}]})))["id"].as_u64().unwrap();
+    assert_eq!(classify(&s, "rules.move", &json!({"id": quiet, "direction": "up"})), Access::Owner(Class::Settings));
     // Asked of a rule already there, keeping it there is nothing new.
     assert_eq!(classify(&s, "rules.keepOnServer", &json!({"id": here})), Access::Owner(Class::Settings));
     // Moving mail into Deleted Items is deleting it, however it is asked for.

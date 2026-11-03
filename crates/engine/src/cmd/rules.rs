@@ -497,7 +497,12 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     // (The server's places start at 1: one below is sent as 1, and would stand with that one.)
     let distinct = numbers.windows(2).all(|w| w.first() < w.get(1)) && numbers.first().is_none_or(|n| *n >= 1);
     if !distinct || numbers.iter().any(|n| taken.contains(n)) {
-        let mut next = numbers.first().copied().unwrap_or(1).max(1);
+        // Starting low enough that those listed before the last rule the server won't change stay
+        // before it, where two had the same number and the list put this one second.
+        let last = on.iter().rposition(|i| locked(&i)).unwrap_or(0);
+        let before = on.iter().take(last).filter(|i| !locked(i)).count();
+        let low = numbers.first().into_iter().chain(taken.iter()).copied().min().unwrap_or(1);
+        let mut next = i32::try_from(before).map_or(1, |b| low.saturating_sub(b)).max(1);
         numbers.clear();
         for i in &on {
             if locked(&i) {

@@ -74,8 +74,13 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
     // The folders named otherwise than the account's mail names them, each looked up once.
     let mut named: HashMap<String, Option<String>> = HashMap::new();
     for rule in &download.rules {
-        if !rule.move_to.is_empty() && !folders.contains(&rule.move_to) && !named.contains_key(&rule.move_to) && named.len() < MAX_FOLDER_LOOKUPS {
-            named.insert(rule.move_to.clone(), None);
+        if !rule.move_to.is_empty() && !folders.contains(&rule.move_to) && !named.contains_key(&rule.move_to) {
+            if named.len() < MAX_FOLDER_LOOKUPS {
+                named.insert(rule.move_to.clone(), None);
+            } else {
+                // Not looked up, so nothing is known of this rule's folder: the read isn't whole.
+                download.complete = false;
+            }
         }
     }
     let mut no_answer: Vec<String> = Vec::new();

@@ -339,7 +339,7 @@ pub fn expire(app: &mut MailApp, now: f64) {
 pub(crate) fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
-        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable") => (tl!("Allow"), tl!("Don't Allow")),
+        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }

@@ -879,6 +879,8 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),
         "rules.keepOnServer" => named().is_some_and(|r| !there(r) && deletes(r)),
+        // Moving a server rule that deletes mail changes where it runs among the others there.
+        "rules.move" => named().is_some_and(|r| there(r) && deletes(r)),
         // Read as the command reads it, as `rules_onto_another_server` does.
         "rules.enable" => {
             p::opt_bool(params, "value").is_ok_and(|value| named().is_some_and(|r| value.unwrap_or(!r.enabled) && there(r) && deletes(r)))

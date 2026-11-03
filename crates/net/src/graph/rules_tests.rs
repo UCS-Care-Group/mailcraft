@@ -330,3 +330,20 @@ fn a_read_that_is_refused_says_so() {
     assert!(e.to_string().contains("rules"));
     assert!(rules_at(&server.url(""), "", &[]).is_err());
 }
+
+#[test]
+fn a_read_that_skipped_folder_look_ups_past_the_most_isnt_whole() {
+    let rules = |n: usize| {
+        (0..n)
+            .map(|i| {
+                json!({"id": format!("R{i}"), "displayName": format!("Rule {i}"), "sequence": i + 1, "isEnabled": true,
+                       "conditions": {"subjectContains": ["x"]}, "actions": {"moveToFolder": format!("OLD-{i}")}})
+            })
+            .collect::<Vec<_>>()
+    };
+    let s = state(rules(super::MAX_FOLDER_LOOKUPS));
+    let server = serve(&s);
+    assert!(rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
+    s.lock().unwrap().rules = rules(super::MAX_FOLDER_LOOKUPS + 1);
+    assert!(!rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
+}
