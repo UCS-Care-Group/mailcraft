@@ -6609,6 +6609,12 @@ msgstr "Account verplaatsen"
 msgid "Move All and Send Invitations"
 msgstr "Alles verplaatsen en uitnodigingen verzenden"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Omlaag"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -6632,6 +6638,12 @@ msgstr "Terugkerend item verplaatsen"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Regel verplaatsen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Omhoog"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7126,6 +7138,12 @@ msgstr "Geen opdracht komt overeen."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Nog geen voltooide taken."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Nog geen contactpersonen van dit account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -12527,12 +12545,6 @@ msgstr "Dit account bewaart zijn regels niet op zijn server"
 msgid "This account doesn't sign in with Microsoft"
 msgstr "Dit account meldt zich niet aan met Microsoft"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account has no contacts"
-msgstr "Dit account heeft geen contactpersonen"
-
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -17694,6 +17706,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Dit account heeft geen contactpersonen"
 
 #, fuzzy
 #~ msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."

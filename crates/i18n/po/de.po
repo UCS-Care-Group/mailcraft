@@ -6292,6 +6292,12 @@ msgstr "Konto verschieben"
 msgid "Move All and Send Invitations"
 msgstr "Alle verschieben und Einladungen senden"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Nach unten"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -6315,6 +6321,12 @@ msgstr "Serienelement verschieben"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Regel verschieben"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Nach oben"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6800,6 +6812,12 @@ msgstr "Kein passender Befehl."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Noch keine erledigten Aufgaben."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Noch keine Kontakte von diesem Konto"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -11892,12 +11910,6 @@ msgstr "Dieses Konto speichert seine Regeln nicht auf seinem Server"
 msgid "This account doesn't sign in with Microsoft"
 msgstr "Dieses Konto meldet sich nicht bei Microsoft an"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account has no contacts"
-msgstr "Dieses Konto hat keine Kontakte"
-
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -16824,6 +16836,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Dieses Konto hat keine Kontakte"
 
 #, fuzzy
 #~ msgid "Permanently Delete"

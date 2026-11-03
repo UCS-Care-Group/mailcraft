@@ -2707,6 +2707,11 @@ impl Session {
             // is, and what is selected in it (#485).
             self.sel.messages_of(&cur.sel);
         }
+        // The contact selected again is shown in People's list (#631): a New Contact that moved
+        // the list to this computer, undone, has it back on the account it showed.
+        if let Some(contact) = self.sel.contact {
+            crate::cmd::people::reveal(self, contact);
+        }
         self.normalize();
         cur
     }

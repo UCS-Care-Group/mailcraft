@@ -81,11 +81,25 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
-/// A contact just made or picked is in view: where the list doesn't show it, the list moves to it.
+/// A contact just made or picked is in view: where the list doesn't show it, the list moves to it,
+/// and a search that would leave it out is cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
     let shown = shown_account(s);
-    if let Some(c) = s.mailbox.contact(id).filter(|c| !shown.shows(&c.origin)) {
-        s.view.people_account = AccountChoice::of(&c.origin);
+    let Some(c) = s.mailbox.contact(id) else { return };
+    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
+    if hidden {
+        s.view.people_account = choice;
+    }
+    if unmatched {
+        s.view.people_search.clear();
+    }
+}
+
+/// "On this computer" means something only beside an account that keeps contacts: once the last
+/// of them goes, the list is back on All accounts, so one added later doesn't open People on it.
+pub(crate) fn forget_here(s: &mut Session) {
+    if s.view.people_account == AccountChoice::Here && contact_accounts(&s.mailbox).is_empty() {
+        s.view.people_account = AccountChoice::All;
     }
 }
 

@@ -6298,6 +6298,12 @@ msgstr "Sposta account"
 msgid "Move All and Send Invitations"
 msgstr "Sposta tutto e invia inviti"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Sposta giù"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -6321,6 +6327,12 @@ msgstr "Sposta elemento ricorrente"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Sposta la regola"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Sposta su"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6806,6 +6818,12 @@ msgstr "Nessun comando corrispondente."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Ancora nessuna attività completata."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Ancora nessun contatto da questo account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -11904,12 +11922,6 @@ msgstr "Questo account non conserva le sue regole sul suo server"
 msgid "This account doesn't sign in with Microsoft"
 msgstr "Questo account non accede con Microsoft"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account has no contacts"
-msgstr "Questo account non ha contatti"
-
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -16840,6 +16852,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Questo account non ha contatti"
 
 #, fuzzy
 #~ msgid "Permanently Delete"
