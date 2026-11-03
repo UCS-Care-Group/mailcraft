@@ -963,6 +963,16 @@ fn what_is_for_another_account_or_hostile_changes_nothing_it_shouldnt() {
     unnamed.unknown = vec![" ".into(), "\u{0}\u{1}".into()];
     merge_rules(&mut s.mailbox, &RulesDownload { complete: false, ..download(account, vec![unnamed]) }).unwrap();
     assert!(!s.mailbox.rules.iter().find(|r| r.name == "Unnamed").unwrap().known());
+    // And so is an action no server's rule takes, which would act here at Run Rules Now.
+    for (n, action) in
+        [Action::DeleteForGood, Action::FlagFor(mailcraft_model::FollowUp::Today), Action::ClearFlag, Action::ClearCategories].into_iter().enumerate()
+    {
+        let mut odd = remote(&format!("r{}", 10 + n), &format!("Odd {n}"), 10 + n as i32);
+        odd.actions = vec![Action::MarkRead, action.clone()];
+        merge_rules(&mut s.mailbox, &RulesDownload { complete: false, ..download(account, vec![odd]) }).unwrap();
+        let r = s.mailbox.rules.iter().find(|r| r.name == format!("Odd {n}")).unwrap();
+        assert!(!r.known() && !r.actions.contains(&action), "{action:?}: {r:?}");
+    }
     // Junk params are refused and change nothing (and never panic: crates/engine/src/tests.rs
     // runs every command with junk).
     let before = serde_json::to_value(&s.mailbox).unwrap();

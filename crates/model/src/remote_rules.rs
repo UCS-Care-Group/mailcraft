@@ -114,6 +114,9 @@ impl RemoteRule {
         for action in std::mem::take(&mut self.actions).into_iter().take(MAX_PARTS) {
             match action {
                 Action::MoveTo(_) | Action::CopyTo(_) => {}
+                // What no server's rule does (a server's list that says so is not believed): such a
+                // rule would do it here, at Run Rules Now (#566).
+                Action::DeleteForGood | Action::FlagFor(_) | Action::ClearFlag | Action::ClearCategories => note(CUT_NOT_SERVERS),
                 Action::Categorize(c) => match clean_name(&c) {
                     Some(name) if c.trim().chars().count() <= MAX_NAME => actions.push(Action::Categorize(name)),
                     _ => note(CUT_CATEGORY),
@@ -140,6 +143,7 @@ const CUT_WORDS: &str = "(words longer than are kept)";
 const CUT_EMPTY: &str = "(a condition with no words)";
 const CUT_CATEGORY: &str = "(a category with no name)";
 const CUT_UNNAMED: &str = "(a part with no name)";
+const CUT_NOT_SERVERS: &str = "(an action a server's rule doesn't take)";
 
 /// An account's rules, as its server has them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
