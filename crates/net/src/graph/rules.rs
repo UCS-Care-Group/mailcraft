@@ -425,16 +425,30 @@ fn kept_in_place(reply: &[u8], sent: Option<i32>) -> bool {
     }
 }
 
-/// The body of a change: only what it changes.
-fn change_body(op: &RuleOp) -> Option<Value> {
+/// The body of a change: only what it changes. A change of what the rule is (`edit`) sends its
+/// name, conditions, exceptions and actions whole, as Graph's own example of a change does: each
+/// of those it is given takes the place of the one it had (a rule with no exceptions any more is
+/// sent an empty set of them); a rule the server couldn't have is not sent.
+fn change_body(op: &RuleOp) -> Result<Option<Value>, &'static str> {
     let mut body = Map::new();
+    if op.edit != 0 {
+        let mut rule = op.body.clone().unwrap_or_default();
+        rule.tidy();
+        let Value::Object(whole) = rule_body(&rule)? else { return Err("the change says nothing that could be sent") };
+        for key in ["displayName", "conditions", "actions"] {
+            if let Some(part) = whole.get(key) {
+                body.insert(key.into(), part.clone());
+            }
+        }
+        body.insert("exceptions".into(), whole.get("exceptions").cloned().unwrap_or_else(|| Value::Object(Map::new())));
+    }
     if let Some(enabled) = op.enabled {
         body.insert("isEnabled".into(), json!(enabled));
     }
     if let Some(sequence) = op.sequence {
         body.insert("sequence".into(), json!(sequence.max(1)));
     }
-    if body.is_empty() { None } else { Some(Value::Object(body)) }
+    Ok(if body.is_empty() { None } else { Some(Value::Object(body)) })
 }
 
 pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> RulesUploaded {
@@ -451,6 +465,7 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
             result,
             enabled: op.enabled,
             sequence: op.sequence,
+            edit: op.edit,
             error: error.into(),
             ..Default::default()
         };
@@ -476,9 +491,13 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
                 }
             }
             RuleOpKind::Update => match change_body(op) {
-                Some(body) => ("PATCH", one, Some(body)),
-                None => {
+                Ok(Some(body)) => ("PATCH", one, Some(body)),
+                Ok(None) => {
                     uploaded.outcomes.push(outcome(RuleResult::Refused, "the change says nothing that could be sent"));
+                    continue;
+                }
+                Err(why) => {
+                    uploaded.outcomes.push(outcome(RuleResult::Refused, why));
                     continue;
                 }
             },

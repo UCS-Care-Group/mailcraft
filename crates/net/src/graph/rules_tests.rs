@@ -502,3 +502,34 @@ fn a_read_that_skipped_folder_look_ups_past_the_most_isnt_whole() {
     s.lock().unwrap().rules = rules(super::MAX_FOLDER_LOOKUPS + 1);
     assert!(!rules_at(&server.url(""), TOKEN, &[]).unwrap().complete);
 }
+
+#[test]
+fn a_rule_changed_here_is_sent_whole_in_place_of_what_the_server_had() {
+    let s = state(vec![json!({"id": "A", "displayName": "Old", "sequence": 1, "isEnabled": true,
+           "conditions": {"subjectContains": ["x"], "importance": "high"},
+           "exceptions": {"senderContains": ["boss@example.org"]},
+           "actions": {"delete": true}})]);
+    let server = serve(&s);
+    let op = RuleOp { kind: RuleOpKind::Update, rule: 1, id: "A".into(), body: Some(news_rule()), edit: 2, ..Default::default() };
+    let done = push_rules_at(&server.url(""), TOKEN, &upload(vec![op]));
+    let outcome = &done.outcomes[0];
+    assert_eq!((outcome.result, outcome.edit), (RuleResult::Done, 2), "{outcome:?}");
+    let rule = s.lock().unwrap().rules[0].clone();
+    assert_eq!(rule["displayName"], "News");
+    assert_eq!(rule["conditions"], json!({"senderContains": ["news@example.org"], "hasAttachments": true}));
+    assert_eq!(rule["actions"], json!({"assignCategories": ["Blue"], "markAsRead": true, "moveToFolder": "IMM-news", "stopProcessingRules": true}));
+    // An exception it no longer has is taken away; where it stands and whether it is on are not
+    // what the change was about.
+    assert_eq!(rule["exceptions"], json!({}));
+    assert_eq!((rule["sequence"].clone(), rule["isEnabled"].clone()), (json!(1), json!(true)));
+
+    // One the server couldn't keep is not sent at all.
+    let mut flagged = news_rule();
+    flagged.actions.push(Action::Flag);
+    let s = state(vec![json!({"id": "A", "displayName": "Old", "sequence": 1, "isEnabled": true, "conditions": {}, "actions": {}})]);
+    let server = serve(&s);
+    let op = RuleOp { kind: RuleOpKind::Update, rule: 1, id: "A".into(), body: Some(flagged), edit: 1, enabled: Some(false), ..Default::default() };
+    let done = push_rules_at(&server.url(""), TOKEN, &upload(vec![op]));
+    assert_eq!((done.outcomes[0].result, done.outcomes[0].edit), (RuleResult::Refused, 1));
+    assert!(s.lock().unwrap().asked.is_empty());
+}

@@ -193,7 +193,9 @@ pub struct RuleOp {
     pub enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sequence: Option<i32>,
-    /// For a creation: the rule, with what the server calls the folder it moves mail to.
+    /// For a creation: the rule, with what the server calls the folder it moves mail to. For a
+    /// change of what the rule is (`edit`), the same: its name, conditions, exceptions, actions
+    /// and "stop" as they are now.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<RemoteRule>,
     /// The move of a rule the server says it doesn't let be changed (#566): the server may not
@@ -201,6 +203,14 @@ pub struct RuleOp {
     /// goes before it is answered.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub locked: bool,
+    /// For a change of what the rule is: the count of changes made here that it carries
+    /// ([`crate::ServerRule::edited`]); 0 for none.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub edit: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// What a host is to tell an account's server.
@@ -243,6 +253,9 @@ pub struct RuleOutcome {
     pub enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sequence: Option<i32>,
+    /// The count of changes made here that the change carried, as it was sent ([`RuleOp::edit`]).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub edit: u32,
     /// The status of the answer; 0 when there was none.
     pub status: u16,
     /// Why not, in a few words (never what was sent).

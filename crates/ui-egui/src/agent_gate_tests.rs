@@ -13,7 +13,7 @@ use crate::{MailApp, Services};
 
 #[test]
 fn a_rule_made_or_switched_on_isnt_answered_with_delete() {
-    for id in ["rules.add", "rules.keepOnServer", "rules.enable", "rules.move"] {
+    for id in ["rules.add", "rules.edit", "rules.keepOnServer", "rules.enable", "rules.move"] {
         assert_eq!(verbs(Class::Delete, id, false), (tl!("Allow"), tl!("Don't Allow")), "{id}");
     }
     for id in ["rules.remove", "mail.delete"] {

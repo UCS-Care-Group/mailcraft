@@ -5694,7 +5694,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, Condition, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body_over, close_button, error, error_room, footer, row, shown, tall_row};
@@ -6043,6 +6043,80 @@ pub(crate) mod rules {
         }
     }
 
+    /// The condition (or exception) of the rule page that `c` is, or `None` when the page can't
+    /// show it as it is: several categories (the page takes one), or a word with a semicolon in
+    /// it (the page sets words apart by semicolons).
+    fn cond_of(c: &Condition) -> Option<Cond> {
+        let words =
+            |kind: When, words: &[String]| (!words.iter().any(|w| w.contains(';'))).then(|| Cond { kind, text: words.join("; "), ..Cond::default() });
+        let plain = |kind: When| Some(Cond { kind, ..Cond::default() });
+        match c {
+            Condition::From(w) => words(When::Person, w),
+            Condition::FromContains(w) => words(When::From, w),
+            Condition::SentTo(w) => words(When::SentTo, w),
+            Condition::ToContains(w) => words(When::To, w),
+            Condition::SubjectContains(w) => words(When::Subject, w),
+            Condition::BodyContains(w) => words(When::Body, w),
+            Condition::SubjectOrBodyContains(w) => words(When::SubjectOrBody, w),
+            Condition::HeaderContains(w) => words(When::Header, w),
+            Condition::SentOnlyToMe => plain(When::SentOnlyToMe),
+            Condition::ToMe => plain(When::ToMe),
+            Condition::CcMe => plain(When::CcMe),
+            Condition::ToOrCcMe => plain(When::ToOrCcMe),
+            Condition::NotToMe => plain(When::NotToMe),
+            Condition::HasAttachment => plain(When::Attachment),
+            Condition::MeetingRequest => plain(When::Meeting),
+            Condition::AutomaticReply => plain(When::AutomaticReply),
+            Condition::Flagged => plain(When::Flagged),
+            Condition::Importance(i) => Some(Cond { kind: When::Importance, importance: *i, ..Cond::default() }),
+            Condition::Sensitivity(v) => Some(Cond { kind: When::Sensitivity, sensitivity: *v, ..Cond::default() }),
+            Condition::SizeBetween { min, max } => Some(Cond { kind: When::Size, min: min.to_string(), max: max.to_string(), ..Cond::default() }),
+            Condition::Category(names) => match names.as_slice() {
+                [one] => Some(Cond { kind: When::Category, category: one.clone(), ..Cond::default() }),
+                _ => None,
+            },
+            Condition::ReceivedBetween { from, to } => Some(Cond {
+                kind: When::Received,
+                from: from.map(Date::iso).unwrap_or_default(),
+                to: to.map(Date::iso).unwrap_or_default(),
+                ..Cond::default()
+            }),
+        }
+    }
+
+    /// The action of the rule page that `a` is; what it doesn't say is `fresh`'s.
+    fn act_of(a: &Action, fresh: &Act) -> Act {
+        let kind = |kind: Do| Act { kind, ..fresh.clone() };
+        match a {
+            Action::MoveTo(folder) => Act { folder: *folder, ..kind(Do::Move) },
+            Action::CopyTo(folder) => Act { folder: *folder, ..kind(Do::Copy) },
+            Action::Categorize(name) => Act { category: name.clone(), ..kind(Do::Categorize) },
+            Action::ClearCategories => kind(Do::ClearCategories),
+            Action::Flag => Act { due: None, ..kind(Do::Flag) },
+            Action::FlagFor(due) => Act { due: Some(*due), ..kind(Do::Flag) },
+            Action::ClearFlag => kind(Do::ClearFlag),
+            Action::MarkRead => kind(Do::MarkRead),
+            Action::SetImportance(i) => Act { importance: *i, ..kind(Do::SetImportance) },
+            Action::Delete => kind(Do::Delete),
+            Action::DeleteForGood => kind(Do::DeleteForGood),
+        }
+    }
+
+    /// Why rule `r` can't be changed on the rule page, in words, or `None` when it can.
+    pub(crate) fn not_changeable(r: &Rule) -> Option<&'static str> {
+        if r.read_only() {
+            Some(tl!("The server doesn't let this rule be changed"))
+        } else if !r.known() {
+            Some(tl!("Made in another program or on the web, with parts MailCraft can't show"))
+        } else if r.unanswered {
+            Some(tl!("The server is still making this rule: change it once it has"))
+        } else if r.conditions.iter().chain(&r.exceptions).any(|c| cond_of(c).is_none()) {
+            Some(tl!("It looks for several categories at once, or for words with a semicolon in them, which the rule page can't show"))
+        } else {
+            None
+        }
+    }
+
     fn importance_label(i: Importance) -> &'static str {
         match i {
             Importance::Low => "Low",
@@ -6379,6 +6453,8 @@ pub(crate) mod rules {
         /// A new rule of an account that has a server: its address, and why the rule couldn't
         /// be kept there (`None` when it could). The owner chooses.
         Choose(String, Option<NotOnServer>),
+        /// A rule being changed that its server keeps, and why it couldn't keep it as it is now.
+        Server(Option<NotOnServer>),
         /// On this computer.
         Here,
     }
@@ -6392,6 +6468,8 @@ pub(crate) mod rules {
         servers: &'a [(Id, String)],
         /// The folder in view, by its path: what Run Rule Now runs over.
         folder: &'a str,
+        /// The rule Edit Rule was chosen for, once it is.
+        edit: &'a std::cell::Cell<Option<Id>>,
     }
 
     /// Whether a rule can go one place up or down in its list: `Err` with why not, in words, or
@@ -6513,10 +6591,15 @@ pub(crate) mod rules {
         }
     }
 
-    /// The menu of a rule's "⋯" button: run it now over the folder in view, keep it on a server
-    /// that can, delete it.
+    /// The menu of a rule's "⋯" button: change it, run it now over the folder in view, keep it on
+    /// a server that can, delete it.
     fn rule_menu(ui: &mut Ui, rows: &Rows<'_>, r: &Rule, to: &[&(Id, String)], run: &mut Option<(&'static str, Value)>) {
         let fixed = r.read_only();
+        let cannot = not_changeable(r);
+        if ui.add_enabled(cannot.is_none(), egui::Button::new(tl!("Edit Rule"))).on_disabled_hover_text(cannot.unwrap_or_default()).clicked() {
+            rows.edit.set(Some(r.id));
+            ui.close();
+        }
         let over = crate::i18n::fmt(tl!("Run this rule over {folder}"), &[("folder", &shown(rows.folder, 80))]);
         let why_not = if r.known() { tl!("Switch the rule on to run it") } else { tl!("MailCraft can't run a rule with parts it can't show") };
         let can_run = r.enabled && r.known();
@@ -6558,8 +6641,10 @@ pub(crate) mod rules {
     pub struct RulesForm {
         /// The account whose rules are shown, and whose arriving mail a new rule is for.
         account: Id,
-        /// The New rule page is shown in place of the lists.
+        /// The rule page is shown in place of the lists: a new rule's, or `editing`'s.
         open: bool,
+        /// The rule the page changes (Edit Rule); `None` for a new one.
+        editing: Option<Id>,
         /// What the list is searched for: the rules whose names have it are shown.
         query: String,
         /// The rules of the lists that show what they do under them.
@@ -6652,6 +6737,7 @@ pub(crate) mod rules {
 
         /// Start the builder over: one empty condition, one action, for a new rule.
         fn reset(&mut self) {
+            self.editing = None;
             self.name.clear();
             self.stop = false;
             self.alert = false;
@@ -6667,8 +6753,8 @@ pub(crate) mod rules {
             Act { kind: Do::Move, folder: self.first_folder, category: self.first_category.clone(), importance: Importance::High, due: None }
         }
 
-        /// From the New rule page back to the lists, letting what was typed go, as Cancel does;
-        /// `false`, with nothing done, on the lists themselves.
+        /// From the rule page (a new rule's, or one being changed) back to the lists, letting what
+        /// was typed go, as Cancel does; `false`, with nothing done, on the lists themselves.
         pub fn back(&mut self) -> bool {
             if !self.open {
                 return false;
@@ -6679,7 +6765,39 @@ pub(crate) mod rules {
             true
         }
 
-        /// The command Add Rule runs, with its params.
+        /// The rule page for changing rule `r`, filled in with what it is, for its account's
+        /// mail. `false`, with nothing changed, when the page can't show all of it.
+        fn change(&mut self, mb: &Mailbox, r: &Rule) -> bool {
+            if not_changeable(r).is_some() {
+                return false;
+            }
+            let (Some(conds), Some(unless)) =
+                (r.conditions.iter().map(cond_of).collect::<Option<Vec<Cond>>>(), r.exceptions.iter().map(cond_of).collect::<Option<Vec<Cond>>>())
+            else {
+                return false;
+            };
+            self.reset();
+            // A folder of the rule's that the list of folders doesn't offer (one gone since) stays
+            // as it is, rather than be changed to the first.
+            let fresh = self.fresh_action();
+            self.acts = r.actions.iter().map(|a| act_of(a, &fresh)).collect();
+            for a in &self.acts {
+                if a.kind.takes_folder() && !self.folders.iter().any(|f| f.0 == a.folder) && mb.folder(a.folder).is_some() {
+                    self.folders.push((a.folder, mb.folder_path(a.folder)));
+                }
+            }
+            self.name = r.name.clone();
+            (self.conds, self.unless) = (conds, unless);
+            (self.stop, self.alert) = (r.stop, r.alert);
+            self.server = r.keep == Keep::Server;
+            self.editing = Some(r.id);
+            self.open = true;
+            self.focus = true;
+            self.error.clear();
+            true
+        }
+
+        /// The command Add Rule (or Save, for a rule changed) runs, with its params.
         pub fn command(&self) -> (&'static str, Value) {
             let conditions: Vec<Value> = self.conds.iter().map(Cond::param).collect();
             let actions: Vec<Value> = self.acts.iter().map(Act::param).collect();
@@ -6689,6 +6807,10 @@ pub(crate) mod rules {
             }
             if self.alert {
                 params["alert"] = json!(true);
+            }
+            if let Some(id) = self.editing {
+                params["id"] = json!(id);
+                return ("rules.edit", params);
             }
             if self.account != 0 {
                 params["account"] = json!(self.account);
@@ -6821,7 +6943,8 @@ pub(crate) mod rules {
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
-            let rows = Rows { app, account, servers: &servers, folder: &folder_in_view };
+            let edit = std::cell::Cell::new(None);
+            let rows = Rows { app, account, servers: &servers, folder: &folder_in_view, edit: &edit };
             let mut new = false;
             let ran = self.ran;
             let (query, unfolded) = (&mut self.query, &mut self.unfolded);
@@ -6913,42 +7036,68 @@ pub(crate) mod rules {
                 self.focus = true;
                 self.error.clear();
             }
+            // Edit Rule: the rule page, filled in with it.
+            if let Some(r) = edit.get().and_then(|id| mb.rules.iter().find(|r| r.id == id)) {
+                self.change(mb, r);
+            }
             false
         }
 
-        /// The New rule page, in the lists' place: whose mail the rule is for, the rule, and Add
-        /// Rule and Cancel at the bottom. Returns `true` when Add Rule was asked for and can run;
-        /// Cancel, or the arrow back, goes back to the lists and lets what was typed go.
+        /// The rule page, in the lists' place: a new rule's (New rule, with Add Rule at the
+        /// bottom) or one being changed (Edit rule, with Save): whose mail it is for or where it is
+        /// kept, the rule, and Cancel. Returns `true` when Add Rule or Save was asked for and can
+        /// run; Cancel, or the arrow back, goes back to the lists and lets what was typed go.
         fn new_rule(&mut self, app: &MailApp, ui: &mut Ui) -> bool {
             let mut pass = Pass::new(ui, &app.session, &mut false);
             let t = pass.t;
             let mb = &app.session.mailbox;
             let categories: Vec<String> = mb.every_category().into_iter().map(|c| c.name).collect();
             let held = app.rules_held(self.account);
+            let changed = self.editing.and_then(|id| mb.rules.iter().find(|r| r.id == id));
             let whose = mb.account(self.account).map(|a| if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() });
-            // Whether the rule being made could be kept on the server, and why not (an account on
-            // this computer alone has none).
-            let place = match mb.account(self.account).filter(|a| a.kind != mailcraft_model::AccountKind::Local) {
-                Some(a) => Where::Choose(a.email.clone(), server_cannot_draft(&app.session, &self.command().1)),
-                None => Where::Here,
+            let place = match changed {
+                // A rule its server keeps is to stay something the server can do.
+                Some(r) if r.keep == Keep::Server && r.account != 0 && mb.keeps_rules(r.account) => {
+                    let mut draft = self.command().1;
+                    draft["account"] = json!(r.account);
+                    Where::Server(server_cannot_draft(&app.session, &draft))
+                }
+                Some(_) => Where::Here,
+                // Whether the rule being made could be kept on the server, and why not (an account
+                // on this computer alone has none).
+                None => match mb.account(self.account).filter(|a| a.kind != mailcraft_model::AccountKind::Local) {
+                    Some(a) => Where::Choose(a.email.clone(), server_cannot_draft(&app.session, &self.command().1)),
+                    None => Where::Here,
+                },
             };
+            let kept = changed.map(|r| mark(app, r, self.account));
             let mut back = false;
             let mut asked = false;
             let room = error_room(ui, &self.error);
             body_over(ui, room, |ui| {
                 ui.horizontal(|ui| {
-                    back = icon_button(ui, "back", tl!("Back to the rules: this rule isn't made"), 14.0, true).clicked();
-                    ui.label(egui::RichText::new(tl!("New rule")).font(semibold(13.0)).color(t.text));
-                    if let Some(whose) = &whose {
-                        let said = crate::i18n::fmt(tl!("for the mail of {account}"), &[("account", &shown(whose, 80))]);
+                    let tip = if changed.is_some() {
+                        tl!("Back to the rules: the change isn't saved")
+                    } else {
+                        tl!("Back to the rules: this rule isn't made")
+                    };
+                    back = icon_button(ui, "back", tip, 14.0, true).clicked();
+                    let title = if changed.is_some() { tl!("Edit rule") } else { tl!("New rule") };
+                    ui.label(egui::RichText::new(title).font(semibold(13.0)).color(t.text));
+                    let said = match (&kept, &whose) {
+                        (Some(kept), _) => Some(kept.clone()),
+                        (None, Some(whose)) => Some(crate::i18n::fmt(tl!("for the mail of {account}"), &[("account", &shown(whose, 80))])),
+                        (None, None) => None,
+                    };
+                    if let Some(said) = said {
                         ui.label(egui::RichText::new(said).size(11.5).color(t.text_dim));
                     }
                 });
                 asked = self.builder(ui, &mut pass, &categories, &place, held);
             });
             error(ui, &self.error);
-            let ready = self.lacks().is_none();
-            let buttons = footer(ui, tl!("Add Rule"), ready, false);
+            let ready = self.lacks().is_none() && !matches!(place, Where::Server(Some(_)));
+            let buttons = footer(ui, if changed.is_some() { tl!("Save") } else { tl!("Add Rule") }, ready, false);
             if back || buttons.cancel {
                 self.back();
                 return false;
@@ -6965,6 +7114,7 @@ pub(crate) mod rules {
             // at names too.
             let on_server = match place {
                 Where::Choose(_, cannot) => self.server && cannot.is_none(),
+                Where::Server(_) => true,
                 Where::Here => false,
             };
             row(ui, tl!("Name"), |ui| {
@@ -7040,6 +7190,16 @@ pub(crate) mod rules {
                     "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
                 ));
             });
+            // Kept on the server and changed into what the server can't do: said, and not saved.
+            if let Where::Server(Some(why)) = place {
+                let said = crate::i18n::fmt(
+                    tl!("This rule is kept on the server, which can't keep it like this: {why}. Leave that part out to save the change."),
+                    &[("why", tl!(why.said()))],
+                );
+                tall_row(ui, "", |ui| {
+                    ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
+                });
+            }
             // Where a new rule is kept: the owner says, while the server can do all of it; greyed,
             // with why, when it can't.
             if let Where::Choose(address, cannot) = place {

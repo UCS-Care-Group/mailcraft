@@ -338,14 +338,16 @@ pub fn expire(app: &mut MailApp, now: f64) {
     }
 }
 
-/// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
-/// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
+/// The buttons: going ahead, and not (the default). A rule made, changed or switched on asks as a
+/// delete does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
 /// (#566). One made from a message that deletes mail (`deletes`) does: it runs at once on the
 /// mail from that sender.
 pub(crate) fn verbs(class: Class, id: &str, deletes: bool) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
-        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
+        Class::Delete if matches!(id, "rules.add" | "rules.edit" | "rules.keepOnServer" | "rules.enable" | "rules.move") => {
+            (tl!("Allow"), tl!("Don't Allow"))
+        }
         Class::Delete if id == "rules.fromMessage" && !deletes => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),

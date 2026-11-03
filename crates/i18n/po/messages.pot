@@ -1491,6 +1491,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "Back to the rules: the change isn't saved"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "Back to the rules: this rule isn't made"
 msgstr ""
 
@@ -1796,6 +1801,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Change Recurring Item"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/rules.rs
+msgid "Change Rule"
 msgstr ""
 
 #. interface
@@ -3064,6 +3074,11 @@ msgstr ""
 msgid "Edit Message"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Edit Rule"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Edit Signature"
@@ -3077,6 +3092,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/tasks.rs
 msgid "Edit Task"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Edit rule"
 msgstr ""
 
 #. interface
@@ -4495,6 +4515,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It looks for several categories at once, or for words with a semicolon in them, which the rule page can't show"
 msgstr ""
 
 #. interface
@@ -10295,6 +10320,11 @@ msgid "The server doesn't let this rule be changed"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The server is still making this rule: change it once it has"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr ""
@@ -11124,6 +11154,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "This rule is kept on the server, which can't keep it like this: {why}. Leave that part out to save the change."
 msgstr ""
 
 #. what a command says
@@ -13599,6 +13634,11 @@ msgstr ""
 msgid "the server doesn't let this rule be changed"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "the server is still making this rule: change it once the server has answered"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "the server sent a web page instead of a picture"
@@ -13807,6 +13847,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule has parts MailCraft can't show: change it in the program it was made in, or on the web"
 msgstr ""
 
 #. what a command says

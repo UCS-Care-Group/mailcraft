@@ -10,12 +10,14 @@
 //! **What a rule remembers.** A rule the server has keeps its id there and, beside whether it is
 //! switched on and where it stands, the same two as the server last had them
 //! ([`mailcraft_model::ServerRule`]). What was changed here since is the difference, and only that
-//! is sent: a rule is never rewritten on the server, so one with parts this version doesn't know
-//! stays as it was made. A rule to go to the server and not there yet is sent whole, after those
-//! there; one the server refuses stays on this computer, and says why. One the server says it
-//! doesn't let be changed is moved all the same: its new place goes first, and if the server won't
-//! have it, it and every place of the account's rules not yet sent go back to where the server has
-//! them, and that is said.
+//! is sent; a rule changed here (`rules.edit`, counted in [`mailcraft_model::ServerRule::edited`])
+//! is sent whole, its name, conditions, exceptions and actions in place of the server's. One with
+//! parts this version doesn't know is never rewritten on the server, and stays as it was made. A
+//! rule to go to the server and not there yet is sent whole, after those there; one the server
+//! refuses stays on this computer, and says why. One the server says it doesn't let be changed is
+//! moved all the same: its new place goes first, and if the server won't have it, it and every
+//! place of the account's rules not yet sent go back to where the server has them, and that is
+//! said.
 //!
 //! **A lost answer.** A rule whose creation went out and got no answer (the connection dropped,
 //! or MailCraft was closed) may be on the server already: it is marked
@@ -62,10 +64,10 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.ruleChanges", "Rule Changes to Send", "Send / Receive", rule_changes_command)
             .pure()
-            .params(r#"{"account": number} — what that Microsoft account's server is to be told of rules made, switched on or off, moved or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "rule": number, "id"?: string, "enabled"?: bool, "sequence"?: number, "body"?: RemoteRule, "locked"?: bool (the move of a rule the server says it doesn't let be changed: it comes first, its refusal is the rule's and not the account's, and stops the rest)}]}"#),
+            .params(r#"{"account": number} — what that Microsoft account's server is to be told of rules made, switched on or off, moved, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "rule": number, "id"?: string, "enabled"?: bool, "sequence"?: number, "body"?: RemoteRule (a rule made, or one changed: then with "edit"), "edit"?: number (the count of changes made here that the update carries), "locked"?: bool (the move of a rule the server says it doesn't let be changed: it comes first, its refusal is the rule's and not the account's, and stops the rest)}]}"#),
         CommandSpec::new("sync.applyRuleChanges", "Apply Sent Rule Changes", "Send / Receive", apply_rule_changes_command)
             .pure()
-            .params(r#"{"result": RulesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "rule": number, "id"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "enabled"?: bool, "sequence"?: number, "error"?: string}]} — answers {"done", "failed", "messages": [string]}"#),
+            .params(r#"{"result": RulesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "rule": number, "id"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "enabled"?: bool, "sequence"?: number, "edit"?: number, "error"?: string}]} — answers {"done", "failed", "messages": [string]}"#),
         CommandSpec::new("sync.applyRules", "Apply Downloaded Rules", "Send / Receive", apply_rules_command)
             .pure()
             .params(r#"{"download": RulesDownload} — what a host brought from the account's server: {"account": number, "email"?: string, "complete": bool, "rules": [{"id", "name", "sequence", "enabled", "readOnly", "error", "conditions", "exceptions", "actions", "moveTo", "copyTo", "stop", "unknown": [string]}]} — answers {"added", "updated", "removed", "unchanged", "skipped", "complete"}"#),
@@ -131,18 +133,25 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
     for rule in locked.into_iter().chain(free) {
         let Some(server) = rule.server.as_ref() else { continue };
         let locked = rule.read_only();
-        let op = RuleOp {
+        // What the rule is, changed here (`rules.edit`): sent whole, as it is now, while the
+        // server can do all of it. One whose folder has gone from the server since waits, and
+        // keeps saying so, rather than reach the server without its move.
+        let edit = if server.edited != 0 && !locked && rule.known() && server_cannot(mailbox, rule, account).is_none() { server.edited } else { 0 };
+        let enabled = (rule.enabled != server.synced_enabled && !locked).then_some(rule.enabled);
+        let sequence = (server.sequence != server.synced_sequence).then_some(server.sequence);
+        if edit == 0 && enabled.is_none() && sequence.is_none() {
+            continue;
+        }
+        ops.push(RuleOp {
             kind: RuleOpKind::Update,
             rule: rule.id,
             id: server.id.clone(),
-            enabled: (rule.enabled != server.synced_enabled && !locked).then_some(rule.enabled),
-            sequence: (server.sequence != server.synced_sequence).then_some(server.sequence),
-            body: None,
+            enabled,
+            sequence,
+            body: (edit != 0).then(|| remote_of(mailbox, account, rule, server.sequence)),
+            edit,
             locked,
-        };
-        if op.enabled.is_some() || op.sequence.is_some() {
-            ops.push(op);
-        }
+        });
     }
     // After every rule the server has.
     let last = mine().filter_map(|r| r.server.as_ref()).filter(|s| !s.id.is_empty()).map(|s| s.sequence.max(s.synced_sequence)).max().unwrap_or(0);
@@ -321,6 +330,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             unknown: unknown.clone(),
             read_only: remote.read_only,
             error: remote.error,
+            edited: 0,
         };
         let at = known.get(&remote.id).and_then(|id| mailbox.rules.iter().position(|r| r.id == *id));
         if let Some(i) = at {
@@ -332,17 +342,30 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             let sequence = if had.sequence != had.synced_sequence { had.sequence } else { remote.sequence };
             rule.enabled = enabled;
             rule.server = Some(fresh(sequence));
-            rule.name = if rule.name.eq_ignore_ascii_case(&remote.name) { rule.name } else { remote.name.clone() };
-            if !same_words(&rule.conditions, &remote.conditions) {
-                rule.conditions = remote.conditions.clone();
+            // What the rule is, changed here and not sent yet, stays too, and goes up; a server
+            // that no longer lets it be changed, or that now has parts not known here, has its
+            // own, and the change here is let go of, and said.
+            let edited = had.edited != 0;
+            if edited && (remote.read_only || !unknown.is_empty()) {
+                merged.say(format!("The server no longer lets the rule \"{}\" be changed, so the change made to it here is let go of", rule.name));
             }
-            if !same_words(&rule.exceptions, &remote.exceptions) {
-                rule.exceptions = remote.exceptions.clone();
+            if edited && !remote.read_only && unknown.is_empty() {
+                if let Some(server) = rule.server.as_mut() {
+                    server.edited = had.edited;
+                }
+            } else {
+                rule.name = if rule.name.eq_ignore_ascii_case(&remote.name) { rule.name } else { remote.name.clone() };
+                if !same_words(&rule.conditions, &remote.conditions) {
+                    rule.conditions = remote.conditions.clone();
+                }
+                if !same_words(&rule.exceptions, &remote.exceptions) {
+                    rule.exceptions = remote.exceptions.clone();
+                }
+                if !same_actions(&rule.actions, &actions) {
+                    rule.actions = actions;
+                }
+                rule.stop = remote.stop;
             }
-            if !same_actions(&rule.actions, &actions) {
-                rule.actions = actions;
-            }
-            rule.stop = remote.stop;
             rule.keep = Keep::Server;
             rule.refused.clear();
             if rule == *old {
@@ -497,6 +520,11 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     if let Some(sequence) = outcome.sequence {
                         server.synced_sequence = sequence;
                     }
+                    // The server has the rule as it was sent; one changed again meanwhile goes
+                    // again.
+                    if outcome.edit != 0 && outcome.edit == server.edited {
+                        server.edited = 0;
+                    }
                     merged.updated += 1;
                 }
             }
@@ -527,6 +555,12 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 {
                     rule.enabled = server.synced_enabled;
                     server.sequence = server.synced_sequence;
+                    // What the rule is, too, which the next read of the server's rules brings
+                    // back (they are read after the changes are sent); one changed again
+                    // meanwhile goes again, as it is now.
+                    if outcome.edit != 0 && outcome.edit == server.edited {
+                        server.edited = 0;
+                    }
                 }
                 merged.say(format!("The server didn't take the change to the rule \"{name}\"{why}"));
                 failed += 1;

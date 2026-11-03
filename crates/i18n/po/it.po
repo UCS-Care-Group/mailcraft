@@ -1710,6 +1710,12 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Back to the rules: the change isn't saved"
+msgstr "Torna alle regole: la modifica non viene salvata"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Back to the rules: this rule isn't made"
 msgstr "Torna alle regole: questa regola non viene creata"
 
@@ -2056,6 +2062,12 @@ msgstr ""
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "Modifica elemento ricorrente"
+
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "Cambia regola"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3535,6 +3547,12 @@ msgstr "Modifica evento"
 msgid "Edit Message"
 msgstr "Modifica messaggio"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit Rule"
+msgstr "Modifica regola"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -3551,6 +3569,12 @@ msgstr ""
 #, fuzzy
 msgid "Edit Task"
 msgstr "Modifica attività"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit rule"
+msgstr "Modifica regola"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -5177,6 +5201,12 @@ msgstr "Viene rimosso anche dal server di posta, e l'operazione non può essere 
 #: crates/ui-egui/src/data_removal.rs
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It looks for several categories at once, or for words with a semicolon in them, which the rule page can't show"
+msgstr "Cerca più categorie insieme, o parole che contengono un punto e virgola, cosa che la pagina della regola non può mostrare"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11872,6 +11902,12 @@ msgid "The server doesn't let this rule be changed"
 msgstr "Il server non consente di modificare questa regola"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The server is still making this rule: change it once it has"
+msgstr "Il server sta ancora creando questa regola: modificala quando avrà finito"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr ""
@@ -12811,6 +12847,12 @@ msgstr ""
 #, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Questa regola non può essere conservata sul server: {why}. Viene eseguita su questo computer, mentre MailCraft è aperto."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule is kept on the server, which can't keep it like this: {why}. Leave that part out to save the change."
+msgstr "Questa regola è sul server, che non può conservarla così: {why}. Togli quella parte per salvare la modifica."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15650,6 +15692,12 @@ msgstr "il server non l'ha accettata ({why})"
 msgid "the server doesn't let this rule be changed"
 msgstr "il server non consente di modificare questa regola"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server is still making this rule: change it once the server has answered"
+msgstr "il server sta ancora creando questa regola: modificala quando il server avrà risposto"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -15893,6 +15941,12 @@ msgstr "questo messaggio non ha un oggetto da cercare"
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this rule has parts MailCraft can't show: change it in the program it was made in, or on the web"
+msgstr "questa regola ha parti che MailCraft non può mostrare: modificala nel programma in cui è stata creata, o sul web"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

@@ -22,6 +22,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
             r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
+        CommandSpec::new("rules.edit", "Change Rule", "Home › Move", edit).params(
+            r#"{"id": number, "name": string, "conditions": [condition], "exceptions"?: [condition], "actions": [action], "stop"?: bool, "alert"?: bool} — as `rules.add` takes them: what the rule is becomes that; it stays for its account, where it is kept, switched on or off and in its place. One its server keeps is changed there too at the next look, and can have only what the server can do; refused for one the server doesn't let be changed, one with parts MailCraft can't show (made in another program or on the web) and one the server is still making. Answers {"id", "keep": "server"|"here"}"#,
+        ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
         CommandSpec::new("rules.list", "Manage Rules", "Home › Move", list).pure().params(
@@ -383,6 +386,15 @@ fn condition_list(v: &Value, key: &str, required: bool) -> Result<Vec<Condition>
 
 /// The rule `v` asks for, with no id yet (shared by the command and the agent's question).
 pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError> {
+    let mut rule = rule_parts(s, v)?;
+    rule.account = rule_account(s, v)?;
+    place(s, &mut rule, v)?;
+    Ok(rule)
+}
+
+/// What the rule `v` asks for is: its name, conditions, exceptions, actions, "stop" and alert
+/// (`rules.add` and `rules.edit`), for no account yet.
+fn rule_parts(s: &Session, v: &Value) -> Result<Rule, CmdError> {
     let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
     let conditions = condition_list(v, "conditions", true)?;
     // Kept as the server keeps them, so that a rule sent there is known again when it is read
@@ -397,11 +409,8 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     if conditions.is_empty() || (actions.is_empty() && !alert) {
         return Err(bad("a rule needs at least one condition and one action"));
     }
-    let account = rule_account(s, v)?;
     let stop = p::opt_bool(v, "stop")?.unwrap_or(false);
-    let mut rule = Rule { id: 0, name, enabled: true, conditions, exceptions, actions, stop, alert, account, ..Default::default() };
-    place(s, &mut rule, v)?;
-    Ok(rule)
+    Ok(Rule { id: 0, name, enabled: true, conditions, exceptions, actions, stop, alert, ..Default::default() })
 }
 
 /// Where a new rule is kept, by `v`'s `server`: on a server that can do all of it, as Outlook
@@ -445,6 +454,59 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     rule.id = id;
     let keep = if rule.keep == Keep::Server { "server" } else { "here" };
     s.mailbox.rules.push(rule);
+    Ok(json!({"id": id, "keep": keep}))
+}
+
+/// Change what rule `id` is (Outlook's Change Rule): its name, conditions, exceptions, actions,
+/// "stop" and alert become those `v` gives, as `rules.add` takes them. It stays for the account
+/// it is for, where it is kept, switched on or off as it was, in its place. One its server keeps
+/// is changed there too at the next look; such a rule can have only what the server can do.
+/// Refused for one the server doesn't let be changed, one with parts MailCraft doesn't know
+/// (which is never rewritten), and one the server is still making, whose answer hasn't come.
+pub(crate) fn edited_rule(s: &Session, v: &Value) -> Result<(usize, Rule), CmdError> {
+    let id = p::req_id(v, "id")?;
+    let i = changeable(s, id)?;
+    let old = s.mailbox.rules.get(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+    if !old.known() {
+        return Err(fail("this rule has parts MailCraft can't show: change it in the program it was made in, or on the web"));
+    }
+    if old.unanswered {
+        return Err(fail("the server is still making this rule: change it once the server has answered"));
+    }
+    let parts = rule_parts(s, v)?;
+    let mut rule = Rule {
+        name: parts.name,
+        conditions: parts.conditions,
+        exceptions: parts.exceptions,
+        actions: parts.actions,
+        stop: parts.stop,
+        alert: parts.alert,
+        refused: String::new(),
+        ..old.clone()
+    };
+    // Kept on a server that keeps rules: there it is to be whole, or not changed.
+    if rule.keep == Keep::Server && rule.account != 0 && s.mailbox.keeps_rules(rule.account) {
+        if let Some(why) = server_cannot(&s.mailbox, &rule, rule.account) {
+            return Err(CmdError::Failed(why.said().to_string()));
+        }
+        let same = rule.name == old.name
+            && rule.conditions == old.conditions
+            && rule.exceptions == old.exceptions
+            && rule.actions == old.actions
+            && rule.stop == old.stop;
+        if let Some(server) = rule.server.as_mut().filter(|server| !server.id.is_empty() && !same) {
+            server.edited = server.edited.checked_add(1).unwrap_or(1);
+        }
+    }
+    Ok((i, rule))
+}
+
+fn edit(s: &mut Session, v: &Value) -> CmdResult {
+    let (i, rule) = edited_rule(s, v)?;
+    let id = rule.id;
+    let keep = if rule.keep == Keep::Server { "server" } else { "here" };
+    let slot = s.mailbox.rules.get_mut(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+    *slot = rule;
     Ok(json!({"id": id, "keep": keep}))
 }
 

@@ -1,0 +1,1 @@
+- **Rules can be changed once they are made.** Edit Rule, in a rule's menu in the Rules window, opens the rule on its page with Save and Cancel. A rule kept on a Microsoft account's server is changed there at the next Send/Receive; a rule made in Outlook with parts MailCraft can't show is still changed in Outlook ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

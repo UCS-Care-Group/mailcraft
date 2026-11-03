@@ -2070,7 +2070,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // (Escape doesn't answer it: closed with its close button, it is asked again next time.)
             close = crate::graph_switch::show(app, ctx, account);
         }
-        // Rules: moved and sized by the owner, and kept at that size. Escape on the New rule page
+        // Rules: moved and sized by the owner, and kept at that size. Escape on the rule page
         // goes back to the lists, as Cancel does (as Escape in Outlook's Rules Wizard goes back
         // to Rules and Alerts); on the lists it closes the dialog.
         Dialog::Form(form) if matches!(form, Form::Rules(_)) => {

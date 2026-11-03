@@ -82,6 +82,7 @@ Home|Move|Copy to Folder|mail.copy
 Home|Move|Create Rule|rules.add
 Home|Move|Always Move Messages From|rules.fromMessage
 Home|Move|Manage Rules|rules.list
+Home|Move|Change Rule|rules.edit
 Home|Move|Delete Rule|rules.remove
 Home|Move|Enable Rule|rules.enable
 Home|Tags|Unread/ Read|mail.toggleRead

@@ -110,8 +110,84 @@ fn new_rule_takes_the_lists_place_and_cancel_makes_nothing() {
     assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("rules"));
 }
 
+/// The Rules form the dialog shows.
+fn form<'h>(h: &'h mut Harness<'_, MailApp>) -> &'h mut RulesForm {
+    match h.state_mut().dialog.as_mut() {
+        Some(crate::dialogs::Dialog::Form(crate::forms::Form::Rules(f))) => f,
+        _ => panic!("the Rules dialog isn't open"),
+    }
+}
+
 #[test]
-fn a_rule_the_server_locks_moves_with_its_arrows_as_any_rule_does() {
+fn every_part_a_rule_can_have_comes_back_unchanged_from_the_rule_page() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let account = s.mailbox.accounts[0].id;
+    let inbox = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let rule = json!({"name": "Everything", "account": account,
+        "conditions": [{"type": "from", "value": ["a@example.org", "b@example.org"]}, {"type": "fromContains", "value": "shop"},
+            {"type": "sentTo", "value": "c@example.org"}, {"type": "toContains", "value": ["team", "all"]}, {"type": "subjectContains", "value": "x"},
+            {"type": "bodyContains", "value": "y"}, {"type": "subjectOrBodyContains", "value": "z"}, {"type": "headerContains", "value": "List-Id"},
+            {"type": "sentOnlyToMe"}, {"type": "toMe"}, {"type": "ccMe"}, {"type": "toOrCcMe"}, {"type": "notToMe"}, {"type": "hasAttachment"},
+            {"type": "meetingRequest"}, {"type": "automaticReply"}, {"type": "flagged"}, {"type": "importance", "value": "low"}],
+        "exceptions": [{"type": "sensitivity", "value": "private"}, {"type": "sizeBetween", "value": {"min": 10, "max": 900}},
+            {"type": "category", "value": "Blue category"}, {"type": "receivedBetween", "value": {"from": "2026-01-02"}}],
+        "actions": [{"type": "moveTo", "value": inbox}, {"type": "copyTo", "value": inbox}, {"type": "categorize", "value": "Blue category"},
+            {"type": "clearCategories"}, {"type": "flagFor", "value": "tomorrow"}, {"type": "clearFlag"}, {"type": "markRead"},
+            {"type": "setImportance", "value": "high"}, {"type": "delete"}, {"type": "deleteForGood"}],
+        "stop": true, "alert": true});
+    let id = s.run("rules.add", &rule).unwrap()["id"].as_u64().unwrap();
+    let before = s.mailbox.rules[0].clone();
+    let mut f = RulesForm::new(&s, &json!({}));
+    assert!(f.change(&s.mailbox, &before));
+    assert_eq!((f.name.as_str(), f.editing), ("Everything", Some(id)));
+    assert_eq!(f.lacks(), None);
+    let (command, params) = f.command();
+    assert_eq!(command, "rules.edit");
+    s.run(command, &params).unwrap();
+    assert_eq!(s.mailbox.rules[0], before);
+    // A rule that looks for two categories at once can't be shown on the page, and isn't.
+    s.mailbox.rules[0].conditions.push(mailcraft_model::Condition::Category(vec!["A".into(), "B".into()]));
+    let two = s.mailbox.rules[0].clone();
+    assert!(not_changeable(&two).is_some());
+    assert!(!f.change(&s.mailbox, &two));
+}
+
+#[test]
+fn edit_rule_opens_the_rule_page_filled_in_and_save_changes_it_in_place() {
+    let mut h = window(&["Alpha", "Beta"]);
+    h.get_all_by_label("More for this rule").next().unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Edit Rule").click();
+    h.run_steps(3);
+    for said in ["Edit rule", "Save", "Cancel", "Conditions", "Actions"] {
+        assert!(h.query_by_label(said).is_some(), "{said}");
+    }
+    assert!(h.query_by_label("Add Rule").is_none() && h.query_by_label("New Rule").is_none());
+    assert_eq!(form(&mut h).name, "Alpha");
+    // Cancel leaves it as it was.
+    h.get_by_label("Cancel").click();
+    h.run_steps(3);
+    assert_eq!(names(&h), ["Alpha", "Beta"]);
+    // Changed and saved: the same rule, in the same place, switched on as it was.
+    h.get_all_by_label("More for this rule").next().unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Edit Rule").click();
+    h.run_steps(3);
+    let id = h.state().session.mailbox.rules[0].id;
+    form(&mut h).name = "Alpha, read".into();
+    form(&mut h).conds[0].text = "x; y".into();
+    h.run_steps(2);
+    h.get_by_label("Save").click();
+    h.run_steps(3);
+    assert_eq!(names(&h), ["Alpha, read", "Beta"]);
+    let r = &h.state().session.mailbox.rules[0];
+    assert_eq!((r.id, r.enabled), (id, true));
+    assert_eq!(r.conditions, [mailcraft_model::Condition::SubjectContains(vec!["x".into(), "y".into()])]);
+    assert!(h.query_by_label("Save").is_none() && h.query_by_label("Alpha, read").is_some(), "back on the lists");
+}
+
+#[test]
+fn a_rule_the_server_locks_moves_with_its_arrows_and_cant_be_changed() {
     let mut s = Session::at(Mailbox::default(), NOW, 0);
     let account = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let rule = |id: &str, name: &str, sequence: i32, locked: bool| {
@@ -155,6 +231,12 @@ fn a_rule_the_server_locks_moves_with_its_arrows_as_any_rule_does() {
     h.get_all_by_label(up).nth(2).unwrap().click();
     h.run_steps(3);
     assert_eq!(order(&h), ["Gamma", "Locked", "Alpha", "Delta"]);
+    // The locked rule's Edit Rule is greyed.
+    h.get_all_by_label("More for this rule").nth(1).unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Edit Rule").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Save").is_none());
 }
 
 /// Escape on the New rule page goes back to the lists, as Cancel does; on the lists it closes the

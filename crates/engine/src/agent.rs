@@ -480,6 +480,7 @@ const SETTINGS: &[&str] = &[
     "sync.offline",
     "calendar.deleteAnsweredRequests",
     "rules.add",
+    "rules.edit",
     "rules.remove",
     "rules.enable",
     "rules.list",
@@ -927,6 +928,12 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
             }
             _ => return false,
         },
+        // What the rule becomes, switched on or off as it is; what it was doesn't count, as one
+        // switched off doesn't: a change that stops it deleting for good is no delete.
+        "rules.edit" => match crate::cmd::rules::edited_rule(s, params) {
+            Ok((_, r)) => (r.account, r.id, r.enabled && for_good(&r), false),
+            Err(_) => return false,
+        },
         "rules.keepOnServer" | "rules.move" | "rules.remove" => match named() {
             Some(r) => (r.account, r.id, false, id != "rules.remove"),
             None => return false,
@@ -1004,6 +1011,8 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),
         "rules.keepOnServer" => named().is_some_and(|r| !there(r) && deletes(r)),
+        // Changed to delete mail there, switched on: the server is told, and runs it.
+        "rules.edit" => crate::cmd::rules::edited_rule(s, params).is_ok_and(|(_, r)| r.enabled && there(&r) && deletes(&r)),
         // Moving a server rule that deletes mail changes where it runs among the others there.
         "rules.move" => named().is_some_and(|r| there(r) && deletes(r)),
         // Read as the command reads it, as `rules_onto_another_server` does.
@@ -1036,6 +1045,7 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, one_account(&r)).is_some()),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
+        "rules.edit" => crate::cmd::rules::edited_rule(s, params).is_ok_and(|(_, r)| r.enabled && rule_onto_server(s, &r, one_account(&r)).is_some()),
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             p::id(params, "id")
@@ -1490,6 +1500,26 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let beside = crate::cmd::rules::rule_from_params(s, params).map(|r| beside_for_good_said(&s.mailbox, r.account, 0, true));
             format!("{}{}", rule_text(s, params), beside.unwrap_or_default())
         }
+        "rules.edit" => match crate::cmd::rules::edited_rule(s, params) {
+            Ok((i, r)) => {
+                // Named as it is now; what it becomes, name and all, after.
+                let was = quoted(s.mailbox.rules.get(i).map_or(&r.name, |old| &old.name));
+                let kept = s.mailbox.account(r.account).filter(|_| r.keep == mailcraft_model::Keep::Server);
+                // And the rules here that delete for good which the change reaches, when it is
+                // asked as a delete for them (as `rules_delete_for_good` reads them).
+                let beside = beside_for_good_said(&s.mailbox, r.account, r.id, false);
+                match kept {
+                    Some(a) => format!(
+                        "change the rule {was}, kept on the server of {} where it runs whether MailCraft is open or not, into the rule {}: {}{beside}",
+                        quoted(&plain(&a.email)),
+                        quoted(&r.name),
+                        rule_words(s, &r)
+                    ),
+                    None => format!("change the rule {was} into the rule {}: {}{beside}", quoted(&r.name), rule_words(s, &r)),
+                }
+            }
+            Err(_) => "change a rule that can't be changed as asked".to_string(),
+        },
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
             Ok((r, _)) => {
                 let beside = beside_for_good_said(&s.mailbox, r.account, 0, true);

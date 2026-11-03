@@ -81,6 +81,7 @@ fn all_taken(s: &mut Session, account: Id) -> Value {
             result: RuleResult::Done,
             enabled: op.enabled.or(op.body.as_ref().map(|b| b.enabled)),
             sequence: op.sequence.or(op.body.as_ref().map(|b| b.sequence)),
+            edit: op.edit,
             status: 200,
             error: String::new(),
         })

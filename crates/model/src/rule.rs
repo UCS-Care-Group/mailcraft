@@ -475,6 +475,15 @@ pub struct ServerRule {
     /// The server says it is in error (Graph's `hasError`).
     #[serde(skip_serializing_if = "is_false")]
     pub error: bool,
+    /// Its name, conditions, exceptions, actions or "stop" were changed here and the server
+    /// hasn't been told yet: the count of such changes, 0 when there is none. A change sent says
+    /// which count it carried, and one made again while it was on its way is sent again.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub edited: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// A rule deleted here that its server is yet to be told about (#566).
@@ -638,8 +647,10 @@ impl Rule {
         self.server.as_ref().is_some_and(|s| s.read_only)
     }
 
-    /// Whether it was switched on or off, or moved, here since the server last had it.
+    /// Whether it was switched on or off, moved or changed here since the server last had it.
     pub fn changed_here(&self) -> bool {
-        self.server.as_ref().is_some_and(|s| !s.id.is_empty() && (self.enabled != s.synced_enabled || s.sequence != s.synced_sequence))
+        self.server
+            .as_ref()
+            .is_some_and(|s| !s.id.is_empty() && (self.enabled != s.synced_enabled || s.sequence != s.synced_sequence || s.edited != 0))
     }
 }
