@@ -479,11 +479,14 @@ fn a_task_kept_here_stays_here_in_a_build_from_before() {
     without(&mut file, "taskPlace");
     let mut back: mailcraft_model::Mailbox = serde_json::from_value(file).unwrap();
     back.repair();
-    let kept = back.tasks.values().find(|t| t.title == "Kept").unwrap();
-    assert_eq!(kept.origin.account, 0);
-    let ops = task_upload(&back, work).unwrap().ops;
-    assert!(!ops.iter().any(|op| op.patch.title.as_deref() == Some("Kept")), "{ops:?}");
-    assert_eq!(local_task_count(&back), 0, "nor is it offered");
+    let mut s = Session::at(back, NOW, 0);
+    // Nor once it is changed here again.
+    run(&mut s, "tasks.edit", json!({"id": id, "notes": "Changed after"}));
+    run(&mut s, "tasks.complete", json!({"id": id, "value": false}));
+    let kept = titled(&s, "Kept");
+    assert!(kept.origin.account == 0 && kept.kept_here);
+    assert!(!going_to(&s, work).contains(&"Kept".to_string()));
+    assert_eq!(local_task_count(&s.mailbox), 0, "nor is it offered");
 }
 
 #[test]

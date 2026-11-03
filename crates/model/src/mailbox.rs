@@ -3141,6 +3141,12 @@ impl Mailbox {
         self.account_categories.retain(|account, _| own.contains(account));
         self.server_categories.retain(|account, _| own.contains(account));
         self.tidy_listed_twice();
+        // A to-do of this computer's that the server refused is one kept here (#632): it can't go
+        // to To Do but through the question, which leaves it out. A build from before #632 that
+        // saved the file kept that mark of a kept one and dropped `kept_here`.
+        for task in self.tasks.values_mut().filter(|t| t.origin.is_local() && t.origin.id.is_empty() && t.local_only && !t.kept_here) {
+            Arc::make_mut(task).kept_here = true;
+        }
         if self.migrate_waiting_tasks() {
             fixed.push("to-dos waiting for an earlier answer given to its account".to_string());
         }

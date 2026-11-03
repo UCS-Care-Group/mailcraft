@@ -32,7 +32,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_task),
         CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(
-            r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all", "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#,
+            r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all", "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here"; an account without To Do is refused)"#,
         ),
         CommandSpec::new("tasks.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)

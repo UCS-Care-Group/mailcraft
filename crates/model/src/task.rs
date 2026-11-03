@@ -44,7 +44,8 @@ pub struct Task {
     /// is what is left to tell it ([`Task::patch`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced: Option<TaskFields>,
-    /// The server refused to make this to-do: it stays on this computer.
+    /// The server refused to make this to-do, or the owner keeps it on this computer
+    /// (`kept_here`): it stays here, neither sent nor offered.
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
     /// The owner chose to keep this to-do on this computer: the question about the to-dos that
