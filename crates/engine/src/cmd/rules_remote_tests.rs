@@ -1468,6 +1468,7 @@ fn an_agent_needs_both_grants_for_a_rule_that_copies_onto_another_server_and_del
     // Rules that move mail there are said apart from those that copy it, each account once.
     let archive = s.mailbox.folder_of_kind(other, FolderKind::Archive).unwrap();
     add(&mut s, account, "Moves", json!([{"type": "toMe"}]), json!([{"type": "moveTo", "value": archive}]));
+    add(&mut s, account, "Moves too", json!([{"type": "toMe"}]), json!([{"type": "moveTo", "value": archive}]));
     add(&mut s, account, "Copies too", json!([{"type": "toMe"}]), json!([{"type": "copyTo", "value": archive}]));
     let asked = crate::agent::describe(&s, "rules.run", &running);
     assert!(

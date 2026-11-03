@@ -1,0 +1,1 @@
+- Before an agent runs your rules, its question names each account they would move mail onto once, not once for every rule that moves mail there ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
