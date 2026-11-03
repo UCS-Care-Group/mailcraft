@@ -139,20 +139,28 @@ fn a_large_conversation_goes_in_proportion_to_its_size() {
     assert!(threads.work <= n, "{} ids looked at to take out {n}", threads.work);
     assert!(threads.conversation(&Mailbox::default(), 1).is_empty());
 
-    // Every message gone from chunks that stay, four chunks a step.
+    // All but the first message of every chunk gone, so that each chunk stays and has changed
+    // (a chunk left empty is gone, which isn't counted against the most), four chunks a step.
     threads.update(&mb);
-    let keep = mb.add_message(mail(inbox, "Something else", 0)).unwrap();
-    let all: Vec<Id> = mb.messages.keys().copied().filter(|id| *id != keep).collect();
+    let chunk = crate::messages::CHUNK;
+    let mut kept: Vec<Id> = Vec::new();
+    let all: Vec<Id> = mb.messages.keys().copied().collect();
     for id in all {
-        mb.remove_message(id).unwrap();
+        if kept.last().is_some_and(|k| k / chunk == id / chunk) {
+            mb.remove_message(id).unwrap();
+        } else {
+            kept.push(id);
+        }
     }
+    let chunks = kept.len();
+    assert!(chunks >= 9, "{chunks} chunks changed, more than two steps of four");
     threads.work = 0;
     let mut steps = 0usize;
     while !threads.update_some(&mb, 4) {
         steps += 1;
         assert!(steps < n, "it gets there");
     }
-    let chunks = n.div_ceil(crate::messages::CHUNK as usize);
+    assert!(steps > 1, "a few chunks a step, {steps} steps");
     assert!(threads.work <= n * chunks.div_ceil(4), "{} ids looked at over {steps} steps", threads.work);
-    assert_eq!(threads.conversation(&mb, keep), vec![keep]);
+    assert_eq!(threads.conversation(&mb, kept[0]), kept);
 }
