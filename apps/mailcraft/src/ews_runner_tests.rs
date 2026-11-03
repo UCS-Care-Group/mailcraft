@@ -5,6 +5,7 @@
 
 use std::sync::atomic::AtomicBool;
 
+use mailcraft_model::sync::{DraftDone, EwsFolderDeltas, EwsMessagePage, SendDone};
 use mailcraft_net::{CertificateFault, CertificateInfo};
 
 use super::*;
@@ -98,4 +99,24 @@ fn a_wait_hears_cancel() {
     assert!(!wait(&cancel, 60_000));
     assert!(started.elapsed() < Duration::from_secs(5));
     assert!(wait(&AtomicBool::new(false), 120));
+}
+
+/// Each piece's time goes to what it brings, as Send/Receive Progress names the step (#748).
+#[test]
+fn a_pieces_time_goes_to_what_it_brings_and_its_requests_are_those_since_the_piece_before() {
+    let page = EwsMailResult { pages: vec![EwsMessagePage::default()], ..Default::default() };
+    let folders = EwsMailResult { folders: Some(EwsFolderDeltas::default()), ..Default::default() };
+    let sent = EwsMailResult { sent: vec![SendDone::default()], ..Default::default() };
+    let told = EwsMailResult { drafts: vec![DraftDone::default()], ..Default::default() };
+    let last = EwsMailResult::default();
+    for (piece, phase) in [(&page, SyncPhase::NewMail), (&folders, SyncPhase::Folders), (&sent, SyncPhase::Sending), (&told, SyncPhase::Folders)] {
+        assert_eq!(phase_of(false, piece, SyncPhase::Sending), phase, "{piece:?}");
+        assert_eq!(phase_of(true, piece, SyncPhase::Sending), SyncPhase::Inbox, "the Inbox pass is the Inbox's");
+    }
+    assert_eq!(phase_of(false, &last, SyncPhase::NewMail), SyncPhase::NewMail, "the last piece ends the phase before it");
+    let mut lap = Lap::start(2);
+    let first = lap.take(SyncPhase::Folders, 5);
+    assert_eq!((first.phases.len(), first.phases[0].phase, first.requests()), (1, SyncPhase::Folders, 3));
+    let second = lap.take(SyncPhase::NewMail, 9);
+    assert_eq!((second.phases[0].phase, second.requests(), lap.phase), (SyncPhase::NewMail, 4, SyncPhase::NewMail));
 }
