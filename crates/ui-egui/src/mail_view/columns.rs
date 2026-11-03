@@ -257,7 +257,7 @@ pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread:
             // Each category's colour, then the names.
             Column::Categories => {
                 for c in m.categories.iter().take(4) {
-                    let color = crate::theme::c32(app.session.mailbox.category_color(c));
+                    let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
                     p.rect_filled(Rect::from_center_size(pos2(left + 5.0, cell.center().y), vec2(10.0, 10.0)), 2.0, color);
                     left += 13.0;
                 }
