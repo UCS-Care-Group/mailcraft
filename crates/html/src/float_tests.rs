@@ -136,25 +136,31 @@ fn floated_tables_are_capped_as_boxes_are() {
 }
 
 #[test]
-fn floated_tables_in_a_wrapper_in_an_aligned_cell_keep_their_sides() {
-    // The wrapper is unwrapped, and the floats in it still stand at their own sides, the label
-    // first. (They stand at the sides of the cell: a browser makes the wrapper as narrow as they
-    // are and puts it, with them together, where the cell's `align` says.)
-    for align in ["right", "center"] {
+fn floated_tables_in_a_wrapper_in_an_aligned_cell_stand_together_where_it_puts_them() {
+    // The wrapper stays a table and stands where the cell's `align` says, as wide as the floats
+    // together (a browser's), and the floats in it stand at its sides, the label first.
+    for (attr, align) in [("right", Align::Right), ("center", Align::Center)] {
         let html = format!(
-            "<table width='600'><tr><td align='{align}'><table><tr><td>\
+            "<table width='600'><tr><td align='{attr}'><table><tr><td>\
                <table align='left'><tr><td>Label</td></tr></table><table align='right'><tr><td>Value</td></tr></table>\
              </td></tr></table></td></tr></table>"
         );
         let blocks = parse(&html);
-        // (The 600-pixel table stays; the pair is in its cell.)
-        let inner = match blocks.first().map(|b| &b.kind) {
+        // The 600-pixel table's cell holds the wrapper, and the wrapper the pair.
+        let cell_blocks = |b: Option<&Block>| match b.map(|b| &b.kind) {
             Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).flat_map(|c| c.blocks.clone()).collect::<Vec<_>>(),
             _ => Vec::new(),
         };
+        let held = cell_blocks(blocks.first());
+        let wrapper = held.first();
+        assert!(
+            matches!(wrapper.map(|b| (&b.kind, b.align)), Some((BlockKind::Table(t), a)) if !t.inline && t.width.is_none() && a == align),
+            "{attr}: {blocks:?}"
+        );
+        let inner = cell_blocks(wrapper);
         let found = boxes(&inner);
-        assert_eq!(found.len(), 2, "{align}: {blocks:?}");
-        assert_eq!((found[0].0.align, found[1].0.align), (Align::Left, Align::Right), "{align}: {blocks:?}");
+        assert_eq!(found.len(), 2, "{attr}: {blocks:?}");
+        assert_eq!((found[0].0.align, found[1].0.align), (Align::Left, Align::Right), "{attr}: {blocks:?}");
         assert_eq!((text_of(found[0].1), text_of(found[1].1)), ("Label".to_string(), "Value".to_string()));
     }
 }

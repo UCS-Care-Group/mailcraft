@@ -1570,7 +1570,19 @@ impl Builder {
             && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
-        if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
+        // A table its text stands apart from ([`TableBuild::outer_align`]) stays one when it is
+        // narrower than the line or holds tables floated to a side: it is stood where that
+        // alignment says, a share of the line wide or as wide as the floats together, with its
+        // text at the left, as in a browser.
+        let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
+        let stands = table.outer_align.is_some()
+            && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
+                || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
+        if layout
+            && plain
+            && !slices
+            && !stands
+            && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
         {
             let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
@@ -1581,9 +1593,7 @@ impl Builder {
                         first.space = first.space.max(1);
                     }
                     if let Some(align) = outer {
-                        // (A floated table's alignment is its side, not where it stands.)
-                        let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
-                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left && !floated(b)).for_each(|b| b.align = align);
+                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left).for_each(|b| b.align = align);
                     }
                     self.splice(cell.blocks, cell.padding);
                 }

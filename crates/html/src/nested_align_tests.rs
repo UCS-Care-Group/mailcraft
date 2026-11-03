@@ -167,6 +167,27 @@ fn words_in_a_table_outside_its_cells_are_aligned_as_round_the_table() {
 }
 
 #[test]
+fn a_column_narrower_than_the_line_stands_where_the_centring_puts_it() {
+    // A wrapper a share of the line wide in a centred cell stays a table, centred, with its text
+    // at the left; one the whole line wide is unwrapped, as before.
+    for (attr, align) in [("center", Align::Center), ("right", Align::Right)] {
+        let blocks =
+            parse(&format!("<table width='600'><tr><td align='{attr}'><table width='80%'><tr><td>Hello there</td></tr></table></td></tr></table>"));
+        let held: Vec<&Block> = match blocks.first().map(|b| &b.kind) {
+            Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).collect(),
+            _ => Vec::new(),
+        };
+        assert!(
+            matches!(held.first().map(|b| (&b.kind, b.align)), Some((BlockKind::Table(t), a)) if t.width == Some(crate::Length::Percent(80)) && a == align),
+            "{attr}: {blocks:?}"
+        );
+        assert_eq!(align_of(&blocks, "Hello there"), Some(Align::Left), "{attr}: {blocks:?}");
+    }
+    let blocks = parse("<table width='600'><tr><td align='center'><table width='100%'><tr><td>Hello there</td></tr></table></td></tr></table>");
+    assert_eq!(align_of(&blocks, "Hello there"), Some(Align::Left), "{blocks:?}");
+}
+
+#[test]
 fn a_heading_cell_in_a_table_that_starts_again_at_the_left_is_centred() {
     // A browser centres a `<th>` unless what is round it aligns it.
     let html = "<table width='100%'><tr><td align='center'>\

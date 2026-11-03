@@ -4417,6 +4417,40 @@ fn tables_floated_side_by_side_never_overlap_when_their_words_need_more_than_the
     });
 }
 
+#[test]
+fn a_column_or_a_pair_in_a_centred_or_right_aligned_cell_stands_where_it_puts_them() {
+    in_frame(false, |ctx| {
+        for (attr, start) in [("center", 60.0), ("right", 120.0)] {
+            // A column four fifths of the 600-pixel cell: in the middle, or at the right, its text
+            // at its left.
+            let html = format!(
+                "<table width='600' cellpadding=0 cellspacing=0><tr><td align='{attr}'><table width='80%' cellpadding=0 cellspacing=0><tr><td>Hello there</td></tr></table></td></tr></table>"
+            );
+            let m = html_message(56, ("Shop", "news@shop.example"), "Column", &html);
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "column");
+            let hello = find_exact(&laid, "Hello there");
+            assert!((hello.rect.min.x - start).abs() < 2.0, "{attr}: {:?}", hello.rect);
+            // A label and its value floated in a wrapper of no width: together, where the cell's
+            // align says.
+            let html = format!(
+                "<table width='600' cellpadding=0 cellspacing=0><tr><td align='{attr}'><table cellpadding=0 cellspacing=0><tr><td>\
+                   <table align='left' cellpadding=0 cellspacing=0><tr><td>Label</td></tr></table>\
+                   <table align='right' cellpadding=0 cellspacing=0><tr><td>Value</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let m = html_message(57, ("Shop", "news@shop.example"), "Pair", &html);
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "pair");
+            let (label, value) = (find_exact(&laid, "Label"), find_exact(&laid, "Value"));
+            assert!((label.rect.min.y - value.rect.min.y).abs() < 1.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+            assert!(label.rect.max.x <= value.rect.min.x && value.rect.min.x - label.rect.max.x < 12.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+            let at = if attr == "right" { value.rect.max.x - 600.0 } else { (label.rect.min.x + value.rect.max.x) / 2.0 - 300.0 };
+            assert!(at.abs() < 2.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+        }
+    });
+}
+
 // ---- #596: where a cell sits in its row, and the gaps between cells ----
 
 #[test]
