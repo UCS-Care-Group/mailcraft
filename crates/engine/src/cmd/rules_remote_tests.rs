@@ -627,21 +627,30 @@ fn numbering_rules_afresh_goes_round_one_the_server_wont_let_be_moved() {
     assert_eq!(places, [("M2", 1), ("M1", 2), ("Locked", 5), ("M3", 6)]);
     assert!(s.mailbox.rules.iter().find(|r| r.name == "Locked").is_some_and(|r| !r.changed_here()));
     assert!(rule_upload(&s.mailbox, account).unwrap().ops.iter().all(|op| op.id != "ro"));
-    // Its place isn't given to another, even where it leaves too little room before it.
+    // Its place isn't given to another. Where it leaves too little room before it for the order
+    // asked (two rules with one number, and no number free between them and it), the server would
+    // put one of them after it: the move is refused, says why, and changes nothing (#765).
     for (a, locked, b) in [(1, 2, 1), (1, 1, 1)] {
         let (mut s, account, _, _) = session();
         let rules = vec![remote("a", "A", a), remote("b", "B", b), RemoteRule { read_only: true, ..remote("ro", "Locked", locked) }];
         merge_rules(&mut s.mailbox, &download(account, rules)).unwrap();
-        // And a second move, before anything has put them in the order of their numbers.
-        for name in ["B", "A"] {
-            let id = s.mailbox.rules.iter().find(|r| r.name == name).unwrap().id;
-            run(&mut s, "rules.move", json!({"id": id, "direction": "up"}));
-            let mut places: Vec<i32> = s.mailbox.rules.iter().filter_map(|r| r.server.as_ref()).map(|s| s.sequence).collect();
-            places.sort_unstable();
-            assert!(places.windows(2).all(|w| w[0] < w[1]), "{places:?}");
-            assert_eq!(s.mailbox.rules.iter().find(|r| r.name == "Locked").unwrap().server.as_ref().unwrap().sequence, locked);
-        }
+        let rules_before = s.mailbox.rules.clone();
+        let id = s.mailbox.rules.iter().find(|r| r.name == "B").unwrap().id;
+        let why = s.run("rules.move", &json!({"id": id, "direction": "up"})).unwrap_err().to_string();
+        assert!(why.contains("can't keep the rules in that order"), "{why}");
+        assert_eq!(s.mailbox.rules, rules_before, "{a} {locked} {b}");
+        assert!(rule_upload(&s.mailbox, account).ok().is_none_or(|u| u.ops.is_empty()));
     }
+    // Room enough, and it goes, with every rule in the order asked.
+    let (mut s, account, _, _) = session();
+    let rules = vec![remote("a", "A", 1), remote("b", "B", 1), RemoteRule { read_only: true, ..remote("ro", "Locked", 3) }];
+    merge_rules(&mut s.mailbox, &download(account, rules)).unwrap();
+    let id = s.mailbox.rules.iter().find(|r| r.name == "B").unwrap().id;
+    run(&mut s, "rules.move", json!({"id": id, "direction": "up"}));
+    let order = s.mailbox.rules_in_order(account);
+    let places: Vec<(&str, i32)> =
+        order.iter().map(|i| &s.mailbox.rules[*i]).map(|r| (r.name.as_str(), r.server.as_ref().unwrap().sequence)).collect();
+    assert_eq!(places, [("B", 1), ("A", 2), ("Locked", 3)]);
 }
 
 #[test]

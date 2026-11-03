@@ -631,6 +631,7 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     // The one of the two that is in this account's list alone is taken out and put in on the
     // other side of the other, not swapped with it: a rule for every account is in every
     // account's list, and moving one across others would reorder another account's rules.
+    let before = server.then(|| s.mailbox.rules.clone());
     if rule.account == 0 && other.account != 0 {
         let neighbour = s.mailbox.rules.remove(j);
         s.mailbox.rules.insert(i, neighbour);
@@ -638,8 +639,14 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         let moving = s.mailbox.rules.remove(i);
         s.mailbox.rules.insert(j, moving);
     }
-    if server {
-        renumber(&mut s.mailbox, account);
+    // A rule the server doesn't let be changed can leave no number free for the order asked
+    // (two rules before it, and it second on the server): the server would put one of them after
+    // it, so the move is refused and nothing changes.
+    if let Some(before) = before
+        && !renumber(&mut s.mailbox, account)
+    {
+        s.mailbox.rules = before;
+        return Err(fail("the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"));
     }
     Ok(json!({"id": id, "moved": true}))
 }
@@ -647,7 +654,9 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
 /// Give the rules the server of `account` has the places they now stand in: the same numbers as
 /// before, in their new order (all of them afresh when two had the same). One the server doesn't
 /// let be changed keeps its number, which no other is given: a new one would never be sent.
-pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
+/// Whether the numbers hold that order, each above the one before it; they don't when such a rule
+/// leaves too few numbers before it (the server's places start at 1).
+pub(crate) fn renumber(mb: &mut Mailbox, account: Id) -> bool {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
     let locked = |i: &&usize| mb.rules.get(**i).is_some_and(Rule::read_only);
     let number = |i: &usize| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence);
@@ -682,6 +691,8 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
             server.sequence = number;
         }
     }
+    let places: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence)).collect();
+    places.windows(2).all(|w| w.first() < w.get(1))
 }
 
 fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
