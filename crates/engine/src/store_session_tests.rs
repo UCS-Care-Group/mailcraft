@@ -130,7 +130,7 @@ fn a_rule_that_reads_the_body_reads_one_kept_on_disk() {
         id,
         name: "Quixotic".into(),
         enabled: true,
-        conditions: vec![Condition::BodyContains("quixotic".into())],
+        conditions: vec![Condition::BodyContains(vec!["quixotic".into()])],
         actions: vec![Action::MoveTo(target)],
         stop: false,
         ..Default::default()

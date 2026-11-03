@@ -1083,6 +1083,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    let clock = s.rule_clock();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     for made in &result.created {
@@ -1107,7 +1108,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, &mut counts);
+        take_in(mb, account, &mut on_server, delta, &mut counts, &clock);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1699,7 +1700,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 }
 
 /// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
+fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts, clock: &mailcraft_model::RuleClock) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1831,9 +1832,16 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
             // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
             // them as any mail arriving in the Inbox does.
-            let sorted = sorting && uid > old_seen && mb.sort_junk(id);
+            let fresh = sorting && uid > old_seen;
+            let sorted = fresh && mb.sort_junk(id);
+            // The rules file what was there before too (a first download, a mailbox numbered anew,
+            // older mail), but don't delete it for good or show an alert for it (#566).
             if inbox != sorted {
-                mb.apply_rules(id);
+                if fresh {
+                    mb.apply_rules(id, clock);
+                } else {
+                    mb.apply_rules_found(id, clock);
+                }
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {

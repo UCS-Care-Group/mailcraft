@@ -51,13 +51,13 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
         id: 9_999,
         name: "hostile".into(),
         enabled: true,
-        conditions: vec![Condition::SubjectContains(String::new())],
+        conditions: vec![Condition::SubjectContains(vec![String::new()])],
         actions: vec![Action::MoveTo(out)],
         stop: false,
         ..Default::default()
     });
     let from = s.mailbox.message(m).unwrap().folder;
-    s.mailbox.apply_rules(m);
+    s.mailbox.apply_rules(m, &s.rule_clock());
     assert_eq!(s.mailbox.message(m).unwrap().folder, from);
 }
 

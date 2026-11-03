@@ -2397,7 +2397,7 @@ impl Mailbox {
             let source = m.server.as_ref().map(|s| s.id.clone()).unwrap_or_default();
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
-            (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
+            (copy.server, copy.moving_out, copy.returned, copy.rule_alert) = (None, None, 0, false);
             copy.placed.clear();
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
@@ -2422,6 +2422,8 @@ impl Mailbox {
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
+        // A rule's alert is for the message as it arrived, not for a copy of it.
+        copy.rule_alert = false;
         copy.placed.clear();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
@@ -2660,9 +2662,16 @@ impl Mailbox {
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
     /// kept on its account's server does, there and here, as the server does
-    /// ([`crate::Condition::matches_as`]). One kept on this computer reads names too.
+    /// ([`crate::Matching::addresses_only`]). One kept on this computer reads names too.
     pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
         rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
+    }
+
+    /// How `rule` is matched against a message of `account`, by the clock of `zone`: "me" is that
+    /// account's address (for a rule for every account, the account the message is in).
+    pub fn rule_matching(&self, rule: &Rule, account: Id, zone: crate::time::Zone) -> crate::Matching<'_> {
+        let me = self.account(account).map_or("", |a| a.email.as_str());
+        crate::Matching { addresses_only: self.rule_reads_addresses(rule), me, zone }
     }
 
     /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
@@ -2675,20 +2684,39 @@ impl Mailbox {
         first.chain(then).collect()
     }
 
-    /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
+    /// Run the enabled rules on a message (new mail), by `clock`. Returns the names of the rules
+    /// that ran. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]).
     ///
     /// A rule its account's server has doesn't act: the server ran it before the mail came here.
     /// It is still matched, so that one that stops later rules stops those of this computer too.
-    pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
-        self.run_rules(id, false)
+    pub fn apply_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Arriving, clock)
+    }
+
+    /// [`Mailbox::apply_rules`] for mail its server had before it was read here: an account's
+    /// first download, a mailbox the server numbered anew, older mail a raised limit brings down.
+    /// It is filed as new mail is, but none of it is deleted for good and no alert is shown for it
+    /// (#566).
+    pub fn apply_rules_found(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Found, clock)
     }
 
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
-    /// the server has here too, as Outlook does).
-    pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
+    /// the server has here too, as Outlook does), and none shows an alert: the mail isn't
+    /// arriving.
+    pub fn run_rules(&mut self, id: Id, now: bool, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock)
+    }
+
+    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock) -> Vec<String> {
+        let now = ruling == Ruling::Now;
         let mut ran = Vec::new();
         let Some(account) = self.message(id).map(|m| m.account) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
+        let mut alert = false;
+        // A rule that may yet have applied and stopped the rest: they run, as they would if it
+        // didn't apply, but delete nothing for good, which can't be taken back if it did (#566).
+        let mut unsure = false;
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
@@ -2696,45 +2724,75 @@ impl Mailbox {
             if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
             }
-            if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+            let how = self.rule_matching(&rule, account, clock.zone);
+            if !rule.matches_in(m, &how) {
+                unsure |= rule.stop && rule.undecided_in(m, &how);
                 continue;
             }
             if now || !rule.on_server() {
-                self.act(id, &rule.actions);
+                alert |= rule.alert && ruling == Ruling::Arriving;
+                self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure);
                 ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;
             }
         }
+        // Moved out of the account, it didn't arrive where it is now.
+        if alert
+            && let Ok(m) = self.message_mut(id)
+            && m.account == account
+        {
+            m.rule_alert = true;
+        }
         ran
     }
 
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
     /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
-    pub fn run_rule(&mut self, id: Id, rule: Id) -> bool {
+    pub fn run_rule(&mut self, id: Id, rule: Id, clock: &crate::RuleClock) -> bool {
         let Some(m) = self.message(id) else { return false };
-        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(m.account)).cloned() else { return false };
-        if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+        let account = m.account;
+        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(account)).cloned() else { return false };
+        if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;
         }
-        self.act(id, &rule.actions);
+        self.act(id, &rule.actions, clock, true);
         true
     }
 
-    /// Do what a rule says to a message.
-    fn act(&mut self, id: Id, actions: &[Action]) {
-        for action in actions {
+    /// Do what a rule says to a message: change it first, then copy it, then move it, and delete
+    /// it for good last ([`Action::stage`]), unless not `for_good`.
+    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool) {
+        let mut ordered: Vec<&Action> = actions.iter().collect();
+        ordered.sort_by_key(|a| a.stage());
+        // A copy that couldn't be made: the message is then the only one, and isn't deleted.
+        let mut no_copy = false;
+        for action in ordered {
+            if self.message(id).is_none() {
+                break;
+            }
             match action {
+                // A rule pointing at a folder that is gone does nothing, and none puts mail into a
+                // send queue (the next Send/Receive would send it).
                 Action::MoveTo(folder) => {
-                    // A rule pointing at a folder that is gone does nothing, and none puts
-                    // mail into a send queue (the next Send/Receive would send it).
                     if !self.is_send_queue(*folder) {
                         let _ = self.move_message(id, *folder);
                     }
                 }
+                Action::CopyTo(folder) => {
+                    let at = u64::try_from(clock.now).unwrap_or_default();
+                    let copied = !self.is_send_queue(*folder) && self.copy_message_marked(id, *folder, at).is_ok();
+                    // A copy of the headers here isn't a copy of the message on the server.
+                    no_copy |= !copied || self.message(id).is_some_and(|m| m.partly_here() && !m.unfetched);
+                }
+                Action::Delete | Action::DeleteForGood if no_copy => {}
+                Action::DeleteForGood if !for_good => {}
                 Action::Delete => {
                     let _ = self.delete_message(id);
+                }
+                Action::DeleteForGood => {
+                    let _ = self.remove_message(id);
                 }
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
@@ -2745,6 +2803,15 @@ impl Mailbox {
                             self.adopt_category(account, c);
                         }
                         Action::Flag => m.flag = crate::FlagStatus::Flagged,
+                        Action::FlagFor(when) => {
+                            m.flag = crate::FlagStatus::Flagged;
+                            m.flag_due = when.due(clock).or(m.flag_due);
+                        }
+                        Action::ClearFlag => {
+                            m.flag = crate::FlagStatus::None;
+                            m.flag_due = None;
+                        }
+                        Action::ClearCategories => m.categories.clear(),
                         Action::MarkRead => m.read = true,
                         Action::SetImportance(i) => m.importance = *i,
                         _ => {}
@@ -3426,4 +3493,15 @@ impl Mailbox {
         self.pending = kept;
         (before - self.pending.len()) + mended
     }
+}
+
+/// How the rules run on a message ([`Mailbox::rules_on`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Ruling {
+    /// New mail, as it arrives.
+    Arriving,
+    /// Mail its server had before it was read here ([`Mailbox::apply_rules_found`]).
+    Found,
+    /// Run Rules Now.
+    Now,
 }

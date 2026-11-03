@@ -395,7 +395,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
-    let mut down = Down::default();
+    let mut down = Down::of(s);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
@@ -419,7 +419,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || named {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

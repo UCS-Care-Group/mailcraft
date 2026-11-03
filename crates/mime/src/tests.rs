@@ -544,6 +544,7 @@ fn message() -> impl Strategy<Value = Message> {
             held: String::new(),
             answers: None,
             kept: None,
+            rule_alert: false,
         },
     )
 }

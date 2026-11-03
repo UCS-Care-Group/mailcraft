@@ -19,6 +19,10 @@
 //!   down again;
 //! - mail already read (on another device, or by a rule).
 //!
+//! But a message a rule that shows a desktop alert acted on as it arrived counts wherever the
+//! rule put it, read or not ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's
+//! Inbox had been read from its server before: an account's first download tells of nothing.
+//!
 //! Nothing here shows anything: it only says which messages, and who they are from. The text is
 //! the message's own, hostile, and the window cleans it before it goes anywhere.
 
@@ -40,11 +44,15 @@ pub struct InboxMark {
 pub struct Arrival {
     pub message: Id,
     pub account: Id,
-    /// The Inbox it is in.
+    /// The folder it is in: an Inbox, or where a rule that asked for its alert put it.
     pub folder: Id,
     /// Who it is from: the sender's name, or the address when there is no name.
     pub sender: String,
     pub subject: String,
+    /// A rule asked for its alert (Outlook's "display a Desktop Alert"): it is told of when new
+    /// mail isn't, as in Outlook, where the owner who wants alerts for some mail alone turns them
+    /// off and has a rule show them.
+    pub rule: bool,
 }
 
 /// How many arrivals one run reports at most: the window shows a few, and only counts the rest.
@@ -78,13 +86,22 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
         let Some((_, validity)) = before.inboxes.iter().find(|(id, _)| *id == folder) else { return false };
         mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox && (*validity == 0 || f.uid_validity == *validity))
     };
+    // An account whose Inbox was read before: a rule's alert for its mail is told of.
+    let known = |account: Id| before.inboxes.iter().any(|(id, _)| mailbox.folder(*id).is_some_and(|f| f.account == account));
     mailbox
         .messages
         .range(from..)
         .map(|(_, m)| m)
-        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account))
+        .filter(|m| !m.draft && own(mailbox, m.account) && ((!m.read && watched(m.folder)) || (m.rule_alert && known(m.account))))
         .take(MOST)
-        .map(|m| Arrival { message: m.id, account: m.account, folder: m.folder, sender: m.from.display().to_string(), subject: m.subject.clone() })
+        .map(|m| Arrival {
+            message: m.id,
+            account: m.account,
+            folder: m.folder,
+            sender: m.from.display().to_string(),
+            subject: m.subject.clone(),
+            rule: m.rule_alert,
+        })
         .collect()
 }
 

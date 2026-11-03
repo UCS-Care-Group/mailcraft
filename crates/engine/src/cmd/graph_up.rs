@@ -54,19 +54,36 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
             note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }
     }
+    // Where a copy waiting to be made goes: where the copy lies here now. A copy that is gone here
+    // (or has left the account) isn't made.
+    let copy_to = |copy: Id, to: &String| -> Option<(String, Option<Id>)> {
+        let here = mb.message(copy)?;
+        destination(mb, account, here.folder).or_else(|| (here.account == account).then(|| (to.clone(), None)))
+    };
+    // The server's messages a copy is still to be made of: one deleted for good here meanwhile is
+    // deleted there once its copies are answered, so that one the server refuses leaves it there
+    // to put back (#566; the run makes copies before it deletes).
+    let copying: Vec<&str> = mb
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            // (Not one with nowhere to go yet: a folder the server hasn't listed, say. The run
+            // passes it by, and the delete would wait for it.)
+            Queued::CopyMessage { account: a, id, to, copy, .. }
+                if *a == account && copy_to(*copy, to).is_some_and(|(to, made)| !to.is_empty() || made.is_some()) =>
+            {
+                Some(id.as_str())
+            }
+            _ => None,
+        })
+        .collect();
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
         match queued {
             Queued::CopyMessage { id, to, copy, marker, .. } => {
-                // Where the copy lies here now; a copy that is gone here isn't made.
-                let Some(here) = mb.message(*copy) else { continue };
-                let (to, to_folder) = match destination(mb, account, here.folder) {
-                    Some(dest) => dest,
-                    None if here.account == account => (to.clone(), None),
-                    None => continue,
-                };
+                let Some((to, to_folder)) = copy_to(*copy, to) else { continue };
                 note(&|| Some(MessageChange::Copy { copy: *copy, id: id.clone(), to: to.clone(), to_folder, marker: marker.clone() }));
             }
-            Queued::DeleteMessage { id, .. } => note(&|| Some(MessageChange::Delete { id: id.clone() })),
+            Queued::DeleteMessage { id, .. } => note(&|| (!copying.contains(&id.as_str())).then(|| MessageChange::Delete { id: id.clone() })),
             // (Made by the run with the whole message: `graph_place`.)
             Queued::DeleteFolder { .. } | Queued::PlaceMessage { .. } => {}
         }
@@ -392,6 +409,14 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // is gone leaves the copy here, which is all there is of it.
                     if matches!(outcome, MessageOutcome::Refused { .. }) {
                         let _ = mb.forget_message(*copy);
+                        // Its original deleted for good here meanwhile, by the owner or by a rule
+                        // that copies and then deletes: it is still on the server (its delete
+                        // waited for this answer), and comes back rather than being lost (#566).
+                        // (Not a delete of another kind, of a message moved out of the account
+                        // say, which has nothing here to put back.)
+                        if let Some(kept) = take_delete(mb, account, id, true).flatten() {
+                            put_back(mb, account, id, Some(kept), None);
+                        }
                     }
                     if let Some(why) = why {
                         refusals.note(Kind::Copy, why, &subject, to_name);
@@ -401,14 +426,7 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
             true
         }
         MessageChange::Delete { id } => {
-            let mut kept = None;
-            mb.queued.retain(|q| match q {
-                Queued::DeleteMessage { account: a, id: queued, kept: was } if *a == account && queued == id => {
-                    kept = kept.take().or_else(|| was.clone());
-                    false
-                }
-                _ => true,
-            });
+            let kept = take_delete(mb, account, id, false).flatten();
             if let (Some(why), MessageOutcome::Refused { .. }) = (why, &done.outcome) {
                 let subject = put_back(mb, account, id, kept, done.there.as_deref());
                 refusals.note(Kind::Delete, why, &subject, None);
@@ -437,6 +455,22 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
             true
         }
     }
+}
+
+/// Take the deletes for good of the server's message `id` of `account` off the queue (with
+/// `kept_only`, only those that kept the message here): `None` when none was queued, else what was kept of
+/// the message here.
+fn take_delete(mb: &mut Mailbox, account: Id, id: &str, kept_only: bool) -> Option<Option<Box<Message>>> {
+    let mut taken: Option<Option<Box<Message>>> = None;
+    mb.queued.retain(|q| match q {
+        Queued::DeleteMessage { account: a, id: queued, kept } if *a == account && queued == id && (!kept_only || kept.is_some()) => {
+            let first = taken.take().flatten();
+            taken = Some(first.or_else(|| kept.clone()));
+            false
+        }
+        _ => true,
+    });
+    taken
 }
 
 /// A message deleted for good here whose delete the server refused, put back as the server has it

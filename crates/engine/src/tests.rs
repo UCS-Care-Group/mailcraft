@@ -1820,7 +1820,7 @@ mod two_way {
             id: 9_001,
             name: "Reports".into(),
             enabled: true,
-            conditions: vec![mailcraft_model::Condition::SubjectContains("report".into())],
+            conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["report".into()])],
             actions: vec![mailcraft_model::Action::MarkRead, mailcraft_model::Action::MoveTo(archive)],
             stop: false,
             ..Default::default()
@@ -1875,6 +1875,46 @@ mod two_way {
             request(&s, a).ops,
             [RemoteOp::Move { message: report, from: "INBOX".into(), uid: 1, to: "Archive".into(), to_folder: archive, create: vec![] }]
         );
+    }
+
+    #[test]
+    fn mail_that_was_there_before_isnt_deleted_for_good_by_a_rule_or_alerted_of() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
+        let told = json!({"name": "Told", "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        run(&mut s, "rules.add", gone);
+        run(&mut s, "rules.add", told);
+        // The first run: what the Inbox had stays, and is no alert.
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "An offer"), from_server(2, "Hello")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(s.mailbox.count(inbox), 2);
+        assert!(!s.mailbox.message(titled(&s, a, "Hello")).unwrap().rule_alert);
+        assert_eq!(request(&s, a).ops, []);
+        // New mail after it: deleted for good, and told of.
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(
+                Some(inbox),
+                "INBOX",
+                FolderKind::Inbox,
+                7,
+                vec![from_server(3, "Another offer"), from_server(4, "Hello again")],
+                vec![],
+            )],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert!(s.mailbox.messages.values().all(|m| m.subject != "Another offer"));
+        assert!(s.mailbox.message(titled(&s, a, "Hello again")).unwrap().rule_alert);
     }
 
     #[test]
@@ -2352,6 +2392,16 @@ fn hostile_params_never_panic() {
             "errors": ["\u{0}", ""],
         }}),
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
+        // A rule's other parts (#566): sizes, days, people, copies and due days of the wrong kind,
+        // exceptions that are no list, lists far over any cap, and one that gets past the door.
+        json!({"name": "r", "conditions": [
+            {"type": "sizeBetween", "value": {"min": 1e300, "max": -1}}, {"type": "sizeBetween", "value": {"min": 0.5, "max": 18446744073709551615u64}},
+            {"type": "receivedBetween", "value": null}, {"type": "receivedBetween", "value": {"from": "9999-99-99", "to": 5}}, {"type": "receivedBetween", "value": {"from": ""}},
+            {"type": "from", "value": ["\u{0}@example.org", "x".repeat(10_000)]}, {"type": "headerContains", "value": [[]]}, {"type": "sensitivity", "value": null},
+        ], "exceptions": {"type": "flagged"}, "actions": [{"type": "copyTo", "value": 18446744073709551615u64}, {"type": "flagFor", "value": 5}, {"type": "deleteForGood", "value": "x"}], "alert": "yes", "stop": 1}),
+        json!({"name": "r", "conditions": vec![json!({"type": "subjectContains", "value": vec!["w"; 10_000]}); 1000], "exceptions": vec![json!({"type": "flagged"}); 10_000], "actions": vec![json!({"type": "markRead"}); 10_000], "alert": true}),
+        json!({"name": "r", "conditions": [{"type": "toMe"}], "exceptions": [{"type": "bodyContains", "value": "x"}, {"type": "sizeBetween", "value": {"min": 0, "max": 2147483647}}], "actions": [], "alert": true, "account": 18446744073709551615u64, "server": "yes"}),
+        json!({"name": "r", "conditions": [{"type": "receivedBetween", "value": {"to": "9999-12-31"}}], "exceptions": [{"type": "sensitivity", "value": "normal"}], "actions": [{"type": "flagFor", "value": "nextWeek"}, {"type": "copyTo", "value": 1}, {"type": "clearCategories"}, {"type": "deleteForGood"}], "alert": true, "stop": true}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
         // A merge of contacts (#506): itself, twice, nobody, nonsense choices.

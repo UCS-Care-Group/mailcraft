@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{GraphMessage, GraphProgress, MessagePage, ServerMessage, merge_categories};
 use mailcraft_model::time::Timestamp;
-use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow};
+use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow, Queued};
 
 /// Where each message a server knows is, by its server id: kept between pages, as finding one
 /// otherwise means a walk through every message of the mailbox.
@@ -79,6 +79,26 @@ pub struct Down {
     pub removed: usize,
     /// New messages a rule moved out of the account as they arrived (#567).
     pub left: usize,
+    /// The clock the rules run by on what arrives ([`Session::rule_clock`](crate::Session::rule_clock));
+    /// without one, this computer's.
+    pub clock: Option<mailcraft_model::RuleClock>,
+}
+
+impl Down {
+    /// Down for a run of `s`, whose rules run by its clock.
+    pub fn of(s: &crate::Session) -> Down {
+        Down { clock: Some(s.rule_clock()), ..Default::default() }
+    }
+
+    /// Whether taking in the pages did anything: the clock is no part of that.
+    pub fn took_anything(&self) -> bool {
+        *self != Down { clock: self.clock, ..Default::default() }
+    }
+
+    fn rule_clock(&self) -> mailcraft_model::RuleClock {
+        let system = || mailcraft_model::RuleClock { now: mailcraft_time::now(), zone: mailcraft_time::Zone::system(), due_hour: 17 };
+        self.clock.unwrap_or_else(system)
+    }
 }
 
 /// Take in one page of a folder's delta, with its link. A page for a folder this mailbox doesn't
@@ -96,6 +116,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
+    // Nor those deleted for good here whose delete is still to go: one waiting for a copy of it
+    // to be made, say, which marks it there and so has it listed again (#566).
+    let deleting: HashSet<String> = mb
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.clone()),
+            _ => None,
+        })
+        .collect();
     if page.afresh {
         for m in mb.messages.values_mut() {
             if m.account == account
@@ -164,6 +194,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     (out.folder, out.left) = (page.folder.clone(), false);
                 }
             }
+            None if deleting.contains(&there.server.id) => {}
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);
@@ -173,7 +204,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     // A move goes up as the owner's own does (R3.3).
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
-                        mb.apply_rules(m);
+                        mb.apply_rules(m, &down.rule_clock());
                         // Out of the account: should the page list it again, that is the same
                         // message (#606 review).
                         if mb.message(m).is_some_and(|m| m.account != account) {

@@ -680,7 +680,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if rules_onto_another_server(s, id, params) {
         return Access::Owner(Class::Send);
     }
-    if server_rule_deletes(s, id, params) {
+    if rules_delete_for_good(s, id, params) || server_rule_deletes(s, id, params) {
         return Access::Owner(Class::Delete);
     }
     // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
@@ -881,12 +881,72 @@ fn folder_onto_server(s: &Session, folder: Id, from: Option<Id>) -> Option<Id> {
     })
 }
 
-/// [`folder_onto_server`] of a rule's moves.
+/// [`folder_onto_server`] of a rule's moves and copies.
 fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) -> Option<Id> {
     r.actions.iter().find_map(|a| match a {
-        mailcraft_model::Action::MoveTo(f) => folder_onto_server(s, *f, from),
+        mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) => folder_onto_server(s, *f, from),
         _ => None,
     })
+}
+
+/// Whether the rules this command makes, switches on or runs delete mail for good, which undo
+/// doesn't bring back from a server, as `mail.deletePermanently` (#566); or whether it changes the
+/// rules for mail that a rule switched on here deletes for good: any change may let more mail
+/// reach that one (a rule before it that stopped the others, or one that sets a category or a
+/// flag it looks for). Switching that rule off or deleting it only deletes less.
+fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
+    let mb = &s.mailbox;
+    if id == "rules.run" {
+        let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
+        let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
+        return from.is_some_and(|a| mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && for_good(r)));
+    }
+    let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
+    // The rule made or changed: its account and id, whether the command makes or switches on one
+    // that deletes for good, and whether the rule is on after it (not switched off or deleted).
+    // Read as the commands read them, as `rules_onto_another_server` does: what they refuse does
+    // nothing, and needs no question.
+    let (account, rule, makes, on) = match id {
+        "rules.add" => match crate::cmd::rules::rule_from_params(s, params) {
+            Ok(r) => (r.account, 0, for_good(&r), true),
+            Err(_) => return false,
+        },
+        "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
+            Ok((r, _)) => (r.account, 0, for_good(&r), true),
+            Err(_) => return false,
+        },
+        "rules.enable" => match (p::opt_bool(params, "value"), named()) {
+            (Ok(value), Some(r)) => {
+                let on = value.unwrap_or(!r.enabled);
+                (r.account, r.id, on && for_good(r), on)
+            }
+            _ => return false,
+        },
+        "rules.keepOnServer" | "rules.move" | "rules.remove" => match named() {
+            Some(r) => (r.account, r.id, false, id != "rules.remove"),
+            None => return false,
+        },
+        _ => return false,
+    };
+    makes || mb.rules.iter().any(|x| deletes_here(x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
+}
+
+fn for_good(r: &mailcraft_model::Rule) -> bool {
+    r.actions.contains(&mailcraft_model::Action::DeleteForGood)
+}
+
+/// A rule switched on that deletes mail for good here (one its server has runs there, among the
+/// server's rules).
+fn deletes_here(r: &mailcraft_model::Rule) -> bool {
+    r.enabled && for_good(r) && (r.keep.is_here() || !r.on_server())
+}
+
+/// Whether an undo or redo from the rules of `now` to those of `to` changes them and leaves one
+/// switched on that deletes mail for good here: it brings that rule back or switches it on, or
+/// changes the rules beside it, as [`rules_delete_for_good`] asks of a command (#566). One that
+/// switches it off or takes it away only deletes less.
+pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
+    to.rules != now.rules && to.rules.iter().any(deletes_here)
 }
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
@@ -918,6 +978,14 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether the rule `rules.fromMessage` makes from these params, kept on its server, deletes mail:
+/// it runs at once on the mail from that sender, so a yes deletes it, and the window's question
+/// answers with Delete. Asked only because a rule beside it deletes for good, a yes deletes
+/// nothing yet (#566).
+pub fn rule_from_message_deletes(s: &Session, params: &Value) -> bool {
+    server_rule_deletes(s, "rules.fromMessage", params)
 }
 
 /// The account whose mail a rule files, or `None` for a rule for every account's.
@@ -1055,7 +1123,13 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
-    match classify(s, id, params) {
+    // A rule that files mail onto another server and deletes it for good needs both grants;
+    // `classify` says the first.
+    let access = match classify(s, id, params) {
+        Access::Owner(Class::Send) if allow.contains(&Class::Send) && rules_delete_for_good(s, id, params) => Access::Owner(Class::Delete),
+        access => access,
+    };
+    match access {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
         Access::Owner(c) if allow.contains(&c) || yes == Some(c) => Verdict::Run,
@@ -1363,6 +1437,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Send) => {
                     "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
                 }
+                Some(Class::Delete) if s.undo_rules_delete_for_good(redo) => "the rules, with one switched on that deletes mail permanently,",
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };
@@ -1373,7 +1448,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             Ok((r, _)) => {
                 let folder = r.actions.iter().find_map(|a| if let mailcraft_model::Action::MoveTo(f) = a { Some(*f) } else { None });
                 let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
-                let from = r.conditions.iter().find_map(|c| if let mailcraft_model::Condition::FromContains(t) = c { Some(plain(t)) } else { None });
+                let from = r.conditions.iter().find_map(|c| match c {
+                    mailcraft_model::Condition::From(p) | mailcraft_model::Condition::FromContains(p) => p.first().map(|t| plain(t)),
+                    _ => None,
+                });
                 let from = quoted(&from.unwrap_or_default());
                 let onto = rule_onto_server(s, &r, one_account(&r)).and_then(|a| s.mailbox.account(a));
                 let made = match onto {
@@ -1687,24 +1765,31 @@ const SHARED_TASK: &str = ", which is in a To Do list shared with other people: 
 fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
     let addresses = s.mailbox.rule_reads_addresses(r);
     let when = r.conditions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" and ");
+    let except = r.exceptions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" or ");
     let mut then: Vec<String> = r
         .actions
         .iter()
         .map(|a| match a {
-            mailcraft_model::Action::MoveTo(f) if s.mailbox.folder(*f).is_some() => {
+            mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) if s.mailbox.folder(*f).is_some() => {
+                let verb = if matches!(a, mailcraft_model::Action::CopyTo(_)) { "copy" } else { "move" };
                 match folder_onto_server(s, *f, None).and_then(|a| s.mailbox.account(a)) {
-                    Some(a) => format!("move it onto the server of {}, into {}", clip(&a.email, 80), plain(&s.mailbox.folder_path(*f))),
-                    None => format!("move it to {}", plain(&s.mailbox.folder_path(*f))),
+                    Some(a) => format!("{verb} it onto the server of {}, into {}", clip(&a.email, 80), plain(&s.mailbox.folder_path(*f))),
+                    None => format!("{verb} it to {}", plain(&s.mailbox.folder_path(*f))),
                 }
             }
             mailcraft_model::Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
+            mailcraft_model::Action::CopyTo(_) => "copy it to a folder that is gone".to_string(),
             other => plain(&other.describe()),
         })
         .collect();
+    if r.alert {
+        then.push("show a desktop alert".to_string());
+    }
     if let Some(server) = r.server.as_ref().filter(|s| !s.unknown.is_empty()) {
         then.push(format!("and more that MailCraft can't show ({})", some(&server.unknown, 6)));
     }
-    format!("when {when}: {}", then.join(", "))
+    let then = then.join(", ");
+    if except.is_empty() { format!("when {when}: {then}") } else { format!("when {when}, except if {except}: {then}") }
 }
 
 fn rule_text(s: &Session, params: &Value) -> String {

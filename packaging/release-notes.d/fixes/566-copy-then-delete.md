@@ -1,0 +1,1 @@
+- On a Microsoft account, a message copied to another folder and then deleted permanently before the next Send/Receive, by you or by a rule, is no longer lost when the server refuses the copy: it comes back where it was ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

@@ -183,16 +183,19 @@ fn a_rule_puts_its_category_on_the_list_of_an_account_with_its_own() {
     mb.account_categories.insert(a, Vec::new());
     mb.rules.push(Rule {
         enabled: true,
-        conditions: vec![Condition::SubjectContains(String::new())],
+        conditions: vec![Condition::SubjectContains(vec!["Weekly".into()])],
         actions: vec![Action::Categorize("From a rule".into()), Action::Categorize("Unknown".into())],
         ..Default::default()
     });
+    let clock = crate::RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 };
     let m = message_of(&mut mb, a, &[]);
-    mb.apply_rules(m);
+    mb.message_mut(m).unwrap().subject = "Weekly".into();
+    mb.apply_rules(m, &clock);
     assert_eq!(mb.categories_of(a), [tagged("From a rule", RED), tagged("Unknown", GREY_CATEGORY)]);
     // The shared list stays as it was, as it always did for a rule.
     let m = message_of(&mut mb, here, &[]);
-    mb.apply_rules(m);
+    mb.message_mut(m).unwrap().subject = "Weekly".into();
+    mb.apply_rules(m, &clock);
     assert!(mb.category("Unknown").is_none());
 }
 

@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-31 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -276,10 +276,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
   and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
   unconfirmed, nor is a file with no account that connects to a server.
-- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
-  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
-  older version), so incoming mail is never relayed by the owner's SMTP account
-  (`Mailbox::is_send_queue`).
+- No rule moves or copies mail into an Outbox, or a folder under one, whoever made it: `rules.add`
+  and `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or
+  an older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`). An agent is asked before a rule that deletes mail for good is made,
+  switched on or run (class `delete`), and no server is given a rule that deletes for good: such
+  a rule stays on this computer, and what it deletes is deleted from the account's server too, as
+  Shift+Delete does. A rule that can't yet tell whether it applies to mail not downloaded doesn't
+  act, and the rules after it delete nothing for good.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -536,3 +540,5 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-23 | minor | Always-download pictures need the server's `dmarc=pass`, ASCII addresses, and Junk subfolders count as Junk; an invitation changes a local meeting only for its organizer, whose address is shown; the update question names installing; the log keeps no subjects, addresses or folder names |
 | 2026-10-22 | minor | `--control-agents-only`: every control request is an agent's, allowed nothing in advance; the mailbox file and `mailcraft-cli` stay within reach of an agent running as the owner |
 | 2026-10-28 | minor | A message's `<style>` blocks are read for the style whitelist by a reader of our own, within caps and fuzzed; nothing in a sheet is run or fetched (#598) |
+| 2026-10-31 | minor | #566 part 2: a rule copies mail into no Outbox either; an agent is asked before a rule that deletes for good |
+| 2026-11-03 | patch | #566 part 2: what a rule that deletes for good does on the server, said; a rule that can't tell yet deletes nothing for good after it |

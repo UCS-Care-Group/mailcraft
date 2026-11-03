@@ -117,13 +117,82 @@ fn copies_and_deletes_for_good_wait_in_the_queue() {
     // A copy deleted here before the server made it isn't made.
     s.run("mail.deletePermanently", &json!({"ids": [other]})).unwrap();
     assert_eq!(s.mailbox.queued.len(), 1);
-    // Delete for good: Graph's delete.
+    // Deleted for good with a copy of it still to be made: the delete waits for the copy.
     s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
-    assert!(changes(&s, account).contains(&MessageChange::Delete { id: "M-1".into() }));
+    let all = changes(&s, account);
+    assert!(matches!(all.as_slice(), [MessageChange::Copy { .. }]), "{all:?}");
+    // Delete for good: Graph's delete.
+    let (mut s, account, m, _) = setup();
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    assert_eq!(changes(&s, account), [MessageChange::Delete { id: "M-1".into() }]);
     // Delete: a move into Deleted Items.
     let (mut s, account, m, _) = setup();
     s.run("mail.delete", &json!({"ids": [m]})).unwrap();
     assert_eq!(changes(&s, account), [MessageChange::Move { message: m, id: "M-1".into(), to: "F-de".into(), to_folder: None }]);
+}
+
+#[test]
+fn a_message_copied_then_deleted_for_good_comes_back_when_the_copy_is_refused() {
+    for refused in [true, false] {
+        let (mut s, account, m, _) = setup();
+        let (inbox, archive) =
+            (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap());
+        // As a rule that copies and then deletes for good does, or the owner before a run.
+        let copy = s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap()["copies"][0].as_u64().unwrap();
+        s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+        let change = graph_mail_request(&s, account).unwrap().messages.remove(0);
+        assert!(matches!(change, MessageChange::Copy { .. }), "{change:?}");
+        let outcome = if refused {
+            MessageOutcome::Refused { status: 403 }
+        } else {
+            MessageOutcome::Done { categories: None, flag: None, folder: "F-ar".into(), id: "M-2".into() }
+        };
+        // The copy marks the original there, and the run's listing has it again.
+        let listed = GraphMessage {
+            server: ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
+            subject: "Invoice 42".into(),
+            ..Default::default()
+        };
+        let pages = vec![MessagePage { folder: "F-in".into(), messages: vec![listed], ..Default::default() }];
+        let answer = result(account, vec![MessageChangeDone { change, outcome, there: None }]);
+        apply_graph_mail(&mut s, GraphMailResult { pages, ..answer }).unwrap();
+        let invoices: Vec<&Message> = s.mailbox.messages.values().map(|m| m.as_ref()).filter(|m| m.subject == "Invoice 42").collect();
+        assert_eq!(invoices.len(), 1, "{refused}");
+        let server = invoices[0].server.as_ref().unwrap();
+        if refused {
+            // No copy anywhere: the original, which the server still has, is back where it has it.
+            assert!(s.mailbox.message(copy).is_none());
+            assert_eq!((invoices[0].folder, server.id.as_str()), (inbox, "M-1"));
+            assert_eq!(changes(&s, account), []);
+        } else {
+            // The copy is made: the original goes there now.
+            assert_eq!((invoices[0].id, server.id.as_str()), (copy, "M-2"));
+            assert_eq!(changes(&s, account), [MessageChange::Delete { id: "M-1".into() }]);
+        }
+    }
+}
+
+#[test]
+fn a_delete_waits_only_for_a_copy_that_can_go_and_a_refused_copy_keeps_another_delete() {
+    // A copy into a folder the server hasn't listed yet goes nowhere this run: the delete goes.
+    let (mut s, account, m, _) = setup();
+    let later = s.mailbox.add_folder(account, None, "Later").unwrap();
+    s.mailbox.folder_mut(later).unwrap().awaiting_listing = true;
+    s.run("mail.copy", &json!({"ids": [m], "folder": later})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    assert!(changes(&s, account).contains(&MessageChange::Delete { id: "M-1".into() }));
+    // A delete with nothing kept here (the original of a message moved out of the account) isn't
+    // the copy's to drop when the copy is refused: it goes once the copy is answered.
+    let (mut s, account, m, _) = setup();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+    s.mailbox.queued.push(Queued::DeleteMessage { account, id: "M-1".into(), kept: None });
+    let all = changes(&s, account);
+    let [change @ MessageChange::Copy { .. }] = all.as_slice() else { panic!("{all:?}") };
+    let refused = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    apply_graph_mail(&mut s, result(account, vec![refused])).unwrap();
+    assert_eq!(changes(&s, account), [MessageChange::Delete { id: "M-1".into() }]);
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Invoice 42").count(), 1);
 }
 
 #[test]
