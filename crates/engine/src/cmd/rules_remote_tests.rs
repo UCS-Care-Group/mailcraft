@@ -1478,6 +1478,23 @@ fn an_agent_needs_both_grants_for_a_rule_that_copies_onto_another_server_and_del
 }
 
 #[test]
+fn a_rule_filing_within_its_own_account_isnt_said_to_go_onto_another_server() {
+    // With another account whose mail could be filed there, the question said a rule of the
+    // account's own moved its mail "onto the server of" that same account.
+    let (mut s, account, _, _) = session();
+    run(&mut s, "account.add", json!({"email": "other@example.org", "kind": "microsoft"}));
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let mut rule = json!({"name": "File", "account": account, "server": false, "conditions": [{"type": "toMe"}],
+        "actions": [{"type": "moveTo", "value": archive}, {"type": "copyTo", "value": archive}]});
+    let asked = crate::agent::describe(&s, "rules.add", &rule);
+    assert!(asked.contains("move it to ") && asked.contains("copy it to ") && !asked.contains("onto the server"), "{asked}");
+    // A rule for every account's mail does put the other's there.
+    rule.as_object_mut().unwrap().remove("account");
+    let asked = crate::agent::describe(&s, "rules.add", &rule);
+    assert!(asked.contains("move it onto the server of ") && asked.contains("copy it onto the server of "), "{asked}");
+}
+
+#[test]
 fn an_agent_asks_the_owner_before_a_rule_that_deletes_for_good() {
     use crate::agent::{Access, Class, classify};
     let (mut s, account, _, _) = session();

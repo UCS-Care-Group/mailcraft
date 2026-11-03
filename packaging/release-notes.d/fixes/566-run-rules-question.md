@@ -1,1 +1,1 @@
-- Before an agent runs your rules, its question names each account they would move mail onto once, not once for every rule that moves mail there ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
+- An agent's question about your rules says a rule puts mail on another account's server only when it does, not for a rule that files mail into its own account's folders, and before it runs your rules it names each such account once, not once for every rule ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

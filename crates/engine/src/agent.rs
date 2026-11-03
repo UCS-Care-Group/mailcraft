@@ -1809,7 +1809,9 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
         .map(|a| match a {
             mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) if s.mailbox.folder(*f).is_some() => {
                 let verb = if matches!(a, mailcraft_model::Action::CopyTo(_)) { "copy" } else { "move" };
-                match folder_onto_server(s, *f, None).and_then(|a| s.mailbox.account(a)) {
+                // From the rule's account, as the gate reads it: a rule of one account filing into
+                // its own folders puts nothing on another server.
+                match folder_onto_server(s, *f, one_account(r)).and_then(|a| s.mailbox.account(a)) {
                     Some(a) => format!("{verb} it onto the server of {}, into {}", clip(&a.email, 80), plain(&s.mailbox.folder_path(*f))),
                     None => format!("{verb} it to {}", plain(&s.mailbox.folder_path(*f))),
                 }
