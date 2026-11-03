@@ -591,7 +591,9 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
     release_outbox(mb, account, listing, taken);
     // A deletion an earlier version queued of a folder that is the server's own: the server
     // keeps it, and would be asked every run (#756).
-    let own: HashSet<&str> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).collect();
+    // (Marked by the listing, or earlier: `update` keeps the mark whatever one listing says.)
+    let kept = mb.folders.iter().filter(|f| f.account == account).filter_map(|f| f.server.as_ref()).filter(|s| s.well_known).map(|s| s.id.as_str());
+    let own: HashSet<&str> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).chain(kept).collect();
     mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id.as_str())));
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.

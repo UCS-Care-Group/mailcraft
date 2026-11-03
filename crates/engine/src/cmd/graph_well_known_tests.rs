@@ -90,6 +90,17 @@ fn one_odd_answer_does_not_clear_the_mark() {
 }
 
 #[test]
+fn a_deletion_queued_for_a_folder_marked_earlier_is_dropped_though_one_listing_says_false() {
+    let (mut s, account) = session();
+    take(&mut s, account, server(true));
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
+    take(&mut s, account, server(false));
+    assert!(flagged(&s, account, "co"));
+    assert!(s.mailbox.queued.is_empty());
+    assert!(!folder_changes(&s.mailbox, account, 10).0.iter().any(|c| matches!(c, FolderChange::Delete { .. })));
+}
+
+#[test]
 fn a_deletion_queued_for_a_folder_that_is_the_servers_own_is_dropped() {
     let (mut s, account) = session();
     take(&mut s, account, server(false));
