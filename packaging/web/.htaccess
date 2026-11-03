@@ -7,6 +7,8 @@ AddType text/javascript .js
 </IfModule>
 
 <IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Cross-Origin-Opener-Policy "same-origin"
   <FilesMatch "\.(wasm|js)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>

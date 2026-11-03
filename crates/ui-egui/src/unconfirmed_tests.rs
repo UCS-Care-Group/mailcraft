@@ -157,3 +157,24 @@ fn the_fingerprint_follows_addresses_and_servers_not_their_order() {
     add(&mut three, "b@example.org", "imap.attacker.example");
     assert_ne!(fingerprint(&one.mailbox), fingerprint(&three.mailbox));
 }
+
+/// A JMAP account (M6): its session's address, and whether its secret is a bearer token, are part
+/// of what is confirmed, so that a file confirmed once can't be pointed at another server.
+#[test]
+fn the_fingerprint_follows_a_jmap_accounts_server() {
+    let jmap = |session: &str, bearer: bool| {
+        let mut s = Session::empty();
+        s.run("account.add", &json!({"email": "a@example.org", "kind": "jmap", "jmap": {"session": session, "bearer": bearer}})).unwrap();
+        fingerprint(&s.mailbox)
+    };
+    let first = jmap("https://jmap.example.org/jmap/session", true);
+    assert_eq!(first, jmap("https://jmap.example.org/jmap/session", true));
+    for other in [
+        jmap("https://jmap.attacker.example/jmap/session", true),
+        jmap("https://jmap.example.org:8443/jmap/session", true),
+        jmap("https://jmap.example.org/elsewhere", true),
+        jmap("https://jmap.example.org/jmap/session", false),
+    ] {
+        assert_ne!(first, other);
+    }
+}

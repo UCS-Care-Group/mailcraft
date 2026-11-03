@@ -61,5 +61,8 @@ Graph): quick-xml (the MIT License; https://github.com/tafia/quick-xml), with me
 Unlicense OR MIT). Written in Rust throughout; it reads no DTD and expands no entity. In the
 desktop app and the CLI only: the browser build has no server connection and does not include it.
 
+For signing in to Exchange servers with NTLMv2 (written from Microsoft's MS-NLMP): md4, md-5 and
+hmac from the RustCrypto project (each MIT OR Apache-2.0), in Rust throughout.
+
 No Microsoft, Google, Apple, Mozilla or other vendor's icons, images, templates, sounds or artwork
 are included.

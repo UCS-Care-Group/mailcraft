@@ -792,7 +792,7 @@ fn hostile() -> Vec<(&'static str, Message)> {
 
 #[test]
 fn hostile_invitations_never_panic_and_never_offer_a_button_that_cannot_work() {
-    for (theme, size) in [("light", (1280.0, 900.0)), ("dark", (960.0, 640.0))] {
+    for (theme, size) in [("light", (1280.0, 900.0)), ("dark", (960.0, 720.0))] {
         let named = hostile();
         let (mut app, account, ids) = mail_app(named.iter().map(|(_, m)| m.clone()).collect());
         app.execute("ui.theme", json!({"value": theme})).unwrap();

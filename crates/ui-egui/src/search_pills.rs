@@ -77,13 +77,18 @@ pub(crate) fn layout(text: &str, pills: &[Pill], font: FontId, t: &Tokens) -> La
         lead = PAD;
     }
     add(part(at..chars.len()), lead, &plain);
+    // An empty query still needs a section: a job without one lays out a row with no height, so
+    // the caret, which stands on the galley's row, would hang from the middle of the box (#652).
+    if job.sections.is_empty() {
+        job.append("", 0.0, plain);
+    }
     job
 }
 
 /// The pills' shapes for `galley`, drawn at `at`: rounded, in a tint of the selection's colour,
 /// under the text.
 pub(crate) fn shapes(galley: &Arc<Galley>, at: Pos2, pills: &[Pill], t: &Tokens) -> Vec<Shape> {
-    let fill = if t.dark { t.selection } else { t.selection.gamma_multiply(0.7) };
+    let fill = t.selection_pill;
     let total = galley.text().chars().count();
     pills
         .iter()

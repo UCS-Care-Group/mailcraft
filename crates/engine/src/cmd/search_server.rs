@@ -30,6 +30,7 @@ use std::collections::HashSet;
 use mailcraft_model::search::Query;
 use mailcraft_model::sync::{GraphMessage, GraphSearchRequest, GraphSearchResult};
 use mailcraft_model::{AccountKind, FolderKind, Id, Message};
+use mailcraft_time::{Date, Weekday};
 use serde_json::{Value, json};
 
 use super::{bad, fail, graph_down};
@@ -88,7 +89,7 @@ pub struct ServerSearch {
     /// Counts the searches: a request carries it, and an answer for another is not taken in.
     pub ticket: u64,
     /// The search these are for: the query, the scope, and the folder in view.
-    key: Option<(String, Scope, Id)>,
+    key: Option<(String, Scope, Id, Option<(Date, Weekday)>, Option<String>)>,
     pub mailboxes: Vec<Searched>,
     /// Newest first.
     pub results: Vec<ServerResult>,
@@ -122,10 +123,22 @@ impl ServerSearch {
     }
 }
 
-/// What the search in view is, for [`ServerSearch`]'s key.
-fn key_of(s: &Session) -> (String, Scope, Id) {
-    let folder = if s.view.scope == Scope::Folder { s.view.folder } else { 0 };
-    (s.view.search.clone(), s.view.scope, folder)
+/// What the search in view is, for [`ServerSearch`]'s key: with the day it is made on and the
+/// first day of the week when it needs them, as `received:today` is another search tomorrow, and
+/// the zone when it has a date, as a day is other messages in another zone (#329); another search
+/// keeps what the server found past midnight.
+fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>, Option<String>) {
+    // The folder in view, or for a mailbox's search its account: another folder of the same
+    // account keeps what the server found.
+    let place = match s.view.scope {
+        Scope::Everywhere => 0,
+        Scope::Mailbox => s.mailbox.folder(s.view.folder).map_or(0, |f| f.account),
+        Scope::Folder | Scope::Subfolders => s.view.folder,
+    };
+    let query = Query::parse(&s.view.search);
+    let day = query.needs_day().then(|| (s.today(), s.prefs.week_start));
+    let zone = query.has_dates().then(|| s.zone_key());
+    (s.view.search.clone(), s.view.scope, place, day, zone)
 }
 
 /// The mailboxes the search in view would go to: each with the server id of the folder to search
@@ -145,6 +158,10 @@ pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
             .and_then(|f| f.server.as_ref().map(|server| (f.account, server.id.clone())))
             .into_iter()
             .collect(),
+        // The account in view, all of it: what is under the folder is kept when it comes back.
+        Scope::Subfolders | Scope::Mailbox => {
+            mb.folder(s.view.folder).filter(|f| usable(f.account)).map(|f| (f.account, String::new())).into_iter().collect()
+        }
         Scope::Everywhere => mb.accounts.iter().filter(|a| usable(a.id)).map(|a| (a.id, String::new())).collect(),
     }
 }
@@ -238,23 +255,27 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
     let Some(at) = s.server_search.mailboxes.iter().position(|m| m.account == account) else {
         return Ok(json!({"taken": 0, "stale": true}));
     };
-    let everywhere = s.view.scope == Scope::Everywhere;
     let mb = &s.mailbox;
-    // Deleted and junk mail stays out of a search of everything, as it does here.
-    let hidden: HashSet<Id> = if everywhere {
-        mb.folders
+    // Deleted and junk mail stays out of a search of a whole mailbox or of everything, as it does
+    // here; a search of a folder's subfolders keeps only what is under it (#493).
+    let hidden: HashSet<Id> = match s.view.scope {
+        Scope::Mailbox | Scope::Everywhere => mb
+            .folders
             .iter()
             .filter(|f| f.account == account && matches!(f.kind, FolderKind::Deleted | FolderKind::Junk))
             .flat_map(|f| mb.subtree(f.id))
-            .collect()
-    } else {
-        HashSet::new()
+            .collect(),
+        Scope::Folder => HashSet::new(),
+        Scope::Subfolders => {
+            let under: HashSet<Id> = mb.subtree(s.view.folder).into_iter().collect();
+            mb.folders.iter().map(|f| f.id).filter(|id| !under.contains(id)).collect()
+        }
     };
     // What this mailbox has here already: shown once, among the local results.
     let here: HashSet<&str> =
         mb.messages.values().filter(|m| m.account == account).filter_map(|m| m.server.as_ref().map(|s| s.id.as_str())).collect();
     let held: HashSet<&str> = s.server_search.results.iter().filter(|r| r.account == account).map(|r| r.found.server.id.as_str()).collect();
-    let local = Query::parse(&s.view.search).for_server().local;
+    let local = s.search_query().for_server().local;
     let mut taken: Vec<ServerResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let room = MAX_RESULTS.saturating_sub(s.server_search.results.len());
@@ -269,7 +290,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
             continue;
         }
         let shown = as_message(account, folder, found);
-        if !local.is_empty() && !local.matches(&shown, s.offset_at(shown.date)) {
+        if !local.is_empty() && !local.matches_in(&shown, |at| s.offset_at(at)) {
             continue;
         }
         taken.push(ServerResult { account, folder, found: found.clone(), opened: None });

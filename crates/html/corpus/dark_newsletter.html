@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>The Night Post: issue 12</title>
+<style type="text/css">
+  :root { color-scheme: light dark; }
+  body { margin: 0; background-color: #ffffff; color: #222222; font-family: Arial, sans-serif; }
+  .card { background-color: #f4f1ea; color: #222222; }
+  .band { background-color: #1a5fb4; color: #ffffff; }
+  .hot { color: #b3261e; }
+  .light-only { display: block; }
+  .dark-only { display: none; }
+  a { color: #1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    body { background-color: #14161a !important; color: #e8e6e3 !important; }
+    .card { background-color: #1f2329 !important; color: #e8e6e3 !important; }
+    .band { background-color: #0b3d75 !important; color: #f2f6fc !important; }
+    .hot { color: #ff8a80 !important; }
+    .light-only { display: none !important; }
+    .dark-only { display: block !important; }
+    a { color: #8ab4f8 !important; }
+  }
+  @media (prefers-color-scheme: light) {
+    .only-in-light { font-style: italic; }
+  }
+</style>
+</head>
+<body style="margin:0">
+<table width="100%" role="presentation" cellpadding="0" cellspacing="0" border="0">
+  <tr><td class="band" style="padding: 14px 24px; background-color:#1a5fb4; color:#ffffff;"><b>The Night Post</b> &middot; issue 12</td></tr>
+  <tr><td class="card" style="padding: 24px; background-color:#f4f1ea; color:#222222;">
+    <p style="margin:0 0 12px 0">Good evening. The lighthouse keepers' strike is over, and the ferries run again from <span class="hot">Friday</span>.</p>
+    <p class="light-only" style="margin:0 0 12px 0">You are reading the light edition, printed in ink on paper-coloured card.</p>
+    <p class="dark-only" style="margin:0 0 12px 0">You are reading the dark edition, set in light type on the night sky.</p>
+    <p class="only-in-light" style="margin:0 0 12px 0">Set in italics by the light theme alone.</p>
+    <p style="margin:0">Read the whole issue <a href="https://nightpost.example/issues/12">on the web</a>.</p>
+  </td></tr>
+</table>
+</body>
+</html>

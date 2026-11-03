@@ -52,9 +52,11 @@ allow = [
 ]
 
 [[licenses.exceptions]]
-# Mozilla's root certificates as data (webpki-roots, our TLS trust anchors): a permissive data
-# licence, not OSI, used for this crate alone.
-name = "webpki-roots"
+# Mozilla's root certificates as data: a permissive data licence, not OSI, used for this crate
+# alone. rustls-platform-verifier brings it only for the browser and Android, where there is no
+# system verifier; MailCraft's own builds check certificates with the system's (#501), and
+# `mailcraft-net` has no TLS in the browser build at all.
+name = "webpki-root-certs"
 allow = ["CDLA-Permissive-2.0"]
 
 [[licenses.exceptions]]

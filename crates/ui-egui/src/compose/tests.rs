@@ -16,15 +16,15 @@ use crate::{MailApp, Services};
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 
-type Window = Harness<'static, MailApp>;
+pub(super) type Window = Harness<'static, MailApp>;
 
-fn app() -> MailApp {
+pub(super) fn app() -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
     app
 }
 
-fn window(app: MailApp) -> Window {
+pub(super) fn window(app: MailApp) -> Window {
     let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
@@ -38,19 +38,19 @@ fn window(app: MailApp) -> Window {
 }
 
 /// A new message, with the keyboard in its body and nothing in it.
-fn writing() -> Window {
+pub(super) fn writing() -> Window {
     let mut a = app();
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"body": ""})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     assert!(editor::has_focus(&h.ctx));
     h
 }
 
-fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
+pub(super) fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
     for pressed in [true, false] {
         h.event(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
         h.step();
@@ -58,20 +58,20 @@ fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
     h.run_steps(1);
 }
 
-fn key(h: &mut Window, key: Key) {
+pub(super) fn key(h: &mut Window, key: Key) {
     key_with(h, Modifiers::NONE, key);
 }
 
-fn type_in(h: &mut Window, text: &str) {
+pub(super) fn type_in(h: &mut Window, text: &str) {
     h.event(Event::Text(text.into()));
     h.run_steps(2);
 }
 
-fn plain(h: &Window) -> String {
+pub(super) fn plain(h: &Window) -> String {
     h.state().session.compose.as_ref().unwrap().body.plain()
 }
 
-fn sel(h: &Window) -> Selection {
+pub(super) fn sel(h: &Window) -> Selection {
     h.state().session.compose.as_ref().unwrap().body.selection()
 }
 
@@ -232,7 +232,7 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     let flagged = |h: &Window| h.state().session.mailbox.message(id).unwrap().flag == mailcraft_model::FlagStatus::Flagged;
     let read = |h: &Window| h.state().session.mailbox.message(id).unwrap().read;
     a.run("mail.reply", json!({"id": id})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     assert!(editor::has_focus(&h.ctx) && flagged(&h) && read(&h));
@@ -243,7 +243,7 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     assert!(read(&h) && flagged(&h), "the mailbox is not touched from the body");
     assert_eq!(plain(&h), typed, "the typing was undone");
     // Out of the body: the same keys are the mailbox's.
-    h.ctx.memory_mut(|m| m.surrender_focus(editor::id()));
+    h.ctx.memory_mut(|m| m.surrender_focus(editor::id(h.state())));
     h.run_steps(2);
     assert!(!editor::has_focus(&h.ctx));
     key_with(&mut h, Modifiers::COMMAND, Key::Z);
@@ -283,6 +283,225 @@ fn the_pointer_puts_the_caret_and_selects_words() {
     assert_eq!(sel(&h), Selection { anchor: 0, head: 12 });
 }
 
+/// The body's two paragraphs in the drag tests.
+const LINES: [&str; 2] = ["alpha beta gamma delta", "epsilon zeta"];
+
+/// A message whose body is [`LINES`], with clicks a second apart counting as one more of a row
+/// (the harness's frames are a quarter of a second apart).
+fn writing_lines() -> Window {
+    let mut h = writing();
+    type_in(&mut h, LINES[0]);
+    key(&mut h, Key::Enter);
+    type_in(&mut h, LINES[1]);
+    assert_eq!(plain(&h), LINES.join("\n"));
+    h.ctx.options_mut(|o| o.input_options.max_double_click_delay = 1.0);
+    h
+}
+
+/// Where the pointer is a quarter of the way into character `n` of line `line` of the body: the
+/// gap before it is the nearest.
+fn on_char(h: &Window, line: usize, n: usize) -> egui::Pos2 {
+    into_char(h, line, n, 0.25)
+}
+
+/// Where the pointer is `part` of the way across character `n` of line `line` of the body.
+fn into_char(h: &Window, line: usize, n: usize, part: f32) -> egui::Pos2 {
+    let r = h.state().hit.rect("composeBody", 0).unwrap();
+    let lay = |text: &str| h.ctx.fonts_mut(|f| f.layout_no_wrap(text.to_string(), crate::theme::regular(editor::BASE_SIZE), egui::Color32::WHITE));
+    let top: f32 = LINES[..line].iter().map(|l| lay(l).size().y).sum();
+    let galley = lay(LINES[line]);
+    let x = |i: usize| galley.pos_from_cursor(egui::text::CCursor::new(i)).min.x;
+    egui::pos2(r.min.x + x(n) + (x(n + 1) - x(n)) * part, r.min.y + top + galley.size().y / 2.0)
+}
+
+/// So many clicks in a row at `from`, the last of them held and dragged to `to`.
+fn clicks_and_drag(h: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    for _ in 1..count {
+        for pressed in [true, false] {
+            h.event(button(from, pressed));
+            h.step();
+        }
+    }
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=5 {
+        h.event(Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        h.step();
+    }
+    h.event(button(to, false));
+    h.run_steps(2);
+}
+
+#[test]
+fn a_drag_from_two_clicks_goes_on_by_words() {
+    let mut h = writing_lines();
+    // From inside "beta" to inside "gamma": both words whole.
+    let (from, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    clicks_and_drag(&mut h, from, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 16 });
+}
+
+#[test]
+fn a_drag_back_from_two_clicks_keeps_the_word_clicked() {
+    let mut h = writing_lines();
+    // From inside "gamma" back to inside "alpha": "gamma" stays whole.
+    let (from, to) = (on_char(&h, 0, 13), on_char(&h, 0, 2));
+    clicks_and_drag(&mut h, from, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 16, head: 0 });
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs() {
+    let mut h = writing_lines();
+    // From the second paragraph up into the first: both whole, the second to its end.
+    let (from, to) = (on_char(&h, 1, 3), on_char(&h, 0, 2));
+    clicks_and_drag(&mut h, from, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 35, head: 0 });
+}
+
+#[test]
+fn a_drag_from_one_click_goes_by_characters() {
+    let mut h = writing_lines();
+    let (from, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    // Two clicks a while ago at the same place are not this press's.
+    clicks_and_drag(&mut h, from, 2, from);
+    h.run_steps(6);
+    clicks_and_drag(&mut h, from, 1, to);
+    assert_eq!(sel(&h), Selection { anchor: 8, head: 13 });
+    h.run_steps(6);
+    clicks_and_drag(&mut h, to, 1, from);
+    assert_eq!(sel(&h), Selection { anchor: 13, head: 8 });
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs_forward_too() {
+    let mut h = writing_lines();
+    let (from, to) = (on_char(&h, 0, 3), on_char(&h, 1, 2));
+    clicks_and_drag(&mut h, from, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 0, head: 35 });
+}
+
+#[test]
+fn a_drag_from_two_clicks_turns_back_past_the_word_and_out_again() {
+    let mut h = writing_lines();
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let on = on_char(&h, 0, 8);
+    h.event(Event::PointerMoved(on));
+    h.step();
+    for pressed in [true, false, true] {
+        h.event(button(on, pressed));
+        h.step();
+    }
+    // Out past "gamma", back past "beta" into "alpha", and out to "gamma" again: "beta" all the way.
+    let mut at = on;
+    let mut seen = Vec::new();
+    for to in [on_char(&h, 0, 13), on_char(&h, 0, 2), on_char(&h, 0, 13)] {
+        for n in 1..=5 {
+            h.event(Event::PointerMoved(at + (to - at) * (n as f32 / 5.0)));
+            h.step();
+        }
+        at = to;
+        seen.push(sel(&h));
+    }
+    h.event(button(at, false));
+    h.run_steps(2);
+    let want = [Selection { anchor: 6, head: 16 }, Selection { anchor: 10, head: 0 }, Selection { anchor: 6, head: 16 }];
+    assert_eq!(seen, want);
+}
+
+#[test]
+fn two_clicks_take_the_word_under_the_pointer_on_either_half_of_its_last_letter() {
+    let mut h = writing_lines();
+    // The last letter of "beta", its left half and its right one.
+    for part in [0.25, 0.75] {
+        let on = into_char(&h, 0, 9, part);
+        clicks_and_drag(&mut h, on, 2, on);
+        assert_eq!(sel(&h), Selection { anchor: 6, head: 10 }, "{part}");
+        h.run_steps(6);
+        let to = on_char(&h, 0, 13);
+        clicks_and_drag(&mut h, on, 2, to);
+        assert_eq!(sel(&h), Selection { anchor: 6, head: 16 }, "{part}");
+        h.run_steps(6);
+        let to = on_char(&h, 0, 2);
+        clicks_and_drag(&mut h, on, 2, to);
+        assert_eq!(sel(&h), Selection { anchor: 10, head: 0 }, "{part}");
+        h.run_steps(6);
+    }
+}
+
+/// So many clicks in a row at `pos`, each pressed and let go within one frame, as a touchpad's
+/// taps come.
+fn taps(h: &mut Window, pos: egui::Pos2, count: usize) {
+    h.event(Event::PointerMoved(pos));
+    h.step();
+    // One frame for each of the harness's queued events: these go straight into the frame's input.
+    for _ in 0..count {
+        let tap =
+            [true, false].map(|pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.input_mut().events.extend(tap);
+        h.step();
+    }
+    h.run_steps(2);
+}
+
+#[test]
+fn clicks_pressed_and_let_go_within_a_frame_take_a_word_and_a_paragraph() {
+    let mut h = writing_lines();
+    let on = on_char(&h, 0, 8);
+    taps(&mut h, on, 2);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 10 });
+    h.run_steps(6);
+    taps(&mut h, on, 3);
+    assert_eq!(sel(&h), Selection { anchor: 0, head: 22 });
+}
+
+#[test]
+fn a_click_pressed_and_let_go_within_a_frame_lets_go_of_a_word() {
+    let mut h = writing_lines();
+    let on = on_char(&h, 0, 8);
+    clicks_and_drag(&mut h, on, 2, on);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 10 });
+    h.run_steps(6);
+    let elsewhere = on_char(&h, 1, 3);
+    taps(&mut h, elsewhere, 1);
+    assert_eq!(sel(&h), Selection::caret(26));
+}
+
+/// So many clicks in a row at `from`, each click's release in the frame of the next press (one
+/// frame's input, as a quick hand on a slow frame gives), the last press held and dragged to `to`.
+fn clicks_run_together_and_drag(h: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let press = |pressed| Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.input_mut().events.push(press(true));
+    h.step();
+    for _ in 1..count {
+        h.input_mut().events.extend([press(false), press(true)]);
+        h.step();
+    }
+    for n in 1..=5 {
+        h.event(Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        h.step();
+    }
+    h.event(Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+}
+
+#[test]
+fn a_drag_from_clicks_whose_release_and_press_share_a_frame_goes_by_words_and_paragraphs() {
+    let mut h = writing_lines();
+    let (on, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    clicks_run_together_and_drag(&mut h, on, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 16 });
+    h.run_steps(6);
+    let (on, to) = (on_char(&h, 1, 3), on_char(&h, 0, 2));
+    clicks_run_together_and_drag(&mut h, on, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 35, head: 0 });
+}
+
 #[test]
 fn a_plain_text_message_has_no_formatting_and_ctrl_k_asks_for_a_link() {
     let mut h = writing();
@@ -294,6 +513,26 @@ fn a_plain_text_message_has_no_formatting_and_ctrl_k_asks_for_a_link() {
     assert_eq!(crate::dialogs::link_address("someone@example.org"), "mailto:someone@example.org");
     assert_eq!(crate::dialogs::link_address(" www.example.org "), "https://www.example.org");
     assert_eq!(crate::dialogs::link_address("tel:+15550100"), "tel:+15550100");
+    assert_eq!(crate::dialogs::link_address("tel:5550100"), "tel:5550100");
+    assert_eq!(crate::dialogs::link_address("tel:911"), "tel:911");
+    assert_eq!(crate::dialogs::link_address("ms-settings:network-vpn"), "ms-settings:network-vpn");
+    assert_eq!(crate::dialogs::link_address("www.example.org:8443/x"), "https://www.example.org:8443/x");
+    assert_eq!(crate::dialogs::link_address("intranet:8080/wiki"), "https://intranet:8080/wiki");
+    assert_eq!(crate::dialogs::link_address("intranet:8080"), "https://intranet:8080");
+    assert_eq!(crate::dialogs::link_address("example.org:443"), "https://example.org:443");
+    assert_eq!(crate::dialogs::link_address("localhost:8080"), "https://localhost:8080");
+    assert_eq!(
+        crate::dialogs::link_address("x-apple.systempreferences:com.apple.preference.network"),
+        "x-apple.systempreferences:com.apple.preference.network"
+    );
+    assert_eq!(crate::dialogs::link_address("com.example.app://callback"), "com.example.app://callback");
+    assert_eq!(crate::dialogs::link_address("sip:1001"), "sip:1001");
+    assert_eq!(crate::dialogs::link_address("sip:911"), "sip:911");
+    assert_eq!(crate::dialogs::link_address("sms:12345"), "sms:12345");
+    assert_eq!(crate::dialogs::link_address("callto:4711"), "callto:4711");
+    assert_eq!(crate::dialogs::link_address("fax:5550100"), "fax:5550100");
+    assert_eq!(crate::dialogs::link_address("xmpp:ada@example.org"), "xmpp:ada@example.org");
+    assert_eq!(crate::dialogs::link_address("slack://channel?id=1"), "slack://channel?id=1");
     h.state_mut().run("compose.link", json!({"url": "https://www.example.org"})).unwrap();
     assert!(crate::ribbon::look_now(h.state()).link);
     h.state_mut().run("compose.formatPlain", json!({})).unwrap();
@@ -319,17 +558,17 @@ fn a_long_message_lays_out_only_what_changes() {
         (0..2000).map(|i| format!("Paragraph {i} of a long message, with enough words in it to wrap now and then on a narrow window.")).collect();
     a.execute("compose.set", json!({"body": long.join("\n")})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
-    let before = editor::laid(&h.ctx);
+    let before = editor::laid(&h.ctx, h.state());
     assert!(before >= 2000);
     h.run_steps(5);
-    assert_eq!(editor::laid(&h.ctx), before, "nothing is laid out again while nothing changes");
+    assert_eq!(editor::laid(&h.ctx, h.state()), before, "nothing is laid out again while nothing changes");
     type_in(&mut h, "x");
-    assert!(editor::laid(&h.ctx) - before <= 2, "{}", editor::laid(&h.ctx) - before);
+    assert!(editor::laid(&h.ctx, h.state()) - before <= 2, "{}", editor::laid(&h.ctx, h.state()) - before);
     key(&mut h, Key::Enter);
-    assert!(editor::laid(&h.ctx) - before <= 5);
+    assert!(editor::laid(&h.ctx, h.state()) - before <= 5);
     key_with(&mut h, Modifiers::CTRL, Key::End);
     assert!(plain(&h).starts_with("x\nParagraph 0"));
     let t0 = std::time::Instant::now();
@@ -363,7 +602,7 @@ fn copy_puts_html_and_text_on_the_clipboard_and_paste_takes_html_first() {
     a.execute("format.numbering", json!({"from": 5, "to": 17})).unwrap();
     a.execute("format.indent", json!({"from": 11, "to": 11})).unwrap();
     a.execute("compose.select", json!({"from": 0, "to": 17})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     h.event(Event::Copy);
@@ -508,7 +747,7 @@ fn typing_goes_on_after_the_window_was_left_and_came_back_to() {
     // Left with the keyboard taken away, a click in the body gives it back.
     h.event(Event::WindowFocused(false));
     h.run_steps(1);
-    h.ctx.memory_mut(|m| m.surrender_focus(editor::id()));
+    h.ctx.memory_mut(|m| m.surrender_focus(editor::id(h.state())));
     h.event(Event::WindowFocused(true));
     h.run_steps(1);
     let r = h.state().hit.rect("composeBody", 0).unwrap();
@@ -549,10 +788,10 @@ fn a_long_to_line_takes_a_click_at_its_end() {
     key(&mut h, Key::End);
     key(&mut h, Key::Backspace);
     assert_eq!(to(&h), before[..before.len() - 1]);
-    assert!(!h.state().compose_bcc);
+    assert!(!h.state().bcc_shown());
     // The Bcc link still works, just past the line's end.
     click(&mut h, egui::pos2(line.max.x + 30.0, line.center().y));
-    assert!(h.state().compose_bcc);
+    assert!(h.state().bcc_shown());
     // And the body takes the keyboard when clicked.
     let body = h.state().hit.rect("composeBody", 0).unwrap();
     click(&mut h, egui::pos2(body.min.x + 20.0, body.min.y + 10.0));
@@ -584,7 +823,7 @@ fn picks_then_types_in_the_body(opened: Opened, line: usize, mouse: bool) {
         Opened::ReplyHtml => a.execute("mail.reply", json!({"id": html(&a)})).map(drop).unwrap(),
         Opened::ForwardHtml => a.execute("mail.forward", json!({"id": html(&a)})).map(drop).unwrap(),
     }
-    a.compose_bcc = true;
+    a.compose_bcc.extend(a.session.compose_id());
     let mut h = window(a);
     let quoted = matches!(opened, Opened::ReplyHtml | Opened::ForwardHtml);
     assert_eq!(h.state().session.compose.as_ref().unwrap().quote.is_some(), quoted, "{opened:?}");
@@ -630,4 +869,55 @@ fn the_body_takes_typing_after_an_address_was_picked() {
             }
         }
     }
+}
+
+// ---- the primary selection ----
+
+mod primary;
+
+/// A signature laid out in a table, as a signature generator makes one.
+const HTML_SIGNATURE: &str = r#"<table cellpadding="0" cellspacing="0" width="600px"><tr><td><b>Lumen Studio</b></td>
+<td style="border-left:1px solid #0e968e;border-bottom:medium"></td><td><a href="https://lumen.example">lumen.example</a></td></tr></table>"#;
+
+fn unedited(h: &Window) -> bool {
+    h.state().session.compose.as_ref().unwrap().signature_unedited()
+}
+
+/// An HTML signature is shown in the message as it goes out, under the text and out of the
+/// keyboard's reach, until the owner chooses to edit it as text.
+#[test]
+fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
+    let mut a = app();
+    a.execute("signature.html", json!({"name": "Standard", "html": HTML_SIGNATURE})).unwrap();
+    a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hello"})).unwrap();
+    a.execute("compose.formatHtml", json!({})).unwrap();
+    a.execute("compose.select", json!({"from": 0})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("composeSignature", 0).is_some());
+    // The end of the text is the end of what the owner wrote; Delete there takes nothing of the signature.
+    key_with(&mut h, Modifiers::COMMAND, Key::End);
+    type_in(&mut h, "Ada");
+    key(&mut h, Key::Delete);
+    assert!(plain(&h).starts_with("Hello\nAda\n"), "{:?}", plain(&h));
+    assert!(unedited(&h));
+    // Edited as text, its simpler copy is in the text, where the keyboard reaches it.
+    let link = h.state().hit.rect("composeSignatureAsText", 0).unwrap();
+    click(&mut h, link.center());
+    assert!(h.state().hit.rect("composeSignature", 0).is_none());
+    // And back, while the copy is unedited.
+    let back = h.state().hit.rect("composeSignatureAsHtml", 0).unwrap();
+    click(&mut h, back.center());
+    assert!(h.state().hit.rect("composeSignature", 0).is_some());
+    let link = h.state().hit.rect("composeSignatureAsText", 0).unwrap();
+    click(&mut h, link.center());
+    let body = h.state().hit.rect("composeBody", 0).unwrap();
+    click(&mut h, body.min + egui::vec2(1.0, 8.0));
+    key_with(&mut h, Modifiers::COMMAND, Key::End);
+    type_in(&mut h, "!");
+    assert!(plain(&h).ends_with("lumen.example!"), "{:?}", plain(&h));
+    assert!(!unedited(&h));
+    // Edited, it is the copy that goes out: there is no way back to the HTML.
+    assert!(h.state().hit.rect("composeSignatureAsHtml", 0).is_none());
 }

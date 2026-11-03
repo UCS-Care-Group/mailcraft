@@ -86,7 +86,9 @@ fn a_draft_fetched_again_has_its_new_size() {
     assert_eq!(size(&mb, id), MIME.len() as u64);
     // Larger than the background fetch takes (10 MB), with an attachment since taken off on the web.
     mb.message_mut(id).unwrap().server.as_mut().unwrap().size = 15 << 20;
-    take_page(&mut mb, &mut index, account, &delta("AAkA1", "CK2"), &mut Down::default());
+    let mut page = delta("AAkA1", "CK2");
+    page.messages[0].draft = Some(true);
+    take_page(&mut mb, &mut index, account, &page, &mut Down::default());
     let m = mb.message(id).unwrap();
     assert!(m.unfetched && m.draft, "changed elsewhere, it is to be fetched again");
     // The old version's size isn't the new one's: it is in the background fetch, and the list
@@ -115,4 +117,38 @@ fn a_message_being_moved_out_is_given_no_server_state() {
     let m = mb.message(id).unwrap();
     assert!(m.server.is_none() && !m.unfetched);
     assert_eq!(m.list_size(), Some(m.size()));
+}
+
+/// #611: a draft that was sent keeps its id when the server files it in Sent Items; the delta
+/// then says it is no longer a draft, and the copy here stops being shown as one.
+#[test]
+fn a_draft_the_server_says_was_sent_is_no_longer_a_draft() {
+    let (mut mb, account, id) = mailbox(true);
+    mb.message_mut(id).unwrap().server_draft = Some(Default::default());
+    mb.message_mut(id).unwrap().unfetched = false;
+    let mut index = ServerIndex::default();
+    // A delta that leaves `isDraft` out says nothing of it: still a draft.
+    take_page(&mut mb, &mut index, account, &delta("AAkA1", "CK1"), &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.server_draft.is_some());
+    let mut page = delta("AAkA1", "CK2");
+    page.messages[0].draft = Some(false);
+    take_page(&mut mb, &mut index, account, &page, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(!m.draft && m.server_draft.is_none());
+    // What was sent is fetched afresh: it may not be the draft last seen here.
+    assert!(m.unfetched, "the sent version is to be fetched");
+}
+
+/// A draft saved here that waits to go up is a draft still, whatever the server's copy says.
+#[test]
+fn a_draft_waiting_to_go_up_stays_a_draft() {
+    let (mut mb, account, id) = mailbox(true);
+    mb.message_mut(id).unwrap().server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, ..Default::default() });
+    let mut index = ServerIndex::default();
+    let mut page = delta("AAkA1", "CK1");
+    page.messages[0].draft = Some(false);
+    take_page(&mut mb, &mut index, account, &page, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.server_draft.is_some());
 }

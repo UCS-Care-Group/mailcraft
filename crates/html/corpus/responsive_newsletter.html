@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saltmarsh Dairy: the autumn cheeses</title>
+<style type="text/css">
+  body { margin: 0; background-color: #f6f3ee; font-family: Georgia, serif; }
+  .shell { width: 600px; background-color: #ffffff; }
+  .preheader { display: none; font-size: 1px; max-height: 0; overflow: hidden; }
+  h1 { font-size: 26px; color: #2c4a3e; margin: 0 0 8px 0; }
+  p { font-size: 15px; line-height: 22px; color: #333333; }
+  .desktop { display: block; }
+  .mobile { display: none; }
+  .wide-note { display: none; }
+  .nested-note { display: none; }
+  .print-only { display: none; }
+  .col { width: 50%; }
+  .price { color: #8a3b12; font-weight: bold; }
+  @media screen and (max-width: 480px) {
+    .shell { width: 100% !important; }
+    .desktop { display: none !important; }
+    .mobile { display: block !important; }
+    .col { width: 100% !important; }
+    h1 { font-size: 22px !important; }
+  }
+  @media (min-width: 40em) {
+    .wide-note { display: block; }
+  }
+  @media print {
+    .print-only { display: block; }
+    h1 { color: #000000; }
+  }
+  @media only screen {
+    @media (max-width: 600px) {
+      .nested-note { display: block; }
+    }
+  }
+  @media tv and (min-width: 1px) { .price { color: #ff0000; } }
+</style>
+</head>
+<body>
+<div class="preheader">Preview: three new cheeses, and the dairy open day on the 14th. &nbsp;&zwnj;&nbsp;&zwnj;</div>
+<table class="shell" role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+  <tr><td style="padding: 24px;">
+    <h1>The autumn cheeses are here</h1>
+    <p>Three new cheeses came out of the cave this week, and the open day is on the fourteenth.</p>
+    <div class="desktop">
+      <p>Desktop copy: the cheeses sit in two columns beside the story of the cave.</p>
+    </div>
+    <div class="mobile">
+      <p>Mobile copy: the same cheeses, one under the other, with bigger buttons.</p>
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="col" valign="top" style="padding: 8px;">
+          <p><b>Marsh Blue</b><br>A soft blue with a salty rind.<br><span class="price">6.40</span></p>
+        </td>
+        <td class="col" valign="top" style="padding: 8px;">
+          <p><b>Harvest Wheel</b><br>A hard cheese, nutty and sweet.<br><span class="price">9.20</span></p>
+        </td>
+      </tr>
+    </table>
+    <p class="wide-note">Wide-pane note: the shop prints a card for each cheese.</p>
+    <p class="nested-note">Narrow note: nested media blocks are read, to a depth.</p>
+    <p class="print-only">Print copy: nobody reads this on a screen.</p>
+  </td></tr>
+</table>
+</body>
+</html>

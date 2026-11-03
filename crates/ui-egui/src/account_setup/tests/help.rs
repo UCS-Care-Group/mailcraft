@@ -175,6 +175,8 @@ fn the_waiting_page_says_what_to_do_about_an_approval_without_waiting() {
     assert_eq!((page(&h), wizard(&h).map(|w| w.waiting), h.state().signing_in()), (Some(Page::SignIn), Some(true), true));
     // What is happening, and for whom.
     assert!(says(&h, "Microsoft's sign-in page is open in your browser") && says(&h, "Sign in there as noor@example.org"));
+    // Some systems can't say that no browser started, so the page says what to do if none did.
+    assert!(says(&h, "If no browser opened, check that this computer has a default browser"));
     // Nothing is said of a step about Outlook's Favorites: there is none.
     assert!(!says(&h, "First you sign in at Microsoft") && !says(&h, "Favorites"));
     // And what to do if that page says no: why, in plain words, and the things to do, in view.
@@ -493,6 +495,50 @@ fn try_again_signs_in_afresh_and_not_now_leaves_nothing_behind() {
     h.state_mut().execute("ui.closeDialog", json!({})).unwrap();
     h.run_steps(3);
     assert!(!h.state().approving() && stopped(&[asked.unwrap().lock().unwrap()[0].3.clone()]) && addresses(&h) == [""]);
+}
+
+/// (2, continued) The window's own close button leaves nothing behind either, as "Not now" and
+/// Escape: the sign-in that waits, and Microsoft's approval page, are given up at once, and the
+/// host is told to stop.
+#[test]
+fn the_close_button_leaves_nothing_behind() {
+    for approving in [false, true] {
+        let (mut held, mut asked) = (None, None);
+        let mut h = work_account(|a| {
+            held = Some(sign_ins_held(a));
+            asked = Some(approvals(a, None));
+        });
+        let ((signed, _), asked) = (held.unwrap(), asked.unwrap());
+        click_kind(&mut h, "signInApprovalHelp", 0);
+        if approving {
+            press_step(&mut h, ADMINISTRATOR);
+        }
+        assert_eq!((h.state().signing_in(), h.state().approving()), (!approving, approving));
+        h.get_by_label("Close window").click();
+        h.run_steps(3);
+        assert!(h.state().dialog.is_none(), "{approving}");
+        assert!(!h.state().signing_in() && !h.state().approving(), "{approving}");
+        let flags: Vec<Arc<AtomicBool>> = signed.lock().unwrap().iter().map(|(.., stop)| stop.clone()).collect();
+        assert!(stopped(&flags), "{approving}");
+        let flags: Vec<Arc<AtomicBool>> = asked.lock().unwrap().iter().map(|(.., stop)| stop.clone()).collect();
+        assert_eq!((flags.len(), flags.iter().all(|flag| flag.load(Ordering::Relaxed))), (usize::from(approving), true), "{approving}");
+    }
+    // The page of an account that exists, with Microsoft's approval page open from it: the
+    // close button gives that up too.
+    let mut a = app(true);
+    a.services.microsoft_client_id = APP_ID.into();
+    let work = json!({"email": "ada@lumen.example", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}});
+    let work = a.execute("account.add", work).unwrap()["id"].as_u64().unwrap();
+    let asked = approvals(&mut a, None);
+    let mut h = window(a, (1280.0, 800.0));
+    h.state_mut().execute("ui.approvalHelp", json!({"account": work})).unwrap();
+    h.run_steps(3);
+    press_step(&mut h, ADMINISTRATOR);
+    assert!(h.state().approving());
+    h.get_by_label("Close window").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none() && !h.state().approving());
+    assert!(stopped(&[asked.lock().unwrap()[0].3.clone()]));
 }
 
 /// (3) The other ways a sign-in ends without tokens: the wizard says which, in a sentence of

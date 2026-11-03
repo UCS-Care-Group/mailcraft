@@ -51,7 +51,7 @@ fn existing_google_password_account() -> (MailApp, Id, Stored) {
     let owner = a.session.mailbox.account(id).unwrap();
     store.set(&MailApp::secret_key("password", owner), "saved-old-app-password").unwrap();
     a.passwords.insert(id, "memory-old-app-password".into());
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(Arc::new(store.clone()));
     (a, id, store)
 }
 

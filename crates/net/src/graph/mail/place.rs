@@ -271,7 +271,7 @@ fn fields(p: &PlaceUp) -> Map<String, Value> {
         out.insert("from".into(), address(&p.from));
         out.insert("sender".into(), address(&p.from));
     }
-    for (name, list) in [("toRecipients", &p.to_list), ("ccRecipients", &p.cc), ("bccRecipients", &p.bcc), ("replyTo", &p.reply_to)] {
+    for (name, list) in [("toRecipients", &p.to_list), ("ccRecipients", &p.cc), ("replyTo", &p.reply_to)] {
         if !list.is_empty() {
             out.insert(name.into(), recipients(list));
         }
@@ -282,6 +282,9 @@ fn fields(p: &PlaceUp) -> Map<String, Value> {
         Importance::High => "high",
     };
     out.insert("importance".into(), json!(level));
+    if p.read_receipt {
+        out.insert("isReadReceiptRequested".into(), json!(true));
+    }
     out.insert("isRead".into(), json!(p.read));
     if !p.categories.is_empty() {
         out.insert("categories".into(), json!(p.categories.iter().take(25).map(|c| clean(c, 255)).collect::<Vec<_>>()));

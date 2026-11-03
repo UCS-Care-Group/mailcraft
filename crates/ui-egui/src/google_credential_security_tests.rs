@@ -32,7 +32,7 @@ impl SecretStore for Store {
 fn app(store: &Store) -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
     (app.autosave, app.auto_sync) = (false, false);
-    app.services.secrets = Some(Box::new(store.clone()));
+    app.services.secrets = Some(Arc::new(store.clone()));
     app
 }
 
@@ -274,7 +274,7 @@ fn google_security_store_failure_keeps_tokens_only_in_memory_without_diagnostic_
     let store = Store::default();
     let mut a = app(&store);
     let id = add_google(&mut a, "one@example.org");
-    a.services.secrets = Some(Box::new(RejectStore));
+    a.services.secrets = Some(Arc::new(RejectStore));
     let given = tokens("one@example.org", "rejected-secret");
     a.adopt_tokens(id, given.clone());
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some(given.access.as_str()));

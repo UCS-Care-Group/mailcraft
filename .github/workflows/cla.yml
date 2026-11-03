@@ -37,6 +37,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
           EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
           COMMENT: ${{ github.event.comment.body }}
           COMMENTER: ${{ github.event.comment.user.login }}
           COMMENTER_ID: ${{ github.event.comment.user.id }}
@@ -51,8 +52,10 @@ jobs:
           MARK='<!-- mailcraft-cla -->'
           signatures() { gh api "repos/$REPO/contents/$FILE?ref=$BRANCH" -q .content | base64 -d; }
 
-          # A signing comment: the sentence alone, ignoring case, spaces and a final full stop.
-          norm() { tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//; s/\.$//'; }
+          # A signing comment: the sentence alone, ignoring case, spaces, a final full stop,
+          # a quote marker, backticks and code-fence lines (people paste it from the bot's comment).
+          # shellcheck disable=SC2016 # the backticks are literal, for sed
+          norm() { sed 's/^[[:space:]]*>[[:space:]]*//; /^[[:space:]]*```/d; s/`//g' | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//; s/\.$//'; }
           if [ "$EVENT" = issue_comment ]; then
             [ "$(printf '%s' "$COMMENT" | norm)" = "$(printf '%s' "$SENTENCE" | norm)" ] || exit 0
             for try in 1 2 3; do
@@ -87,10 +90,31 @@ jobs:
             -q ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$MARK\"))) | .id" | head -1)
           if [ -n "$missing" ]; then
             state=failure; desc="Waiting for the CLA to be signed"
-            text="$MARK"$'\n'"Thank you for contributing. Before this can be merged, each author below signs the [Contributor Licence Agreement](https://github.com/$REPO/blob/main/CLA.md) once, by commenting on this pull request:"$'\n\n'"> $SENTENCE."$'\n\n'"You keep the copyright in your work. MailCraft stays MIT OR Apache-2.0.$missing"
+            fence='```'
+            text="$MARK
+          ### One step left: sign the Contributor Licence Agreement
+
+          Thank you for contributing. Before this can be merged, everyone listed below signs the [CLA](https://github.com/$REPO/blob/main/CLA.md) once. It takes one comment, and it covers every contribution you make from now on.
+
+          **To sign:** add a new comment to this pull request with only this line in it (the copy button is on the right):
+
+          $fence
+          $SENTENCE.
+          $fence
+
+          This check turns green within a minute or so. Editing an older comment doesn't count, so please post a new one.
+
+          Still to sign:$missing
+
+          You keep the copyright in your work, and MailCraft stays MIT OR Apache-2.0. The CLA also lets UCS Care Group release MailCraft under other terms, such as a commercial edition, without asking each contributor again. Questions are welcome here."
           else
             state=success; desc="Every author has signed the CLA"
             text="$MARK"$'\n'"Every author has signed the [CLA](https://github.com/$REPO/blob/main/CLA.md). Thank you."
+          fi
+          # A new commit while someone still has to sign: post afresh, so they're told again.
+          if [ -n "$old" ] && [ "$state" = failure ] && [ "$ACTION" = synchronize ]; then
+            gh api -X DELETE "repos/$REPO/issues/comments/$old" > /dev/null
+            old=""
           fi
           if [ -n "$old" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$old" -f body="$text" > /dev/null

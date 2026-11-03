@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
+use mailcraft_engine::cmd::folder::sort_as_listed;
 use mailcraft_model::{Folder, FolderKind, Id, Mailbox};
 use serde_json::json;
 
@@ -85,21 +86,6 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
     });
 }
 
-/// The rank of the folders that lead an account's list, in the order they lead it.
-fn lead_rank(kind: FolderKind) -> usize {
-    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
-    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
-}
-
-/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
-/// the pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead; every
-/// other folder, Archive, Junk Email and Outbox among them, follows by name without regard to
-/// case. Subfolders are by name alone.
-fn sort_as_listed(list: &mut [&Folder], top: bool) {
-    // The id last: two folders of one name keep their places from frame to frame.
-    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.name.to_lowercase(), f.id));
-}
-
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
 /// may come from anywhere, and the pane is laid out again every frame.
 const MAX_DEPTH: usize = 32;
@@ -174,6 +160,15 @@ impl Count {
         }
     }
 
+    /// The number alone, as the pill shows it.
+    fn digits(self) -> String {
+        match self {
+            Count::Nothing => String::new(),
+            Count::Unread(n) | Count::Total(n) => n.to_string(),
+        }
+    }
+
+    #[cfg(test)]
     fn text(self) -> String {
         match self {
             Count::Nothing => String::new(),
@@ -181,19 +176,6 @@ impl Count {
             Count::Total(n) => format!("[{n}]"),
         }
     }
-}
-
-/// How many messages each folder holds and how many of those are unread, in one pass over the mail.
-fn tallies(mailbox: &Mailbox) -> HashMap<Id, (usize, usize)> {
-    let mut out: HashMap<Id, (usize, usize)> = HashMap::new();
-    for m in mailbox.messages.values() {
-        let entry = out.entry(m.folder).or_default();
-        entry.0 = entry.0.saturating_add(1);
-        if !m.read {
-            entry.1 = entry.1.saturating_add(1);
-        }
-    }
-    out
 }
 
 /// A chevron centred on `c`, `half` its half-width when it points down (what is under it shows);
@@ -231,6 +213,16 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     if resp.clicked() {
         let _ = app.execute("ui.toggleFolder", json!({"id": id}));
     }
+    // An account's heading (not the Favorites').
+    if id != FAVORITES {
+        resp.context_menu(|ui| {
+            ui.set_min_width(190.0);
+            if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
+                let _ = app.run("folder.properties", json!({"account": id}));
+                ui.close();
+            }
+        });
+    }
     open
 }
 
@@ -252,10 +244,11 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     app.hit.add("folder", f.id, r);
     let row = highlight(r);
     if selected {
-        ui.painter().rect_filled(row, 0.0, t.selection);
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
     } else if resp.hovered() {
         // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
-        ui.painter().rect_filled(row, 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     // The chevron has its own click target, only on a folder with something under it.
@@ -269,26 +262,43 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     let y = r.center().y - TEXT_RISE;
-    // The count, flush right: unread in bold, a total in brackets, both in the accent.
+    // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
+    // (Drafts, Junk) in a quiet grey one.
     let mut name_end = r.max.x - COUNT_RIGHT;
     if count != Count::Nothing {
-        let font = if matches!(count, Count::Unread(_)) { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-        let shown = ui.painter().text(pos2(r.max.x - COUNT_RIGHT, y), Align2::RIGHT_CENTER, count.text(), font, t.accent);
-        name_end = shown.min.x - 8.0;
+        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+        let w = (galley.size().x + 12.0).max(20.0);
+        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+        ui.painter().rect_filled(pill, 9.0, fill);
+        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
+        name_end = pill.min.x - 6.0;
     }
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
-    paint_clipped(ui.painter(), pos2(x + NAME_LEFT, y), (name_end - x - NAME_LEFT).max(0.0), &name, font, t.text);
+    paint_clipped(
+        ui.painter(),
+        pos2(x + NAME_LEFT, y),
+        (name_end - x - NAME_LEFT).max(0.0),
+        &name,
+        font,
+        if selected { t.accent_soft_text } else { t.text },
+    );
     if resp.clicked() {
         ui.data_mut(|d| d.insert_temp(egui::Id::unique("folder_picked_in_list"), key == "tree"));
         let _ = app.run("folder.select", json!({"id": f.id}));
     }
     // Messages dragged out of the list are filed in the folder they are let go over.
-    if resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some() {
-        ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    if let Some(drag) = resp.dnd_hover_payload::<crate::mail_view::MessageDrag>() {
+        let takes = !crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id).is_empty();
+        crate::drag_pointer::note_folder(ui.ctx(), takes);
+        if takes {
+            ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        }
     }
     if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
         // Only what isn't here already.
-        let ids: Vec<Id> = drag.0.iter().copied().filter(|m| app.session.mailbox.message(*m).is_some_and(|m| m.folder != f.id)).collect();
+        let ids = crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id);
         if !ids.is_empty() {
             let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
         }
@@ -305,13 +315,17 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             }
         };
         item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), true);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), custom);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), custom);
+        // (Not one that is or holds what a JMAP account's server has, which stays for now.)
+        let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
+        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
+        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
         item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), true);
+            let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
+            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
@@ -319,6 +333,8 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         } else {
             item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
         }
+        ui.separator();
+        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
     });
 }
 
@@ -346,7 +362,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
     };
     app.hit.add(kind, account, r);
     if resp.hovered() {
-        ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+        ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
     paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
@@ -385,7 +401,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
             let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_offer", account)), Sense::click());
             app.hit.add("favoritesOffer", account, r);
             if resp.hovered() {
-                ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
+                ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
             }
             paint_clipped(ui.painter(), pos2(left, y), width, tl!("Show Outlook's Favorites"), font, t.accent_text);
             // Signing in with Microsoft once more, for that alone.
@@ -496,17 +512,18 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         // In the dark the pane and the list beside it are told apart by their own colours; on a
         // light window they are nearly one white, and a line parts them.
-        .show_separator_line(!t.dark)
+        .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.canvas));
     let shown = panel.show(ui, |ui| {
         sheet(ui.painter(), ui.max_rect(), &t);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         pane_top(app, ui, &t);
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            let counts = tallies(&app.session.mailbox);
+            // (Counted once per change to the mailbox, not at every frame: `Session::folder_counts`.)
+            let counts = app.session.folder_counts();
             let count = |f: &Folder| {
-                let (total, unread) = counts.get(&f.id).copied().unwrap_or_default();
-                Count::of(f.kind, total, unread)
+                let held = counts.folder(f.id);
+                Count::of(f.kind, held.total, held.unread)
             };
             // What is listed: the favourites, and under each account what isn't folded away.
             let folded = app.ui.collapsed_folders.clone();
@@ -650,342 +667,5 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 }
 
 #[cfg(test)]
-mod tests {
-    use mailcraft_engine::Session;
-
-    use super::*;
-    use crate::Services;
-
-    /// Wednesday 2026-10-14 16:00 UTC.
-    const NOW: i64 = 1_791_993_600;
-
-    fn names(folders: &[&Folder]) -> Vec<String> {
-        folders.iter().map(|f| f.name.clone()).collect()
-    }
-
-    /// A standard folder still called by its default name, or the server's folder of its kind,
-    /// is named in the interface language; one the owner named keeps its name; English shows
-    /// every folder by its own name. What is kept never changes.
-    #[test]
-    fn folders_are_named_in_the_interface_language_by_their_kind() {
-        let folder = |name: &str, kind: FolderKind, remote: &str| Folder { name: name.into(), kind, remote: remote.into(), ..Default::default() };
-        assert_eq!(named_by(&folder("Inbox", FolderKind::Inbox, "")), Some(Named::Kind(FolderKind::Inbox)));
-        assert_eq!(named_by(&folder("Sent Items", FolderKind::Sent, "")), Some(Named::Kind(FolderKind::Sent)));
-        assert_eq!(named_by(&folder("Old mail", FolderKind::Archive, "")), None);
-        assert_eq!(named_by(&folder("Sent Mail", FolderKind::Sent, "[Gmail]/Sent Mail")), Some(Named::Kind(FolderKind::Sent)));
-        assert_eq!(named_by(&folder(mailcraft_model::IMPORTED, FolderKind::Custom, "")), Some(Named::Imported));
-        assert_eq!(named_by(&folder("Imported", FolderKind::Custom, "Imported")), None);
-        assert_eq!(named_by(&folder("Projects", FolderKind::Custom, "")), None);
-        assert_eq!(mailcraft_model::IMPORTED, "Imported", "the text `folder_name` translates");
-        // (The tests' window is in English: every folder by its own name.)
-        assert_eq!(folder_name(&folder("Sent Mail", FolderKind::Sent, "[Gmail]/Sent Mail")), "Sent Mail");
-        // A tangled tree still ends.
-        let mut mb = Mailbox::default();
-        mb.folders.push(Folder { id: 1, parent: Some(2), ..folder("a", FolderKind::Custom, "") });
-        mb.folders.push(Folder { id: 2, parent: Some(1), ..folder("b", FolderKind::Custom, "") });
-        assert!(folder_path(&mb, 1).split('/').count() <= 33);
-    }
-
-    /// The folders of `account` under `parent` (`None`: its top level), in the pane's order.
-    fn ordered(mailbox: &Mailbox, account: Id, parent: Option<Id>) -> Vec<&Folder> {
-        let mut list: Vec<&Folder> = mailbox.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
-        sort_as_listed(&mut list, parent.is_none());
-        list
-    }
-
-    /// Inbox, Drafts, Sent Items and Deleted Items lead; everything else, the other standard
-    /// folders among it, follows by name whatever its case; subfolders are by name alone.
-    #[test]
-    fn folders_are_listed_leading_four_then_by_name() {
-        let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@lumen.example");
-        let account = mb.accounts.first().unwrap().id;
-        let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
-        for name in ["Zebra", "apple", "Banana", "outings", "Projects", "receipts"] {
-            mb.add_folder(account, None, name).unwrap();
-        }
-        for name in ["beta", "Alpha", "delta", "Charlie"] {
-            mb.add_folder(account, Some(inbox), name).unwrap();
-        }
-        assert_eq!(
-            names(&ordered(&mb, account, None)),
-            [
-                "Inbox",
-                "Drafts",
-                "Sent Items",
-                "Deleted Items",
-                "apple",
-                "Archive",
-                "Banana",
-                "Junk Email",
-                "Outbox",
-                "outings",
-                "Projects",
-                "receipts",
-                "Zebra"
-            ]
-        );
-        assert_eq!(names(&ordered(&mb, account, Some(inbox))), ["Alpha", "beta", "Charlie", "delta"]);
-
-        // Depth first, each level in that order, and nothing from under a folded folder.
-        let charlie = mb.folders.iter().find(|f| f.name == "Charlie").unwrap().id;
-        mb.add_folder(account, Some(charlie), "two").unwrap();
-        mb.add_folder(account, Some(charlie), "One").unwrap();
-        let listed = |folded: &[Id]| {
-            visible(&mb, folded, account).iter().map(|(f, depth, has_children)| (f.name.clone(), *depth, *has_children)).collect::<Vec<_>>()
-        };
-        let open = listed(&[]);
-        let head: Vec<(&str, usize, bool)> = open.iter().take(8).map(|(n, d, c)| (n.as_str(), *d, *c)).collect();
-        assert_eq!(
-            head,
-            [
-                ("Inbox", 0, true),
-                ("Alpha", 1, false),
-                ("beta", 1, false),
-                ("Charlie", 1, true),
-                ("One", 2, false),
-                ("two", 2, false),
-                ("delta", 1, false),
-                ("Drafts", 0, false)
-            ]
-        );
-        assert_eq!(listed(&[charlie]).len(), open.len() - 2);
-        assert_eq!(listed(&[inbox]).iter().filter(|(_, depth, _)| *depth > 0).count(), 0);
-
-        // Another account's folders are its own, in the same order.
-        let other = mb.add_account(mailcraft_model::Account { name: "studio".into(), ..Default::default() });
-        mb.add_folder(other, None, "aardvark").unwrap();
-        assert_eq!(
-            names(&ordered(&mb, other, None)).iter().take(5).collect::<Vec<_>>(),
-            ["Inbox", "Drafts", "Sent Items", "Deleted Items", "aardvark"]
-        );
-        assert_eq!(ordered(&mb, account, None).len(), 13);
-    }
-
-    /// A mailbox may come from anywhere: folders nested without end, in a ring, or by the thousand
-    /// are listed up to a point and no further.
-    #[test]
-    fn a_hostile_folder_tree_is_listed_up_to_a_point() {
-        let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@lumen.example");
-        let account = mb.accounts.first().unwrap().id;
-        let mut parent = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
-        for i in 0..3 * MAX_DEPTH {
-            let id = mb.add_folder(account, None, &format!("level {i}")).unwrap();
-            mb.folder_mut(id).unwrap().parent = Some(parent);
-            parent = id;
-        }
-        let rows = visible(&mb, &[], account);
-        assert_eq!(rows.iter().map(|(_, depth, _)| *depth).max(), Some(MAX_DEPTH));
-
-        // Two folders that are each other's parent hang from nothing: neither is listed.
-        let a = mb.add_folder(account, None, "ring a").unwrap();
-        let b = mb.add_folder(account, None, "ring b").unwrap();
-        mb.folder_mut(a).unwrap().parent = Some(b);
-        mb.folder_mut(b).unwrap().parent = Some(a);
-        let me = mb.add_folder(account, None, "ring of one").unwrap();
-        mb.folder_mut(me).unwrap().parent = Some(me);
-        assert!(!visible(&mb, &[], account).iter().any(|(f, _, _)| f.name.starts_with("ring")));
-
-        for i in 0..MAX_ROWS + 50 {
-            mb.folders.push(Folder { id: 1_000_000 + i as Id, account, name: format!("f{i}"), ..Default::default() });
-        }
-        assert_eq!(visible(&mb, &[], account).len(), MAX_ROWS);
-    }
-
-    /// Unread mail is a bold number; Drafts, Outbox and Junk Email show all they hold, in square
-    /// brackets; sent and deleted mail shows nothing.
-    #[test]
-    fn counts_are_unread_or_a_total_in_brackets() {
-        assert_eq!(Count::of(FolderKind::Inbox, 9, 4), Count::Unread(4));
-        assert_eq!(Count::of(FolderKind::Custom, 9, 4).text(), "4");
-        assert_eq!(Count::of(FolderKind::Archive, 9, 0), Count::Nothing);
-        assert_eq!(Count::of(FolderKind::Drafts, 3, 0), Count::Total(3));
-        assert_eq!(Count::of(FolderKind::Junk, 28, 5).text(), "[28]");
-        assert_eq!(Count::of(FolderKind::Outbox, 1, 1).text(), "[1]");
-        assert_eq!(Count::of(FolderKind::Drafts, 0, 0).text(), "");
-        assert_eq!(Count::of(FolderKind::Sent, 5, 5), Count::Nothing);
-        assert_eq!(Count::of(FolderKind::Deleted, 5, 5), Count::Nothing);
-
-        // The tallies behind them, against the mailbox's own counting.
-        let mb = mailcraft_engine::sample::mailbox(NOW, 0);
-        let counts = tallies(&mb);
-        assert!(mb.folders.iter().any(|f| mb.unread_count(f.id) > 0));
-        for f in &mb.folders {
-            assert_eq!(counts.get(&f.id).copied().unwrap_or_default(), (mb.count(f.id), mb.unread_count(f.id)), "{}", f.name);
-        }
-    }
-
-    fn window() -> egui_kittest::Harness<'static, MailApp> {
-        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-        app.autosave = false;
-        let mut harness = egui_kittest::Harness::builder()
-            .with_accessibility_check(false)
-            .allow_missing_glyphs()
-            .with_size(egui::vec2(1280.0, 800.0))
-            .build_ui_state(
-                |ui, app: &mut MailApp| {
-                    let ctx = ui.ctx().clone();
-                    app.logic(&ctx);
-                    app.ui(ui);
-                },
-                app,
-            );
-        harness.run_steps(4);
-        // The sample has reminders due, and their window would lie over the top of the pane.
-        let _ = harness.state_mut().execute("ui.dismissReminder", serde_json::json!({"all": true}));
-        harness.run_steps(3);
-        harness
-    }
-
-    fn click(harness: &mut egui_kittest::Harness<'static, MailApp>, pos: Pos2) {
-        harness.event(egui::Event::PointerMoved(pos));
-        harness.step();
-        for pressed in [true, false] {
-            harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
-            harness.step();
-        }
-        harness.run_steps(2);
-    }
-
-    /// Two accounts' Inboxes among the Favorites say which account each is, as in a search of every
-    /// mailbox; under each account's own heading they stay plain Inbox.
-    #[test]
-    fn two_accounts_inboxes_among_the_favorites_are_told_apart() {
-        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-        app.autosave = false;
-        let mb = &mut app.session.mailbox;
-        let first = mb.inbox().unwrap();
-        let work = mb.add_account(mailcraft_model::Account { name: "Work".into(), email: "me@work.example".into(), ..Default::default() });
-        let second = mb.folder_of_kind(work, FolderKind::Inbox).unwrap();
-        for id in [first, second] {
-            app.execute("folder.favorite", serde_json::json!({"id": id, "value": true})).unwrap();
-        }
-        let ctx = egui::Context::default();
-        crate::theme::install_fonts(&ctx);
-        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| folder_pane(&mut app, ui));
-        out.textures_delta.clear();
-        let texts: Vec<String> = out
-            .shapes
-            .iter()
-            .filter_map(|c| match &c.shape {
-                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
-                _ => None,
-            })
-            .collect();
-        assert!(texts.iter().any(|t| t == "Inbox - Work"), "{texts:?}");
-        let mine = app.session.mailbox.accounts.first().unwrap();
-        let mine = if mine.name.trim().is_empty() { mine.email.trim() } else { mine.name.trim() };
-        assert!(texts.iter().any(|t| *t == format!("Inbox - {mine}")), "{texts:?}");
-        assert!(texts.iter().any(|t| t == "Inbox"), "each account's own tree keeps the plain name: {texts:?}");
-    }
-
-    /// The pane lists the folders in order down the screen, one row each, further in at each level.
-    #[test]
-    fn rows_go_down_the_pane_in_order() {
-        let harness = window();
-        let app = harness.state();
-        let account = app.session.mailbox.accounts.first().unwrap().id;
-        let rows = visible(&app.session.mailbox, &[], account);
-        assert!(rows.iter().any(|(_, depth, _)| *depth == 2), "the sample has folders two levels down");
-        // A favourite's first row is the one under Favorites: look at the others.
-        let listed: Vec<Rect> = rows.iter().filter(|(f, _, _)| !f.favorite).map(|(f, _, _)| app.hit.rect("folder", f.id).unwrap()).collect();
-        assert!(listed.len() > 5);
-        for pair in listed.windows(2) {
-            assert!(pair[1].min.y >= pair[0].max.y - 0.5, "{pair:?}");
-            assert!((pair[0].height() - ROW_H).abs() < 0.01, "{pair:?}");
-        }
-        // Favourites are above the account's heading, the account's own rows under it.
-        let heading = app.hit.rect("folderHeading", account).unwrap();
-        let favorites = app.hit.rect("folderHeading", FAVORITES).unwrap();
-        assert!(favorites.max.y <= heading.min.y);
-        assert!(listed.iter().all(|r| r.min.y >= heading.max.y - 0.5));
-        let favorite = app.session.mailbox.folders.iter().find(|f| f.favorite).unwrap().id;
-        let row = app.hit.rect("folder", favorite).unwrap();
-        assert!(row.min.y >= favorites.max.y - 0.5 && row.max.y <= heading.min.y + 0.5);
-    }
-
-    /// A click on the Favorites heading or on an account's folds what is under it away, another
-    /// brings it back, and the choice is saved with the settings.
-    #[test]
-    fn headings_fold_and_the_settings_remember() {
-        let mut harness = window();
-        let account = harness.state().session.mailbox.accounts.first().unwrap().id;
-        let drafts = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
-        let at = |h: &egui_kittest::Harness<'static, MailApp>, kind: &str, id: Id| h.state().hit.rect(kind, id);
-        assert!(at(&harness, "folder", drafts).is_some());
-        let before = at(&harness, "folderHeading", account).unwrap();
-
-        // Favorites folded: the account's heading moves up to where the favourites were.
-        let favorites = at(&harness, "folderHeading", FAVORITES).unwrap();
-        click(&mut harness, favorites.center());
-        assert!(harness.state().ui.collapsed_folders.contains(&FAVORITES));
-        let after = at(&harness, "folderHeading", account).unwrap();
-        assert!(after.min.y < before.min.y - ROW_H, "{before:?} -> {after:?}");
-        assert!(at(&harness, "folder", drafts).is_some(), "the account's folders stay");
-
-        // The account folded: none of its folders is listed.
-        click(&mut harness, after.center());
-        assert!(harness.state().ui.collapsed_folders.contains(&account));
-        assert!(harness.state().session.mailbox.folders.iter().all(|f| at(&harness, "folder", f.id).is_none()));
-
-        // Saved, and restored into another window.
-        let saved = serde_json::to_string(&harness.state().prefs()).unwrap();
-        let restored: crate::UiState = serde_json::from_str(&saved).unwrap();
-        assert!(restored.collapsed_folders.contains(&FAVORITES) && restored.collapsed_folders.contains(&account));
-
-        // And back.
-        let heading = at(&harness, "folderHeading", account).unwrap();
-        click(&mut harness, heading.center());
-        assert!(!harness.state().ui.collapsed_folders.contains(&account));
-        assert!(at(&harness, "folder", drafts).is_some());
-        let favorites = at(&harness, "folderHeading", FAVORITES).unwrap();
-        click(&mut harness, favorites.center());
-        assert!(harness.state().ui.collapsed_folders.is_empty());
-    }
-
-    /// The button at the top of the pane puts it away; a narrow strip stays, with the button that
-    /// brings it back.
-    #[test]
-    fn the_pane_hides_and_its_strip_brings_it_back() {
-        let mut harness = window();
-        let inbox = harness.state().session.view.folder;
-        let shown = |h: &egui_kittest::Harness<'static, MailApp>| h.state().session.view.folder_pane;
-        assert!(shown(&harness) && harness.state().hit.rect("folderPaneShow", 0).is_none());
-        let wide = harness.state().hit.rect("folderHeading", FAVORITES).unwrap().width();
-        let hide = harness.state().hit.rect("folderPaneHide", 0).unwrap();
-        click(&mut harness, hide.center());
-        assert!(!shown(&harness));
-        assert!(harness.state().hit.rect("folder", inbox).is_none() && harness.state().hit.rect("folderPaneHide", 0).is_none());
-        let show = harness.state().hit.rect("folderPaneShow", 0).unwrap();
-        assert!(show.max.x - hide.min.x < 0.0 && show.width() < wide, "the strip is at the pane's left edge, and narrow: {show:?}");
-        assert!((show.center().y - hide.center().y).abs() < 0.5, "where the other button was");
-        click(&mut harness, show.center());
-        assert!(shown(&harness) && harness.state().hit.rect("folder", inbox).is_some());
-    }
-
-    /// A click on a folder's row shows that folder; a click on its chevron folds its subfolders
-    /// away and leaves the folder in view alone.
-    #[test]
-    fn a_row_selects_and_its_chevron_folds() {
-        let mut harness = window();
-        let account = harness.state().session.mailbox.accounts.first().unwrap().id;
-        let (inbox, drafts) = {
-            let mb = &harness.state().session.mailbox;
-            (mb.folder_of_kind(account, FolderKind::Inbox).unwrap(), mb.folder_of_kind(account, FolderKind::Drafts).unwrap())
-        };
-        let child = harness.state().session.mailbox.folders.iter().find(|f| f.parent == Some(inbox) && !f.favorite).unwrap().id;
-        let row = harness.state().hit.rect("folder", drafts).unwrap();
-        click(&mut harness, row.center());
-        assert_eq!(harness.state().session.view.folder, drafts);
-
-        // The Inbox is a favourite too: its row in the account's list is the one with the chevron.
-        let heading = harness.state().hit.rect("folderHeading", account).unwrap();
-        let child_row = harness.state().hit.rect("folder", child).unwrap();
-        let inbox_row = Rect::from_min_size(pos2(child_row.min.x, heading.max.y), vec2(child_row.width(), ROW_H));
-        click(&mut harness, pos2(inbox_row.min.x + CHEVRON_X, inbox_row.center().y));
-        assert!(harness.state().ui.collapsed_folders.contains(&inbox));
-        assert_eq!(harness.state().session.view.folder, drafts, "the chevron doesn't select");
-        assert!(harness.state().hit.rect("folder", child).is_none());
-        click(&mut harness, pos2(inbox_row.min.x + CHEVRON_X, inbox_row.center().y));
-        assert!(harness.state().hit.rect("folder", child).is_some());
-    }
-}
+#[path = "nav_tests.rs"]
+mod tests;

@@ -105,7 +105,9 @@ impl MailApp {
             let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(graph).map(|a| a.id).collect();
             self.inbox_check.queue = accounts
                 .into_iter()
-                .filter(|account| mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some())
+                .filter(|account| {
+                    mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some_and(|r| !r.links.is_empty())
+                })
                 .collect();
         }
         while let Some(account) = self.inbox_check.queue.pop_front() {
@@ -163,8 +165,11 @@ impl MailApp {
 
     /// The Inbox pass of `account`, as a Graph job of its own: a round's, or the Inbox checked by
     /// itself (`check`).
-    fn start_inbox_pass(&mut self, account: Id, quiet: bool, check: bool) -> Option<Value> {
+    pub(crate) fn start_inbox_pass(&mut self, account: Id, quiet: bool, check: bool) -> Option<Value> {
         self.services.graph.as_ref()?;
+        if self.offline() {
+            return None;
+        }
         if self.sync_rx.is_some() || self.graph_rx.is_some() || (quiet && !self.can_sync_quietly(account)) {
             return None;
         }
@@ -293,6 +298,8 @@ impl MailApp {
         }
         // Stop ends the round: nothing is left in line.
         if self.services.sync_cancel.load(Ordering::Relaxed) && self.sync_queue.is_empty() {
+            let now = self.session.now();
+            self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
             self.session.sync_progress.end(account, true);
             self.session.sync_status.clear();
         } else {

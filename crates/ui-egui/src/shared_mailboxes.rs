@@ -52,6 +52,16 @@ fn refused_words(why: SharedRefusal, address: &str) -> String {
     crate::i18n::fmt(words, &[("address", address)])
 }
 
+/// A line of the Send/Receive report about the shared mailbox at `address`: which one, and what
+/// happens next. A refusal is left alone until the owner asks (File › Info says why); anything
+/// else is tried again at the next Send/Receive (#539).
+fn shared_problem_words(address: &str, error: &str, refused: bool) -> String {
+    let error = error.trim().trim_end_matches('.');
+    let words =
+        if refused { tl!("{address}: {error}. See File › Info.") } else { tl!("{address}: {error}. It will try again at the next Send/Receive.") };
+    crate::i18n::fmt(words, &[("address", address), ("error", error)])
+}
+
 impl MailApp {
     /// A Send/Receive of the shared mailbox `account`: its folders and mail, with its owner's
     /// sign-in.
@@ -108,6 +118,9 @@ impl MailApp {
             cancel: self.services.sync_cancel.clone(),
         };
         self.resume_fetch();
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
         self.graph_pieces = Some(taken);
@@ -156,6 +169,13 @@ impl MailApp {
                 }
                 Err(e) => errors.push(e.to_string()),
             }
+        }
+        // Which mailbox, and what happens next (#539): this is the owner's own window, so the
+        // address may be here; the log never gets these lines.
+        let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
+        let refused = self.shared_refused.contains_key(&account);
+        for line in &mut errors {
+            *line = shared_problem_words(&address, line, refused);
         }
         // The owner's sign-in was refused (run out, taken back, #124): signing in again is theirs
         // to do, from their own account's Send/Receive.
@@ -297,13 +317,28 @@ impl MailApp {
     /// The first send from the shared mailbox `shared` (#70): ask the owner whether Microsoft's
     /// page may ask him to let MailCraft send from shared mailboxes. Whether it was asked.
     pub(crate) fn ask_shared_send(&mut self, shared: Id) -> bool {
+        self.ask_shared_send_for(shared, false)
+    }
+
+    /// [`ask_shared_send`](Self::ask_shared_send), for what a meeting in its calendar makes the
+    /// server send (`meeting`) or for mail in its Outbox: the same permission and the same page.
+    pub(crate) fn ask_shared_send_for(&mut self, shared: Id, meeting: bool) -> bool {
         let Some(address) = self.session.mailbox.account(shared).filter(|a| a.is_shared()).map(|a| a.email.trim().to_string()) else { return false };
-        let text = crate::i18n::fmt(
-            tl!(
-                "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n\nWhether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-            ),
-            &[("address", &address)],
-        );
+        let text = if meeting {
+            crate::i18n::fmt(
+                tl!(
+                    "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n\nWhether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+                ),
+                &[("address", &address)],
+            )
+        } else {
+            crate::i18n::fmt(
+                tl!(
+                    "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n\nWhether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+                ),
+                &[("address", &address)],
+            )
+        };
         let ask = crate::dialogs::Question {
             title: tl!("Send from a Shared Mailbox").to_string(),
             text,
@@ -311,6 +346,8 @@ impl MailApp {
             with: Value::Null,
             more: Vec::new(),
             note: None,
+            cancel: None,
+            tick: None,
         };
         self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedSend".to_string(), params: json!({"account": shared}), ask });
         true
@@ -351,8 +388,12 @@ impl MailApp {
                     }
                 }
                 self.graph_tokens.insert(shared, tokens);
-                // (Allowed: what waits goes now.)
+                // (Allowed: what waits goes now, a meeting's answer too.)
                 self.shared_send_waits.remove(&shared);
+                if self.calendar.send_waits.remove(&shared) {
+                    self.calendar_connected(shared);
+                    self.calendar.due = true;
+                }
                 if let Err(e) = self.start_sync(&json!({"account": shared})) {
                     self.status(e);
                 }

@@ -56,7 +56,7 @@ fn delete(remote: &str) -> EventOp {
 /// Send `ops` to the stand-in, in the owner's zone `zone`.
 fn push(server: &StandIn, ops: Vec<EventOp>, zone: &str) -> Vec<EventOutcome> {
     let upload = EventsUpload { account: 3, email: "owner@example.org".into(), ops, ..Default::default() };
-    let uploaded = push_events_at(&server.url(), TOKEN, &upload, &EventOptions { zone: zone.into() });
+    let uploaded = push_events_at(&server.url(), TOKEN, &upload, &EventOptions { zone: zone.into(), ..Default::default() });
     assert!(!uploaded.token_refused);
     uploaded.outcomes
 }
@@ -72,7 +72,8 @@ fn done(server: &StandIn, op: EventOp, zone: &str) -> EventOutcome {
 
 /// October 2026 of a calendar of the stand-in's, as this crate reads it.
 fn october(server: &StandIn, calendar: &str) -> EventsDownload {
-    let query = EventsQuery { calendar: calendar.into(), from: at(2026, 10, 1, 0, 0), to: at(2026, 11, 1, 0, 0), series: Vec::new() };
+    let query =
+        EventsQuery { calendar: calendar.into(), from: at(2026, 10, 1, 0, 0), to: at(2026, 11, 1, 0, 0), series: Vec::new(), shared: String::new() };
     events_in_at(&server.url(), TOKEN, &query).unwrap()
 }
 
@@ -191,7 +192,8 @@ fn whole_days_and_series_go_in_the_owners_zone() {
     assert_eq!((master.start, master.zone.as_str(), master.recurrence.is_some()), (at(2026, 10, 5, 13, 0), EASTERN, true));
     // It comes down as its occurrences and as itself, with its rule; after the clocks go back
     // it is still at nine there, which is an hour later in UTC.
-    let query = EventsQuery { calendar: String::new(), from: at(2026, 10, 26, 0, 0), to: at(2026, 11, 8, 0, 0), series: Vec::new() };
+    let query =
+        EventsQuery { calendar: String::new(), from: at(2026, 10, 26, 0, 0), to: at(2026, 11, 8, 0, 0), series: Vec::new(), shared: String::new() };
     let down = events_in_at(&server.url(), TOKEN, &query).unwrap();
     let starts: Vec<Timestamp> =
         down.events.iter().filter(|e| e.kind == RemoteEventKind::Occurrence && e.series == made.remote).map(|e| e.start).collect();
@@ -318,9 +320,13 @@ fn an_event_of_another_calendar_is_written_through_that_calendar() {
         (EventResult::Denied, "this account may not change its calendar through Microsoft Graph (ErrorAccessDenied)")
     );
     // The list of calendars says which is the main one, and which may be changed.
-    let list = calendars_at(&server.url(), TOKEN).unwrap();
-    let told: Vec<(&str, bool, bool)> = list.calendars.iter().map(|c| (c.name.as_str(), c.main, c.read_only)).collect();
+    let list = calendars_at(&server.url(), TOKEN, None).unwrap();
+    let told: Vec<(&str, bool, bool)> = list.calendars.iter().map(|c| (c.name.as_str(), c.main, !c.rights.can_edit())).collect();
     assert_eq!(told, [("Calendar", true, false), ("Team", false, false), ("Bo's calendar", false, false), ("Holidays", false, true)]);
+    // And whose each is: the signed-in person's own, or somebody else's that is shared with them.
+    let whose: Vec<&str> = list.calendars.iter().map(|c| c.owner.as_ref().map_or("", |o| o.address.as_str())).collect();
+    let own = server.state().owner.clone();
+    assert_eq!(whose, [own.as_str(), own.as_str(), "else@example.org", own.as_str()]);
 }
 
 #[test]
@@ -859,7 +865,8 @@ fn a_series_in_a_zone_of_its_own_keeps_its_hour_there_across_a_change_of_the_clo
     assert_eq!(sent["start"], json!({"dateTime": "2026-10-19T09:00:00", "timeZone": "W. Europe Standard Time"}));
     assert_eq!(sent["recurrence"]["range"]["startDate"], json!("2026-10-19"));
     assert_eq!(sent["recurrence"]["range"]["recurrenceTimeZone"], json!("W. Europe Standard Time"));
-    let query = EventsQuery { calendar: String::new(), from: at(2026, 10, 18, 0, 0), to: at(2026, 11, 10, 0, 0), series: Vec::new() };
+    let query =
+        EventsQuery { calendar: String::new(), from: at(2026, 10, 18, 0, 0), to: at(2026, 11, 10, 0, 0), series: Vec::new(), shared: String::new() };
     let down = events_in_at(&server.url(), TOKEN, &query).unwrap();
     let starts: Vec<Timestamp> =
         down.events.iter().filter(|e| e.kind == RemoteEventKind::Occurrence && e.series == made.remote).map(|e| e.start).collect();

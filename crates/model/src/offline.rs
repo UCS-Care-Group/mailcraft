@@ -140,8 +140,9 @@ pub struct OfflineWindow {
     since: HashMap<Id, Timestamp>,
     /// Folders whose mail is always kept: Drafts, Outbox, and folders the server hasn't got.
     always: HashSet<Id>,
-    /// Each folder the server has, by account and server id.
-    by_server: HashMap<(Id, String), Id>,
+    /// Each folder the server has, by account and then server id (nested, so that a message's
+    /// folder is looked up by `&str`, without a copy of it for every message).
+    by_server: HashMap<Id, HashMap<String, Id>>,
 }
 
 impl OfflineWindow {
@@ -174,7 +175,12 @@ impl OfflineWindow {
     fn with(mb: &Mailbox, since: HashMap<Id, Timestamp>) -> OfflineWindow {
         let always =
             mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Outbox) || f.server.is_none()).map(|f| f.id).collect();
-        let by_server = mb.folders.iter().filter_map(|f| f.server.as_ref().map(|s| ((f.account, s.id.clone()), f.id))).collect();
+        let mut by_server: HashMap<Id, HashMap<String, Id>> = HashMap::new();
+        for f in &mb.folders {
+            if let Some(s) = &f.server {
+                by_server.entry(f.account).or_default().insert(s.id.clone(), f.id);
+            }
+        }
         OfflineWindow { since, always, by_server }
     }
 
@@ -191,7 +197,7 @@ impl OfflineWindow {
         }
         let Some(server) = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty()) else { return true };
         // Moved here and not there yet: the server's copy is elsewhere, under another id.
-        if self.by_server.get(&(m.account, server.folder.clone())) != Some(&m.folder) {
+        if self.by_server.get(&m.account).and_then(|f| f.get(server.folder.as_str())) != Some(&m.folder) {
             return true;
         }
         let received = if m.received != 0 { m.received } else { m.date };

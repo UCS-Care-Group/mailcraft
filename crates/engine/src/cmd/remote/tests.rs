@@ -572,8 +572,10 @@ fn what_a_server_cannot_be_told_of_an_event_is_refused() {
     assert_eq!(event_called(&s, account, "e-1").categories, ["Green category"]);
     assert!(!s.mailbox.calendar(calendar).unwrap().visible);
 
-    // Once the account is gone nothing will ever update the event again: it is the mailbox's own.
-    run(&mut s, "account.remove", json!({"id": account}));
+    // An event whose account is gone (`account.remove` takes it with the account, #325; a file an
+    // earlier version wrote may still have one) is the mailbox's own: nothing will ever update it
+    // again.
+    s.mailbox.remove_account(account).unwrap();
     assert!(keeper(&s.mailbox, &s.mailbox.event(id).unwrap().origin).is_none());
     run(&mut s, "calendar.edit", json!({"id": id, "title": "Mine now", "attendees": ""}));
     run(&mut s, "calendar.delete", json!({"id": id}));
@@ -1512,6 +1514,62 @@ fn an_account_can_be_forgotten() {
     run(&mut s, "calendar.new", json!({"title": "Goes somewhere", "start": "2026-10-12T15:00"}));
 }
 
+/// #325: an event made in the account's calendar that its server wasn't given yet is the
+/// owner's: forgetting the account keeps it, as the mailbox's own, in a calendar of the mailbox's
+/// own though another account's calendar comes first in the list, and nothing of it waits to go.
+#[test]
+fn forgetting_an_account_keeps_what_was_made_here() {
+    let (mut s, account) = session();
+    let other = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}))["id"]
+        .as_u64()
+        .unwrap();
+    apply_events(&mut s, &october(account, vec![remote("e-1", "Mine", at(2026, 10, 12, 13, 0), 30)])).unwrap();
+    let theirs = EventsDownload { email: "bo@example.org".into(), ..october(other, vec![remote("e-1", "Theirs", at(2026, 10, 12, 13, 0), 30)]) };
+    apply_events(&mut s, &theirs).unwrap();
+    s.mailbox.calendars.sort_by_key(|c| c.origin.account != other);
+    let server = s.mailbox.calendars.iter().find(|c| c.origin.account == account).map(|c| c.id).unwrap();
+    let made = run(&mut s, "calendar.new", json!({"title": "Lunch", "start": "2026-10-16T12:00", "calendar": server}))["id"].as_u64().unwrap();
+    assert_eq!(ops(&s, account).iter().map(|op| (op.kind, op.event)).collect::<Vec<_>>(), [(EventChangeKind::Create, made)]);
+
+    assert_eq!(run(&mut s, "sync.forgetRemote", json!({"account": account})), json!({"events": 1, "contacts": 0, "calendars": 1}));
+    let lunch = s.mailbox.event(made).unwrap();
+    assert!(lunch.origin.is_local(), "{:?}", lunch.origin);
+    assert!(s.mailbox.calendar(lunch.calendar).is_some_and(|c| c.origin.is_local()), "{:?}", s.mailbox.calendars);
+    assert!(from_server(&s, account).is_empty() && !s.mailbox.event_changes.iter().any(|c| c.account == account));
+    assert_eq!(titles(&s, other), ["Theirs"]);
+    assert!(s.mailbox.clone().repair().is_empty());
+}
+
+/// With no calendar of the mailbox's own left (`calendar.moveToAccount` takes one it emptied),
+/// what was made here in the account's calendar doesn't go into another account's, whose server
+/// would never be sent it: the account's main calendar becomes the mailbox's own, and the other
+/// account's calendars stay as they are, its main one too, though it comes first in the list.
+#[test]
+fn forgetting_an_account_keeps_a_calendar_of_the_mailboxs_own_for_what_was_made_here() {
+    let (mut s, account) = session();
+    let other = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}))["id"]
+        .as_u64()
+        .unwrap();
+    apply_events(&mut s, &october(account, vec![remote("e-1", "Mine", at(2026, 10, 12, 13, 0), 30)])).unwrap();
+    let theirs = EventsDownload { email: "bo@example.org".into(), ..october(other, vec![remote("e-1", "Theirs", at(2026, 10, 12, 13, 0), 30)]) };
+    apply_events(&mut s, &theirs).unwrap();
+    s.mailbox.calendars.retain(|c| !c.origin.is_local());
+    s.mailbox.calendars.sort_by_key(|c| c.origin.account != other);
+    let theirs: Vec<mailcraft_model::Calendar> = s.mailbox.calendars.iter().filter(|c| c.origin.account == other).cloned().collect();
+    let server = s.mailbox.calendars.iter().find(|c| c.origin.account == account).map(|c| c.id).unwrap();
+    let made = run(&mut s, "calendar.new", json!({"title": "Lunch", "start": "2026-10-16T12:00", "calendar": server}))["id"].as_u64().unwrap();
+
+    run(&mut s, "sync.forgetRemote", json!({"account": account}));
+    let lunch = s.mailbox.event(made).unwrap();
+    assert!(lunch.origin.is_local(), "{:?}", lunch.origin);
+    assert!(s.mailbox.calendar(lunch.calendar).is_some_and(|c| c.origin.is_local()), "{:?}", s.mailbox.calendars);
+    assert_eq!(s.mailbox.calendars.iter().filter(|c| c.origin.account == other).cloned().collect::<Vec<_>>(), theirs);
+    assert_eq!(s.mailbox.calendars.len(), theirs.len() + 1);
+    assert!(from_server(&s, account).is_empty());
+    assert_eq!(titles(&s, other), ["Theirs"]);
+    assert!(s.mailbox.clone().repair().is_empty());
+}
+
 #[test]
 fn hostile_downloads_are_refused_or_cut_to_size() {
     let (mut s, account) = session();
@@ -2372,12 +2430,18 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
     use mailcraft_model::Rgb;
     use mailcraft_model::remote::{CalendarsDownload, CategoriesDownload, RemoteCalendar};
     let (mut s, account, first, _, main) = served();
-    let list = |calendars: Vec<RemoteCalendar>, complete: bool| CalendarsDownload { account, email: "ada@example.org".into(), complete, calendars };
+    let list = |calendars: Vec<RemoteCalendar>, complete: bool| CalendarsDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete,
+        calendars,
+        ..Default::default()
+    };
     let entry = |id: &str, name: &str, group: &str| RemoteCalendar { id: id.into(), name: name.into(), group: group.into(), ..Default::default() };
     let all = vec![
         RemoteCalendar { main: true, color: Some(Rgb(1, 2, 3)), ..entry("cal-main", "Calendar", "My Calendars") },
         RemoteCalendar { color: Some(Rgb(4, 5, 6)), ..entry("cal-team", "Team", "My Calendars") },
-        RemoteCalendar { read_only: true, ..entry("cal-holidays", "Holidays\r\nin Wonderland", "Other Calendars") },
+        RemoteCalendar { rights: mailcraft_model::Rights::Read, ..entry("cal-holidays", "Holidays\r\nin Wonderland", "Other Calendars") },
         // Said twice, or with no name the server could call it by: passed over.
         entry("cal-team", "Team again", ""),
         entry("two words", "Odd", ""),
@@ -2385,7 +2449,7 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
     let merged = super::apply_calendars(&mut s, &list(all.clone(), true)).unwrap();
     assert_eq!((merged["added"].as_u64(), merged["updated"].as_u64(), merged["removed"].as_u64()), (Some(2), Some(1), Some(0)));
     let of_account: Vec<_> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account).cloned().collect();
-    let shape: Vec<_> = of_account.iter().map(|c| (c.name.as_str(), c.origin.id.as_str(), c.group.as_str(), c.read_only, c.visible)).collect();
+    let shape: Vec<_> = of_account.iter().map(|c| (c.name.as_str(), c.origin.id.as_str(), c.group.as_str(), !c.can_edit(), c.visible)).collect();
     assert_eq!(
         shape,
         // Only the account's own calendar is ticked to begin with: the rest are listed, and
@@ -2427,6 +2491,7 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
         email: "bo@example.org".into(),
         complete: true,
         calendars: vec![RemoteCalendar { main: true, ..entry("cal-only", "Calendar", "") }],
+        ..Default::default()
     };
     assert_eq!(super::apply_calendars(&mut alone, &one).unwrap()["added"], 1);
     assert_eq!(alone.mailbox.calendars.iter().filter(|c| c.origin.account == only).map(|c| c.visible).collect::<Vec<_>>(), [true]);
@@ -2829,6 +2894,7 @@ fn an_event_of_another_calendar_is_sent_through_that_calendar() {
         email: "ada@example.org".into(),
         complete: true,
         calendars: vec![entry("cal-main", "Calendar", true), entry("cal-team", "Team", false)],
+        ..Default::default()
     };
     super::apply_calendars(&mut s, &list).unwrap();
     let in_team = EventsDownload { calendar: "cal-team".into(), ..october(account, vec![remote("t-1", "Retro", at(2026, 10, 15, 13, 0), 60)]) };

@@ -303,6 +303,7 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::German, "-----Ursprüngliche Nachricht-----", "Von: "),
         (Lang::Spanish, "-----Mensaje original-----", "De: "),
         (Lang::Italian, "-----Messaggio originale-----", "Da: "),
+        (Lang::Dutch, "-----Oorspronkelijk bericht-----", "Van: "),
     ];
     for (lang, marker, from) in markers {
         let mut s = session();

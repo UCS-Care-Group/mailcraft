@@ -11,63 +11,52 @@ use crate::{MailApp, icons};
 
 pub(crate) mod editor;
 #[cfg(test)]
+mod font_tests;
+#[cfg(test)]
+mod picture_tests;
+#[cfg(test)]
+mod several_tests;
+#[cfg(test)]
 mod tests;
 
 const LABEL_W: f32 = 62.0;
 
 /// One labelled single-line field. Returns the new text when it was edited.
 fn field(ui: &mut Ui, label: &str, text: &str, hint: &str, focus: bool) -> Option<String> {
-    field_at(ui, label, text, hint, focus, 0.0).0
+    let at = line(ui, label, 0.0);
+    let mut buf = text.to_string();
+    let resp = crate::text_menu::field(ui.put(at, line_edit(&mut buf, ui.scope_id().with(("compose", label)), hint, at.width())));
+    if focus {
+        resp.request_focus();
+    }
+    resp.changed().then_some(buf)
 }
 
-/// [`field`], also answering where the text is and how it responded.
-/// `right` is room kept free at the line's right end for something drawn there (the Bcc link).
-fn field_at(ui: &mut Ui, label: &str, text: &str, hint: &str, focus: bool, right: f32) -> (Option<String>, Rect, egui::Response) {
+/// A labelled line, with the rule under it; where its text goes. `right` is room kept free at
+/// the line's right end for something drawn there (the Bcc link).
+fn line(ui: &mut Ui, label: &str, right: f32) -> Rect {
     let t = Tokens::get(ui.ctx());
-    let mut buf = text.to_string();
-    let mut changed = None;
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
     ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, label, regular(12.0), t.text_dim);
-    let edit_rect = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 3.0), pos2(r.max.x - 12.0 - right, r.max.y - 3.0));
-    let edit = egui::TextEdit::singleline(&mut buf)
-        .id(ui.scope_id().with(("compose", label)))
+    ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
+    Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 3.0), pos2(r.max.x - 12.0 - right, r.max.y - 3.0))
+}
+
+/// The text of a labelled line, `width` wide.
+fn line_edit<'t>(text: &'t mut String, id: egui::Id, hint: &str, width: f32) -> egui::TextEdit<'t> {
+    egui::TextEdit::singleline(text)
+        .id(id)
         .frame(egui::Frame::NONE)
         .hint_text(hint)
         .font(regular(13.0))
         .align(egui::Align2::LEFT_CENTER)
-        .desired_width(edit_rect.width());
-    let resp = ui.put(edit_rect, edit);
-    if focus {
-        resp.request_focus();
-    }
-    if resp.changed() {
-        changed = Some(buf);
-    }
-    ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
-    (changed, edit_rect, resp)
+        .desired_width(width)
 }
 
-/// The suggestions under a recipient line, from one frame to the next.
-#[derive(Clone, Default)]
-struct Suggesting {
-    /// Which line they are for (`to`, `cc`, `bcc`).
-    field: String,
-    items: Vec<mailcraft_engine::cmd::compose::Suggestion>,
-    selected: usize,
-    /// Where they were drawn, so a click on one isn't taken for a click away from the line.
-    rect: Option<Rect>,
-}
-
-/// What is being typed at the end of a recipient line: the part after the last `;` or `,`.
-pub(crate) fn typing(text: &str) -> (&str, &str) {
-    let at = text.rfind([';', ',']).map_or(0, |i| i + 1);
-    let (before, last) = text.split_at(at);
-    (before, last.trim_start())
-}
-
-/// A recipient line with `who` in place of what was being typed, ready for the next name.
-pub(crate) fn completed(text: &str, who: &mailcraft_engine::cmd::compose::Suggestion) -> String {
-    let (before, _) = typing(text);
+/// What takes the place of the name being typed on a line of recipients when the suggestion
+/// `who` is taken: the name and the address, then `; ` for the next one; after a space, unless it
+/// is the line's `first`.
+pub(crate) fn completed(first: bool, who: &mailcraft_engine::cmd::compose::Suggestion) -> String {
     let name: String = who.name.chars().filter(|c| !c.is_control() && !"\"<>".contains(*c)).collect();
     let name = name.trim();
     let written = if name.is_empty() || name.eq_ignore_ascii_case(&who.email) {
@@ -77,105 +66,101 @@ pub(crate) fn completed(text: &str, who: &mailcraft_engine::cmd::compose::Sugges
     } else {
         format!("{name} <{}>", who.email)
     };
-    let gap = if before.is_empty() || before.ends_with(' ') { "" } else { " " };
-    format!("{before}{gap}{written}; ")
+    let gap = if first { "" } else { " " };
+    format!("{gap}{written}; ")
+}
+
+/// A line of recipients (a message's To, Cc and Bcc, a meeting's attendees), `edit`, given the
+/// id `id`: as a name is typed in it, egui's list under it suggests who it could be (contacts,
+/// then whoever mail was exchanged with). The arrow keys choose; Enter, Tab or a click takes one,
+/// and the keyboard stays in the line, after it; Escape closes the list until something else is
+/// typed. `offer`: whether anything is suggested now.
+pub(crate) fn recipient_line(
+    ui: &mut Ui,
+    s: &mailcraft_engine::Session,
+    id: egui::Id,
+    edit: egui::TextEdit<'_>,
+    offer: bool,
+) -> egui::CompletionOutput {
+    let ctx = ui.ctx().clone();
+    let shown = id.with("suggestions_shown");
+    // The line keeps Tab while the list shows, for the list (below); Shift+Tab still goes back.
+    if ctx.data(|d| d.get_temp::<bool>(shown)).unwrap_or(false)
+        && ctx.memory(|m| m.has_focus(id))
+        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab))
+    {
+        ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
+    }
+    let filter = edit.get_event_filter();
+    let mut out = egui::CompletionPopup::new(id).word_boundary(|c| c == ';' || c == ',').align(egui::RectAlign::BOTTOM_START).show(ui, edit, |q| {
+        let typed = q.word.trim_start();
+        if !offer || typed.trim().is_empty() {
+            return Vec::new();
+        }
+        suggestions(&ctx, s, id, typed)
+            .into_iter()
+            .map(|who| {
+                let row = egui::Suggestion::new(completed(q.is_at_start(), &who));
+                if who.name.is_empty() { row.content(who.email) } else { row.content(who.name).description(who.email) }
+            })
+            .collect()
+    });
+    // The line keeps the keyboard on Escape and Tab while the list is open, for the list, and only
+    // then. egui's list asks for it as the list was in the pass before, a pass late both ways: an
+    // Escape right after the list came up would go to the window as well, and a Tab right after it
+    // closed would be nobody's. (egui changes the filter only of a line that had the keyboard in
+    // the pass before.)
+    out.text_edit.response.response = crate::text_menu::field(out.text_edit.response.response);
+    let open = out.is_open;
+    ctx.memory_mut(|m| m.set_focus_lock_filter(id, egui::EventFilter { tab: filter.tab || open, escape: filter.escape || open, ..filter }));
+    ctx.data_mut(|d| d.insert_temp(shown, out.is_open));
+    out
+}
+
+/// The recipients suggested for `typed` on the line `id`. They are asked for again only when what is
+/// typed or the mailbox changes ([`Session::rev`], [`Session::openings`]): a line with the
+/// keyboard is drawn at least twice a second (its cursor blinks), and asking reads the whole
+/// mailbox.
+///
+/// [`Session::rev`]: mailcraft_engine::Session::rev
+/// [`Session::openings`]: mailcraft_engine::Session::openings
+fn suggestions(ctx: &egui::Context, s: &mailcraft_engine::Session, id: egui::Id, typed: &str) -> Vec<mailcraft_engine::cmd::compose::Suggestion> {
+    type Asked = ((String, u64, u64), Vec<mailcraft_engine::cmd::compose::Suggestion>);
+    let kept = id.with("suggestions");
+    let asking = (typed.to_string(), s.rev(), s.openings());
+    if let Some((at, found)) = ctx.data(|d| d.get_temp::<Asked>(kept))
+        && at == asking
+    {
+        return found;
+    }
+    let found = mailcraft_engine::cmd::compose::suggest(s, typed, 6);
+    ctx.data_mut(|d| d.insert_temp::<Asked>(kept, (asking, found.clone())));
+    found
 }
 
 /// Whether the quiet Bcc link is shown (no Bcc line yet).
 fn bcc_link(app: &MailApp) -> bool {
-    app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.compose_bcc
+    app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.bcc_shown()
 }
 
-/// A recipient line: as it is typed in, the people it could be are offered underneath (contacts,
-/// then whoever mail was exchanged with); arrow keys choose, Enter or Tab or a click takes one.
+/// A recipient line, with the recipient suggestions under it ([`recipient_line`]).
 fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text: &str, hint: &str, focus: bool) {
-    let t = Tokens::get(ui.ctx());
     let id = ui.scope_id().with(("compose", label));
-    let store = egui::Id::unique("compose_suggesting");
-    let mut st: Suggesting = ui.data(|d| d.get_temp(store)).unwrap_or_default();
-    let mine = st.field == key && !st.items.is_empty();
-    let focused = ui.memory(|m| m.has_focus(id));
-    let over = st.rect.is_some_and(|r| ui.rect_contains_pointer(r));
-    let open = mine && (focused || over);
-    let mut take: Option<usize> = None;
-    if open && focused {
-        // Before the line itself sees the keys: they are for the list while it is showing.
-        let n = st.items.len();
-        ui.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                st.selected = (st.selected + 1) % n;
-            }
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                st.selected = (st.selected + n - 1) % n;
-            }
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
-                take = Some(st.selected.min(n - 1));
-            }
-        });
-    }
     // The Bcc link sits at the right end of the To line: a click there is for it, so the line's
     // text stops short of it (a long To line was otherwise impossible to click at its end).
     let right = if key == "to" && bcc_link(app) { 44.0 } else { 0.0 };
-    let (changed, at, resp) = field_at(ui, label, text, hint, focus, right);
-    let mut now = changed.clone().unwrap_or_else(|| text.to_string());
-    if open {
-        let shown = egui::Area::new(store.with(key)).order(egui::Order::Foreground).fixed_pos(pos2(at.min.x, at.max.y + 2.0)).show(ui.ctx(), |ui| {
-            egui::Frame::NONE.fill(t.menu).stroke(Stroke::new(1.0, t.border_strong)).corner_radius(6.0).inner_margin(egui::Margin::same(4)).show(
-                ui,
-                |ui| {
-                    ui.set_width(at.width().clamp(240.0, 440.0));
-                    for (i, who) in st.items.iter().enumerate() {
-                        let (r, row) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
-                        if i == st.selected || row.hovered() {
-                            ui.painter().rect_filled(r, 4.0, if i == st.selected { t.selection } else { t.hover });
-                        }
-                        let name = if who.name.is_empty() { who.email.as_str() } else { who.name.as_str() };
-                        let w = paint_clipped(ui.painter(), pos2(r.min.x + 8.0, r.center().y), r.width() * 0.5, name, regular(12.5), t.text);
-                        if !who.name.is_empty() {
-                            paint_clipped(
-                                ui.painter(),
-                                pos2(r.min.x + 16.0 + w, r.center().y),
-                                (r.width() - w - 24.0).max(0.0),
-                                &who.email,
-                                regular(11.5),
-                                t.text_dim,
-                            );
-                        }
-                        if row.clicked() {
-                            take = Some(i);
-                        }
-                    }
-                },
-            );
-        });
-        st.rect = Some(shown.response.rect);
-    } else {
-        st.rect = None;
+    let at = line(ui, label, right);
+    let mut buf = text.to_string();
+    let edit = line_edit(&mut buf, id, hint, at.width());
+    let layout = egui::Layout::centered_and_justified(egui::Direction::TopDown);
+    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, true)).inner;
+    if focus {
+        out.text_edit.response.request_focus();
     }
-    if let Some(who) = take.and_then(|i| st.items.get(i)) {
-        now = completed(&now, who);
-        let _ = app.execute("compose.set", json!({ key: now }));
-        // Carry on typing after it: the keyboard stays in the line, at its end.
-        let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-        let end = egui::text::CCursor::new(now.chars().count());
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-        state.store(ui.ctx(), id);
-        ui.memory_mut(|m| m.request_focus(id));
-        st.items.clear();
-    } else if let Some(new) = changed {
-        let _ = app.execute("compose.set", json!({ key: new }));
+    // (A suggestion taken changes the text after the line has said whether it changed.)
+    if out.accepted.is_some() || out.text_edit.response.changed() {
+        let _ = app.execute("compose.set", json!({ key: buf }));
     }
-    // What to offer next frame, for what is being typed now.
-    if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
-        let (_, last) = typing(&now);
-        let items = if last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(&app.session, last, 6) };
-        st.selected = if st.field == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-        st.field = key.to_string();
-        st.items = items;
-    } else if st.field == key && !over {
-        st.items.clear();
-    }
-    ui.data_mut(|d| d.insert_temp(store, st));
 }
 
 /// What the window shows of the message being written besides its body (copied out of the
@@ -188,6 +173,7 @@ struct Shown {
     to: String,
     cc: String,
     bcc: String,
+    reply_to: String,
     subject: String,
     /// Each attachment's name, as it is written to a file (a forward carries the sender's), and size.
     attachments: Vec<(String, String)>,
@@ -205,6 +191,7 @@ impl Shown {
             to: c.to.clone(),
             cc: c.cc.clone(),
             bcc: c.bcc.clone(),
+            reply_to: c.reply_to.clone(),
             subject: c.subject.clone(),
             attachments: c
                 .attachments
@@ -216,103 +203,39 @@ impl Shown {
     }
 }
 
+/// The message being written in the reading pane.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    show_in(app, ui, None, true);
+}
+
+/// The current message being written: in the reading pane, or in the window of its own numbered
+/// `window` (#286), which has its own way to close (and nothing to pop out of). `keyboard`: it may
+/// take the keyboard when it has just opened and nothing has it (not one that opened behind the
+/// owner's window).
+pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keyboard: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(c) = Shown::of(app) else { return };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
-    // What this is, and the actions.
-    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
-    let title = match c.mode {
-        ComposeMode::New => tl!("New message"),
-        ComposeMode::Reply => tl!("Reply"),
-        ComposeMode::ReplyAll => tl!("Reply all"),
-        ComposeMode::Forward => tl!("Forward"),
-        ComposeMode::Draft => tl!("Draft"),
-    };
-    let mut actions =
-        ui.new_child(egui::UiBuilder::new().max_rect(bar.shrink2(vec2(12.0, 8.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    {
-        let ui = &mut actions;
-        ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
-        let sc = crate::widgets::shortcut_text(app, "compose.send");
-        if crate::widgets::primary_button(ui, tl!("Send"), true).on_hover_text(format!("{} ({sc})", tl!("Send"))).clicked() {
-            let _ = app.run("compose.send", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "attach", tl!("Attach"), true).clicked() {
-            let _ = app.run("ui.attach", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "saveDraft", tl!("Save draft"), c.dirty || !c.draft).clicked() {
-            let _ = app.run("compose.saveDraft", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "discard", tl!("Discard"), true).clicked() {
-            let _ = app.run("compose.discard", json!({}));
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if crate::widgets::icon_button(ui, "close", tl!("Close (the draft stays as last saved)"), 14.0, true).clicked() {
-                let _ = app.run("compose.close", json!({}));
-            }
-            let state = if c.dirty {
-                tl!("Not saved")
-            } else if c.draft {
-                tl!("Saved to Drafts")
-            } else {
-                ""
-            };
-            ui.label(egui::RichText::new(format!("{title}  {state}")).font(regular(11.5)).color(t.text_dim));
-        });
+    // In the reading pane, what this is and the actions; a window of its own has them in its
+    // ribbon, and Send beside the lines, as a message's window has it (#286).
+    if window.is_none() {
+        action_bar(app, ui, &c, window);
     }
-    ui.painter().line_segment([pos2(bar.min.x, bar.max.y), pos2(bar.max.x, bar.max.y)], Stroke::new(1.0, t.border));
-    // A message that just opened has the keyboard: To for a new one, the body for a reply.
-    let fresh = !c.dirty && ui.memory(|m| m.focused().is_none());
+    // A message that just opened has the keyboard: To for a new one, the body for a reply. Not
+    // while a dialog is over it: what is typed would go under the dialog, and the keyboard goes
+    // back to what had it when the dialog closes (#406).
+    let fresh = keyboard && !c.dirty && ui.memory(|m| m.focused().is_none() && m.allows_interaction(ui.layer_id()));
+
     let focus_to = fresh && c.to.is_empty();
 
-    // From, when there is a choice.
-    if app.session.mailbox.accounts.len() > 1 {
-        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-        ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, tl!("From"), regular(12.0), t.text_dim);
-        let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
-        let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
-        let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
-        if resp.hovered() {
-            ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
-        }
-        paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
-        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts.iter().map(|a| (a.id, a.address().full())).collect();
-        egui::Popup::menu(&resp).show(|ui| {
-            for (id, label) in accounts {
-                if ui.selectable_label(id == c.account, label).clicked() {
-                    let _ = app.execute("compose.set", json!({"account": id}));
-                    ui.close();
-                }
-            }
+    if window.is_some() {
+        ui.horizontal_top(|ui| {
+            send_beside(app, ui);
+            ui.vertical(|ui| header(app, ui, &c, focus_to));
         });
-        ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
-    }
-    let hint = tl!("Names or addresses, separated by ;");
-    for (key, label, text, show) in
-        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.compose_bcc)]
-    {
-        if !show {
-            continue;
-        }
-        recipient_field(app, ui, key, tl!(label), text, hint, key == "to" && focus_to);
-    }
-    if let Some(new) = field(ui, tl!("Subject"), &c.subject, "", false) {
-        let _ = app.execute("compose.set", json!({"subject": new}));
-    }
-    if bcc_link(app) {
-        // A quiet way to get the Bcc line.
-        let last = ui.min_rect();
-        let br = Rect::from_min_size(
-            pos2(last.max.x - 52.0, bar.max.y + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }),
-            vec2(40.0, 22.0),
-        );
-        let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
-        ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
-        if resp.clicked() {
-            app.compose_bcc = true;
-        }
+    } else {
+        header(app, ui, &c, focus_to);
     }
 
     // Attachments, each with a way to take it off again.
@@ -353,8 +276,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // forward in HTML, as the reading pane shows it.
     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("compose_body").show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 16, top: 10, bottom: 16 }).show(ui, |ui| {
-            let room = if c.quote { 8.0 * 19.0 } else { (ui.available_height() - 26.0).max(8.0 * 19.0) };
+            let below = c.quote || editor::unedited_html_signature(app).is_some();
+            let room = if below { 8.0 * 19.0 } else { (ui.available_height() - 26.0).max(8.0 * 19.0) };
             editor::show(app, ui, room, fresh && !focus_to);
+            signature(app, ui);
             if c.quote {
                 ui.add_space(8.0);
                 // The original senses the pointer over all of the view it is drawn in: kept to
@@ -369,3 +294,184 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         });
     });
 }
+
+/// What the message is and its actions, over its lines in the reading pane: Send, Attach, Save
+/// draft, Discard, and at the right Close and Pop Out.
+fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
+    let t = Tokens::get(ui.ctx());
+    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
+    let title = match c.mode {
+        ComposeMode::New => tl!("New message"),
+        ComposeMode::Reply => tl!("Reply"),
+        ComposeMode::ReplyAll => tl!("Reply all"),
+        ComposeMode::Forward => tl!("Forward"),
+        ComposeMode::Draft => tl!("Draft"),
+    };
+    let mut actions =
+        ui.new_child(egui::UiBuilder::new().max_rect(bar.shrink2(vec2(12.0, 8.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    {
+        let ui = &mut actions;
+        ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
+        let sc = crate::widgets::shortcut_text(app, "compose.send");
+        if crate::widgets::primary_button(ui, tl!("Send"), true).on_hover_text(format!("{} ({sc})", tl!("Send"))).clicked() {
+            let _ = app.run("compose.send", json!({}));
+        }
+        if crate::widgets::icon_text_button(ui, "attach", tl!("Attach"), true).clicked() {
+            let _ = app.run("ui.attach", json!({}));
+        }
+        if crate::widgets::icon_text_button(ui, "saveDraft", tl!("Save draft"), c.dirty || !c.draft).clicked() {
+            let _ = app.run("compose.saveDraft", json!({}));
+        }
+        if crate::widgets::icon_text_button(ui, "discard", tl!("Discard"), true).clicked() {
+            let _ = app.run("compose.discard", json!({}));
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // In the reading pane: Close, and Pop Out at the top right, which moves the message
+            // into a window of its own (#286).
+            if window.is_none() {
+                if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
+                    let _ = app.run("compose.close", json!({}));
+                }
+                let pop = crate::widgets::icon_button(ui, "popOut", tl!("Pop Out"), 14.0, true);
+                app.hit.add("composePopOut", 0, pop.rect);
+                if pop.clicked() {
+                    let _ = app.run("compose.popOut", json!({}));
+                }
+            }
+            let state = if c.dirty {
+                tl!("Not saved")
+            } else if c.draft {
+                tl!("Saved to Drafts")
+            } else {
+                ""
+            };
+            ui.label(egui::RichText::new(format!("{title}  {state}")).font(regular(11.5)).color(t.text_dim));
+        });
+    }
+    ui.painter().line_segment([pos2(bar.min.x, bar.max.y), pos2(bar.max.x, bar.max.y)], Stroke::new(1.0, t.border));
+}
+
+/// Send, beside the lines of a message in a window of its own, as tall as To and Cc.
+fn send_beside(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let label = tl!("Send");
+    let (slot, _) = ui.allocate_exact_size(vec2(84.0, 84.0), Sense::hover());
+    let r = Rect::from_min_size(slot.min + vec2(12.0, 8.0), vec2(64.0, 68.0));
+    let resp = ui.interact(r, ui.scope_id().with("compose_send_beside"), Sense::click());
+    app.hit.add("composeSend", 0, r);
+    let fill = if resp.hovered() { t.accent_text } else { t.accent };
+    ui.painter().rect_filled(r, 6.0, fill);
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.center().x, r.min.y + 24.0), vec2(20.0, 20.0)), "send", t.on_accent, t.on_accent);
+    ui.painter().text(pos2(r.center().x, r.max.y - 16.0), Align2::CENTER_CENTER, label, crate::theme::medium(12.5), t.on_accent);
+    let sc = crate::widgets::shortcut_text(app, "compose.send");
+    let resp = resp.on_hover_text(format!("{label} ({sc})"));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    if resp.clicked() {
+        let _ = app.run("compose.send", json!({}));
+    }
+}
+
+/// The lines of the message: From (when there is a choice), To, Cc, Bcc, Reply to and Subject.
+fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
+    let t = Tokens::get(ui.ctx());
+    let top = ui.cursor().min.y;
+    // From, when there is a choice.
+    if app.session.mailbox.accounts.len() > 1 {
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+        ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, tl!("From"), regular(12.0), t.text_dim);
+        let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
+        let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
+        let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
+        if resp.hovered() {
+            ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
+        }
+        paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
+        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts.iter().map(|a| (a.id, a.address().full())).collect();
+        egui::Popup::menu(&resp).show(|ui| {
+            for (id, label) in accounts {
+                if ui.selectable_label(id == c.account, label).clicked() {
+                    let _ = app.execute("compose.set", json!({"account": id}));
+                    ui.close();
+                }
+            }
+        });
+        ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
+    }
+    let hint = tl!("Names or addresses, separated by ;");
+    for (key, label, text, show) in
+        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.bcc_shown())]
+    {
+        if !show {
+            continue;
+        }
+        recipient_field(app, ui, key, tl!(label), text, hint, key == "to" && focus_to);
+    }
+    // (Shown once Direct Replies To has set it.)
+    if !c.reply_to.is_empty() {
+        recipient_field(app, ui, "replyTo", tl!("Reply to"), &c.reply_to, hint, false);
+    }
+    if let Some(new) = field(ui, tl!("Subject"), &c.subject, "", false) {
+        let _ = app.execute("compose.set", json!({"subject": new}));
+    }
+    if bcc_link(app) {
+        // A quiet way to get the Bcc line.
+        let last = ui.min_rect();
+        let br =
+            Rect::from_min_size(pos2(last.max.x - 52.0, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }), vec2(40.0, 22.0));
+        let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
+        ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
+        if resp.clicked()
+            && let Some(id) = app.session.compose_id()
+        {
+            app.compose_bcc.insert(id);
+        }
+    }
+}
+
+/// An HTML signature as it goes out, under the owner's text in place of its simpler copy
+/// ([`editor::html_signature`]): read-only, its pictures on the web not fetched, with a way to
+/// edit it as text instead, and back while that copy is unedited.
+fn signature(app: &mut MailApp, ui: &mut Ui) {
+    let ctx = ui.ctx().clone();
+    let Some(html) = editor::unedited_html_signature(app).map(str::to_string) else { return };
+    if editor::html_signature(app).is_none() {
+        let back = ui
+            .link(tl!("Show signature as it is sent"))
+            .on_hover_text(tl!("Shows the signature as it was designed again, as long as its text is unchanged"));
+        app.hit.add("composeSignatureAsHtml", 0, back.rect);
+        if back.clicked() {
+            let _ = app.run("compose.signatureAsText", json!({"value": false}));
+        }
+        return;
+    }
+    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
+    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
+        Some(m) => m,
+        None => {
+            // As it is sent: cleaned.
+            let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
+            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            m
+        }
+    };
+    let top = ui.cursor().min.y;
+    // Kept to below where it begins, as the quote is, so that it takes no click meant for the text.
+    let below = Rect::everything_below(top);
+    ui.scope(|ui| {
+        ui.set_clip_rect(ui.clip_rect().intersect(below));
+        crate::reading::show_plain_view(app, ui, &message, crate::reading::Place::Preview);
+    });
+    let shown = Rect::from_min_max(pos2(ui.min_rect().min.x, top), pos2(ui.min_rect().max.x, ui.cursor().min.y));
+    app.hit.add("composeSignature", 0, shown);
+    let edit = ui
+        .link(tl!("Edit signature as text"))
+        .on_hover_text(tl!("The signature is then sent as the simpler text shown here, not as it was designed"));
+    app.hit.add("composeSignatureAsText", 0, edit.rect);
+    if edit.clicked() {
+        let _ = app.run("compose.signatureAsText", json!({"value": true}));
+    }
+}
+
+#[cfg(test)]
+#[path = "recipient_suggest_tests.rs"]
+mod recipient_suggest_tests;

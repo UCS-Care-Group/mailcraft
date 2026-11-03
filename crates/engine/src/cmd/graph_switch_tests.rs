@@ -141,7 +141,7 @@ fn switching_waits_while_anything_waits_for_the_imap_server() {
     s.path = Some(dir.join("mailbox.mailcraft"));
     // A flag changed here that the server hasn't been told, and a deletion it hasn't either.
     s.mailbox.message_mut(ids.on_server).unwrap().flag = FlagStatus::None;
-    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new() });
+    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new(), seen: None });
     let said = answer(&mut s, ids.account, "switch").unwrap();
     assert_eq!((said["switched"].clone(), said["waiting"].clone()), (json!(false), json!(2)));
     // Noted, so that the switch goes ahead once a Send/Receive has told the server; nothing else.
@@ -157,13 +157,43 @@ fn switching_waits_while_anything_waits_for_the_imap_server() {
 }
 
 #[test]
+fn switching_waits_for_the_original_of_mail_moved_out_until_it_is_gone() {
+    let (mut s, ids) = mailbox();
+    let dir = scratch("moved-out");
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    let recipes = s.mailbox.message(ids.local_message).unwrap().folder;
+    // Moved to this computer and not saved yet: its original stays on the server until it is,
+    // and no Send/Receive could delete it now (#451).
+    s.run("mail.move", &json!({"ids": [ids.on_server], "folder": recipes})).unwrap();
+    // Beside a move within the account, which can go now.
+    s.run("mail.move", &json!({"ids": [ids.server_draft], "folder": ids.old})).unwrap();
+    assert_eq!(crate::cmd::account::unpushed(&s, ids.account), 1);
+    // One the server can't be told of (its mailbox is no longer followed, or it has no UID
+    // there) never holds it up.
+    for (from, uid) in [("Gone", 9), ("INBOX", 0)] {
+        s.mailbox.pending.push(Pending::Move { account: ids.account, message: ids.local_message, from: from.into(), uid, synced: None, to: recipes });
+    }
+    let said = answer(&mut s, ids.account, "switch").unwrap();
+    assert_eq!((said["switched"].clone(), said["waiting"].clone()), (json!(false), json!(2)));
+    assert_eq!(left_behind(&s, ids.account), 2, "switching without them leaves both behind");
+    // Saved: the deletion can go now too, and each is counted once.
+    s.run("file.save", &json!({})).unwrap();
+    assert_eq!((crate::cmd::account::unpushed(&s, ids.account), waiting(&s, ids.account)), (2, 2));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["waiting"], json!(2));
+    // The server did both: the switch goes ahead.
+    s.mailbox.pending.clear();
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn switch_without_them_leaves_what_waits_in_the_backup() {
     let (mut s, ids) = mailbox();
     let dir = scratch("without");
     s.path = Some(dir.join("mailbox.mailcraft"));
     // A flag and a deletion the IMAP server can't be told (it is turned off, say).
     s.mailbox.message_mut(ids.on_server).unwrap().flag = FlagStatus::None;
-    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new() });
+    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new(), seen: None });
     assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["waiting"], json!(2));
     let before = s.mailbox.clone();
     let said = answer(&mut s, ids.account, "switchWithout").unwrap();
@@ -297,4 +327,32 @@ fn a_mailbox_without_a_local_account_gets_one_for_what_only_is_here() {
     let local = s.mailbox.account(kept.account).unwrap();
     assert_eq!((local.kind, local.name.as_str()), (AccountKind::Local, "On this computer"));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_message_whose_draft_went_with_the_switch_counts_as_not_saved() {
+    let (mut s, ids) = mailbox();
+    s.path = Some(scratch("switch-draft").join("mailbox.mailcraft"));
+    s.run("mail.editDraft", &json!({"id": ids.server_draft})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.draft == Some(ids.server_draft) && !c.dirty));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    assert!(s.mailbox.message(ids.server_draft).is_none());
+    // What is written is saved nowhere now (#573): closing it asks, and a save makes a new draft.
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
+    assert_eq!(c.subject, "Written elsewhere");
+}
+
+#[test]
+fn a_message_put_aside_whose_draft_went_with_the_switch_counts_as_not_saved_too() {
+    let (mut s, ids) = mailbox();
+    s.path = Some(scratch("switch-draft-aside").join("mailbox.mailcraft"));
+    let aside = s.run("mail.editDraft", &json!({"id": ids.server_draft})).unwrap()["compose"].as_u64().unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    assert_ne!(s.compose_id(), Some(aside));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    // The one put aside is saved nowhere now as well (#286, #573).
+    let c = s.composing_by_id(aside).unwrap();
+    assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
+    assert_eq!(c.subject, "Written elsewhere");
 }

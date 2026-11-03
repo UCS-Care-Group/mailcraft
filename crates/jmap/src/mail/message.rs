@@ -138,7 +138,7 @@ pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> Gra
         received: received.or(fields.date).unwrap_or(0),
         preview: line(entry.get("preview").and_then(Value::as_str).unwrap_or_default(), MAX_PREVIEW),
         has_attachments: entry.get("hasAttachment").and_then(Value::as_bool).unwrap_or(false),
-        draft: marks.draft,
+        draft: Some(marks.draft),
     }
 }
 

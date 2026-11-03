@@ -5,7 +5,7 @@
 use mailcraft_model::{Address, Attachment, FlagStatus, Importance, Message};
 
 use crate::header::{clean, is_token, write_field};
-use crate::words::{WORD_BYTES, encode_b, is_plain};
+use crate::words::{WORD_BYTES, encode_b, has_words, is_plain};
 use crate::{WriteOptions, address, charset, media, transfer};
 
 /// Header fields the writer makes itself; fields of these names in `Message::headers` are skipped.
@@ -29,6 +29,15 @@ const OWN_FIELDS: [&str; 17] = [
     "mime-version",
 ];
 
+/// Whether a kept header (`lower`, in lower case) is a note of MailCraft's own that stays in
+/// the mailbox: what was answered to a meeting (with this mailbox's mark), the file a message was
+/// opened from. Neither goes into a file, a server's copy or what is sent. `X-MailCraft-Flag` is
+/// written from the message's flag, and `X-MailCraft-Not-Downloaded` travels: it tells another
+/// program that what it has is only the header of a message too large to download.
+fn private(lower: &str) -> bool {
+    lower.starts_with("x-mailcraft-") && lower != "x-mailcraft-not-downloaded"
+}
+
 /// Longest physical line a body may have without a transfer encoding (RFC 5322 §2.1.1).
 const MAX_LINE: usize = 998;
 
@@ -39,9 +48,10 @@ const NAME_PIECE: usize = 52;
 ///
 /// Header fields come in this order: `Date`, `From`, `To`, `Cc`, `Bcc` (only with
 /// [`WriteOptions::include_bcc`]), `Reply-To`, `Subject`, `Message-ID`, `In-Reply-To`,
-/// `References`, `Importance` and `X-Priority` (unless normal), `Keywords` (the categories),
-/// `Status` and `X-Status` (read, answered, flagged), then `Message::headers`, then `MIME-Version`
-/// and the content fields. Empty fields are left out.
+/// `References`, `Importance` and `X-Priority` (unless normal), `Disposition-Notification-To`
+/// (the sender, with [`Message::read_receipt`]), `Keywords` (the categories),
+/// `Status` and `X-Status` (read, answered, flagged), then `Message::headers` (`Resent-Bcc` only
+/// with the Bcc), then `MIME-Version` and the content fields. Empty fields are left out.
 ///
 /// No value can add a header field: CR, LF and NUL are removed from every value, addresses and
 /// message ids lose every character that could end them early, and a header in
@@ -92,6 +102,10 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         }
         Importance::Normal => {}
     }
+    // Request a Read Receipt (RFC 8098): the receipt goes to the sender, never anywhere else.
+    if message.read_receipt && !message.from.email.trim().is_empty() {
+        addresses(&mut out, "Disposition-Notification-To", std::slice::from_ref(&message.from));
+    }
     let keywords: Vec<String> = message.categories.iter().map(|c| clean(c)).filter(|c| !c.is_empty()).map(|c| keyword(&c)).collect();
     if !keywords.is_empty() {
         write_field(&mut out, "Keywords", &keywords.join(", "));
@@ -110,8 +124,19 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     }
     for (name, value) in &message.headers {
         let lower = name.to_ascii_lowercase();
-        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") {
-            write_field(&mut out, name, &unstructured(name, value));
+        // Who got a blind copy of a resend goes only where the Bcc does.
+        let blind = lower == "resent-bcc" && !opts.include_bcc;
+        // (Asked for above, the request isn't written twice.)
+        let asked = message.read_receipt && lower == "disposition-notification-to";
+        if !asked
+            && is_token(name.as_bytes())
+            && !OWN_FIELDS.contains(&lower.as_str())
+            && !lower.starts_with("content-")
+            && !private(&lower)
+            && !blind
+        {
+            let value = if has_words(&lower) { unstructured(name, value) } else { kept(name, value) };
+            write_field(&mut out, name, &value);
         }
     }
     write_field(&mut out, "MIME-Version", "1.0");
@@ -145,6 +170,19 @@ fn unstructured(name: &str, value: &str) -> String {
     encode_b(&value, if room < 9 { WORD_BYTES } else { room })
 }
 
+/// A kept field that is not unstructured text, which is read as it is written ([`has_words`]):
+/// printable ASCII (and tabs) as it is, `=?` and all; anything else as [`unstructured`] text, so that what
+/// is written stays seven-bit.
+fn kept(name: &str, value: &str) -> String {
+    let value = clean(value);
+    let unfoldable = value.split(' ').any(|word| word.len() > MAX_LINE - 100);
+    let edge = |c: char| c == ' ' || c == '\t';
+    if value.bytes().all(|b| b == b'\t' || (0x20..=0x7E).contains(&b)) && !value.starts_with(edge) && !value.ends_with(edge) && !unfoldable {
+        return value;
+    }
+    unstructured(name, &value)
+}
+
 /// One category for the `Keywords` field, where a comma separates entries.
 fn keyword(category: &str) -> String {
     if is_plain(category) && !category.contains(',') && !category.starts_with(' ') && !category.ends_with(' ') {
@@ -152,6 +190,13 @@ fn keyword(category: &str) -> String {
     } else {
         encode_b(category, WORD_BYTES)
     }
+}
+
+/// The `Message-ID` field [`write`] gives a message whose id is `raw`, as it goes on the wire
+/// (`<id>`); `None` when it gives it none.
+pub fn written_message_id(raw: &str) -> Option<String> {
+    let id = message_id(raw);
+    (!id.is_empty()).then(|| format!("<{id}>"))
 }
 
 /// A message id or content id without anything that could end it early.

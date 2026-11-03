@@ -36,14 +36,15 @@ impl AppleEvents {
 }
 
 /// Open the files and act on the quit requests that arrived since the last frame. A mailbox file
-/// opens; a message, calendar or contact file is imported; quitting closes the window, which asks
-/// about a message being written.
+/// opens; a message opens in a window of its own; a calendar or contact file is imported once the
+/// owner says so (`MailApp::open_from_system`); quitting closes the window, which asks about a
+/// message being written.
 pub fn poll(inbox: &Inbox, app: &mut MailApp, ctx: &egui::Context) {
     for e in inbox.drain() {
         match e {
             Event::Open(paths) => {
                 for p in paths.iter().filter_map(|p| p.to_str()) {
-                    app.open_path(p);
+                    app.open_from_system(p);
                 }
             }
             Event::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),

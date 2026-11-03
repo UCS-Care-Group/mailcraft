@@ -12,3 +12,5 @@ paths-ignore:
   - "**/examples/**"
   # The desktop app's whole-way tests (`#[cfg(test)] mod …_flow;` in `apps/mailcraft/src/main.rs`).
   - "apps/mailcraft/src/*_flow.rs"
+  # Fuzz targets: harnesses that feed made-up input, with made-up credentials.
+  - "fuzz/**"

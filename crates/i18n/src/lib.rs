@@ -45,6 +45,7 @@ pub enum Lang {
     German,
     Spanish,
     Italian,
+    Dutch,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -52,7 +53,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 6] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Pseudo];
+    pub const ALL: [Lang; 7] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -62,6 +63,7 @@ impl Lang {
             Lang::German => "de",
             Lang::Spanish => "es",
             Lang::Italian => "it",
+            Lang::Dutch => "nl",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -80,6 +82,7 @@ impl Lang {
             "de" => Some(Lang::German),
             "es" => Some(Lang::Spanish),
             "it" => Some(Lang::Italian),
+            "nl" => Some(Lang::Dutch),
             _ => None,
         }
     }
@@ -92,13 +95,14 @@ impl Lang {
             Lang::German => "Deutsch",
             Lang::Spanish => "Español",
             Lang::Italian => "Italiano",
+            Lang::Dutch => "Nederlands",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -342,7 +346,7 @@ mod tests {
         assert_eq!(Lang::from_code("de-AT"), Some(Lang::German));
         assert_eq!(Lang::from_code("es_MX.UTF-8"), Some(Lang::Spanish));
         assert_eq!(Lang::from_code("it-CH"), Some(Lang::Italian));
-        assert_eq!(Lang::from_code("nl-NL"), None);
+        assert_eq!(Lang::from_code("nl-NL"), Some(Lang::Dutch));
         let fr = if Lang::French.has_catalogue() { Lang::French } else { Lang::English };
         assert_eq!(Lang::from_pref("auto", Some("fr-BE")), fr);
         assert_eq!(Lang::from_pref("fr", None), fr);
@@ -355,8 +359,11 @@ mod tests {
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
         let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
-        assert_eq!(said, [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio")]);
+            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        assert_eq!(
+            said,
+            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+        );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.
         assert_eq!(Lang::French.tc("nowhere", "Archive"), "Archive");
@@ -370,11 +377,16 @@ mod tests {
     #[test]
     fn the_picker_names_each_language_in_its_own_words() {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
-        assert_eq!(names, ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)"]);
+        assert_eq!(
+            names,
+            ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)", "Nederlands (voorbeeld)",]
+        );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
         assert_eq!(Lang::from_pref("auto", Some("it-CH")), Lang::Italian);
         assert_eq!(Lang::from_pref("auto", Some("fr-CA")), Lang::French);
+        assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
+        assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
     }
 
     #[test]

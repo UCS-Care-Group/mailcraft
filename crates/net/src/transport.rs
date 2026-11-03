@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Connections: TCP with timeouts, and TLS (rustls, the `ring` provider, Mozilla's roots).
+//! Connections: TCP with timeouts, and TLS (rustls, the `ring` provider, the system's certificate check).
 //!
 //! Nothing here waits for ever. Connecting has a time limit, and so has the handshake; every
 //! read and every write gives up after [`IO_TIMEOUT`] of silence; and a command with its answer
@@ -11,13 +11,13 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use mailcraft_model::{Security, Server};
 use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::NetError;
 
@@ -129,6 +129,15 @@ impl<'a> Stream<'a> {
         tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io))
     }
 
+    /// The DER of the certificate the server showed first (its end-entity certificate), on an
+    /// encrypted connection whose handshake is done: for channel binding.
+    pub(crate) fn server_certificate(&self) -> Option<Vec<u8>> {
+        match &self.io {
+            Io::Plain(_) => None,
+            Io::Tls(tls) => tls.conn.peer_certificates()?.first().map(|c| c.as_ref().to_vec()),
+        }
+    }
+
     /// What every read and write begins with: the flag, and the time the command has had.
     fn before(&mut self, writing: bool) -> std::io::Result<()> {
         if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
@@ -222,11 +231,21 @@ pub(crate) fn checked_host(server: &Server) -> Result<String, NetError> {
 /// the host, for error messages and the certificate check. It waits as `patience` says, and for
 /// nothing longer than a mail server is given.
 pub(crate) fn open<'a>(server: &Server, service: Service, patience: &Patience) -> Result<(Stream<'a>, String), NetError> {
+    open_with(server, service, patience, None)
+}
+
+/// [`open`] with TLS settings of the caller's (`None`: the usual ones, `crate::tls`).
+pub(crate) fn open_with<'a>(
+    server: &Server,
+    service: Service,
+    patience: &Patience,
+    tls: Option<Arc<ClientConfig>>,
+) -> Result<(Stream<'a>, String), NetError> {
     let host = checked_host(server)?;
     log::debug!("connecting to {host}:{} ({service:?}, {})", port(server, service), server.security.code());
     let (connect, io) = (patience.connect.min(CONNECT_TIMEOUT), patience.io.min(IO_TIMEOUT));
     let tcp = dial(&host, port(server, service), server.security == Security::None, connect, io)?;
-    let mut stream = if server.security == Security::Tls { secure(tcp, &host)? } else { Stream::over(Io::Plain(tcp)) };
+    let mut stream = if server.security == Security::Tls { secure(tcp, &host, tls)? } else { Stream::over(Io::Plain(tcp)) };
     stream.patience = patience.command.min(COMMAND_TIMEOUT);
     Ok((stream, host))
 }
@@ -241,7 +260,7 @@ pub(crate) fn open_within<'a>(server: &Server, service: Service, connect: Durati
 pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, NetError> {
     let Stream { io, cancel, patience, .. } = stream;
     let mut secured = match io {
-        Io::Plain(tcp) => secure(tcp, host)?,
+        Io::Plain(tcp) => secure(tcp, host, None)?,
         tls @ Io::Tls(_) => Stream::over(tls),
     };
     (secured.cancel, secured.patience) = (cancel, patience);
@@ -259,10 +278,9 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
         .filter(|a| !loopback_only || a.ip().is_loopback())
         .take(MAX_ADDRESSES)
         .collect();
+    let tcp = connect_first(&addresses, connect).map_err(failed)?;
     // No time at all would mean "wait for ever".
     let io = Some(io.max(Duration::from_millis(1)));
-    let started = Instant::now();
-    let tcp = connect_resolved(&addresses, connect, TcpStream::connect_timeout, || started.elapsed()).map_err(failed)?;
     // Without timeouts a silent server would hang the thread: no connection then.
     let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
     if ready.is_err() {
@@ -270,6 +288,12 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
     }
     let _ = tcp.set_nodelay(true);
     Ok(tcp)
+}
+
+/// Connect using the bounded fallback loop shared with the deterministic regressions.
+fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, &'static str> {
+    let started = Instant::now();
+    connect_resolved(addresses, connect, TcpStream::connect_timeout, || started.elapsed())
 }
 
 /// The bounded address loop, separated from DNS and socket setup so its deadline can be tested
@@ -307,27 +331,19 @@ fn connect_resolved<T>(
     Err(reason)
 }
 
-/// The TLS settings every connection shares: certificates must chain to one of Mozilla's roots
-/// and match the server's name.
+/// The TLS settings every connection shares: the system's check of the certificate, which must
+/// also match the server's name (`crate::tls`).
 fn tls_config() -> Result<Arc<ClientConfig>, String> {
-    static CONFIG: OnceLock<Result<Arc<ClientConfig>, String>> = OnceLock::new();
-    CONFIG
-        .get_or_init(|| {
-            let roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-            let config = ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-                .with_safe_default_protocol_versions()
-                .map_err(|e| e.to_string())?
-                .with_root_certificates(roots)
-                .with_no_client_auth();
-            Ok(Arc::new(config))
-        })
-        .clone()
+    crate::tls::client_config(crate::tls::Purpose::Mail)
 }
 
 /// Shake hands over `tcp` and check the server's certificate against `host`.
-fn secure<'a>(mut tcp: TcpStream, host: &str) -> Result<Stream<'a>, NetError> {
+fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) -> Result<Stream<'a>, NetError> {
     let failed = |reason: String| NetError::Tls { host: host.to_string(), reason };
-    let config = tls_config().map_err(failed)?;
+    let config = match tls {
+        Some(config) => config,
+        None => tls_config().map_err(failed)?,
+    };
     let name = ServerName::try_from(host.to_string()).map_err(|_| failed("its name isn't one a certificate can be checked against".into()))?;
     let mut connection = ClientConnection::new(config, name).map_err(|e| failed(e.to_string()))?;
     // Shake hands now, so that a bad certificate is reported as one, and within a time limit: no
@@ -360,6 +376,10 @@ fn handshake_problem(e: &std::io::Error) -> String {
         _ => e.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
     }
 }
+
+#[cfg(test)]
+#[path = "transport_dial_tests.rs"]
+mod dial_tests;
 
 #[cfg(test)]
 mod tests {
@@ -445,7 +465,7 @@ mod tests {
         // A name no certificate could be for is refused before anything is sent.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let tcp = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        assert!(matches!(secure(tcp, "not a host name"), Err(NetError::Tls { .. })));
+        assert!(matches!(secure(tcp, "not a host name", None), Err(NetError::Tls { .. })));
     }
 
     /// A server on this machine that does with its one connection what `serve` says.

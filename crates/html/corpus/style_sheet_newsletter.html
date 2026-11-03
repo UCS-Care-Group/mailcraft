@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tidewater Roasters: the October letter</title>
+<style type="text/css">
+@charset "utf-8";
+@import url("https://fonts.example/tidewater.css");
+@font-face { font-family: "Tidewater Serif"; src: url("https://fonts.example/tidewater-serif.woff2") format("woff2"); }
+/* Reset, the way builders write it */
+body, table, td, p, a, h1, h2 { margin: 0; padding: 0; }
+body { background-color: #f1ece4; color: #3b2f2a; font-family: Georgia, serif; font-size: 15px; }
+.preheader { display: none !important; visibility: hidden; max-height: 0; overflow: hidden; font-size: 1px; color: #f1ece4; }
+.wrapper { width: 600px; margin: 0 auto; background-color: #ffffff; }
+#masthead td { background-color: #1f3a4d; color: #f7efe3; text-align: center; padding: 22px 16px; font-size: 26px; font-weight: bold; }
+.lead h1 { font-size: 24px; color: #1f3a4d; text-align: center; padding: 18px 24px 4px 24px; }
+.lead p { text-align: center; padding: 0 32px 16px 32px; line-height: 1.6; }
+table.tiles td { width: 50%; padding: 12px; vertical-align: top; border: 1px solid #d9cfc2; }
+table.tiles td:first-child { background-color: #faf6ef; }
+table.tiles tr:nth-child(2) td { background-color: #f1ece4; }
+table.tiles h2 { font-size: 17px; color: #8a3b12; }
+table.tiles h2 + p { font-size: 14px; padding-top: 4px; }
+.tag[data-kind="new"] { color: #b3261e; font-weight: bold; }
+.button td { background-color: #8a3b12; padding: 10px 24px; text-align: center; }
+.button a { color: #ffffff; font-weight: bold; text-decoration: none; }
+a:link { color: #8a3b12; text-decoration: underline; }
+a:visited { color: #ff00ff; }
+a:hover { color: #00ff00; }
+p::before { content: "tracking"; background: url("https://tracker.example/p.gif"); }
+.mobile-only { display: none; }
+.footer p { font-size: 12px; color: #7a6a5e; text-align: center; padding: 3px 24px; }
+.footer p:last-child { font-style: italic; }
+ul.news li:not(.skip) { padding: 2px 0; }
+ul.news li:last-child { font-weight: bold; }
+@media screen and (max-width: 480px) {
+  .wrapper { width: 100% !important; }
+  .mobile-only { display: block !important; }
+  .desktop-only { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="preheader">Preview: the autumn roast is here, and the Quay Street shop opens on Saturday. &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+<table class="wrapper" role="presentation" cellpadding="0" cellspacing="0" border="0">
+  <tr><td>
+    <table id="masthead" role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>Tidewater Roasters</td></tr></table>
+    <div class="lead">
+      <h1>The October letter</h1>
+      <p>The autumn roast is in, the nights are drawing in, and the new shop on Quay Street opens its door on Saturday at eight. Come and taste it.</p>
+    </div>
+    <table class="tiles" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td><h2><span class="tag" data-kind="new">New</span> Harbour Blend</h2><p>Dark chocolate, toasted hazelnut, a long finish. Roasted on Tuesdays.</p></td>
+        <td><h2>Slow Tide decaf</h2><p>Water-process decaf with a surprising amount of body.</p></td>
+      </tr>
+      <tr>
+        <td><h2>Brew guides</h2><p>Six short guides for the kettle, the press and the pour-over.</p></td>
+        <td><h2><span class="tag" data-kind="old">Back</span> Winter filter</h2><p>The filter coffee that comes back every first of November.</p></td>
+      </tr>
+    </table>
+    <table class="button" role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin: 18px auto;">
+      <tr><td><a href="https://shop.tidewater.example/autumn-roast">See the autumn roast</a></td></tr>
+    </table>
+    <p class="mobile-only">Reading this on a phone? The same letter, one column.</p>
+    <p class="desktop-only" style="padding: 0 32px 12px 32px;">Reading on a computer? Everything is in the columns above.</p>
+    <ul class="news" style="padding: 0 32px 12px 52px;">
+      <li>Quay Street opens Saturday at eight</li>
+      <li class="skip">Roast dates are on every bag</li>
+      <li>Bring a cup, get a discount</li>
+    </ul>
+    <div class="footer">
+      <p>Tidewater Roasters, 4 Quay Street, Harbourtown</p>
+      <p><a href="https://shop.tidewater.example/unsubscribe">Unsubscribe</a> or <a href="https://shop.tidewater.example/preferences">change what you get</a></p>
+      <p>You are reading this because you gave your address at the counter.</p>
+    </div>
+  </td></tr>
+</table>
+</body>
+</html>

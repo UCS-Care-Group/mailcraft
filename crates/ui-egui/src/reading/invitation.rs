@@ -346,6 +346,14 @@ pub(super) fn stands_for(info: Option<&Info>, index: usize) -> bool {
 /// when that hasn't been done too often already (`asked_for`: the owner asks, whenever).
 fn look_for(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info, asked_for: bool) -> Result<(), String> {
     let Some(when) = info.when() else { return Err(tl!("This invitation doesn't say when the meeting is.").to_string()) };
+    // A shared mailbox's calendar is read once the owner has ticked it (#70), and this meeting
+    // is in its main one.
+    if app.session.mailbox.account(info.account).is_some_and(mailcraft_model::Account::is_shared) {
+        let ticked = app.session.mailbox.calendars.iter().any(|c| c.origin.account == info.account && c.origin.id.is_empty() && c.visible);
+        if !ticked {
+            return Err(tl!("Tick this shared mailbox's calendar in the calendar's folder pane to answer its meeting requests.").to_string());
+        }
+    }
     if !(-FIND_BEHIND..=FIND_AHEAD).contains(&app.session.today().days_until(when.start.date)) {
         return Err(tl!("The day of this meeting is not one the account's calendar can be asked about.").to_string());
     }
@@ -453,6 +461,8 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
         with: json!({"send": true}),
         more: vec![(tl!("Don't Send a Response").to_string(), json!({"send": false}))],
         note: Some(("comment", String::new(), tl!("A note to go with it (optional)").to_string())),
+        cancel: None,
+        tick: None,
     }))
 }
 
@@ -872,7 +882,7 @@ fn day_strip(ui: &Ui, rect: Rect, info: &Info, when: &When, t: &Tokens, twelve_h
     }
     // The meeting itself.
     let r = block(starts, ends.max(starts + 1), lane.min.x, if clash { half - 1.0 } else { lane.max.x });
-    p.rect(r, 2.0, t.accent.linear_multiply(if t.dark { 0.35 } else { 0.16 }), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    p.rect(r, 2.0, t.band_chosen, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     if r.height() >= 13.0 {
         paint_clipped(&p, pos2(r.min.x + 6.0, r.min.y + 7.0), r.width() - 9.0, tl!("This meeting"), semibold(10.5), t.text);
     }

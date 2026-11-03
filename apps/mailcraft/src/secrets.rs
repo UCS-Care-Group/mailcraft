@@ -12,10 +12,10 @@
 use mailcraft_ui_egui::SecretStore;
 
 /// The store on systems that have one.
-pub fn store() -> Option<Box<dyn SecretStore>> {
+pub fn store() -> Option<std::sync::Arc<dyn SecretStore>> {
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd"))]
     {
-        Some(Box::new(os::OsStore::default()))
+        Some(std::sync::Arc::new(os::OsStore::default()))
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd")))]
     {

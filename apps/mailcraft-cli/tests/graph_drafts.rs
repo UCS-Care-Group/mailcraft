@@ -4,8 +4,9 @@
 //! and `apply_graph_mail` with `mailcraft_net::graph::sync_mail` in between, against the strict
 //! Graph stand-in. A draft written here is in the server's Drafts and back, once, after a lost
 //! answer; saved again it is changed in place, field by field; an answer stays in its
-//! conversation; attachments come and go, a large one by upload session; a draft edited on both
-//! sides is kept twice. Nothing here leaves this machine; every message is invented.
+//! conversation, and a forward as an attachment carries the message whole and alone; attachments
+//! come and go, a large one by upload session; a draft edited on both sides is kept twice.
+//! Nothing here leaves this machine; every message is invented.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::sync::atomic::AtomicBool;
@@ -14,7 +15,7 @@ use mailcraft_charset::base64::STANDARD;
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::graph_mail::{apply_graph_fetch, apply_graph_mail, graph_fetch_request, graph_mail_request, unpushed};
 use mailcraft_model::{Id, Mailbox};
-use mailcraft_net::graph::standin::{StandIn, TOKEN};
+use mailcraft_net::graph::standin::{Attached, StandIn, TOKEN};
 use serde_json::{Value, json};
 
 /// Friday 2027-01-15 08:00 UTC.
@@ -153,6 +154,47 @@ fn an_answer_stays_in_its_conversation() {
     assert!(there[0].subject.eq_ignore_ascii_case("RE: Invoice 42"), "{}", there[0].subject);
     assert!(there[0].body.contains("Paid today."), "the words written here, not the server's own");
     assert!(state.requests.iter().any(|r| r.target.ends_with("/createReply")));
+}
+
+/// #315: a forward as an attachment is made on the server as a message of its own, never with
+/// `createForward`, which would put the original's files in it beside the attached message (and
+/// forward a meeting request as itself): it carries the message whole as an `.eml`, and that alone.
+#[test]
+fn a_forward_as_an_attachment_carries_the_message_and_not_its_files() {
+    let mut rig = Rig::new("drafts-forward@example.org");
+    let source = {
+        let mut state = rig.server.state();
+        let inbox = state.well_known("inbox");
+        let id = state.mailbox.add(&inbox, "Invoice 42", NOW - 3_600);
+        let invoice = Attached {
+            id: "a1".into(),
+            name: "invoice.pdf".into(),
+            content_type: "application/pdf".into(),
+            bytes: b"%PDF".to_vec(),
+            ..Default::default()
+        };
+        state.mailbox.update(&id, |m| m.attachments.push(invoice));
+        id
+    };
+    rig.run();
+    rig.fetch();
+    let here = rig.s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap().id;
+    rig.s.run("mail.forwardAsAttachment", &json!({"id": here})).unwrap();
+    rig.s.run("compose.set", &json!({"to": "help@example.org"})).unwrap();
+    rig.s.run("compose.saveDraft", &json!({})).unwrap();
+    let answers = rig.run();
+    assert_eq!(Rig::errors(&answers), Vec::<Value>::new(), "{answers:?}");
+    let there = rig.drafts_there();
+    assert_eq!(there.len(), 1);
+    let files: Vec<(&str, &str)> = there[0].attachments.iter().map(|a| (a.name.as_str(), a.content_type.as_str())).collect();
+    assert_eq!(files, [("Invoice 42.eml", "message/rfc822")], "the message, not its files beside it");
+    let eml = String::from_utf8_lossy(&there[0].attachments[0].bytes).to_string();
+    assert!(eml.contains("Subject: Invoice 42") && eml.contains("invoice.pdf"), "whole, its file inside it");
+    let state = rig.server.state();
+    assert!(!state.requests.iter().any(|r| r.target.ends_with("/createForward")), "not made as a forward");
+    assert!(state.requests.iter().any(|r| r.method == "POST" && r.target.starts_with("/v1.0/me/messages") && !r.target.contains("/attachments")));
+    assert_eq!(there[0].subject, "FW: Invoice 42");
+    assert_eq!(state.mailbox.messages[&source].attachments.len(), 1, "the original keeps its file");
 }
 
 #[test]

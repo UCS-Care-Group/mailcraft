@@ -82,6 +82,26 @@ fn every_folder_is_listed_whole_under_its_parent() {
 }
 
 #[test]
+fn the_servers_outbox_is_left_out_while_it_holds_nothing() {
+    // MailCraft's own Outbox is the one shown: an empty one of the server's beside it made the
+    // folder pane show two Outboxes.
+    let server = StandIn::start().unwrap();
+    let outbox = server.state().well_known("outbox");
+    assert!(!outbox.is_empty());
+    let listing = run(&server, vec![]).listing.unwrap();
+    assert!(listing.complete);
+    assert!(!listing.folders.iter().any(|f| f.id == outbox || f.name == "Outbox"), "{:?}", tree(&listing));
+    assert!(listing.folders.iter().any(|f| f.kind == FolderKind::Inbox));
+
+    // One that holds mail is listed as any folder is, and is not the Outbox mail is sent from.
+    server.state().mailbox.add(&outbox, "Stuck on its way", 1_800_000_000);
+    let listing = run(&server, vec![]).listing.unwrap();
+    let there: Vec<_> = listing.folders.iter().filter(|f| f.id == outbox).collect();
+    assert_eq!(there.len(), 1);
+    assert_eq!(there.first().map(|f| f.kind), Some(FolderKind::Custom));
+}
+
+#[test]
 fn folders_made_renamed_moved_and_deleted_here_are_so_there() {
     let server = StandIn::start().unwrap();
     let mut state = server.state();

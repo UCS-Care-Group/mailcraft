@@ -42,6 +42,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("signature.details", "Create from Details", "File › Signatures", details).params(
             r#"{"name": string, "details": {"name"?, "title"?, "organisation"?, "phone"?, "mobile"?, "email"?, "website"?, "address"?: string}, "restart"?: bool (lay it out again after it was edited by hand)} — lays the signature out from the details (the logo is its first picture); after a hand edit only keeps them, unless restart"#,
         ),
+        CommandSpec::new("signature.html", "HTML Signature", "File › Signatures", html).params(
+            r#"{"name"?: string (default: the open one), "html": string (the signature's own HTML, at most 64 KB; sent as written once cleaned of what runs or tracks; pictures only from their web address) | null (rich text again, of what the HTML made)} — makes it an HTML signature, or a rich one again"#,
+        ),
         CommandSpec::new("signature.open", "Edit Signature", "File › Signatures", open)
             .pure()
             .params(r#"{"name": string} — the editing commands work on it until signature.close"#),
@@ -356,6 +359,35 @@ pub(crate) fn picture_places(text: &RichText, id: u32) -> Vec<usize> {
         at += 1;
     }
     places
+}
+
+fn html(s: &mut Session, v: &Value) -> CmdResult {
+    let html = match v.get("html") {
+        Some(Value::Null) => None,
+        Some(Value::String(h)) => Some(h.clone()),
+        _ => return Err(bad("`html` is the signature's HTML, or null")),
+    };
+    let open = names_open(s, v);
+    // Changed whole or not at all.
+    let sig = named(s, v)?;
+    let mut changed = sig.clone();
+    changed.set_html(html.clone()).map_err(|e| fail(e.to_string()))?;
+    // What a message being written shows of it: its words and look as rich text, or for HTML
+    // with no words (a logo alone) its pictures' descriptions.
+    let stand_in = html.as_deref().map(|h| {
+        let rich = mailcraft_mime::rich::from_html(h);
+        if rich.to_plain().trim().is_empty() { RichText::from_plain(mailcraft_html::to_text(h).trim()) } else { rich }
+    });
+    if let Some(text) = &stand_in {
+        // New words let the HTML go, so it is set again (checked above, while the pictures were there).
+        changed.set_body(text.clone()).map_err(|e| fail(e.to_string()))?;
+        changed.set_html(html).map_err(|e| fail(e.to_string()))?;
+    }
+    *sig = changed;
+    if let (Some(text), Some(e)) = (stand_in, s.signature_edit.as_mut().filter(|_| open)) {
+        e.body.replace(text).map_err(|err| fail(err.to_string()))?;
+    }
+    done()
 }
 
 fn layout(s: &mut Session, v: &Value) -> CmdResult {

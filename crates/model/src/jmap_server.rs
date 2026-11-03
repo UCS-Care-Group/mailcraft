@@ -68,7 +68,7 @@ impl JmapServer {
 }
 
 /// The server's name in `address` when `address` may be used, else why not.
-fn accepted(address: &str) -> Result<&str, &'static str> {
+pub(crate) fn accepted(address: &str) -> Result<&str, &'static str> {
     if address.is_empty() {
         return Err("is empty");
     }
@@ -234,7 +234,10 @@ mod tests {
             ("https:/mail.example.org/jmap", "isn't an https:// address"),
             ("https//mail.example.org/jmap", "isn't an https:// address"),
             ("nothttps://mail.example.org/", "isn't an https:// address"),
+            ("https:", "isn't an https:// address"),
             ("https://", "names no server"),
+            ("HTTPS://", "names no server"),
+            ("http://", "names no server"),
             ("https:///jmap", "names no server"),
             ("https://?x=1", "names no server"),
             ("https://#top", "names no server"),

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1932 1932">
+  <defs>
+    <linearGradient id="tile" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc86c"/><stop offset="0.45" stop-color="#f2683a"/><stop offset="1" stop-color="#b0261c"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9a57"/><stop offset="0.24" stop-color="#ff9a57"/><stop offset="0.245" stop-color="#ffdcc2"/><stop offset="1" stop-color="#f7a273"/>
+    </linearGradient>
+    <linearGradient id="mid" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#ffd4a6"/><stop offset="1" stop-color="#f5874f"/>
+    </linearGradient>
+    <linearGradient id="reg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffad6e"/><stop offset="1" stop-color="#f27c43"/>
+    </linearGradient>
+    <linearGradient id="flap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9a8"/><stop offset="1" stop-color="#ffad6e"/>
+    </linearGradient>
+    <linearGradient id="peg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff0de"/><stop offset="1" stop-color="#ffad6e"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="tglow" cx="0.75" cy="0.05" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="panel"><rect x="675" y="525" width="990" height="820" rx="52"/></clipPath>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#621208" flood-opacity="0.5"/></filter>
+  </defs>
+  <rect x="105" y="95" width="1725" height="1730" rx="360" fill="url(#tile)"/>
+  <rect x="105" y="95" width="1725" height="1730" rx="360" fill="url(#tglow)"/>
+  <!-- back sheet -->
+  <path d="M291.6 546.0 Q278 452 372.0 438.2 L1406.0 285.8 Q1500 272 1515.4 365.7 L1674.6 1336.3 Q1690 1430 1596.4 1446.2 L543.6 1628.8 Q450 1645 436.4 1551.0 Z" fill="url(#back)" filter="url(#sh)"/>
+  <path d="M291.6 546.0 Q278 452 372.0 438.2 L1406.0 285.8 Q1500 272 1515.4 365.7 L1674.6 1336.3 Q1690 1430 1596.4 1446.2 L543.6 1628.8 Q450 1645 436.4 1551.0 Z" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="5"/>
+  <!-- middle sheet and the page under it -->
+  <path d="M606.9 453.4 Q625 355 722.6 377.0 L1437.4 538.0 Q1535 560 1556.4 657.7 L1683.6 1237.3 Q1705 1335 1606.7 1353.5 L498.3 1561.5 Q400 1580 418.1 1481.6 Z" fill="#f39b6d" filter="url(#sh)"/>
+  <path d="M596.8 403.3 Q615 305 712.3 328.0 L1427.7 497.0 Q1525 520 1547.0 617.6 L1673.0 1177.4 Q1695 1275 1596.7 1293.5 L488.3 1501.5 Q390 1520 408.2 1421.7 Z" fill="url(#mid)"/>
+  <path d="M596.8 403.3 Q615 305 712.3 328.0 L1427.7 497.0 Q1525 520 1547.0 617.6 L1673.0 1177.4 Q1695 1275 1596.7 1293.5 L488.3 1501.5 Q390 1520 408.2 1421.7 Z" fill="url(#gloss)"/>
+  <path d="M596.8 403.3 Q615 305 712.3 328.0 L1427.7 497.0 Q1525 520 1547.0 617.6 L1673.0 1177.4 Q1695 1275 1596.7 1293.5 L488.3 1501.5 Q390 1520 408.2 1421.7 Z" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="5"/>
+  <!-- the calendar page with the envelope on it -->
+  <g filter="url(#sh)">
+    <rect x="675" y="525" width="990" height="820" rx="52" fill="#d84a24"/>
+    <g clip-path="url(#panel)" stroke="#fff0de" stroke-width="9" stroke-linejoin="round">
+      <rect x="690" y="540" width="960" height="125" rx="40" fill="url(#reg)"/>
+      <rect x="690" y="610" width="960" height="55" fill="url(#reg)" stroke="none"/>
+      <path d="M775 735 L1565 735 L1170 1043 Z" fill="url(#flap)"/>
+      <path d="M688 752 L1003 997 L688 1243 Z" fill="url(#reg)"/>
+      <path d="M1652 752 L1337 997 L1652 1243 Z" fill="url(#reg)"/>
+      <path d="M712 1332 L1058 1052 L1170 1137 L1282 1052 L1628 1332 Z" fill="url(#reg)"/>
+    </g>
+    <rect x="675" y="525" width="990" height="820" rx="52" fill="none" stroke="#fff0de" stroke-opacity="0.5" stroke-width="4"/>
+    <circle cx="907" cy="572" r="68" fill="#d84a24"/>
+    <circle cx="1430" cy="572" r="68" fill="#d84a24"/>
+    <rect x="872" y="446" width="70" height="156" rx="35" fill="url(#peg)" stroke="#d84a24" stroke-width="4"/>
+    <rect x="1395" y="446" width="70" height="156" rx="35" fill="url(#peg)" stroke="#d84a24" stroke-width="4"/>
+  </g>
+</svg>

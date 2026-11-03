@@ -370,6 +370,7 @@ fn task() -> impl Strategy<Value = Task> {
         reminder,
         message,
         uid,
+        ..Default::default()
     })
 }
 

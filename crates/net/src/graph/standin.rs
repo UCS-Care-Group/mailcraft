@@ -82,12 +82,14 @@
 mod changes;
 mod drafts;
 mod messages;
+mod people;
 mod search;
 mod send;
 
 pub use changes::Fault;
 pub use drafts::Attached;
 pub use messages::{Mail, Message};
+pub use people::{Access, Person};
 pub use send::Sent;
 
 use std::cell::RefCell;
@@ -251,6 +253,27 @@ pub struct OtherMailbox {
     pub send_as_denied: bool,
     pub folders: Vec<MailFolder>,
     pub mailbox: Mail,
+    /// Its calendars and their events, answered at `/v1.0/users/{address}/calendars…`,
+    /// `/calendar…`, `/calendarView` and `/events…` as the owner's own are at `/me/…` (#70). What
+    /// the owner of the token may do with them is [`OtherMailbox::calendar_access`].
+    pub calendars: Vec<Calendar>,
+    pub events: Vec<Stored>,
+    pub calendar_access: CalendarAccess,
+}
+
+/// What the owner of the token may do with another mailbox's calendars (#70), which is a right of
+/// its own, apart from Full Access to its mail.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CalendarAccess {
+    /// Everything about them is answered 403 (`ErrorAccessDenied`): nothing is shared, or the
+    /// sign-in doesn't cover shared calendars.
+    #[default]
+    Denied,
+    /// Shared for free and busy times only: the list of calendars and the events are answered
+    /// 403, and `getSchedule` tells when the mailbox is busy.
+    FreeBusy,
+    /// Listed and read; written where the calendar says it can be ([`Calendar::can_edit`]).
+    Open,
 }
 
 /// The special folders every mailbox has under its top, by their names and well-known names.
@@ -378,6 +401,12 @@ pub struct State {
     /// The mailboxes other than the owner's that it knows (#70); any other address is 404
     /// (`ErrorInvalidUser`).
     pub others: Vec<OtherMailbox>,
+    /// The people whose calendars were shared with the owner (#70), at `/users/{address}/calendar…`.
+    pub people: Vec<Person>,
+    /// Calendars of the owner's list that somebody else shares, with the owner the list names for
+    /// each (its id, the address, the name): an invitation accepted in Outlook ([`State::add_shared_by`]).
+    /// Any other calendar that is shared names `else@example.org`.
+    pub shared_by: Vec<(String, String, String)>,
     /// Whose mailbox is being answered for: empty for the owner's (`me`), else
     /// `users/{address}` as the links it writes name it.
     at: String,
@@ -818,6 +847,15 @@ impl State {
         id
     }
 
+    /// A calendar in the owner's list that the mailbox at `address` shares (#70: a sharing
+    /// invitation accepted in Outlook puts it there), listed as owned by `address` and `name`:
+    /// its id. Its events are at `/me/calendars/{id}/…`.
+    pub fn add_shared_by(&mut self, calendar: &str, address: &str, name: &str, can_edit: bool) -> String {
+        let id = self.add_calendar(calendar, can_edit, true);
+        self.shared_by.push((id.clone(), address.to_string(), name.to_string()));
+        id
+    }
+
     /// The link to join by, for an event that was just made an online meeting.
     fn join_link(&mut self, event: &mut Stored) {
         if event.online && event.join_url.is_empty() {
@@ -886,7 +924,49 @@ impl State {
             send_as_denied: false,
             folders,
             mailbox: Mail::default(),
+            calendars: Vec::new(),
+            events: Vec::new(),
+            calendar_access: CalendarAccess::Denied,
         });
+    }
+
+    /// A calendar of the other mailbox at `address` (#70): its id. The first is its main one.
+    pub fn add_other_calendar(&mut self, address: &str, name: &str, can_edit: bool) -> String {
+        let (calendars, events) = (std::mem::take(&mut self.calendars), std::mem::take(&mut self.events));
+        let id = self.add_calendar(name, can_edit, false);
+        let mut made = std::mem::replace(&mut self.calendars, calendars);
+        self.events = events;
+        if let Some(other) = self.other(address) {
+            if other.calendars.is_empty() {
+                for calendar in &mut made {
+                    calendar.main = true;
+                }
+            }
+            other.calendars.extend(made);
+        }
+        id
+    }
+
+    /// An event an hour long in the other mailbox's calendar `calendar`, showing as `show_as`
+    /// (`busy`, `tentative`, `oof`, `workingElsewhere`) (#70): its id.
+    pub fn add_other_event(&mut self, address: &str, calendar: &str, subject: &str, start: Timestamp, show_as: &str) -> String {
+        let events = std::mem::take(&mut self.events);
+        let id = self.add_event(calendar, subject, start);
+        let mut made = std::mem::replace(&mut self.events, events);
+        for event in &mut made {
+            event.show_as = show_as.to_string();
+        }
+        if let Some(other) = self.other(address) {
+            other.events.extend(made);
+        }
+        id
+    }
+
+    /// What the owner of the token may do with the other mailbox's calendars (#70).
+    pub fn share_calendars(&mut self, address: &str, access: CalendarAccess) {
+        if let Some(other) = self.other(address) {
+            other.calendar_access = access;
+        }
     }
 
     /// The other mailbox at `address` (#70), to set up and to look at.
@@ -902,12 +982,19 @@ impl State {
     /// `/v1.0/users/{user}/…`: another mailbox, answered as the owner's own is, with its folders
     /// and its mail in their place for as long as it takes (#70).
     fn of_user(&mut self, asked: &Asked, method: &str, user: &str, rest: &[&str]) -> Result<Answer, Refusal> {
+        if let Some(at) = self.people.iter().position(|person| person.address.eq_ignore_ascii_case(user)) {
+            return self.of_person(asked, method, at, rest);
+        }
         let Some(at) = self.others.iter().position(|other| other.address.eq_ignore_ascii_case(user)) else {
             return Err(refuse(404, "ErrorInvalidUser", format!("The requested user '{user}' is invalid.")));
         };
         let Some(other) = self.others.get_mut(at) else { return Err(not_found()) };
         if let Some((status, code)) = other.refusing {
             return Err(refuse(status, code, "Refused, as asked."));
+        }
+        // Its calendars are another right than its mail: shared to the owner, or not (#70).
+        if matches!(rest, ["calendars", ..] | ["calendar", ..] | ["calendarView"] | ["events", ..]) {
+            return self.of_user_calendar(asked, method, at, user, rest);
         }
         if !other.full_access {
             return Err(refuse(403, "ErrorAccessDenied", "Access is denied. Check credentials and try again."));
@@ -957,6 +1044,34 @@ impl State {
         std::mem::swap(&mut self.mailbox, &mut mailbox);
         if let Some(other) = self.others.get_mut(at) {
             (other.folders, other.mailbox) = (folders, mailbox);
+        }
+        answer
+    }
+
+    /// `/v1.0/users/{user}/calendars…` and the rest of a mailbox's calendar: answered as the
+    /// owner's own is, with the mailbox's calendars and events in their place for as long as it
+    /// takes, when the owner of the token may see them (#70).
+    fn of_user_calendar(&mut self, asked: &Asked, method: &str, at: usize, user: &str, rest: &[&str]) -> Result<Answer, Refusal> {
+        let denied = || refuse(403, "ErrorAccessDenied", "Access is denied. Check credentials and try again.");
+        let Some(other) = self.others.get_mut(at) else { return Err(not_found()) };
+        match other.calendar_access {
+            CalendarAccess::Denied => return Err(denied()),
+            CalendarAccess::FreeBusy if !matches!(rest, ["calendar", "getSchedule"]) => return Err(denied()),
+            _ => {}
+        }
+        let (mut calendars, mut events) = (std::mem::take(&mut other.calendars), std::mem::take(&mut other.events));
+        std::mem::swap(&mut self.calendars, &mut calendars);
+        std::mem::swap(&mut self.events, &mut events);
+        let owner = std::mem::replace(&mut self.owner, user.to_string());
+        let (local, domain) = user.split_once('@').unwrap_or((user, ""));
+        self.at = format!("users/{}@{}", crate::http::encode(local), crate::http::encode(domain));
+        let answer = self.me(asked, method, rest);
+        self.at.clear();
+        self.owner = owner;
+        std::mem::swap(&mut self.calendars, &mut calendars);
+        std::mem::swap(&mut self.events, &mut events);
+        if let Some(other) = self.others.get_mut(at) {
+            (other.calendars, other.events) = (calendars, events);
         }
         answer
     }
@@ -1919,16 +2034,30 @@ impl State {
                     .calendars
                     .iter()
                     .map(|calendar| {
+                        let by = self.shared_by.iter().find(|(id, _, _)| *id == calendar.id);
+                        let (address, name) = match by {
+                            Some((_, address, name)) => (address.as_str(), name.as_str()),
+                            None if calendar.shared => ("else@example.org", "Somebody Else"),
+                            None => (self.owner.as_str(), "Owner"),
+                        };
                         json!({
                             "id": calendar.id, "name": calendar.name, "color": "auto", "hexColor": "", "canEdit": calendar.can_edit,
                             "canShare": !calendar.shared, "isDefaultCalendar": calendar.main,
                             "allowedOnlineMeetingProviders": calendar.online,
                             "defaultOnlineMeetingProvider": calendar.online.first().map_or("unknown", String::as_str),
-                            "owner": {"name": if calendar.shared { "Somebody Else" } else { "Owner" }, "address": if calendar.shared { "else@example.org" } else { self.owner.as_str() }},
+                            "owner": {"name": name, "address": address},
                         })
                     })
                     .collect();
                 self.page(asked, list)
+            }
+            // (On `/me` it is other people who are asked about; at a shared mailbox, its own time.)
+            ["calendar", "getSchedule"] if method == "POST" => {
+                if self.at.is_empty() {
+                    self.get_schedule(asked)
+                } else {
+                    self.schedule(asked)
+                }
             }
             ["calendarGroups"] if method == "GET" => {
                 let group = json!({"id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBgAA-group=", "name": "My Calendars"});
@@ -1959,6 +2088,46 @@ impl State {
             [first, ..] => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{first}'."))),
             [] => Err(no_way()),
         }
+    }
+
+    /// `POST …/calendar/getSchedule`: when the mailbox being answered for is busy, from the events
+    /// of its main calendar, as Graph tells it: a status and a start and an end, never a subject.
+    /// Anybody else asked about has no schedule here (`responseCode` `ErrorMailRecipientNotFound`).
+    fn schedule(&mut self, asked: &Asked) -> Result<Answer, Refusal> {
+        let body = asked.json();
+        let people: Vec<String> = body
+            .get("schedules")
+            .and_then(Value::as_array)
+            .map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect())
+            .unwrap_or_default();
+        let read = |name: &str| {
+            body.get(name).and_then(|time| time.get("dateTime")).and_then(Value::as_str).and_then(|text| mailcraft_time::iso_to_timestamp(text, 0))
+        };
+        let (Some(from), Some(to)) = (read("startTime"), read("endTime")) else {
+            return Err(bad("The time window of a schedule is its startTime and its endTime."));
+        };
+        let main = self.main_calendar();
+        let mut value: Vec<Value> = Vec::new();
+        for person in &people {
+            if !person.eq_ignore_ascii_case(&self.owner) {
+                value.push(json!({"scheduleId": person, "error": {"message": "No such mailbox.", "responseCode": "ErrorMailRecipientNotFound"}}));
+                continue;
+            }
+            let items: Vec<Value> = self
+                .view(Some(main.as_str()), from, to, false)
+                .into_iter()
+                .map(|(event, _)| {
+                    let status = if event.show_as == "outOfOffice" { "oof" } else { event.show_as.as_str() };
+                    json!({
+                        "status": status,
+                        "start": {"dateTime": stamp(event.start), "timeZone": "UTC"},
+                        "end": {"dateTime": stamp(event.end), "timeZone": "UTC"},
+                    })
+                })
+                .collect();
+            value.push(json!({"scheduleId": person, "availabilityView": "", "scheduleItems": items}));
+        }
+        Ok((200, Some(json!({"value": value}))))
     }
 
     fn calendar_view(&mut self, asked: &Asked, calendar: Option<&str>) -> Result<Answer, Refusal> {

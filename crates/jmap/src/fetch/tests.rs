@@ -363,6 +363,7 @@ fn a_batch_that_stops_says_why_without_the_account_s_address() {
     let said = "no mailbox for bo@example.org (bo%40example.org), ask zoe@example.net";
     let (client, _) = connected(vec![reply(500, &json!({"detail": said}))]);
     let got = block_on(fetch_messages(&client, &asked, &AtomicBool::new(false)));
+    assert_eq!(got.session, SESSION, "the server the batch was for, whatever it brought");
     assert_eq!(got.errors.len(), 1, "{:?}", got.errors);
     let line = &got.errors[0];
     assert!(line.starts_with("Couldn't download the messages from the server: ") && line.contains("no mailbox for"), "{line}");
@@ -375,6 +376,7 @@ fn a_batch_that_stops_says_why_without_the_account_s_address() {
     let refused = block_on(Connection::connect(script, SESSION, Credentials::bearer(TOKEN).unwrap())).unwrap_err();
     assert!(refused.to_string().contains("bo@"), "the connection does not know the address: {refused}");
     let failed = failed_fetch(&asked, &refused);
+    assert_eq!(failed.session, SESSION);
     assert_eq!(failed.errors.len(), 1);
     assert!(!failed.errors[0].contains("bo@") && !failed.errors[0].contains("zoe@"), "{:?}", failed.errors);
 }

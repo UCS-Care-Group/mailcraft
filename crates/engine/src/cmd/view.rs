@@ -3,53 +3,66 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
+use mailcraft_model::search::Suggestion;
+use mailcraft_model::{AccountChoice, Address};
 use serde_json::{Value, json};
 
+use super::tasks_remote::keeps_tasks;
 use super::{bad, done, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
+pub mod display;
+
 pub fn specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         CommandSpec::new("view.reminders", "Reminders Window", "View › Window", reminders)
             .pure()
             .params("{} — answers the reminders that are due now: events inside their reminder time, or that ended less than a day ago"),
-        CommandSpec::new("view.mail", "Mail", "Navigation", mail).pure().key("Mod+1"),
-        CommandSpec::new("view.calendar", "Calendar", "Navigation", calendar).pure().key("Mod+2"),
-        CommandSpec::new("view.people", "People", "Navigation", people).pure().key("Mod+3"),
-        CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).pure().key("Mod+4"),
-        CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).pure().params(r#"{"value": "right"|"bottom"|"off"}"#),
-        CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).pure().params(TOGGLE),
-        CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).pure().params(TOGGLE),
+        CommandSpec::new("view.mail", "Mail", "Navigation", mail).reads().key("Mod+1"),
+        CommandSpec::new("view.calendar", "Calendar", "Navigation", calendar).reads().key("Mod+2"),
+        CommandSpec::new("view.people", "People", "Navigation", people).reads().key("Mod+3"),
+        CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).reads().key("Mod+4"),
+        CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).reads().params(r#"{"value": "right"|"bottom"|"off"}"#),
+        CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
+        CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).reads().params(TOGGLE),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
-            .pure()
+            .reads()
             .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),
-        CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).pure(),
+        CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).reads(),
         CommandSpec::new("view.filter", "Filter Email", "Home › Find", filter)
-            .pure()
+            .reads()
             .params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"toMe"}"#),
         CommandSpec::new("view.search", "Search", "Search", search)
-            .pure()
+            .reads()
             .key("Mod+E / F3")
-            .params(r#"{"query": string, "scope"?: "folder"|"everywhere"}"#),
-        CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
-        CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).pure().params(r#"{"value": 0-3}"#),
-        CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).pure().params(TOGGLE),
-        CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).pure().params(TOGGLE),
-        CommandSpec::new("view.day", "Day", "Home › Arrange", day).pure().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
-        CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).pure().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
-        CommandSpec::new("view.week", "Week", "Home › Arrange", week).pure().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
-        CommandSpec::new("view.month", "Month", "Home › Arrange", month).pure().key(mac_or("Mod+Ctrl+4", "Mod+Alt+4")),
-        CommandSpec::new("view.today", "Today", "Home › Go To", today).pure(),
-        CommandSpec::new("view.next", "Forward", "Home › Go To", forward).pure(),
-        CommandSpec::new("view.previous", "Back", "Home › Go To", back).pure(),
-        CommandSpec::new("view.goToDate", "Go to Date", "Home › Go To", go_to_date).pure().key("Mod+G").params(r#"{"date": "YYYY-MM-DD"}"#),
+            .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
+        CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).reads(),
+        CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).reads().params(
+            r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
+        ),
+        CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).reads().params(r#"{"value": 0-3}"#),
+        CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).reads().params(TOGGLE),
+        CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).reads().params(TOGGLE),
+        CommandSpec::new("view.day", "Day", "Home › Arrange", day).reads().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
+        CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).reads().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
+        CommandSpec::new("view.week", "Week", "Home › Arrange", week).reads().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
+        CommandSpec::new("view.month", "Month", "Home › Arrange", month).reads().key(mac_or("Mod+Ctrl+4", "Mod+Alt+4")),
+        CommandSpec::new("view.today", "Today", "Home › Go To", today).reads(),
+        CommandSpec::new("view.next", "Forward", "Home › Go To", forward).reads(),
+        CommandSpec::new("view.previous", "Back", "Home › Go To", back).reads(),
+        CommandSpec::new("view.goToDate", "Go to Date", "Home › Go To", go_to_date).reads().key("Mod+G").params(r#"{"date": "YYYY-MM-DD"}"#),
         CommandSpec::new("view.taskFilter", "Filter Tasks", "Home › Current View", task_filter)
-            .pure()
+            .reads()
             .params(r#"{"value": "active"|"today"|"overdue"|"completed"|"all"}"#),
+        CommandSpec::new("view.taskAccount", "Show Tasks Of", "Tasks", task_account)
+            .reads()
+            .params(r#"{"value": "all" | "here" | number} — every account's tasks, those kept on this computer (0 is the same), or one account's"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
-        CommandSpec::new("view.inspect", "Inspect View", "View", inspect).pure(),
-    ]
+        CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
+    ];
+    specs.extend(display::specs());
+    specs
 }
 
 const TOGGLE: &str = r#"{"value"?: bool} (default: toggle)"#;
@@ -112,7 +125,7 @@ fn filter(s: &mut Session, v: &Value) -> CmdResult {
 fn search(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(2000).collect();
     if let Some(scope) = p::str(v, "scope") {
-        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder or everywhere"))?;
+        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder, subfolders, mailbox or everywhere"))?;
     }
     // A new search forgets what the servers found for the last (R6.2).
     if s.view.search != query {
@@ -123,10 +136,55 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": crate::list::listed(&s.rows())}))
 }
 
+/// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
+/// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`, `to:`
+/// and `cc:` the people a new message's recipients are suggested from
+/// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
+/// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
+/// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
+/// window's list and `view.searchSuggestions` both ask this. With nothing typed, the searches run
+/// lately (`view.recentSearches`).
+pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
+    // An empty box offers the searches run lately, to run again.
+    if query.trim().is_empty() {
+        let recent = s.prefs.recent_searches();
+        return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
+    }
+    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.every_category(), |typed| {
+        let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
+        if let Some(typed) = super::compose::Typed::new(typed) {
+            let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
+            people.extend(own.map(|a| Address::new(a.display_name.as_str(), a.email.as_str())));
+        }
+        people
+    })
+}
+
+fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {
+    let query: String = p::req_str(v, "query")?.chars().take(2000).collect();
+    // The cursor and the answer's places in characters, as the search box counts them.
+    let chars = query.chars().count();
+    let cursor = p::u64(v, "cursor").map_or(chars, |c| usize::try_from(c).unwrap_or(usize::MAX).min(chars));
+    let byte = query.char_indices().nth(cursor).map_or(query.len(), |(b, _)| b);
+    let at = |b: usize| query.get(..b).map_or(0, |before| before.chars().count());
+    let found: Vec<Value> = search_suggestions(s, &query, byte)
+        .into_iter()
+        .map(|x| {
+            let mut one = json!({"name": x.label, "text": x.text, "start": at(x.range.start), "end": at(x.range.end)});
+            if let Some(address) = x.address {
+                one["email"] = json!(address);
+            }
+            if let Some(color) = x.color {
+                one["color"] = json!(color.hex());
+            }
+            one
+        })
+        .collect();
+    Ok(json!({"suggestions": found}))
+}
+
 fn clear_search(s: &mut Session, _: &Value) -> CmdResult {
-    s.view.search.clear();
-    s.server_search.forget();
-    s.view.scope = Scope::Folder;
+    s.clear_search();
     done()
 }
 
@@ -241,6 +299,17 @@ fn task_filter(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"value": s.view.task_filter}))
 }
 
+fn task_account(s: &mut Session, v: &Value) -> CmdResult {
+    let value = v.get("value").and_then(AccountChoice::parse).ok_or_else(|| bad("`value` is all, here or an account's id"))?;
+    if matches!(value, AccountChoice::Account(account) if !keeps_tasks(&s.mailbox, account)) {
+        return Err(bad("that account doesn't keep its to-dos with Microsoft"));
+    }
+    s.view.task_account = value;
+    // The selected task stays selected only where it is listed.
+    s.sel.task = s.sel.task.filter(|id| s.mailbox.task(*id).is_some_and(|t| value.shows(&t.origin)));
+    Ok(json!({"value": value.code()}))
+}
+
 fn reset(s: &mut Session, _: &Value) -> CmdResult {
     let keep = (s.view.module, s.view.folder, s.view.date);
     s.view = ViewState::default();
@@ -288,9 +357,12 @@ pub fn due_reminders(s: &Session, now: mailcraft_time::DateTime) -> Vec<Reminder
     let here = super::remote::offset_of(s);
     let instant = |wall: mailcraft_time::DateTime| mailcraft_model::zoned::instant_at(wall, &here);
     let at = instant(now);
+    // Only the owner's own calendars remind (#70): not a shared mailbox's, not one somebody shares.
+    let not_theirs: std::collections::HashSet<mailcraft_model::Id> =
+        s.mailbox.calendars.iter().filter(|c| !super::remote::is_own_calendar(&s.mailbox, c)).map(|c| c.id).collect();
     for e in s.mailbox.events.values() {
         let Some(ahead) = e.reminder_minutes else { continue };
-        if e.cancelled {
+        if e.cancelled || not_theirs.contains(&e.calendar) {
             continue;
         }
         for o in e.occurrences_in(from, to, &here) {

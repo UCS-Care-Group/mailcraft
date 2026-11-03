@@ -14,8 +14,8 @@ use mailcraft_time::{Date, DateTime, Timestamp};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Account, Address, Attendee, Category, Event, FolderKind, Id, Importance, Labeled, MAX_NAME, OnlineMeeting, OnlineProvider, PostalAddress,
-    Recurrence, Response, ResponseOptions, Rgb, ShowAs,
+    Account, Address, Attendee, CalendarOwner, Category, Event, FolderKind, Id, Importance, Labeled, MAX_NAME, OnlineMeeting, OnlineProvider,
+    PostalAddress, Recurrence, Response, ResponseOptions, Rgb, Rights, ShowAs,
 };
 
 /// Most events and most contacts one download is taken to hold; what is beyond is left out.
@@ -74,6 +74,51 @@ impl Origin {
     /// An account's server keeps the item.
     pub fn is_remote(&self) -> bool {
         !self.is_local()
+    }
+}
+
+/// Whose items a list shows: every account's, those kept on this computer, or one account's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountChoice {
+    #[default]
+    All,
+    Here,
+    Account(Id),
+}
+
+impl AccountChoice {
+    /// What a command says for it: `"all"`, `"here"` (or 0, as `tasks.new` says it) or the
+    /// account's id.
+    pub fn parse(value: &serde_json::Value) -> Option<AccountChoice> {
+        match value {
+            serde_json::Value::String(s) if s == "all" => Some(AccountChoice::All),
+            serde_json::Value::String(s) if s == "here" => Some(AccountChoice::Here),
+            value => value.as_u64().map(|id| if id == 0 { AccountChoice::Here } else { AccountChoice::Account(id) }),
+        }
+    }
+
+    /// The same, for an answer.
+    pub fn code(self) -> serde_json::Value {
+        match self {
+            AccountChoice::All => "all".into(),
+            AccountChoice::Here => "here".into(),
+            AccountChoice::Account(id) => id.into(),
+        }
+    }
+
+    /// The choice that holds an item of this origin.
+    pub fn of(origin: &Origin) -> AccountChoice {
+        if origin.is_local() { AccountChoice::Here } else { AccountChoice::Account(origin.account) }
+    }
+
+    /// Whether the list shows an item of this origin.
+    pub fn shows(self, origin: &Origin) -> bool {
+        match self {
+            AccountChoice::All => true,
+            AccountChoice::Here => origin.is_local(),
+            AccountChoice::Account(account) => origin.account == account,
+        }
     }
 }
 
@@ -368,6 +413,11 @@ pub struct EventsDownload {
     /// not (a server that couldn't be asked for that), all of it stays as it is here.
     #[serde(skip_serializing_if = "is_false")]
     pub has_options: bool,
+    /// The calendar can't be listed by this account, only its free and busy times can be had
+    /// (#70): the events are blocks of time without a title or a place, and the calendar is
+    /// shown as such ([`crate::Rights::FreeBusy`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub free_busy: bool,
 }
 
 impl EventsDownload {
@@ -511,6 +561,15 @@ pub struct EventChange {
     /// which goes again should the server refuse to delete the original.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub moved: String,
+    /// For that deletion when the copy was made in a calendar of another account (or of another
+    /// mailbox's, #70): the account that has the copy, which is not this change's. 0 for a move
+    /// within one account.
+    #[serde(skip_serializing_if = "is_no_id")]
+    pub copy_account: Id,
+}
+
+fn is_no_id(id: &Id) -> bool {
+    *id == 0
 }
 
 fn is_no_response(response: &Response) -> bool {
@@ -786,6 +845,17 @@ impl EventOp {
         self.to = recipients(std::mem::take(&mut self.to));
     }
 
+    /// Whether the server sends mail to other people for this change (#70): an answer that is
+    /// sent, a meeting called off, a meeting forwarded, and a meeting made or changed with
+    /// people invited. From a shared mailbox that is sending from it.
+    pub fn mails_others(&self) -> bool {
+        match self.kind {
+            EventChangeKind::Respond | EventChangeKind::Forward => self.send,
+            EventChangeKind::Delete => self.cancel,
+            EventChangeKind::Create | EventChangeKind::Update => self.fields.attendees.as_ref().is_some_and(|who| !who.is_empty()),
+        }
+    }
+
     /// It is about one occurrence of a series, known by its series and its time only.
     pub fn of_occurrence(&self) -> bool {
         self.remote.is_empty() && !self.series.is_empty() && self.kind != EventChangeKind::Create
@@ -973,6 +1043,9 @@ pub struct EventCheck {
     /// still.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub moved: String,
+    /// The account that has that copy, when it is not this check's ([`EventChange::copy_account`]).
+    #[serde(skip_serializing_if = "is_no_id")]
+    pub copy_account: Id,
 }
 
 impl EventCheck {
@@ -994,6 +1067,47 @@ pub struct CalendarAsk {
     pub series: Vec<String>,
 }
 
+/// What stands before the address in the id of a calendar that was opened by address (Open
+/// Shared Calendar, #70): its owner's address, and what it is read and written through
+/// (`/users/{address}/calendar`). No server lists a calendar under such an id; one that does is
+/// not believed ([`opened_address`]).
+pub const OPENED_PREFIX: &str = "user:";
+
+/// The id the calendar opened at `address` has here.
+pub fn opened_id(address: &str) -> String {
+    format!("{OPENED_PREFIX}{address}")
+}
+
+/// The address a calendar's id names, when it is one that was opened by address and that address
+/// could name a mailbox to a server ([`crate::mailbox_address`]). `None` for every other id.
+pub fn opened_address(id: &str) -> Option<String> {
+    crate::mailbox_address(id.strip_prefix(OPENED_PREFIX)?)
+}
+
+/// Why a calendar that was asked for by address couldn't be read.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OpenedWhy {
+    /// The server says the account has no right to it (nothing is shared, or not with this
+    /// account): a grant that was just made can take up to an hour to be there.
+    #[default]
+    NoRights,
+    /// The server has nobody, or no mailbox, at that address.
+    NoSuchPerson,
+    /// The account's sign-in doesn't carry the permission to read other people's calendars.
+    NoPermission,
+    /// It couldn't be asked just now (no connection, busy): nothing is known.
+    Unreachable,
+}
+
+/// A calendar opened by address that the server wouldn't give, and why.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OpenedRefusal {
+    pub address: String,
+    pub why: OpenedWhy,
+}
+
 /// Most calendars one account is taken to have, and most categories a mailbox.
 pub const MAX_REMOTE_CALENDARS: usize = 100;
 pub const MAX_REMOTE_CATEGORIES: usize = 200;
@@ -1011,8 +1125,11 @@ pub struct RemoteCalendar {
     /// The name of the group it is listed under; empty for none.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub group: String,
-    /// The account may read it and not change it.
-    pub read_only: bool,
+    /// What the account may do with it.
+    pub rights: Rights,
+    /// Whose it is, as the server says; `None` when it didn't.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<CalendarOwner>,
     /// It is the account's main calendar.
     pub main: bool,
     /// The services a meeting in it may be held online with, when the server said.
@@ -1031,6 +1148,11 @@ pub struct CalendarsDownload {
     /// Every calendar the server has is here. When not, none is removed for not being here.
     pub complete: bool,
     pub calendars: Vec<RemoteCalendar>,
+    /// Calendars the owner opened by address that the server wouldn't give (#70): one that was
+    /// never read is taken off the list of those opened, with the reason said; one that was
+    /// read before stays as it is.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refused: Vec<OpenedRefusal>,
 }
 
 impl CalendarsDownload {
@@ -1046,6 +1168,8 @@ impl CalendarsDownload {
     pub fn tidy(&mut self) {
         let mut seen: Vec<String> = Vec::new();
         let mut main = false;
+        self.refused.retain(|refusal| crate::mailbox_address(&refusal.address).is_some());
+        self.refused.truncate(crate::MAX_OPENED_CALENDARS);
         let listed = std::mem::take(&mut self.calendars);
         for mut calendar in listed {
             calendar.id = key(&calendar.id);
@@ -1055,6 +1179,7 @@ impl CalendarsDownload {
             seen.push(calendar.id.clone());
             calendar.name = line(&calendar.name, MAX_NAME);
             calendar.group = line(&calendar.group, MAX_NAME);
+            calendar.owner = calendar.owner.as_ref().and_then(|owner| owner.cleaned());
             if let Some(allowed) = &mut calendar.online_providers {
                 allowed.dedup();
                 allowed.truncate(8);
@@ -1293,14 +1418,14 @@ fn mark(text: &str) -> String {
 }
 
 /// An id or a change key from outside: as it came, or nothing when it couldn't be one.
-fn key(text: &str) -> String {
+pub(crate) fn key(text: &str) -> String {
     let text = text.trim();
     if text.len() > MAX_KEY || text.chars().any(|c| c.is_control() || c.is_whitespace()) { String::new() } else { text.to_string() }
 }
 
 /// One line of text from outside: line breaks and control characters read as spaces, and it is
 /// at most `max` characters long.
-fn line(text: &str, max: usize) -> String {
+pub(crate) fn line(text: &str, max: usize) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let short: String = flat.trim().chars().take(max).collect();
     short.trim_end().to_string()
@@ -1308,7 +1433,7 @@ fn line(text: &str, max: usize) -> String {
 
 /// Text of several lines from outside: its line ends are `\n`, it has no other control
 /// characters, and it is at most `max` characters long.
-fn text(text: &str, max: usize) -> String {
+pub(crate) fn text(text: &str, max: usize) -> String {
     let clean: String = text.chars().filter(|c| *c == '\n' || *c == '\t' || !c.is_control()).take(max).collect();
     clean.trim().to_string()
 }

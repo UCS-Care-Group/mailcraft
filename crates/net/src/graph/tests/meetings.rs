@@ -226,7 +226,7 @@ fn another_time_is_proposed_with_an_answer_that_is_sent() {
         respond(Response::Accepted, true),
         respond(Response::Tentative, false),
     ];
-    let uploaded = push_events_at(&server.url(""), TOKEN, &upload(ops), &EventOptions { zone: "Pacific Standard Time".into() });
+    let uploaded = push_events_at(&server.url(""), TOKEN, &upload(ops), &EventOptions { zone: "Pacific Standard Time".into(), ..Default::default() });
     assert_eq!((server.asked(), uploaded.outcomes.iter().filter(|o| o.result == EventResult::Done).count()), (4, 4));
     let proposed = json!({
         "start": {"dateTime": "2026-10-13T16:00:00", "timeZone": "UTC"},

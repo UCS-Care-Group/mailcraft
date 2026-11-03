@@ -709,6 +709,7 @@ impl TodoBuilder {
             reminder,
             message: None,
             uid: self.uid.unwrap_or_default().trim().to_string(),
+            ..Default::default()
         })
     }
 }

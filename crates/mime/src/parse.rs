@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailcraft_model::{Attachment, FlagStatus, Importance, Message};
 
 use crate::header::{self, Headers, parse_params};
-use crate::words::decode_words;
+use crate::words::{decode_words, has_words};
 use crate::{address, charset, media, transfer};
 
 /// Deepest nesting of multiparts that is opened; what lies deeper is skipped.
@@ -38,7 +38,8 @@ const MAX_IDS: usize = 1000;
 /// `to`, `cc`, `bcc`, `subject` (encoded-words decoded), `date` and `received` (both from `Date`;
 /// 0 when it is missing or unreadable), `body`, `attachments`, `importance`, `categories` (from
 /// `Keywords`), `read` (`Status` has `R`), `flag` (`X-Status` has `F`), `answered` (`X-Status` has
-/// `A`) and `headers` (every other field that isn't MIME structure, values decoded, in order).
+/// `A`) and `headers` (every other field that isn't MIME structure, in order: as written, but for
+/// the unstructured ones, whose encoded-words are decoded).
 /// Leaves `id`, `account`, `folder` and `uid` at 0 and `draft`, `pinned`, `forwarded` false.
 ///
 /// The body: the first `text/plain` part that isn't an attachment is `body.text`, the first
@@ -56,10 +57,13 @@ pub fn parse(bytes: &[u8]) -> Message {
     read_headers(&headers, &mut message);
     let mut walk = Walk::default();
     walk.part(&headers, body, 0, Parent::None);
-    message.body.text = match (walk.text, &walk.html) {
-        (Some(text), Some(html)) if text.trim().is_empty() => mailcraft_html::to_text(html),
+    // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
+    let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
+    message.hidden_text = hidden.unwrap_or_default();
+    message.body.text = match (walk.text, html_text) {
+        (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
-        (None, Some(html)) => mailcraft_html::to_text(html),
+        (None, Some(html)) => html,
         (None, None) => String::new(),
     };
     message.body.html = walk.html;
@@ -106,6 +110,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 m.answered |= value.contains('A');
             }
             "x-mailcraft-flag" => complete |= value.trim().eq_ignore_ascii_case("complete"),
+            // MailCraft's own note of the file a message was opened from: never a sender's.
+            "x-mailcraft-opened-file-sha256" => {}
             // Read once, below.
             "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}
@@ -113,7 +119,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 let size = field.name.len() + value.len();
                 if m.headers.len() < MAX_KEPT_HEADERS && kept_bytes + size <= MAX_KEPT_BYTES {
                     kept_bytes += size;
-                    m.headers.push((field.name.clone(), decode_words(value)));
+                    let value = if has_words(&name) { decode_words(value) } else { value.to_string() };
+                    m.headers.push((field.name.clone(), value));
                 }
             }
         }
@@ -763,8 +770,8 @@ mod tests {
         let m = parse(big.as_bytes());
         assert!(m.headers.len() < 100);
         assert!(m.headers.iter().map(|(n, v)| n.len() + v.len()).sum::<usize>() <= MAX_KEPT_BYTES);
-        let m = parse(b"X-Enc: =?UTF-8?Q?caf=C3=A9?=\r\nContent-Language: en\r\nMIME-Version: 1.0\r\n\r\n");
-        assert_eq!(m.headers, [("X-Enc".to_string(), "café".to_string())]);
+        let m = parse(b"Comments: =?UTF-8?Q?caf=C3=A9?=\r\nContent-Language: en\r\nMIME-Version: 1.0\r\n\r\n");
+        assert_eq!(m.headers, [("Comments".to_string(), "café".to_string())]);
     }
 
     #[test]

@@ -125,7 +125,7 @@ fn outside_of(s: &Session, account: Option<Id>, window: &OfflineWindow) -> Vec<I
 
 /// The bytes of content message `m` has, in memory and kept on disk.
 pub(crate) fn content_bytes(m: &Message) -> u64 {
-    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64);
+    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64) + m.hidden_text.len() as u64;
     let kept = m.kept.as_ref().map_or(0, |k| k.len());
     let files: u64 = m.attachments.iter().map(|a| a.size() as u64).sum();
     body.saturating_add(kept).saturating_add(files)

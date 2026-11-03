@@ -8,15 +8,20 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::TaskFilter;
-use mailcraft_engine::cmd::tasks;
-use mailcraft_model::{Id, Importance, Task};
+use mailcraft_engine::cmd::{tasks, tasks_remote};
+use mailcraft_engine::{TaskFilter, TaskSort};
+use mailcraft_model::{AccountChoice, Id, Importance, Task};
 use mailcraft_time::{Date, Weekday};
 use serde_json::json;
 
-use crate::people_view::{Layout, chips, clip_chars, one_line, section, selection_changed, show_rows};
+use crate::people_view::{
+    Layout, by_category, chips, choose_copy, chosen_row, clip_chars, listed, one_line, row_selected, section, selection_changed, show_rows,
+};
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons, widgets};
+
+/// Where the task list keeps which row of the selected task has the selection.
+const TASK_ROW: &str = "task_list_row";
 
 const ROW_H: f32 = 36.0;
 /// Height of the quick-add row above the list.
@@ -27,6 +32,8 @@ const TITLE_X: f32 = 44.0;
 const LABEL_W: f32 = 112.0;
 /// Characters of notes the details pane lays out; longer notes end with an ellipsis.
 const NOTES_MAX: usize = 20_000;
+/// The widest the account beside a row's title gets.
+const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
@@ -162,11 +169,33 @@ fn filter_icon(filter: TaskFilter) -> &'static str {
 /// What the panes show, kept between frames with what it was made from.
 #[derive(Clone)]
 struct Lists {
-    key: (u64, usize, i64, TaskFilter, Weekday),
+    key: (u64, usize, i64, TaskFilter, Weekday, TaskSort, AccountChoice),
     /// How many tasks each filter shows, in `TaskFilter::ALL` order.
     counts: [usize; 5],
     /// The list for the filter in view.
-    layout: Arc<Layout<Bucket>>,
+    layout: Arc<Layout<Heading>>,
+    /// The names of the categories its headings stand for, arranged by categories.
+    names: Arc<Vec<String>>,
+}
+
+/// A heading of the task list: when the tasks under it are due, or, arranged by categories, a
+/// category (an index into [`Lists::names`]) or none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Heading {
+    Due(Bucket),
+    Category(u32),
+    NoCategory,
+}
+
+#[cfg(test)]
+impl Heading {
+    /// When the tasks under it are due, for a heading arranged by due date.
+    fn due(self) -> Option<Bucket> {
+        match self {
+            Heading::Due(bucket) => Some(bucket),
+            Heading::Category(_) | Heading::NoCategory => None,
+        }
+    }
 }
 
 /// The counts beside the filters and the list in view. Sorting every task five times is the slow
@@ -176,23 +205,34 @@ fn lists(app: &MailApp, ctx: &egui::Context) -> Lists {
     let today = app.session.today();
     let filter = app.session.view.task_filter;
     let week_start = app.session.prefs.week_start;
-    let key = (app.session.rev(), app.session.mailbox.tasks.len(), today.to_days(), filter, week_start);
+    let sort = app.session.view.task_sort;
+    let key = (app.session.rev(), app.session.mailbox.tasks.len(), today.to_days(), filter, week_start, sort, tasks::shown_account(&app.session));
     if let Some(cached) = ctx.data(|d| d.get_temp::<Lists>(slot)).filter(|c| c.key == key) {
         return cached;
     }
+    let s = &app.session;
     let mut counts = [0usize; 5];
     let mut layout = Layout::new(ROW_H, []);
+    let mut names: Vec<String> = Vec::new();
     for (count, f) in counts.iter_mut().zip(TaskFilter::ALL) {
-        let ids = tasks::sorted(&app.session, f);
+        let ids = tasks::sorted(s, f);
         *count = ids.len();
-        if f == filter {
-            layout = Layout::new(
-                ROW_H,
-                ids.iter().filter_map(|id| app.session.mailbox.task(*id)).map(|x| (x.id, Bucket::of(x.due, x.is_complete(), today, week_start))),
-            );
+        if f != filter {
+            continue;
         }
+        let shown = ids.iter().filter_map(|id| s.mailbox.task(*id));
+        layout = match sort {
+            TaskSort::DueDate => Layout::new(ROW_H, shown.map(|x| (x.id, Heading::Due(Bucket::of(x.due, x.is_complete(), today, week_start))))),
+            // As Outlook lists them: a task under each of its categories, those with none first,
+            // then the categories A to Z, by when each is due under each (the order they come in).
+            TaskSort::Categories => {
+                let (rows, filed) = by_category(s, shown.map(|x| (x.id, x.origin.account, x.categories.as_slice())));
+                names = filed;
+                Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Heading::NoCategory, Heading::Category))))
+            }
+        };
     }
-    let lists = Lists { key, counts, layout: Arc::new(layout) };
+    let lists = Lists { key, counts, layout: Arc::new(layout), names: Arc::new(names) };
     ctx.data_mut(|d| d.insert_temp(slot, lists.clone()));
     lists
 }
@@ -201,30 +241,36 @@ fn lists(app: &MailApp, ctx: &egui::Context) -> Lists {
 
 /// Up and Down move the selection, Space ticks the task off and Enter opens it, unless a text
 /// field, a menu or a dialog has the keyboard.
-fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Bucket>) {
+fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Heading>) {
     if app.dialog.is_some() || ui.ctx().egui_wants_keyboard_input() || egui::Popup::is_any_open(ui.ctx()) || !ui.input(|i| i.modifiers.is_none()) {
         return;
     }
     let none = egui::Modifiers::NONE;
-    let (down, up, space, enter) = ui.input_mut(|i| {
+    let (down, up, space) = ui.input_mut(|i| {
         (
             i.count_and_consume_key(none, egui::Key::ArrowDown),
             i.count_and_consume_key(none, egui::Key::ArrowUp),
             i.consume_key(none, egui::Key::Space),
-            i.consume_key(none, egui::Key::Enter),
         )
     });
     let step = down.min(1000) as i64 - up.min(1000) as i64;
+    let selected = app.session.sel.task;
+    let at = chosen_row(ui.ctx(), TASK_ROW, layout, selected);
     if step != 0
-        && let Some(id) = layout.neighbour(app.session.sel.task, step)
-        && app.session.sel.task != Some(id)
+        && let Some((id, copy)) = layout.neighbour_row(at, step)
+        && at != Some((id, copy))
     {
-        let _ = app.run("tasks.select", json!({"id": id}));
+        choose_copy(ui.ctx(), TASK_ROW, id, copy);
+        if selected != Some(id) {
+            let _ = app.run("tasks.select", json!({"id": id}));
+        }
     }
     if space && app.session.sel.task.is_some() {
         let _ = app.run("tasks.complete", json!({}));
     }
-    if enter && app.session.sel.task.is_some() {
+    // Only a new press that is the main window's: not the repeats of an Enter that closed a dialog
+    // (#406).
+    if app.session.sel.task.is_some() && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
         let _ = app.run("tasks.edit", json!({}));
     }
 }
@@ -238,6 +284,15 @@ fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));
+        let accounts = tasks_remote::task_accounts(&app.session.mailbox);
+        if !accounts.is_empty() {
+            ui.add_space(2.0);
+            let shown = tasks::shown_account(&app.session);
+            if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
+                let _ = app.run("view.taskAccount", json!({"value": choice.code()}));
+            }
+            ui.add_space(6.0);
+        }
         for (filter, count) in TaskFilter::ALL.into_iter().zip(counts.iter().copied()) {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
             let current = app.session.view.task_filter == filter;
@@ -283,7 +338,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, lists: &Lists) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let filter = app.session.view.task_filter;
-    crate::chrome::pane_title(ui, tl!(filter.label()), &lists.layout.rows.len().to_string());
+    crate::chrome::pane_title(ui, tl!(filter.label()), &listed(&lists.layout).to_string());
     quick_add(app, ui);
     let r = ui.available_rect_before_wrap();
     ui.painter().line_segment([pos2(r.min.x, r.min.y), pos2(r.max.x, r.min.y)], Stroke::new(1.0, t.border));
@@ -300,9 +355,18 @@ fn list(app: &mut MailApp, ui: &mut Ui, lists: &Lists) {
         return;
     }
     let selected = app.session.sel.task;
-    let reveal = selection_changed(ui, "task_list_seen", selected).then_some(selected).flatten();
+    let at = chosen_row(ui.ctx(), TASK_ROW, &lists.layout, selected);
+    let reveal = selection_changed(ui, "task_list_seen", at).then_some(at).flatten();
     let today = app.session.today();
-    show_rows(ui, &lists.layout, reveal, |bucket| tl!(bucket.label()).to_string(), |ui, id, rect| task_row(app, ui, id, rect, today));
+    // Every account's tasks in one list: each says where it is.
+    let labelled = tasks::shown_account(&app.session) == AccountChoice::All && !tasks_remote::task_accounts(&app.session.mailbox).is_empty();
+    let names = lists.names.clone();
+    let label = move |h: Heading| match h {
+        Heading::Due(bucket) => tl!(bucket.label()).to_string(),
+        Heading::Category(i) => names.get(i as usize).map_or_else(String::new, |n| one_line(n, 200)),
+        Heading::NoCategory => tl!("No category").to_string(),
+    };
+    show_rows(ui, &lists.layout, reveal, label, |ui, id, copy, rect| task_row(app, ui, id, copy, rect, today, labelled));
 }
 
 /// The field above the list: type a title, press Enter, and the task exists.
@@ -334,7 +398,7 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
     }
     // What has been typed so far lives in egui's memory, not in the session.
     let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_default();
-    let hint = if filter == TaskFilter::Today { tl!("Add a task due today") } else { tl!("Add a task") };
+    let hint = add_hint(app, filter == TaskFilter::Today);
     let edit = egui::TextEdit::singleline(&mut text)
         .id(id)
         .frame(egui::Frame::NONE)
@@ -345,9 +409,10 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
         .min_size(vec2(0.0, edit_rect.height()))
         .align(egui::Align2::LEFT_CENTER);
     // In a child of its own, so the field doesn't move what is laid out after this row.
-    let resp = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit);
+    let resp = crate::text_menu::field(ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit));
     // Enter and Escape both take the keyboard away from the field: Enter adds, Escape gives up.
-    let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+    // (Each is the window's whose they are, #406.)
+    let (enter, escape) = (crate::keys::enter(ui.ctx(), ui.layer_id()), crate::keys::escape(ui.ctx(), ui.layer_id()));
     if resp.lost_focus() && enter {
         let title = text.trim().to_string();
         if title.is_empty() {
@@ -369,6 +434,31 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
         text.clear();
     }
     ui.data_mut(|d| d.insert_temp(id, text));
+}
+
+/// What the field above the list says, where there is a choice of where the task goes: where it
+/// goes.
+fn add_hint(app: &MailApp, today: bool) -> String {
+    let s = &app.session;
+    if tasks_remote::task_accounts(&s.mailbox).is_empty() {
+        return if today { tl!("Add a task due today") } else { tl!("Add a task") }.to_string();
+    }
+    let Some(place) = tasks::new_task_place(s) else {
+        // Nobody has said: it can still be offered to an account.
+        return if today { tl!("Add a task due today on this computer for now") } else { tl!("Add a task on this computer for now") }.to_string();
+    };
+    match place {
+        0 => if today { tl!("Add a task due today on this computer") } else { tl!("Add a task on this computer") }.to_string(),
+        account => {
+            let text = match (today, app.tasks_held(account)) {
+                (false, false) => tl!("Add a task to {address}"),
+                (true, false) => tl!("Add a task due today to {address}"),
+                (false, true) => tl!("Add a task to {address} (it waits here until To Do is allowed)"),
+                (true, true) => tl!("Add a task due today to {address} (it waits here until To Do is allowed)"),
+            };
+            crate::i18n::fmt(text, &[("address", &widgets::place_name(&s.mailbox, account))])
+        }
+    }
 }
 
 /// One line of text cut to `width` with an ellipsis, struck through when `strike`.
@@ -408,27 +498,32 @@ fn paint_check(p: &egui::Painter, center: egui::Pos2, done: bool, hot: bool, t: 
     }
 }
 
-fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect, today: Date) {
+fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, today: Date, labelled: bool) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the task.
     let Some(task) = app.session.mailbox.tasks.get(&id).cloned() else { return };
-    let resp = ui.interact(rect, ui.scope_id().with(("task", id)), Sense::click());
+    // A task listed under two categories is two rows, each with ids of its own.
+    let resp = ui.interact(rect, ui.scope_id().with(("task", id, copy)), Sense::click());
     app.hit.add("task", id, rect);
     // The check box has its own click target, on top of the row's.
     let check = check_rect(rect);
-    let check_resp = ui.interact(check, ui.scope_id().with(("task_check", id)), Sense::click());
-    let selected = app.session.sel.task == Some(id);
+    let check_resp = ui.interact(check, ui.scope_id().with(("task_check", id, copy)), Sense::click());
+    // The selection is on one of a task's rows: the one clicked or stepped to.
+    let selected = row_selected(ui.ctx(), TASK_ROW, app.session.sel.task, (id, copy));
+    if resp.clicked() || resp.secondary_clicked() {
+        choose_copy(ui.ctx(), TASK_ROW, id, copy);
+    }
     let done = task.is_complete();
     let p = ui.painter();
     if selected {
         p.rect_filled(rect, 0.0, t.selection);
     } else if resp.hovered() || check_resp.hovered() {
-        p.rect_filled(rect, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + TITLE_X, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
     paint_check(p, check.center(), done, check_resp.hovered(), &t);
 
-    // From the right: when it is due, then the markers.
+    // From the right: when it is due, then the markers, then where it is.
     let y = rect.center().y;
     let mut x = rect.max.x - 12.0;
     let due = due_text(&task, today);
@@ -449,10 +544,19 @@ fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect, today: Date) {
         marker("mail", t.text_dim);
     }
     for c in task.categories.iter().take(3) {
-        p.rect_filled(Rect::from_center_size(pos2(x - 5.0, y), vec2(10.0, 10.0)), 2.0, crate::theme::c32(app.session.mailbox.category_color(c)));
+        p.rect_filled(
+            Rect::from_center_size(pos2(x - 5.0, y), vec2(10.0, 10.0)),
+            2.0,
+            crate::theme::c32(app.session.mailbox.category_color_of(task.origin.account, c)),
+        );
         x -= 13.0;
     }
     let left = rect.min.x + TITLE_X;
+    if labelled {
+        let place = widgets::place_name(&app.session.mailbox, task.origin.account);
+        let width = p.layout_no_wrap(place.clone(), regular(11.5), t.text_dim).size().x.min(PLACE_W).min((x - left) * 0.5);
+        x -= paint_clipped(p, pos2(x - width, y), width, &place, regular(11.5), t.text_dim) + 8.0;
+    }
     let (font, color) = if done {
         (regular(13.0), t.text_dim)
     } else if selected {
@@ -492,9 +596,13 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
         }
     });
     ui.menu_button(tl!("Categorize"), |ui| {
+        let task = app.session.mailbox.task(id);
+        let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
         crate::ribbon::category_menu(
             ui,
             app,
+            account.as_slice(),
+            &carried,
             "tasks.categorize",
             |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
             None,
@@ -554,6 +662,9 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
             });
 
             section(ui, tl!("Details"));
+            if task.origin.is_remote() || !tasks_remote::task_accounts(&app.session.mailbox).is_empty() {
+                detail(ui, "account", tl!("Account"), &widgets::place_name(&app.session.mailbox, task.origin.account), t.text);
+            }
             let none = tl!("None");
             let date = |day: Option<Date>| day.map(Date::medium);
             detail(ui, "calendar", tl!("Start"), date(task.start).as_deref().unwrap_or(none), if task.start.is_some() { t.text } else { t.text_dim });
@@ -585,7 +696,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                     detail_label(ui, r, "categorize", tl!("Categories"));
                     ui.vertical(|ui| {
                         ui.add_space(4.0);
-                        chips(app, ui, &task.categories);
+                        chips(app, ui, task.origin.account, &task.categories);
                     });
                 });
             }
@@ -602,9 +713,10 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                 ui.add(egui::Label::new(RichText::new(subject).font(regular(12.5)).color(t.text)).truncate());
                 ui.add(egui::Label::new(RichText::new(from).font(regular(11.5)).color(t.text_dim)).truncate());
                 ui.add_space(4.0);
-                if widgets::icon_text_button(ui, "mail", tl!("Open the message"), true).clicked() {
-                    let _ = app.run("mail.select", json!({"id": m.id}));
-                    let _ = app.run("view.mail", json!({}));
+                let open = widgets::icon_text_button(ui, "mail", tl!("Open the message"), true);
+                app.hit.add("openTaskMessage", m.id, open.rect);
+                if open.clicked() {
+                    app.open_in_mail(m.id);
                 }
             }
         });
@@ -624,6 +736,11 @@ fn detail(ui: &mut Ui, icon: &str, label: &str, value: &str, color: Color32) {
     detail_label(ui, r, icon, label);
     paint_clipped(ui.painter(), pos2(r.min.x + LABEL_W, r.center().y), (r.width() - LABEL_W).max(0.0), value, regular(12.5), color);
 }
+
+#[cfg(test)]
+mod account_tests;
+#[cfg(test)]
+mod arrange_tests;
 
 #[cfg(test)]
 mod tests {
@@ -919,7 +1036,7 @@ mod tests {
         // Active, Today, Overdue, Completed, All in the sample mailbox.
         assert_eq!(first.counts, [5, 2, 1, 1, 6]);
         assert_eq!(first.layout.rows.len(), 5);
-        let buckets: Vec<Bucket> = first.layout.rows.iter().filter_map(|r| r.heading).collect();
+        let buckets: Vec<Bucket> = first.layout.rows.iter().filter_map(|r| r.heading.and_then(Heading::due)).collect();
         assert_eq!(buckets, [Bucket::Overdue, Bucket::Today, Bucket::Tomorrow, Bucket::ThisWeek, Bucket::NoDate]);
         // More frames and a selection: the same list.
         let id = first.layout.rows[1].id;
@@ -935,7 +1052,7 @@ mod tests {
         w.state_mut().execute("view.taskFilter", json!({"value": "completed"})).unwrap();
         let done = lists(w.state(), &ctx);
         assert_eq!(done.layout.rows.len(), 2);
-        assert_eq!(done.layout.rows.iter().filter_map(|r| r.heading).collect::<Vec<_>>(), [Bucket::Completed]);
+        assert_eq!(done.layout.rows.iter().filter_map(|r| r.heading.and_then(Heading::due)).collect::<Vec<_>>(), [Bucket::Completed]);
         // Undo, and the first list is back.
         w.state_mut().execute("view.taskFilter", json!({"value": "active"})).unwrap();
         w.state_mut().execute("edit.undo", json!({})).unwrap();
@@ -944,7 +1061,7 @@ mod tests {
         w.state_mut().session.clock.now = Some(testing::now() + mailcraft_time::DAY);
         let tomorrow = lists(w.state(), &ctx);
         assert_eq!(tomorrow.counts, [5, 3, 2, 1, 6]);
-        let buckets: Vec<Bucket> = tomorrow.layout.rows.iter().filter_map(|r| r.heading).collect();
+        let buckets: Vec<Bucket> = tomorrow.layout.rows.iter().filter_map(|r| r.heading.and_then(Heading::due)).collect();
         assert_eq!(buckets, [Bucket::Overdue, Bucket::Today, Bucket::Tomorrow, Bucket::NoDate]);
     }
 
