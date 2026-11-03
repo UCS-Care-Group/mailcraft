@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
+use mailcraft_model::{AccountChoice, Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -307,6 +307,8 @@ pub struct ViewState {
     pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
     pub task_sort: TaskSort,
+    /// Whose tasks Tasks shows.
+    pub task_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -333,6 +335,7 @@ impl Default for ViewState {
             people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
+            task_account: AccountChoice::All,
         }
     }
 }
@@ -2624,6 +2627,8 @@ impl Session {
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
         self.view.open.clear();
+        // An account's id means another account there, or none.
+        self.view.task_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2754,6 +2759,10 @@ impl Session {
         }
         // A to-do in a list shared with other people that the step changes, brings back or removes.
         if crate::agent::changes_shared_tasks(now, to) {
+            return Some(Class::Send);
+        }
+        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
+        if crate::agent::places_tasks(now, to) {
             return Some(Class::Send);
         }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
