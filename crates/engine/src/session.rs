@@ -2740,6 +2740,19 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
+    /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
+    /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
+    /// and compares the message ids after: a key difference with the step's mailbox alone is not
+    /// enough, since the merge keeps mail that came down since and can drop one that both have.
+    /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
+    /// not yet made on the server is dropped, so that asks (fails closed).
+    pub fn undo_takes_mail(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
@@ -2774,13 +2787,7 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        // A message the step takes away (a copy or an import undone), as `mail.delete` asks for
-        // the ones it deletes for good (#473). Mail that came down since stays, as the undo does.
-        let takes_mail = || {
-            let (back, _) = crate::undo::keep_in_step(to.clone(), &step.touched, now);
-            now.messages.keys().any(|k| !back.messages.contains_key(k))
-        };
-        if gone || !self.undo_drafts(redo).is_empty() || takes_mail() {
+        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {

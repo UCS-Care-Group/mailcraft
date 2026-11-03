@@ -288,6 +288,7 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
