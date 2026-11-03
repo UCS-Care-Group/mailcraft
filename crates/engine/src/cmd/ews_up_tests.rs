@@ -388,11 +388,13 @@ fn a_delete_for_good_waits_for_a_copy_of_the_message_and_a_refused_copy_brings_i
     assert!(changes(&s, account).is_empty());
 }
 
-/// The same, with the message deleted on a phone meanwhile, before the refusal or after it: it
-/// stays, on this computer (#566), and isn't swept away with its server's.
+/// The same, with the message deleted on a phone meanwhile, before the refusal or after it, or
+/// the copy answered with "no such item": it stays, on this computer (#566), and isn't swept away
+/// with its server's.
 #[test]
 fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
-    for phone_first in [true, false] {
+    let refused = MessageOutcome::Refused { status: 403 };
+    for (phone_first, answer) in [(true, &refused), (false, &refused), (true, &MessageOutcome::Gone), (false, &MessageOutcome::Gone)] {
         let (mut s, account, a, _) = setup();
         let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
         s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
@@ -414,7 +416,7 @@ fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
         if phone_first {
             phone(&mut s, "S1", "S2");
         }
-        let done = MessageChangeDone { change, outcome: MessageOutcome::Refused { status: 403 }, there: None };
+        let done = MessageChangeDone { change, outcome: answer.clone(), there: None };
         took(&mut s, account, mailcraft_model::sync::EwsMailResult { messages: vec![done], partial: true, ..piece(account) });
         if !phone_first {
             phone(&mut s, "S1", "S2");

@@ -441,6 +441,12 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                                 let _ = mb.forget_message(*copy);
                             }
                         }
+                    } else if matches!(outcome, MessageOutcome::Gone) && take_delete(mb, account, id, true).flatten().is_some() {
+                        // Gone from the server (deleted on a phone, say) while deleted for good
+                        // here, its delete waiting for this answer: nothing is left to delete
+                        // there, and the copy, all there is of it, is kept on this computer, in
+                        // Imported, as on a refusal (#566).
+                        let _ = super::graph_place::kept_in_imported(mb, *copy);
                     }
                     if let Some(why) = why {
                         refusals.note(Kind::Copy, why, &subject, to_name);

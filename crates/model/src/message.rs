@@ -320,7 +320,8 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
-    /// Put back as its server's message when a copy of it in another account was refused (#451):
+    /// Put back as its server's message when a copy of it in another account (#451), or in
+    /// another folder of its own (#566), was refused while it was deleted for good here:
     /// how many more times that server is to list its folder with it still there before it is
     /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
     /// may have been asked for before it was put back). Should the server say meanwhile that it
