@@ -4364,6 +4364,59 @@ fn a_label_and_its_value_never_overlap_however_narrow_the_pane() {
     });
 }
 
+/// Tables floated side by side whose words need more than the share of the width they ask for:
+/// a data table of four columns beside an address; a two-column table beside a long note; five
+/// short columns in 55 % beside 42 %. Each a pair floated left and right, and both floated left.
+fn wider_than_their_share() -> Vec<(&'static str, String)> {
+    let order = "<table align='{a}' width='48%' border='1'><tr><th>Item</th><th>Quantity</th><th>Unit price</th><th>Total</th></tr>\
+        <tr><td>Garden hose</td><td>2</td><td>10.00</td><td>20.00</td></tr></table>";
+    let address = "<table align='{b}' width='48%'><tr><td>Ship to: Ada Example, 1 Sample Street, Exampleton</td></tr></table>";
+    let reference = "<table align='{a}' width='30%'><tr><td>Reference</td><td>Department</td></tr></table>";
+    let note = "<table align='{b}' width='65%'><tr><td>Please keep this note with your records until the order has arrived.</td></tr></table>";
+    let five = "<table align='{a}' width='55%'><tr><td>Mon</td><td>Tue</td><td>Wed</td><td>Thu</td><td>Fri</td></tr></table>";
+    let beside = "<table align='{b}' width='42%'><tr><td>Opening hours of the shop</td></tr></table>";
+    let mut out = Vec::new();
+    for (name, first, second) in [("order", order, address), ("reference", reference, note), ("five", five, beside)] {
+        for (a, b) in [("left", "right"), ("right", "left"), ("left", "left")] {
+            let pair = format!("{}{}", first.replace("{a}", a), second.replace("{b}", b));
+            out.push((name, format!("<table width='100%'><tr><td>{pair}</td></tr></table>")));
+        }
+    }
+    out
+}
+
+#[test]
+fn tables_floated_side_by_side_never_overlap_when_their_words_need_more_than_their_share() {
+    in_frame(false, |ctx| {
+        for (name, html) in wider_than_their_share() {
+            let m = html_message(55, ("Shop", "orders@shop.example"), "Order", &html);
+            for width in [240.0, 300.0, 360.0, 400.0, 440.0, 520.0, 700.0] {
+                let laid = lay_out(ctx, &m, width);
+                check(&laid, &Tokens::get(ctx), name);
+                let words: Vec<&Item> = laid.items.iter().filter(|i| !text_of(i).trim().is_empty()).collect();
+                // Each fits the pane: none runs past its right edge.
+                assert!(
+                    words.iter().all(|w| w.rect.max.x <= width + 0.5),
+                    "{name} at {width}: {:?}",
+                    words.iter().map(|w| (text_of(w), w.rect)).collect::<Vec<_>>()
+                );
+                for (n, a) in words.iter().enumerate() {
+                    for b in words.iter().skip(n + 1) {
+                        assert!(
+                            !a.rect.shrink(0.5).intersects(b.rect.shrink(0.5)),
+                            "{name} at {width}: {:?} {:?} {:?} {:?}",
+                            text_of(a),
+                            a.rect,
+                            text_of(b),
+                            b.rect
+                        );
+                    }
+                }
+            }
+        }
+    });
+}
+
 // ---- #596: where a cell sits in its row, and the gaps between cells ----
 
 #[test]

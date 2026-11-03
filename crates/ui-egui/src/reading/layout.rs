@@ -1180,7 +1180,8 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         let BlockKind::Table(table) = &block.kind else { continue };
         let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
         let line = (width - clear).max(MIN_CELL.min(width));
-        let (wide, room) = match table.width {
+        // The width it asks for, and the room `table_block` is given (a share is of the line).
+        let (asked, room) = match table.width {
             Some(Length::Px(w)) => (f32::from(w).min(line), f32::from(w).min(line)),
             Some(Length::Percent(p)) => (line * f32::from(p.min(100)) / 100.0, line),
             None => {
@@ -1189,8 +1190,13 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
                 (wide, wide)
             }
         };
-        let wide = wide.max(MIN_CELL.min(line));
-        slots.push(Slot { table, wide, room: room.max(wide), clear });
+        let least = MIN_CELL.min(line);
+        let room = room.max(asked.max(least));
+        // It stands as wide as it is drawn: a table whose words need more than it asks for is
+        // wider, as in a browser, where a table's width is the least it takes; one stacked takes
+        // all its room.
+        let wide = drawn_width(cx, table, room, depth).max(asked).max(least);
+        slots.push(Slot { table, wide, room, clear });
     }
     let align = run.first().map_or(Align::Left, |b| b.align);
     // Where a floated box goes: its block's side.
@@ -1244,6 +1250,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         start = end.max(start + 1);
     }
     y
+}
+
+/// The width `table_block` lays `table` out at in `room` points: its columns', or all the room
+/// when it is stacked.
+fn drawn_width(cx: &mut Cx<'_>, table: &Table, room: f32, depth: usize) -> f32 {
+    if depth >= MAX_NESTING {
+        return room;
+    }
+    column_widths(cx, table, &grid(table), room, depth).map_or(room, |(_, total)| total)
 }
 
 // ---- how wide things want to be ----
