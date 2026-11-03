@@ -93,6 +93,10 @@ fn table(s: &Session) -> Vec<(&'static str, Reads, Value)> {
     ] {
         t.push((c, Reads::Item, json!({})));
     }
+    // The rule commands (#566): Always Move's message, the rule to switch, the one rule to run.
+    t.push(("rules.fromMessage", Reads::Message, json!({"folder": folder})));
+    t.push(("rules.enable", Reads::Item, json!({})));
+    t.push(("rules.run", Reads::Item, json!({})));
     t
 }
 
@@ -174,4 +178,27 @@ fn select_takes_null_for_nothing_and_refuses_the_rest() {
         s.run(command, &json!({"id": null})).unwrap();
     }
     assert_eq!((s.sel.event, s.sel.contact, s.sel.task), (None, None, None));
+}
+
+#[test]
+fn the_rule_commands_read_the_folder_and_on_or_off_as_strictly() {
+    let mut s = sample();
+    let rule = s.mailbox.rules.first().map(|r| (r.id, r.enabled)).unwrap();
+    let wrong = [json!(null), json!("7"), json!(0), json!(-1), json!(7.5), json!(true), json!([7]), json!({})];
+    let mut cases: Vec<(&str, Value)> = wrong.iter().map(|x| ("rules.run", json!({ "folder": x }))).collect();
+    for x in [json!(null), json!("false"), json!("true"), json!(0), json!(1), json!([true]), json!({})] {
+        cases.push(("rules.enable", json!({"id": rule.0, "value": x})));
+    }
+    for (command, params) in cases {
+        let mailbox = s.mailbox.clone();
+        let r = s.run(command, &params);
+        assert!(matches!(r, Err(CmdError::Params(_))), "{command} {params}: {r:?}");
+        assert!(s.mailbox == mailbox, "{command} {params} changed the mailbox");
+    }
+    // Left out, the folder in view, and on or off the other way.
+    assert!(s.run("rules.run", &json!({})).is_ok());
+    s.run("rules.enable", &json!({"id": rule.0})).unwrap();
+    assert_eq!(s.mailbox.rules.first().map(|r| r.enabled), Some(!rule.1));
+    s.run("rules.enable", &json!({"id": rule.0, "value": rule.1})).unwrap();
+    assert_eq!(s.mailbox.rules.first().map(|r| r.enabled), Some(rule.1));
 }

@@ -881,8 +881,9 @@ fn gather(app: &MailApp, from: Date, to: Date, t: &Tokens, panes: &[PaneView]) -
             // more categories than one show as marks. Its edge is its calendar's colour either
             // way, so calendars side by side or over one another are told apart.
             let edge = mailbox.calendar(ev.calendar).map_or(t.blue, |c| c32(c.shown_color()));
-            let color = ev.categories.first().map_or(edge, |name| c32(mailbox.category_color(name)));
-            let tags = ev.categories.iter().skip(1).take(3).map(|name| c32(mailbox.category_color(name))).collect();
+            let account = mailbox.event_account(&ev);
+            let color = ev.categories.first().map_or(edge, |name| c32(mailbox.category_color_of(account, name)));
+            let tags = ev.categories.iter().skip(1).take(3).map(|name| c32(mailbox.category_color_of(account, name))).collect();
             let pane = pane_of(panes, ev.calendar);
             let dim = panes.get(pane).is_some_and(|pane| pane.tabs.len() > 1 && pane.front != ev.calendar);
             let free_busy = mailbox.calendar(ev.calendar).is_some_and(|c| c.rights == mailcraft_model::Rights::FreeBusy);

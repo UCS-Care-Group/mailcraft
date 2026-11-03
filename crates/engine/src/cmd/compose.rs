@@ -16,7 +16,8 @@ use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
 /// Largest single attachment and most attachments on one message.
-const MAX_ATTACHMENT: usize = 64 << 20;
+/// The most bytes one attachment may have, and the most the messages forwarded whole together.
+pub const MAX_ATTACHMENT: usize = 64 << 20;
 const MAX_ATTACHMENTS: usize = 200;
 
 pub fn specs() -> Vec<CommandSpec> {
