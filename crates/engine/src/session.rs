@@ -823,7 +823,8 @@ pub struct Prefs {
     /// (`view.weekNumbers`).
     pub week_numbers: bool,
     /// A meeting request (or a cancellation) that was answered from the mail goes to Deleted
-    /// Items (`calendar.deleteAnsweredRequests`). Off unless the owner turns it on.
+    /// Items (`calendar.deleteAnsweredRequests`). On for a mailbox set up from here on, as in
+    /// Outlook; a saved choice, on or off, is kept.
     pub delete_answered_requests: bool,
     /// The working hours above are used even when the account's mailbox has its own
     /// (`view.workHours`).
@@ -891,7 +892,7 @@ impl Default for Prefs {
             sync_minutes: 5,
             time_scale: 30,
             week_numbers: false,
-            delete_answered_requests: false,
+            delete_answered_requests: true,
             own_work_hours: false,
             mailbox_hours: None,
             own_favorites: false,
