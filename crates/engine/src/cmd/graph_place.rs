@@ -273,15 +273,26 @@ pub(crate) fn a_copy_of_one_here(mb: &Mailbox, copy: bool, source: Option<Id>) -
 /// ([`Mailbox::copy_waits_for`]), so the server still has the original, which comes back here
 /// from what was kept of where and how it lay, with the copy's content (its text and files,
 /// which the copy names for the mailbox file), where its server has it, and the delete is called
-/// off (#566). Then [`a_copy_of_one_here`]: whether the copy is to be taken away. With nowhere
-/// here to put the original back (its folder gone here, or a mailbox its server numbered anew
-/// since), its delete goes, and the copy is kept on this computer instead.
+/// off (#566). It comes back once: put back on the Microsoft account it lay in, the deletion of
+/// the IMAP original it was moved there from goes as that move meant it to. Then
+/// [`a_copy_of_one_here`]: whether the copy is to be taken away. With nowhere here to put the
+/// original back (its folder gone here, or a mailbox its server numbered anew since), its delete
+/// goes, and the copy is kept on this computer instead.
 pub(crate) fn original_back(mb: &mut Mailbox, id: Id, copy: bool, source: Option<Id>) -> bool {
     if let Some(source) = source.filter(|s| mb.message(*s).is_none())
         && let Some(copied) = mb.message(id).cloned()
     {
-        original_back_on_graph(mb, source, &copied);
-        original_back_on_imap(mb, source, &copied);
+        if original_back_on_graph(mb, source, &copied) {
+            for p in &mut mb.pending {
+                if let Pending::Delete { kept, .. } = p
+                    && kept.as_ref().is_some_and(|m| m.id == source)
+                {
+                    *kept = None;
+                }
+            }
+        } else {
+            original_back_on_imap(mb, source, &copied);
+        }
         if let Ok(m) = mb.message_mut(source) {
             // Should the server say it is gone since (deleted elsewhere meanwhile), it is kept.
             m.returned = RETURNED_LISTINGS;
@@ -290,8 +301,8 @@ pub(crate) fn original_back(mb: &mut Mailbox, id: Id, copy: bool, source: Option
     a_copy_of_one_here(mb, copy, source)
 }
 
-/// [`original_back`] for a Microsoft or an Exchange server account's message.
-fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message) {
+/// [`original_back`] for a Microsoft or an Exchange server account's message. Whether it is back.
+fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message) -> bool {
     let at = mb.queued.iter().position(|q| match q {
         Queued::DeleteMessage { account, id, kept: Some(m) } => {
             m.id == source && m.server.as_ref().is_some_and(|s| s.id == *id && mb.folder_by_server(*account, &s.folder).is_some())
@@ -301,11 +312,14 @@ fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message) {
     if let Some(Queued::DeleteMessage { account, id, kept: Some(mut kept) }) = at.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at)) {
         kept.take_content_of(copied);
         super::graph_up::put_back(mb, account, &id, Some(kept), None);
+        return mb.message(source).is_some();
     }
+    false
 }
 
 /// [`original_back`] for an IMAP account's message: into the folder that follows the mailbox
-/// the server has it in, under its UID there.
+/// the server has it in, under its UID there, as that account's message (not one a Microsoft
+/// server it was moved to has: that copy goes, as its delete is no longer held).
 fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) {
     let at = mb.pending.iter().position(|p| matches!(p, Pending::Delete { kept: Some(m), uid, .. } if m.id == source && *uid != 0));
     let Some(Pending::Delete { account, from, uid, kept: Some(kept), .. }) = at.and_then(|at| mb.pending.get(at)).cloned() else { return };
@@ -319,6 +333,7 @@ fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) {
     m.take_content_of(copied);
     let synced = m.synced.take().map(|flags| flags.at(uid));
     m.lies_in(folder, account, uid, synced);
+    m.server = None;
     let _ = mb.add_message(m);
 }
 

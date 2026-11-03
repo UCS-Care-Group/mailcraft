@@ -638,6 +638,31 @@ fn a_copy_moved_on_into_a_third_account_still_holds_its_originals_delete() {
     }
 }
 
+/// Moved out of an IMAP account into a Microsoft account, made there, then copied into a third
+/// account and deleted for good before the IMAP original went: a refused copy brings the message
+/// back once, where it lay, as the Microsoft server's message, and the IMAP original goes as the
+/// move meant (#566).
+#[test]
+fn a_moved_message_whose_copy_is_refused_comes_back_once_where_it_lay() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let other = microsoft(&mut s, "owner@outlook.example");
+    let (mine, theirs) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": mine})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkX")]);
+    assert_eq!(ops(&s, a), [delete(2)]);
+    s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+    assert_eq!(ops(&s, a), []);
+    placed(&mut s, other, "owner@outlook.example", &[MessageOutcome::Refused { status: 403 }]);
+    let all: Vec<(Id, Id, Option<String>)> =
+        s.mailbox.messages.values().filter(|m| m.subject == "Two").map(|m| (m.account, m.folder, m.server.as_ref().map(|x| x.id.clone()))).collect();
+    assert_eq!(all, [(ms, mine, Some("AAkX".to_string()))]);
+    assert_eq!(ops(&s, a), [delete(2)]);
+    assert!(!graph_mail_request(&s, ms).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { .. })));
+}
+
 /// The server moved the original on within its account (an earlier move here) before its delete
 /// for good went: the delete, from where the server has it now, still waits for the copy, and a
 /// refused copy brings the original back there (#566).
