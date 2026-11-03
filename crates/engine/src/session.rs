@@ -2774,7 +2774,13 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() {
+        // A message the step takes away (a copy or an import undone), as `mail.delete` asks for
+        // the ones it deletes for good (#473). Mail that came down since stays, as the undo does.
+        let takes_mail = || {
+            let (back, _) = crate::undo::keep_in_step(to.clone(), &step.touched, now);
+            now.messages.keys().any(|k| !back.messages.contains_key(k))
+        };
+        if gone || !self.undo_drafts(redo).is_empty() || takes_mail() {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {

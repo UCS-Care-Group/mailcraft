@@ -1363,7 +1363,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Send) => {
                     "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
                 }
-                Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
+                Some(Class::Delete) => "messages, contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };
             format!("{verb} {}, which also puts {what} back as they were", quoted(label.unwrap_or("the last change")))

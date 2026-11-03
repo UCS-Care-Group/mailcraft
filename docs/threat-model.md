@@ -287,7 +287,7 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   it writes to. `ui.copyDiagnostics` is not available to agents.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
-  events, tasks, calendars or categories removed (`delete`), rules and signatures (`settings`).
+  events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
