@@ -1465,20 +1465,34 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             Err(_) => "make a rule from a message that can't be made as asked".to_string(),
         },
-        "rules.run" if rules_onto_another_server(s, id, params) => {
+        "rules.run" if rules_onto_another_server(s, id, params) || rules_delete_for_good(s, id, params) => {
             let folder = p::id_strict(params, "folder").ok().flatten().unwrap_or(s.view.folder);
             let from = s.mailbox.folder(folder).map(|f| f.account);
             let only = p::id_strict(params, "id").ok().flatten();
-            let onto: Vec<String> = s
-                .mailbox
-                .rules
+            let running: Vec<&mailcraft_model::Rule> =
+                s.mailbox.rules.iter().filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id)).collect();
+            let onto: Vec<String> = running
                 .iter()
-                .filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id))
                 .filter_map(|r| rule_onto_server(s, r, from))
                 .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
                 .collect();
+            // The rules of the run that delete mail for good, by name (#566).
+            let gone: Vec<String> = running.iter().filter(|r| for_good(r)).map(|r| quoted(&r.name)).collect();
             let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
-            format!("run the rules on {place}, which move mail onto the server of {}", onto.join(", "))
+            let mut text = format!("run the rules on {place}");
+            if !onto.is_empty() {
+                text.push_str(&format!(", which move mail onto the server of {}", onto.join(", ")));
+            }
+            if !gone.is_empty() {
+                let more = gone.len().saturating_sub(5);
+                let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+                let (rule, verb) = if gone.len() == 1 { ("rule", "deletes") } else { ("rules", "delete") };
+                text.push_str(&format!(
+                    ", and the {rule} {}{more} {verb} mail permanently",
+                    gone.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                ));
+            }
+            text
         }
         "rules.move" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));

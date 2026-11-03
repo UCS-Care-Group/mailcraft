@@ -513,13 +513,14 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     let ids: Vec<Id> = s.mailbox.messages_in(folder).map(|m| m.id).collect();
     let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
     // A rule that reads the body reads it whole, and a calendar part: one kept on disk is brought
-    // in first (one that can't be read says so in its place, and is matched as that).
+    // in first (one that can't be read says so in its place, and is matched as that). A calendar
+    // part too large to be shown isn't brought in for a rule either.
     let reads_bodies = s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.reads_body());
     let clock = s.rule_clock();
     ids.into_iter()
         .filter(|id| {
             if reads_bodies {
-                let _ = s.load_where(*id, |a| a.is_calendar());
+                let _ = s.load_where(*id, crate::session::is_readable_calendar_part);
             }
             match only {
                 Some(rule) => s.mailbox.run_rule(*id, rule, &clock),

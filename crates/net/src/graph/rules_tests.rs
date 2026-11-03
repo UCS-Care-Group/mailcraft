@@ -216,6 +216,9 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     assert!(rule.conditions.iter().all(|c| again.conditions.contains(c)) && rule.exceptions.iter().all(|c| again.exceptions.contains(c)));
     assert_eq!((again.copy_to.as_str(), again.actions.as_slice()), ("IMM-copies", [Action::MarkRead].as_slice()));
     assert_eq!(body["conditions"]["fromAddresses"], json!([{"emailAddress": {"address": "ann@example.org"}}]));
+    // Graph's sizes are in kilobytes (`sizeRange`), as a rule's are: 10 KB to 500 KB goes up as
+    // 10 and 500, never as bytes.
+    assert_eq!(body["conditions"]["withinSizeRange"], json!({"minimumSize": 10, "maximumSize": 500}));
 }
 
 #[test]

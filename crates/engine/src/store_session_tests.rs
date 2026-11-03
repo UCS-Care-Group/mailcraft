@@ -261,6 +261,41 @@ fn a_reply_reads_the_text_and_its_pictures_and_a_calendar_part_too_large_is_not_
 }
 
 #[test]
+fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_shown() {
+    let tmp = Temp::new("rules-calendar");
+    let path = tmp.file();
+    let mut mb = mailbox(4);
+    let inbox = mb.inbox().unwrap();
+    let invite = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n".iter().chain(&b"BEGIN:VEVENT\r\nEND:VEVENT\r\n".repeat(60)).copied().collect::<Vec<u8>>();
+    let mut asks = Message { folder: inbox, subject: "Planning".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    asks.attachments.push(Attachment::new("invite.ics", "text/calendar", invite));
+    let mut huge = Message { folder: inbox, subject: "Huge".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    huge.attachments.push(Attachment::new("huge.ics", "text/calendar", noise(34, crate::session::MAX_CALENDAR_PART + 1)));
+    let (asks, huge) = (mb.add_message(asks).unwrap(), mb.add_message(huge).unwrap());
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let noting = Arc::new(Noting { asked: Mutex::new(Vec::new()) });
+    s.content_source = Some(noting.clone());
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Meetings".into(),
+        enabled: true,
+        conditions: vec![Condition::MeetingRequest],
+        actions: vec![Action::Flag],
+        stop: false,
+        ..Default::default()
+    });
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    // The invitation is read and flagged; the part too large to be shown isn't asked for.
+    assert_eq!(s.mailbox.message(asks).unwrap().flag, mailcraft_model::FlagStatus::Flagged);
+    let large = (crate::session::MAX_CALENDAR_PART + 1) as u64;
+    assert!(!noting.asked.lock().unwrap().contains(&large));
+    assert!(!s.mailbox.message(huge).unwrap().attachments[0].is_loaded());
+}
+
+#[test]
 fn a_result_opened_during_a_search_that_reads_bodies_does_not_search_again() {
     let tmp = Temp::new("search-open");
     let path = tmp.file();

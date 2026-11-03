@@ -1446,6 +1446,14 @@ fn an_agent_needs_both_grants_for_a_rule_that_copies_onto_another_server_and_del
     assert_eq!(class(&[]), Some(Class::Send));
     assert_eq!(class(&[Class::Send]), Some(Class::Delete));
     assert_eq!(class(&[Class::Send, Class::Delete]), None);
+    // Run over the Inbox, the question says both.
+    run(&mut s, "rules.add", params.clone());
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let asked = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox}));
+    assert!(
+        asked.contains("onto the server of other@example.org") && asked.contains("the rule \u{201c}Both\u{201d} deletes mail permanently"),
+        "{asked}"
+    );
 }
 
 #[test]
@@ -1468,6 +1476,9 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_for_good() {
     assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": false})), Access::Owner(Class::Settings));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox, "id": id})), Access::Owner(Class::Delete));
+    // The question says so, by the rule's name.
+    let asked = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox}));
+    assert!(asked.contains("and the rule \u{201c}Gone\u{201d} deletes mail permanently"), "{asked}");
 }
 
 #[test]

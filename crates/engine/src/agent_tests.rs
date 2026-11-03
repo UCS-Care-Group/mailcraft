@@ -47,11 +47,14 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
     let mut s = sample();
     let out = folder_of(&s, FolderKind::Outbox);
     let m = *s.mailbox.messages.keys().next().unwrap();
+    // A rule that holds for the message: its whole subject.
+    let subject = s.mailbox.message(m).unwrap().subject.clone();
+    assert!(!subject.trim().is_empty());
     s.mailbox.rules.push(Rule {
         id: 9_999,
         name: "hostile".into(),
         enabled: true,
-        conditions: vec![Condition::SubjectContains(vec![String::new()])],
+        conditions: vec![Condition::SubjectContains(vec![subject])],
         actions: vec![Action::MoveTo(out)],
         stop: false,
         ..Default::default()
@@ -59,6 +62,13 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
     let from = s.mailbox.message(m).unwrap().folder;
     s.mailbox.apply_rules(m, &s.rule_clock());
     assert_eq!(s.mailbox.message(m).unwrap().folder, from);
+    // The same rule to an ordinary folder moves it: the rule held, and the Outbox was refused.
+    let archive = folder_of(&s, FolderKind::Archive);
+    if let Some(r) = s.mailbox.rules.iter_mut().find(|r| r.id == 9_999) {
+        r.actions = vec![Action::MoveTo(archive)];
+    }
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert_eq!(s.mailbox.message(m).unwrap().folder, archive);
 }
 
 #[test]
