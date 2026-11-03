@@ -84,6 +84,26 @@ pub const SCREENSHOTS: &str = include_str!("../corpus/screenshots.html");
 /// a list inside it, and answer buttons.
 pub const CALENDAR: &str = include_str!("../corpus/calendar.html");
 
+/// A shop's notice that a parcel was sent, laid out as such notices are: a bar of links, a
+/// tracker of four steps (a picture between two half-width bars in each), lines drawn as the top
+/// border of an empty cell, a rounded button that is a link alone in its cell, a picture with the
+/// item's words beside it, a total with its amount at the right, and notes in rounded boxes with
+/// an icon beside their words. Links are not underlined, by the message's own style sheet.
+pub const PARCEL_NOTICE: &str = include_str!("../corpus/parcel_notice.html");
+
+/// A telephone company's bill notice, written the way older templates write columns: a coloured
+/// header whose wordmark and title are tables that float left and right (`align`), two buttons
+/// that are tables floating left with a spacer table between them, each a link written as a
+/// block in a cell of its own, and a style sheet that underlines links but for those of the
+/// message's text.
+pub const BILL_READY: &str = include_str!("../corpus/bill_ready.html");
+
+/// An estate agent's listing: a 504-pixel column centred by its outer cell, whose heading says no
+/// alignment of its own (it is at the left of the column, as Outlook shows it), a rounded card
+/// with a picture as wide as it, labels written as `display: table`, linked lines, and a button
+/// that is a link as wide as its cell (`display:block`).
+pub const LISTING_CARD: &str = include_str!("../corpus/listing_card.html");
+
 /// A plain-text thread: long lines, quotes three `>` deep, addresses, and a signature after `-- `.
 pub const PLAIN_THREAD: &str = include_str!("../corpus/plain_thread.txt");
 
@@ -105,7 +125,7 @@ pub enum PictureKind {
 
 /// The pictures the corpus refers to: content id, kind, and size in pixels. One more id is
 /// referred to and deliberately attached nowhere: [`MISSING_PICTURE`].
-pub const PICTURES: [(&str, PictureKind, u32, u32); 7] = [
+pub const PICTURES: [(&str, PictureKind, u32, u32); 14] = [
     ("image001.png@01DC3A1B.5F0C2E40", PictureKind::Png, 336, 96),
     ("f3b1c2d4-export-dialog@quillon.example", PictureKind::Png, 1040, 600),
     ("a77e0919-expected@quillon.example", PictureKind::Jpeg, 640, 380),
@@ -113,6 +133,13 @@ pub const PICTURES: [(&str, PictureKind, u32, u32); 7] = [
     ("cross-16@quillon.example", PictureKind::Gif, 32, 32),
     ("quillon-mark@quillon.example", PictureKind::Png, 112, 112),
     ("damaged-capture@quillon.example", PictureKind::Damaged, 0, 0),
+    ("step-done@parcel", PictureKind::Png, 48, 48),
+    ("step-todo@parcel", PictureKind::Png, 48, 48),
+    ("product@parcel", PictureKind::Png, 268, 160),
+    ("info@parcel", PictureKind::Png, 32, 32),
+    ("wordmark@bill", PictureKind::Png, 120, 40),
+    ("wordmark@listing", PictureKind::Png, 230, 52),
+    ("hero@listing", PictureKind::Jpeg, 1008, 524),
 ];
 
 /// A content id [`SCREENSHOTS`] refers to that no part of the message has.
@@ -136,6 +163,9 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("style sheet newsletter", STYLE_SHEET_NEWSLETTER),
         ("responsive newsletter", RESPONSIVE_NEWSLETTER),
         ("dark newsletter", DARK_NEWSLETTER),
+        ("parcel notice", PARCEL_NOTICE),
+        ("bill ready", BILL_READY),
+        ("listing card", LISTING_CARD),
     ]
 }
 

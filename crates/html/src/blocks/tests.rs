@@ -27,7 +27,7 @@ fn hex(c: Rgb) -> String {
 /// A span's text with its formatting in front: `[B#ff0000^16:text→url]`.
 fn span_text(s: &Span) -> String {
     let mut marks = String::new();
-    for (on, mark) in [(s.bold, 'B'), (s.italic, 'I'), (s.underline, 'U'), (s.strike, 'S'), (s.code, 'C')] {
+    for (on, mark) in [(s.bold, 'B'), (s.italic, 'I'), (s.underline, 'U'), (s.strike, 'S'), (s.code, 'C'), (s.bare, 'N')] {
         if on {
             marks.push(mark);
         }
@@ -289,11 +289,65 @@ fn a_link_has_its_own_colour_or_none() {
     );
     assert_eq!(
         dump(r##"<a href="https://example.org" style="color:#ffffff;text-decoration:none">Shop</a>"##),
-        ["p|[#ffffff:Shop→https://example.org]"]
+        ["p|[N#ffffff:Shop→https://example.org]"]
     );
     assert_eq!(dump(r#"<a href="https://example.org"><span style="color:green">in</span></a>"#), ["p|[#008000:in→https://example.org]"]);
     // An anchor that leads nowhere is just text.
     assert_eq!(dump(r#"<font color=red><a name="top">x</a></font>"#), ["p|[#ff0000:x]"]);
+}
+
+/// A link is drawn with its line unless it says otherwise itself (`N`: by its style or a rule of
+/// the message's style sheet), as in a browser: neither what is around it nor what is inside it
+/// takes the line away, and an anchor that leads nowhere has none.
+#[test]
+fn a_link_has_its_line_unless_it_says_otherwise() {
+    assert_eq!(dump(r#"<a href="https://example.org">go</a>"#), ["p|[:go→https://example.org]"]);
+    assert_eq!(dump(r#"<a href="https://example.org" style="text-decoration:none">go</a>"#), ["p|[N:go→https://example.org]"]);
+    let sheet = r#"<style>a { text-decoration: none } .keep a { text-decoration: underline }</style>"#;
+    assert_eq!(
+        dump(&format!(r#"{sheet}<p><a href="https://example.org/a">a</a> <span class="keep"><a href="https://example.org/b">b</a></span></p>"#)),
+        ["p|[N:a→https://example.org/a] [U:b→https://example.org/b]"]
+    );
+    assert_eq!(
+        dump(
+            r#"<p style="text-decoration:none"><a href="https://example.org">go</a></p><table><tr><td style="text-decoration:none"><a href="https://example.org">cell</a></td></tr></table>"#
+        ),
+        ["p|[:go→https://example.org]", "p|[:cell→https://example.org]"]
+    );
+    assert_eq!(
+        dump(r#"<a href="https://example.org">a <span style="text-decoration:none">b</span></a> <a name="top" style="text-decoration:none">c</a>"#),
+        ["p|[:a b→https://example.org] c"]
+    );
+}
+
+/// A link or a span with a look of its own that asks to be a block (`display: block`) is a box
+/// as wide as its line, as a button written so is drawn, and the link leads where it did; without
+/// a look, in a heading, hidden, or with its end tag missing or doubled, nothing changes.
+#[test]
+fn a_link_written_as_a_block_is_a_button_as_wide_as_its_line() {
+    let button = r#"<a href="https://example.org/go" style="display:block;background:#0041d9;color:#ffffff;text-align:center;padding:10px 0;border-radius:8px;text-decoration:none">Explore</a>"#;
+    let drawn = "layout w=100%[(@0041d9 p.c|[N#ffffff:Explore→https://example.org/go])]";
+    assert_eq!(dump(button), [drawn]);
+    let mut blocks = parse(button);
+    let Some(BlockKind::Table(t)) = blocks.pop().map(|b| b.kind) else { panic!() };
+    let cell = &t.rows[0].cells[0];
+    assert_eq!((t.radius, cell.padding.map(|p| (p.top, p.bottom))), (8, Some((10, 10))));
+    // Text before and after it stays in lines of its own.
+    assert_eq!(dump(&format!("before {button} after")), ["p|before", drawn, "p|after"]);
+    assert_eq!(dump(r#"<span style="display:block;border:1px solid #cccccc;padding:4px">note</span>"#), ["layout+outline w=100%[(p|note)]"]);
+    // Without a look of its own, a block link is a link as before; so is one in a heading or hidden.
+    assert_eq!(dump(r#"<a href="https://example.org" style="display:block">plain</a>"#), ["p|[:plain→https://example.org]"]);
+    assert_eq!(dump(r#"<h2><a href="https://example.org" style="display:block;background:#000">head</a></h2>"#).len(), 1);
+    assert_eq!(dump(r#"<a href="https://example.org" style="display:block;background:#000;visibility:hidden">x</a>y"#), ["p|y"]);
+    // Its end tag doubled, another link opened inside it, or its cell ended first: it ends, and
+    // what follows is outside it.
+    assert_eq!(dump(r#"<a href="https://a.example" style="display:block;background:#000">a</a></a>b"#).last().map(String::as_str), Some("p|b"));
+    assert_eq!(
+        dump(r#"<a href="https://a.example" style="display:block;background:#000">a<a href="https://b.example">b</a>c"#),
+        ["layout w=100%[(@000000 p|[:a→https://a.example])]", "p|[:b→https://b.example]c"]
+    );
+    let unclosed = dump(r#"<td><a href="https://a.example" style="display:block;background:#000">a</td><td>b</td>"#);
+    assert!(unclosed.iter().any(|b| b.contains("(p|b)")), "{unclosed:?}");
 }
 
 #[test]
@@ -617,9 +671,17 @@ fn layout_tables() {
 }
 
 #[test]
-fn alignment_reaches_into_and_positions_tables() {
+fn alignment_positions_tables_and_starts_again_inside_them() {
+    // The centred cell centres the table in it; what is in the table's own cells is at the left
+    // unless they say otherwise, as Outlook shows it.
     let html = "<table width='100%'><tr><td align=center><table width=300><tr><td>a</td><td align=right><p>b</p><p>c</p></td></tr></table></td></tr></table>";
-    assert_eq!(dump(html), ["layout.c w=300[(p.c|a)(p.r|b ; p.r|c)]"]);
+    assert_eq!(dump(html), ["layout.c w=300[(p|a)(p.r|b ; p.r|c)]"]);
+    // A table that asks for an alignment of its own gives it to its cells.
+    let own =
+        "<table width='100%'><tr><td align=center><table width=300 style='text-align:center'><tr><td>a</td><td>b</td></tr></table></td></tr></table>";
+    assert_eq!(dump(own), ["layout.c w=300[(p.c|a)(p.c|b)]"]);
+    // Text in the centred cell itself, beside no table, is centred as before.
+    assert_eq!(dump("<table width='100%'><tr><td align=center>mid</td><td>x</td></tr></table>"), ["layout w=100%[(p.c|mid)(p|x)]"]);
     assert_eq!(
         dump("<table><tr align=right><td>a</td><td style='text-align:left'>b</td></tr><tr><td>c</td><td>d</td></tr></table>"),
         ["data[(p.r|a)(p|b)][(p|c)(p|d)]"]

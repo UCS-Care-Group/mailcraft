@@ -203,10 +203,12 @@ impl Paper {
     /// The colour of a line round a box that asks for `asked`: as a background colour is turned
     /// for this theme, and then kept [`LINE_CONTRAST`] apart from the paper it is drawn on, so it
     /// is seen in light and dark and on any colour. The reader's own line colour when it asks for none.
+    /// A line in the very colour of the paper it is drawn on is kept so: the sender meant the box
+    /// to have no edge that shows (a button whose border is its own colour), as in a browser.
     pub fn border(&self, t: &Tokens, asked: Option<Rgb>) -> Color32 {
         let Some(asked) = asked else { return self.line(t) };
         let turned = Paper::of(asked, t).fill;
-        if contrast(turned, self.fill) >= LINE_CONTRAST {
+        if contrast(turned, self.fill) >= LINE_CONTRAST || turned == self.fill {
             return turned;
         }
         let end = if contrast(Color32::BLACK, self.fill) >= contrast(Color32::WHITE, self.fill) { Color32::BLACK } else { Color32::WHITE };

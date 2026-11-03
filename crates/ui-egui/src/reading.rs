@@ -267,12 +267,16 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
 /// one that isn't UTF-8 or Windows-1252).
 pub(crate) fn has_unreadable(m: &Message) -> bool {
     const MARK: char = char::REPLACEMENT_CHARACTER;
-    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), m.body.text.as_str(), m.body.html.as_deref().unwrap_or("")]
-        .iter()
-        .any(|text| text.contains(MARK))
+    let html = m.body.html.as_deref();
+    // The text part only when it is what is shown: the message has no HTML, or its HTML comes to
+    // nothing (`reading::view::Doc`). A mark in the text part alone of a message read as HTML
+    // (a sender's program that lost a © in the plain copy) is nothing the owner sees.
+    let text_shown = || html.is_none_or(|html| !mailcraft_html::has_text(&mailcraft_html::parse(html)));
+    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), html.unwrap_or("")].iter().any(|text| text.contains(MARK))
+        || (m.body.text.contains(MARK) && text_shown())
 }
 
-/// The line above a message that holds a character that couldn't be read ([`has_unreadable`]):
+/// The line above a message that shows a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
 fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens) {

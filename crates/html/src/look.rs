@@ -201,7 +201,7 @@ fn is_white_space(text: &str) -> bool {
 /// Whether an element with this style is a box on a line: what the build makes of one that has
 /// `display: inline-block` and something to show of its own.
 pub(crate) fn is_box(tag: &Tag<'_>, css: &Css) -> bool {
-    if !css.inline_block || left_out(tag, css) {
+    if !(css.inline_block || floats(tag)) || left_out(tag, css) {
         return false;
     }
     match tag.name.as_str() {
@@ -209,6 +209,13 @@ pub(crate) fn is_box(tag: &Tag<'_>, css: &Css) -> bool {
         "body" | "html" | "head" | "tr" | "td" | "th" => false,
         name => (block_name(name).is_some() || is_inline(name)) && has_box_look(css),
     }
+}
+
+/// Whether a table floats (`align="left"` or `align="right"`): the older way of writing columns
+/// and buttons that stand side by side, laid out as boxes on a line are, beside the others that
+/// float with it, when that is all its holder holds.
+pub(crate) fn floats(tag: &Tag<'_>) -> bool {
+    tag.name == "table" && tag.attr("align").is_some_and(|a| matches!(a.trim().to_ascii_lowercase().as_str(), "left" | "right"))
 }
 
 /// The elements that are read as runs of text.

@@ -595,3 +595,77 @@ fn a_look_ahead_does_not_spend_the_sheets_steps_twice() {
     assert!(!all.contains("MOBILE COPY"), "the hidden copy shows");
     assert!(all.contains("words"));
 }
+
+/// Tables that float (`align="left"` or `"right"`), the older way of writing columns and buttons
+/// side by side, are boxes on a line when that is all their holder holds (comments and white
+/// space aside), each beside the one before; inline-block tables too. A floating table next to
+/// text is a table as before, and so is one with another `align`.
+#[test]
+fn tables_that_float_stand_beside_each_other() {
+    let beside = |html: &str| {
+        parse(html).iter().filter(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)).map(|b| (b.beside, b.align)).collect::<Vec<_>>()
+    };
+    let float = |side: &str, word: &str| format!("<table align='{side}' width='240'><tr><td bgcolor='#0568ae'>{word}</td></tr></table>");
+    assert_eq!(beside(&format!("<div>{}{}</div>", float("left", "One"), float("left", "Two"))), [(false, Align::Left), (true, Align::Left)]);
+    // In a cell, with comments and white space between them, as a template writes buttons.
+    let buttons = format!(
+        "<table width='100%'><tr><td align='center'><!--button-->{}\n<!--gap-->{}\n</td></tr></table>",
+        float("left", "One"),
+        float("left", "Two")
+    );
+    assert_eq!(beside(&buttons), [(false, Align::Left), (true, Align::Left)]);
+    // A logo floating left and a title floating right.
+    assert_eq!(beside(&format!("<div>{}{}</div>", float("left", "Logo"), float("right", "Title"))), [(false, Align::Left), (true, Align::Right)]);
+    // Inline-block tables stand beside each other too.
+    let ib = "<table style='display:inline-block;width:200px'><tr><td>A</td></tr></table>";
+    assert_eq!(beside(&format!("<div>{ib}{ib}</div>")).iter().map(|b| b.0).collect::<Vec<_>>(), [false, true]);
+    // Beside text, or with a centred `align`, a floating table is what it was.
+    assert!(beside(&format!("<div>Words {}</div>", float("left", "One"))).is_empty());
+    assert!(beside(&format!("<div>{}{}</div>", float("center", "One"), float("center", "Two"))).is_empty());
+    // Hostile: very many floats are capped as other boxes are, and what is past the cap is still read.
+    let many = float("left", "f").repeat(MAX_INLINE_BOXES * 2);
+    let blocks = parse(&format!("<div>{many}</div>"));
+    assert_eq!(boxes(&blocks).len(), MAX_INLINE_BOXES);
+    assert!(blocks.iter().any(|b| !matches!(&b.kind, BlockKind::Table(t) if t.inline)), "past the cap, tables as before");
+}
+
+/// What column builders write, read as Outlook shows it: a badge or a label written as
+/// `display: table` is a box as wide as its words; a button written `display: inline-block;
+/// width: 100%` is as wide as its column, with its words where its own `text-align` puts them;
+/// a picture's table that asks for 30% of the column keeps that share; and a button nested sixteen
+/// tables deep, as such templates nest one, is still a box.
+#[test]
+fn what_column_builders_write_keeps_its_boxes() {
+    let pill =
+        parse("<table><tr><td><span style='display:table;background-color:#d03c0b;border-radius:20px;padding:1px 0'>New</span></td></tr></table>");
+    assert_eq!(boxes(&pill).len(), 1, "{pill:?}");
+    let button = parse(
+        "<div><a href='https://example.org/go' style='width:100%;display:inline-block;background-color:#0041d9;color:#ffffff;padding:11px 0;text-align:center;border-radius:12px;text-decoration:none'>Go</a></div>",
+    );
+    let found = button.iter().find_map(|b| match &b.kind {
+        BlockKind::Table(t) if t.inline => Some((t, b)),
+        _ => None,
+    });
+    let Some((t, _)) = found else { panic!("{button:?}") };
+    assert_eq!(t.width, Some(Length::Percent(100)));
+    let words = &t.rows[0].cells[0].blocks[0];
+    assert_eq!((words.text(), words.align), ("Go".to_string(), Align::Center));
+    // The share of the column a table asks for is kept, though it holds one picture.
+    let share = parse(
+        "<table width='100%'><tr><td><table style='width:30%' width='30%'><tr><td style='text-align:center'><img src='cid:a@example.org' alt='photo' width='120'></td></tr></table></td></tr></table>",
+    );
+    assert!(share.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Percent(30)))), "{share:?}");
+    // Sixteen tables deep, a button keeps its box and its cell its background.
+    let deep = format!(
+        "{}<td style='background:#ffd916;border-radius:24px'><a href='https://example.org/t' style='display:inline-block;padding:6px 16px;background:#ffd916;border-radius:24px'>Track</a></td>{}",
+        "<table><tr><td>".repeat(15) + "<table><tr>",
+        "</tr></table>".to_string() + &"</td></tr></table>".repeat(15)
+    );
+    fn find_box(blocks: &[Block]) -> bool {
+        blocks.iter().any(|b| match &b.kind {
+            BlockKind::Table(t) => t.inline || t.rows.iter().flat_map(|r| &r.cells).any(|c| find_box(&c.blocks)),
+            _ => false,
+        })
+    }
+    assert!(find_box(&parse(&deep)), "the button is a box sixteen tables deep");
+}

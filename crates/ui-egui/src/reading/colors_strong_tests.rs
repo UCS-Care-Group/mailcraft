@@ -56,3 +56,21 @@ fn normal_contrast_is_not_raised() {
     let asked = Rgb(0x70, 0x70, 0x70);
     assert_eq!(Paper::window(&t).ink(&t, Some(asked), false, false), c32(asked));
 }
+
+/// A box's line in its own colour shows no edge, in either theme and with high contrast on or
+/// off; a line of another colour that can't be told from the paper is still moved apart from it.
+#[test]
+fn a_line_in_the_colour_of_its_box_shows_no_edge() {
+    for dark in [false, true] {
+        for high in [false, true] {
+            let t = Tokens::build(dark, Accent::Blue, high);
+            for own in [Rgb(0x05, 0x68, 0xae), Rgb(0xff, 0xd8, 0x14), Rgb(0xff, 0xff, 0xff), Rgb(0x23, 0x2f, 0x3e)] {
+                let paper = Paper::of(own, &t);
+                assert_eq!(paper.border(&t, Some(own)), paper.fill, "{own:?} dark={dark} high={high}");
+            }
+            let paper = Paper::of(Rgb(0x05, 0x68, 0xae), &t);
+            let near = paper.border(&t, Some(Rgb(0x06, 0x69, 0xaf)));
+            assert!(contrast(near, paper.fill) > 1.2, "a line nearly the paper's colour is seen: {near:?}");
+        }
+    }
+}

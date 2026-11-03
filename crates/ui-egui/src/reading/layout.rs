@@ -663,7 +663,9 @@ fn text_job(
             font_id: font,
             color: ink,
             italics: span.italic,
-            underline: if span.underline || span.link.is_some() { stroke } else { Stroke::NONE },
+            // A link is underlined unless it said otherwise itself (`Span::bare`): what it
+            // opens is shown when the pointer is over it, whatever it looks like.
+            underline: if span.underline || (span.link.is_some() && !span.bare) { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -1162,7 +1164,9 @@ fn box_gap(table: &Table) -> f32 {
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
 /// as its contents want, wrapping to more lines when a box does not fit; the bottom. A box that
 /// asks for more than the line is held to it. The boxes of a line stand at its top, the line
-/// where the first of them says (`text-align` of what holds them).
+/// where the first of them says (`text-align` of what holds them); a table that floats right
+/// after others that don't (`align="right"`, a title beside a logo) goes to the right end, with
+/// those after it.
 fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
     // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
     struct Slot<'a> {
@@ -1170,10 +1174,12 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         wide: f32,
         room: f32,
         clear: f32,
+        right: bool,
     }
     let mut slots: Vec<Slot<'_>> = Vec::with_capacity(run.len());
     for block in run {
         let BlockKind::Table(table) = &block.kind else { continue };
+        let right = block.align == Align::Right;
         let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
         let line = (width - clear).max(MIN_CELL.min(width));
         let (wide, room) = match table.width {
@@ -1186,7 +1192,7 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             }
         };
         let wide = wide.max(MIN_CELL.min(line));
-        slots.push(Slot { table, wide, room: room.max(wide), clear });
+        slots.push(Slot { table, wide, room: room.max(wide), clear, right });
     }
     let align = run.first().map_or(Align::Left, |b| b.align);
     let (mut y, mut first, mut start) = (y, true, 0);
@@ -1207,14 +1213,21 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             Align::Center => ((width - used) / 2.0).max(0.0),
             Align::Right => (width - used).max(0.0),
         };
+        let line = slots.get(start..end).unwrap_or_default();
+        // Where the boxes that float right begin, after one that doesn't: they and those after
+        // them stand at the right end.
+        let split = if align == Align::Right { None } else { line.iter().position(|s| s.right).filter(|i| *i > 0) };
         let mut bottom = y;
-        for (n, slot) in slots.get(start..end).unwrap_or_default().iter().enumerate() {
+        for (n, slot) in line.iter().enumerate() {
             // A copy has a space between the boxes, whether they are on one line or more: it does
             // not go by the room there is.
             if !std::mem::take(&mut first) {
                 cx.beside();
             }
-            if n > 0 {
+            if split == Some(n) {
+                let rest: f32 = line.iter().skip(n).enumerate().map(|(i, s)| s.wide + s.clear + if i > 0 { box_gap(s.table) } else { 0.0 }).sum();
+                at = at.max(x + (width - rest).max(0.0));
+            } else if n > 0 {
                 at += box_gap(slot.table);
             }
             let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
