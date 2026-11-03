@@ -1865,7 +1865,7 @@ mod two_way {
         run(
             &mut s,
             "rules.add",
-            json!({"name": "Reports", "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
+            json!({"name": "Reports", "account": a, "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
         );
         let first = SyncResult {
             account: a,
@@ -1889,8 +1889,8 @@ mod two_way {
         let mut s = session();
         let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
         let inbox = folder(&s, a, FolderKind::Inbox);
-        let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
-        let told = json!({"name": "Told", "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        let gone = json!({"name": "Gone", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
+        let told = json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
         run(&mut s, "rules.add", gone);
         run(&mut s, "rules.add", told);
         // The first run: what the Inbox had stays, and is no alert.

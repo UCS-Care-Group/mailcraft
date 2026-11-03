@@ -415,6 +415,16 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
     Ok(body)
 }
 
+/// Whether the answer to a move gives the rule another place than it was told: kept where it was.
+/// An answer that says nothing of it is taken as a yes.
+fn kept_in_place(reply: &[u8], sent: Option<i32>) -> bool {
+    let place = serde_json::from_slice::<Value>(reply).ok().and_then(|json| json.get("sequence").and_then(Value::as_i64));
+    match (place, sent) {
+        (Some(place), Some(sent)) => place != i64::from(sent.max(1)),
+        _ => false,
+    }
+}
+
 /// The body of a change: only what it changes.
 fn change_body(op: &RuleOp) -> Option<Value> {
     let mut body = Map::new();
@@ -446,6 +456,10 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
         };
         if op.kind != RuleOpKind::Create && !valid_id(&op.id) {
             uploaded.outcomes.push(outcome(RuleResult::Refused, "that isn't a rule the server could have"));
+            // (Nothing told after a locked rule's move goes before it is answered.)
+            if op.locked {
+                break;
+            }
             continue;
         }
         let one = format!("{RULES}/{}", http::encode(&op.id));
@@ -486,6 +500,19 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
             401 => {
                 uploaded.token_refused = true;
                 break;
+            }
+            // A rule the server doesn't let be changed, told where it stands: a server that
+            // answers yes and leaves it where it was hasn't moved it.
+            200..=299 if op.locked && op.kind == RuleOpKind::Update && kept_in_place(&reply.body, op.sequence) => {
+                done.result = RuleResult::Refused;
+                done.error = "the server kept it in its place".into();
+                true
+            }
+            // Its refusal is the rule's: never read as the account's, and nothing after it goes.
+            403 if op.locked => {
+                done.result = RuleResult::Refused;
+                done.error = "the server doesn't let this rule be moved".into();
+                true
             }
             200..=299 => {
                 if op.kind == RuleOpKind::Create {
@@ -532,7 +559,7 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
                 if done.error.is_empty() {
                     done.error = format!("Microsoft Graph refused it (status {status})");
                 }
-                false
+                op.locked
             }
         };
         uploaded.outcomes.push(done);

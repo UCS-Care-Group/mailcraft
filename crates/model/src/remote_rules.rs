@@ -196,6 +196,11 @@ pub struct RuleOp {
     /// For a creation: the rule, with what the server calls the folder it moves mail to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<RemoteRule>,
+    /// The move of a rule the server says it doesn't let be changed (#566): the server may not
+    /// have it. Its answer is the rule's alone, never the account's, and nothing told after it
+    /// goes before it is answered.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
 }
 
 /// What a host is to tell an account's server.

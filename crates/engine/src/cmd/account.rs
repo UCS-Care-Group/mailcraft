@@ -419,11 +419,45 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.len() >= 50 {
         return Err(fail("there are too many accounts"));
     }
-    // The placeholder account of an empty mailbox makes way for the first real one.
-    if let Some(placeholder) = s.mailbox.placeholder() {
+    // The placeholder account of an empty mailbox makes way for the first real one, which takes
+    // the rules made for it (a rule belongs to one account, #566), a move or copy into one of its
+    // standard folders going to the new account's of the same kind. One into a folder the owner
+    // made there goes with that folder, as any rule's to a folder that is gone: it does nothing.
+    let placeholder = s.mailbox.placeholder();
+    let kinds: Vec<(Id, FolderKind)> = match placeholder {
+        Some(p) => s
+            .mailbox
+            .folders
+            .iter()
+            .filter(|f| f.account == p && f.kind != FolderKind::Custom && f.parent.is_none())
+            .map(|f| (f.id, f.kind))
+            .collect(),
+        None => Vec::new(),
+    };
+    let mut handed: Vec<Id> = Vec::new();
+    if let Some(placeholder) = placeholder {
+        for rule in s.mailbox.rules.iter_mut().filter(|r| r.account == placeholder) {
+            // For no account while the placeholder goes, so that it isn't taken with it.
+            rule.account = 0;
+            handed.push(rule.id);
+        }
         s.mailbox.remove_account(placeholder)?;
     }
     let id = s.mailbox.add_account(a);
+    let same: Vec<(Id, Id)> = kinds.iter().filter_map(|(old, kind)| s.mailbox.folder_of_kind(id, *kind).map(|new| (*old, new))).collect();
+    let moved = |f: &mut Id| {
+        if let Some((_, new)) = same.iter().find(|(old, _)| old == f) {
+            *f = *new;
+        }
+    };
+    for rule in s.mailbox.rules.iter_mut().filter(|r| handed.contains(&r.id)) {
+        rule.account = id;
+        for action in &mut rule.actions {
+            if let mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) = action {
+                moved(f);
+            }
+        }
+    }
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap_or(0);
     }

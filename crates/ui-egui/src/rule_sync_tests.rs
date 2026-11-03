@@ -216,8 +216,8 @@ fn a_sign_in_for_another_purpose_never_asks_for_the_rules() {
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, false, false)]);
 }
 
-/// A held Space or Enter on a rule's Delete button deletes that rule alone: its repeats don't
-/// reach the button that takes its place, the next rule's.
+/// A held Space or Enter on Delete Rule, in a rule's menu, deletes that rule alone: its repeats
+/// don't reach what takes its place, the next rule's.
 #[test]
 fn a_held_key_deletes_one_rule() {
     for held in [egui::Key::Space, egui::Key::Enter] {
@@ -241,11 +241,11 @@ fn a_held_key_deletes_one_rule() {
                 app,
             );
         h.run_steps(6);
-        // The dialog's ×, then the first rule's switch, up, down and Delete.
-        for _ in 0..5 {
-            h.key_press(egui::Key::Tab);
-            h.run_steps(2);
-        }
+        // The first rule's menu, and its Delete Rule.
+        h.get_all_by_label("More for this rule").next().unwrap().click();
+        h.run_steps(3);
+        h.get_by_label("Delete Rule").focus();
+        h.run_steps(2);
         let key = |pressed, repeat| egui::Event::Key { key: held, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
         h.event(key(true, false));
         h.step();

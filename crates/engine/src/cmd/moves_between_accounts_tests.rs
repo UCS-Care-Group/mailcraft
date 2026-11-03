@@ -2047,7 +2047,7 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     let b = second_imap(&mut s);
     let (inbox, other) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
     let two = titled(&s, "Two");
-    let rule = |folder: Id| json!({"name": "R", "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": folder}]});
+    let rule = |folder: Id| json!({"name": "R", "account": a, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": folder}]});
     // Made, made from a message, switched on or run: into another account's folder, as a send;
     // onto this computer, a change of rules as ever.
     assert_eq!(classify(&s, "rules.add", &rule(other)), Access::Owner(Class::Send));
@@ -2139,7 +2139,7 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
     // Read once already: what comes now is new mail, which the rules sort.
     s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().caught_up = true;
-    let rule = json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
+    let rule = json!({"name": "Rota", "account": ms, "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
     s.run("rules.add", &rule).unwrap();
     let there = GraphMessage {
         server: ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() },

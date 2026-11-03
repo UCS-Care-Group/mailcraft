@@ -24,6 +24,9 @@ struct Server {
     write_status: Option<u16>,
     /// Answer every look-up of a folder with this status.
     folder_status: Option<u16>,
+    /// Answer a change to a rule it says is read-only with this status; with none, answer yes and
+    /// leave the rule as it was.
+    read_only_status: Option<u16>,
     /// Every request, as `METHOD target` with its `Prefer` header.
     asked: Vec<String>,
     next: u32,
@@ -71,6 +74,13 @@ fn serve(state: &Arc<Mutex<Server>>) -> FakeHttp {
                         json_answer("201 Created", &rule.to_string())
                     }
                     ("PATCH", Some(id)) => match server.rules.iter_mut().find(|r| r["id"] == *id) {
+                        Some(rule) if rule["isReadOnly"] == true => {
+                            let rule = rule.to_string();
+                            match server.read_only_status {
+                                Some(status) => raw(&format!("{status} Other")),
+                                None => json_answer("200 OK", &rule),
+                            }
+                        }
                         Some(rule) => {
                             for (k, v) in json.as_object().cloned().unwrap_or_default() {
                                 rule[k] = v;
@@ -424,6 +434,47 @@ fn a_sign_in_without_leave_to_change_rules_stops_the_upload() {
         assert_eq!(done.outcomes.len(), if more { 2 } else { 1 }, "{status}");
         assert!(!done.outcomes[0].error.contains(TOKEN));
     }
+}
+
+#[test]
+fn a_rule_the_server_wont_move_is_refused_for_itself_and_what_follows_waits() {
+    let rules = || {
+        vec![
+            json!({"id": "P", "displayName": "Company policy", "sequence": 2, "isEnabled": true, "isReadOnly": true}),
+            json!({"id": "N", "displayName": "Newsletters", "sequence": 3, "isEnabled": true}),
+        ]
+    };
+    let ops = || {
+        vec![
+            RuleOp { kind: RuleOpKind::Update, rule: 1, id: "P".into(), sequence: Some(3), locked: true, ..Default::default() },
+            RuleOp { kind: RuleOpKind::Update, rule: 2, id: "N".into(), sequence: Some(2), ..Default::default() },
+        ]
+    };
+    // Refused (a 403 too: never read as the account's), or a yes that leaves it where it was.
+    for status in [Some(403), Some(400), None] {
+        let s = state(rules());
+        s.lock().unwrap().read_only_status = status;
+        let server = serve(&s);
+        let done = push_rules_at(&server.url(""), TOKEN, &upload(ops()));
+        assert_eq!(done.outcomes.len(), 1, "{status:?}: nothing after it goes");
+        assert_eq!(done.outcomes[0].result, RuleResult::Refused, "{status:?}");
+        assert!(!done.outcomes[0].error.is_empty() && !done.outcomes[0].error.contains(TOKEN), "{status:?}");
+        assert_eq!(s.lock().unwrap().rules[1]["sequence"], 3, "{status:?}");
+    }
+    // A server that moves it: the rest goes on.
+    let s = state(rules());
+    s.lock().unwrap().rules[0]["isReadOnly"] = json!(false);
+    let server = serve(&s);
+    let done = push_rules_at(&server.url(""), TOKEN, &upload(ops()));
+    assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [RuleResult::Done, RuleResult::Done]);
+    let server_rules = s.lock().unwrap().rules.clone();
+    assert_eq!((server_rules[0]["sequence"].clone(), server_rules[1]["sequence"].clone()), (json!(3), json!(2)));
+    // Another rule's 403 is still the account's.
+    let s = state(rules());
+    s.lock().unwrap().write_status = Some(403);
+    let server = serve(&s);
+    let done = push_rules_at(&server.url(""), TOKEN, &upload(ops().split_off(1)));
+    assert_eq!(done.outcomes[0].result, RuleResult::Denied);
 }
 
 #[test]

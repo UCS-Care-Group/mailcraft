@@ -1890,7 +1890,12 @@ fn rule_text(s: &Session, params: &Value) -> String {
                 rule_words(s, &r)
             )
         }
-        Ok(r) => format!("create the rule {}: {}", quoted(&r.name), rule_words(s, &r)),
+        // Whose mail it is for: an agent that names no account gets the one in view (#566).
+        Ok(r) => {
+            let whose = s.mailbox.account(r.account).map(|a| if a.email.trim().is_empty() { a.name.as_str() } else { a.email.as_str() });
+            let whose = whose.map(|w| format!(" for the mail of {}", quoted(&plain(w)))).unwrap_or_default();
+            format!("create the rule {}{whose}: {}", quoted(&r.name), rule_words(s, &r))
+        }
         Err(_) => "create a rule that can't be made as asked".to_string(),
     }
 }

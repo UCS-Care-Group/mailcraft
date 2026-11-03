@@ -20,7 +20,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
-            r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer"#,
+            r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer; a rule the server doesn't let be changed moves too, and goes back to its place there if the server won't have it"#,
         ),
         CommandSpec::new("rules.keepOnServer", "Keep Rule on Server", "Home › Move", keep_on_server).params(
             r#"{"id": number, "account"?: number (for a rule for every account: the Microsoft account whose server is to keep it, which it is then for alone)} — a rule kept on this computer goes to its Microsoft account's server at the next look, when the server can do all of it"#,
@@ -347,11 +347,18 @@ fn own_account(mb: &Mailbox, account: Id) -> Id {
     }
 }
 
-/// The account a new rule is for: the one `v` names, or none (for every account's mail, kept on
-/// this computer, as rules were before they had accounts: what a script that names none asked
-/// for then).
+/// The account a new rule is for: the one `v` names, or else the one in view, as the Rules window
+/// opens on it (a shared mailbox's owner for one of its folders, the first account for none). A
+/// rule belongs to one account; one for every account's mail is only one from before rules had
+/// accounts (#566).
 fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let Some(account) = p::id_strict(v, "account")? else { return Ok(0) };
+    let Some(account) = p::id_strict(v, "account")? else {
+        let mb = &s.mailbox;
+        let in_view = mb.folder(s.view.folder).map(|f| own_account(mb, f.account));
+        let fits = |a: &Id| mb.account(*a).is_some_and(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown);
+        let first = || mb.accounts.iter().find(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown).map(|a| a.id);
+        return Ok(in_view.filter(fits).or_else(first).unwrap_or(0));
+    };
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.is_shared() {
         return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));
@@ -605,7 +612,9 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         "down" => false,
         _ => return Err(bad("`direction` is \"up\" or \"down\"")),
     };
-    let i = changeable(s, id)?;
+    // A rule the server doesn't let be changed moves too: the server is told, and says whether it
+    // has it (#566).
+    let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     let account = match rule.account {
         0 => p::id_strict(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
@@ -622,9 +631,7 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         return Ok(json!({"id": id, "moved": false}));
     };
     let other = rules.get(j).ok_or_else(|| failed!("no rule with id {id}", id))?;
-    if other.read_only() {
-        return Err(fail("the server doesn't let the rule next to it be moved"));
-    }
+    let pair = [id, other.id];
     if server && rule.on_server() != other.on_server() {
         return Err(fail("a rule waiting to go to the server goes after those there; it can be moved once it is there"));
     }
@@ -639,11 +646,11 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         let moving = s.mailbox.rules.remove(i);
         s.mailbox.rules.insert(j, moving);
     }
-    // A rule the server doesn't let be changed can leave no number free for the order asked
+    // Another rule the server doesn't let be changed can leave no number free for the order asked
     // (two rules before it, and it second on the server): the server would put one of them after
     // it, so the move is refused and nothing changes.
     if let Some(before) = before
-        && !renumber(&mut s.mailbox, account)
+        && !renumber(&mut s.mailbox, account, pair)
     {
         s.mailbox.rules = before;
         return Err(fail("the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"));
@@ -651,14 +658,15 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "moved": true}))
 }
 
-/// Give the rules the server of `account` has the places they now stand in: the same numbers as
-/// before, in their new order (all of them afresh when two had the same). One the server doesn't
-/// let be changed keeps its number, which no other is given: a new one would never be sent.
-/// Whether the numbers hold that order, each above the one before it; they don't when such a rule
-/// leaves too few numbers before it (the server's places start at 1).
-pub(crate) fn renumber(mb: &mut Mailbox, account: Id) -> bool {
+/// Give the rules the server of `account` has the places they now stand in, after the two rules
+/// of `moved` changed places: the same numbers as before, in their new order (all of them afresh
+/// when two had the same). Any other the server doesn't let be changed keeps its number, which no
+/// other is given; one of the two is told its new place like any rule, and the server says
+/// whether it has it. Whether the numbers hold that order, each above the one before it; they
+/// don't when such a rule leaves too few numbers before it (the server's places start at 1).
+pub(crate) fn renumber(mb: &mut Mailbox, account: Id, moved: [Id; 2]) -> bool {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
-    let locked = |i: &&usize| mb.rules.get(**i).is_some_and(Rule::read_only);
+    let locked = |i: &&usize| mb.rules.get(**i).is_some_and(|r| r.read_only() && !moved.contains(&r.id));
     let number = |i: &usize| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence);
     let taken: Vec<i32> = on.iter().filter(locked).filter_map(number).collect();
     let mut numbers: Vec<i32> = on.iter().filter(|i| !locked(i)).filter_map(number).collect();

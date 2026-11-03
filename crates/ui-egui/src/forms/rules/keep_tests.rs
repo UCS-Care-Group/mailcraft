@@ -156,6 +156,9 @@ fn always_move_messages_from_this_sender_adds_the_rule_only_when_asked_then_runs
     // Then the rules ran over the Inbox, as the menu said: the message is there now.
     assert_eq!(mb.message(m).unwrap().folder, to);
     assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("rules"));
+    // And the lists are back, with the new rule among them.
+    let name = rule.name.clone();
+    assert!(h.query_by_label("Add Rule").is_none() && h.query_by_label(&name).is_some(), "{name}");
 }
 
 #[test]
@@ -357,17 +360,23 @@ fn the_accounts_are_listed_in_the_owners_order() {
     assert_eq!(ids(&s), [other, first]);
 }
 
-/// #702: with a shared mailbox's folder in view (it has no rules of its own), the dialog opens
-/// on the first account added, wherever the owner moved the accounts.
+/// #566: with a shared mailbox's folder in view (it has no rules of its own), the dialog opens on
+/// the account it is opened through, whose rules a new one made there is for, as `rules.add`
+/// makes it; #702: with none in view, on the first account added, wherever the owner moved the
+/// accounts.
 #[test]
-fn with_no_account_in_view_the_dialog_opens_on_the_first_added() {
+fn with_a_shared_mailbox_in_view_the_dialog_opens_on_its_owner_and_with_none_on_the_first_added() {
     let mut s = session();
     let first = s.mailbox.accounts[0].id;
     let work = s.run("account.add", &serde_json::json!({"email": "work@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let team =
         s.run("account.addSharedMailbox", &serde_json::json!({"account": work, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
     s.view.folder = s.mailbox.folders.iter().find(|f| f.account == team).unwrap().id;
+    // Its owner, though listed after the first account.
+    assert_eq!(account_in_view(&s), work);
     s.run("account.move", &serde_json::json!({"id": work, "before": first})).unwrap();
     assert_eq!(rule_accounts(&s.mailbox).first().map(|(id, _)| *id), Some(work), "listed first");
+    assert_eq!(account_in_view(&s), work);
+    s.view.folder = 0;
     assert_eq!(account_in_view(&s), first);
 }
