@@ -195,6 +195,24 @@ fn cmd_deny() -> Result<(), String> {
     run(c, "cargo deny --locked check")
 }
 
+/// The workspace's tests. With cargo-nextest installed (CI installs it) the test binaries run side
+/// by side rather than one after another, and the doc-tests, which nextest doesn't run, follow;
+/// without it, `cargo test` runs the lot.
+fn cmd_test() -> Result<(), String> {
+    let nextest = cargo().args(["nextest", "--version"]).output().map(|o| o.status.success()).unwrap_or(false);
+    if !nextest {
+        let mut c = cargo();
+        c.args(["test", "--locked", "--workspace"]);
+        return run(c, "cargo test --locked --workspace");
+    }
+    let mut c = cargo();
+    c.args(["nextest", "run", "--locked", "--workspace", "--no-fail-fast"]);
+    run(c, "cargo nextest run --locked --workspace --no-fail-fast")?;
+    let mut c = cargo();
+    c.args(["test", "--locked", "--workspace", "--doc"]);
+    run(c, "cargo test --locked --workspace --doc")
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -214,14 +232,7 @@ fn cmd_ci() -> Result<(), String> {
                 run(c, "cargo clippy --locked --workspace --all-targets -- -D warnings")
             }),
         ),
-        (
-            "test",
-            Box::new(|| {
-                let mut c = cargo();
-                c.args(["test", "--locked", "--workspace"]);
-                run(c, "cargo test --locked --workspace")
-            }),
-        ),
+        ("test", Box::new(cmd_test)),
         ("assets", Box::new(|| assets::run(&root()))),
         ("spdx", Box::new(|| spdx::run(&root(), false))),
         ("test-files", Box::new(|| test_files::run(&root()))),
