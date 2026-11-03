@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -279,6 +279,7 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | patch | #488: `ui.updateCheck` and `ui.updateInstall` are File › About's switches, and `updateOption`, `updateInstallOption` and `updateInstallDetail` are in File › About |
 | 2026-10-30 | minor | #553: `mail.reply`, `mail.replyAll`, `mail.editDraft`, `mail.sendAgain`, the appointment commands that take `id` and the answers to a meeting request (`message`) read what they are about strictly, as Forward does: named wrongly, it is refused, never taken for the selection; the one-message commands take `ids` naming one; the agent gate reads `id` and `ids` the same way |
 | 2026-10-28 | minor | #620: `mail.list` takes `folder` (id or path) and `query` and reads them without changing the window's folder, search or selection; an agent's `mail.delete`, `mail.deletePermanently`, `mail.move`, `mail.copy`, `mail.archive`, `mail.junk`, `mail.notJunk`, `mail.reply`, `mail.replyAll`, `mail.forward`, `mail.forwardAsAttachment`, `mail.editDraft`, `mail.removeAttachment` and `mail.sendAgain` are refused without `ids` or `id` |
 | 2026-10-27 | minor | #508: `mail.dismissWarnings {"ids"?, "value"?}` hides (or shows again) a message's sender-warning banner, kept with the message; `senderWarningsCollapsed` in the hit map; an agent is refused it |

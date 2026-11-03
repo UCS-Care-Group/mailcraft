@@ -5729,8 +5729,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
-msgstr ""
+msgstr "MailCraft installiert seine Updates jetzt selbst. Unter Datei › Optionen können Sie das ausschalten."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -12137,8 +12138,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr ""
+msgstr "Dies ist ein Entwicklungsbuild: Er sucht nur, wenn Sie unter Datei › Info auf „Nach Updates suchen“ klicken."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
