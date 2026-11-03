@@ -40,12 +40,9 @@ pub fn specs() -> Vec<CommandSpec> {
 /// before anything moves, so the stacks stay as they are.
 fn refuse_taking_mail(s: &Session, id: &str, redo: bool) -> Result<(), CmdError> {
     match &s.agent {
-        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && s.undo_takes_mail(redo) => Err(CmdError::Failed(crate::agent::needs_owner(
-            id,
-            crate::agent::Class::Delete,
-            false,
-            "take away messages (a copy or an import); nothing was changed",
-        ))),
+        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && s.undo_takes_mail(redo) => {
+            Err(CmdError::Failed(crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "take away messages; nothing was changed")))
+        }
         _ => Ok(()),
     }
 }

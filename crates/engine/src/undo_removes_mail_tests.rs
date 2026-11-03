@@ -169,6 +169,38 @@ fn an_agent_without_the_grant_cannot_undo_a_copy() {
 }
 
 #[test]
+fn an_agent_without_the_grant_cannot_redo_a_delete_for_good() {
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    assert!(s.undo());
+    let (before, undo, redo) = (s.mailbox.clone(), s.undo_label().map(str::to_string), s.redo_label().map(str::to_string));
+    s.agent = Some(Vec::new());
+    assert!(s.run("edit.redo", &json!({})).is_err());
+    s.agent = None;
+    assert!(s.mailbox == before);
+    assert_eq!((s.undo_label().map(str::to_string), s.redo_label().map(str::to_string)), (undo, redo));
+}
+
+#[test]
+fn an_agent_with_delete_undoes_a_copy_and_one_without_undoes_a_flag() {
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    let before = s.mailbox.messages.len();
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    s.agent = Some(vec![Class::Delete]);
+    let r = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    r.unwrap();
+    assert_eq!(s.mailbox.messages.len(), before);
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    s.agent = Some(Vec::new());
+    let r = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    r.unwrap();
+}
+
+#[test]
 fn the_gate_agrees_with_what_the_undo_drops() {
     type Step = fn(&mut Session, Id, Id);
     let steps: [(&str, Step); 6] = [
