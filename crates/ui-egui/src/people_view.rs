@@ -188,18 +188,19 @@ impl<G: Copy + PartialEq> Layout<G> {
 }
 
 /// Items arranged by categories, as Outlook lists them: each under each of its categories, those
-/// with none first, then the categories A to Z, in the order the items come in under each. Gives
-/// each row's heading (an index into the names given back, `None` for no category) and the names.
+/// with none first, then the categories A to Z, in the order the items come in under each. Takes
+/// each item's id, its account and its categories; gives each row's heading (an index into the
+/// names given back, `None` for no category) and the names.
 pub(crate) fn by_category<'a>(
     s: &mailcraft_engine::Session,
-    items: impl IntoIterator<Item = (Id, &'a [String])>,
+    items: impl IntoIterator<Item = (Id, Id, &'a [String])>,
 ) -> (Vec<(Id, Option<u32>)>, Vec<String>) {
     use mailcraft_engine::list::{category_names, category_spellings};
-    let items: Vec<(Id, &[String])> = items.into_iter().collect();
-    let spelling = category_spellings(s, items.iter().map(|(_, categories)| *categories));
+    let items: Vec<(Id, Id, &[String])> = items.into_iter().collect();
+    let spelling = category_spellings(s, items.iter().map(|(_, account, categories)| (*account, *categories)));
     // (the heading's folded name, the item)
     let mut placed: Vec<(Option<String>, Id)> = Vec::new();
-    for (id, categories) in items {
+    for (id, _, categories) in items {
         let filed = category_names(categories);
         if filed.is_empty() {
             placed.push((None, id));
@@ -346,7 +347,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
         // As Outlook lists them: a contact under each of its categories, those with none first,
         // then the categories A to Z, the contacts by name under each (the order they come in).
         PeopleSort::Categories => {
-            let (rows, filed) = by_category(s, contacts.map(|c| (c.id, c.categories.as_slice())));
+            let (rows, filed) = by_category(s, contacts.map(|c| (c.id, c.origin.account, c.categories.as_slice())));
             names = filed;
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }
@@ -668,9 +669,13 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
+            let contact = app.session.mailbox.contact(id);
+            let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
             crate::ribbon::category_menu(
                 ui,
                 app,
+                account.as_slice(),
+                &carried,
                 "people.categorize",
                 |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
                 None,
@@ -740,21 +745,22 @@ fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
             }
             if !c.categories.is_empty() {
                 ui.add_space(2.0);
-                chips(app, ui, &c.categories);
+                chips(app, ui, c.origin.account, &c.categories);
             }
         });
     });
 }
 
-/// Category chips, wrapping onto more lines when they don't fit on one.
-pub(crate) fn chips(app: &MailApp, ui: &mut Ui, categories: &[String]) {
+/// The category chips of an item of `account`, wrapping onto more lines when they don't fit on
+/// one.
+pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[String]) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         for name in categories.iter().take(40) {
             let shown = one_line(name, 40);
             let w = text_width(ui, &shown, regular(10.5)) + 12.0;
             let (r, _) = ui.allocate_exact_size(vec2(w, 18.0), Sense::hover());
-            widgets::category_chip(ui, pos2(r.min.x, r.center().y), &shown, crate::theme::c32(app.session.mailbox.category_color(name)));
+            widgets::category_chip(ui, pos2(r.min.x, r.center().y), &shown, crate::theme::c32(app.session.mailbox.category_color_of(account, name)));
         }
     });
 }

@@ -3,7 +3,7 @@
 //! The message list: which messages show for the folder, filter and search in view, in what
 //! order, under which group headings.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::search::Query;
 use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
@@ -123,12 +123,18 @@ pub fn fold(name: &str) -> String {
     name.to_lowercase()
 }
 
-/// One spelling for each category name however it was written, by its [`fold`]: the mailbox's
-/// list of categories first, then the first spelling met among `items`' categories. One map per
-/// list build, so no name is searched for item by item.
-pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = &'a [String]>) -> HashMap<String, &'a str> {
-    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
-    for categories in items {
+/// One spelling for each category name however it was written, by its [`fold`]: the lists of the
+/// accounts of `items`, each given by its account, first, then the mailbox's other lists, then the
+/// first spelling met among the items' categories. One map per list build, so no name is searched
+/// for item by item.
+pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = (Id, &'a [String])>) -> HashMap<String, &'a str> {
+    let items: Vec<(Id, &[String])> = items.into_iter().collect();
+    let accounts: BTreeSet<Id> = items.iter().map(|(account, _)| *account).collect();
+    let mut spelling: HashMap<String, &str> = HashMap::new();
+    for k in accounts.iter().flat_map(|account| s.mailbox.categories_of(*account)).chain(s.mailbox.all_categories()) {
+        spelling.entry(fold(&k.name)).or_insert(k.name.as_str());
+    }
+    for (_, categories) in items {
         for c in categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
             spelling.entry(fold(c)).or_insert(c);
         }
@@ -421,7 +427,7 @@ fn opened(s: &Session, rows: Vec<Row>) -> Vec<Row> {
 /// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
 /// categories grouped as it was (observed 2026-10-22).
 fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
-    let spelling = category_spellings(s, shown.iter().map(|m| m.categories.as_slice()));
+    let spelling = category_spellings(s, shown.iter().map(|m| (m.account, m.categories.as_slice())));
     // (heading's folded name, message); the sort is stable, so under each heading `shown`'s order stays.
     let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
     for m in shown {
