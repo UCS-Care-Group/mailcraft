@@ -3,6 +3,8 @@
 //! The order the owner puts their accounts in (#702): kept apart from the accounts, followed by
 //! the folder pane's list, and never the default account's say.
 
+use serde_json::json;
+
 use crate::*;
 
 /// Four accounts of the owner's own, A to D in the order they were added, and a shared mailbox
@@ -117,4 +119,25 @@ fn a_hostile_order_lists_every_account_once() {
         let read: Mailbox = serde_json::from_str(&file).unwrap_or_else(|e| panic!("{odd}: {e}"));
         assert_eq!(read.accounts_in_order().len(), 5, "{odd}");
     }
+}
+
+/// Every entry of the order counts against what reading a file may cost, ids or not, so a file
+/// with a very long order fails as one with too many messages does, having held no more; one
+/// within the budget opens.
+#[test]
+fn every_entry_of_the_order_in_a_file_counts() {
+    let (mb, [_, b, _, d, _]) = four();
+    let room = 200;
+    assert!(crate::from_json(&serde_json::to_vec(&mb).unwrap(), room).is_ok());
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let entries: Vec<serde_json::Value> = (0..room).map(|i| if i % 2 == 0 { json!(d) } else { json!({"x": [i, "y"]}) }).collect();
+    value["accountOrder"] = serde_json::Value::Array(entries);
+    let bytes = serde_json::to_vec(&value).unwrap();
+    assert!(crate::from_json(&bytes, room).is_err());
+    let read = crate::from_json(&bytes, 3 * room).unwrap();
+    assert_eq!(read.account_order.iter().filter(|id| **id == d).count(), room / 2, "the ids are kept, the rest passed over");
+    // Not a list: costs what it holds, and the file opens without an order.
+    value["accountOrder"] = json!({"a": b, "b": [1, 2]});
+    let read = crate::from_json(&serde_json::to_vec(&value).unwrap(), room).unwrap();
+    assert!(read.account_order.is_empty());
 }

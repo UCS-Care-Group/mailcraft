@@ -916,7 +916,7 @@ pub struct Mailbox {
     /// one, and in a file from before there was an order. An account it doesn't name (one added
     /// since) comes after those it names, in the order it was added; a shared mailbox is never
     /// named, as it stays under the account it is opened through ([`Mailbox::accounts_in_order`]).
-    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_ids")]
     pub account_order: Vec<Id>,
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub folders: Vec<Folder>,

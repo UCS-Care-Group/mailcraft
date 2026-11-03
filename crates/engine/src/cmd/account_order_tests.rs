@@ -122,3 +122,35 @@ fn the_calendars_follow_the_order_of_the_accounts() {
     moved(&mut s, json!({"id": bo, "before": ada})).unwrap();
     assert_eq!(titles(&s), ["My Calendars (bo@example.org)", "My Calendars (ada@example.org)"]);
 }
+
+/// The list of calendars has the groups of at most 50 accounts: those of the first 50 that keep a
+/// calendar. Work accounts with many shared mailboxes that keep none (60 in all), with an account
+/// that keeps one moved below them, don't push that account's calendars out of the list.
+#[test]
+fn accounts_without_calendars_dont_push_others_out_of_the_list() {
+    let mut s = Session::empty();
+    let email = "ada@example.org";
+    let ada = s.run("account.add", &json!({"email": email, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    for w in 0..3 {
+        let work = s.run("account.add", &json!({"email": format!("work{w}@example.org"), "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        for n in 0..20 {
+            s.mailbox.add_shared_mailbox(work, &format!("team{w}-{n}@example.org")).unwrap();
+        }
+    }
+    let main = RemoteCalendar {
+        id: "c-ada".into(),
+        name: "Calendar".into(),
+        group: "My Calendars".into(),
+        rights: Rights::Edit,
+        owner: Some(CalendarOwner { address: email.into(), name: String::new() }),
+        main: true,
+        ..Default::default()
+    };
+    let download = CalendarsDownload { account: ada, email: email.into(), complete: true, calendars: vec![main], ..Default::default() };
+    crate::cmd::remote::apply_calendars(&mut s, &download).unwrap();
+    moved(&mut s, json!({"id": ada})).unwrap();
+    let groups = crate::cmd::calendar_settings::calendar_groups(&s);
+    assert!(groups.iter().any(|g| g.account == ada), "{:?}", groups.iter().map(|g| &g.title).collect::<Vec<_>>());
+}
