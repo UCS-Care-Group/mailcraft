@@ -122,11 +122,18 @@ pub fn refresh_google_at(endpoints: &Endpoints, oauth: &OAuth, client_secret: &s
 fn exchange(endpoint: &Url, fields: &[(&str, &str)], previous: &str, secrets: &[&str], identify: bool) -> Result<Tokens, Refused> {
     let answer =
         http::post_form(endpoint, fields, TOKEN_TIMEOUT).map_err(|error| secrets.iter().fold(error, |error, secret| error.without(secret)))?;
+    let parsed = serde_json::from_slice::<Value>(&answer.body).ok();
+    // An OAuth invalid_grant on refresh means the old credential is no longer usable.
+    // Identify it from the machine-readable error code, not the untrusted provider
+    // description, which could echo an old token, code or client registration value.
+    if !identify && parsed.as_ref().and_then(|data| data.get("error")).and_then(Value::as_str) == Some("invalid_grant") {
+        return Err(NetError::Proto(ProtoError::Auth(GOOGLE_REFRESH_REVOKED.into())).into());
+    }
     let tokens = tokens_from(&answer, previous, mailcraft_time::now(), secrets)?;
-    let scopes = serde_json::from_slice::<Value>(&answer.body).ok().and_then(|data| data.get("scope").and_then(Value::as_str).map(str::to_string));
+    let scopes = parsed.as_ref().and_then(|data| data.get("scope")).and_then(Value::as_str);
     // OAuth 2.0 permits scope omission when the grant matches what was requested (RFC 6749
     // section 5.1). A returned narrower scope must explicitly include Gmail access.
-    if scopes.as_deref().is_some_and(|scope| !scope.split_ascii_whitespace().any(|part| part == "https://mail.google.com/")) {
+    if scopes.is_some_and(|scope| !scope.split_ascii_whitespace().any(|part| part == "https://mail.google.com/")) {
         return Err(NetError::Proto(ProtoError::Auth("Google did not grant Gmail IMAP/SMTP access".into())).into());
     }
     if identify && tokens.email.is_empty() {

@@ -79,6 +79,7 @@ pub(crate) fn open_smtp_with<'a>(
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Smtp<Stream<'a>>, NetError> {
     let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config("the account has no outgoing server".into()))?;
+    crate::google_destination(account, &server.host, "smtp.gmail.com")?;
     let user = account.login();
     if account.oauth.is_some() {
         if user.is_empty() {

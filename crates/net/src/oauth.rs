@@ -72,6 +72,9 @@ use crate::http::{self, Answer, Url};
 
 /// How long the owner has to finish on the provider's page.
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+/// Canonical, non-sensitive reason that Google's refresh grant was revoked or expired.
+/// A provider's error description is never used to decide whether to discard a token.
+pub const GOOGLE_REFRESH_REVOKED: &str = "Google's previous authorization has expired or been revoked";
 /// How often the wait looks for the browser and at the cancel flag.
 const TICK: Duration = Duration::from_millis(25);
 /// Largest request taken from the browser, and how long it may take to arrive.
@@ -1516,6 +1519,20 @@ impl Redirect {
             std::thread::sleep(TICK);
         }
     }
+}
+
+/// Sign in using this installation's Google Desktop registration (from File > Options, or
+/// its build defaults), preserving the same detailed refusal classification as Microsoft.
+/// The registration's client secret is a public *installed-app* value, not an owner token.
+pub fn sign_in_google_explained_at(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    client_secret: &str,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+) -> Result<Tokens, SignInEnd> {
+    google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
 mod google;

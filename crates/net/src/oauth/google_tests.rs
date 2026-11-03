@@ -177,6 +177,11 @@ fn google_denied_consent_never_exchanges_a_code() {
     let error = sign_in_google_at(&endpoint(&server), &google(), STAND_IN_SECRET, "one@example.org", &open, &AtomicBool::new(false)).unwrap_err();
     assert!(error.is_refused_sign_in());
     assert_eq!(server.asked(), 0);
+    let classified =
+        google::sign_in_google_refused(&endpoint(&server), &google(), STAND_IN_SECRET, "one@example.org", &open, &AtomicBool::new(false), PATIENCE)
+            .map_err(SignInEnd::from);
+    assert_eq!(classified, Err(SignInEnd::Declined));
+    assert_eq!(server.asked(), 0);
 }
 
 #[test]
@@ -267,4 +272,142 @@ fn two_google_accounts_refresh_independently() {
     assert_eq!(form(&first, 0)["refresh_token"], "r-one");
     assert_eq!(form(&second, 0)["client_id"], "other-google-desktop-registration");
     assert_eq!(form(&second, 0)["refresh_token"], "r-two");
+}
+
+#[test]
+fn google_refresh_invalid_grant_is_a_non_sensitive_revocation_notice() {
+    let old = "synthetic-long-refresh-secret-to-erase";
+    let echoed = format!(r#"{{"error":"invalid_grant","error_description":"Received {old} and {STAND_IN_SECRET} from the caller"}}"#);
+    let server = FakeHttp::answering(json_answer("400 Bad Request", &echoed));
+    let error = refresh_google_at(&endpoint(&server), &google(), STAND_IN_SECRET, old).unwrap_err();
+    assert!(error.is_refused_sign_in());
+    assert!(error.is_revoked_google_refresh());
+    assert_eq!(error, NetError::Proto(ProtoError::Auth(GOOGLE_REFRESH_REVOKED.into())));
+    let words = format!("{error} {error:?}");
+    assert!(!words.contains(old));
+    assert!(!words.contains(STAND_IN_SECRET));
+    assert!(!words.contains("Received"));
+
+    // A temporary denial or a connection problem must never trigger deletion of a saved token.
+    let temporary = FakeHttp::answering(json_answer(
+        "503 Service Unavailable",
+        r#"{"error":"temporarily_unavailable","error_description":"The server is busy"}"#,
+    ));
+    let denied = refresh_google_at(&endpoint(&temporary), &google(), STAND_IN_SECRET, old).unwrap_err();
+    assert!(!denied.is_revoked_google_refresh());
+    assert!(!denied.is_refused_sign_in());
+}
+
+/// Connect the code received from a real localhost OAuth callback to both synthetic mail servers.
+/// No Google service, real account or outbound email is involved.
+fn integrated_google_servers(token: &str) -> (crate::fake::FakeImap, crate::fake::FakeSmtp) {
+    use crate::fake::{Fake, FakeMailbox, FakeMessage, ImapWorld, SmtpWorld};
+    let message = FakeMessage {
+        uid: 1,
+        flags: "\\Seen".into(),
+        internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+        body: b"From: Other <other@example.org>\r\nTo: One <one@example.org>\r\nSubject: Synthetic hello\r\nDate: Tue, 01 Jul 2003 10:52:37 +0200\r\nMessage-ID: <synthetic-1@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nSynthetic message.".to_vec(),
+        claimed_size: None,
+    };
+    let imap = Fake::imap(ImapWorld {
+        user: "one@example.org".into(),
+        password: "unused-imap-app-password".into(),
+        token: token.into(),
+        mailboxes: vec![FakeMailbox {
+            raw: "INBOX".into(),
+            flags: "\\HasNoChildren".into(),
+            uid_validity: 13,
+            messages: vec![message],
+            refuse_open: false,
+            next_uid: 0,
+        }],
+        ..Default::default()
+    });
+    let smtp = Fake::smtp(SmtpWorld {
+        user: "one@example.org".into(),
+        password: "unused-smtp-app-password".into(),
+        token: token.into(),
+        auth: true,
+        ..Default::default()
+    });
+    (imap, smtp)
+}
+
+fn integrated_google_account(imap: &crate::fake::FakeImap, smtp: &crate::fake::FakeSmtp) -> mailcraft_model::Account {
+    use mailcraft_model::{Account, AccountKind, Security, Server};
+    let loopback = |port| Server { host: "127.0.0.1".into(), port, security: Security::None };
+    Account {
+        id: 91,
+        name: "Synthetic owner".into(),
+        email: "one@example.org".into(),
+        kind: AccountKind::Imap,
+        incoming: Some(loopback(imap.port)),
+        outgoing: Some(loopback(smtp.port)),
+        // For OAuth, the IMAP/SMTP auth user is the verified account identity, not a password.
+        username: String::new(),
+        oauth: Some(google()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn google_integration_pkce_callback_token_authenticates_imap_and_smtp_without_a_password() {
+    use mailcraft_model::sync::SyncRequest;
+    use mailcraft_model::{Address, Message};
+
+    let provider = FakeHttp::answering(good("one@example.org", 3600));
+    let (open, _) = browser(false);
+    let tokens = sign_in_google_at(&endpoint(&provider), &google(), STAND_IN_SECRET, "one@example.org", &open, &AtomicBool::new(false)).unwrap();
+    assert_eq!(tokens.email, "one@example.org");
+    assert_eq!(provider.asked(), 1);
+    let (imap, smtp) = integrated_google_servers(&tokens.access);
+    let account = integrated_google_account(&imap, &smtp);
+
+    // The access token obtained from the OAuth callback is sufficient for *both* protocols.
+    assert_eq!(crate::test_account(&account, &tokens.access), Ok(()));
+    let result = crate::sync(&SyncRequest {
+        account: account.clone(),
+        access_token: tokens.access.clone(),
+        password: "must-not-leak-app-password".into(),
+        ..Default::default()
+    });
+    assert!(result.errors.is_empty(), "synthetic IMAP sync errors: {:?}", result.errors);
+    let message =
+        Message { id: 2, to: vec![Address::new("Other", "other@example.org")], subject: "Synthetic SMTP test".into(), ..Default::default() };
+    assert_eq!(crate::send(&account, &tokens.access, &message), Ok(()));
+    assert_eq!(smtp.world().delivered.len(), 1);
+    let (i, s) = (imap.world(), smtp.world());
+    assert!(i.log.iter().any(|line| line.contains("AUTHENTICATE XOAUTH2")));
+    assert!(s.log.iter().any(|line| line.starts_with("AUTH XOAUTH2")));
+    assert!(i.log.iter().all(|line| !line.contains("LOGIN") && !line.contains("must-not-leak-app-password")));
+    assert!(s.log.iter().all(|line| !line.contains("AUTH PLAIN") && !line.contains("must-not-leak-app-password")));
+    assert!(!i.log.iter().chain(s.log.iter()).any(|line| line.contains(tokens.access.as_str())));
+    assert_eq!(form(&provider, 0)["grant_type"], "authorization_code");
+}
+
+#[test]
+fn google_integration_refused_expired_access_recovers_with_fake_refresh_and_no_token_leak() {
+    let (imap, smtp) = integrated_google_servers("rotated-access");
+    let account = integrated_google_account(&imap, &smtp);
+    let expired = "expired-access-must-stay-private";
+    let denied = crate::test_account(&account, expired).unwrap_err();
+    assert!(denied.is_refused_sign_in());
+    assert!(!format!("{denied} {denied:?}").contains(expired));
+    assert_eq!(smtp.world().delivered.len(), 0);
+    let response = json_answer("200 OK", r#"{"token_type":"Bearer","access_token":"rotated-access","expires_in":3600}"#);
+    let provider = FakeHttp::answering(response);
+    let fresh = refresh_google_at(&endpoint(&provider), &google(), STAND_IN_SECRET, "synthetic-refresh-unchanged").unwrap();
+    assert_eq!(fresh.refresh, "synthetic-refresh-unchanged");
+    assert_eq!(fresh.access, "rotated-access");
+    assert_eq!(form(&provider, 0)["grant_type"], "refresh_token");
+    assert_eq!(crate::test_account(&account, &fresh.access), Ok(()));
+    let message = mailcraft_model::Message {
+        id: 3,
+        to: vec![mailcraft_model::Address::new("Other", "other@example.org")],
+        subject: "Synthetic reconnected SMTP".into(),
+        ..Default::default()
+    };
+    assert_eq!(crate::send(&account, &fresh.access, &message), Ok(()));
+    assert_eq!(smtp.world().delivered.len(), 1);
+    assert!(!imap.world().log.iter().chain(smtp.world().log.iter()).any(|line| line.contains(expired)));
 }

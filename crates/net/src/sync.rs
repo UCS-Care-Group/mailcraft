@@ -408,6 +408,7 @@ pub(crate) fn open_imap_with<'a>(
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Imap<Stream<'a>>, NetError> {
     let server = account.incoming.as_ref().ok_or_else(|| NetError::Config("the account has no incoming server".into()))?;
+    crate::google_destination(account, &server.host, "imap.gmail.com")?;
     let user = account.login();
     if user.is_empty() {
         return Err(NetError::Config("the account has no user name or e-mail address to sign in with".into()));

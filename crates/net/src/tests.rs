@@ -369,6 +369,44 @@ fn an_oauth_account_signs_in_with_its_token() {
 }
 
 #[test]
+fn google_xoauth2_reuses_imap_smtp_without_sending_a_password() {
+    let (imap, smtp) = token_servers();
+    let mut account = oauth_account(Some(&imap), Some(&smtp));
+    account.oauth.as_mut().unwrap().provider = mailcraft_model::OAuthProvider::Google;
+    assert_eq!(test_account(&account, TOKEN), Ok(()));
+    let mut request = request(account.clone(), local_folders());
+    request.access_token = TOKEN.into();
+    request.outbox = vec![hello()];
+    let result = sync(&request);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(send(&account, TOKEN, &hello()), Ok(()));
+    let (imap, smtp) = (imap.world(), smtp.world());
+    assert!(imap.log.iter().any(|line| line.contains("AUTHENTICATE XOAUTH2")));
+    assert!(smtp.log.iter().any(|line| line.starts_with("AUTH XOAUTH2")));
+    assert!(!imap.log.iter().chain(smtp.log.iter()).any(|line| line.contains(PASSWORD) || line.contains(TOKEN)));
+}
+
+#[test]
+fn google_access_tokens_never_go_to_untrusted_imap_or_smtp_servers() {
+    let (imap, smtp) = token_servers();
+    let mut account = oauth_account(Some(&imap), Some(&smtp));
+    account.oauth.as_mut().unwrap().provider = mailcraft_model::OAuthProvider::Google;
+    account.incoming.as_mut().unwrap().host = "imap.attacker.example".into();
+    let error = test_account(&account, TOKEN).unwrap_err();
+    assert!(matches!(error, NetError::Config(_)));
+    assert_eq!(imap.world().connections, 0);
+    assert_eq!(smtp.world().connections, 0);
+
+    // An SMTP server supplied through a hostile mailbox cannot receive Google's bearer token.
+    account.incoming = None;
+    account.outgoing.as_mut().unwrap().host = "smtp.attacker.example".into();
+    let error = send(&account, TOKEN, &hello()).unwrap_err();
+    assert!(matches!(error, NetError::Config(_)));
+    assert_eq!(smtp.world().connections, 0);
+    assert!(!format!("{error:?}").contains(TOKEN));
+}
+
+#[test]
 fn a_token_of_real_length_signs_in() {
     // A couple of thousand characters: too long for one line of SMTP.
     let token = format!("eyJ0eXAi.{}.c2ln", "x".repeat(2_000));
