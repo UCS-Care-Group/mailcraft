@@ -287,6 +287,20 @@ const SPECIAL_FOLDERS: [(&str, &str); 7] = [
     ("Outbox", "outbox"),
 ];
 
+/// The other folders every mailbox has under its top, by their names and well-known names:
+/// not shown.
+const HIDDEN_FOLDERS: [(&str, &str); 9] = [
+    ("Clutter", "clutter"),
+    ("Conflicts", "conflicts"),
+    ("Conversation History", "conversationhistory"),
+    ("Local Failures", "localfailures"),
+    ("Recoverable Items", "recoverableitemsdeletions"),
+    ("Scheduled", "scheduled"),
+    ("Search Folders", "searchfolders"),
+    ("Server Failures", "serverfailures"),
+    ("Sync Issues", "syncissues"),
+];
+
 /// Every well-known name Graph has for a folder of mail. A mailbox without the folder answers
 /// 404 for one; a name that is none of these is not an id either, and is answered 400.
 const MAIL_FOLDER_ALIASES: [&str; 17] = [
@@ -919,6 +933,19 @@ impl State {
         id
     }
 
+    /// The folders of its own that an Exchange mailbox has besides the special ones, under the
+    /// top and not shown (`isHidden`), so that all of Graph's well-known names answer with a
+    /// folder, as they do there.
+    fn add_hidden_folders(&mut self) {
+        for (name, well_known) in HIDDEN_FOLDERS {
+            let id = self.add_folder(name, None);
+            if let Some(folder) = self.folders.iter_mut().find(|folder| folder.id == id) {
+                folder.well_known = well_known.into();
+                folder.hidden = true;
+            }
+        }
+    }
+
     /// Another mailbox at `address`, with the top and the special folders every mailbox has and
     /// no mail (#70); `full_access` says whether the owner of the token may open it.
     pub fn add_other(&mut self, address: &str, full_access: bool) {
@@ -938,6 +965,7 @@ impl State {
                 folder.well_known = well_known.into();
             }
         }
+        self.add_hidden_folders();
         let folders = std::mem::replace(&mut self.folders, owners);
         self.others.push(OtherMailbox {
             address: address.to_string(),
@@ -2550,6 +2578,7 @@ impl StandIn {
                 folder.well_known = well_known.into();
             }
         }
+        state.add_hidden_folders();
         let state = Arc::new(Mutex::new(state));
         let shared = state.clone();
         std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {

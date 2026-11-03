@@ -464,22 +464,54 @@ fn id_of(value: &str) -> Option<String> {
 /// `GET /me/mailFolders/{name}` for every well-known name, twenty to a batch (one at a time
 /// when the server won't take a batch). Every name has to get an answer (a folder, or "there is
 /// none"): which folder is the Inbox is not guessed.
+///
+/// The names of [`WELL_KNOWN`] after the first [`SPECIAL`] are asked in a batch of their own,
+/// once the others have been answered: a mailbox that refuses is not asked about more (#756).
 fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
+    let mut answers: Vec<Option<Option<String>>> = vec![None; WELL_KNOWN.len()];
+    ask(graph, 0..SPECIAL, &mut answers)?;
+    ask(graph, SPECIAL..WELL_KNOWN.len(), &mut answers)?;
+    let mut known = Known::default();
+    for ((name, kind), answer) in WELL_KNOWN.iter().zip(answers) {
+        let Some(Some(id)) = answer else { continue };
+        if *name != ROOT {
+            known.own.insert(id.clone());
+        }
+        match kind {
+            None if *name == OUTBOX => known.outbox = Some(id),
+            None if *name == ROOT => known.root = id,
+            None => {}
+            Some(kind) => {
+                known.kinds.entry(id).or_insert(*kind);
+            }
+        }
+    }
+    if known.root.is_empty() {
+        // Graph's own code said "no mailbox" above when it was one (#70, #539); any other
+        // "not found" is an ordinary error, and the next run asks again.
+        return Err(nonsense("Microsoft Graph didn't say where the top of the mailbox is"));
+    }
+    Ok(known)
+}
+
+/// The names of [`WELL_KNOWN`] in `span`, asked in one batch and then, for what it didn't settle,
+/// one at a time: their answers go into `answers` by their place in the list.
+fn ask(graph: &Graph<'_>, span: std::ops::Range<usize>, answers: &mut [Option<Option<String>>]) -> Result<(), NetError> {
     let select = http::form(&[("$select", "id")]);
     let requests: Vec<Value> = WELL_KNOWN
         .iter()
         .enumerate()
+        .filter(|(n, _)| span.contains(n))
         .map(|(n, (name, _))| json!({"id": n.to_string(), "method": "GET", "url": graph.batch_path(&format!("/mailFolders/{name}?{select}")), "headers": {"Prefer": IMMUTABLE_IDS}}))
         .collect();
     let body = json!({"requests": requests}).to_string();
     let reply = graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)?;
-    let mut answers: Vec<Option<Option<String>>> = vec![None; WELL_KNOWN.len()];
     if reply.status == 200 {
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         let said = json.get("responses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
         for one in said.iter().take(BATCH_SIZE * 2) {
             let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
-            let Some(slot) = n.and_then(|n| answers.get_mut(n)) else { continue };
+            let Some(slot) = n.filter(|n| span.contains(n)).and_then(|n| answers.get_mut(n)) else { continue };
             let status = one.get("status").and_then(Value::as_u64);
             let extra = n.is_some_and(|n| n >= SPECIAL);
             // A shared mailbox that isn't to be opened says so in every answer (#70): the first
@@ -505,7 +537,7 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         return Err(graph.refusal(Doing::Folders, &reply, &body));
     }
     // What the batch didn't settle, one at a time.
-    for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(_, (_, slot))| slot.is_none()) {
+    for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(n, (_, slot))| span.contains(n) && slot.is_none()) {
         let url = graph.url(&format!("{}/{name}?{select}", folders(graph)));
         let reply = graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)?;
         let extra = n >= SPECIAL;
@@ -532,27 +564,7 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
             _ => return Err(graph.refusal(Doing::Folders, &reply, "")),
         };
     }
-    let mut known = Known::default();
-    for ((name, kind), answer) in WELL_KNOWN.iter().zip(answers) {
-        let Some(Some(id)) = answer else { continue };
-        if *name != ROOT {
-            known.own.insert(id.clone());
-        }
-        match kind {
-            None if *name == OUTBOX => known.outbox = Some(id),
-            None if *name == ROOT => known.root = id,
-            None => {}
-            Some(kind) => {
-                known.kinds.entry(id).or_insert(*kind);
-            }
-        }
-    }
-    if known.root.is_empty() {
-        // Graph's own code said "no mailbox" above when it was one (#70, #539); any other
-        // "not found" is an ordinary error, and the next run asks again.
-        return Err(nonsense("Microsoft Graph didn't say where the top of the mailbox is"));
-    }
-    Ok(known)
+    Ok(())
 }
 
 /// A folder in an answer: its id, its name, how many folders lie in it, and whether it is one
@@ -948,3 +960,5 @@ mod shared_tests;
 mod skip_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod well_known_tests;

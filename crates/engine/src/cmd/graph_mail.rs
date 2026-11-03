@@ -756,6 +756,10 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
 mod tests;
 
 #[cfg(test)]
+#[path = "graph_well_known_tests.rs"]
+mod well_known_tests;
+
+#[cfg(test)]
 #[path = "graph_sweep_tests.rs"]
 mod sweep_tests;
 

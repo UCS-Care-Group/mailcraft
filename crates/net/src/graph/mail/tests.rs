@@ -241,7 +241,8 @@ fn a_folder_is_never_made_twice_by_asking_again() {
     assert!(result.changes.is_empty() && !result.errors.is_empty() && result.busy_for.is_some(), "{result:?}");
     let posts = |server: &StandIn| server.state().requests.iter().filter(|a| a.method == "POST" && a.target.ends_with("mailFolders")).count();
     let batches = server.state().requests.iter().filter(|a| a.target.ends_with("$batch")).count();
-    assert_eq!((posts(&server), batches), (1, 2));
+    // (The one that was told "later" and its second try, then the other well-known names, #756.)
+    assert_eq!((posts(&server), batches), (1, 3));
     assert!(server.state().folder_named("Once").is_none());
     // The next run makes it, once.
     let result = run(&server, once());
@@ -306,10 +307,11 @@ fn a_level_of_the_tree_is_listed_twenty_folders_to_a_batch() {
     assert!(tree.contains(&("Receipt 147".into(), "Project 0".into())), "{tree:?}");
     let ours = tree.iter().filter(|(name, _)| name.starts_with("Project") || name.starts_with("Receipt")).count();
     assert_eq!(ours, made);
-    // The special folders (one batch), the top (one page), the forty under it (two batches,
-    // and the second page of the first one's 150), the forty under those (two batches): seven,
-    // where a request for every folder with subfolders was 83.
-    assert_eq!(folder_requests(&result), 7);
+    // The special folders (one batch) and the server's other own ones (one, #756), the top (one
+    // page), the forty under it (two batches, and the second page of the first one's 150), the
+    // forty under those (two batches): eight, where a request for every folder with subfolders
+    // was 83.
+    assert_eq!(folder_requests(&result), 8);
     // Every one of them asked for immutable ids, those inside a batch too.
     for asked in &server.state().requests {
         assert!(asked.header("prefer").contains("IdType=\"ImmutableId\""), "{} {}", asked.method, asked.target);
