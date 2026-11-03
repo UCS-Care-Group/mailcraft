@@ -431,3 +431,34 @@ fn a_lone_account_doesnt_drag() {
     assert!(egui::DragAndDrop::payload::<AccountDrag>(&harness.ctx).is_none());
     let_go(&mut harness, from + vec2(0.0, -60.0));
 }
+
+/// #702: an agent's question comes up over the window while an account is held: letting go over
+/// it moves nothing, and no line is drawn under it.
+#[test]
+fn an_account_let_go_over_an_agents_question_stays() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    let mut add = |email: &str| harness.state_mut().session.run("account.add", &serde_json::json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (work, family) = (add("work@example.org"), add("family@example.org"));
+    for id in [first, work, family] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let heading = |h: &egui_kittest::Harness<'static, MailApp>, id: Id| h.state().hit.rect("folderHeading", id).unwrap();
+    let from = heading(&harness, family).center();
+    let to = pos2(from.x, heading(&harness, work).min.y + 6.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("accountGap", 1).is_some());
+    // An agent allowed nothing in advance asks to remove an account.
+    let (req, _rx) = crate::control::ControlRequest::new("engine.execute", serde_json::json!({"command": "account.remove", "params": {"id": work}}));
+    let ctx = harness.ctx.clone();
+    let _ = crate::control::handle(harness.state_mut(), &ctx, &req.from_agent(Vec::new()));
+    assert!(!harness.state().asking.is_empty(), "the agent is asking");
+    harness.run_steps(3);
+    assert!(harness.state().hit.rect("accountGap", 1).is_none(), "no line under the question");
+    let_go(&mut harness, to);
+    assert_eq!(owners(&harness.state().session.mailbox), [first, work, family]);
+    crate::agent_gate::answer(harness.state_mut(), false);
+    harness.run_steps(2);
+    assert_eq!(owners(&harness.state().session.mailbox), [first, work, family]);
+}

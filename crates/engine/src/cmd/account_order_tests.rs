@@ -26,8 +26,9 @@ fn moved(s: &mut Session, params: Value) -> Result<Value, String> {
     s.run("account.move", &params).map_err(|e| e.to_string())
 }
 
-/// C goes second: the command says the new order, and account.list, file.account and file.info
-/// list the accounts so; the default account (new mail is written from it) stays A.
+/// C goes second: the command says the new order, and account.list, file.account, file.info,
+/// folder.list and view.favorites list the accounts so; the default account (new mail is written
+/// from it) stays A.
 #[test]
 fn an_account_is_moved_and_the_lists_follow() {
     let (mut s, [a, b, c]) = three();
@@ -36,6 +37,10 @@ fn an_account_is_moved_and_the_lists_follow() {
     assert_eq!(listed(&s.run("account.list", &json!({})).unwrap(), "accounts"), [a, c, b]);
     assert_eq!(listed(&s.run("file.account", &json!({})).unwrap(), "accounts"), [a, c, b]);
     assert_eq!(listed(&s.run("file.info", &json!({})).unwrap(), "accounts"), [a, c, b]);
+    assert_eq!(listed(&s.run("folder.list", &json!({})).unwrap(), "accounts"), [a, c, b]);
+    let favorites = s.run("view.favorites", &json!({})).unwrap();
+    let ids: Vec<Id> = favorites["accounts"].as_array().unwrap().iter().map(|x| x["account"].as_u64().unwrap()).collect();
+    assert_eq!(ids, [a, c, b]);
     assert_eq!(s.mailbox.default_account().map(|x| x.id), Some(a));
     // Last, without `before` (or with null), and to the top.
     assert_eq!(moved(&mut s, json!({"id": a})).unwrap()["order"], json!([c, b, a]));

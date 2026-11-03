@@ -273,9 +273,10 @@ fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
     let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) else { return };
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
     let Some(from) = blocks.iter().position(|b| b.account == drag.0) else { return };
-    // (The part of the pane in view: the scroll area's.)
+    // (The part of the pane in view: the scroll area's.) The pointer is over the pane itself, not
+    // over a window or an agent's question on top of it.
     let pane = ui.clip_rect();
-    if !pane.contains(pos) {
+    if !ui.rect_contains_pointer(pane) {
         return;
     }
     crate::drag_pointer::note_folder(ui.ctx(), true);
