@@ -723,14 +723,24 @@ impl Builder {
     }
 
     /// The alignment of text or a picture that starts here. One written in a table or a row
-    /// outside its cells stands before the table, as in a browser, aligned as what is round the
-    /// table is (a table starts again at the left from some alignments: [`Style::align_attr`]).
+    /// outside its cells (bare, or in an element there that doesn't align it) stands before the
+    /// table, as in a browser, aligned as what is round the table is (a table starts again at
+    /// the left from some alignments: [`Style::align_attr`]).
     fn loose_align(&self) -> Align {
-        if !matches!(self.nodes.last().map(|n| &n.kind), Some(Kind::Table(_) | Kind::Row(_))) {
-            return self.style().align;
+        for (i, node) in self.nodes.iter().enumerate().rev() {
+            match node.kind {
+                // (A table too deep to be laid out holds its cells' content itself.)
+                Kind::Cell(_) => break,
+                Kind::Table(ref t) if t.flat => break,
+                Kind::Table(_) | Kind::Row(_) => {
+                    let table = self.nodes.get(..=i).and_then(|below| below.iter().rposition(|n| matches!(n.kind, Kind::Table(_))));
+                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align;
+                }
+                _ if node.delta.align.is_some() => break,
+                _ => {}
+            }
         }
-        let table = self.nodes.iter().rposition(|n| matches!(n.kind, Kind::Table(_))).unwrap_or(0);
-        self.nodes.get(..table).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align
+        self.style().align
     }
 
     // ---- text ----

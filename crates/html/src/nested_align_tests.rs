@@ -151,6 +151,18 @@ fn words_in_a_table_outside_its_cells_are_aligned_as_round_the_table() {
     let blocks = parse(&html.replace("<tr><td>Total", "<tr align='right'>Paid<td>Total"));
     assert_eq!(align_of(&blocks, "Paid"), Some(Align::Center), "{blocks:?}");
     assert_eq!(align_of(&blocks, "Total"), Some(Align::Right), "{blocks:?}");
+    // In an element there, and a picture too; one that aligns them, as it says.
+    for (between, text) in [
+        ("<b>Thanks</b>", "Thanks"),
+        ("<div>Thanks</div>", "Thanks"),
+        ("<span style='color:#336699'>Thanks</span>", "Thanks"),
+        ("<a href='https://shop.example/'><img src='cid:logo@example.org' width='20' height='20'></a>", "[picture]"),
+    ] {
+        let blocks = parse(&html.replace("Thanks for your order", between));
+        assert_eq!(align_of(&blocks, text), Some(Align::Center), "{between}: {blocks:?}");
+    }
+    let blocks = parse(&html.replace("Thanks for your order", "<div align='right'>Thanks</div>"));
+    assert_eq!(align_of(&blocks, "Thanks"), Some(Align::Right), "{blocks:?}");
 }
 
 #[test]
@@ -166,4 +178,15 @@ fn a_heading_cell_in_a_table_that_starts_again_at_the_left_is_centred() {
     // A row that aligns it: as the row says.
     let blocks = parse(&html.replace("<tr><th>Item", "<tr align='left'><th>Item"));
     assert_eq!(align_of(&blocks, "Item"), Some(Align::Left), "{blocks:?}");
+}
+
+#[test]
+fn a_table_too_deep_to_be_laid_out_keeps_its_own_alignment() {
+    let open = "<table><tr><td>".repeat(crate::MAX_TABLE_DEPTH + 1);
+    let html = format!(
+        "{open}<table><tr><td align='center'><table style='text-align:right'><tr><td><b>Deep</b> and more</td></tr></table></td></tr></table>"
+    );
+    let blocks = parse(&html);
+    let found = aligned(&blocks).into_iter().find(|(t, _)| t.contains("Deep"));
+    assert_eq!(found.map(|(_, a)| a), Some(Align::Right), "{blocks:?}");
 }
