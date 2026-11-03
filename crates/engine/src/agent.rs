@@ -17,7 +17,7 @@
 //!   set: mail put in an Outbox (which sends it, or, an IMAP account's, holds it for Send Again)
 //!   or gone for good without the grant is undone.
 
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::{FolderKind, Id, Mailbox, Task};
 use serde_json::{Value, json};
 
 use crate::cmd::compose::{LEAVING, draft_gone};
@@ -800,7 +800,10 @@ fn shared_category(s: &Session, id: &str, params: &Value) -> bool {
         _ => return false,
     };
     let Some(name) = p::str(params, key).map(str::trim) else { return false };
-    s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && s.mailbox.in_shared_task_list(t))
+    // The command changes the to-dos that use the list it names.
+    let list = s.mailbox.category_list_owner(p::id(params, "account").unwrap_or(0));
+    let on_list = |t: &Task| s.mailbox.category_list_owner(t.origin.account) == list;
+    s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && on_list(t) && s.mailbox.in_shared_task_list(t))
 }
 
 /// Whether going from `before` to `after` changes what a list shared with other people has, as
@@ -1105,8 +1108,9 @@ fn event_title(s: &Session, id: &str, params: &Value) -> String {
         let at = if start.is_empty() { String::new() } else { format!(" at {}", clip(start, 40)) };
         return format!("the new event {}{at}", quoted(title));
     }
-    // An answer to a meeting request in the mail is about the request (#553).
-    if params.get("message").is_some() {
+    // An answer to a meeting request in the mail is about the request (#553). Only the commands
+    // that read `message` act on it: the others act on `id`, so their question names that.
+    if matches!(id, "calendar.respond" | "calendar.propose") && params.get("message").is_some() {
         return match p::id_strict(params, "message").ok().flatten().and_then(|m| s.mailbox.message(m)) {
             Some(m) => format!("the meeting request {}", quoted(&m.subject)),
             None => "a meeting request".to_string(),
@@ -1286,7 +1290,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "category.remove" => {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
-            format!("delete the category {}, taking it off everything that has it{shared}", quoted(st("name")))
+            let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
+            let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))

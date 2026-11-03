@@ -19,7 +19,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
-    app.services.open_async = Some(Box::new(|_| panic!("a host that went wrong")));
+    app.services.open_async = Some(Box::new(|_, _| panic!("a host that went wrong")));
     app
 }
 

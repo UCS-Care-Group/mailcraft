@@ -524,7 +524,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms/junk.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 msgid "Account"
 msgstr ""
 
@@ -1402,6 +1402,13 @@ msgstr ""
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Attach the same as an iCalendar file"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Attached {n} file"
+msgid_plural "Attached {n} files"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -5026,11 +5033,10 @@ msgstr "Son texte est remplacé"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Its {n} rule goes too; one its server keeps stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Sa {n} règle part aussi ; si son serveur la conserve, elle y reste."
-msgstr[1] "Ses {n} règles partent aussi ; celles que son serveur conserve y restent."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7637,6 +7643,12 @@ msgstr "Autre (IMAP)"
 #, fuzzy
 msgid "Other Calendars"
 msgstr "Autres calendriers"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Other accounts and On this computer"
+msgstr "Autres comptes et Sur cet ordinateur"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -15743,6 +15755,11 @@ msgstr "{name} a accepté cette réunion."
 msgid "{name} answered this invitation."
 msgstr "{name} a répondu à cette invitation."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read ({why})"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "{name} couldn't be saved: the folder has too many files of that name"
@@ -15818,8 +15835,8 @@ msgstr "{name} est une boîte aux lettres partagée dont le compte n'existe plus
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} est en cours d'envoi et de réception. Utilisez Arrêter."
 
-#. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} dépasse {mb} Mo"
@@ -16292,6 +16309,20 @@ msgid_plural "{n} more questions are waiting."
 msgstr[0] "{n} autre question est en attente."
 msgstr[1] "{n} autres questions sont en attente."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {mb} MB at a time"
+msgid_plural "{n} more were left out: at most {mb} MB at a time"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{n} more was left out: at most {most} files at a time"
+msgid_plural "{n} more were left out: at most {most} files at a time"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
@@ -16421,11 +16452,10 @@ msgstr[1] "{n} résultats dans {scope}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
 msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
-msgstr[0] "{n} règle supprimée ici est encore sur le serveur jusqu'à ce que MailCraft puisse modifier les règles du serveur (Fichier › Informations › Redemander)."
-msgstr[1] "{n} règles supprimées ici sont encore sur le serveur jusqu'à ce que MailCraft puisse modifier les règles du serveur (Fichier › Informations › Redemander)."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
