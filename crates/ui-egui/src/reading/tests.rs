@@ -4451,6 +4451,31 @@ fn a_column_or_a_pair_in_a_centred_or_right_aligned_cell_stands_where_it_puts_th
     });
 }
 
+#[test]
+fn a_column_a_share_of_the_line_wide_is_as_wide_as_what_it_holds_needs() {
+    in_frame(false, |ctx| {
+        // A word in a column of one hundredth of the line: whole, on one line, in the middle.
+        let html = "<table width='600' cellpadding=0 cellspacing=0><tr><td align='center'><table width='1%' cellpadding=0 cellspacing=0>\
+                    <tr><td>Unsubscribe</td></tr></table></td></tr></table>";
+        let m = html_message(58, ("Shop", "news@shop.example"), "Button", html);
+        let laid = lay_out(ctx, &m, 700.0);
+        check(&laid, &Tokens::get(ctx), "button");
+        let words = find_exact(&laid, "Unsubscribe");
+        assert!(words.rect.height() < 30.0 && ((words.rect.min.x + words.rect.max.x) / 2.0 - 300.0).abs() < 2.0, "{:?}", words.rect);
+        // A picture that asks for 500 pixels, in a column half the line wide: its own size, in the
+        // middle.
+        let html = "<table width='600' cellpadding=0 cellspacing=0><tr><td align='center'><table width='50%' cellpadding=0 cellspacing=0>\
+                    <tr><td><img src='cid:banner@shop.example' width='500' height='100'></td></tr></table></td></tr></table>";
+        let mut m = html_message(59, ("Shop", "news@shop.example"), "Banner", html);
+        m.attachments =
+            vec![Attachment { content_id: "banner@shop.example".into(), inline: true, ..Attachment::new("banner.png", "image/png", png(500, 100)) }];
+        let laid = lay_out(ctx, &m, 700.0);
+        check(&laid, &Tokens::get(ctx), "banner");
+        let picture = laid.items.iter().find(|i| matches!(i.kind, ItemKind::Picture(_))).map(|i| i.rect);
+        assert!(picture.is_some_and(|r| (r.width() - 500.0).abs() < 1.0 && (r.min.x - 50.0).abs() < 2.0), "{picture:?}");
+    });
+}
+
 // ---- #596: where a cell sits in its row, and the gaps between cells ----
 
 #[test]

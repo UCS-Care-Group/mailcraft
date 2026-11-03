@@ -1619,9 +1619,19 @@ fn column_widths(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, room: f32, dep
         Some(Length::Percent(p)) => Some(room * f32::from(p.min(100)) / 100.0),
         None => None,
     };
-    // One column that is told its width needs no measuring.
+    // One column that is told its width needs no measuring; a share of the line narrower than it
+    // is still as wide as its words need, or its pictures ask for, up to the line, as a table in
+    // a browser is never narrower than what it holds.
     if let (1, Some(width)) = (n, asked) {
-        let width = width.max(MIN_CELL.min(room));
+        let need = match table.width {
+            Some(Length::Percent(p)) if p < 100 => {
+                let columns = columns(cx, table, grid, depth);
+                let pictures = grid.cells.iter().all(|p| p.cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. })));
+                (if pictures { columns.max } else { columns.min }).first().copied().unwrap_or(0.0).min(room)
+            }
+            _ => 0.0,
+        };
+        let width = width.max(need).max(MIN_CELL.min(room));
         return Some((vec![width], width));
     }
     let mut columns = columns(cx, table, grid, depth);

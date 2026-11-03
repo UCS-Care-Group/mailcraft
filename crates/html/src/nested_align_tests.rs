@@ -184,6 +184,11 @@ fn a_column_narrower_than_the_line_stands_where_the_centring_puts_it() {
         assert_eq!(align_of(&blocks, "Hello there"), Some(Align::Left), "{attr}: {blocks:?}");
     }
     let blocks = parse("<table width='600'><tr><td align='center'><table width='100%'><tr><td>Hello there</td></tr></table></td></tr></table>");
+    let held: Vec<&Block> = match blocks.first().map(|b| &b.kind) {
+        Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).collect(),
+        _ => Vec::new(),
+    };
+    assert!(matches!(held.as_slice(), [b] if !matches!(b.kind, BlockKind::Table(_))), "{blocks:?}");
     assert_eq!(align_of(&blocks, "Hello there"), Some(Align::Left), "{blocks:?}");
 }
 
