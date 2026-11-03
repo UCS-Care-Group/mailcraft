@@ -646,9 +646,11 @@ fn a_column_that_only_makes_room_in_some_rows_keeps_its_place() {
 }
 
 #[test]
-fn alignment_reaches_into_and_positions_tables() {
+fn alignment_positions_tables_and_an_attribute_of_it_stops_at_them() {
+    // A cell's `align` stands the table in the middle, and the table's text starts again at the
+    // left, as in a browser (a style's `text-align` would reach into it: `nested_align_tests`).
     let html = "<table width='100%'><tr><td align=center><table width=300><tr><td>a</td><td align=right><p>b</p><p>c</p></td></tr></table></td></tr></table>";
-    assert_eq!(dump(html), ["layout.c w=300[(p.c|a)(p.r|b ; p.r|c)]"]);
+    assert_eq!(dump(html), ["layout.c w=300[(p|a)(p.r|b ; p.r|c)]"]);
     assert_eq!(
         dump("<table><tr align=right><td>a</td><td style='text-align:left'>b</td></tr><tr><td>c</td><td>d</td></tr></table>"),
         ["data[(p.r|a)(p|b)][(p|c)(p|d)]"]

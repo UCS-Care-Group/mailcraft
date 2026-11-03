@@ -4139,6 +4139,23 @@ fn a_row_of_small_pictures_stays_a_row_where_it_fits() {
 }
 
 #[test]
+fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
+    // The table's text and pictures start at the left of their cells, as in a browser, and the
+    // cells are as wide as the pictures: so the table, centred, has them in the middle.
+    let icon = |name: &str| format!("<td style='padding:0 4px'><img src='cid:{name}@quillon.example' width='16' height='16' alt='{name}'></td>");
+    let html =
+        format!("<table width='100%'><tr><td align='center'><table><tr>{}{}</tr></table></td></tr></table>", icon("tick-16"), icon("cross-16"));
+    let m = html_message(52, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 600.0);
+        let pictures = shown_pictures(&laid);
+        assert_eq!(pictures.len(), 2, "{pictures:?}");
+        let centre = (pictures[0].rect.min.x + pictures[1].rect.max.x) / 2.0;
+        assert!((centre - 300.0).abs() < 0.5, "{:?} {:?}", pictures[0].rect, pictures[1].rect);
+    });
+}
+
+#[test]
 fn a_picture_and_text_in_one_line_go_on_lines_of_their_own_when_short_of_room() {
     let html = "<p style='text-align:center'><img src='cid:quillon-mark@quillon.example' width='32' height='32' alt=''> Bellweather Directory, the weekly digest</p>";
     let m = html_message(51, ("Digest", "digest@bellweather.example"), "Logo", html);

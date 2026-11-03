@@ -573,6 +573,8 @@ mod float_tests;
 #[cfg(test)]
 mod inline_tests;
 #[cfg(test)]
+mod nested_align_tests;
+#[cfg(test)]
 mod text_link_tests;
 
 #[cfg(test)]

@@ -198,6 +198,9 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    /// The alignment in force comes from an `align` attribute or a `<center>`, not from a style:
+    /// a table inside starts again at the left, as in a browser (the `-webkit-` alignments).
+    align_attr: bool,
     line_height: Option<LineHeight>,
     link: Option<Rc<str>>,
     /// The font size in force is too small to be meant to be read (2 pixels or less): text
@@ -256,6 +259,11 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// That alignment comes from an `align` attribute or a `<center>` ([`Style::align_attr`]).
+    align_attr: bool,
+    /// A table: an alignment from an `align` attribute or a `<center>` outside does not reach its
+    /// text (one from a style does).
+    table: bool,
     /// `Some(None)`: `normal`.
     line_height: Option<Option<LineHeight>>,
     link: Option<Option<Rc<str>>>,
@@ -287,6 +295,14 @@ impl Delta {
         }
     }
 
+    /// The alignment an `align` attribute (or a `<center>`) asks for, unless a style asks for one.
+    fn or_attr_align(&mut self, align: Option<Align>) {
+        if self.align.is_none() && align.is_some() {
+            self.align = align;
+            self.align_attr = true;
+        }
+    }
+
     /// The style inside the element.
     fn apply(&self, parent: &Style) -> Style {
         let mut style = parent.clone();
@@ -313,8 +329,13 @@ impl Delta {
         if self.background.is_some() {
             style.background = self.background;
         }
+        if self.table && style.align_attr {
+            style.align = Align::Left;
+            style.align_attr = false;
+        }
         if let Some(align) = self.align {
             style.align = align;
+            style.align_attr = self.align_attr;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -397,6 +418,11 @@ struct TableBuild {
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
+    /// The alignment from an `align` attribute or a `<center>` around it that its text does not
+    /// take ([`Style::align_attr`]), when it is not the left. A browser makes a table with no width
+    /// of its own as wide as what is in it and stands it there, so when such a table is unwrapped
+    /// into its blocks, what is at the left in it stands there instead.
+    outer_align: Option<Align>,
     /// `border="1"`.
     border: bool,
     /// A border on the table itself.
@@ -1517,12 +1543,16 @@ impl Builder {
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
         if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
         {
+            let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
                 for mut cell in row.cells {
                     if i > 0
                         && let Some(first) = cell.blocks.first_mut()
                     {
                         first.space = first.space.max(1);
+                    }
+                    if let Some(align) = outer {
+                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left).for_each(|b| b.align = align);
                     }
                     self.splice(cell.blocks, cell.padding);
                 }
@@ -1585,6 +1615,7 @@ impl Builder {
             inline: false,
             float: false,
             parent: 0,
+            outer_align: None,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1626,10 +1657,11 @@ impl Builder {
             inline,
             float: float.is_some(),
             parent: parent.unwrap_or(0),
+            outer_align: (self.style().align_attr && self.style().align != Align::Left).then_some(self.style().align),
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
-        if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), ..Delta::of(&css) }, hidden) {
+        if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), table: true, ..Delta::of(&css) }, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         } else if inline {
             self.made_box();
@@ -1659,7 +1691,7 @@ impl Builder {
         }
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         let background = css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
@@ -1738,7 +1770,7 @@ impl Builder {
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         let hidden = css.hidden || tag.has("hidden");
         if !self.push_node(if header { "th" } else { "td" }, Kind::Cell(build), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
@@ -1945,9 +1977,9 @@ impl Builder {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         if name == "center" {
-            delta.align = delta.align.or(Some(Align::Center));
+            delta.or_attr_align(Some(Align::Center));
         }
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         let mut background = css.background;
         if name == "body" {
             delta.color = delta.color.or_else(|| tag.attr("text").and_then(|c| style::attr_color(&c)).map(Some));
@@ -2069,7 +2101,7 @@ impl Builder {
     fn open_structure(&mut self, name: &'static str, kind: Kind, tag: &Tag<'_>) -> bool {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         // A heading is bold unless it says it is not.
         if matches!(kind, Kind::Heading(_)) {
             delta.bold = delta.bold.or(Some(true));

@@ -1519,8 +1519,17 @@ fn columns(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, depth: usize) -> Col
     for placed in &grid.cells {
         let pad = padding(table, ruled, placed.cell).across();
         let extent = blocks_extent(cx, &placed.cell.blocks, depth + 1);
-        // A cell with something in it gets the least room anything is laid out in.
-        let least = if placed.cell.blocks.is_empty() { 0.0 } else { MIN_CELL };
+        // A cell with something in it gets the least room anything is laid out in; one that holds
+        // only pictures needs no more than they ask for, as in a browser (a row of small icons is
+        // as wide as its icons, which stand at the left of their cells).
+        let pictures = placed.cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
+        let least = if placed.cell.blocks.is_empty() {
+            0.0
+        } else if pictures {
+            MIN_CELL.min(extent.max)
+        } else {
+            MIN_CELL
+        };
         let (min, mut max) = (extent.min.max(least) + pad, extent.max.max(least) + pad);
         if placed.cols > 1 {
             spanning.push((placed.col, placed.cols, min, max));
