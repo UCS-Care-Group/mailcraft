@@ -67,8 +67,13 @@ const MAX_NAME: usize = 255;
 /// it (AU2-V2). It is asked for by [`OUTBOX`] only to be told apart: an empty one is left out
 /// of the listing (an Exchange mailbox's always is, over IMAP), so the folder pane doesn't show two
 /// Outboxes; one that holds mail is listed as any folder is.
-const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
-    ("msgfolderroot", None),
+///
+/// The names after the first [`SPECIAL`] are the server's other own folders (Conversation History,
+/// Sync Issues and the like, #756). They have no kind here, but are told apart so that they are
+/// never deleted or moved (the server refuses it). A server that won't say anything of one of
+/// them loses nothing else.
+const WELL_KNOWN: [(&str, Option<FolderKind>); 17] = [
+    (ROOT, None),
     (OUTBOX, None),
     ("inbox", Some(FolderKind::Inbox)),
     ("drafts", Some(FolderKind::Drafts)),
@@ -76,9 +81,22 @@ const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
     ("deleteditems", Some(FolderKind::Deleted)),
     ("archive", Some(FolderKind::Archive)),
     ("junkemail", Some(FolderKind::Junk)),
+    ("clutter", None),
+    ("conflicts", None),
+    ("conversationhistory", None),
+    ("localfailures", None),
+    ("recoverableitemsdeletions", None),
+    ("scheduled", None),
+    ("searchfolders", None),
+    ("serverfailures", None),
+    ("syncissues", None),
 ];
+/// How many of [`WELL_KNOWN`] the listing can't do without.
+const SPECIAL: usize = 8;
 /// The well-known name of the server's Outbox.
 const OUTBOX: &str = "outbox";
+/// The well-known name of the top of the mailbox.
+const ROOT: &str = "msgfolderroot";
 
 /// Make the folder changes of `request` on the server and list the mailbox's folders, as the
 /// owner of `token` (an access token for Graph that covers `Mail.ReadWrite`).
@@ -421,6 +439,8 @@ struct Known {
     kinds: HashMap<String, FolderKind>,
     /// The server's Outbox, when it has one: never MailCraft's own (AU2-V2).
     outbox: Option<String>,
+    /// The server's own folders, those of [`WELL_KNOWN`] it has (#756).
+    own: HashSet<String>,
 }
 
 impl Known {
@@ -478,7 +498,7 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         return Err(graph.refusal(Doing::Folders, &reply, &body));
     }
     // What the batch didn't settle, one at a time.
-    for ((name, _), slot) in WELL_KNOWN.iter().zip(answers.iter_mut()).filter(|(_, slot)| slot.is_none()) {
+    for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(_, (_, slot))| slot.is_none()) {
         let url = graph.url(&format!("{}/{name}?{select}", folders(graph)));
         let reply = graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)?;
         if graph.shared()
@@ -492,15 +512,21 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
                 Some(Some(id_of(text(&json, "id")).ok_or_else(|| nonsense("Microsoft Graph named a folder without an id"))?))
             }
             404 => Some(None),
+            // A folder only told apart (not needed to list the mailbox) that can't be asked about.
+            _ if n >= SPECIAL && !matches!(reply.status, 401 | 403 | 429 | 503 | 504) => Some(None),
             _ => return Err(graph.refusal(Doing::Folders, &reply, "")),
         };
     }
     let mut known = Known::default();
     for ((name, kind), answer) in WELL_KNOWN.iter().zip(answers) {
         let Some(Some(id)) = answer else { continue };
+        if *name != ROOT {
+            known.own.insert(id.clone());
+        }
         match kind {
             None if *name == OUTBOX => known.outbox = Some(id),
-            None => known.root = id,
+            None if *name == ROOT => known.root = id,
+            None => {}
             Some(kind) => {
                 known.kinds.entry(id).or_insert(*kind);
             }
@@ -603,6 +629,7 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                         }
                     }
                     let kind = known.kinds.get(&entry.id).copied().unwrap_or_default();
+                    let well_known = known.own.contains(&entry.id);
                     out.folders.push(GraphFolder {
                         id: entry.id,
                         parent: parent.clone(),
@@ -611,6 +638,7 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                         total: entry.total,
                         unread: entry.unread,
                         counted: entry.counted,
+                        well_known,
                     });
                 }
             }

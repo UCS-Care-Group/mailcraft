@@ -540,6 +540,7 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
                 round_ended: false,
                 counts: None,
                 sync_state: String::new(),
+                well_known: false,
             });
             taken.pushed += 1;
             None
@@ -612,7 +613,13 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
                     parent: parent_here,
                     name: name.clone(),
                     kind: there.kind,
-                    server: Some(ServerFolder { id: there.id.clone(), name, parent: there.parent.clone(), ..Default::default() }),
+                    server: Some(ServerFolder {
+                        id: there.id.clone(),
+                        name,
+                        parent: there.parent.clone(),
+                        well_known: there.well_known,
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 });
                 here.insert(there.id.clone(), id);
@@ -702,7 +709,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
     // What the folder's parent is on the server, as this mailbox has it now.
     let parent_now = parent_on_server(mb, f);
     let renamed_here = f.server.is_some() && f.name != last.name;
-    let moved_here = f.server.is_some() && parent_now.as_deref() != Some(last.parent.as_str());
+    // (One of the server's own folders is never moved here: a move left by an earlier version is undone.)
+    let moved_here = f.server.is_some() && !there.well_known && parent_now.as_deref() != Some(last.parent.as_str());
     // A place it can be: known here (or the top), and not inside itself (a move made here may
     // not have reached the server yet).
     let can_go = (there.parent.is_empty() || parent_here.is_some()) && !parent_here.is_some_and(|p| mb.subtree(id).contains(&p));
@@ -728,6 +736,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         counts: last.counts,
         // (An Exchange server account's folder goes on from its sync state; the other kinds have none.)
         sync_state: last.sync_state,
+        well_known: there.well_known,
     });
     *f != before
 }

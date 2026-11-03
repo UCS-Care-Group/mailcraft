@@ -175,6 +175,11 @@ pub struct ServerFolder {
     /// (which use `delta`).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub sync_state: String,
+    /// The server's own folder (a Microsoft account's well-known folder, such as Conversation
+    /// History, #756): it can't be deleted or moved, and the server would refuse it every run.
+    /// False until a listing says so.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub well_known: bool,
 }
 
 /// A folder's message counts as its server's listing gives them (#276).
@@ -1636,7 +1641,7 @@ impl Mailbox {
     /// Move a folder the user made under `parent` (or to the top level).
     pub fn move_folder(&mut self, id: Id, parent: Option<Id>) -> Result<(), ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server.as_ref().is_some_and(|s| s.well_known) {
             return Err(invalid(format!("{} can't be moved", f.name)));
         }
         // Nor one holding what a JMAP account's server has: its server wouldn't hear of the move.
@@ -1675,7 +1680,7 @@ impl Mailbox {
     /// ([`Queued::DeleteFolder`]), as Outlook does (ADR 0003).
     pub fn delete_folder(&mut self, id: Id) -> Result<bool, ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server.as_ref().is_some_and(|s| s.well_known) {
             return Err(invalid(format!("{} can't be deleted", f.name)));
         }
         // Nor one holding what a JMAP account's server has: the next run would bring it back.

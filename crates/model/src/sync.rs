@@ -1080,6 +1080,10 @@ pub struct GraphFolder {
     /// whose counts aren't known is never passed over as unchanged.
     #[serde(skip_serializing_if = "is_false")]
     pub counted: bool,
+    /// It is one of the server's own folders (a well-known one, such as Conversation History),
+    /// which can't be deleted or moved (#756).
+    #[serde(skip_serializing_if = "is_false")]
+    pub well_known: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
