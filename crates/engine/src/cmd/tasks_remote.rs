@@ -361,6 +361,15 @@ pub fn apply_tasks(s: &mut Session, download: &TasksDownload) -> Result<Merged, 
     Ok(merged)
 }
 
+/// The job that tells `upload` to the server starts (the window calls this as it does): a to-do
+/// deleted here and told there is gone from To Do, so going back to a mailbox from before would
+/// bring it back here alone, to be taken away again by the next read (#706). Not an undo step.
+pub fn mark_sent(s: &mut Session, upload: &TasksUpload) {
+    if upload.ops.iter().any(|op| op.kind == TaskOpKind::Delete) {
+        s.forget_history();
+    }
+}
+
 /// Take in what a host heard from the server ([`apply_task_outcomes`]).
 pub fn apply_task_changes(s: &mut Session, uploaded: &TasksUploaded) -> Result<Merged, CmdError> {
     let merged = apply_task_outcomes(&mut s.mailbox, uploaded)?;
