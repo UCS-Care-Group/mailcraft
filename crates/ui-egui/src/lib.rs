@@ -1297,13 +1297,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "ui.updateCheck",
         "Check for New Versions",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "downloaded": version|null}}"#,
     ),
     (
         "ui.updateInstall",
         "Install Updates Automatically",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether a copy that updates itself (the Windows .msi, the macOS app, a Linux AppImage) downloads a newer release by itself while the daily check is on, and checks it by the release's own signature (on unless the owner turns it off). Refused when the organisation has turned it off ("Turned off by your organisation") and for a copy that doesn't update itself. Agents and scripts can't start a download. Answers what `ui.updateCheck` answers"#,
     ),
     (
