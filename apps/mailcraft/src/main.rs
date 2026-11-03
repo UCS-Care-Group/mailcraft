@@ -35,6 +35,8 @@ mod clipboard;
 mod control_challenge_flow;
 mod control_server;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+mod desktop_icons;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
@@ -1887,6 +1889,12 @@ fn main() -> eframe::Result {
         if found == install::Install::MacApp && updates.is_none() {
             self_update::clear_mac_data(&folders);
         }
+    }
+    // The icons of MailCraft in the owner's own data folder, brought up to this version's: an
+    // update replaces the program, not the icons a copy put in place by hand came with (#732).
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+    if build_sha() != "dev" && prefs_enabled() {
+        desktop_icons::refresh();
     }
     // The settings folder holds the mailbox, the control key and the logs: for the owner alone.
     // One an earlier version left open to others is closed; best effort, never a reason not to

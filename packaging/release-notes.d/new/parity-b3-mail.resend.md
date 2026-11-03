@@ -1,1 +1,0 @@
-- Resend Message opens a message you sent as a new one, with its recipients, subject, text and files, to change and send again: from Home › Move, the Message menu, or right-click in Sent Items.

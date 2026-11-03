@@ -296,3 +296,38 @@ fn a_message_saved_by_itself_and_put_aside_unasked_still_goes_with_dont_save() {
     a.execute("compose.close", json!({"compose": first, "discard": true})).unwrap();
     assert!(!in_drafts(&a, "Put aside"));
 }
+
+#[test]
+fn a_new_message_put_aside_unasked_goes_with_dont_save_and_stays_with_save() {
+    for kind in ["imap", "local", "microsoft"] {
+        // Never saved, then put aside for New Email: saved to Drafts unasked, which isn't the
+        // owner's choice.
+        let (mut a, _, first) = new_message(kind, "Put aside unasked");
+        a.run("mail.new", json!({})).unwrap();
+        assert!(in_drafts(&a, "Put aside unasked"), "{kind}");
+        assert!(a.session.composing_by_id(first).is_some_and(|c| !c.dirty && c.autosaved), "{kind}");
+        // The owner goes back to it, closes it and says Don't Save: out of Drafts again.
+        assert!(a.session.show_compose(first));
+        a.run("compose.close", json!({})).unwrap();
+        assert!(matches!(a.dialog, Some(crate::dialogs::Dialog::DiscardDraft { .. })), "{kind}");
+        a.dialog = None;
+        crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+        assert!(a.session.composing_by_id(first).is_none() && !in_drafts(&a, "Put aside unasked"), "{kind}");
+        if kind == "microsoft" {
+            let account = a.session.mailbox.accounts.iter().find(|x| x.email == "one@mail.example").unwrap().id;
+            assert_eq!(mailcraft_engine::cmd::account::unpushed(&a.session, account), 0, "nothing waits to go up");
+        }
+        // Save on closing keeps it: a draft for good, which a discard later leaves.
+        let (mut a, _, first) = new_message(kind, "Put aside, then kept");
+        a.run("mail.new", json!({})).unwrap();
+        assert!(a.session.show_compose(first));
+        a.run("compose.close", json!({})).unwrap();
+        a.dialog = None;
+        crate::dialogs::leave_message(&mut a, "save", "compose.close", json!({}));
+        assert!(a.session.composing_by_id(first).is_none() && in_drafts(&a, "Put aside, then kept"), "{kind}");
+        let kept = a.session.mailbox.messages.values().find(|m| m.draft && m.subject == "Put aside, then kept").map(|m| m.id).unwrap();
+        a.execute("mail.editDraft", json!({"id": kept})).unwrap();
+        a.execute("compose.close", json!({"discard": true})).unwrap();
+        assert!(in_drafts(&a, "Put aside, then kept"), "{kind}: kept");
+    }
+}
