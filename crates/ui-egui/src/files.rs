@@ -283,17 +283,18 @@ fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Resul
     // A file whose size can't be read (gone since it was picked, or not the owner's to read)
     // is never read either: said with what went wrong, and the plan is of the files whose sizes
     // are known, each kept beside its own path.
-    let sizes: Vec<Result<u64, String>> = paths.iter().map(|p| std::fs::metadata(p).map(|m| m.len()).map_err(|e| e.to_string())).collect();
+    // Only the first MOST_ATTACHED are looked at: the rest are never read, so not even asked for.
+    let sizes: Vec<Result<u64, String>> =
+        paths.iter().take(MOST_ATTACHED).map(|p| std::fs::metadata(p).map(|m| m.len()).map_err(|e| e.to_string())).collect();
     let known: Vec<u64> = sizes.iter().filter_map(|size| size.as_ref().ok().copied()).collect();
     let mut plan = reads_of_pick(&known).into_iter();
     let mut batch = Batch::default();
-    for (path, size) in paths.iter().zip(&sizes) {
+    for (i, path) in paths.iter().enumerate() {
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
-        match size {
-            Err(why) => {
-                batch.unread(name, &crate::Unread::Failed(crate::i18n::fmt(tl!("{name} couldn't be read ({why})"), &[("name", name), ("why", why)])))
-            }
-            Ok(_) => match plan.next().flatten() {
+        match sizes.get(i) {
+            None => batch.unread(name, &crate::Unread::PastMost),
+            Some(Err(why)) => batch.unread(name, &crate::Unread::Failed(why.clone())),
+            Some(Ok(_)) => match plan.next().flatten() {
                 None => batch.took(app.run("compose.attach", on_message(json!({"path": path}), asking))),
                 Some(why) => batch.unread(name, &why),
             },
@@ -320,10 +321,10 @@ impl Batch {
         }
     }
 
-    /// `name` wasn't read, for `why`.
+    /// `name` wasn't read, for `why` (a `Failed` carries only what went wrong).
     fn unread(&mut self, name: &str, why: &crate::Unread) {
         match why {
-            crate::Unread::Failed(e) => self.took(Err(e.clone())),
+            crate::Unread::Failed(why) => self.took(Err(crate::i18n::fmt(tl!("{name} couldn't be read ({why})"), &[("name", name), ("why", why)]))),
             crate::Unread::TooLarge => {
                 let mb = (MOST_ATTACHMENT_BYTES >> 20).to_string();
                 self.took(Err(crate::i18n::fmt(tl!("{name} is larger than {mb} MB"), &[("name", name), ("mb", &mb)])));

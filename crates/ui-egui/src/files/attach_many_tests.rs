@@ -206,23 +206,18 @@ fn a_file_the_browser_couldnt_read_is_said_and_the_rest_go_in() {
     let mut files = picked(&opened, &[("minutes.txt", b"one"), ("budget.csv", b"two")]);
     files.insert(
         1,
-        Delivered {
-            name: "gone.txt".into(),
-            bytes: Err(Unread::Failed("gone.txt couldn't be read".into())),
-            asked: files[0].asked.clone(),
-            pick: files[0].pick,
-        },
+        Delivered { name: "gone.txt".into(), bytes: Err(Unread::Failed("not found".into())), asked: files[0].asked.clone(), pick: files[0].pick },
     );
     inbox.lock().unwrap().extend(files);
     super::drain_inbox(&mut app);
     assert_eq!(attached(&app), ["minutes.txt", "budget.csv"]);
-    assert_eq!(said(&app), "Attached 2 files · gone.txt couldn't be read");
+    assert_eq!(said(&app), "Attached 2 files · gone.txt couldn't be read (not found)");
     // One file alone that couldn't be read: said, nothing attached.
     app.run("ui.attach", json!({})).unwrap();
-    inbox.lock().unwrap().push(Delivered::unread("lost.txt".into(), Unread::Failed("lost.txt couldn't be read".into()), "attach", None, 9));
+    inbox.lock().unwrap().push(Delivered::unread("lost.txt".into(), Unread::Failed("not found".into()), "attach", None, 9));
     super::drain_inbox(&mut app);
     assert_eq!(attached(&app).len(), 2);
-    assert_eq!(said(&app), "lost.txt couldn't be read");
+    assert_eq!(said(&app), "lost.txt couldn't be read (not found)");
 }
 
 /// The browser: more than the most at a time are picked; the host reads the first hundred and

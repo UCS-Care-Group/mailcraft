@@ -273,7 +273,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                         Ok(bytes) => Delivered::picked(name, bytes, &picked_for, asking, pick),
                         Err(e) => {
                             log::error!("couldn't read picked file {name}: {e}");
-                            Delivered::unread(name.clone(), Unread::Failed(format!("{name} couldn't be read")), &picked_for, asking, pick)
+                            Delivered::unread(name.clone(), Unread::Failed(e), &picked_for, asking, pick)
                         }
                     });
                 }

@@ -506,7 +506,8 @@ pub struct Delivered {
 /// Why a file that was picked has no bytes: the host read nothing of it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Unread {
-    /// The browser couldn't read it (the file moved or changed since it was picked).
+    /// The browser couldn't read it (the file moved or changed since it was picked); what went
+    /// wrong, without the file's name, which the window adds in the reader's language.
     Failed(String),
     /// Larger than a message may carry ([`files::MOST_ATTACHMENT_BYTES`]): never read.
     TooLarge,
