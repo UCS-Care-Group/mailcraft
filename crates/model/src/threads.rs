@@ -10,7 +10,7 @@
 //! place can't be taken by another while the index remembers it, and nothing of its messages is
 //! kept alive by the index (a body let go of after a search goes).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::sync::{Arc, Weak};
 
@@ -32,7 +32,16 @@ pub struct Threads {
     seen: BTreeMap<Id, Seen>,
     by_key: HashMap<u64, Vec<Id>>,
     hasher: RandomState,
+    /// The ids looked at in taking messages out of conversations, so that a test can tell the
+    /// cost stays in proportion to what went.
+    #[cfg(test)]
+    pub(crate) work: usize,
 }
+
+/// The ids to take out of each conversation, gathered over one update and taken out with one
+/// pass over the conversation: taken out one at a time, a conversation of `n` (a feed under one
+/// subject, which a sender can grow as large as they like) cost `n × n`, 2.7 s for 80,000.
+type Unfiled = HashMap<u64, Vec<Id>>;
 
 impl std::fmt::Debug for Threads {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -41,19 +50,38 @@ impl std::fmt::Debug for Threads {
 }
 
 impl Threads {
-    fn unfile(by_key: &mut HashMap<u64, Vec<Id>>, key: Option<u64>, id: Id) {
-        let Some(key) = key else { return };
-        if let Some(ids) = by_key.get_mut(&key) {
-            ids.retain(|x| *x != id);
-            if ids.is_empty() {
-                by_key.remove(&key);
-            }
+    fn unfile(unfiled: &mut Unfiled, key: Option<u64>, id: Id) {
+        if let Some(key) = key {
+            unfiled.entry(key).or_default().push(id);
         }
     }
 
     fn file(by_key: &mut HashMap<u64, Vec<Id>>, key: Option<u64>, id: Id) {
         if let Some(key) = key {
             by_key.entry(key).or_default().push(id);
+        }
+    }
+
+    /// Takes the ids gathered out of their conversations, one pass over each. An id is never
+    /// both taken out of and filed under one key in an update (it is filed again only under
+    /// another key, and the ids of a chunk are of that chunk alone), so it doesn't matter that
+    /// this comes after the filing.
+    fn take_out(&mut self, unfiled: Unfiled) {
+        for (key, gone) in unfiled {
+            let Some(ids) = self.by_key.get_mut(&key) else { continue };
+            #[cfg(test)]
+            {
+                self.work = self.work.saturating_add(ids.len());
+            }
+            if gone.len() <= 8 {
+                ids.retain(|x| !gone.contains(x));
+            } else {
+                let gone: HashSet<Id> = gone.into_iter().collect();
+                ids.retain(|x| !gone.contains(x));
+            }
+            if ids.is_empty() {
+                self.by_key.remove(&key);
+            }
         }
     }
 
@@ -69,12 +97,13 @@ impl Threads {
     /// in one go at the first click. Whether the index is in step with `mb` now.
     pub fn update_some(&mut self, mb: &Mailbox, most: usize) -> bool {
         let chunks = mb.messages.chunks();
+        let mut unfiled = Unfiled::new();
         // Chunks gone since.
         let gone: Vec<Id> = self.seen.keys().filter(|k| !chunks.contains_key(k)).copied().collect();
         for k in gone {
             if let Some(seen) = self.seen.remove(&k) {
                 for (id, key) in seen.keys {
-                    Self::unfile(&mut self.by_key, key, id);
+                    Self::unfile(&mut unfiled, key, id);
                 }
             }
         }
@@ -84,6 +113,7 @@ impl Threads {
                 continue;
             }
             if filed >= most {
+                self.take_out(unfiled);
                 return false;
             }
             filed = filed.saturating_add(1);
@@ -93,22 +123,23 @@ impl Threads {
             let mut old = was.into_iter().peekable();
             for (id, key) in &keys {
                 while let Some((gone, at)) = old.next_if(|(x, _)| x < id) {
-                    Self::unfile(&mut self.by_key, at, gone);
+                    Self::unfile(&mut unfiled, at, gone);
                 }
                 match old.next_if(|(x, _)| x == id) {
                     Some((_, at)) if at == *key => {}
                     Some((_, at)) => {
-                        Self::unfile(&mut self.by_key, at, *id);
+                        Self::unfile(&mut unfiled, at, *id);
                         Self::file(&mut self.by_key, *key, *id);
                     }
                     None => Self::file(&mut self.by_key, *key, *id),
                 }
             }
             for (gone, at) in old {
-                Self::unfile(&mut self.by_key, at, gone);
+                Self::unfile(&mut unfiled, at, gone);
             }
             self.seen.insert(*k, Seen { chunk: Arc::downgrade(chunk), keys });
         }
+        self.take_out(unfiled);
         true
     }
 

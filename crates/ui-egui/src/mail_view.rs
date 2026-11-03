@@ -731,43 +731,37 @@ fn shows_folder(s: &mailcraft_engine::Session) -> bool {
 }
 
 /// The previews of the rows the list drew last, so that drawing them again reads no message a
-/// second time. Each is kept while its message and body are the ones it was made from.
+/// second time. Each is kept while its message is the one it was made from.
 #[derive(Clone, Default)]
 struct Previews {
     /// Per message: what its line was made from, and the line.
     lines: std::collections::HashMap<Id, (PreviewOf, Arc<str>)>,
 }
 
-/// What a preview was made from: where the message and its body's text and HTML are and how
-/// long they are (a body that is written again is somewhere else, or another length), and how
-/// much was asked for.
-type PreviewOf = (usize, (usize, usize), (usize, usize), usize);
+/// What a preview was made from: the message, held weakly, and how much was asked for. A
+/// message is never written on in place while it is held so (`Arc::make_mut` moves it), and its
+/// place can't be taken by another while the line remembers it, so a message changed, however
+/// often while off screen, is never taken for the one the line was made from.
+type PreviewOf = (std::sync::Weak<Message>, usize);
 
 /// Most previews kept: a few screens of rows.
 const MAX_PREVIEWS: usize = 512;
 
 /// The first words of `m` for its row: [`mailcraft_engine::list::preview`], remembered.
 fn preview(ui: &Ui, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
-    let html = m.body.html.as_ref();
-    let of: PreviewOf = (
-        Arc::as_ptr(m) as usize,
-        (m.body.text.as_ptr() as usize, m.body.text.len()),
-        (html.map_or(0, |h| h.as_ptr() as usize), html.map_or(0, String::len)),
-        max_chars,
-    );
     ui.data_mut(|data| {
         let kept = data.get_temp_mut_or_default::<Previews>(egui::Id::unique("message_list_previews"));
-        // Kept through changes to the mailbox: a line is made again when its message, or its
-        // body, isn't the one it was made from (a change to the mailbox every minute, as mail is
+        // Kept through changes to the mailbox: a line is made again when its message isn't the
+        // one it was made from (a change to the mailbox every minute, as mail is
         // looked for, made every row on screen read its message's body again).
         if kept.lines.len() > MAX_PREVIEWS {
             kept.lines.clear();
         }
         match kept.lines.get(&m.id) {
-            Some((made_of, line)) if *made_of == of => line.clone(),
+            Some(((made_of, chars), line)) if std::ptr::eq(made_of.as_ptr(), Arc::as_ptr(m)) && *chars == max_chars => line.clone(),
             _ => {
                 let line: Arc<str> = mailcraft_engine::list::preview(m, max_chars).into();
-                kept.lines.insert(m.id, (of, line.clone()));
+                kept.lines.insert(m.id, ((Arc::downgrade(m), max_chars), line.clone()));
                 line
             }
         }
@@ -1685,6 +1679,13 @@ mod tests {
             assert_eq!(preview(ui, first, 14).chars().count(), 15);
             let changed = Arc::new(Message { body: Body { text: "Other words".into(), html: None }, ..(**first).clone() });
             assert_eq!(&*preview(ui, &changed, 40), "Other words");
+            // Replaced while off screen, and the message the line was made from let go of: one
+            // with a body of the same length, wherever it is put, has its own line.
+            drop(changed);
+            for words in ["Fresh words", "Third words"] {
+                let again = Arc::new(Message { body: Body { text: words.into(), html: None }, ..(**first).clone() });
+                assert_eq!(&*preview(ui, &again, 40), words);
+            }
         });
     }
 

@@ -116,3 +116,43 @@ fn an_index_built_a_chunk_at_a_time_is_the_one_built_at_once() {
         assert_eq!(threads.conversation(&mb, *id), mb.conversation(*id), "message {id}");
     }
 }
+
+/// A conversation of tens of thousands (a feed under one subject) taken out of the mailbox is
+/// one pass over it, not one for each of its messages: emptied all at once (another mailbox
+/// opened, the account removed), and a few chunks at a time as the window does it (Empty
+/// Deleted Items, a server's purge), where each step passes over what is left once.
+#[test]
+fn a_large_conversation_goes_in_proportion_to_its_size() {
+    let n = 30_000usize;
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let inbox = mb.inbox().unwrap();
+    for i in 0..n {
+        mb.add_message(mail(inbox, if i % 2 == 0 { "Nightly backup" } else { "Re: nightly backup" }, i as i64)).unwrap();
+    }
+    let mut threads = Threads::default();
+    threads.update(&mb);
+    assert_eq!(threads.conversation(&mb, *mb.messages.keys().next().unwrap()).len(), n);
+
+    // Every message gone at once.
+    threads.work = 0;
+    threads.update(&Mailbox::default());
+    assert!(threads.work <= n, "{} ids looked at to take out {n}", threads.work);
+    assert!(threads.conversation(&Mailbox::default(), 1).is_empty());
+
+    // Every message gone from chunks that stay, four chunks a step.
+    threads.update(&mb);
+    let keep = mb.add_message(mail(inbox, "Something else", 0)).unwrap();
+    let all: Vec<Id> = mb.messages.keys().copied().filter(|id| *id != keep).collect();
+    for id in all {
+        mb.remove_message(id).unwrap();
+    }
+    threads.work = 0;
+    let mut steps = 0usize;
+    while !threads.update_some(&mb, 4) {
+        steps += 1;
+        assert!(steps < n, "it gets there");
+    }
+    let chunks = n.div_ceil(crate::messages::CHUNK as usize);
+    assert!(threads.work <= n * chunks.div_ceil(4), "{} ids looked at over {steps} steps", threads.work);
+    assert_eq!(threads.conversation(&mb, keep), vec![keep]);
+}
