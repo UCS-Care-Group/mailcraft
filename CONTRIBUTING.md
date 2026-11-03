@@ -13,7 +13,8 @@ much as the work.
    [#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Work that goes against an accepted
    decision won't be merged, however good it is; propose a change to the decision first.
 3. **Claim an issue by commenting on it.** Comment "I'm taking this" on an open issue that nobody
-   has claimed in its comments, and start: nobody needs to assign it to you or label it. Read the
+   has claimed in its comments, and start: you don't wait for anyone to assign it to you (a maintainer may add the `claimed`
+   label later, so claims are easy to see; it is a marker, not a permission). Read the
    comments first, as the first claim stands; if you want to share the work, say so to the person
    who claimed it in the issue. A claim lapses when its author has posted no comment, pull request
    or draft for 14 days, and anyone may then claim it with a new comment. A new feature or change
@@ -96,7 +97,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-03 | minor | Claim an issue by commenting on it: no assignee or `claimed` label from a maintainer; the first claim stands and lapses after 14 quiet days |
+| 2026-11-03 | minor | Claim an issue by commenting on it: no waiting for an assignee; `claimed` stays as a maintainer's marker; the first claim stands and lapses after 14 quiet days |
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
