@@ -133,3 +133,23 @@ fn the_gate_asks_about_what_the_command_acts_on() {
         }
     }
 }
+
+#[test]
+fn a_question_names_the_event_a_command_acts_on_not_a_message_beside_it() {
+    let mut s = sample();
+    let event = s.mailbox.events.values().next().map(|e| e.id).unwrap();
+    let title = s.mailbox.event(event).map(|e| e.title.clone()).unwrap();
+    let (message, _) = two(&s);
+    let subject = s.mailbox.message(message).map(|m| m.subject.clone()).unwrap();
+    s.sel.event = None;
+    // `calendar.forward` and `calendar.delete` act on `id` and don't read `message`: the question
+    // names the event, never the mail a `message` beside it names.
+    for command in ["calendar.forward", "calendar.delete"] {
+        let said = describe(&s, command, &json!({"id": event, "message": message, "to": "x@example.org", "send": true}));
+        assert!(said.contains(&title), "{command}: {said}");
+        assert!(!said.contains("meeting request") && !said.contains(&subject), "{command}: {said}");
+    }
+    // An answer to a request in the mail still names the request.
+    let said = describe(&s, "calendar.respond", &json!({"message": message, "response": "accept"}));
+    assert!(said.contains("meeting request"), "{said}");
+}
