@@ -135,6 +135,18 @@ pub struct RuleClock {
     pub due_hour: u8,
 }
 
+/// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
+/// letters' case: each text is put in lower case once, for all the words, and only when the texts
+/// before it don't have one.
+fn any_in(words: &[String], texts: &[&str]) -> bool {
+    let words: Vec<String> = words.iter().filter(|w| !w.is_empty()).map(|w| w.to_lowercase()).collect();
+    !words.is_empty()
+        && texts.iter().any(|text| {
+            let text = text.to_lowercase();
+            words.iter().any(|w| text.contains(w.as_str()))
+        })
+}
+
 impl Condition {
     pub fn matches(&self, m: &Message) -> bool {
         self.matches_in(m, &Matching::default())
@@ -150,7 +162,7 @@ impl Condition {
             Condition::FromContains(w) => any(w, &|t| person(&m.from, t)),
             Condition::ToContains(w) => any(w, &|t| m.to.iter().chain(&m.cc).any(|a| person(a, t))),
             Condition::SubjectContains(w) => any(w, &|t| contains_ci(&m.subject, t)),
-            Condition::BodyContains(w) => any(w, &|t| contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t)),
+            Condition::BodyContains(w) => any_in(w, &[&m.body.text, &m.hidden_text]),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
             Condition::From(people) => people.iter().any(|p| is(&m.from, p)),
@@ -160,10 +172,11 @@ impl Condition {
             Condition::CcMe => m.cc.iter().any(me),
             Condition::ToOrCcMe => m.to.iter().chain(&m.cc).any(me),
             Condition::NotToMe => !how.me.trim().is_empty() && !m.to.iter().any(me),
-            Condition::SubjectOrBodyContains(w) => {
-                any(w, &|t| contains_ci(&m.subject, t) || contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t))
+            Condition::SubjectOrBodyContains(w) => any_in(w, &[&m.subject, &m.body.text, &m.hidden_text]),
+            Condition::HeaderContains(w) => {
+                let lines = m.header_lines_lowered();
+                any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())
             }
-            Condition::HeaderContains(w) => any(w, &|t| m.header_contains(t)),
             Condition::Sensitivity(s) => m.sensitivity() == *s,
             Condition::SizeBetween { min, max } => m.size_known() && m.list_size().is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
             Condition::MeetingRequest => m.is_meeting_request(),

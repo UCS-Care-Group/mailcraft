@@ -603,6 +603,13 @@ impl Message {
     /// Whether a line of its header holds `word`, whatever the letters' case: those MailCraft
     /// models, written as a message has them, and those it keeps as they came.
     pub fn header_contains(&self, word: &str) -> bool {
+        let word = word.to_lowercase();
+        self.header_lines_lowered().iter().any(|line| line.contains(&word))
+    }
+
+    /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
+    /// all the words looked for.
+    pub fn header_lines_lowered(&self) -> Vec<String> {
         let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
         let modelled = [
             ("From", self.from.full()),
@@ -613,8 +620,9 @@ impl Message {
             ("Message-ID", self.message_id.clone()),
             ("In-Reply-To", self.in_reply_to.clone()),
         ];
-        let line = |name: &str, value: &str| crate::contains_ci(&format!("{name}: {value}"), word);
-        modelled.iter().any(|(name, value)| !value.is_empty() && line(name, value)) || self.headers.iter().any(|(name, value)| line(name, value))
+        let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
+        let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
+        modelled.chain(self.headers.iter().map(|(name, value)| line(name, value))).collect()
     }
 }
 
