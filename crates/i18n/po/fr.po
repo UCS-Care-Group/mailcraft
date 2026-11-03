@@ -15478,6 +15478,12 @@ msgstr "le serveur ne peut pas effacer les catégories"
 msgid "the server can't flag mail"
 msgstr "le serveur ne peut pas marquer le courrier d'un indicateur"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "le serveur ne peut pas garder les règles dans cet ordre : une règle qu'il ne permet pas de modifier ne leur laisse aucune place libre"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy

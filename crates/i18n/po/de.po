@@ -15460,6 +15460,12 @@ msgstr "der Server kann keine Kategorien löschen"
 msgid "the server can't flag mail"
 msgstr "der Server kann E-Mails nicht kennzeichnen"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "der Server kann die Regeln nicht in dieser Reihenfolge halten: eine Regel, die er nicht ändern lässt, lässt ihnen keinen freien Platz"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy

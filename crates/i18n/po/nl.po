@@ -16270,6 +16270,12 @@ msgstr "de server kan geen categorieën wissen"
 msgid "the server can't flag mail"
 msgstr "de server kan e-mail niet markeren"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "de server kan de regels niet in die volgorde houden: een regel die hij niet laat wijzigen laat geen vrije plaats voor ze over"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy

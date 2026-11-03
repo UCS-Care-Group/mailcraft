@@ -13454,6 +13454,11 @@ msgstr ""
 msgid "the server can't flag mail"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "the server can't look at the day mail came"
