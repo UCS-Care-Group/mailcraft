@@ -175,6 +175,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 pub mod unconfirmed;
+#[cfg(test)]
+mod update_switches_tests;
 pub mod updates;
 mod view_source;
 #[cfg(test)]
