@@ -646,7 +646,7 @@ fn a_column_that_only_makes_room_in_some_rows_keeps_its_place() {
 }
 
 #[test]
-fn alignment_positions_tables_and_an_attribute_of_it_stops_at_them() {
+fn a_cells_align_positions_a_nested_table_but_not_its_text() {
     // A cell's `align` stands the table in the middle, and the table's text starts again at the
     // left, as in a browser (a style's `text-align` would reach into it: `nested_align_tests`).
     let html = "<table width='100%'><tr><td align=center><table width=300><tr><td>a</td><td align=right><p>b</p><p>c</p></td></tr></table></td></tr></table>";

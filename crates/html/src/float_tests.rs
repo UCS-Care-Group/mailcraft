@@ -64,7 +64,7 @@ fn a_greeting_and_a_framed_notice_stand_side_by_side_in_their_shares() {
 }
 
 #[test]
-fn a_floated_table_with_anything_else_beside_it_stays_where_it_was() {
+fn tables_not_floated_side_by_side_stay_where_they_were() {
     let table = |align: &str, text: &str| format!("<table align='{align}'><tr><td>{text}</td></tr></table>");
     let (a, b) = (table("left", "A"), table("right", "B"));
     for html in [
@@ -133,4 +133,27 @@ fn floated_tables_are_capped_as_boxes_are() {
     assert_eq!(boxes(&blocks).len(), MAX_INLINE_BOXES);
     // Past the cap, the tables are what they were; nothing is lost.
     assert_eq!(crate::blocks_to_text(&blocks).matches('b').count(), MAX_INLINE_BOXES * 3);
+}
+
+#[test]
+fn floated_tables_in_a_wrapper_in_an_aligned_cell_keep_their_sides() {
+    // The wrapper is unwrapped and stands where the cell's `align` puts it; the floats in it still
+    // stand at their own sides, the label first.
+    for align in ["right", "center"] {
+        let html = format!(
+            "<table width='600'><tr><td align='{align}'><table><tr><td>\
+               <table align='left'><tr><td>Label</td></tr></table><table align='right'><tr><td>Value</td></tr></table>\
+             </td></tr></table></td></tr></table>"
+        );
+        let blocks = parse(&html);
+        // (The 600-pixel table stays; the pair is in its cell.)
+        let inner = match blocks.first().map(|b| &b.kind) {
+            Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).flat_map(|c| c.blocks.clone()).collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        let found = boxes(&inner);
+        assert_eq!(found.len(), 2, "{align}: {blocks:?}");
+        assert_eq!((found[0].0.align, found[1].0.align), (Align::Left, Align::Right), "{align}: {blocks:?}");
+        assert_eq!((text_of(found[0].1), text_of(found[1].1)), ("Label".to_string(), "Value".to_string()));
+    }
 }

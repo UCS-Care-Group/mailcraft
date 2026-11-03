@@ -265,8 +265,8 @@ struct Delta {
     align: Option<Align>,
     /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
     align_attr: bool,
-    /// A table: an alignment from an `align` attribute or a `<center>` outside does not reach its
-    /// text (one from a style does).
+    /// A table: the `align` of a cell, a row, a `<div>` or a `<p>`, or a `<center>`, outside does
+    /// not reach its text (a style's does).
     table: bool,
     /// `Some(None)`: `normal`.
     line_height: Option<Option<LineHeight>>,
@@ -425,10 +425,11 @@ struct TableBuild {
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
-    /// The alignment from an `align` attribute or a `<center>` around it that its text does not
-    /// take ([`Style::align_attr`]), when it is not the left. A browser makes a table with no width
-    /// of its own as wide as what is in it and stands it there, so when such a table is unwrapped
-    /// into its blocks, what is at the left in it stands there instead.
+    /// The alignment round it that its text does not take ([`Style::align_attr`]: the `align` of
+    /// a cell, a row, a `<div>` or a `<p>`, or a `<center>`), when it is not the left. A browser
+    /// makes a table with no width of its own as wide as what is in it, up to the line, and
+    /// stands it there; so when such a table is unwrapped into its blocks, what is at the left in
+    /// it stands there instead (exact for a line; longer text is aligned line by line).
     outer_align: Option<Align>,
     /// `border="1"`.
     border: bool,
@@ -1580,7 +1581,9 @@ impl Builder {
                         first.space = first.space.max(1);
                     }
                     if let Some(align) = outer {
-                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left).for_each(|b| b.align = align);
+                        // (A floated table's alignment is its side, not where it stands.)
+                        let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
+                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left && !floated(b)).for_each(|b| b.align = align);
                     }
                     self.splice(cell.blocks, cell.padding);
                 }

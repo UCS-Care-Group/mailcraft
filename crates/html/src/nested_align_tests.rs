@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A cell's `align`, a `<center>` and a `<div align>` don't reach the text of a table inside
-//! them, as in a browser; a style's `text-align` does.
+//! The `align` of a cell, a row, a `<div>` or a `<p>`, and a `<center>`, don't reach the text of
+//! a table inside them, as in a browser; a style's `text-align` does. (So Chrome does for a
+//! message with a doctype; without one, it stops every alignment at a table.)
 
 use crate::{Align, Block, BlockKind, parse};
 
@@ -36,7 +37,7 @@ fn greeting(around: &str, close: &str) -> String {
 }
 
 #[test]
-fn a_centring_attribute_outside_a_table_leaves_its_text_at_the_left() {
+fn an_aligning_attribute_outside_a_table_leaves_its_text_at_the_left() {
     for (around, close) in [
         ("<td align='center'>", "</td>"),
         ("<td><center>", "</center></td>"),
