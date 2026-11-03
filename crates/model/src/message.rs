@@ -336,6 +336,10 @@ pub struct Message {
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
     pub incomplete: bool,
+    /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
+    /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub rules_waiting: Option<Box<crate::RulesWaiting>>,
     /// For a draft of a Microsoft account: its marker on the server, what the server last had
     /// of it, and whether it waits to go up (R3.4.1). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]

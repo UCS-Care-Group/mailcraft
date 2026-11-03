@@ -482,6 +482,32 @@ pub struct RuleGone {
 /// Most rules deleted here that wait for their server to be told.
 pub const MAX_RULE_GONE: usize = 500;
 
+/// The rules that couldn't tell of a message as it arrived ([`Rule::undecided_in`]), kept with it
+/// until it is here whole (#566): a Microsoft account, a JMAP account and an Exchange server
+/// account list new mail before it is fetched, and a rule that reads its text, its headers or its
+/// size has its say only then ([`Mailbox::run_waiting_rules`](crate::Mailbox::run_waiting_rules)).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RulesWaiting {
+    /// The folder the rules left it in: they act on it there and nowhere else, not once it has
+    /// been moved (by the owner, say) meanwhile.
+    pub folder: Id,
+    /// In the order they ran as it arrived.
+    #[serde(deserialize_with = "crate::sync::lenient_list")]
+    pub rules: Vec<RuleWaiting>,
+}
+
+/// One of [`RulesWaiting::rules`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RuleWaiting {
+    pub rule: Id,
+    /// It acted as the message arrived, but for its delete for good: that waited on a rule
+    /// before it that couldn't tell and stops the rules after it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub delete_only: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Rule {

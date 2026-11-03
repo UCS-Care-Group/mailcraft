@@ -268,6 +268,13 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let taken: Vec<Id> =
         result.fetched.iter().filter_map(|f| graph_down::take_fetched_as(&mut s.mailbox, &mut index, account, &f.id, &f.mime)).collect();
     s.graph_index = index;
+    // New mail its rules couldn't tell of from what its server listed: they have their say now
+    // that it is here whole (#566), a Microsoft account's, a JMAP account's and an Exchange
+    // server account's alike.
+    let clock = s.rule_clock();
+    for id in &taken {
+        s.mailbox.run_waiting_rules(*id, &clock);
+    }
     // Older than its mail to keep offline (the owner opened it): whole until the mailbox is
     // opened again (#143).
     let window = mailcraft_model::OfflineWindow::of(&s.mailbox, s.now());

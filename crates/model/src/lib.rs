@@ -64,7 +64,10 @@ pub use message::{
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
-pub use rule::{Action, Condition, FollowUp, Keep, MAX_RULE_GONE, MAX_WORDS_EACH, Matching, Rule, RuleClock, RuleGone, ServerRule, fold_exceptions};
+pub use rule::{
+    Action, Condition, FollowUp, Keep, MAX_RULE_GONE, MAX_WORDS_EACH, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting, ServerRule,
+    fold_exceptions,
+};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 
@@ -156,6 +159,8 @@ mod pop_tests;
 mod recurrence_tests;
 #[cfg(test)]
 mod rule_tests;
+#[cfg(test)]
+mod rules_waiting_tests;
 #[cfg(test)]
 mod search_advanced_tests;
 #[cfg(test)]
