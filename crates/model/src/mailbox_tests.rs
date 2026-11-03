@@ -383,7 +383,10 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
     assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None, kept: None }]);
     // For good straight away.
     mb.remove_message(b).unwrap();
-    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None, kept: None }));
+    assert_eq!(
+        mb.pending.last(),
+        Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None, kept: None })
+    );
     // What a synchronisation takes out because the server no longer has it is not told back.
     mb.forget_message(c).unwrap();
     // A message that was never on the server is nobody's business.
