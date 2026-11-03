@@ -546,6 +546,7 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("there is no account to remove"));
     }
     let left = remove_with_content(s, id)?;
+    super::people::forget_here(s);
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }

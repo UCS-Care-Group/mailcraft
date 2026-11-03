@@ -260,3 +260,51 @@ fn an_agent_may_change_what_the_list_shows() {
     let access = crate::agent::classify(&s, "view.peopleAccount", &json!({"value": work}));
     assert_eq!(access, crate::agent::Access::Safe);
 }
+
+#[test]
+fn a_contact_made_or_picked_is_not_hidden_by_the_search() {
+    let (mut s, _, _, at_work, _) = session();
+    run(&mut s, "people.search", json!({"query": "zz-nobody"}));
+    let made = run(&mut s, "people.new", json!({"first": "Noor", "email": "noor@example.org"}))["id"].as_u64().unwrap();
+    assert_eq!(s.view.people_search, "", "the search that left it out is cleared");
+    assert!(sorted(&s, &s.view.people_search).contains(&made));
+    // A search the contact matches stays.
+    run(&mut s, "people.search", json!({"query": "wren"}));
+    run(&mut s, "people.select", json!({"id": at_work}));
+    assert_eq!((s.view.people_search.as_str(), shown_account(&s)), ("wren", AccountChoice::All));
+    // Picking one the search leaves out clears it.
+    run(&mut s, "people.select", json!({"id": made}));
+    assert_eq!(s.view.people_search, "");
+    assert!(sorted(&s, "").contains(&made));
+    // An imported card too.
+    run(&mut s, "people.search", json!({"query": "zz-nobody"}));
+    crate::io::import(&mut s, "ivana.vcf", b"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ivana Example\r\nEND:VCARD\r\n", None).unwrap();
+    assert_eq!(s.view.people_search, "");
+}
+
+#[test]
+fn this_computer_chosen_is_forgotten_with_the_last_account_that_keeps_contacts() {
+    let (mut s, work, home, ..) = session();
+    run(&mut s, "view.peopleAccount", json!({"value": "here"}));
+    run(&mut s, "account.remove", json!({"id": work}));
+    assert_eq!(s.view.people_account, AccountChoice::Here, "another account keeps contacts still");
+    run(&mut s, "account.remove", json!({"id": home}));
+    assert_eq!(s.view.people_account, AccountChoice::All);
+    // A Microsoft account added later opens People on every account.
+    add(&mut s, "later@example.org");
+    assert_eq!(shown_account(&s), AccountChoice::All);
+}
+
+#[test]
+fn undoing_a_new_contact_puts_the_list_back_on_the_account() {
+    let (mut s, work, _, at_work, _) = session();
+    run(&mut s, "view.peopleAccount", json!({"value": work}));
+    run(&mut s, "people.select", json!({"id": at_work}));
+    let made = run(&mut s, "people.new", json!({"first": "Noor"}))["id"].as_u64().unwrap();
+    assert_eq!(shown_account(&s), AccountChoice::Here);
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.contact(made).is_none());
+    assert_eq!((shown_account(&s), s.sel.contact), (AccountChoice::Account(work), Some(at_work)));
+    run(&mut s, "edit.redo", json!({}));
+    assert_eq!((shown_account(&s), s.sel.contact), (AccountChoice::Here, Some(made)));
+}

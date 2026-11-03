@@ -613,7 +613,8 @@ fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
         let text = if searching {
             tl!("Nobody matches the search")
         } else if of_account {
-            tl!("This account has no contacts")
+            // (Its contacts may not have come down from its server yet.)
+            tl!("No contacts from this account yet")
         } else {
             tl!("No contacts yet")
         };

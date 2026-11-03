@@ -5468,6 +5468,11 @@ msgstr ""
 msgid "Move All and Send Invitations"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Down"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Move Event"
@@ -5486,6 +5491,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/rules.rs
 msgid "Move Rule"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Up"
 msgstr ""
 
 #. interface
@@ -5887,6 +5897,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "No completed tasks yet."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "No contacts from this account yet"
 msgstr ""
 
 #. interface
@@ -10352,11 +10367,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 msgid "This account doesn't sign in with Microsoft"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-msgid "This account has no contacts"
 msgstr ""
 
 #. what a command says

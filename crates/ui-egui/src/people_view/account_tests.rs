@@ -120,7 +120,7 @@ fn an_account_without_contacts_says_so_and_offers_nothing_it_cant_do() {
     show(&mut w, json!("all"));
     let buttons = w.query_all_by_label("New Contact").count();
     show(&mut w, json!(work));
-    assert_eq!(w.query_all_by_label("This account has no contacts").count(), 1);
+    assert_eq!(w.query_all_by_label("No contacts from this account yet").count(), 1);
     assert_eq!(w.query_all_by_label("No contacts yet").count(), 0);
     assert_eq!(w.query_all_by_label("Select a contact to see the details").count(), 0);
     assert_eq!(w.query_all_by_label("New Contact").count(), buttons, "the ribbon's stays, and the list adds none");

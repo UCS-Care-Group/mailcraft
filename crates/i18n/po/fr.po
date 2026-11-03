@@ -6298,6 +6298,12 @@ msgstr "Déplacer le compte"
 msgid "Move All and Send Invitations"
 msgstr "Tout déplacer et envoyer les invitations"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Descendre"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -6321,6 +6327,12 @@ msgstr "Déplacer un élément périodique"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Déplacer la règle"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Monter"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6806,6 +6818,12 @@ msgstr "Aucune commande ne correspond."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Aucune tâche terminée pour l'instant."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Pas encore de contacts de ce compte"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -11906,12 +11924,6 @@ msgstr "Ce compte ne conserve pas ses règles sur son serveur"
 msgid "This account doesn't sign in with Microsoft"
 msgstr "Ce compte ne se connecte pas avec Microsoft"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account has no contacts"
-msgstr "Ce compte n'a aucun contact"
-
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -16842,6 +16854,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Ce compte n'a aucun contact"
 
 #, fuzzy
 #~ msgid "Permanently Delete"
