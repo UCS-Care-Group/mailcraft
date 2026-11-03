@@ -755,9 +755,11 @@ pub enum Queued {
     /// account for an IMAP account's). `copy`: it was copied, and the message it was copied from
     /// is still where it was (a copy refused is taken away here again). `from`: the folder a
     /// moved message lay in when no server had it, where it goes back to when it is refused.
-    /// `source`: the message a copy was made from. Should that go meanwhile (deleted for good, by
-    /// its owner or by a rule that copies and then deletes, #566), the copy is all there is of
-    /// it, and a refused one is kept on this computer, as a move whose original is gone is.
+    /// `source`: the message a copy was made from. Should that be deleted for good meanwhile (by
+    /// its owner or by a rule that copies and then deletes, #566), its delete on its own server
+    /// waits for this copy's answer ([`Mailbox::copy_waits_for`]), and a refused copy brings it
+    /// back. One that can't be brought back (it was on this computer) leaves the copy all there
+    /// is of it, and a refused one is kept on this computer, as a move whose original is gone is.
     #[serde(rename_all = "camelCase")]
     PlaceMessage {
         account: Id,
@@ -826,6 +828,11 @@ pub enum Pending {
         /// carried over a renumbering.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         seen: Option<MailIdentity>,
+        /// The message as it was here, when a copy of it was waiting to be made on another
+        /// account's server ([`Mailbox::copy_waits_for`]): the delete waits for that copy's answer,
+        /// and a refused copy puts the message back from this (#566).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kept: Option<Box<Message>>,
     },
 }
 
@@ -1753,7 +1760,7 @@ impl Mailbox {
                         let m = messages.get(message);
                         let message_id = m.map(|m| m.message_id.clone()).unwrap_or_default();
                         let seen = m.filter(|m| !m.message_id.is_empty()).map(|m| MailIdentity::of(m));
-                        *p = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
+                        *p = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen, kept: None };
                     }
                 }
                 self.folders.retain(|f| !gone.contains(&f.id));
@@ -2470,6 +2477,18 @@ impl Mailbox {
         }
     }
 
+    /// Whether a copy of `source` is waiting to be made on another account's server
+    /// ([`Queued::PlaceMessage`]): a delete for good of `source` on its own server waits for that
+    /// copy's answer, so that a copy refused, or called off, leaves the original where it was (#566).
+    pub fn copy_waits_for(&self, source: Id) -> bool {
+        self.queued.iter().any(|q| match q {
+            Queued::PlaceMessage { account, message, copy: true, source: Some(s), .. } => {
+                *s == source && self.message(*message).is_some_and(|m| m.account == *account)
+            }
+            _ => false,
+        })
+    }
+
     /// Remove a message for good, as its owner asks. When the server has it, a
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
@@ -2482,18 +2501,21 @@ impl Mailbox {
             let m = self.message(id).ok_or(not_found("message", id))?;
             (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
         };
+        // A copy of it still on its way to another account's server: the server's original waits
+        // for that copy's answer, and comes back here should the copy be refused (#566).
+        let kept = self.copy_waits_for(id).then(|| self.message(id).map(|m| Box::new(m.clone()))).flatten();
         self.queue_graph_delete(id, true);
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen, kept };
                     *op = delete;
                 }
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
+                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept });
                 }
             }
         }

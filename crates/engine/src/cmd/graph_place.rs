@@ -18,8 +18,10 @@
 //!   still is, as that server message, or to the folder on this computer it came from; a copy is
 //!   taken away here again (its source is where it was). Said once per run and kind, as other
 //!   refusals are (R3 spec S20). A move whose original was gone already is kept in a folder on
-//!   this computer: it is all there is of it. So is a copy whose source was deleted for good here
-//!   meanwhile, by the owner or by a rule that copies and then deletes (#566).
+//!   this computer: it is all there is of it. A copy whose source was deleted for good here
+//!   meanwhile, by the owner or by a rule that copies and then deletes, brings the source back:
+//!   its delete on its own server waited for this answer ([`Mailbox::copy_waits_for`],
+//!   [`original_back`], #566). One whose source can't be brought back is kept on this computer.
 //! - **No answer**, or a shared mailbox's 403 that isn't "no access": it waits for the next run,
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
@@ -150,9 +152,9 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
         // Made, but which one isn't said: found by its marker next time.
         return false;
     }
-    let (copy, from, taken_away) = match mb.queued.get(entry) {
-        Some(Queued::PlaceMessage { copy, from, source, .. }) => (*copy, *from, a_copy_of_one_here(mb, *copy, *source)),
-        _ => (false, None, false),
+    let (copy, from, source) = match mb.queued.get(entry) {
+        Some(Queued::PlaceMessage { copy, from, source, .. }) => (*copy, *from, *source),
+        _ => (false, None, None),
     };
     mb.queued.remove(entry);
     let to_name = folder_name(mb, account, &change.to, change.to_folder);
@@ -191,6 +193,7 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
             let Some(m) = mb.message(id) else { return true };
             let subject = m.subject.clone();
             refusals.note(if copy { Kind::Copy } else { Kind::Move }, why, &subject, to_name);
+            let taken_away = original_back(mb, copy, source);
             put_back(mb, id, taken_away, from);
             true
         }
@@ -201,19 +204,20 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
 /// folder (`going`, of the account it waits for and the message): it has no copy there, so it
 /// goes back to where it came from (#451).
 pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id) -> bool) {
-    let waiting: Vec<(Id, bool, Option<Id>)> = mb
+    let waiting: Vec<(Id, bool, Option<Id>, Option<Id>)> = mb
         .queued
         .iter()
         .filter_map(|q| match q {
             Queued::PlaceMessage { account, message, copy, from, source, .. } if going(mb, *account, *message) => {
-                Some((*message, a_copy_of_one_here(mb, *copy, *source), *from))
+                Some((*message, *copy, *source, *from))
             }
             _ => None,
         })
         .collect();
-    for (message, copy, from) in waiting {
+    for (message, copy, source, from) in waiting {
         mb.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message: other, .. } if *other == message));
-        put_back(mb, message, copy, from);
+        let taken_away = original_back(mb, copy, source);
+        put_back(mb, message, taken_away, from);
     }
 }
 
@@ -262,6 +266,55 @@ pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
 /// there is of it: refused, it is kept on this computer, as a move whose original is gone is.
 pub(crate) fn a_copy_of_one_here(mb: &Mailbox, copy: bool, source: Option<Id>) -> bool {
     copy && source.is_none_or(|s| mb.message(s).is_some())
+}
+
+/// A copy that won't be made where it was to go, refused or called off: when its source was
+/// deleted for good here meanwhile, that delete waited for this answer
+/// ([`Mailbox::copy_waits_for`]), so the server still has the original, which comes back here
+/// from what was kept of it, where its server has it, and the delete is called off (#566). Then
+/// [`a_copy_of_one_here`]: whether the copy is to be taken away. With nowhere here to put the
+/// original back (its folder gone here, or a mailbox its server numbered anew since), its delete
+/// goes, and the copy is kept on this computer instead.
+pub(crate) fn original_back(mb: &mut Mailbox, copy: bool, source: Option<Id>) -> bool {
+    if let Some(source) = source.filter(|s| copy && mb.message(*s).is_none()) {
+        original_back_on_graph(mb, source);
+        original_back_on_imap(mb, source);
+        if let Ok(m) = mb.message_mut(source) {
+            // Should the server say it is gone since (deleted elsewhere meanwhile), it is kept.
+            m.returned = RETURNED_LISTINGS;
+        }
+    }
+    a_copy_of_one_here(mb, copy, source)
+}
+
+/// [`original_back`] for a Microsoft or an Exchange server account's message.
+fn original_back_on_graph(mb: &mut Mailbox, source: Id) {
+    let at = mb.queued.iter().position(|q| match q {
+        Queued::DeleteMessage { account, id, kept: Some(m) } => {
+            m.id == source && m.server.as_ref().is_some_and(|s| s.id == *id && mb.folder_by_server(*account, &s.folder).is_some())
+        }
+        _ => false,
+    });
+    if let Some(Queued::DeleteMessage { account, id, kept }) = at.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at)) {
+        super::graph_up::put_back(mb, account, &id, kept, None);
+    }
+}
+
+/// [`original_back`] for an IMAP account's message: into the folder that follows the mailbox
+/// the server has it in, under its UID there.
+fn original_back_on_imap(mb: &mut Mailbox, source: Id) {
+    let at = mb.pending.iter().position(|p| matches!(p, Pending::Delete { kept: Some(m), uid, .. } if m.id == source && *uid != 0));
+    let Some(Pending::Delete { account, from, uid, kept: Some(kept), .. }) = at.and_then(|at| mb.pending.get(at)).cloned() else { return };
+    let Some(folder) = mb.folders.iter().find(|f| f.account == account && !f.remote.is_empty() && f.remote == from).map(|f| f.id) else {
+        return;
+    };
+    if let Some(at) = at {
+        mb.pending.remove(at);
+    }
+    let mut m = *kept;
+    let synced = m.synced.take().map(|flags| flags.at(uid));
+    m.lies_in(folder, account, uid, synced);
+    let _ = mb.add_message(m);
 }
 
 /// A message the destination wouldn't take: a move back to where its original still is, as that

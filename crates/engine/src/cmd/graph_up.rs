@@ -79,7 +79,12 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
                 let Some((to, to_folder)) = copy_to(*copy, to) else { continue };
                 note(&|| Some(MessageChange::Copy { copy: *copy, id: id.clone(), to: to.clone(), to_folder, marker: marker.clone() }));
             }
-            Queued::DeleteMessage { id, .. } => note(&|| (!copying.contains(&id.as_str())).then(|| MessageChange::Delete { id: id.clone() })),
+            // (Nor while a copy of the message here is still on its way to another account's
+            // server, from the whole message here: a refused one puts the original back, #566.)
+            Queued::DeleteMessage { id, kept, .. } => {
+                let held = copying.contains(&id.as_str()) || kept.as_ref().is_some_and(|m| mb.copy_waits_for(m.id));
+                note(&|| (!held).then(|| MessageChange::Delete { id: id.clone() }));
+            }
             // (Made by the run with the whole message: `graph_place`.)
             Queued::DeleteFolder { .. } | Queued::PlaceMessage { .. } => {}
         }
@@ -476,7 +481,7 @@ fn take_delete(mb: &mut Mailbox, account: Id, id: &str, kept_only: bool) -> Opti
 /// as new mail is). Kept but with nowhere on the server known (being moved out of the account, and
 /// not to be read), it goes back where it was here. A folder the server has it in that isn't here
 /// yet brings it down with its first listing. The subject, for saying so.
-fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
+pub(crate) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
     let subject = kept.as_ref().map(|m| m.subject.clone()).or_else(|| there.map(|t| t.subject.clone())).unwrap_or_default();
     // Back already (it came down again meanwhile): nothing to do.
     if mb.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == id)) {

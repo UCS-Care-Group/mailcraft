@@ -1545,7 +1545,7 @@ mod two_way {
             s.mailbox.pending,
             [
                 Pending::Move { account: a, message: two, from: "INBOX".into(), uid: 0, synced: Some(has(0, false, false)), to: archive },
-                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into(), seen: three_seen.clone() },
+                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into(), seen: three_seen.clone(), kept: None },
                 Pending::Move { account: a, message: filed, from: "Archive".into(), uid: 1, synced: Some(has(1, false, false)), to: deleted },
             ]
         );

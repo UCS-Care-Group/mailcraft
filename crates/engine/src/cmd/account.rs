@@ -811,7 +811,12 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
             continue;
         }
         match pending {
-            Pending::Delete { .. } => note(&|| Some(RemoteOp::Delete { from: from.to_string(), uid })),
+            // (Not while a copy of the message is still on its way to another account's server: a
+            // refused one puts the original back, which the server must still have, #566.)
+            Pending::Delete { kept, .. } => {
+                let held = kept.as_ref().is_some_and(|m| mb.copy_waits_for(m.id));
+                note(&|| (!held).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
+            }
             Pending::Move { message, synced, to, .. } => {
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
@@ -1282,8 +1287,8 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
             mb.pending.push(Pending::Move { account, message, from, uid, synced: synced.map(|flags| flags.at(uid)), to });
         }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
-        (Some(Pending::Delete { message_id, seen, .. }), Some((from, uid))) => {
-            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen })
+        (Some(Pending::Delete { message_id, seen, kept, .. }), Some((from, uid))) => {
+            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept })
         }
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
@@ -1394,18 +1399,19 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
             // Called off meanwhile: the copy goes again.
             None => {
                 if let Some((from, uid)) = there {
-                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None });
+                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None, kept: None });
                 }
             }
         }
     }
     for id in unplaced {
         let Some(at) = waiting(mb, *id).filter(|at| *at < mb.queued.len()) else { continue };
-        let (copy, from) = match mb.queued.remove(at) {
-            Queued::PlaceMessage { copy, from, source, .. } => (super::graph_place::a_copy_of_one_here(mb, copy, source), from),
-            _ => (false, None),
+        let (copy, source, from) = match mb.queued.remove(at) {
+            Queued::PlaceMessage { copy, source, from, .. } => (copy, source, from),
+            _ => (false, None, None),
         };
-        super::graph_place::put_back(mb, *id, copy, from);
+        let taken_away = super::graph_place::original_back(mb, copy, source);
+        super::graph_place::put_back(mb, *id, taken_away, from);
     }
 }
 
@@ -1437,8 +1443,14 @@ pub(crate) fn original_goes(mb: &mut Mailbox, id: Id) {
             && *message == id
             && *owner != account
         {
-            let delete =
-                Pending::Delete { account: *owner, from: std::mem::take(from), uid: *uid, message_id: message_id.clone(), seen: seen.clone() };
+            let delete = Pending::Delete {
+                account: *owner,
+                from: std::mem::take(from),
+                uid: *uid,
+                message_id: message_id.clone(),
+                seen: seen.clone(),
+                kept: None,
+            };
             *p = delete;
         }
     }

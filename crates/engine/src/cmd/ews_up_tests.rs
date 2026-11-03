@@ -370,6 +370,24 @@ fn a_copy_goes_up_and_takes_the_new_id() {
     assert!(changes(&s, account).is_empty());
 }
 
+/// A message copied into another folder and then deleted for good, as a rule that copies and then
+/// deletes does (#566): its delete waits for the copy's answer, and a refused copy brings it back.
+#[test]
+fn a_delete_for_good_waits_for_a_copy_of_the_message_and_a_refused_copy_brings_it_back() {
+    let (mut s, account, a, _) = setup();
+    let (inbox, projects) = (s.mailbox.folder_by_server(account, "F1").unwrap(), s.mailbox.folder_by_server(account, "F5").unwrap());
+    s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [a]})).unwrap();
+    let all = changes(&s, account);
+    let [change @ MessageChange::Copy { .. }] = all.as_slice() else { panic!("{all:?}") };
+    let done = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { messages: vec![done], partial: true, ..piece(account) });
+    let kickoff: Vec<_> = s.mailbox.messages.values().filter(|m| m.subject == "Kickoff").collect();
+    let [m] = kickoff.as_slice() else { panic!("{kickoff:?}") };
+    assert_eq!((m.folder, m.server.as_ref().map(|x| x.id.as_str())), (inbox, Some("A1")));
+    assert!(changes(&s, account).is_empty());
+}
+
 #[test]
 fn a_folder_deleted_for_good_goes_up() {
     let (mut s, account, ..) = setup();
