@@ -1410,7 +1410,7 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
             Queued::PlaceMessage { copy, source, from, .. } => (copy, source, from),
             _ => (false, None, None),
         };
-        let taken_away = super::graph_place::original_back(mb, copy, source);
+        let taken_away = super::graph_place::original_back(mb, *id, copy, source);
         super::graph_place::put_back(mb, *id, taken_away, from);
     }
 }

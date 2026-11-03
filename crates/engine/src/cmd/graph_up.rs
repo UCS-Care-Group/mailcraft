@@ -409,13 +409,18 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // Refused: the server has no copy, and neither has this mailbox. A source that
                     // is gone leaves the copy here, which is all there is of it.
                     if matches!(outcome, MessageOutcome::Refused { .. }) {
-                        let _ = mb.forget_message(*copy);
+                        let copied = mb.forget_message(*copy).ok();
                         // Its original deleted for good here meanwhile, by the owner or by a rule
                         // that copies and then deletes: it is still on the server (its delete
-                        // waited for this answer), and comes back rather than being lost (#566).
+                        // waited for this answer), and comes back rather than being lost (#566),
+                        // with the copy's content, which the copy names for the mailbox file (what
+                        // the delete kept may have been read back from it without its content).
                         // (Not a delete of another kind, of a message moved out of the account
                         // say, which has nothing here to put back.)
-                        if let Some(kept) = take_delete(mb, account, id, true).flatten() {
+                        if let Some(mut kept) = take_delete(mb, account, id, true).flatten() {
+                            if let Some(copied) = &copied {
+                                kept.take_content_of(copied);
+                            }
                             put_back(mb, account, id, Some(kept), None);
                         }
                     }

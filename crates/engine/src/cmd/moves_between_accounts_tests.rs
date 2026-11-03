@@ -526,6 +526,140 @@ fn a_delete_for_good_out_of_a_microsoft_or_an_exchange_server_account_waits_for_
     assert_eq!(deletes(ews_mail_request(&s, ews, false).unwrap().messages), 0);
 }
 
+/// The mailbox saved and opened again, with every body and file left on disk.
+fn reopened(s: &Session, path: &std::path::Path) -> Session {
+    crate::store::save(path, &s.mailbox).unwrap();
+    crate::store::clear_cache();
+    let opened = crate::store::with_budget(1, || crate::store::open(path)).unwrap();
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.to_path_buf());
+    s
+}
+
+/// [`a_delete_for_good_out_of_an_imap_account_waits_for_its_copy_in_another_account`], with the
+/// mailbox saved and opened again while the delete waits, the message's text and file kept on
+/// disk: the original comes back whole, with its text and its file, not as an empty message
+/// whose next move would delete the server's (#566). Into another account out of an IMAP and a
+/// Microsoft account, and into another folder of a Microsoft account.
+#[test]
+fn a_held_delete_brings_the_original_back_whole_after_the_mailbox_is_opened_again() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-566-held-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let text = "All of it, every word. ".repeat(200);
+    let fill = |s: &mut Session, id: Id| {
+        let m = s.mailbox.message_mut(id).unwrap();
+        m.body.text = text.clone();
+        m.attachments.push(mailcraft_model::Attachment::new("plan.pdf", "application/pdf", vec![7u8; 5000]));
+    };
+    let whole = |s: &Session, subject: &str| {
+        let all: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == subject).map(|m| m.id).collect();
+        let [id] = all.as_slice() else { panic!("{subject}: {all:?}") };
+        let m = s.loaded_message(*id).unwrap();
+        assert_eq!((m.body.text.len(), m.attachments.first().map(|a| a.data.len())), (text.len(), Some(5000)), "{subject}");
+        *id
+    };
+    // Out of an IMAP account into a Microsoft account.
+    let path = dir.join("imap.mailcraft");
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    fill(&mut s, two);
+    let mut s = reopened(&s, &path);
+    assert!(s.mailbox.message(two).unwrap().body_is_kept());
+    s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+    let mut s = reopened(&s, &path);
+    assert_eq!(ops(&s, a), []);
+    placed(&mut s, ms, OWNER, &[MessageOutcome::Refused { status: 403 }]);
+    let back = whole(&s, "Two");
+    assert_eq!(at(&s, back), (a, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), 2));
+    // And so it is after it is saved and opened again once more.
+    let s = reopened(&s, &path);
+    whole(&s, "Two");
+
+    // Out of a Microsoft account into another of the owner's, and into another folder of its own.
+    let path = dir.join("graph.mailcraft");
+    let mut s = Session::empty();
+    let mine = microsoft(&mut s, OWNER);
+    let other = microsoft(&mut s, "owner@outlook.example");
+    let (inbox, archive) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(mine, FolderKind::Archive).unwrap());
+    let theirs = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    for (id, subject) in [("AAkA7", "Receipt"), ("AAkA8", "Invoice")] {
+        let server = ServerMessage { id: id.into(), folder: "in".into(), ..Default::default() };
+        let m = s.mailbox.add_message(Message { folder: inbox, subject: subject.into(), server: Some(server), ..Default::default() }).unwrap();
+        fill(&mut s, m);
+    }
+    let mut s = reopened(&s, &path);
+    let (receipt, invoice) = (titled(&s, "Receipt"), titled(&s, "Invoice"));
+    s.run("mail.copy", &json!({"ids": [receipt], "folder": theirs})).unwrap();
+    s.run("mail.copy", &json!({"ids": [invoice], "folder": archive})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [receipt, invoice]})).unwrap();
+    let mut s = reopened(&s, &path);
+    placed(&mut s, other, "owner@outlook.example", &[MessageOutcome::Refused { status: 403 }]);
+    let asked = graph_mail_request(&s, mine).unwrap().messages;
+    assert!(!asked.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{asked:?}");
+    let [change @ MessageChange::Copy { .. }] = asked.as_slice() else { panic!("{asked:?}") };
+    let done = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    apply_graph_mail(&mut s, GraphMailResult { account: mine, email: OWNER.into(), messages: vec![done], ..Default::default() }).unwrap();
+    for subject in ["Receipt", "Invoice"] {
+        let back = whole(&s, subject);
+        assert_eq!(s.mailbox.message(back).map(|m| m.folder), Some(inbox), "{subject}");
+    }
+    assert!(graph_mail_request(&s, mine).unwrap().messages.is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A copy moved on into a third account before it was made still holds its original's delete
+/// (#566): refused there, the original comes back; made, its delete goes.
+#[test]
+fn a_copy_moved_on_into_a_third_account_still_holds_its_originals_delete() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let b = second_imap(&mut s);
+    let (theirs, others) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    for (subject, uid, refused) in [("Two", 2, true), ("Three", 3, false)] {
+        let id = titled(&s, subject);
+        let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+        s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+        s.run("mail.move", &json!({"ids": [copy], "folder": others})).unwrap();
+        assert!(!ops(&s, a).contains(&delete(uid)), "{subject}: {:?}", ops(&s, a));
+        if refused {
+            apply_sync(&mut s, SyncResult { account: b, unplaced: vec![copy], ..Default::default() }).unwrap();
+            let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+            assert!(s.mailbox.messages.values().any(|m| m.subject == subject && m.account == a && m.folder == inbox && m.uid == uid));
+            assert!(!ops(&s, a).contains(&delete(uid)), "{subject}: {:?}", ops(&s, a));
+        } else {
+            let asked = sync_request(&s, b).unwrap();
+            apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, copy, 61, 9)], ..Default::default() }).unwrap();
+            assert!(ops(&s, a).contains(&delete(uid)), "{subject}: {:?}", ops(&s, a));
+        }
+    }
+}
+
+/// The server moved the original on within its account (an earlier move here) before its delete
+/// for good went: the delete, from where the server has it now, still waits for the copy, and a
+/// refused copy brings the original back there (#566).
+#[test]
+fn a_held_delete_of_a_message_the_server_moved_meanwhile_still_waits_for_its_copy() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": archive})).unwrap();
+    s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+    let moved = mailcraft_model::sync::Moved { message: two, from: "INBOX".into(), uid: 2, to_folder: archive, new_uid: 9, uid_validity: 8 };
+    apply_sync(&mut s, SyncResult { account: a, moved: vec![moved], ..Default::default() }).unwrap();
+    assert!(!ops(&s, a).iter().any(|o| matches!(o, RemoteOp::Delete { .. })), "{:?}", ops(&s, a));
+    placed(&mut s, ms, OWNER, &[MessageOutcome::Refused { status: 403 }]);
+    let back: Vec<(Id, Id, u32)> = s.mailbox.messages.values().filter(|m| m.subject == "Two").map(|m| (m.account, m.folder, m.uid)).collect();
+    assert_eq!(back, [(a, archive, 9)]);
+    assert!(s.mailbox.pending.is_empty(), "{:?}", s.mailbox.pending);
+}
+
 /// A copy refused whose original was on this computer and was deleted for good there meanwhile:
 /// the copy is all there is of it, and it stays here, in Imported (#566).
 #[test]

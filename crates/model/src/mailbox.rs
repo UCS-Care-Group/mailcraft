@@ -755,11 +755,12 @@ pub enum Queued {
     /// account for an IMAP account's). `copy`: it was copied, and the message it was copied from
     /// is still where it was (a copy refused is taken away here again). `from`: the folder a
     /// moved message lay in when no server had it, where it goes back to when it is refused.
-    /// `source`: the message a copy was made from. Should that be deleted for good meanwhile (by
-    /// its owner or by a rule that copies and then deletes, #566), its delete on its own server
-    /// waits for this copy's answer ([`Mailbox::copy_waits_for`]), and a refused copy brings it
-    /// back. One that can't be brought back (it was on this computer) leaves the copy all there
-    /// is of it, and a refused one is kept on this computer, as a move whose original is gone is.
+    /// `source`: the message a copy was made from (also once the copy is moved on into a third
+    /// account). Should that be deleted for good meanwhile (by its owner or by a rule that copies
+    /// and then deletes, #566), its delete on its own server waits for this copy's answer
+    /// ([`Mailbox::copy_waits_for`]), and a refused copy brings it back. One that can't be brought
+    /// back (it was on this computer) leaves the copy all there is of it, and a refused one is
+    /// kept on this computer, as a move whose original is gone is.
     #[serde(rename_all = "camelCase")]
     PlaceMessage {
         account: Id,
@@ -828,9 +829,10 @@ pub enum Pending {
         /// carried over a renumbering.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         seen: Option<MailIdentity>,
-        /// The message as it was here, when a copy of it was waiting to be made on another
+        /// Where and how the message lay here, when a copy of it was waiting to be made on another
         /// account's server ([`Mailbox::copy_waits_for`]): the delete waits for that copy's answer,
-        /// and a refused copy puts the message back from this (#566).
+        /// and a refused copy puts the message back from this, with the copy's content (its text
+        /// and files, which the copy names and this doesn't keep), #566.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         kept: Option<Box<Message>>,
     },
@@ -2313,10 +2315,12 @@ impl Mailbox {
             }
             // Where it lay when no server had it: a refused one goes back there (to a folder on
             // this computer also while its first original's deletion is still on its way).
+            // A copy moved on still names its source, whose delete for good waits for it (#566).
             let waited = self.queued.iter().filter(|_| !fresh).find_map(|q| match q {
-                Queued::PlaceMessage { message, from, .. } if *message == id => Some(*from),
+                Queued::PlaceMessage { message, from, source, .. } if *message == id => Some((*from, *source)),
                 _ => None,
             });
+            let (waited, copy_of) = (waited.map(|(from, _)| from), waited.and_then(|(_, source)| source));
             let here_only = source.is_none() && m.uid == 0 && (!first || !self.puts_on_server(from_account));
             let from = waited.unwrap_or(here_only.then_some(m.folder));
             self.place_called_off(id, to_account, fresh);
@@ -2329,7 +2333,7 @@ impl Mailbox {
             }
             m.server = None;
             m.lies_in(folder, to_account, uid, synced);
-            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from, source: None });
+            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from, source: copy_of });
             return Ok(true);
         }
         if !self.is_graph(from_account) {
@@ -2478,11 +2482,12 @@ impl Mailbox {
     }
 
     /// Whether a copy of `source` is waiting to be made on another account's server
-    /// ([`Queued::PlaceMessage`]): a delete for good of `source` on its own server waits for that
-    /// copy's answer, so that a copy refused, or called off, leaves the original where it was (#566).
+    /// ([`Queued::PlaceMessage`], also once that copy is moved on into a third account): a delete
+    /// for good of `source` on its own server waits for that copy's answer, so that a copy
+    /// refused, or called off, leaves the original where it was (#566).
     pub fn copy_waits_for(&self, source: Id) -> bool {
         self.queued.iter().any(|q| match q {
-            Queued::PlaceMessage { account, message, copy: true, source: Some(s), .. } => {
+            Queued::PlaceMessage { account, message, source: Some(s), .. } => {
                 *s == source && self.message(*message).is_some_and(|m| m.account == *account)
             }
             _ => false,
@@ -2502,8 +2507,9 @@ impl Mailbox {
             (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
         };
         // A copy of it still on its way to another account's server: the server's original waits
-        // for that copy's answer, and comes back here should the copy be refused (#566).
-        let kept = self.copy_waits_for(id).then(|| self.message(id).map(|m| Box::new(m.clone()))).flatten();
+        // for that copy's answer, and comes back here should the copy be refused (#566), with the
+        // copy's content, which the copy names for the mailbox file (what is kept here isn't).
+        let kept = self.copy_waits_for(id).then(|| self.message(id).map(|m| Box::new(m.without_content()))).flatten();
         self.queue_graph_delete(id, true);
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
