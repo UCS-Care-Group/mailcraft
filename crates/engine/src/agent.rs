@@ -253,6 +253,7 @@ const SAFE: &[&str] = &[
     "view.goToDate",
     "view.taskFilter",
     "view.taskAccount",
+    "view.peopleAccount",
     "view.reset",
     "view.inspect",
     "view.days",
