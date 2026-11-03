@@ -1595,7 +1595,7 @@ impl State {
             other => return Err(invalid(format!("The recurrence range type '{other}' is not supported."))),
         }
         if let Some(zone) = range.get("recurrenceTimeZone")
-            && !zone.as_str().is_some_and(|zone| zone_offset(zone, 0).is_some())
+            && zone.as_str().is_none_or(|zone| zone_offset(zone, 0).is_none())
         {
             return Err(refuse(400, "TimeZoneNotSupportedException", "The recurrenceTimeZone is not supported."));
         }

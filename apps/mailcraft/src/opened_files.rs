@@ -183,7 +183,9 @@ fn private_dirs(path: &Path) -> std::io::Result<()> {
 
 /// A new folder for this user only; an error if anything is there already.
 fn private_dir(path: &Path) -> std::io::Result<()> {
-    let mut builder = fs::DirBuilder::new();
+    let builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    let mut builder = builder;
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     builder.create(path)
