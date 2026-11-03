@@ -45,6 +45,7 @@ fn quixotic_to_archive(s: &mut Session) -> Id {
         conditions: vec![Condition::BodyContains("quixotic".into())],
         actions: vec![Action::MoveTo(archive)],
         stop: false,
+        ..Default::default()
     });
     archive
 }

@@ -98,3 +98,22 @@ fn resources() {
     let r = call(&mut s, 2, "resources/read", json!({"uri": "mailcraft://mailbox"}));
     assert!(r["result"]["contents"][0]["text"].as_str().unwrap().contains("accounts"));
 }
+
+#[test]
+fn list_tasks_shows_every_account_whatever_the_window_shows() {
+    let allow = vec![crate::Class::Accounts, crate::Class::Send];
+    let mut s = Server::new(Box::new(Headless::new(mailcraft_engine::Session::empty(), allow)));
+    let run = |s: &mut Server, command: &str, params: Value| tool(s, "execute", json!({"command": command, "params": params}));
+    let account = json!({"email": "work@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"});
+    let work = run(&mut s, "account.add", account)["id"].clone();
+    run(&mut s, "tasks.new", json!({"title": "In work", "account": work}));
+    run(&mut s, "tasks.new", json!({"title": "On this computer", "account": 0}));
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    let titles = |tasks: &Value| tasks["tasks"].as_array().unwrap().iter().map(|t| plain(&t["title"])).collect::<Vec<_>>();
+    let every = tool(&mut s, "list_tasks", json!({}));
+    assert_eq!(titles(&every).len(), 2, "{every}");
+    let here = tool(&mut s, "list_tasks", json!({"account": "here"}));
+    assert_eq!(titles(&here), ["On this computer"]);
+    let one = tool(&mut s, "list_tasks", json!({"account": work}));
+    assert_eq!(titles(&one), ["In work"]);
+}
