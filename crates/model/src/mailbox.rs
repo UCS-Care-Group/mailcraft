@@ -3145,9 +3145,8 @@ impl Mailbox {
         self.account_categories.retain(|account, _| own.contains(account));
         self.server_categories.retain(|account, _| own.contains(account));
         self.tidy_listed_twice();
-        // The owner's order names their own accounts, each once (#702): whatever else a file
-        // says there is dropped.
-        let own: HashSet<Id> = self.accounts.iter().filter(|a| !a.is_shared()).map(|a| a.id).collect();
+        // The owner's order names their own accounts (`own`, above), each once (#702): whatever
+        // else a file says there is dropped.
         let mut named = HashSet::new();
         let before = self.account_order.len();
         self.account_order.retain(|id| own.contains(id) && named.insert(*id));
