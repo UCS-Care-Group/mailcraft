@@ -364,6 +364,50 @@ fn a_refused_move_whose_original_was_deleted_elsewhere_stays_on_this_computer() 
     in_imported(&s, three, local);
 }
 
+/// Copied into another account, and the original then deleted for good, by the owner or by a rule
+/// that copies and then deletes (#566): the copy is all there is of it. Refused, it was taken away
+/// as a copy is, and the message was lost on both sides.
+#[test]
+fn a_refused_copy_whose_original_was_deleted_for_good_stays_on_this_computer() {
+    let in_imported = |s: &Session, id: Id, local: Id| {
+        let m = s.mailbox.message(id).unwrap();
+        let f = s.mailbox.folder(m.folder).unwrap();
+        assert_eq!((m.account, f.name.as_str(), m.body.text.as_str()), (local, "Imported", "Two, the whole of it."));
+        assert!(!s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { .. })), "{:?}", s.mailbox.queued);
+    };
+    // Into a Microsoft account, by the owner.
+    let (mut s, _, kept) = imap();
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    let copy = s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+    placed(&mut s, ms, OWNER, &[MessageOutcome::Refused { status: 403 }]);
+    in_imported(&s, copy, local);
+    // Into another IMAP account, by a rule that copies there and then deletes for good.
+    let (mut s, a, kept) = imap();
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let b = second_imap(&mut s);
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let rule = json!({"name": "Hand on", "account": a, "conditions": [{"type": "subjectContains", "value": "Two"}],
+        "actions": [{"type": "copyTo", "value": theirs}, {"type": "deleteForGood"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert!(!s.mailbox.messages.values().any(|m| m.account == a && m.subject == "Two"));
+    let copy = titled(&s, "Two");
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![copy], ..Default::default() }).unwrap();
+    in_imported(&s, copy, local);
+    // Its original still here: a refused copy is taken away again, as before.
+    let ms = microsoft(&mut s, "other@example.org");
+    let one = titled(&s, "One");
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [one], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    placed(&mut s, ms, "other@example.org", &[MessageOutcome::Refused { status: 403 }]);
+    assert!(s.mailbox.message(copy).is_none() && s.mailbox.message(one).is_some_and(|m| m.account == a));
+}
+
 #[test]
 fn a_refused_move_goes_back_to_the_folder_on_this_computer_it_came_from() {
     let (mut s, a, kept) = imap();

@@ -18,7 +18,8 @@
 //!   still is, as that server message, or to the folder on this computer it came from; a copy is
 //!   taken away here again (its source is where it was). Said once per run and kind, as other
 //!   refusals are (R3 spec S20). A move whose original was gone already is kept in a folder on
-//!   this computer: it is all there is of it.
+//!   this computer: it is all there is of it. So is a copy whose source was deleted for good here
+//!   meanwhile, by the owner or by a rule that copies and then deletes (#566).
 //! - **No answer**, or a shared mailbox's 403 that isn't "no access": it waits for the next run,
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
@@ -149,9 +150,9 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
         // Made, but which one isn't said: found by its marker next time.
         return false;
     }
-    let (copy, from) = match mb.queued.get(entry) {
-        Some(Queued::PlaceMessage { copy, from, .. }) => (*copy, *from),
-        _ => (false, None),
+    let (copy, from, taken_away) = match mb.queued.get(entry) {
+        Some(Queued::PlaceMessage { copy, from, source, .. }) => (*copy, *from, a_copy_of_one_here(mb, *copy, *source)),
+        _ => (false, None, false),
     };
     mb.queued.remove(entry);
     let to_name = folder_name(mb, account, &change.to, change.to_folder);
@@ -190,7 +191,7 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
             let Some(m) = mb.message(id) else { return true };
             let subject = m.subject.clone();
             refusals.note(if copy { Kind::Copy } else { Kind::Move }, why, &subject, to_name);
-            put_back(mb, id, copy, from);
+            put_back(mb, id, taken_away, from);
             true
         }
     }
@@ -204,7 +205,9 @@ pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id
         .queued
         .iter()
         .filter_map(|q| match q {
-            Queued::PlaceMessage { account, message, copy, from, .. } if going(mb, *account, *message) => Some((*message, *copy, *from)),
+            Queued::PlaceMessage { account, message, copy, from, source, .. } if going(mb, *account, *message) => {
+                Some((*message, a_copy_of_one_here(mb, *copy, *source), *from))
+            }
             _ => None,
         })
         .collect();
@@ -251,6 +254,14 @@ pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
         }
         super::account::original_goes(&mut s.mailbox, id);
     }
+}
+
+/// Whether a message waiting to be made elsewhere is a copy whose source is still here (`source`;
+/// one queued before #566 names none), which a refusal takes away. One whose source went
+/// meanwhile, deleted for good by its owner or by a rule that copies and then deletes, is all
+/// there is of it: refused, it is kept on this computer, as a move whose original is gone is.
+pub(crate) fn a_copy_of_one_here(mb: &Mailbox, copy: bool, source: Option<Id>) -> bool {
+    copy && source.is_none_or(|s| mb.message(s).is_some())
 }
 
 /// A message the destination wouldn't take: a move back to where its original still is, as that

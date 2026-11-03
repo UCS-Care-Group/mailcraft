@@ -1402,7 +1402,7 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
     for id in unplaced {
         let Some(at) = waiting(mb, *id).filter(|at| *at < mb.queued.len()) else { continue };
         let (copy, from) = match mb.queued.remove(at) {
-            Queued::PlaceMessage { copy, from, .. } => (copy, from),
+            Queued::PlaceMessage { copy, from, source, .. } => (super::graph_place::a_copy_of_one_here(mb, copy, source), from),
             _ => (false, None),
         };
         super::graph_place::put_back(mb, *id, copy, from);

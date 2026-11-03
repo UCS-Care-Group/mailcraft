@@ -755,6 +755,9 @@ pub enum Queued {
     /// account for an IMAP account's). `copy`: it was copied, and the message it was copied from
     /// is still where it was (a copy refused is taken away here again). `from`: the folder a
     /// moved message lay in when no server had it, where it goes back to when it is refused.
+    /// `source`: the message a copy was made from. Should that go meanwhile (deleted for good, by
+    /// its owner or by a rule that copies and then deletes, #566), the copy is all there is of
+    /// it, and a refused one is kept on this computer, as a move whose original is gone is.
     #[serde(rename_all = "camelCase")]
     PlaceMessage {
         account: Id,
@@ -764,6 +767,8 @@ pub enum Queued {
         copy: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<Id>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<Id>,
     },
 }
 
@@ -2174,7 +2179,7 @@ impl Mailbox {
             return;
         }
         let marker = self.place_marker(id, "");
-        self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None });
+        self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None, source: None });
     }
 
     /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
@@ -2317,7 +2322,7 @@ impl Mailbox {
             }
             m.server = None;
             m.lies_in(folder, to_account, uid, synced);
-            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from });
+            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from, source: None });
             return Ok(true);
         }
         if !self.is_graph(from_account) {
@@ -2402,7 +2407,7 @@ impl Mailbox {
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
-            self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None });
+            self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None, source: Some(id) });
             return Ok(new);
         }
         if from_account != to_account && self.puts_on_server(to_account) {
