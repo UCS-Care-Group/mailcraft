@@ -3982,8 +3982,8 @@ msgstr ""
 "Propriétés\n"
 "du dossier"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Volet des dossiers"
@@ -6285,6 +6285,12 @@ msgid ""
 msgstr ""
 "Déplacer\n"
 "le dossier"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Déplacer le compte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14025,6 +14031,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "une boîte aux lettres partagée conserve hors connexion autant de courrier que le compte par lequel elle est ouverte : indiquez ce compte"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "une boîte aux lettres partagée reste sous le compte par lequel elle est ouverte : déplacez ce compte"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14095,6 +14107,12 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "un compte ne peut pas être placé avant lui-même"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs

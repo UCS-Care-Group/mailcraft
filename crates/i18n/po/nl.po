@@ -4176,8 +4176,8 @@ msgstr ""
 "Map\n"
 "eigenschappen"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
@@ -6596,6 +6596,12 @@ msgid ""
 msgstr ""
 "Map\n"
 "verplaatsen"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Account verplaatsen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14764,6 +14770,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waarmee het is geopend: noem dat account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "een gedeeld postvak blijft onder het account waarmee het is geopend: verplaats dat account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14840,6 +14852,12 @@ msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door
 #, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een Exchange-serveraccount, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "een account kan niet vóór zichzelf worden gezet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
