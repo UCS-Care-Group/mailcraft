@@ -1082,8 +1082,9 @@ fn event_title(s: &Session, id: &str, params: &Value) -> String {
         let at = if start.is_empty() { String::new() } else { format!(" at {}", clip(start, 40)) };
         return format!("the new event {}{at}", quoted(title));
     }
-    // An answer to a meeting request in the mail is about the request (#553).
-    if params.get("message").is_some() {
+    // An answer to a meeting request in the mail is about the request (#553). Only the commands
+    // that read `message` act on it: the others act on `id`, so their question names that.
+    if matches!(id, "calendar.respond" | "calendar.propose") && params.get("message").is_some() {
         return match p::id_strict(params, "message").ok().flatten().and_then(|m| s.mailbox.message(m)) {
             Some(m) => format!("the meeting request {}", quoted(&m.subject)),
             None => "a meeting request".to_string(),
