@@ -373,3 +373,49 @@ fn a_refusal_from_before_the_owner_allowed_them_is_not_taken() {
     app.poll_tasks();
     assert_eq!(app.tasks.perm.get(&owner), None);
 }
+
+/// A synced to-do deleted in a window that has taken its first look.
+fn deleted_in_window() -> (MailApp, Jobs) {
+    let (mut app, owner, answers, jobs, _) = window();
+    let download = TasksDownload {
+        account: owner,
+        email: OWNER.into(),
+        complete: true,
+        lists: vec![RemoteTaskList { id: "L1".into(), complete: true, shared: false }],
+        tasks: vec![remote("t1", "Call Bo")],
+    };
+    answers.lock().unwrap().push_back(TasksResult { account: owner, download: Some(download), ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    let id = app.session.mailbox.tasks.values().find(|t| t.title == "Call Bo").map(|t| t.id).unwrap();
+    app.execute("tasks.delete", json!({"id": id})).unwrap();
+    assert!(app.session.can_undo());
+    (app, jobs)
+}
+
+#[test]
+fn undo_is_forgotten_when_the_job_carrying_a_delete_starts() {
+    let (mut app, jobs) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    assert!(app.tasks_tick_at(10_000.0));
+    assert_eq!(jobs.lock().unwrap().last().map(|j| j.2), Some(1));
+    assert!(!app.session.can_undo() && !app.session.undo());
+}
+
+#[test]
+fn undo_stays_while_no_job_can_start() {
+    // Offline: the delete waits here, and can still be undone.
+    let (mut app, jobs) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    app.session.prefs.offline = true;
+    let before = jobs.lock().unwrap().len();
+    assert!(!app.tasks_tick_at(10_000.0));
+    assert_eq!(jobs.lock().unwrap().len(), before);
+    assert!(app.session.can_undo());
+    // No host service: the same.
+    let (mut app, _) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    app.services.graph_tasks = None;
+    assert!(!app.tasks_tick_at(10_000.0));
+    assert!(app.session.can_undo());
+}

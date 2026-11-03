@@ -361,9 +361,12 @@ pub fn apply_tasks(s: &mut Session, download: &TasksDownload) -> Result<Merged, 
     Ok(merged)
 }
 
-/// The job that tells `upload` to the server starts (the window calls this as it does): a to-do
-/// deleted here and told there is gone from To Do, so going back to a mailbox from before would
-/// bring it back here alone, to be taken away again by the next read (#706). Not an undo step.
+/// Forget the undo history as the job that sends `upload` starts (the window calls this), when
+/// it carries a delete: the server is told to drop that to-do, and going back to a mailbox from
+/// before would bring it back here alone, to be taken away again by the next read (#706). Not an
+/// undo step. As for rules ([`super::rules_remote::mark_sent`]), a job that fails leaves the
+/// delete to be sent again, which forgets the history again; the whole history goes, not just
+/// the delete's step, as in [`apply_task_changes`].
 pub fn mark_sent(s: &mut Session, upload: &TasksUpload) {
     if upload.ops.iter().any(|op| op.kind == TaskOpKind::Delete) {
         s.forget_history();
