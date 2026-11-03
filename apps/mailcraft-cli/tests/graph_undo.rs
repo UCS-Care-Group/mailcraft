@@ -201,7 +201,7 @@ fn undoing_a_delete_for_good_says_it_cant_be_undone_here() {
     rig.run();
     assert!(rig.there("Gone for good").is_none());
     let undone = rig.undo();
-    assert_eq!(undone["notUndone"], json!(["'Gone for good' was deleted for good: that can't be undone here."]));
+    assert_eq!(undone["notUndone"], json!(["'Gone for good' was permanently deleted: that can't be undone here."]));
     assert!(rig.s.sync_status.contains("can't be undone here"), "{}", rig.s.sync_status);
     assert!(!rig.has("Gone for good"));
     let from = rig.asked();

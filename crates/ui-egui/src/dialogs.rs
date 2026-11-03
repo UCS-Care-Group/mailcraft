@@ -449,15 +449,15 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             let going: Vec<&mailcraft_model::Message> = ids.iter().filter_map(|id| mb.message(*id)).filter(|m| for_good(m)).collect();
             if going.is_empty() {
-                // (Once the owner said yes to it, it isn't asked again; Delete for Good still is, above.)
+                // (Once the owner said yes to it, it isn't asked again; Delete Permanently still is, above.)
                 let answered = params.get("conversation").and_then(Value::as_bool) == Some(true);
                 return (id == "mail.delete" && !answered).then(|| conversation_question(app, &ids)).flatten();
             }
             let n = going.len();
             let what = if n == 1 {
-                tl!("This message will be deleted for good.").to_string()
+                tl!("This message will be permanently deleted.").to_string()
             } else {
-                tln!(n, "{n} message will be deleted for good.", "{n} messages will be deleted for good.")
+                tln!(n, "{n} message will be permanently deleted.", "{n} messages will be permanently deleted.")
             };
             let text = if going.iter().any(|m| on_server(m.account)) {
                 let too = if n == 1 {
@@ -471,7 +471,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             // It goes ahead with what it counted, not with what the selection stands for when the
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
-            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
+            Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
@@ -483,9 +483,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let name = c.name();
             let name = name.trim();
             let what = if name.is_empty() {
-                tl!("This contact will be deleted for good.").to_string()
+                tl!("This contact will be permanently deleted.").to_string()
             } else {
-                crate::i18n::fmt(tl!("\"{name}\" will be deleted for good."), &[("name", name)])
+                crate::i18n::fmt(tl!("\"{name}\" will be permanently deleted."), &[("name", name)])
             };
             question(tl!("Delete Contact"), format!("{what} {}", tl!("Contacts don't go to Deleted Items.")), tl!("Delete"))
         }
@@ -494,7 +494,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             if mb.count(f.id) == 0 {
                 return None;
             }
-            let everything = crate::i18n::fmt(tl!("Everything in \"{folder}\" will be deleted for good."), &[("folder", crate::nav::folder_name(f))]);
+            let everything =
+                crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
             let text = format!("{everything}{}", server_too(on_server(f.account)));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }

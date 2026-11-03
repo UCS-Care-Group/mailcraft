@@ -45,7 +45,7 @@ USAGE:
   mailcraft-cli mcp [--connect HOST:PORT | --file F | --sample] [--files DIR] [--allow CLASS,...]
                                                 MCP server on stdio (headless, or bridged to the app).
                                                 Agents get only what the owner allows: files only
-                                                inside --files DIR; sending, deleting for good,
+                                                inside --files DIR; sending, deleting permanently,
                                                 accounts, the mailbox file and options are asked
                                                 about in the app (bridged) or refused (headless),
                                                 unless allowed with --allow send, delete, accounts,

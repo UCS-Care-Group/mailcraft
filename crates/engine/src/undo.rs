@@ -161,13 +161,13 @@ impl Said {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
-            [one] => lines.push(format!("'{}' was deleted for good: that can't be undone here.", shown(one))),
-            many => lines.push(format!("{} messages were deleted for good: that can't be undone here.", many.len())),
+            [one] => lines.push(format!("'{}' was permanently deleted: that can't be undone here.", shown(one))),
+            many => lines.push(format!("{} messages were permanently deleted: that can't be undone here.", many.len())),
         }
         match self.folders.as_slice() {
             [] => {}
-            [one] => lines.push(format!("The folder '{}' was deleted for good: that can't be undone here.", shown(one))),
-            many => lines.push(format!("{} folders were deleted for good: that can't be undone here.", many.len())),
+            [one] => lines.push(format!("The folder '{}' was permanently deleted: that can't be undone here.", shown(one))),
+            many => lines.push(format!("{} folders were permanently deleted: that can't be undone here.", many.len())),
         }
         match self.sent.as_slice() {
             [] => {}

@@ -614,7 +614,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
-        .checkbox(&mut in_window, tl!("Open replies and forwards in a new window"))
+        .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))
         .on_hover_text(tl!("Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."));
     app.hit.add("optionRepliesInWindow", 0, switch.rect);
     if switch.changed() {
