@@ -5780,10 +5780,11 @@ pub(crate) mod rules {
     }
 
     /// The accounts the dialog shows the rules of (#566): every account but a shared mailbox and
-    /// one of a kind this version doesn't know, with what it is called.
+    /// one of a kind this version doesn't know, with what it is called, in the order the owner
+    /// put them in the folder pane (#702).
     pub fn rule_accounts(mb: &Mailbox) -> Vec<(Id, String)> {
-        mb.accounts
-            .iter()
+        mb.accounts_in_order()
+            .into_iter()
             .filter(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown)
             .map(|a| (a.id, if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() }))
             .collect()
