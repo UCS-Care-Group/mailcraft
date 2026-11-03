@@ -2206,10 +2206,11 @@ fn copied_and_deleted(s: &mut Session, id: Id, to: Id) {
 }
 
 /// #765 small check: the same within one Microsoft account, a copy into another of its folders.
-/// Deleted on a phone while its delete for good here waited for the copy (said as removed, or
-/// left out of a fresh listing), which is then refused or answered with "no such message", or
-/// put back after a refusal and then deleted there: either way the message stays, on this
-/// computer, whole, and isn't swept away with its server's.
+/// Deleted on a phone while its delete for good here waited for the copy (said as removed, left
+/// out of a fresh listing, or not seen yet), and the copy then refused or answered with "no such
+/// message"; or put back after a refusal and then deleted there: either way the message stays,
+/// on this computer, whole, and isn't swept away with its server's. After "no such message" the
+/// delete still goes, as the owner asked (the server says whether anything was left).
 #[test]
 fn a_refused_copy_within_microsoft_whose_original_went_on_a_phone_keeps_the_message() {
     let refused = MessageOutcome::Refused { status: 403 };
@@ -2242,7 +2243,48 @@ fn a_refused_copy_within_microsoft_whose_original_went_on_a_phone_keeps_the_mess
         let local = s.mailbox.local_account();
         assert_eq!(where_titled(&s, "Receipt"), [(local, "Imported".to_string(), 0, None)], "{phone}, {answer:?}");
         assert!(s.mailbox.messages.values().any(|m| m.subject == "Receipt" && m.body.text == "Paid."));
-        assert!(graph_mail_request(&s, ms).unwrap().messages.is_empty(), "nothing more goes to the server");
+        let left = graph_mail_request(&s, ms).unwrap().messages;
+        match answer {
+            MessageOutcome::Gone => assert_eq!(left, [MessageChange::Delete { id: "AAkA7".into() }]),
+            _ => assert!(left.is_empty(), "nothing more goes to the server: {left:?}"),
+        }
+    }
+}
+
+/// #765 small check: the copy moved on by the owner (into a folder on this computer, or into
+/// another Microsoft account) while it was on its way to its folder, and then refused or answered
+/// with "no such message": it stays where the owner put it, and still goes to the other account.
+#[test]
+fn a_copy_moved_on_while_on_its_way_stays_where_the_owner_put_it() {
+    for answer in [MessageOutcome::Gone, MessageOutcome::Refused { status: 403 }] {
+        for into_other in [true, false] {
+            let mut s = Session::empty();
+            let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+            let ms = microsoft(&mut s, OWNER);
+            let other = microsoft(&mut s, "other@example.org");
+            let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+            let m = receipt(&mut s, ms, "AAkA7");
+            copied_and_deleted(&mut s, m, archive);
+            let change = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+            let MessageChange::Copy { copy, .. } = &change else { panic!() };
+            let copy = *copy;
+            let to = if into_other {
+                s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap()
+            } else {
+                s.run("folder.new", &json!({"account": local, "name": "Saved"})).unwrap()["id"].as_u64().unwrap()
+            };
+            s.run("mail.move", &json!({"ids": [copy], "folder": to})).unwrap();
+            let messages = vec![MessageChangeDone { change, outcome: answer.clone(), there: None }];
+            apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, ..Default::default() }).unwrap();
+            let said = format!("{answer:?}, into another account: {into_other}");
+            assert_eq!(s.mailbox.message(copy).map(|m| m.folder), Some(to), "{said}");
+            if into_other {
+                assert_eq!(graph_mail_request(&s, other).unwrap().places.len(), 1, "it still goes to the other account's server: {said}");
+            }
+            // Refused, the original the server still has comes back too; gone, its delete goes.
+            let back = s.mailbox.messages.values().any(|m| m.server.as_ref().is_some_and(|x| x.id == "AAkA7"));
+            assert_eq!(back, answer != MessageOutcome::Gone, "{said}");
+        }
     }
 }
 
