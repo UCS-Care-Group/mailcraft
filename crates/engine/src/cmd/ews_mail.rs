@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An Exchange server account kept in step through Exchange Web Services (#252), E1 and E6: the
-//! switch, and mail down.
+//! An Exchange server account kept in step through Exchange Web Services (#252), E1 and E6: mail
+//! down.
 //!
 //! As for IMAP, Microsoft Graph and JMAP, the engine never talks to a server: [`ews_mail_request`]
 //! (`sync.ewsRequest`) says what a run should read, a host that can reach the server does it
@@ -9,10 +9,6 @@
 //! (`sync.applyEws`) takes in what it brought back, piece by piece. The same goes for messages
 //! fetched whole: [`ews_fetch_request`] (`sync.ewsFetchRequest`) and [`apply_ews_fetch`]
 //! (`sync.applyEwsFetch`). All four are the host's side of a synchronisation, never an agent's.
-//!
-//! **The switch.** While the feature's switch is off ([`Session::ews`], set by the host from
-//! `MAILCRAFT_EWS=1`, never by a command's params) every one of them refuses with
-//! [`SWITCHED_OFF`].
 //!
 //! **Mail down, and changes up.** A run first takes up what was done here (folder changes, message
 //! changes, drafts, what waits in the Outbox: the same pieces as a Microsoft account's, worked out
@@ -49,62 +45,36 @@ use super::sync_progress::{self, Piece};
 use super::{bad, ews_down, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
-/// What a build says while Exchange server accounts are off ([`Session::ews`]).
-pub const SWITCHED_OFF: &str = "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them";
-
 /// What a piece is refused with when the account would keep more sync state than is taken in.
 /// Most folders a run names as unreadable in its lines (the rest are counted in the log).
 const MAX_BLOCKED_SHOWN: usize = 8;
 const STATES_TOO_LARGE: &str = "the result would make this account keep more sync state than is taken in";
 
-/// Whether a message may be queued in the Outbox of an account of this kind, to be sent by the
-/// next Send/Receive. The one place that says so, for a message being written, an answer to a
-/// meeting and a forwarded meeting alike: an account whose kind sends no mail, or whose sending is
-/// off, has nowhere for the message, and an Outbox would keep it for ever.
-pub(crate) fn can_queue_mail(s: &Session, kind: AccountKind) -> bool {
-    kind.sends_mail() && (!kind.needs_switch() || s.ews)
-}
-
-/// Why a message can't be queued for an account of this kind ([`can_queue_mail`]), in words that
-/// follow "…: send it from another account". For a kind that has a server; the same words as ever
-/// for a JMAP account.
-pub(crate) fn not_sending_text(_s: &Session, kind: AccountKind) -> &'static str {
-    match kind {
-        AccountKind::Exchange => SWITCHED_OFF,
-        _ => mailcraft_model::NOT_SENDING_YET,
-    }
-}
-
 /// Why an Exchange server account is not sent and received as an IMAP account is, in words for a
 /// log or a command's error.
-pub fn refusal_text(s: &Session) -> &'static str {
-    if s.ews { "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is" } else { SWITCHED_OFF }
-}
+pub const NOT_IMAP: &str = "an Exchange server account is sent and received through Exchange Web Services, not as an IMAP account is";
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.ewsRequest", "Send/Receive with Exchange Web Services", "Send / Receive", request)
             .pure()
-            .params(r#"{"account"?: number, "light"?: bool (the Inbox and the folder on screen only), "inboxPass"?: bool (the Inbox alone), "background"?: bool} — for an Exchange server account: answers what a host should read there. Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#)
+            .params(r#"{"account"?: number, "light"?: bool (the Inbox and the folder on screen only), "inboxPass"?: bool (the Inbox alone), "background"?: bool} — for an Exchange server account: answers what a host should read there."#)
             .when(available),
         CommandSpec::new("sync.applyEws", "Apply Send/Receive with Exchange Web Services", "Send / Receive", apply)
             .pure()
-            .params(r#"{"result": EwsMailResult} — takes in what a host read from an Exchange server account. Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#),
+            .params(r#"{"result": EwsMailResult} — takes in what a host read from an Exchange server account."#),
         CommandSpec::new("sync.ewsFetchRequest", "Download Exchange Messages in Full", "Send / Receive", fetch_request)
             .pure()
-            .params(r#"{"account"?: number, "message"?: number (one message, at once), "most"?: number (default 10)} — answers which messages of an Exchange server account a host should fetch whole: the one asked for, or the next ones in the background (within the account's mail to keep offline and its Download messages in full). Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#)
+            .params(r#"{"account"?: number, "message"?: number (one message, at once), "most"?: number (default 10)} — answers which messages of an Exchange server account a host should fetch whole: the one asked for, or the next ones in the background (within the account's mail to keep offline and its Download messages in full)."#)
             .when(available),
         CommandSpec::new("sync.applyEwsFetch", "Apply Downloaded Exchange Messages", "Send / Receive", apply_fetch)
             .pure()
-            .params(r#"{"result": GraphFetchResult} — takes in messages a host fetched whole from an Exchange server account. Only while Exchange server accounts are being tested (MAILCRAFT_EWS=1)"#),
+            .params(r#"{"result": GraphFetchResult} — takes in messages a host fetched whole from an Exchange server account."#),
     ]
 }
 
-/// Why the commands are out of reach, when they are: the switch is off, or no account is one.
+/// Why the commands are out of reach, when they are: no account is an Exchange server account.
 fn available(s: &Session) -> Option<&'static str> {
-    if !s.ews {
-        return Some(SWITCHED_OFF);
-    }
     if s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Exchange) { None } else { Some("no account is an Exchange server account") }
 }
 
@@ -202,9 +172,6 @@ pub fn ews_inbox_request(s: &Session, account: Id) -> Option<EwsMailRequest> {
 }
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     let account = named_account(s, v)?;
     let mut request = if p::bool(v, "inboxPass").unwrap_or(false) {
         ews_inbox_request(s, account).ok_or_else(|| fail("the Inbox of this account hasn't been read yet"))?
@@ -251,18 +218,12 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     let account = named_account(s, v)?;
     let most = p::id(v, "most").and_then(|n| usize::try_from(n).ok()).unwrap_or(10);
     serde_json::to_value(ews_fetch_request(s, account, p::id(v, "message"), most)?).map_err(|e| fail(e.to_string()))
 }
 
 fn apply(s: &mut Session, v: &Value) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     // What comes back is hostile: read as the type says, or refused, whatever it holds.
     let result = v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?;
     let result: EwsMailResult = serde_json::from_value(result).map_err(|_| fail("`result` isn't an Exchange Send/Receive result"))?;
@@ -270,9 +231,6 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     let result = v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?;
     let result: GraphFetchResult = serde_json::from_value(result).map_err(|_| fail("`result` isn't a fetch result"))?;
     apply_ews_fetch(s, result)
@@ -311,16 +269,13 @@ pub fn apply_ews_mail(s: &mut Session, result: EwsMailResult) -> CmdResult {
     let account = result.account;
     let taken = take_in(s, result);
     // A piece that was refused is a piece lost: the end of its run removes nothing.
-    if taken.is_err() && s.ews {
+    if taken.is_err() {
         s.ews_run_cut.insert(account);
     }
     taken
 }
 
 fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
     let name = receiving(&s.mailbox, account, &result.email, &result.url)?;
@@ -502,9 +457,6 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
 /// gone), and the background doesn't ask for it again this session; nor for one the server
 /// wouldn't give, as for Graph.
 pub fn apply_ews_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
-    if !s.ews {
-        return Err(fail(SWITCHED_OFF));
-    }
     let account = result.account;
     receiving(&s.mailbox, account, &result.email, "")?;
     let result = ews_down::bounded_fetch(result);

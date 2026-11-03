@@ -164,8 +164,7 @@ pub(crate) fn file_name(app: &MailApp) -> String {
 /// the first that does (never a shared mailbox, which sends only with a permission of its own).
 fn sender(app: &MailApp) -> Option<mailcraft_model::Id> {
     let mb = &app.session.mailbox;
-    // (Not an Exchange server account's, which sends nothing yet, #252.)
-    let sends = |a: &&mailcraft_model::Account| a.kind.sends_mail() && !a.kind.needs_switch() && !a.is_shared();
+    let sends = |a: &&mailcraft_model::Account| a.kind.sends_mail() && !a.is_shared();
     let in_view = mb.folder(app.session.view.folder).and_then(|f| mb.account(f.account)).filter(sends);
     in_view.or_else(|| mb.accounts.iter().find(sends)).map(|a| a.id)
 }

@@ -25,6 +25,8 @@
 
 pub(crate) mod colors;
 #[cfg(test)]
+mod colors_strong_tests;
+#[cfg(test)]
 mod header_tests;
 pub(crate) mod images;
 #[cfg(test)]
@@ -564,7 +566,8 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         }
     }
     // The rest of the conversation, to jump to.
-    let thread = app.session.mailbox.conversation(m.id);
+    // (Worked out once per change to the mailbox, not at every frame.)
+    let thread = app.session.conversation(m.id);
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
             ui.label(

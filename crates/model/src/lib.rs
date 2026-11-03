@@ -10,6 +10,7 @@
 
 mod address;
 pub mod auth_results;
+pub mod auto_replies;
 mod calendar;
 pub mod confusables;
 mod contact;
@@ -49,9 +50,9 @@ pub use jmap_server::JmapServer;
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
-    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind,
-    GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth,
-    OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
+    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
+    FolderCounts, FolderKind, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET,
+    NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -128,6 +129,8 @@ pub(crate) mod b64 {
     }
 }
 
+#[cfg(test)]
+mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]

@@ -30,22 +30,6 @@ const MAX_PEOPLE: usize = 500;
 /// Most appointments a search answers with.
 const MAX_FOUND: usize = 500;
 
-/// The commands beyond [`LEAVING`](crate::cmd::compose::LEAVING) that start a new message, as
-/// `mail.new` does, and so close the one being written: what isn't saved of it goes to Drafts
-/// first, or the owner is asked, as for those (#442, #494).
-pub const STARTS_MESSAGE: [&str; 5] =
-    ["calendar.email", "calendar.contactAttendees", "calendar.respondEmail", "people.forward", "tasks.statusReport"];
-
-/// Whether `id` is one of [`STARTS_MESSAGE`].
-pub fn starts_message(id: &str) -> bool {
-    STARTS_MESSAGE.contains(&id)
-}
-
-/// [`saves_first`](crate::cmd::compose::saves_first) for [`STARTS_MESSAGE`]: as for `mail.new`.
-pub fn saves_first(s: &Session, id: &str, params: &Value) -> bool {
-    starts_message(id) && crate::cmd::compose::saves_first(s, "mail.new", params)
-}
-
 /// The parameters of a summary, for both commands that make one.
 macro_rules! range {
     () => {
@@ -57,11 +41,11 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.email", "Email Calendar", "Home › Share", email)
             .pure()
-            .params(concat!("{", range!(), r#", "ics"?: bool (an iCalendar file of the same goes along; default true), "discard"?: true} — starts a new message with a summary of those days in it, for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)),
+            .params(concat!("{", range!(), r#", "ics"?: bool (an iCalendar file of the same goes along; default true), "discard"?: true} — starts a new message with a summary of those days in it, for the owner to address and send; nothing is sent (a message being written stays open beside it; `discard` is no longer needed and changes nothing)"#)),
         CommandSpec::new("insert.calendar", "Calendar", "Insert › Include", insert)
             .pure()
             .params(concat!("{", range!(), "} — puts the summary into the message being written, where the caret is"))
-            .when(needs_compose),
+            .when_writing(needs_compose),
         CommandSpec::new("calendar.contactAttendees", "Contact Attendees", "Meeting › Attendees", contact_attendees)
             .pure()
             .params(r#"{"id"?: number (default: the selected appointment), "discard"?: true} — starts a new message to its organizer and everyone invited, but the owner; nothing is sent"#)
@@ -323,11 +307,12 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
     let lang = s.interface_language;
     let text = summary.text(s);
     let ics = attach.then(|| summary.ics(s));
-    s.run("mail.new", &json!({"subject": summary.subject(lang), "body": text, "discard": p::bool(v, "discard") == Some(true)}))?;
+    let compose = s.run("mail.new", &json!({"subject": summary.subject(lang), "body": text}))?["compose"].clone();
     if let Some(ics) = ics {
-        s.run("compose.attach", &json!({"name": "calendar.ics", "data": base64_encode(ics.as_bytes()), "mime": "text/calendar"}))?;
+        let file = json!({"name": "calendar.ics", "data": base64_encode(ics.as_bytes()), "mime": "text/calendar", "compose": compose});
+        s.run("compose.attach", &file)?;
     }
-    Ok(json!({"composing": true, "events": summary.len(), "detail": summary.detail().code(), "ics": attach}))
+    Ok(json!({"composing": true, "events": summary.len(), "detail": summary.detail().code(), "ics": attach, "compose": compose}))
 }
 
 /// Insert › Calendar: the summary, where the caret is in the message being written.
@@ -365,14 +350,14 @@ fn account_of(s: &Session, e: &Event) -> Option<Id> {
 }
 
 /// A new message about `e` to `to`, with `subject`.
-fn message_about(s: &mut Session, v: &Value, e: &Event, to: &[Address], subject: String) -> CmdResult {
+fn message_about(s: &mut Session, e: &Event, to: &[Address], subject: String) -> CmdResult {
     let line = to.iter().map(Address::full).collect::<Vec<_>>().join("; ");
-    let mut params = json!({"to": line, "subject": subject, "discard": p::bool(v, "discard") == Some(true)});
+    let mut params = json!({"to": line, "subject": subject});
     if let (Some(account), Some(fields)) = (account_of(s, e), params.as_object_mut()) {
         fields.insert("account".into(), json!(account));
     }
-    s.run("mail.new", &params)?;
-    Ok(json!({"composing": true, "to": to.len()}))
+    let compose = s.run("mail.new", &params)?["compose"].clone();
+    Ok(json!({"composing": true, "to": to.len(), "compose": compose}))
 }
 
 fn contact_attendees(s: &mut Session, v: &Value) -> CmdResult {
@@ -383,7 +368,7 @@ fn contact_attendees(s: &mut Session, v: &Value) -> CmdResult {
     if to.is_empty() {
         return Err(fail("nobody else is invited to this appointment"));
     }
-    message_about(s, v, &e, &to, one_line(&e.title, 200))
+    message_about(s, &e, &to, one_line(&e.title, 200))
 }
 
 /// `RE: title`, unless it says so already.
@@ -403,7 +388,7 @@ fn respond_email(s: &mut Session, v: &Value) -> CmdResult {
     let organizer = e.organizer.as_ref().filter(|o| o.is_valid() && !own(s, o)).ok_or_else(|| fail("this meeting has no organizer to write to"))?;
     let rest = e.attendees.iter().map(|a| &a.address).filter(|_| all);
     let to = others(s, std::iter::once(organizer).chain(rest));
-    message_about(s, v, &e, &to, re(&e.title))
+    message_about(s, &e, &to, re(&e.title))
 }
 
 fn response_code(r: Response) -> &'static str {

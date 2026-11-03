@@ -20,7 +20,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"id"?: number, …the fields of people.new}"#)
             .selection(needs_contact),
         CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
-        CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null}"#),
+        CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
         CommandSpec::new("people.list", "List Contacts", "People", list).pure().params(r#"{"query"?: string}"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
@@ -33,14 +33,14 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
         CommandSpec::new("people.email", "Email", "Home › Communicate", email)
             .pure()
-            .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.meeting", "Meeting", "Home › Communicate", meeting)
             .params(r#"{"id"?: number (the contact; default: the selected one), …the fields of calendar.newMeeting} — a new meeting with the contact invited, beside anyone "attendees" names: calendar.newMeeting, with its rules ("send": true invites them by mail from an account's calendar)"#)
             .selection(needs_contact),
         CommandSpec::new("people.forward", "Forward Contact", "Home › Share", forward)
             .pure()
-            .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one)"#)
@@ -48,7 +48,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ONE: &str = r#"{"id"?: number} (default: the selected contact)"#;
+const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
 const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool}"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
@@ -56,7 +56,7 @@ fn needs_contact(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
     s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
@@ -222,7 +222,9 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    s.sel.contact = match p::id(v, "id") {
+    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
+    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
+    s.sel.contact = match named {
         Some(id) => Some(s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))?),
         None => None,
     };
@@ -281,12 +283,12 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn email(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
-    // (What is written is saved first, or let go of, as the caller said: `saves_first`.)
-    s.run("mail.new", &json!({"to": to.full(), "discard": p::bool(v, "discard") == Some(true)}))
+    // (Beside a message being written, which stays open, saved first: #286.)
+    s.run("mail.new", &json!({"to": to.full()}))
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));
@@ -356,7 +358,10 @@ fn forward(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let card = mailcraft_vcard::write(&[&c]);
     let subject = mailcraft_names::shown(&c.name(), 200);
-    s.run("mail.new", &json!({"subject": subject, "discard": p::bool(v, "discard") == Some(true)}))?;
-    s.run("compose.attach", &json!({"name": card_name(&c), "data": super::base64_encode(card.as_bytes()), "mime": "text/vcard"}))?;
-    Ok(json!({"composing": true, "contact": id}))
+    let compose = s.run("mail.new", &json!({"subject": subject}))?["compose"].clone();
+    s.run(
+        "compose.attach",
+        &json!({"name": card_name(&c), "data": super::base64_encode(card.as_bytes()), "mime": "text/vcard", "compose": compose}),
+    )?;
+    Ok(json!({"composing": true, "contact": id, "compose": compose}))
 }

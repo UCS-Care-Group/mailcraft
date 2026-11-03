@@ -32,6 +32,8 @@ mod hidden_text_tests;
 #[cfg(test)]
 mod private_headers_tests;
 #[cfg(test)]
+mod read_receipt_tests;
+#[cfg(test)]
 mod tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};

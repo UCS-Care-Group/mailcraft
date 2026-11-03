@@ -58,7 +58,7 @@ fn several_go_each_whole_as_an_eml_in_the_lists_order() {
         // Clicked in another order than the list's, the focus on the middle one.
         select(&mut s, &[c, a, b]);
         let r = s.run(command, &json!({})).unwrap();
-        assert_eq!(r, json!({"composing": true, "mode": "forward"}), "{command}");
+        assert_eq!(r, json!({"composing": true, "mode": "forward", "compose": 1}), "{command}");
         let compose = s.compose.as_ref().unwrap();
         assert_eq!((compose.mode, compose.source, compose.also.as_slice()), (ComposeMode::Forward, Some(b), &[a, c][..]), "{command}");
         assert!(compose.as_attachment, "{command}");

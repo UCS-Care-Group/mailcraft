@@ -2296,6 +2296,15 @@ fn parity_has_a_floor_that_only_rises() {
         assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
     }
     assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
+    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
+    for (id, why) in catalog::OUT_OF_SCOPE {
+        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
+        assert!(!why.is_empty());
+        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
+        assert!(!listed("missing"), "{id} isn't missing");
+        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
+    }
+    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
 }
 
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
@@ -2395,9 +2404,8 @@ fn hostile_params_never_panic() {
     }}));
     junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
     junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
-    // And an Exchange server account (#252), with the switch on, so that its commands get past the
-    // door too: answers that name it with nothing that makes sense, and settings that are none.
-    s.ews = true;
+    // And an Exchange server account (#252), so that its commands get past the door too: answers
+    // that name it with nothing that makes sense, and settings that are none.
     let url = "https://exchange.example.org/EWS/Exchange.asmx";
     let ews = json!({"email": "ews@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ews"}});
     let ews = s.run("account.add", &ews).unwrap()["id"].as_u64().unwrap();
@@ -2411,6 +2419,15 @@ fn hostile_params_never_panic() {
     junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
     junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
     junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Several messages being written (#286): ids of messages being written that are none, of
+    // another kind, the largest there is, and ones open beside others.
+    junk.push(json!({"compose": null, "text": "x"}));
+    junk.push(json!({"compose": "1", "from": 0, "to": 1e300}));
+    junk.push(json!({"compose": -1, "discard": true}));
+    junk.push(json!({"compose": 18446744073709551615u64, "body": "\u{0}"}));
+    junk.push(json!({"compose": [1], "id": 1}));
+    junk.push(json!({"compose": 1, "subject": "\r\nBcc: x@example.org", "discard": true}));
+    junk.push(json!({"compose": 2, "text": "x".repeat(10_000), "from": 18446744073709551615u64}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {
@@ -2426,6 +2443,8 @@ fn hostile_params_never_panic() {
                 let _ = s.run("file.new", &json!({"sample": true}));
                 let first = s.rows().first().map(|r| r.id).unwrap_or(0);
                 let _ = s.run("mail.select", &json!({"id": first}));
+                let _ = s.run("mail.new", &json!({}));
+                // And another beside it, so that `compose` names one that isn't current.
                 let _ = s.run("mail.new", &json!({}));
                 let e = s.mailbox.events.keys().next().copied().unwrap_or(0);
                 let _ = s.run("calendar.select", &json!({"id": e}));

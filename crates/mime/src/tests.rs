@@ -516,6 +516,7 @@ fn message() -> impl Strategy<Value = Message> {
             read,
             flag,
             importance,
+            read_receipt: false,
             categories,
             answered,
             headers,

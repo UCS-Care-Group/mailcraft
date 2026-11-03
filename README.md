@@ -2,7 +2,7 @@
 
 # MailCraft
 
-<img src="assets/app-icon/hicolor/128x128/apps/io.github.billsecond.mailcraft.png" width="96" alt="The MailCraft icon: a carrier pigeon with a sealed letter in its beak">
+<img src="assets/app-icon/hicolor/128x128/apps/io.github.billsecond.mailcraft.png" width="96" alt="The MailCraft icon: an envelope that is also a calendar page, on a blue tile">
 
 **An open-source mail, calendar, contacts and tasks program, written from scratch in Rust.**
 

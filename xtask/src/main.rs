@@ -39,7 +39,7 @@ commands:
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
-  icon            draw the app icon (original artwork, in code) into assets/app-icon
+  icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;

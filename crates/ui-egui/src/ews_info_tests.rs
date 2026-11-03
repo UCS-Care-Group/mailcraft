@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Exchange server accounts, the skeleton (#252): File › Info says why one isn't kept in step, and
-//! no Send/Receive of the window takes it in.
+//! Exchange server accounts, the skeleton (#252): File › Info says where one connects, and no
+//! Send/Receive of a window whose host doesn't run Exchange Web Services takes it in.
 
 use mailcraft_engine::Session;
 use mailcraft_model::{Account, AccountKind, EwsServer, Id};
@@ -11,9 +11,8 @@ use crate::{MailApp, Services};
 
 const NOW: i64 = 1_791_993_600;
 
-fn app(ews: bool) -> (MailApp, Id, Id) {
-    let mut session = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
-    session.ews = ews;
+fn app() -> (MailApp, Id, Id) {
+    let session = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
     let mut a = MailApp::new(session, Services::default());
     a.autosave = false;
     let imap =
@@ -25,19 +24,15 @@ fn app(ews: bool) -> (MailApp, Id, Id) {
 }
 
 #[test]
-fn file_info_says_why_an_exchange_account_is_not_kept_in_step() {
-    let (a, _, id) = app(false);
-    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
-    assert!(card.starts_with("Exchange server mail.example.org") && card.contains("MAILCRAFT_EWS=1"), "{card}");
-    assert!(!card.contains("Exchange.asmx") && !card.contains(":444"), "{card}");
-    let (a, _, id) = app(true);
+fn file_info_names_an_exchange_accounts_server_alone() {
+    let (a, _, id) = app();
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
     assert_eq!(card, "Exchange server mail.example.org");
 }
 
 #[test]
 fn an_exchange_account_with_no_usable_address_says_so() {
-    let (mut a, _, id) = app(false);
+    let (mut a, _, id) = app();
     a.session.mailbox.account_mut(id).unwrap().ews = Some(EwsServer { url: "http://elsewhere.example/".into(), ..Default::default() });
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
     assert_eq!(card, "Exchange server · no usable server address");
@@ -47,7 +42,7 @@ fn an_exchange_account_with_no_usable_address_says_so() {
 /// account that names another server (a mailbox from a file, a changed setting) is not given it.
 #[test]
 fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address() {
-    let (a, imap, id) = app(true);
+    let (a, imap, id) = app();
     let exchange = a.session.mailbox.account(id).unwrap();
     let key = MailApp::secret_key("password", exchange);
     assert_eq!(key, "password:ada@exchange.example|ews=https://mail.example.org:444/EWS/Exchange.asmx|user=");
@@ -69,16 +64,14 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
 }
 
 #[test]
-fn no_send_receive_of_the_window_takes_an_exchange_account_in() {
-    for on in [false, true] {
-        let (a, imap, _) = app(on);
-        assert_eq!(a.server_accounts(), vec![imap], "switch {on}");
-    }
+fn no_send_receive_of_a_window_without_the_hosts_runner_takes_an_exchange_account_in() {
+    let (a, imap, _) = app();
+    assert_eq!(a.server_accounts(), vec![imap]);
 }
 
 #[test]
 fn file_info_names_the_folders_the_last_run_could_not_read() {
-    let (mut a, _, id) = app(true);
+    let (mut a, _, id) = app();
     a.ews_unreadable.insert(id, vec!["Inbox".into(), "Apollo".into()]);
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
     assert!(card.starts_with("Exchange server mail.example.org") && card.ends_with("couldn't be read in the last run: Inbox, Apollo"), "{card}");
@@ -90,7 +83,7 @@ fn file_info_names_the_folders_the_last_run_could_not_read() {
 
 #[test]
 fn the_folders_a_run_could_not_read_go_with_the_mailbox_that_is_replaced() {
-    let (mut a, _, id) = app(true);
+    let (mut a, _, id) = app();
     a.ews_unreadable.insert(id, vec!["Inbox".into()]);
     a.drop_secrets_if_replaced();
     assert!(!a.ews_unreadable.is_empty(), "kept while the mailbox stays");

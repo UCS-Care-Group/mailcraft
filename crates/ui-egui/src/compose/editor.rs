@@ -60,22 +60,36 @@ pub enum Which {
 }
 
 impl Which {
-    fn id(self) -> egui::Id {
+    fn id(self, app: &MailApp) -> egui::Id {
         match self {
-            Which::Message => id(),
+            Which::Message => id(app),
             Which::Signature => egui::Id::unique("mailcraft-signature-body"),
         }
     }
 }
 
-/// The body's id: what has the keyboard when it does.
-pub fn id() -> egui::Id {
-    egui::Id::unique("mailcraft-compose-body")
+/// The id of the body of the message being written `compose`: what has the keyboard when it
+/// does. Each message has its own (#286), so that two never share a caret, a layout or the keyboard.
+pub fn id_of(compose: u64) -> egui::Id {
+    egui::Id::unique("mailcraft-compose-body").with(compose)
 }
 
-/// Whether the body (or a signature being edited) has the keyboard.
+/// The body's id of the current message being written.
+pub fn id(app: &MailApp) -> egui::Id {
+    id_of(app.session.compose_id().unwrap_or_default())
+}
+
+/// What marks the id of a body drawn (of any message being written, or of a signature).
+const BODY: &str = "mailcraft-body";
+
+/// Whether `id` is the body of a message being written, or of a signature being edited.
+pub fn is_body(ctx: &egui::Context, id: egui::Id) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(id.with(BODY))).unwrap_or(false)
+}
+
+/// Whether a body (of a message being written, or of a signature being edited) has the keyboard.
 pub fn has_focus(ctx: &egui::Context) -> bool {
-    ctx.memory(|m| m.has_focus(id()) || m.has_focus(Which::Signature.id()))
+    ctx.memory(|m| m.focused()).is_some_and(|id| is_body(ctx, id))
 }
 
 /// The key a command has in the body (shown in tooltips and menus). They are not the registry's
@@ -461,14 +475,14 @@ fn pictures_key(pictures: &[Picture]) -> u64 {
 }
 
 /// The layout of the body, kept from frame to frame.
-fn store(ctx: &egui::Context, which: Which) -> Arc<Mutex<Layout>> {
-    ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(which.id().with("layout")).clone())
+fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
+    ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
-/// How many paragraphs of the body were laid out since the window opened, for tests.
+/// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
-pub(crate) fn laid(ctx: &egui::Context) -> usize {
-    store(ctx, Which::Message).lock().map_or(0, |l| l.laid)
+pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
+    store(ctx, id(app)).lock().map_or(0, |l| l.laid)
 }
 
 /// What the body remembers between frames besides its layout.
@@ -558,7 +572,8 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, min_height: f32, take_focus: 
 pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height: f32, take_focus: bool) {
     let ctx = ui.ctx().clone();
     let t = Tokens::get(&ctx);
-    let id = which.id();
+    let id = which.id(app);
+    ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
     let width = ui.available_width().max(40.0);
     let Some((_, plain)) = now(app, which) else { return };
     let editable = which == Which::Signature || app.session.signature_edit.is_none();
@@ -571,7 +586,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         pictures: pictures_key(&shown),
         families: ctx.fonts(|f| f.families().len()),
     };
-    let store = store(&ctx, which);
+    let store = store(&ctx, id);
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
     let resync = |layout: &mut Layout, app: &MailApp| {
         if let Some((b, _)) = body(app, which) {
@@ -593,7 +608,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // Changed since the last frame, by a command from elsewhere (an agent's or a script's
     // `compose.select`, the ribbon's): not selected by the owner here.
     own(app, which, &mut st, None);
-    if editable && (take_focus || (which == Which::Message && std::mem::take(&mut app.body_focus_wanted))) {
+    if editable && (take_focus || (which == Which::Message && app.take_body_focus())) {
         resp.request_focus();
     }
     let mut reveal = false;

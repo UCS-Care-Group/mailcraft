@@ -257,9 +257,7 @@ pub enum AccountKind {
     /// (Exchange Server, Grommunio, SmarterMail), kept in step over HTTPS alone, never by IMAP or
     /// SMTP (#252). Never a Microsoft 365 mailbox: that is a [`AccountKind::Microsoft`] account.
     /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
-    /// is never written anywhere. Works only while its switch is on
-    /// ([`AccountKind::needs_switch`]): switched off, an account of this kind in a mailbox opens
-    /// and shows its mail, but is not kept in step.
+    /// is never written anywhere.
     Exchange,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
@@ -284,13 +282,6 @@ impl AccountKind {
     /// would wait for ever.
     pub fn sends_mail(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
-    }
-
-    /// Whether the kind is kept in step only while its feature switch is on (`MAILCRAFT_EWS=1`,
-    /// #252: [`Session::ews`] in the engine). Switched off, an account of the kind opens and
-    /// shows its mail, and nothing is synchronised or sent for it.
-    pub fn needs_switch(self) -> bool {
-        matches!(self, AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server
@@ -1029,6 +1020,10 @@ pub const BETWEEN_MAILBOXES: &str =
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
+/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft or an Exchange
+/// server account's (#704): only Send sends.
+pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next Send/Receive would send it";
+
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
 
@@ -1080,6 +1075,22 @@ fn subject_said(m: &Message) -> String {
 /// Why a message can't go elsewhere before it is fetched whole.
 fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
+}
+
+/// Whether `x` is of the conversation whose key ([`Message::thread_key`]) is `key`, with a cheap
+/// no first: the topic is what is left of the subject once its prefixes are taken off, so an
+/// ASCII subject that doesn't end in the key (letter case aside; lower case keeps an ASCII text's
+/// length) isn't of it, and the key of one that might be is worked out, which takes a string.
+fn same_thread(x: &Message, key: &str) -> bool {
+    let s = x.subject.trim();
+    if s.is_ascii() && key.is_ascii() {
+        let ends_in_key =
+            s.len().checked_sub(key.len()).and_then(|at| s.as_bytes().get(at..)).is_some_and(|end| end.eq_ignore_ascii_case(key.as_bytes()));
+        if !ends_in_key {
+            return false;
+        }
+    }
+    x.thread_key() == key
 }
 
 impl Mailbox {
@@ -1876,6 +1887,14 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        // Moved in from another mailbox and not made on this account's server yet, it is mail from
+        // elsewhere still: not into an Outbox that would send it, as straight from there (#704).
+        if m.account == account
+            && self.sends_from(folder)
+            && self.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == id))
+        {
+            return Err(invalid(INTO_OUTBOX));
+        }
         if m.returned > 0 {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
@@ -2301,6 +2320,11 @@ impl Mailbox {
         if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
+        // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
+        // Send/Receive, and made on the server as well (#704): only Send sends.
+        if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
+            return Err(invalid(COPY_INTO_OUTBOX));
+        }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).
             if let Some(why) = Mailbox::not_whole(m, "copied", false) {
@@ -2438,10 +2462,21 @@ impl Mailbox {
     /// The messages of the conversation `id` is part of (same account, same topic), oldest first.
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
-        let key = m.thread_key();
         let skips = self.conversation_skips(m.account, m.folder);
-        let mut v: Vec<&Arc<Message>> =
-            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
+        let among = self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account && !skips.contains(&x.folder));
+        self.conversation_among(m, among)
+    }
+
+    /// [`Mailbox::conversation`] of `m`, looked for among `among`: the messages of its account
+    /// but for those of the folders a conversation leaves out ([`Mailbox::conversation_skips`]),
+    /// for a caller that has them listed by folder and needn't walk every message.
+    pub fn conversation_among<'a>(&self, m: &Message, among: impl Iterator<Item = &'a Message>) -> Vec<Id> {
+        let key = m.thread_key();
+        // A message without a subject is a conversation of its own ([`Message::thread_key`]).
+        if key.starts_with('\0') {
+            return vec![m.id];
+        }
+        let mut v: Vec<&Message> = among.filter(|x| same_thread(x, &key)).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }

@@ -15,7 +15,6 @@ const URL: &str = "https://exchange.example.org/EWS/Exchange.asmx";
 
 fn session() -> (Session, Id) {
     let mut s = Session::empty();
-    s.ews = true;
     let added = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": URL}})).unwrap();
     (s, added["id"].as_u64().unwrap())
 }

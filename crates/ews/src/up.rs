@@ -310,6 +310,7 @@ impl<E: HttpExchange> Run<'_, E> {
             bcc: up.bcc.clone(),
             reply_to: up.reply_to.clone(),
             importance: up.importance,
+            read_receipt: up.read_receipt,
             ..ItemUpdate::default()
         };
         let op = UpdateItem::draft(&id, if adopted { "" } else { &key }, update);
@@ -360,6 +361,7 @@ impl<E: HttpExchange> Run<'_, E> {
             bcc: up.bcc.clone().unwrap_or_default(),
             reply_to: up.reply_to.clone().unwrap_or_default(),
             importance: up.importance.unwrap_or_default(),
+            read_receipt: up.read_receipt.unwrap_or_default(),
             attachments: here.clone(),
             marker: up.marker.clone(),
         };

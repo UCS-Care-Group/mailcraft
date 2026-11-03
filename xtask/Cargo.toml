@@ -7,8 +7,11 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true }
-# `cargo xtask icon` writes the app icon's PNGs.
+# `cargo xtask icon` renders the app icon's SVG (pure Rust; xtask only, the program never reads
+# the SVG) and writes its PNGs. resvg 0.45 shares tiny-skia 0.11 with the rest of the tree; the
+# icon needs no text, fonts or embedded pictures, so none of its default features.
 image = { workspace = true }
+resvg = { version = "0.45", default-features = false }
 # `cargo xtask release-key`: the ed25519 release signature, with the same crates the program
 # verifies it with (already in the tree through rustls), so the release build downloads no tool.
 ring = { workspace = true }

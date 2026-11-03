@@ -102,8 +102,7 @@ pub enum Kind {
     Other,
     /// A mailbox on this device, with no server.
     Local,
-    /// An Exchange server the owner's organisation runs itself (#252): offered only while
-    /// Exchange server accounts are being tested.
+    /// An Exchange server the owner's organisation runs itself (#252).
     Exchange,
 }
 
@@ -111,13 +110,11 @@ impl Kind {
     /// The kinds that have servers, in the order of their tiles.
     const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
 
-    /// The tiles of the Choose page: the kinds with servers, and the Exchange server only where
-    /// Exchange server accounts are on (an explicit choice: nothing detects it).
-    fn tiles(ews: bool) -> Vec<Kind> {
+    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
+    /// choice: nothing detects it).
+    fn tiles() -> Vec<Kind> {
         let mut tiles = Kind::HOSTED.to_vec();
-        if ews {
-            tiles.push(Kind::Exchange);
-        }
+        tiles.push(Kind::Exchange);
         tiles
     }
 
@@ -546,10 +543,9 @@ impl AccountSetup {
             // that exists and signs in with Microsoft (`ui.approvalHelp`).
             Some(id) if p.get("page").and_then(Value::as_str) == Some("approval") => AccountSetup::approval_for(app, id),
             // The certificate of an Exchange server account's server, asked about again (#252).
-            Some(id) if p.get("page").and_then(Value::as_str) == Some("certificate") && app.session.ews => AccountSetup::review_certificate(app, id),
+            Some(id) if p.get("page").and_then(Value::as_str) == Some("certificate") => AccountSetup::review_certificate(app, id),
             Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty() && !a.is_shared()).map(AccountSetup::edit),
             None if p.get("page").and_then(Value::as_str) == Some("exchange")
-                && app.session.ews
                 && address(&line(p.get("email").and_then(Value::as_str).unwrap_or_default(), LINE)).is_some() =>
             {
                 // An Exchange server account, asked for by name: straight to its page (#252).
@@ -1317,7 +1313,7 @@ impl AccountSetup {
         let action = match self.page {
             Page::Address => self.address_page(ui, &mut pass),
             Page::Detecting => waiting_page(ui, &pass, self.page, tl!("Finding your account settings…"), &shown(self.email.trim(), 120)),
-            Page::Choose => self.choose_page(ui, &pass, app.session.ews),
+            Page::Choose => self.choose_page(ui, &pass),
             Page::ApplicationId => self.application_id_page(ui, &mut pass),
             Page::SignIn if self.waiting => self.signing_in_page(app, ui, &pass),
             Page::SignIn => self.sign_in_ended_page(app, ui, &pass),
@@ -1363,7 +1359,7 @@ impl AccountSetup {
         (ready && (go || pass.submit)).then_some(Action::Go)
     }
 
-    fn choose_page(&mut self, ui: &mut Ui, pass: &Pass, ews: bool) -> Option<Action> {
+    fn choose_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let mut action = None;
         page(ui, &t, |ui| {
@@ -1372,7 +1368,7 @@ impl AccountSetup {
             ui.add_space(4.0);
             let gap = ui.spacing().item_spacing.x;
             let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-            for pair in Kind::tiles(ews).chunks(2) {
+            for pair in Kind::tiles().chunks(2) {
                 ui.horizontal(|ui| {
                     for kind in pair {
                         if tile(ui, *kind, half, &t).clicked() {

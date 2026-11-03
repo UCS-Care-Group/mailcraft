@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Add Account for an Exchange server account (#252, E7): an explicit choice behind the switch,
-//! nothing sent before Connect, the host's search with the owner's questions, the certificate
+//! Add Account for an Exchange server account (#252, E7): an explicit choice, nothing sent before Connect, the host's search with the owner's questions, the certificate
 //! question, a mailbox in Microsoft 365, the password remembered, and File › Info. The host is a
 //! stand-in that records the jobs it is given and says what the test tells it to; nothing here
 //! leaves the machine, and every name, address and fingerprint is invented.
@@ -109,9 +108,8 @@ impl SecretStore for Store {
     }
 }
 
-fn app(ews: bool) -> MailApp {
-    let mut session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
-    session.ews = ews;
+fn app() -> MailApp {
+    let session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
     (app.autosave, app.auto_sync) = (false, false);
     app
@@ -202,26 +200,23 @@ fn account(h: &Harness<'static, MailApp>) -> mailcraft_model::Account {
 }
 
 #[test]
-fn exchange_server_is_offered_only_while_the_switch_is_on_and_only_by_choice() {
-    for (ews, offered) in [(false, false), (true, true)] {
-        let mut a = app(ews);
-        Host::default().install(&mut a);
-        a.execute("ui.dialog", json!({"name": "account"})).unwrap();
-        let mut h = window(a);
-        type_text(&mut h, ME);
-        // Not detected from the address: Connect goes the way it always went.
-        click(&mut h, "Advanced options");
-        h.get_by_role_and_label(Role::CheckBox, "Let me set up my account manually").click();
-        h.run_steps(3);
-        click(&mut h, "Connect");
-        assert_eq!(page(&h), Some(Page::Choose));
-        assert_eq!(h.query_by_role_and_label(Role::Button, TILE).is_some(), offered, "switch {ews}");
-        assert!(h.query_by_role_and_label(Role::Button, "Other (IMAP)").is_some());
-    }
-    assert_eq!(Kind::tiles(false).len(), 6);
-    assert_eq!(Kind::tiles(true).last(), Some(&Kind::Exchange));
-    // An ordinary Connect, with the switch on, doesn't pick it.
-    let mut a = app(true);
+fn exchange_server_is_offered_only_by_choice() {
+    let mut a = app();
+    Host::default().install(&mut a);
+    a.execute("ui.dialog", json!({"name": "account"})).unwrap();
+    let mut h = window(a);
+    type_text(&mut h, ME);
+    // Not detected from the address: Connect goes the way it always went.
+    click(&mut h, "Advanced options");
+    h.get_by_role_and_label(Role::CheckBox, "Let me set up my account manually").click();
+    h.run_steps(3);
+    click(&mut h, "Connect");
+    assert_eq!(page(&h), Some(Page::Choose));
+    assert!(h.query_by_role_and_label(Role::Button, TILE).is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Other (IMAP)").is_some());
+    assert_eq!(Kind::tiles().last(), Some(&Kind::Exchange));
+    // An ordinary Connect doesn't pick it.
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     a.execute("ui.dialog", json!({"name": "account"})).unwrap();
@@ -234,7 +229,7 @@ fn exchange_server_is_offered_only_while_the_switch_is_on_and_only_by_choice() {
 
 #[test]
 fn nothing_is_sent_until_connect_and_the_server_is_found_from_the_address() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -264,7 +259,7 @@ fn nothing_is_sent_until_connect_and_the_server_is_found_from_the_address() {
 
 #[test]
 fn a_server_typed_in_server_settings_skips_the_search() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -287,7 +282,7 @@ fn a_server_typed_in_server_settings_skips_the_search() {
 
 #[test]
 fn an_address_that_is_not_https_is_refused_before_anything_is_sent() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -305,7 +300,7 @@ fn an_address_that_is_not_https_is_refused_before_anything_is_sent() {
 #[test]
 fn the_owner_is_asked_before_the_sign_in_goes_to_another_host() {
     for yes in [true, false] {
-        let mut a = app(true);
+        let mut a = app();
         let host = Host::default();
         host.install(&mut a);
         let mut h = to_the_form(a);
@@ -336,7 +331,7 @@ fn the_other_reasons_for_asking_are_said_in_plain_words() {
         (EwsConsentReason::OtherDomain, "asks to start again with an address in another domain, mail.other.example"),
         (EwsConsentReason::MailServer, "name mail.other.example, which isn't in your address's own domain, as the mail server"),
     ] {
-        let mut a = app(true);
+        let mut a = app();
         let host = Host::default();
         host.install(&mut a);
         let mut h = to_the_form(a);
@@ -349,7 +344,7 @@ fn the_other_reasons_for_asking_are_said_in_plain_words() {
 
 #[test]
 fn a_mailbox_in_microsoft_365_is_offered_as_a_microsoft_account_and_no_password_goes_anywhere() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -381,7 +376,7 @@ fn a_failure_is_a_sentence_to_act_on_with_server_settings_open() {
         EwsSetupFailure::NotExchange,
         EwsSetupFailure::Other,
     ] {
-        let mut a = app(true);
+        let mut a = app();
         let host = Host::default();
         host.install(&mut a);
         let mut h = to_the_form(a);
@@ -402,7 +397,7 @@ fn a_failure_is_a_sentence_to_act_on_with_server_settings_open() {
 
 #[test]
 fn a_host_that_stops_unexpectedly_is_told_and_nothing_is_added() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -415,7 +410,7 @@ fn a_host_that_stops_unexpectedly_is_told_and_nothing_is_added() {
 
 #[test]
 fn a_certificate_the_system_does_not_trust_is_shown_and_trusted_only_by_the_owners_tick() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -449,7 +444,7 @@ fn a_certificate_the_system_does_not_trust_is_shown_and_trusted_only_by_the_owne
 
 #[test]
 fn going_back_from_the_certificate_trusts_nothing() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -471,7 +466,7 @@ fn an_expired_certificate_is_never_offered_for_trust() {
         (EwsCertificateFault::NotYetValid, "isn't valid yet"),
         (EwsCertificateFault::WrongName, "is for another server's name"),
     ] {
-        let mut a = app(true);
+        let mut a = app();
         let host = Host::default();
         host.install(&mut a);
         let mut h = to_the_form(a);
@@ -487,7 +482,7 @@ fn an_expired_certificate_is_never_offered_for_trust() {
 
 /// An Exchange server account that trusts a certificate, in the window.
 fn trusting(host: &Host) -> (MailApp, Id) {
-    let mut a = app(true);
+    let mut a = app();
     host.install(&mut a);
     let server = mailcraft_model::EwsServer { url: URL.into(), trusted: "ab".repeat(32), ..Default::default() };
     let id = a.session.mailbox.add_account(Account { email: ME.into(), kind: AccountKind::Exchange, ews: Some(server), ..Default::default() });
@@ -550,7 +545,7 @@ fn a_certificate_that_is_fine_again_needs_no_say_and_one_that_cannot_be_trusted_
 
 #[test]
 fn giving_up_calls_the_job_off_and_nothing_is_added() {
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -572,7 +567,7 @@ fn giving_up_calls_the_job_off_and_nothing_is_added() {
 #[test]
 fn the_password_is_remembered_with_the_system_when_the_owner_lets_it_be_and_read_back() {
     let store = Store::default();
-    let mut a = app(true);
+    let mut a = app();
     a.services.secrets = Some(Arc::new(store.clone()));
     let host = Host::default();
     host.install(&mut a);
@@ -605,7 +600,7 @@ fn the_password_is_remembered_with_the_system_when_the_owner_lets_it_be_and_read
     assert!(!mailbox.contains(TYPED));
     assert!(!serde_json::to_string(&h.state().ui).unwrap().contains(TYPED));
     // A later start reads it back: nothing is typed.
-    let mut b = app(true);
+    let mut b = app();
     b.services.secrets = Some(Arc::new(store.clone()));
     b.session.mailbox = h.state().session.mailbox.clone();
     b.services.ews = Some(Box::new(|_| mpsc::channel().1));
@@ -615,7 +610,7 @@ fn the_password_is_remembered_with_the_system_when_the_owner_lets_it_be_and_read
     assert!(b.can_sync_quietly(id));
     // The switch in File › Options off: nothing is kept.
     let store = Store::default();
-    let mut a = app(true);
+    let mut a = app();
     a.services.secrets = Some(Arc::new(store.clone()));
     a.ui.remember_sign_in = false;
     let host = Host::default();
@@ -689,9 +684,6 @@ fn forgetting_the_certificate_is_a_command_that_agents_get_right_too() {
     for junk in [json!({}), json!({"id": "x"}), json!({"id": 999_999}), json!({"id": -1}), Value::Null] {
         assert!(a.execute("account.forgetEwsCertificate", junk).is_err());
     }
-    // Switched off, it refuses.
-    let mut off = app(false);
-    assert!(off.execute("account.forgetEwsCertificate", json!({"id": 1})).is_err());
 }
 
 #[test]
@@ -714,7 +706,7 @@ fn account_settings_of_an_exchange_account_show_where_it_connects_and_change_not
 
 #[test]
 fn a_build_without_a_host_says_so_and_adds_nothing() {
-    let a = app(true);
+    let a = app();
     let mut h = to_the_form(a);
     click(&mut h, "Connect");
     assert_eq!(page(&h), Some(Page::Exchange));
@@ -739,7 +731,7 @@ fn the_grouped_fingerprint_is_two_lines_of_sixteen_pairs() {
 fn every_exchange_page_lays_out_in_both_themes() {
     for dark in [false, true] {
         for step in 0..5 {
-            let mut a = app(true);
+            let mut a = app();
             let host = Host::default();
             host.install(&mut a);
             let mut h = to_the_form(a);
@@ -761,14 +753,13 @@ fn every_exchange_page_lays_out_in_both_themes() {
 }
 
 #[test]
-fn the_dialog_opens_on_the_exchange_page_only_with_the_switch_and_an_address() {
-    let a = app(true);
+fn the_dialog_opens_on_the_exchange_page_only_with_an_address() {
+    let a = app();
     let w = AccountSetup::open(&a, &json!({"email": ME, "page": "exchange"})).unwrap();
     assert_eq!((w.page, w.email.as_str()), (Page::Exchange, ME));
-    // No address, or the switch off: the dialog opens as it always does.
+    // No address: the dialog opens as it always does.
     assert_eq!(AccountSetup::open(&a, &json!({"page": "exchange"})).unwrap().page, Page::Address);
     assert_eq!(AccountSetup::open(&a, &json!({"email": "nobody", "page": "exchange"})).unwrap().page, Page::Address);
-    assert_eq!(AccountSetup::open(&app(false), &json!({"email": ME, "page": "exchange"})).unwrap().page, Page::Address);
 }
 
 /// The wizard in hand told `action`, as the window does it (the dialog taken out of the app for the call).
@@ -784,7 +775,7 @@ fn act(h: &mut Harness<'static, MailApp>, action: Action) {
 #[test]
 fn go_on_the_certificate_page_without_the_tick_trusts_nothing_and_sends_nothing() {
     // Adding an account.
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -813,7 +804,7 @@ fn go_on_the_certificate_page_without_the_tick_trusts_nothing_and_sends_nothing(
 #[test]
 fn removing_the_account_deletes_its_entry_in_the_store_and_a_new_server_forgets_the_old_one() {
     let store = Store::default();
-    let mut a = app(true);
+    let mut a = app();
     a.services.secrets = Some(Arc::new(store.clone()));
     let host = Host::default();
     host.install(&mut a);
@@ -850,7 +841,7 @@ fn the_sign_in_failures_that_differ_say_so_in_plain_words() {
     let kerberos = exchange::failure_words(EwsSetupFailure::SignInNotSupported);
     assert!(kerberos.contains("Kerberos") && !kerberos.contains("Server settings") && !kerberos.contains("Type"), "{kerberos}");
     // The window opens Server settings for the first.
-    let mut a = app(true);
+    let mut a = app();
     let host = Host::default();
     host.install(&mut a);
     let mut h = to_the_form(a);
@@ -864,7 +855,7 @@ fn the_sign_in_failures_that_differ_say_so_in_plain_words() {
 #[test]
 fn a_server_typed_on_a_microsoft_host_is_handed_over_with_nothing_sent() {
     for url in ["https://outlook.office365.com/EWS/Exchange.asmx", "https://outlook.office.com/EWS/Exchange.asmx"] {
-        let mut a = app(true);
+        let mut a = app();
         let host = Host::default();
         host.install(&mut a);
         let mut h = to_the_form(a);

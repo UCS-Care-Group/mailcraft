@@ -262,7 +262,6 @@ fn removing_an_account_forgets_both_names() {
 fn an_exchange_servers_password_is_for_that_address_and_that_user_name() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);
-    a.session.ews = true;
     let url = "https://exchange.example.org/EWS/Exchange.asmx";
     let added =
         a.execute("account.add", json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ada"}})).unwrap();

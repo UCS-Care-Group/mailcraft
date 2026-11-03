@@ -209,8 +209,7 @@ fn connection(
 }
 
 fn window(server: &Server) -> (MailApp, Id) {
-    let mut session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
-    session.ews = true;
+    let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
     (app.autosave, app.auto_sync) = (false, false);
     let ctx = egui::Context::default();

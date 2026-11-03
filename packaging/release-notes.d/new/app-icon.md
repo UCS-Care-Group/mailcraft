@@ -1,0 +1,1 @@
+- **A new icon.** MailCraft's icon is now an envelope that is also a calendar page, on a blue tile: mail and calendar in one mark. It is the same on Windows, macOS, Linux and in the browser, where the tab shows it too.

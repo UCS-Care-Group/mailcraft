@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Exchange server account of Add Account (#252, E7): an explicit choice, offered only while
-//! Exchange server accounts are being tested (`Session::ews`). There is no detection from an
-//! address.
+//! The Exchange server account of Add Account (#252, E7): an explicit choice. There is no
+//! detection from an address.
 //!
 //! The owner gives an address and a password, and may open Server settings to type the server's
 //! address and the name to sign in with. **Nothing is sent until Connect.** Then the host

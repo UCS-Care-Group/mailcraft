@@ -109,7 +109,6 @@ crates/ui-egui/src/i18n.rs
 crates/ui-egui/src/keep_offline.rs
 crates/ui-egui/src/keys.rs
 crates/ui-egui/src/mail_view.rs
-crates/ui-egui/src/nav.rs
 crates/ui-egui/src/people_view.rs
 crates/ui-egui/src/reading/colors.rs
 crates/ui-egui/src/reading/images.rs
@@ -125,7 +124,6 @@ crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs
 crates/ui-egui/src/widgets.rs
-crates/ui-egui/src/window_geometry.rs
 crates/ui-egui/src/windows.rs
 crates/ui-egui/src/zones.rs
 crates/vcard/src/lines.rs
@@ -134,7 +132,6 @@ crates/vcard/src/text.rs
 crates/vcard/src/write.rs
 xtask/src/assets.rs
 xtask/src/i18n.rs
-xtask/src/icon.rs
 xtask/src/ico.rs
 xtask/src/release_key.rs
 xtask/src/spdx.rs

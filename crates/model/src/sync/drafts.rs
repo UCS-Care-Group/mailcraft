@@ -71,6 +71,9 @@ pub struct DraftState {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub reply_to: Vec<Address>,
     pub importance: Importance,
+    /// It asks for a read receipt.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_receipt: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SyncedAttachment>,
 }
@@ -86,6 +89,7 @@ impl DraftState {
             bcc: m.bcc.clone(),
             reply_to: m.reply_to.clone(),
             importance: m.importance,
+            read_receipt: m.read_receipt,
             attachments: m
                 .attachments
                 .iter()
@@ -230,6 +234,10 @@ pub struct DraftUp {
     pub reply_to: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub importance: Option<Importance>,
+    /// Whether it asks for a read receipt (Graph's `isReadReceiptRequested`, Exchange's
+    /// `IsReadReceiptRequested`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_receipt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<AttachmentsUp>,
 }
@@ -244,6 +252,7 @@ impl DraftUp {
             || self.bcc.is_some()
             || self.reply_to.is_some()
             || self.importance.is_some()
+            || self.read_receipt.is_some()
     }
 
     /// The same without what its attachments hold, for an answer.

@@ -108,7 +108,7 @@ fn time_zones(s: &mut Session, v: &Value) -> CmdResult {
         "zones": zones, "system": s.system_zone().id(), "shown": s.zone().id(),
         "recent": s.prefs.recent_zones.iter().take(MAX_RECENT).collect::<Vec<_>>(),
     });
-    if let Some(id) = p::id(v, "id") {
+    if let Some(id) = p::id_strict(v, "id")? {
         let event = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
         if let Some(answer) = answer.as_object_mut() {
             answer.insert("event".into(), event_zones_json(s, event));

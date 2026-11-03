@@ -18,10 +18,11 @@ fn help_pages_are_the_projects_own_and_name_nobody() {
     assert!(repo.starts_with("https://github.com/"), "{repo}");
     assert_eq!(url(&mut s, "help.help"), format!("{repo}/#readme"));
     assert_eq!(url(&mut s, "help.support"), format!("{repo}/issues"));
+    assert_eq!(url(&mut s, "help.training"), format!("{repo}/tree/main/docs"));
     assert_eq!(url(&mut s, "help.whatsNew"), format!("{repo}/releases/tag/v{VERSION}"));
     let feedback = s.run("help.feedback", &json!({})).unwrap();
     assert_eq!(feedback["dialog"], "reportProblem");
-    for id in ["help.help", "help.support", "help.feedback", "help.whatsNew"] {
+    for id in ["help.help", "help.training", "help.support", "help.feedback", "help.whatsNew"] {
         let page = url(&mut s, id);
         assert!(page.starts_with(repo) && !page.contains("ada") && !page.contains('?'), "{id}: {page}");
     }
@@ -43,6 +44,7 @@ fn the_catalog_rows_this_fills_have_commands() {
     let s = Session::empty();
     for id in [
         "help.help",
+        "help.training",
         "help.support",
         "help.feedback",
         "help.whatsNew",

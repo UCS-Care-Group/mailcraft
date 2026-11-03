@@ -324,6 +324,9 @@ fn fields(d: &DraftUp) -> Map<String, Value> {
         };
         out.insert("importance".into(), json!(level));
     }
+    if let Some(read_receipt) = d.read_receipt {
+        out.insert("isReadReceiptRequested".into(), json!(read_receipt));
+    }
     out
 }
 

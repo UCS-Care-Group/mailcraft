@@ -27,6 +27,11 @@ mailcraft-ews = { workspace = true }
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
 egui = { workspace = true }
+# The monitors connected now, which egui doesn't list, so that a window restored onto a monitor
+# that is gone opens on the main one (#719): read from the window eframe made. Already in the
+# tree: eframe runs on it; the same version, nothing added to it here (Linux and FreeBSD add their
+# features below).
+winit = { version = "0.30", default-features = false }
 serde_json = { workspace = true }
 log = { workspace = true }
 

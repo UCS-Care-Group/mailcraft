@@ -50,6 +50,7 @@ Search|Results|More Results on the Server|sync.graphSearchRequest
 Search|Options|Recent Searches|view.recentSearches
 Search|Options|Search Folders|folder.newSearchFolder
 Home|New|New Email|mail.new
+Home|New|New Email in a Window of Its Own|mail.new
 Home|New|New Appointment|calendar.new
 Home|New|New Meeting|calendar.newMeeting
 Home|New|New Contact|people.new
@@ -189,6 +190,7 @@ Message|Send|Save Draft|compose.saveDraft
 Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
+Message|Window|Pop Out|compose.popOut
 Message|Send|Open Draft|mail.editDraft
 Insert|Include|Item|compose.attachItem
 Insert|Include|Business Card|insert.businessCard
@@ -340,6 +342,21 @@ Help|Help|Show Training|help.training
 Help|Help|What's New|help.whatsNew
 ";
 
+/// Catalog rows deliberately not built, each with why: the checklist lists them as out of scope
+/// rather than missing. They still count as not implemented in the percentage.
+pub const OUT_OF_SCOPE: [(&str, &str); 5] = [
+    ("mail.edit", "it would rewrite a received message and replace the server's copy of it"),
+    ("people.private", "contacts are read-only from the server (Contacts.Read), so the mark would stay on this computer"),
+    ("people.followUp", "contacts are read-only from the server (Contacts.Read), so the flag would stay on this computer"),
+    ("tasks.private", "Microsoft To Do has no private tasks"),
+    ("sync.groups", "each account is kept in step on its own; there are no Send/Receive groups"),
+];
+
+/// Why the catalog row `id` is out of scope, when it is.
+pub fn out_of_scope(id: &str) -> Option<&'static str> {
+    OUT_OF_SCOPE.iter().find(|(out, _)| *out == id).map(|(_, why)| *why)
+}
+
 /// One catalog line.
 pub struct Feature<'a> {
     pub tab: &'a str,
@@ -359,7 +376,7 @@ pub fn features() -> impl Iterator<Item = Feature<'static>> {
 /// and what is missing.
 pub fn parity(reg: &Registry) -> Value {
     let mut tabs: Vec<(String, usize, usize)> = Vec::new();
-    let mut missing = Vec::new();
+    let (mut missing, mut out_of_scope_rows) = (Vec::new(), Vec::new());
     let (mut total, mut done) = (0usize, 0usize);
     for f in features() {
         total += 1;
@@ -372,8 +389,10 @@ pub fn parity(reg: &Registry) -> Value {
             }
             None => tabs.push((f.tab.to_string(), 1, usize::from(have))),
         }
-        if !have {
-            missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id}));
+        match (have, out_of_scope(f.id)) {
+            (true, _) => {}
+            (false, Some(why)) => out_of_scope_rows.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id, "why": why})),
+            (false, None) => missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id})),
         }
     }
     let percent = if total == 0 { 0.0 } else { (done as f64 * 1000.0 / total as f64).round() / 10.0 };
@@ -384,6 +403,7 @@ pub fn parity(reg: &Registry) -> Value {
         "commands": reg.all().len(),
         "tabs": tabs.iter().map(|(t, n, d)| json!({"tab": t, "total": n, "implemented": d})).collect::<Vec<_>>(),
         "missing": missing,
+        "outOfScope": out_of_scope_rows,
     })
 }
 
@@ -414,6 +434,12 @@ pub fn parity_markdown(reg: &Registry) -> String {
     for m in p.get("missing").and_then(Value::as_array).into_iter().flatten() {
         let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");
         out.push_str(&format!("| {} | {} | {} | `{}` |\n", s("tab"), s("group"), s("feature"), s("id")));
+    }
+    out.push_str("\n## Out of scope\n\nDeliberately not built. These rows count as not implemented in the percentage above.\n\n");
+    out.push_str("| Tab | Group | Feature | Command id | Why |\n|---|---|---|---|---|\n");
+    for m in p.get("outOfScope").and_then(Value::as_array).into_iter().flatten() {
+        let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");
+        out.push_str(&format!("| {} | {} | {} | `{}` | {} |\n", s("tab"), s("group"), s("feature"), s("id"), s("why")));
     }
     out
 }

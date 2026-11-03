@@ -43,7 +43,7 @@ pub(super) fn writing() -> Window {
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"body": ""})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     assert!(editor::has_focus(&h.ctx));
@@ -232,7 +232,7 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     let flagged = |h: &Window| h.state().session.mailbox.message(id).unwrap().flag == mailcraft_model::FlagStatus::Flagged;
     let read = |h: &Window| h.state().session.mailbox.message(id).unwrap().read;
     a.run("mail.reply", json!({"id": id})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     assert!(editor::has_focus(&h.ctx) && flagged(&h) && read(&h));
@@ -243,7 +243,7 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     assert!(read(&h) && flagged(&h), "the mailbox is not touched from the body");
     assert_eq!(plain(&h), typed, "the typing was undone");
     // Out of the body: the same keys are the mailbox's.
-    h.ctx.memory_mut(|m| m.surrender_focus(editor::id()));
+    h.ctx.memory_mut(|m| m.surrender_focus(editor::id(h.state())));
     h.run_steps(2);
     assert!(!editor::has_focus(&h.ctx));
     key_with(&mut h, Modifiers::COMMAND, Key::Z);
@@ -558,17 +558,17 @@ fn a_long_message_lays_out_only_what_changes() {
         (0..2000).map(|i| format!("Paragraph {i} of a long message, with enough words in it to wrap now and then on a narrow window.")).collect();
     a.execute("compose.set", json!({"body": long.join("\n")})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
-    let before = editor::laid(&h.ctx);
+    let before = editor::laid(&h.ctx, h.state());
     assert!(before >= 2000);
     h.run_steps(5);
-    assert_eq!(editor::laid(&h.ctx), before, "nothing is laid out again while nothing changes");
+    assert_eq!(editor::laid(&h.ctx, h.state()), before, "nothing is laid out again while nothing changes");
     type_in(&mut h, "x");
-    assert!(editor::laid(&h.ctx) - before <= 2, "{}", editor::laid(&h.ctx) - before);
+    assert!(editor::laid(&h.ctx, h.state()) - before <= 2, "{}", editor::laid(&h.ctx, h.state()) - before);
     key(&mut h, Key::Enter);
-    assert!(editor::laid(&h.ctx) - before <= 5);
+    assert!(editor::laid(&h.ctx, h.state()) - before <= 5);
     key_with(&mut h, Modifiers::CTRL, Key::End);
     assert!(plain(&h).starts_with("x\nParagraph 0"));
     let t0 = std::time::Instant::now();
@@ -602,7 +602,7 @@ fn copy_puts_html_and_text_on_the_clipboard_and_paste_takes_html_first() {
     a.execute("format.numbering", json!({"from": 5, "to": 17})).unwrap();
     a.execute("format.indent", json!({"from": 11, "to": 11})).unwrap();
     a.execute("compose.select", json!({"from": 0, "to": 17})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     h.event(Event::Copy);
@@ -747,7 +747,7 @@ fn typing_goes_on_after_the_window_was_left_and_came_back_to() {
     // Left with the keyboard taken away, a click in the body gives it back.
     h.event(Event::WindowFocused(false));
     h.run_steps(1);
-    h.ctx.memory_mut(|m| m.surrender_focus(editor::id()));
+    h.ctx.memory_mut(|m| m.surrender_focus(editor::id(h.state())));
     h.event(Event::WindowFocused(true));
     h.run_steps(1);
     let r = h.state().hit.rect("composeBody", 0).unwrap();
@@ -788,10 +788,10 @@ fn a_long_to_line_takes_a_click_at_its_end() {
     key(&mut h, Key::End);
     key(&mut h, Key::Backspace);
     assert_eq!(to(&h), before[..before.len() - 1]);
-    assert!(!h.state().compose_bcc);
+    assert!(!h.state().bcc_shown());
     // The Bcc link still works, just past the line's end.
     click(&mut h, egui::pos2(line.max.x + 30.0, line.center().y));
-    assert!(h.state().compose_bcc);
+    assert!(h.state().bcc_shown());
     // And the body takes the keyboard when clicked.
     let body = h.state().hit.rect("composeBody", 0).unwrap();
     click(&mut h, egui::pos2(body.min.x + 20.0, body.min.y + 10.0));
@@ -823,7 +823,7 @@ fn picks_then_types_in_the_body(opened: Opened, line: usize, mouse: bool) {
         Opened::ReplyHtml => a.execute("mail.reply", json!({"id": html(&a)})).map(drop).unwrap(),
         Opened::ForwardHtml => a.execute("mail.forward", json!({"id": html(&a)})).map(drop).unwrap(),
     }
-    a.compose_bcc = true;
+    a.compose_bcc.extend(a.session.compose_id());
     let mut h = window(a);
     let quoted = matches!(opened, Opened::ReplyHtml | Opened::ForwardHtml);
     assert_eq!(h.state().session.compose.as_ref().unwrap().quote.is_some(), quoted, "{opened:?}");
@@ -892,7 +892,7 @@ fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
     a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hello"})).unwrap();
     a.execute("compose.formatHtml", json!({})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
-    a.body_focus_wanted = true;
+    a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
     assert!(h.state().hit.rect("composeSignature", 0).is_some());

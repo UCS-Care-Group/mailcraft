@@ -59,9 +59,6 @@ pub struct Fetching {
     /// fetched for it so far, and the messages it waits for (of those under way, it may wait for
     /// some only: it took the place of a forward, or joined its batch).
     then: Option<(String, Value, u64, Option<Vec<Id>>, Vec<Id>)>,
-    /// The message being written when the command that waits was asked to let it go
-    /// (`discard`), as it was then: run again, it lets go of that one alone (#513).
-    let_go: Option<mailcraft_engine::Compose>,
     /// A command whose messages came while a form with changes that aren't saved was open (a
     /// contact, a task, an appointment): it goes on once that form is closed, for its question
     /// would take the form's place (#513). As [`Fetching::then`], with a forward's tried.
@@ -142,7 +139,7 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     let named = match id {
         "mail.reply" | "mail.replyAll" | "mail.replyAndDelete" | "mail.editDraft" | "mail.resend" => p::message_strict(params).ok()?,
         "mail.viewSource" | "mail.saveAllAttachments" | "compose.attachItem" => p::id_strict(params, "id").ok()?,
-        _ => p::id(params, "id"),
+        _ => p::message_strict(params).ok()?,
     };
     to_fetch(app, id, named.or(selected)?)
 }
@@ -207,9 +204,7 @@ fn way(app: &MailApp, account: Id) -> Option<Way> {
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
-        AccountKind::Exchange if app.services.ews_fetch.is_some() && app.session.ews && !app.jmap_refused.contains(&account) => {
-            app.ews_secret(account).map(Way::Ews)
-        }
+        AccountKind::Exchange if app.services.ews_fetch.is_some() && !app.jmap_refused.contains(&account) => app.ews_secret(account).map(Way::Ews),
         _ => None,
     }
 }
@@ -219,7 +214,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
     match kind {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
-        AccountKind::Exchange => app.services.ews_fetch.is_some() && app.session.ews,
+        AccountKind::Exchange => app.services.ews_fetch.is_some(),
         _ => false,
     }
 }
@@ -292,8 +287,6 @@ impl MailApp {
             waiting.is_some() && *opening == self.session.openings() && forward_of(command, params).is_none_or(|f| forward_of(id, &then) != Some(f))
         });
         let waits = forward.map_or_else(|| vec![first], |(ids, _)| ids);
-        let discard = then.get("discard").and_then(Value::as_bool) == Some(true);
-        self.fetching.let_go = if discard { self.session.compose.clone() } else { None };
         // So is one whose messages came and that waits for a form to be closed, and said to be.
         let held_off = self.fetching.held.take().is_some_and(|(_, _, opening, _)| opening == self.session.openings());
         self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried, waits));
@@ -318,7 +311,6 @@ impl MailApp {
             self.fetching.held = Some((command, params, opening, tried));
             return;
         }
-        let params = self.kept_from(params);
         self.fetching.tried = tried;
         let _ = self.run(&command, params);
         self.fetching.tried = None;
@@ -330,20 +322,6 @@ impl MailApp {
         if opening == self.session.openings() {
             self.run_waited(command, params, opening, tried);
         }
-    }
-
-    /// What a command that waited runs again with: it lets go of the message being written
-    /// (`discard`) only when that is the one it was asked to let go of, as it was then. One
-    /// opened or changed since is the owner's to answer for, asked as usual (#513).
-    fn kept_from(&mut self, mut params: Value) -> Value {
-        let asked = self.fetching.let_go.take();
-        if params.get("discard").and_then(Value::as_bool) == Some(true)
-            && self.session.compose != asked
-            && let Some(p) = params.as_object_mut()
-        {
-            p.remove("discard");
-        }
-        params
     }
 
     /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has

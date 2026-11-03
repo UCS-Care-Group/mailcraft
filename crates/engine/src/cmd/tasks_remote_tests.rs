@@ -516,10 +516,15 @@ fn an_agents_change_to_a_task_in_a_shared_list_asks_for_send() {
             assert_eq!(mine_now, Verdict::Run, "{id} in a list that isn't shared");
         }
     }
-    // No id: the selected to-do, as the command takes it; a junk id means the same.
+    // No id: the selected to-do, as the command takes it. A junk id is refused by the command
+    // (#553), so nothing is asked about the selected one for it.
     run(&mut s, "tasks.select", json!({"id": ours}));
-    for junk in [json!({}), json!({"id": "seven"}), json!({"id": -1}), json!({"id": null}), json!({"id": 1.5}), json!([1]), json!(null)] {
-        assert!(matches!(check(&s, "tasks.edit", &junk, &[]), Verdict::Ask(Class::Send, _)), "{junk}");
+    for none in [json!({}), json!(null)] {
+        assert!(matches!(check(&s, "tasks.edit", &none, &[]), Verdict::Ask(Class::Send, _)), "{none}");
+    }
+    for junk in [json!({"id": "seven"}), json!({"id": -1}), json!({"id": null}), json!({"id": 1.5}), json!([1])] {
+        assert_eq!(check(&s, "tasks.edit", &junk, &[]), Verdict::Run, "{junk}");
+        assert!(s.run("tasks.edit", &junk).is_err(), "{junk}");
     }
     // A to-do that isn't there: the command changes nothing, and nothing is asked.
     assert_eq!(check(&s, "tasks.edit", &json!({"id": u64::MAX, "title": "x"}), &[]), Verdict::Run);

@@ -608,7 +608,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     if selected {
         p.rect_filled(rect, 0.0, t.selection);
     } else if resp.hovered() {
-        p.rect_filled(rect, 0.0, t.hover.linear_multiply(0.6));
+        p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + 54.0, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
     widgets::avatar(ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
