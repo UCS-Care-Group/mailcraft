@@ -61,3 +61,26 @@ fn the_choice_is_remembered_with_the_other_view_choices() {
     let back: mailcraft_engine::ViewState = serde_json::from_value(saved).unwrap();
     assert_eq!(back.task_account, AccountChoice::Account(work));
 }
+
+#[test]
+fn one_accounts_tasks_are_remembered_for_that_account_only() {
+    let app = |email: &str| {
+        let now = 1_791_993_600;
+        let mut a = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(now, 0), now, 0), crate::Services::default());
+        let params = json!({"email": email, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"});
+        let id = a.execute("account.add", params).unwrap()["id"].as_u64().unwrap();
+        (a, id)
+    };
+    let (mut a, work) = app("work@example.org");
+    a.execute("view.taskAccount", json!({"value": work})).unwrap();
+    let saved = serde_json::to_string(&a.prefs()).unwrap();
+    // The same mailbox next time: that account's tasks.
+    let (mut same, _) = app("work@example.org");
+    same.apply_prefs(serde_json::from_str(&saved).unwrap());
+    assert_eq!(same.session.view.task_account, AccountChoice::Account(work));
+    // Another, where the same id is somebody else's account: every account's.
+    let (mut other, theirs) = app("someone@example.org");
+    assert_eq!(theirs, work);
+    other.apply_prefs(serde_json::from_str(&saved).unwrap());
+    assert_eq!(other.session.view.task_account, AccountChoice::All);
+}

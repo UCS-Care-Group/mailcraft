@@ -72,3 +72,21 @@ fn the_categories_on_offer_follow_the_account_list() {
     let id = s.run("tasks.new", &json!({"title": "Stays", "account": home})).unwrap()["id"].as_u64().unwrap();
     assert_eq!(TaskForm::edit(&s, &json!({"id": id})).unwrap().category_account(), home);
 }
+
+#[test]
+fn a_new_task_nobody_placed_stays_where_the_form_said() {
+    let (mut s, work, _) = session();
+    let mut form = TaskForm::new(&s, &json!({"title": "x"}));
+    form.hold_place(&s);
+    assert_eq!(form.command().1.get("account"), None, "still nobody has said");
+    // The owner moves the list to an account to look at its tasks, the form still open.
+    s.run("view.taskAccount", &json!({"value": work})).unwrap();
+    form.hold_place(&s);
+    assert_eq!(form.command().1.get("account"), Some(&json!(0)), "on this computer, as the form said");
+    assert!(!form.dirty(), "the owner changed nothing in it");
+    // A form opened on a place keeps it, whatever the list says after.
+    let mut placed = TaskForm::new(&s, &json!({"title": "y"}));
+    s.run("view.taskAccount", &json!({"value": "here"})).unwrap();
+    placed.hold_place(&s);
+    assert_eq!(placed.command().1.get("account"), Some(&json!(work)));
+}

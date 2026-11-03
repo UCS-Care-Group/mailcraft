@@ -435,3 +435,62 @@ fn where_a_task_was_put_is_kept_with_the_mailbox() {
     assert_eq!((back.task_place, back.local_tasks), (Some(0), LocalTasks::Unasked));
     assert!(back.tasks.values().any(|t| t.title == "Kept" && t.kept_here));
 }
+
+#[test]
+fn an_agents_task_says_nothing_of_where_the_owners_go() {
+    let (mut s, work, _) = session();
+    run(&mut s, "tasks.new", json!({"title": "Mine", "account": work}));
+    assert_eq!(new_task_place(&s), Some(work));
+    // One the gate lets through without a question, kept on this computer.
+    assert_eq!(classify(&s, "tasks.new", &json!({"title": "The agent's", "account": 0})), Access::Safe);
+    s.agent = Some(Vec::new());
+    run(&mut s, "tasks.new", json!({"title": "The agent's", "account": 0}));
+    s.agent = None;
+    assert!(titled(&s, "The agent's").kept_here);
+    assert_eq!((s.mailbox.task_place, new_task_place(&s)), (Some(work), Some(work)), "the owner's next one goes where theirs did");
+}
+
+/// Every `key` in `value`, at any depth, taken out: what a build that doesn't know it writes.
+fn without(value: &mut Value, key: &str) {
+    match value {
+        Value::Object(map) => {
+            map.remove(key);
+            map.values_mut().for_each(|v| without(v, key));
+        }
+        Value::Array(items) => items.iter_mut().for_each(|v| without(v, key)),
+        _ => {}
+    }
+}
+
+#[test]
+fn a_task_kept_here_stays_here_in_a_build_from_before() {
+    let (mut s, work, _) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    let id = run(&mut s, "tasks.new", json!({"title": "Kept", "account": 0}))["id"].as_u64().unwrap();
+    // Changed and done, as any other.
+    run(&mut s, "tasks.edit", json!({"id": id, "notes": "Still here"}));
+    run(&mut s, "tasks.complete", json!({"id": id}));
+    // A build from before #632 knows nothing of `keptHere`: it reads what it does for a to-do the
+    // server refused, which it neither sends nor offers.
+    assert!(titled(&s, "Kept").kept_here && titled(&s, "Kept").local_only);
+    // Saved again by such a build, without what it doesn't know, it stays here when read back.
+    let mut file = serde_json::to_value(&s.mailbox).unwrap();
+    without(&mut file, "keptHere");
+    without(&mut file, "taskPlace");
+    let mut back: mailcraft_model::Mailbox = serde_json::from_value(file).unwrap();
+    back.repair();
+    let kept = back.tasks.values().find(|t| t.title == "Kept").unwrap();
+    assert_eq!(kept.origin.account, 0);
+    let ops = task_upload(&back, work).unwrap().ops;
+    assert!(!ops.iter().any(|op| op.patch.title.as_deref() == Some("Kept")), "{ops:?}");
+    assert_eq!(local_task_count(&back), 0, "nor is it offered");
+}
+
+#[test]
+fn an_account_with_no_tasks_of_its_own_is_refused_not_listed_as_empty() {
+    let (mut s, work, _) = session();
+    let mail_only = s.mailbox.accounts.iter().map(|a| a.id).find(|a| !super::tasks_remote::keeps_tasks(&s.mailbox, *a)).unwrap();
+    assert!(s.run("tasks.list", &json!({"account": mail_only})).is_err());
+    assert!(s.run("tasks.list", &json!({"account": 999_999})).is_err());
+    assert!(s.run("tasks.list", &json!({"account": work})).is_ok());
+}

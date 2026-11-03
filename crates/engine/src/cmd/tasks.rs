@@ -143,6 +143,9 @@ pub fn place_of(s: &Session, id: &str, v: &Value) -> Result<Option<Id>, CmdError
 fn put(t: &mut Task, place: Id) {
     t.origin.account = place;
     t.kept_here = place == 0;
+    // A build from before #632 doesn't know `kept_here`: it neither sends nor offers a to-do the
+    // server refused, so a kept one is that too.
+    t.local_only = t.kept_here;
 }
 
 /// A task just made or picked is in view: where the list doesn't show it, the list moves to it.
@@ -165,7 +168,10 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(place) = place_of_new(s, v)? {
         put(&mut t, place);
-        s.mailbox.task_place = Some(place);
+        // Where the owner last put one: an agent's task says nothing of where the owner's go.
+        if s.agent.is_none() {
+            s.mailbox.task_place = Some(place);
+        }
     }
     reveal(s, &t.origin);
     let (account, kept_at) = (t.origin.account, kept_at(&s.mailbox, &t.origin));
@@ -184,8 +190,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if t.title.is_empty() {
         return Err(fail("a task needs a title"));
     }
-    // Changed again: a change the server refused is tried again.
-    t.local_only = false;
+    // Changed again: a change the server refused is tried again (one kept here stays so: `put`).
+    t.local_only = t.kept_here;
     *s.mailbox.task_mut(id)? = t;
     Ok(json!({"id": id}))
 }
@@ -210,7 +216,7 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let now = s.now();
     let t = s.mailbox.task_mut(id)?;
-    t.local_only = false;
+    t.local_only = t.kept_here;
     let done = p::bool(v, "value").unwrap_or(!t.is_complete());
     t.completed = if done { Some(t.completed.unwrap_or(now)) } else { None };
     let message = t.message;
@@ -295,6 +301,10 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         Some(a) => AccountChoice::parse(a).ok_or_else(|| bad("`account` is all, here or an account's id"))?,
         None => shown_account(s),
     };
+    // As `view.taskAccount`: an account with no to-dos of its own is refused, not listed as empty.
+    if matches!(account, AccountChoice::Account(id) if !keeps_tasks(&s.mailbox, id)) {
+        return Err(bad("that account doesn't keep its to-dos with Microsoft"));
+    }
     let items: Vec<Value> = sorted_of(s, filter, account).into_iter().filter_map(|id| s.mailbox.task(id)).map(|t| task_json(s, t)).collect();
     Ok(json!({"filter": filter, "account": account.code(), "tasks": items}))
 }

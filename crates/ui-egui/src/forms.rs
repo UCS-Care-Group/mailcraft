@@ -5148,8 +5148,18 @@ mod task {
             self.place.unwrap_or(0)
         }
 
+        /// A new task that nobody had said a place for when the form opened ("On this computer
+        /// for now") stays on this computer once something says one meanwhile (the list moved to
+        /// an account, a task put somewhere else): OK puts it where the form says, not there.
+        pub(crate) fn hold_place(&mut self, s: &Session) {
+            if self.id.is_none() && self.place.is_none() && tasks::new_task_place(s).is_some() {
+                (self.place, self.opened_place) = (Some(0), Some(0));
+            }
+        }
+
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            self.hold_place(&app.session);
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
             let today = pass.today;
             let mailbox = &app.session.mailbox;

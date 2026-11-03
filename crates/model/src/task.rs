@@ -48,7 +48,8 @@ pub struct Task {
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
     /// The owner chose to keep this to-do on this computer: the question about the to-dos that
-    /// exist only here leaves it out.
+    /// exist only here leaves it out. Such a to-do is `local_only` too, which a build from before
+    /// #632 reads and so neither sends it nor offers it.
     #[serde(skip_serializing_if = "is_false")]
     pub kept_here: bool,
 }
