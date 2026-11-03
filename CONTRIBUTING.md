@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -12,11 +12,12 @@ much as the work.
 2. **Read the plan.** Work to beta follows the roadmap reset, tracked in
    [#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Work that goes against an accepted
    decision won't be merged, however good it is; propose a change to the decision first.
-3. **Claim an issue.** Every task in the plan is an issue labelled with its step (`R3`, `R4`, …).
-   Comment "I'd like to take this" on one that has no assignee. A maintainer assigns it to you and
-   adds `claimed`; only then start. If nothing has moved on a claimed issue for 14 days, it may be
-   given to someone else. A new feature or change that isn't in the issues: open one and wait for
-   a yes before building it.
+3. **Claim an issue by commenting on it.** Comment "I'm taking this" on an open issue that nobody
+   has claimed in its comments, and start: nobody needs to assign it to you or label it. Read the
+   comments first, as the first claim stands; if you want to share the work, say so to the person
+   who claimed it in the issue. A claim lapses when its author has posted no comment, pull request
+   or draft for 14 days, and anyone may then claim it with a new comment. A new feature or change
+   that isn't in the issues: open one and wait for a yes before building it.
 4. **Found a bug and have the fix? Send both at once.** Open the
    [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
@@ -95,6 +96,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | Claim an issue by commenting on it: no assignee or `claimed` label from a maintainer; the first claim stands and lapses after 14 quiet days |
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
