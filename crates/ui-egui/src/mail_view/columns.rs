@@ -38,8 +38,14 @@ fn outgoing(app: &MailApp) -> bool {
     app.session.mailbox.folder(app.session.view.folder).is_some_and(mailcraft_engine::columns::is_outgoing)
 }
 
-pub(super) fn width(columns: &Columns) -> f32 {
-    LEFT + columns.items.iter().take(Column::ALL.len()).map(|c| f32::from(c.width.clamp(36, 800))).sum::<f32>() + ACTIONS + super::SCROLL_LANE
+/// The width the columns take with what goes round them, `lane` being the scroll bar's.
+fn width(columns: &Columns, lane: f32) -> f32 {
+    LEFT + columns.items.iter().take(Column::ALL.len()).map(|c| f32::from(c.width.clamp(36, 800))).sum::<f32>() + ACTIONS + lane
+}
+
+/// Whether all the columns fit in a list `room` wide.
+pub(super) fn fits(columns: &Columns, room: f32, lane: f32) -> bool {
+    width(columns, lane) <= room
 }
 
 /// An ordered, finite list of cells, identical for header and body.
@@ -65,7 +71,7 @@ fn heading_menu(app: &mut MailApp, ui: &mut Ui) {
     }
 }
 
-pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
+pub(super) fn header(app: &mut MailApp, ui: &mut Ui, room: f32, lane: f32) {
     let t = Tokens::get(ui.ctx());
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), HEADER), Sense::click());
     ui.painter().rect_filled(rect, 0.0, t.panel);
@@ -90,7 +96,10 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
                 }
                 let start = ui.data(|d| d.get_temp::<u16>(from)).unwrap_or(spec.width);
                 let moved = resize.total_drag_delta().unwrap_or_default().x;
-                let width = (f32::from(start) + moved).round().clamp(36.0, 800.0) as u16;
+                // No wider than the list has room for: past that the columns would give way to
+                // rows under the pointer. In whole points, rounded down, so that it still fits.
+                let most = (room - width(&config, lane) + f32::from(spec.width.clamp(36, 800))).floor().clamp(36.0, 800.0);
+                let width = (f32::from(start) + moved).round().clamp(36.0, most) as u16;
                 // Only when the width changes: a held, still pointer changes nothing.
                 if width != spec.width {
                     spec.width = width;

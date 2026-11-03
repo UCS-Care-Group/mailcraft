@@ -81,7 +81,17 @@ pub(super) fn height(app: &MailApp, local: &HashSet<Id>, row_h: f32) -> f32 {
 
 /// Draw what is below the local results from `top` down, in the list's columns (`width` wide
 /// from `left`), the part in `viewport` only.
-pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f32, top: f32, width: f32, row_h: f32, viewport: Rect) {
+pub(super) fn show(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    local: &HashSet<Id>,
+    left: f32,
+    top: f32,
+    width: f32,
+    row_h: f32,
+    viewport: Rect,
+    in_columns: bool,
+) {
     let t = Tokens::get(ui.ctx());
     let mut y = top;
     for line in lines(app, local) {
@@ -112,7 +122,7 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
                 }
                 app.hit.add("serverProblem", 0, rect);
             }
-            Line::Result(i) => result_row(app, ui, i, rect),
+            Line::Result(i) => result_row(app, ui, i, rect, in_columns),
         }
     }
 }
@@ -152,7 +162,7 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
 }
 
 /// One server result, as a row of the list.
-fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
+fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect, in_columns: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
     let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
@@ -172,7 +182,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     }
     let rule = t.rule;
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
-    if app.session.prefs.columns.enabled {
+    if in_columns {
         super::columns::paint(app, ui, &m, rect, unread, 1, false, true);
     } else {
         let left = rect.min.x + TEXT_LEFT;
