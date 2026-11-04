@@ -427,11 +427,12 @@ impl Message {
         normalize_subject(&self.subject)
     }
 
-    /// The key messages of one conversation share (the topic, case-folded); a message without a
-    /// subject is its own conversation.
-    pub fn thread_key(&self) -> String {
-        let t = self.topic().to_lowercase();
-        if t.is_empty() { format!("\u{0}{}", self.id) } else { t }
+    /// The topic, case-folded: what the messages of one conversation have the same of (empty
+    /// for a message without a subject, which is a conversation of its own). Two messages with
+    /// the same topic are of one conversation only when they are linked too
+    /// ([`crate::ThreadIndex`], #795).
+    pub fn topic_key(&self) -> String {
+        self.topic().to_lowercase()
     }
 
     /// Its size as the message list shows and sorts it (#273, #300): an IMAP message too large to
@@ -534,9 +535,9 @@ mod tests {
     fn threads_and_sizes() {
         let mut a = Message { id: 1, subject: "Budget".into(), ..Default::default() };
         let b = Message { id: 2, subject: "RE: budget".into(), ..Default::default() };
-        assert_eq!(a.thread_key(), b.thread_key());
+        assert_eq!(a.topic_key(), b.topic_key());
         a.subject.clear();
-        assert_ne!(a.thread_key(), Message { id: 3, ..Default::default() }.thread_key());
+        assert!(a.topic_key().is_empty());
         assert_eq!(size_label(900), "900 bytes");
         assert_eq!(size_label(1025), "2 KB");
         assert_eq!(size_label(5 * 1024 * 1024 / 2), "2.5 MB");

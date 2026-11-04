@@ -5,7 +5,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use mailcraft_model::{FlagStatus, FolderKind, Id, Queued};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, ThreadKey};
 use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_whole};
@@ -446,7 +446,7 @@ fn focused_conversation(s: &Session) -> Option<bool> {
         return None;
     }
     let m = s.focused_message()?;
-    Some(s.view.open.contains(&(m.account, m.thread_key())))
+    Some(s.view.open.contains(&(m.account, s.threads_now().key(m.id))))
 }
 
 /// Right opens the focused row's conversation (#503).
@@ -493,9 +493,10 @@ fn named_message(s: &Session, v: &Value) -> Result<(), crate::CmdError> {
     }
 }
 
-/// The key a conversation's row is opened by: its account and its topic.
-fn key_of(s: &Session, row: &Row) -> Option<(Id, String)> {
-    s.mailbox.message(row.id).map(|m| (m.account, m.thread_key()))
+/// The key a conversation's row is opened by: its account and its conversation (#795).
+fn key_of(s: &mut Session, row: &Row) -> Option<(Id, ThreadKey)> {
+    let account = s.mailbox.message(row.id)?.account;
+    Some((account, s.thread_of(row.id)))
 }
 
 /// Open a conversation in the list (#503): its messages are listed under its row, whichever
@@ -514,8 +515,9 @@ fn expand(s: &mut Session, v: &Value) -> CmdResult {
         if s.view.open.len() >= MAX_OPEN {
             // Never one with a message selected under it: closed, its row would stand for all of it
             // (#503).
-            let held: HashSet<(Id, String)> =
-                s.sel.messages.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| (m.account, m.thread_key())).collect();
+            let threads = s.threads();
+            let held: HashSet<(Id, ThreadKey)> =
+                s.sel.messages.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| (m.account, threads.key(m.id))).collect();
             let Some(i) = s.view.open.iter().position(|k| !held.contains(k)) else {
                 return Err(fail("close a conversation first: each of the 1,000 open has a message selected"));
             };

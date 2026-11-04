@@ -38,10 +38,11 @@ const MAX_CATEGORY: usize = 255;
 /// Which properties `SyncFolderItems` asks for besides the default ones.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
-    /// The recipients, the categories, the preview and the flag.
+    /// The recipients, the categories, the preview, the flag and the conversation (#795).
     Full,
-    /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, say), which are then left out.
+    /// The recipients and the categories alone: for a server that doesn't know the preview, the
+    /// flag or the conversation (it answers `ErrorInvalidPropertyRequest`, say), which are then
+    /// left out.
     Lean,
 }
 
@@ -106,7 +107,7 @@ impl SyncFolderItems {
             .child(uri("message:CcRecipients"))
             .child(uri("item:Categories"));
         if self.shape == Shape::Full {
-            extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
+            extra = extra.child(uri("item:Preview")).child(uri("item:Flag")).child(uri("item:ConversationId"));
         }
         let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
@@ -210,6 +211,12 @@ fn people(node: &Node, name: &str) -> Vec<Address> {
     list.children.iter().take(MAX_PEOPLE).filter_map(one).collect()
 }
 
+/// The conversation an item is in (`ConversationId`, an id as an item's is: #795), else none.
+pub(crate) fn conversation_of(item: &Node) -> String {
+    let id = item.child_in(TYPES, "ConversationId").and_then(|n| n.attribute("Id")).filter(|id| valid_id(id)).unwrap_or_default();
+    mailcraft_model::sync::thread_id(id)
+}
+
 /// The message in an item element, when it has an id.
 fn read_item(item: &Node) -> Option<GraphMessage> {
     let id_node = item.child_in(TYPES, "ItemId")?;
@@ -244,6 +251,7 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
             flag_due: when("DueDate").filter(|_| status != FlagStatus::None),
             flag_completed: when("CompleteDate").filter(|_| status == FlagStatus::Complete),
             change_key: change_key.to_owned(),
+            thread: conversation_of(item),
             ..ServerMessage::default()
         },
         message_id: message_id.trim_start_matches('<').trim_end_matches('>').to_owned(),
@@ -257,6 +265,63 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         has_attachments: flag(item, "HasAttachments"),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
     })
+}
+
+/// Most items one `GetItem` asks the conversation of.
+pub const MAX_CONVERSATIONS: usize = 100;
+
+/// The request `GetItem` for the conversations of several items (`ConversationId`, #795): the
+/// one-time look-up for mail listed before it was asked for.
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemConversations {
+    ids: Vec<String>,
+}
+
+impl std::fmt::Debug for GetItemConversations {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemConversations").field("ids", &self.ids.len()).finish()
+    }
+}
+
+impl GetItemConversations {
+    /// Asks for the items with these ids (server ids from a sync), the first
+    /// [`MAX_CONVERSATIONS`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_CONVERSATIONS).cloned().collect() }
+    }
+
+    /// The items asked about, in order.
+    pub fn ids(&self) -> &[String] {
+        &self.ids
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and the `ConversationId`), `ItemIds`.
+    pub fn element(&self) -> Element {
+        let extra = Element::new("t:AdditionalProperties").child(Element::new("t:FieldURI").attr("FieldURI", "item:ConversationId"));
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+        Element::new("m:GetItem").child(shape).child(ids)
+    }
+
+    /// What the server said of each item, in the order asked: `Some` with its conversation (empty
+    /// for none, or for an item the server no longer has), `None` for one it didn't answer for. A
+    /// busy server is [`Error::Busy`] for the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Vec<Option<String>>, Error> {
+        let messages = reply.messages("GetItem")?;
+        let mut out: Vec<Option<String>> = vec![None; self.ids.len()];
+        for (slot, message) in out.iter_mut().zip(&messages) {
+            *slot = match message.ok() {
+                Ok(node) => {
+                    let item = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES));
+                    Some(item.map(conversation_of).unwrap_or_default())
+                }
+                Err(Error::Server(crate::error::ResponseCode::ItemNotFound)) => Some(String::new()),
+                Err(busy @ Error::Busy { .. }) => return Err(busy),
+                Err(_) => None,
+            };
+        }
+        Ok(out)
+    }
 }
 
 /// The request `GetItem` for one message's MIME content.

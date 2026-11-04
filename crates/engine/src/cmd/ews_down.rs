@@ -56,6 +56,9 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     server.folder = folder.to_owned();
     server.gone = false;
     (server.answered, server.forwarded) = (false, false);
+    // (Its conversation, as an opaque id or none, #795; it is never asked for by itself.)
+    server.thread = mailcraft_model::sync::thread_id(&server.thread);
+    server.thread_asked = false;
     if !server.change_key.is_empty() && !is_id(&server.change_key) {
         server.change_key.clear();
     }

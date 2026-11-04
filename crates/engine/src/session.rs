@@ -278,11 +278,11 @@ pub struct ViewState {
     /// Show messages grouped into conversations.
     pub conversations: bool,
     /// The conversations opened in the list (#503), each by its account and its key
-    /// ([`Message::thread_key`]): their messages are listed under their rows. Another folder, tab
+    /// ([`Session::threads`], #795): their messages are listed under their rows. Another folder, tab
     /// or search starts with all of them closed. Not kept with the view's settings, which would
     /// write subjects of mail into them.
     #[serde(skip)]
-    pub open: Vec<(Id, String)>,
+    pub open: Vec<(Id, mailcraft_model::ThreadKey)>,
     pub filter: Filter,
     pub search: String,
     pub scope: Scope,
@@ -1098,6 +1098,9 @@ pub struct Session {
     /// The conversation last asked for ([`Session::conversation`]), as of the revision, message
     /// count and message it was worked out for.
     conversation_cache: Option<((u64, usize, Id), Arc<Vec<Id>>)>,
+    /// The conversations of the mailbox ([`Session::threads`]), as of the revision and message
+    /// count they were worked out at.
+    pub(crate) threads_cache: Option<((u64, usize), Arc<mailcraft_model::ThreadIndex>)>,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
     /// The known correspondents, and the sender warnings worked out against them
@@ -1235,6 +1238,7 @@ impl Session {
             list_cache: None,
             counts_cache: None,
             conversation_cache: None,
+            threads_cache: None,
             list_builds: 0,
             sender_checks: Default::default(),
             content_source: None,
@@ -1605,6 +1609,7 @@ impl Session {
         let key = if self.today() == day { key(self) } else { String::new() };
         // (So that the list is built from the folder's own messages: `list::listing`.)
         let _ = self.folder_counts();
+        let _ = self.threads();
         let (rows, kept, unfetched) = crate::list::listing(self, &decided, &searched);
         self.list_builds = self.list_builds.saturating_add(1);
         // What it lists of the selection stays in it too: the rows don't change for that, as each
@@ -1625,8 +1630,8 @@ impl Session {
     }
 
     /// The messages of the conversation `id` is part of ([`Mailbox::conversation`]: same
-    /// account, same topic, oldest first), kept while the mailbox doesn't change: the reading
-    /// pane asks at every frame, and the answer is a walk over every message.
+    /// account, same topic, one thread, oldest first), kept while the mailbox doesn't change:
+    /// the reading pane asks at every frame.
     pub fn conversation(&mut self, id: Id) -> Arc<Vec<Id>> {
         let key = (self.rev, self.mailbox.messages.len(), id);
         if let Some((at, thread)) = &self.conversation_cache
@@ -1634,18 +1639,8 @@ impl Session {
         {
             return thread.clone();
         }
-        let thread = {
-            let mb = &self.mailbox;
-            match (self.fresh_counts(), mb.message(id)) {
-                // From the account's folders' own lists, not a walk over every account's messages.
-                (Some(counts), Some(m)) => {
-                    let skips = mb.conversation_skips(m.account, m.folder);
-                    let folders = mb.folders.iter().filter(|f| f.account == m.account && !skips.contains(&f.id));
-                    mb.conversation_among(m, folders.flat_map(|f| counts.ids(f.id)).filter_map(|i| mb.message(*i)))
-                }
-                _ => mb.conversation(id),
-            }
-        };
+        let threads = self.threads();
+        let thread = self.mailbox.conversation_in(&threads, id);
         let thread = Arc::new(thread);
         self.conversation_cache = Some((key, thread.clone()));
         thread
@@ -1741,6 +1736,12 @@ impl Session {
             && at.0 == rev_before
         {
             at.0 = rev;
+        }
+        // Which messages are one conversation doesn't change with what is read.
+        if let Some((at, _)) = &mut self.threads_cache
+            && at.0 == rev_before
+        {
+            *at = (rev, mb.messages.len());
         }
     }
 
@@ -2889,6 +2890,7 @@ impl Session {
         if spec.mutates {
             self.counts_cache = None;
             self.conversation_cache = None;
+            self.threads_cache = None;
         }
         let compose = self.compose.clone();
         let composing = self.composing.clone();

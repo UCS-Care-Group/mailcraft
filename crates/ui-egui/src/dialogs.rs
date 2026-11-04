@@ -705,13 +705,15 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     // Whole conversations only when nothing of them in the folder in view stays: a tab or a search
     // lists some of their messages, and may list them from other folders.
     let folder_id = s.view.folder;
-    let keys: HashSet<(Id, String)> = asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, m.thread_key())).collect();
+    let threads = s.threads_now();
+    let keys: HashSet<(Id, mailcraft_model::ThreadKey)> =
+        asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, threads.key(m.id))).collect();
     let accounts: HashSet<Id> = keys.iter().map(|(a, _)| *a).collect();
     // What of them stays: in this folder, and in the others the conversation is read from (not
     // Deleted Items or Junk E-mail), whatever the tab lists.
     let (mut stays_here, mut stays_elsewhere) = (false, false);
     for m in mb.messages.values().filter(|m| accounts.contains(&m.account) && !picked.contains(&m.id)) {
-        if !keys.contains(&(m.account, m.thread_key())) {
+        if !keys.contains(&(m.account, threads.key(m.id))) {
             continue;
         }
         if m.folder == folder_id {

@@ -27,6 +27,7 @@ const FIELD_URIS: &[&str] = &[
     "item:Subject",
     "item:Preview",
     "item:Flag",
+    "item:ConversationId",
     "item:DateTimeReceived",
     "item:HasAttachments",
     "item:Attachments",
@@ -84,6 +85,15 @@ pub struct Item {
     pub files: Vec<(String, String, Vec<u8>)>,
     /// The message as the server holds it, MIME.
     pub mime: Vec<u8>,
+    /// The conversation it is in (`ConversationId`); empty: one of its own, named after it.
+    pub conversation: String,
+}
+
+impl Item {
+    /// Its `ConversationId`.
+    pub fn conversation_id(&self) -> String {
+        if self.conversation.is_empty() { format!("CONV-{}", self.id) } else { self.conversation.clone() }
+    }
 }
 
 /// What happened to a folder.
@@ -173,6 +183,7 @@ impl State {
             marker: String::new(),
             files: Vec::new(),
             mime,
+            conversation: String::new(),
         });
         self.item_log.push(ItemLog { rev: self.rev, folder: folder_id.clone(), id: id.clone(), kind: ItemChange::Create });
         if let Some(f) = self.folders.iter_mut().find(|f| f.id == folder_id) {
@@ -333,6 +344,9 @@ impl State {
         }
         if wants("item:Flag") {
             xml.push_str(&format!("<t:Flag><t:FlagStatus>{}</t:FlagStatus></t:Flag>", if item.flagged { item.flag.as_str() } else { "NotFlagged" }));
+        }
+        if wants("item:ConversationId") {
+            xml.push_str(&format!("<t:ConversationId Id=\"{}\"/>", escape(&item.conversation_id())));
         }
         if wants("item:Attachments") && !item.files.is_empty() {
             let all: String = item
@@ -508,7 +522,7 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
-        if self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+        if self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag" || e == "item:ConversationId") {
             return Ok((
                 200,
                 "ErrorInvalidPropertyRequest".into(),

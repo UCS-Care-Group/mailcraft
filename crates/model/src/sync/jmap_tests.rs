@@ -35,6 +35,7 @@ fn request() -> JmapMailRequest {
         ],
         sends: vec![SendUp { message: 7, draft: None, mime: Some(Box::new(to_bob)) }],
         background: true,
+        threads: vec!["E5".into()],
     }
 }
 
@@ -50,6 +51,7 @@ fn result() -> JmapMailResult {
     };
     JmapMailResult {
         account: 3,
+        threads: vec![crate::sync::ThreadOf { id: "E5".into(), thread: "T5".into() }],
         email: ME.into(),
         session: SESSION.into(),
         changes: vec![

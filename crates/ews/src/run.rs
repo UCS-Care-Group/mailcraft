@@ -31,7 +31,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
     EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, GraphFetchResult, GraphFetched, GraphFolder,
-    GraphProgress,
+    GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -39,7 +39,7 @@ use crate::error::{Error, ResponseCode};
 use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
-use crate::items::{GetItemMime, Shape, SyncFolderItems};
+use crate::items::{GetItemConversations, GetItemMime, MAX_CONVERSATIONS, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
 
@@ -331,6 +331,13 @@ pub async fn sync_mail<E: HttpExchange>(
             }
         }
     }
+    // Then the conversations of mail listed before they were asked for (#795), unless the run was
+    // stopped or the server asked to be left alone. Never worth failing the run for.
+    let threads = if request.threads.is_empty() || out.stopped || out.busy_for.is_some() || out.auth_refused {
+        Vec::new()
+    } else {
+        run.conversations(&request.threads).await
+    };
     if !out.blocked.is_empty() {
         // (Once a run, and no id: the engine names the folders by what the owner calls them.)
         log::warn!("ews mail: {} folders hold a change that can't be taken in; they are left where they were", out.blocked.len());
@@ -344,8 +351,35 @@ pub async fn sync_mail<E: HttpExchange>(
         stopped: out.stopped,
         auth_refused: out.auth_refused,
         blocked: out.blocked,
+        threads,
         ..base(request)
     });
+}
+
+impl<E: HttpExchange> Run<'_, E> {
+    /// The conversation of each of the items `ids` ([`GetItemConversations`]), a hundred to a
+    /// request, at most [`MAX_THREAD_ASKS`]: what the server answered for, until it doesn't.
+    async fn conversations(&mut self, ids: &[String]) -> Vec<ThreadOf> {
+        let mut out = Vec::new();
+        let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS)).unwrap_or_default();
+        for some in ids.chunks(MAX_CONVERSATIONS) {
+            let op = GetItemConversations::new(some);
+            let said = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(said) => said,
+                Err(_) => {
+                    log::info!("ews mail: conversations not asked for now; a later run goes on");
+                    break;
+                }
+            };
+            let before = out.len();
+            out.extend(op.ids().iter().zip(said).filter_map(|(id, thread)| Some(ThreadOf { id: id.clone(), thread: thread? })));
+            if out.len() == before {
+                break;
+            }
+        }
+        log::info!("ews mail: the conversations of {} of {} messages asked for", out.len(), ids.len());
+        out
+    }
 }
 
 impl<E: HttpExchange> Run<'_, E> {

@@ -286,6 +286,44 @@ pub struct ServerMessage {
     /// from the server's copy of one made here (R3.4.1, S26). Empty when not known.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub change_key: String,
+    /// The server's id of the conversation it is in (#795): Graph's `conversationId`, EWS's
+    /// `ConversationId`, JMAP's `threadId`. Opaque, never shown, and sent nowhere but back to
+    /// its own server; what [`crate::ThreadIndex`] links a conversation by, with the headers.
+    /// Printable ASCII of at most [`MAX_THREAD_ID`] bytes ([`thread_id`]); empty when the server
+    /// hasn't said (a listing from before it was asked for), and it goes with the rest of this
+    /// when the message leaves the account.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub thread: String,
+    /// It was asked for its `thread` once, after the listing that brought it (the one-time look-up
+    /// of a mailbox from before, #795), and the server gave none: it isn't asked again.
+    #[serde(skip_serializing_if = "is_false")]
+    pub thread_asked: bool,
+}
+
+/// The longest server conversation id kept ([`ServerMessage::thread`]), in bytes.
+pub const MAX_THREAD_ID: usize = 256;
+
+/// A server's conversation id as it is kept ([`ServerMessage::thread`]): printable ASCII of at
+/// most [`MAX_THREAD_ID`] bytes, else none. What a server or a file says is hostile.
+pub fn thread_id(said: &str) -> String {
+    let said = said.trim();
+    if said.len() <= MAX_THREAD_ID && said.bytes().all(|b| b.is_ascii_graphic()) { said.to_string() } else { String::new() }
+}
+
+/// Most messages one run asks the conversation id of (#795): the messages listed before it was
+/// asked for, a thousand a run, newest first, until every one has it or was asked once.
+pub const MAX_THREAD_ASKS: usize = 1_000;
+
+/// What a server said of the conversation of a message it was asked about ([`MAX_THREAD_ASKS`]):
+/// the message's server id and the conversation id, empty when the server gave none (or no
+/// longer has the message). A message the server didn't answer for isn't here, and is asked
+/// again in a later run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ThreadOf {
+    pub id: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub thread: String,
 }
 
 /// The server's copy of a message that is **being moved** out of a Microsoft account
@@ -841,6 +879,10 @@ pub struct GraphMailRequest {
     /// same counts as before. The first run after the mailbox is opened, then one an hour.
     #[serde(skip_serializing_if = "is_false")]
     pub full: bool,
+    /// Messages listed before their conversation ids were asked for, by server id: the server is
+    /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<String>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1186,6 +1228,10 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// What the server said of the conversations of the messages the run asked about
+    /// ([`GraphMailRequest::threads`], #795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<ThreadOf>,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1224,6 +1270,7 @@ impl GraphMailResult {
         if piece.listing.is_some() {
             self.listing = piece.listing;
         }
+        self.threads.extend(piece.threads);
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);

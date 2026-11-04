@@ -6,7 +6,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::search::Query;
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message, ThreadIndex, ThreadKey};
 use mailcraft_time::{DateGroup, Timestamp};
 use serde::Serialize;
 
@@ -303,10 +303,12 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
 
     let mut out: Vec<Row> = Vec::new();
     if s.view.conversations && s.view.sort == SortBy::Date {
-        // One row per conversation, where its newest (or, ascending, oldest) message sorts.
-        let mut index: HashMap<(Id, String), usize> = HashMap::new();
+        // One row per conversation, where its newest (or, ascending, oldest) message sorts: the
+        // messages of one thread with one topic (#795).
+        let threads = s.threads_now();
+        let mut index: HashMap<(Id, ThreadKey), usize> = HashMap::new();
         for m in &shown {
-            match index.entry((m.account, m.thread_key())) {
+            match index.entry((m.account, threads.key(m.id))) {
                 std::collections::hash_map::Entry::Occupied(at) => {
                     if let Some(row) = out.get_mut(*at.get()) {
                         row.members.push(m.id);
@@ -322,7 +324,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         // Without a search, the rest of each conversation, in the account's other folders: a
         // reply in Sent Items is part of it (#503). (A search lists what it finds where it looks.)
         if query.is_empty() {
-            elsewhere(s, &me, kept.as_deref(), &index, &mut out, &mut kept_only);
+            elsewhere(s, &me, kept.as_deref(), (&threads, &index), &mut out, &mut kept_only);
         }
         let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
         for row in &mut out {
@@ -334,7 +336,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
             }
         }
         if !s.view.open.is_empty() {
-            out = opened(s, out);
+            out = opened(s, &threads, out);
         }
     } else {
         out.extend(shown.iter().map(|m| Row::of(m, 0)));
@@ -361,7 +363,14 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
 /// each conversation's row is, by its account and its key.
 ///
 /// [`Mailbox::conversation_skips`]: mailcraft_model::Mailbox::conversation_skips
-fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashMap<(Id, String), usize>, rows: &mut [Row], kept_only: &mut Vec<Id>) {
+fn elsewhere(
+    s: &Session,
+    me: &[&str],
+    kept: Option<&HashSet<Id>>,
+    (threads, index): (&ThreadIndex, &HashMap<(Id, ThreadKey), usize>),
+    rows: &mut [Row],
+    kept_only: &mut Vec<Id>,
+) {
     let mb = &s.mailbox;
     let folder = s.view.folder;
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
@@ -386,7 +395,7 @@ fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashM
         if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
             continue;
         }
-        if let Some(row) = index.get(&(m.account, m.thread_key())).and_then(|i| rows.get_mut(*i)) {
+        if let Some(row) = index.get(&(m.account, threads.key(m.id))).and_then(|i| rows.get_mut(*i)) {
             row.others.push(m.id);
             if !hit {
                 kept_only.push(m.id);
@@ -398,12 +407,12 @@ fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashM
 /// `rows`, with the messages of each open conversation (#503) listed under its row, newest first,
 /// whichever folder each is in. The newest one's own row there is its copy 1: copy 0 is the
 /// conversation's row.
-fn opened(s: &Session, rows: Vec<Row>) -> Vec<Row> {
+fn opened(s: &Session, threads: &ThreadIndex, rows: Vec<Row>) -> Vec<Row> {
     let mb = &s.mailbox;
-    let open: HashSet<&(Id, String)> = s.view.open.iter().collect();
+    let open: HashSet<&(Id, ThreadKey)> = s.view.open.iter().collect();
     let mut out = Vec::with_capacity(rows.len());
     for mut row in rows {
-        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| open.contains(&(m.account, m.thread_key())));
+        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| open.contains(&(m.account, threads.key(m.id))));
         if !row.open {
             out.push(row);
             continue;
