@@ -705,7 +705,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     // Whole conversations only when nothing of them in the folder in view stays: a tab or a search
     // lists some of their messages, and may list them from other folders.
     let folder_id = s.view.folder;
-    let threads = s.threads_now();
+    let threads = s.threads();
     let keys: HashSet<(Id, mailcraft_model::ThreadKey)> =
         asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, threads.key(m.id))).collect();
     let accounts: HashSet<Id> = keys.iter().map(|(a, _)| *a).collect();

@@ -305,7 +305,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
     if s.view.conversations && s.view.sort == SortBy::Date {
         // One row per conversation, where its newest (or, ascending, oldest) message sorts: the
         // messages of one thread with one topic (#795).
-        let threads = s.threads_now();
+        let threads = s.threads();
         let mut index: HashMap<(Id, ThreadKey), usize> = HashMap::new();
         for m in &shown {
             match index.entry((m.account, threads.key(m.id))) {

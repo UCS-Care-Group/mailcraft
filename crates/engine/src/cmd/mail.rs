@@ -446,7 +446,7 @@ fn focused_conversation(s: &Session) -> Option<bool> {
         return None;
     }
     let m = s.focused_message()?;
-    Some(s.view.open.contains(&(m.account, s.threads_now().key(m.id))))
+    Some(s.view.open.contains(&(m.account, s.thread_of(m.id))))
 }
 
 /// Right opens the focused row's conversation (#503).

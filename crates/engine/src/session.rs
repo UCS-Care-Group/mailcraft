@@ -1100,7 +1100,7 @@ pub struct Session {
     conversation_cache: Option<((u64, usize, Id), Arc<Vec<Id>>)>,
     /// The conversations of the mailbox ([`Session::threads`]), as of the revision and message
     /// count they were worked out at.
-    pub(crate) threads_cache: Option<((u64, usize), Arc<mailcraft_model::ThreadIndex>)>,
+    pub(crate) threads_cache: crate::conversations::ThreadsCache,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
     /// The known correspondents, and the sender warnings worked out against them
@@ -1238,7 +1238,7 @@ impl Session {
             list_cache: None,
             counts_cache: None,
             conversation_cache: None,
-            threads_cache: None,
+            threads_cache: Default::default(),
             list_builds: 0,
             sender_checks: Default::default(),
             content_source: None,
@@ -1736,12 +1736,6 @@ impl Session {
             && at.0 == rev_before
         {
             at.0 = rev;
-        }
-        // Which messages are one conversation doesn't change with what is read.
-        if let Some((at, _)) = &mut self.threads_cache
-            && at.0 == rev_before
-        {
-            *at = (rev, mb.messages.len());
         }
     }
 
@@ -2887,10 +2881,11 @@ impl Session {
         let claimed = spec.reads.then(|| self.mailbox.clone());
         // What was counted of the mailbox is counted again after the command, and by a command
         // that changes the mailbox and then asks of its list ([`Session::folder_counts`]).
+        // (The conversations are checked when next asked, and kept when it left them alone.)
         if spec.mutates {
             self.counts_cache = None;
             self.conversation_cache = None;
-            self.threads_cache = None;
+            self.threads_may_change();
         }
         let compose = self.compose.clone();
         let composing = self.composing.clone();

@@ -157,3 +157,88 @@ fn a_server_that_refuses_to_say_is_asked_a_few_runs_and_then_left_alone() {
     let server = s.mailbox.message(made[0]).unwrap().server.clone().unwrap();
     assert!(server.thread.is_empty() && server.thread_asked);
 }
+
+#[test]
+fn a_flag_or_a_move_keeps_the_conversations_and_a_copy_works_them_out_again() {
+    let (mut s, [ours, _, theirs]) = invoices();
+    let threads = s.threads();
+    run(&mut s, "mail.flag", json!({"id": ours}));
+    assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()), "a flag doesn't build them again");
+    run(&mut s, "mail.select", json!({"id": theirs}));
+    run(&mut s, "mail.delete", json!({}));
+    assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()), "nor does a move");
+    // A message more: worked out again, and right.
+    let inbox = s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Inbox).unwrap();
+    run(&mut s, "mail.copy", json!({"ids": [ours], "folder": inbox}));
+    let now = s.threads();
+    assert!(!std::sync::Arc::ptr_eq(&threads, &now));
+    assert!(!now.same(ours, theirs));
+}
+
+#[test]
+fn a_changed_header_or_conversation_id_is_a_change_of_the_conversations() {
+    let (s, [ours, ..]) = invoices();
+    let before = s.mailbox.clone();
+    let mut after = s.mailbox.clone();
+    assert!(crate::conversations::grouping_kept(&before, &after));
+    after.message_mut(ours).unwrap().read = true;
+    assert!(crate::conversations::grouping_kept(&before, &after));
+    after.message_mut(ours).unwrap().references.push("x@example.org".into());
+    assert!(!crate::conversations::grouping_kept(&before, &after));
+    let mut after = s.mailbox.clone();
+    after.message_mut(ours).unwrap().server = Some(ServerMessage { thread: "AAQkconvA".into(), ..Default::default() });
+    assert!(!crate::conversations::grouping_kept(&before, &after));
+}
+
+#[test]
+fn two_known_threads_with_their_own_conversation_ids_stay_apart() {
+    // Each thread's first message, fetched whole, has a Message-ID and its server's id; their
+    // answers too. Same subject, two senders.
+    let (mut s, account, _) = microsoft(&[]);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let add = |s: &mut Session, server: &str, thread: &str, message_id: &str, parent: &str, when: i64| {
+        let server = ServerMessage { id: server.into(), thread: thread.into(), ..Default::default() };
+        let refs = if parent.is_empty() { vec![] } else { vec![parent.to_string()] };
+        let m = Message { account, server: Some(server), in_reply_to: parent.into(), references: refs, ..mail(inbox, "Invoice", message_id, when) };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let x1 = add(&mut s, "AAk-1", "AAQkconvX", "x1@x.example", "", 1);
+    let y1 = add(&mut s, "AAk-2", "AAQkconvY", "y1@y.example", "", 2);
+    let x2 = add(&mut s, "AAk-3", "AAQkconvX", "x2@example.org", "x1@x.example", 3);
+    let y2 = add(&mut s, "AAk-4", "AAQkconvY", "y2@example.org", "y1@y.example", 4);
+    assert_eq!(*s.conversation(x2), [x1, x2]);
+    assert_eq!(*s.conversation(y2), [y1, y2]);
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    for id in s.conversation(x2).to_vec() {
+        s.mailbox.delete_message(id).unwrap();
+    }
+    assert!([y1, y2].iter().all(|id| s.mailbox.message(*id).unwrap().folder == inbox));
+    assert!([x1, x2].iter().all(|id| s.mailbox.message(*id).unwrap().folder == deleted));
+}
+
+/// A flag over 326,000 messages, timed (`cargo test --release -p mailcraft-engine -- --ignored
+/// a_flag_over_a_large_mailbox --nocapture`).
+#[test]
+#[ignore]
+fn a_flag_over_a_large_mailbox() {
+    let mut mb = Mailbox::with_local_account("Avery", "avery@example.org");
+    let account = mb.accounts[0].id;
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let mut first = 0;
+    for n in 0..326_000i64 {
+        let subject = if n % 10 == 0 { "Weekly report".to_string() } else { format!("Topic {}", n % 9_000) };
+        let id = mb.add_message(mail(inbox, &subject, &format!("m{n}@example.org"), n)).unwrap();
+        if n == 0 {
+            first = id;
+        }
+    }
+    let mut s = Session::new(mb);
+    let started = std::time::Instant::now();
+    let threads = s.threads();
+    println!("build: {:?}", started.elapsed());
+    let started = std::time::Instant::now();
+    run(&mut s, "mail.flag", json!({"id": first}));
+    let _ = s.threads();
+    println!("flag and threads after: {:?}", started.elapsed());
+    assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()));
+}
