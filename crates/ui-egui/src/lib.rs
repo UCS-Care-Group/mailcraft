@@ -3921,11 +3921,14 @@ impl MailApp {
 
     /// The server let `account`'s run in flight in: the password it went with is worth
     /// remembering (when the owner lets it be), at once, so that a run that has a problem later
-    /// or is cut short by closing MailCraft keeps it all the same (#802). Once a run, not again
-    /// when the system holds it already (a round by itself comes every few minutes), and never
-    /// after a piece of the run said a sign-in was refused: the end of such a run forgets it.
+    /// or is cut short by closing MailCraft keeps it all the same (#802). The system is asked
+    /// once a run at most (a store that can't keep it is asked again by the next run, as it was
+    /// by the end of one), not when it holds that password already (a round by itself comes
+    /// every few minutes), and never after a piece of the run said a sign-in was refused: the
+    /// end of such a run forgets it. Remembering switched on during the run counts from its
+    /// next piece.
     pub(crate) fn keep_accepted_password(&mut self, account: Id) {
-        if self.sync_refused || std::mem::replace(&mut self.sync_password_kept, true) {
+        if self.sync_refused || !self.ui.remember_sign_in || std::mem::replace(&mut self.sync_password_kept, true) {
             return;
         }
         let address = self.session.mailbox.account(account).map(|a| a.email.clone());

@@ -165,6 +165,14 @@ fn an_imap_password_is_kept_only_when_the_owner_lets_it_be() {
     send(&mut a, &pipe, SyncResult { account: id, ..Default::default() });
     assert!(store.kept.lock().unwrap().is_empty());
     assert_eq!(a.passwords.get(&id).map(String::as_str), Some(TYPED), "kept in memory for the session");
+
+    // Switched on while a run goes on: its next piece keeps the password.
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    send(&mut a, &pipe, piece(id, SyncStage::Listed, &[]));
+    a.execute("ui.rememberSignIn", json!({"value": true})).unwrap();
+    assert!(store.kept.lock().unwrap().is_empty());
+    send(&mut a, &pipe, piece(id, SyncStage::Reading, &[]));
+    assert_eq!(kept(&a, &store, id).as_deref(), Some(TYPED));
 }
 
 /// An Exchange server account and a Send/Receive of it under way with the password just typed.
