@@ -385,25 +385,40 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
-            // A reply to a message I sent goes to the people I sent it to.
-            let mut to: Vec<Address> = if is_mine(&m.from) && !m.to.is_empty() {
-                m.to.clone()
-            } else if m.reply_to.is_empty() {
-                vec![m.from.clone()]
-            } else {
-                m.reply_to.clone()
+            // Each address once, and no more of them than a message may carry: a message's
+            // lines are the sender's to write, as long as he likes.
+            let add = |list: &mut Vec<Address>, others: &[Address], a: &Address| {
+                if list.len() < mailcraft_mime::MAX_RECIPIENTS && !list.iter().chain(others).any(|x| x.same_mailbox(a)) {
+                    list.push(a.clone());
+                }
             };
+            // Reply-To comes first, whoever From is (#736: a web form sends as the owner, with
+            // the customer in Reply-To), less the owner's own addresses.
+            let mut to: Vec<Address> = Vec::new();
+            for a in m.reply_to.iter().filter(|a| !is_mine(a)) {
+                add(&mut to, &[], a);
+            }
+            if to.is_empty() {
+                // A reply to a message I sent goes to the people I sent it to; else to whoever
+                // Reply-To names (the owner alone), else to the sender.
+                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() {
+                    &m.to
+                } else if m.reply_to.is_empty() {
+                    std::slice::from_ref(&m.from)
+                } else {
+                    &m.reply_to
+                };
+                for a in fallback {
+                    add(&mut to, &[], a);
+                }
+            }
             let mut cc = Vec::new();
             if mode == ComposeMode::ReplyAll {
                 for a in m.to.iter().filter(|a| !is_mine(a)) {
-                    if !to.iter().any(|x| x.same_mailbox(a)) {
-                        to.push(a.clone());
-                    }
+                    add(&mut to, &[], a);
                 }
                 for a in m.cc.iter().filter(|a| !is_mine(a)) {
-                    if !to.iter().chain(&cc).any(|x| x.same_mailbox(a)) {
-                        cc.push(a.clone());
-                    }
+                    add(&mut cc, &to, a);
                 }
             }
             (to, cc)
