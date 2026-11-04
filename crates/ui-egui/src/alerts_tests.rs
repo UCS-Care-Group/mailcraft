@@ -375,6 +375,13 @@ fn arrive(app: &mut MailApp, ctx: &egui::Context, account: Id, id: &str, subject
     let (_tx, rx) = std::sync::mpsc::channel();
     app.sync_rx = Some(crate::MailRun::Imap(rx));
     frame(app, ctx, false);
+    bring(app, account, id, subject);
+    app.sync_rx = None;
+    frame(app, ctx, false);
+}
+
+/// What a Send/Receive brings of `id`: its headers and a preview alone.
+fn bring(app: &mut MailApp, account: Id, id: &str, subject: &str) {
     let listed = mailcraft_model::sync::GraphMessage {
         server: mailcraft_model::sync::ServerMessage { id: id.into(), folder: "F-in".into(), size: 1_200, ..Default::default() },
         subject: subject.into(),
@@ -386,8 +393,6 @@ fn arrive(app: &mut MailApp, ctx: &egui::Context, account: Id, id: &str, subject
     let result =
         mailcraft_model::sync::GraphMailResult { account, email: "ada@example.org".into(), pages: vec![page], partial: true, ..Default::default() };
     mailcraft_engine::cmd::graph_mail::apply_graph_mail(&mut app.session, result).unwrap();
-    app.sync_rx = None;
-    frame(app, ctx, false);
 }
 
 /// The background downloads `id` whole, with `subject` and `text`.
@@ -443,11 +448,22 @@ fn a_rule_that_reads_the_text_shows_its_alert_once_the_message_is_downloaded_and
     app.sync_rx = None;
     frame(&mut app, &ctx, false);
     assert_eq!(told(&recorder)[1], ("Zoe Park".to_string(), "July".to_string()));
+    // Brought and downloaded within one Send/Receive: one alert, at its end.
+    frame(&mut app, &ctx, false);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    frame(&mut app, &ctx, false);
+    bring(&mut app, account, "N5", "September");
+    download(&mut app, &jobs, "N5", "September", "The invoice for September.");
+    app.sync_rx = None;
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 3);
+    assert_eq!(told(&recorder)[2], ("Zoe Park".to_string(), "September".to_string()));
     // With alerts on for new mail, one told of as it arrived isn't told of again by its rule.
     app.execute("ui.desktopAlerts", json!({"newMail": true})).unwrap();
     arrive(&mut app, &ctx, account, "N4", "August");
-    assert_eq!(told(&recorder).len(), 3);
+    assert_eq!(told(&recorder).len(), 4);
     download(&mut app, &jobs, "N4", "August", "The invoice for August.");
     frame(&mut app, &ctx, false);
-    assert_eq!(told(&recorder).len(), 3);
+    assert_eq!(told(&recorder).len(), 4);
 }

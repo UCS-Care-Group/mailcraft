@@ -11,7 +11,8 @@
 //!   already read). A rule that shows a desktop alert has one for the mail it acted on, wherever
 //!   it put it, even with the switch for new mail off (#566); and for mail it could tell of only
 //!   once it was fetched whole, once that download is over (the next frame with no Send/Receive
-//!   under way), unless the run that brought it told of it already.
+//!   under way), unless the run that brought it told of it already (since the window opened: what
+//!   was told isn't kept).
 //! - Up to [`AT_ONCE`] at a time get an alert each; more get one that counts them.
 //! - What an alert says is the message's own text, and so hostile: the sender's name and the
 //!   subject only (never the body), as plain text, without control or format characters
@@ -150,6 +151,7 @@ pub struct State {
     later: Option<(u64, Vec<Id>)>,
     /// Of the messages a run's end told of, those whose rules still waited for them to be fetched
     /// whole, with the opening of their mailbox: a rule's alert once they are isn't a second one.
+    /// Not kept: after a restart, such a message may have both.
     /// At most [`arrivals::MOST`], the latest.
     told: Option<(u64, VecDeque<Id>)>,
 }
