@@ -77,7 +77,12 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   organisation's domains is not vouched for this way. A message moved or copied onto the
   server from another account or from this computer leaves the stamp behind (`forget_stamps`),
   and the reader keeps room for it past its caps on header fields and header bytes too; an undo
-  that moves mail back from a shared mailbox leaves it behind as well.
+  that moves mail back from a shared mailbox leaves it behind as well. The firewall does not
+  guard mail that another program puts on the server (Outlook dragging mail in from another
+  account, a migration tool, a Graph upload or an IMAP `APPEND`): Exchange keeps its headers as
+  written, a forged `Internal` with them (observed on a tenant for a Graph upload; `APPEND` not
+  tried), so such mail from the owner's own domain is vouched for unless a failed check wins,
+  as a forged topmost `Authentication-Results` on such mail already is.
   Mail the server does not hold
   (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
   headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or
@@ -507,6 +512,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
 | 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
