@@ -124,6 +124,20 @@ impl From<std::io::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// A part of the file's own structure that could not be read: a page of the node tree (the
+/// folders and items under it can't be found) or of the block tree (the data of the nodes that
+/// use its blocks can't be found). The page's own count of what it held can't be trusted, so
+/// what was lost with it is not known; each folder or item that needed it is named in the
+/// `left_out` of the walk, list or message that met it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Damage {
+    /// Where the page is in the file.
+    pub offset: u64,
+    /// "a page of the node tree" or "a page of the block tree".
+    pub what: &'static str,
+    pub reason: Error,
+}
+
 /// The caps, checked before anything is read or allocated. [`Limits::default`] is the import's
 /// (the file at most 100 GB, 2,000,000 items, 10,000 folders nested at most 64 deep, 256 MB an
 /// item, 150 MB an attachment, 1,000 recipients and 1,000 attachments an item, attached

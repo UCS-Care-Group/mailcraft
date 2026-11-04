@@ -931,6 +931,14 @@ impl<R: Read + Seek> Pst<R> {
         self.ndb.for_each_node(&mut |e| f(NodeInfo { id: Nid(e.nid), parent: Nid(e.parent) }))
     }
 
+    /// The pages of the file's own trees met so far that could not be read, and why: what was
+    /// under them is lost, how much is not known. A walk of every node
+    /// ([`Pst::for_each_node`]) meets every page of the node tree; the block tree's are met
+    /// as the data that uses them is read.
+    pub fn damage(&self) -> &[crate::Damage] {
+        &self.ndb.damage
+    }
+
     /// The file's size as the header says it (`ibFileEof`) and as it is.
     pub fn sizes(&self) -> (u64, u64) {
         (self.ndb.header.file_eof, self.ndb.file_size())

@@ -10,6 +10,7 @@ mod cost;
 mod hostile;
 mod properties;
 mod roundtrip;
+mod salvage;
 mod spec_samples;
 pub mod writer;
 

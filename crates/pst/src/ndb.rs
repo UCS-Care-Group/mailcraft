@@ -16,7 +16,7 @@ use std::io::{Read, Seek};
 use crate::bytes::{slice, u8_at, u16_at, u32_at};
 use crate::crc::crc32;
 use crate::crypt::{Encryption, decode};
-use crate::error::{Cap, Error, Limits, Result};
+use crate::error::{Cap, Damage, Error, Limits, Result};
 use crate::header::{Bref, Format, Header};
 use crate::source::Source;
 
@@ -50,8 +50,8 @@ pub(crate) struct SubEntry {
 pub(crate) type Subnodes = BTreeMap<u32, SubEntry>;
 
 #[derive(Debug, Clone, Copy)]
-struct BlockEntry {
-    ib: u64,
+pub(crate) struct BlockEntry {
+    pub ib: u64,
     cb: u16,
 }
 
@@ -90,11 +90,32 @@ pub(crate) struct Ndb<R> {
     pub limits: Limits,
     /// Pages as read, by offset; checked again each time they are used.
     pages: HashMap<u64, Vec<u8>>,
+    /// Pages below a tree's root that could not be read, each once.
+    pub damage: Vec<Damage>,
 }
 
 impl<R: Read + Seek> Ndb<R> {
     pub(crate) fn new(src: Source<R>, header: Header, limits: Limits) -> Self {
-        Ndb { src, header, limits, pages: HashMap::new() }
+        Ndb { src, header, limits, pages: HashMap::new(), damage: Vec::new() }
+    }
+
+    /// Notes a page below a root that could not be read. A cap or a failure of the reader
+    /// under the file is not damage to the file, and is not noted.
+    fn note(&mut self, ib: u64, ptype: u8, e: &Error) {
+        if matches!(e, Error::Cap(_) | Error::Io(_)) || self.damage.iter().any(|d| d.offset == ib) {
+            return;
+        }
+        let what = if ptype == PTYPE_NBT { "a page of the node tree" } else { "a page of the block tree" };
+        self.damage.push(Damage { offset: ib, what, reason: e.clone() });
+    }
+
+    /// The page at `bref`, at the level `expect` when one is expected.
+    fn page_at(&mut self, bref: Bref, ptype: u8, expect: Option<u8>) -> Result<Page> {
+        let page = self.read_page(bref, ptype)?;
+        if expect.is_some_and(|e| e != page.level) {
+            return Err(Error::Corrupt("a B-tree page at the wrong level"));
+        }
+        Ok(page)
     }
 
     fn page_bytes(&mut self, ib: u64) -> Result<Vec<u8>> {
@@ -164,10 +185,17 @@ impl<R: Read + Seek> Ndb<R> {
         let mut bref = root;
         let mut expect: Option<u8> = None;
         loop {
-            let page = self.read_page(bref, ptype)?;
-            if expect.is_some_and(|e| e != page.level) {
-                return Err(Error::Corrupt("a B-tree page at the wrong level"));
-            }
+            // A page below the root that can't be read loses what is under it, not the file:
+            // it is noted, and this lookup fails.
+            let page = match self.page_at(bref, ptype, expect) {
+                Ok(p) => p,
+                Err(e) => {
+                    if bref != root {
+                        self.note(bref.ib, ptype, &e);
+                    }
+                    return Err(e);
+                }
+            };
             if page.level == 0 {
                 for i in 0..page.count {
                     let e = page.entry(i)?;
@@ -213,7 +241,7 @@ impl<R: Read + Seek> Ndb<R> {
         }
     }
 
-    fn block_entry(&mut self, bid: u64) -> Result<BlockEntry> {
+    pub(crate) fn block_entry(&mut self, bid: u64) -> Result<BlockEntry> {
         let root = self.header.bbt;
         let e = self.find(root, PTYPE_BBT, bid)?.ok_or(Error::NotFound("a block"))?;
         let f = self.format();
@@ -435,20 +463,28 @@ impl<R: Read + Seek> Ndb<R> {
     }
 
     /// Every node of the node B-tree, in key order, until `f` returns false.
+    /// A page below the root that can't be read, or that is met twice, is noted and skipped
+    /// with what is under it; the root must be read.
     pub(crate) fn for_each_node(&mut self, f: &mut dyn FnMut(NodeEntry) -> bool) -> Result<()> {
+        let root = self.header.nbt;
         let mut visited = HashSet::new();
-        let mut stack: Vec<(Bref, Option<u8>)> = vec![(self.header.nbt, None)];
+        let mut stack: Vec<(Bref, Option<u8>)> = vec![(root, None)];
         while let Some((bref, expect)) = stack.pop() {
             if !visited.insert(bref.ib) {
-                return Err(Error::Cycle("the node tree"));
+                self.note(bref.ib, PTYPE_NBT, &Error::Cycle("the node tree"));
+                continue;
             }
             if visited.len() > self.limits.max_btree_pages {
                 return Err(Error::Cap(Cap::BTreePages));
             }
-            let page = self.read_page(bref, PTYPE_NBT)?;
-            if expect.is_some_and(|e| e != page.level) {
-                return Err(Error::Corrupt("a B-tree page at the wrong level"));
-            }
+            let page = match self.page_at(bref, PTYPE_NBT, expect) {
+                Ok(p) => p,
+                Err(e) if bref != root => {
+                    self.note(bref.ib, PTYPE_NBT, &e);
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
             if page.level == 0 {
                 for i in 0..page.count {
                     let e = self.node_entry(page.entry(i)?)?;
