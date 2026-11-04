@@ -314,3 +314,24 @@ fn an_accounts_first_download_shows_no_rules_alert_either() {
     apply(&mut s, account, vec![inbox_delta(inbox, vec![message(1, "Rowan", "Urgent")])]);
     assert!(arrivals(&s.mailbox, &before).is_empty());
 }
+
+#[test]
+fn mail_a_rule_alerts_for_once_it_is_fetched_whole_is_told_of_in_the_owners_own_accounts_alone() {
+    let mut s = Session::empty();
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.mailbox.add_shared_mailbox(owner, "team@example.org").unwrap();
+    let local = s.mailbox.add_account(mailcraft_model::Account { name: "Local".into(), email: "me@local.example".into(), ..Default::default() });
+    let mut add = |account: Id, subject: &str, alert: bool, draft: bool| {
+        let folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m =
+            Message { folder, subject: subject.into(), from: Address::new("Zoe", "zoe@example.org"), rule_alert: alert, draft, ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let told = add(owner, "Invoice", true, false);
+    let ids =
+        [add(owner, "No rule", false, false), add(owner, "Draft", true, true), add(shared, "Shared", true, false), add(local, "Local", true, false)];
+    let found = alerted(&s.mailbox, &[ids[0], ids[1], told, ids[2], ids[3], 9_999]);
+    assert_eq!(subjects(&found), ["Invoice"]);
+    assert!(found[0].rule && found[0].sender == "Zoe" && found[0].account == owner);
+    assert!(alerted(&s.mailbox, &[]).is_empty());
+}

@@ -179,6 +179,29 @@ fn a_run_from_the_states_it_gave_brings_the_changes_alone() {
     assert!(subjects(&pieces).is_empty() && last(&pieces).whole);
 }
 
+/// The server's Outbox is left out of the folder list while it holds nothing, so that the account
+/// shows one Outbox, MailCraft's own (#747); with mail in it, it is listed and read like any other.
+#[test]
+fn the_servers_outbox_is_left_out_while_it_holds_nothing() {
+    let standin = StandIn::new();
+    let outbox = standin.state().folder_id("outbox").unwrap();
+    let (first, _) = run(&standin, &request());
+    let folders = first.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    assert!(folders.changed.iter().all(|f| f.id != outbox && f.name != "Outbox"), "left out of the list");
+    assert!(folders.deleted.contains(&outbox), "and taken off a list that had it");
+    assert!(first.iter().flat_map(|p| &p.pages).all(|page| page.folder != outbox), "with nothing in it to read");
+    assert!(last(&first).whole);
+    // Mail left in it (by another program): listed, at the top, and read.
+    standin.state().deliver("outbox", "Stuck", false);
+    let hierarchy = first.iter().find_map(|p| (!p.hierarchy.is_empty()).then(|| p.hierarchy.clone())).unwrap();
+    let (pieces, _) = run(&standin, &EwsMailRequest { hierarchy, states: states_of(&first), ..request() });
+    let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    let listed = folders.changed.iter().find(|f| f.id == outbox).unwrap();
+    assert_eq!((listed.name.as_str(), listed.kind, listed.parent.as_str(), listed.total), ("Outbox", FolderKind::Custom, "", 1));
+    assert!(!folders.deleted.contains(&outbox));
+    assert_eq!(subjects(&pieces), vec!["Stuck".to_owned()]);
+}
+
 #[test]
 fn a_state_the_server_forgot_reads_the_folder_and_the_folders_afresh() {
     let standin = StandIn::new();
@@ -444,7 +467,8 @@ fn the_requests_hold_to_the_schema_and_write_nothing() {
     );
     let operations: Vec<&str> = state.requests.iter().map(|r| r.operation.as_str()).collect();
     assert_eq!(operations.iter().take(2).collect::<Vec<_>>(), [&"GetFolder", &"SyncFolderHierarchy"]);
-    assert!(operations.iter().skip(2).all(|o| *o == "SyncFolderItems") && operations.len() == 8, "{operations:?}");
+    // (Five folders of mail: the server's Outbox, empty, is not read, #747.)
+    assert!(operations.iter().skip(2).all(|o| *o == "SyncFolderItems") && operations.len() == 7, "{operations:?}");
 }
 
 #[test]

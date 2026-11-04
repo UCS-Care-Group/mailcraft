@@ -220,16 +220,20 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
 }
 
 /// Take in messages fetched whole, as their account's kind is taken in (a JMAP account's are held
-/// to sizes first).
+/// to sizes first). A rule's desktop alert for one of them comes once the download is over.
 fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcraft_engine::CmdError> {
     let kind = app.session.mailbox.account(result.account).map(|a| a.kind);
-    if kind == Some(AccountKind::Jmap) {
+    let said = if kind == Some(AccountKind::Jmap) {
         jmap_mail::apply_jmap_fetch(&mut app.session, result)
     } else if kind == Some(AccountKind::Exchange) {
         ews_mail::apply_ews_fetch(&mut app.session, result)
     } else {
         graph_mail::apply_graph_fetch(&mut app.session, result)
+    };
+    if let Ok(said) = &said {
+        crate::alerts::downloaded(app, said);
     }
+    said
 }
 
 impl MailApp {
