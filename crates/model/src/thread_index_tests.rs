@@ -209,3 +209,24 @@ fn delete_conversation_leaves_an_unrelated_message_of_the_same_subject() {
     assert_eq!(mb.message(theirs).unwrap().folder, inbox);
     assert!([ours, answer].iter().all(|id| mb.message(*id).unwrap().folder == deleted));
 }
+
+#[test]
+fn two_threads_never_join_through_mail_kept_from_before() {
+    // L1 and L2 kept from before (no conversation id, headers only), from two senders; R1 answers
+    // L1 and R2 answers L2, each with its server's own conversation id.
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { name: "me@example.org".into(), email: "me@example.org".into(), ..Default::default() });
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let add = |mb: &mut Mailbox, m: Message| mb.add_message(Message { account, folder: inbox, ..m }).unwrap();
+    let answers = |m: Message, parent: &str| Message { in_reply_to: parent.into(), references: vec![parent.into()], ..m };
+    let l1 = add(&mut mb, listed(0, "Invoice for October", "l1@x.example", ""));
+    let l2 = add(&mut mb, listed(0, "Invoice for October", "l2@y.example", ""));
+    let r1 = add(&mut mb, answers(listed(0, "RE: Invoice for October", "r1@example.org", "AAQkconvA"), "l1@x.example"));
+    let r2 = add(&mut mb, answers(listed(0, "RE: Invoice for October", "r2@example.org", "AAQkconvB"), "l2@y.example"));
+    assert_eq!(mb.conversation(r1), [l1, r1]);
+    assert_eq!(mb.conversation(r2), [l2, r2]);
+    for id in mb.conversation(r1) {
+        mb.delete_message(id).unwrap();
+    }
+    assert!([l2, r2].iter().all(|id| mb.message(*id).unwrap().folder == inbox), "Y's mail is left where it was");
+}

@@ -19,8 +19,9 @@
 //! A message **not known** yet ([`unknown`]) is one that nothing links and nothing could: a
 //! server's message that its server hasn't given a conversation id (it was listed before that
 //! was asked for) and whose headers, all that is here of it, name no other; or one with no
-//! `Message-ID` at all. Those of one topic are one conversation among themselves, as every
-//! conversation was before, until a Send/Receive brings their ids.
+//! `Message-ID` at all. Those of one topic that nothing else links to either are one
+//! conversation among themselves, as every conversation was before, until a Send/Receive brings
+//! their ids; one that a known message links to is of that message's conversation alone.
 //!
 //! Everything here is read from mail and from servers, so it is hostile: of each message only
 //! its `Message-ID`, its `In-Reply-To` and its last [`MAX_REFERENCES`] `References` of at most
@@ -112,6 +113,12 @@ impl Sets {
         root
     }
 
+    /// Whether `x` is in a set of its own.
+    fn alone(&mut self, x: usize) -> bool {
+        let root = self.find(x);
+        self.size.get(root).copied().unwrap_or(1) <= 1
+    }
+
     fn union(&mut self, a: usize, b: usize) {
         let (a, b) = (self.find(a), self.find(b));
         if a == b {
@@ -152,7 +159,6 @@ impl ThreadIndex {
         let mut sets = Sets::new(same.len());
         let mut named: HashMap<&str, usize> = HashMap::new();
         let mut threads: HashMap<String, usize> = HashMap::new();
-        let mut first_unknown: Option<usize> = None;
         for (i, m) in same.iter().enumerate() {
             for id in links(m) {
                 self.work = self.work.saturating_add(1);
@@ -173,11 +179,14 @@ impl ThreadIndex {
                     }
                 }
             }
-            if unknown(m) {
-                match first_unknown {
-                    Some(j) => sets.union(i, j),
-                    None => first_unknown = Some(i),
-                }
+        }
+        // Then the unknowns, among themselves, and only those still linked to nothing: one that a
+        // reply names is of that reply's conversation, and joining it to the other unknowns would
+        // join two threads through it (#795).
+        let alone: Vec<usize> = (0..same.len()).filter(|&i| same.get(i).is_some_and(|m| unknown(m)) && sets.alone(i)).collect();
+        if let Some((&first, rest)) = alone.split_first() {
+            for &i in rest {
+                sets.union(i, first);
             }
         }
         let mut groups: HashMap<usize, Vec<Id>> = HashMap::new();
