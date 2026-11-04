@@ -987,6 +987,7 @@ pub struct Clock {
     pub zone: Option<Zone>,
 }
 
+#[derive(Clone)]
 pub(crate) struct Undo {
     label: &'static str,
     pub(crate) mailbox: Mailbox,
@@ -2807,6 +2808,20 @@ impl Session {
         None
     }
 
+    /// The stacks as they were before an undo (`redo`: a redo) that failed (#767): what it pushed
+    /// onto the other stack is taken off, and the step it took is put back on top of its own.
+    fn put_back_step(&mut self, redo: bool, history: usize, redo_len: usize, step: Option<Undo>) {
+        let (from, from_len, to, to_len) =
+            if redo { (&mut self.redo, redo_len, &mut self.history, history) } else { (&mut self.history, history, &mut self.redo, redo_len) };
+        to.truncate(to_len);
+        if from.len() < from_len
+            && let Some(step) = step
+        {
+            from.truncate(from_len.saturating_sub(1));
+            from.push(step);
+        }
+    }
+
     pub fn undo(&mut self) -> bool {
         let Some(u) = self.history.pop() else { return false };
         let cur = self.swap(u);
@@ -2900,6 +2915,12 @@ impl Session {
         // (Undo shows what it selects again, and a conversation open in the list has that built)
         // are of the mailbox after the marks already.
         let counts_before = self.counts_cache.as_ref().map(|(_, counts)| counts.clone());
+        // Undo and redo move a step from one stack to the other: a run that then fails (refused
+        // for an agent, or a panic) puts the step back as it was, with the mailbox (#767).
+        let stacks = matches!(id, "edit.undo" | "edit.redo").then(|| {
+            let from = if id == "edit.redo" { &self.redo } else { &self.history };
+            (self.history.len(), self.redo.len(), from.last().cloned())
+        });
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
@@ -3034,6 +3055,9 @@ impl Session {
                     self.list_cache = None;
                 }
                 self.sel = before.sel;
+                if let Some((history, redo, step)) = stacks {
+                    self.put_back_step(id == "edit.redo", history, redo, step);
+                }
                 self.compose = compose;
                 self.composing = composing;
                 self.signature_edit = signature_edit;
