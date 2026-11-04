@@ -2443,12 +2443,12 @@ impl Mailbox {
 
     /// [`Mailbox::copy_message`]. A copy of a message a Microsoft account's server has, into
     /// another folder of that account, waits in the queue for the server to make it
-    /// ([`Queued::CopyMessage`]), with a marker that `nonce` (the time, say) helps make one that
+    /// ([`Queued::CopyMessage`]), with a marker that `stamp` (the time, say) helps make one that
     /// is used once. A copy into a Microsoft account from elsewhere ([`Mailbox::placed_into`])
     /// waits to be made on that account's server from the whole message
     /// ([`Queued::PlaceMessage`]). Copying a message that isn't fetched yet out of a Microsoft
     /// account is refused: its copy would never be whole.
-    pub fn copy_message_marked(&mut self, id: Id, folder: Id, nonce: u64) -> Result<Id, ModelError> {
+    pub fn copy_message_marked(&mut self, id: Id, folder: Id, stamp: u64) -> Result<Id, ModelError> {
         let to_account = self.folder(folder).ok_or(not_found("folder", folder))?.account;
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
@@ -2505,7 +2505,7 @@ impl Mailbox {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();
             // Of the source's id: copies of different messages never share a marker.
             let source = crate::sync::fingerprint(server.id.as_bytes());
-            let marker = format!("mailcraft-{nonce:x}-{new:x}-{source:016x}");
+            let marker = format!("mailcraft-{stamp:x}-{new:x}-{source:016x}");
             self.queued.push(Queued::CopyMessage { account: from_account, id: server.id, to, copy: new, marker });
         }
         Ok(new)
@@ -2856,7 +2856,8 @@ impl Mailbox {
     /// left it: one moved since (by the owner, say) is let alone. A rule that acted then isn't run
     /// again, but one whose delete for good waited on a rule before it now deletes it, unless that
     /// rule applies after all (and stops the rules after it). Returns the names of the rules that
-    /// acted. None shows an alert: the mail arrived before.
+    /// acted. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]), as
+    /// it would have as the message arrived.
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
         let mut ran = Vec::new();
         if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
@@ -2869,6 +2870,7 @@ impl Mailbox {
             return ran;
         }
         let mut unsure = false;
+        let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
             let Some(m) = self.message(id).filter(|m| m.account == account) else { break };
             let Some(mut rule) = self.rules.iter().find(|r| r.id == wait.rule && r.is_for(account)).cloned() else { continue };
@@ -2882,6 +2884,7 @@ impl Mailbox {
             }
             if !rule.on_server() {
                 if !wait.delete_only {
+                    alert |= rule.alert;
                     self.act(id, &rule.actions, clock, !unsure);
                     ran.push(rule.name.clone());
                 } else if !unsure && rule.actions.contains(&Action::DeleteForGood) {
@@ -2892,6 +2895,12 @@ impl Mailbox {
             if rule.stop {
                 break;
             }
+        }
+        // Moved out of the account, it didn't arrive where it is now.
+        if let Ok(m) = self.message_mut(id)
+            && m.account == account
+        {
+            m.rule_alert |= alert;
         }
         ran
     }

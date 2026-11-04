@@ -358,8 +358,9 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
-    /// A rule that shows a desktop alert acted on it as it arrived ([`crate::Rule::alert`]): the
-    /// window shows one for it once the run is over, wherever the rule put it. Not written.
+    /// A rule that shows a desktop alert acted on it as it arrived, or once it was here whole
+    /// ([`crate::Rule::alert`], [`crate::Mailbox::run_waiting_rules`]): the window shows one for it
+    /// once the run or the download is over, wherever the rule put it. Not written.
     #[serde(skip)]
     pub rule_alert: bool,
 }

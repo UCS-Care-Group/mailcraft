@@ -22,6 +22,8 @@
 //! But a message a rule that shows a desktop alert acted on as it arrived counts wherever the
 //! rule put it, read or not ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's
 //! Inbox had been read from its server before: an account's first download tells of nothing.
+//! So does one such a rule acted on only once it was fetched whole, after the run that brought it
+//! (#566): the fetch names it, and [`alerted`] says who it is from.
 //!
 //! Nothing here shows anything: it only says which messages, and who they are from. The text is
 //! the message's own, hostile, and the window cleans it before it goes anywhere.
@@ -91,18 +93,29 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
     mailbox
         .messages
         .range(from..)
-        .map(|(_, m)| m)
+        .map(|(_, m)| &**m)
         .filter(|m| !m.draft && own(mailbox, m.account) && ((!m.read && watched(m.folder)) || (m.rule_alert && known(m.account))))
         .take(MOST)
-        .map(|m| Arrival {
-            message: m.id,
-            account: m.account,
-            folder: m.folder,
-            sender: m.from.display().to_string(),
-            subject: m.subject.clone(),
-            rule: m.rule_alert,
-        })
+        .map(arrival)
         .collect()
+}
+
+/// Of `ids`, the messages a rule shows a desktop alert for that are still here, in the owner's
+/// own accounts, in the order given; at most [`MOST`]. (A fetch names them: a rule that waited for
+/// them to be here whole acted on them, [`crate::cmd::graph_mail::apply_graph_fetch`].)
+pub fn alerted(mailbox: &Mailbox, ids: &[Id]) -> Vec<Arrival> {
+    ids.iter().filter_map(|id| mailbox.message(*id)).filter(|m| m.rule_alert && !m.draft && own(mailbox, m.account)).take(MOST).map(arrival).collect()
+}
+
+fn arrival(m: &mailcraft_model::Message) -> Arrival {
+    Arrival {
+        message: m.id,
+        account: m.account,
+        folder: m.folder,
+        sender: m.from.display().to_string(),
+        subject: m.subject.clone(),
+        rule: m.rule_alert,
+    }
 }
 
 #[cfg(test)]
