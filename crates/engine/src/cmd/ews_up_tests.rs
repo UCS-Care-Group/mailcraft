@@ -388,9 +388,9 @@ fn a_delete_for_good_waits_for_a_copy_of_the_message_and_a_refused_copy_brings_i
     assert!(changes(&s, account).is_empty());
 }
 
-/// The same, with the message deleted on a phone meanwhile, before the refusal or after it, or
-/// the copy answered with "no such item": it stays, on this computer (#566), and isn't swept away
-/// with its server's.
+/// The same, with the message deleted on a phone meanwhile, before the copy is refused or
+/// answered with "no such item", or after: it stays, on this computer (#566), and isn't swept
+/// away with its server's.
 #[test]
 fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
     let refused = MessageOutcome::Refused { status: 403 };

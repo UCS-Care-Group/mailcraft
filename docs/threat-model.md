@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -292,7 +292,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
-  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
+  A server account's copy goes to Deleted Items on undo and is not counted as a removal. An undo or
+  redo that leaves a rule switched on that deletes mail permanently asks `delete` too (#566).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
@@ -544,3 +545,4 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-28 | minor | A message's `<style>` blocks are read for the style whitelist by a reader of our own, within caps and fuzzed; nothing in a sheet is run or fetched (#598) |
 | 2026-10-31 | minor | #566 part 2: a rule copies mail into no Outbox either; an agent is asked before a rule that deletes for good |
 | 2026-11-03 | patch | #566 part 2: what a rule that deletes for good does on the server, said; a rule that can't tell yet deletes nothing for good after it |
+| 2026-11-04 | patch | #566 part 2: an undo or redo that leaves a rule on that deletes permanently asks `delete`, beside #473's causes |
