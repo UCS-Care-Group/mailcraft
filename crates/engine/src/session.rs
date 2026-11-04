@@ -822,9 +822,10 @@ pub struct Prefs {
     /// The date navigator and the Month view say which week of the year a week is
     /// (`view.weekNumbers`).
     pub week_numbers: bool,
-    /// A meeting request (or a cancellation) that was answered from the mail goes to Deleted
-    /// Items (`calendar.deleteAnsweredRequests`). On for a mailbox set up from here on, as in
-    /// Outlook; a saved choice, on or off, is kept.
+    /// A meeting request (or a cancellation) in an Inbox of the owner's own accounts that was
+    /// answered from the mail goes to Deleted Items (`calendar.deleteAnsweredRequests`). Off here,
+    /// so a session without the window's settings (`mailcraft-cli run`, headless `mcp`) keeps the
+    /// request; the window's settings for a new install turn it on, as in Outlook (#755).
     pub delete_answered_requests: bool,
     /// The working hours above are used even when the account's mailbox has its own
     /// (`view.workHours`).
@@ -892,7 +893,7 @@ impl Default for Prefs {
             sync_minutes: 5,
             time_scale: 30,
             week_numbers: false,
-            delete_answered_requests: true,
+            delete_answered_requests: false,
             own_work_hours: false,
             mailbox_hours: None,
             own_favorites: false,

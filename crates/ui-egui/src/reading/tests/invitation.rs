@@ -662,9 +662,8 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     let (first, second) = (ids[0], ids[1]);
     let mut harness = window(app, (1280.0, 420.0));
     select(&mut harness, first);
-    // On for a new mailbox; an owner who turned it off finds an answered request where it was.
-    assert!(harness.state().session.prefs.delete_answered_requests);
-    harness.state_mut().session.prefs.delete_answered_requests = false;
+    // Unless the owner turns it on, an answered request stays where it is.
+    assert!(!harness.state().session.prefs.delete_answered_requests);
     let inbox = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let bin = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
     harness.state_mut().execute("calendar.respond", json!({"message": first, "response": "accept"})).unwrap();
@@ -694,6 +693,34 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     let app = harness.state();
     assert_eq!((app.session.view.module, app.session.view.date.iso().as_str()), (mailcraft_engine::Module::Calendar, "2026-10-15"));
     assert_eq!(app.session.sel.event, events(app, "Design review").first().map(|e| e.id));
+}
+
+/// #755: a window that starts without saved settings (a new install) is on a new install's, which
+/// send an answered request from the Inbox to Deleted Items, and saves them so; settings saved
+/// with it off are read back off, and the request stays. The engine on its own (`mailcraft-cli
+/// run`, headless `mcp`) leaves it off.
+#[test]
+fn a_new_install_files_an_answered_request_away_and_a_saved_choice_is_kept() {
+    assert!(crate::UiState::default().options.delete_answered_requests && !mailcraft_engine::Prefs::default().delete_answered_requests);
+    // As the hosts start when there is no settings file.
+    let (mut app, account, ids) = mail_app(vec![Meeting::default().mail()]);
+    assert!(!app.session.prefs.delete_answered_requests);
+    app.fresh_prefs();
+    let bin = app.session.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    let answer = app.execute("calendar.respond", json!({"message": ids[0], "response": "accept"})).unwrap();
+    assert_eq!((answer["deleted"].as_bool(), app.session.mailbox.message(ids[0]).map(|m| m.folder)), (Some(true), Some(bin)));
+    let saved: crate::UiState = serde_json::from_value(serde_json::to_value(app.prefs()).unwrap()).unwrap();
+    assert!(saved.options.delete_answered_requests);
+
+    // An owner who turned it off: saved so, and kept at the next start.
+    let (mut app, account, ids) = mail_app(vec![Meeting::default().mail()]);
+    let mut off = crate::UiState::default();
+    off.options.delete_answered_requests = false;
+    app.apply_prefs(serde_json::from_value(serde_json::to_value(off).unwrap()).unwrap());
+    let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let answer = app.execute("calendar.respond", json!({"message": ids[0], "response": "accept"})).unwrap();
+    assert_eq!((answer["deleted"].as_bool(), app.session.mailbox.message(ids[0]).map(|m| m.folder)), (Some(false), Some(inbox)));
+    assert!(!app.prefs().options.delete_answered_requests);
 }
 
 #[test]

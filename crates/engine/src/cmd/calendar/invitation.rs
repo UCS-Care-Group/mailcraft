@@ -60,7 +60,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .params(r#"{"message"?: number} — the calendar on the day of the meeting a message carries, with the meeting selected when it is there: {"date", "event": number|null}"#),
         CommandSpec::new("calendar.deleteAnsweredRequests", "Delete Meeting Requests after Responding", "File › Options", delete_answered)
             .pure()
-            .params(r#"{"value"?: bool (default: toggle)} — whether a meeting request or a cancellation that was answered from the mail goes to Deleted Items (off unless turned on)"#),
+            .params(r#"{"value"?: bool (default: toggle)} — whether a meeting request or a cancellation answered from the mail goes from the Inbox to Deleted Items: the owner's choice in File › Options, on in a new install's window, off in a session without the window's settings (mailcraft-cli run, headless mcp)"#),
     ]
 }
 
@@ -379,16 +379,21 @@ fn note_answer(s: &mut Session, message: Id, response: Response) {
     }
 }
 
-/// The owner dealt with a meeting request or a cancellation: it goes to Deleted Items when that
-/// is the owner's option, like any message that is deleted (and never for good: one that is
-/// there already stays). Whether it went.
+/// The owner dealt with a meeting request or a cancellation: it goes from the Inbox to Deleted
+/// Items when that is the owner's option, like any message that is deleted. Only from the Inbox
+/// of one of the owner's own accounts, as the option says and as in Outlook: one in another
+/// folder (filed there by a rule, say), in a shared mailbox or in Deleted Items already stays
+/// where it is. Whether it went.
 fn file_away(s: &mut Session, message: Id) -> bool {
     if !s.prefs.delete_answered_requests {
         return false;
     }
     let Some((account, folder)) = s.mailbox.message(message).map(|m| (m.account, m.folder)) else { return false };
-    let Some(bin) = s.mailbox.folder_of_kind(account, FolderKind::Deleted) else { return false };
-    if s.mailbox.subtree(bin).contains(&folder) {
+    if s.mailbox.account(account).is_none_or(|a| a.is_shared()) || s.mailbox.folder_of_kind(account, FolderKind::Inbox) != Some(folder) {
+        return false;
+    }
+    // Never deleted for good: without a Deleted Items to go to, it stays.
+    if s.mailbox.folder_of_kind(account, FolderKind::Deleted).is_none() {
         return false;
     }
     let registry = s.registry.clone();
@@ -1616,16 +1621,13 @@ mod tests {
         let (inbox, bin) =
             (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap());
         let request = mail(&mut s, account, "REQUEST", "uid-1", "");
-        // (On for a new mailbox; this one has it off, as an owner who turned it off.)
-        assert!(s.prefs.delete_answered_requests && crate::Prefs::default().delete_answered_requests);
-        s.prefs.delete_answered_requests = false;
         let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
         assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(false), Some(inbox)));
         // The option, as a command: toggled, set, and whatever is said to it.
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({}))["value"], true);
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({"value": false}))["value"], false);
         assert_eq!(run(&mut s, "calendar.deleteAnsweredRequests", json!({"value": true}))["value"], true);
-        assert!(s.prefs.delete_answered_requests);
+        assert!(s.prefs.delete_answered_requests && !crate::Prefs::default().delete_answered_requests);
         // The next answer files the request away, in one step that Undo takes back whole.
         let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "tentative"}));
         assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(true), Some(bin)));

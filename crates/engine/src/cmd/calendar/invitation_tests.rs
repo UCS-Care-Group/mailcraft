@@ -128,29 +128,54 @@ fn a_cancellation_in_one_account_leaves_a_meeting_another_account_keeps() {
     assert!(removable(&mut s, own));
 }
 
-/// #755: a new mailbox files an answered request away; a saved choice is kept, on or off, and
-/// preferences saved without the option take the default.
+/// #755: a session without the window's settings (`mailcraft-cli run`, headless `mcp`) keeps an
+/// answered request where it is; a saved choice, on or off, is read back as it was, and
+/// preferences saved without the option leave it off. (A new install's window turns it on:
+/// `ui-egui`'s `reading/tests/invitation.rs`.)
 #[test]
-fn answered_requests_are_deleted_by_default_and_a_saved_choice_is_kept() {
+fn a_session_without_the_windows_settings_keeps_an_answered_request_and_a_saved_choice_is_kept() {
     let (mut s, account) = session();
-    let (inbox, bin) =
-        (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap());
-    let request = mail(&mut s, account, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
-    assert_eq!(s.mailbox.message(request).map(|m| m.folder), Some(inbox));
-    assert!(s.prefs.delete_answered_requests);
-    let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
-    assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(true), Some(bin)));
-
-    let saved = |on: bool| serde_json::to_value(crate::Prefs { delete_answered_requests: on, ..Default::default() }).unwrap();
-    assert!(!serde_json::from_value::<crate::Prefs>(saved(false)).unwrap().delete_answered_requests);
-    assert!(serde_json::from_value::<crate::Prefs>(saved(true)).unwrap().delete_answered_requests);
-    assert!(serde_json::from_value::<crate::Prefs>(json!({"weekNumbers": true})).unwrap().delete_answered_requests);
-
-    // An owner who turned it off keeps the request where it is.
-    let (mut s, account) = session();
-    s.prefs = serde_json::from_value(saved(false)).unwrap();
+    assert!(!s.prefs.delete_answered_requests && !crate::Prefs::default().delete_answered_requests);
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let request = mail(&mut s, account, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
     let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
     assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(false), Some(inbox)));
+
+    let saved = |on: bool| serde_json::to_value(crate::Prefs { delete_answered_requests: on, ..Default::default() }).unwrap();
+    assert!(!serde_json::from_value::<crate::Prefs>(saved(false)).unwrap().delete_answered_requests);
+    assert!(serde_json::from_value::<crate::Prefs>(saved(true)).unwrap().delete_answered_requests);
+    assert!(!serde_json::from_value::<crate::Prefs>(json!({"weekNumbers": true})).unwrap().delete_answered_requests);
+
+    // An owner who turned it on: the answered request leaves the Inbox for Deleted Items.
+    let (mut s, account) = session();
+    s.prefs = serde_json::from_value(saved(true)).unwrap();
+    let bin = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    let request = mail(&mut s, account, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
+    let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
+    assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(true), Some(bin)));
+}
+
+/// #755: only the Inbox is cleared, as the option says and as Outlook does: a request in another
+/// folder (one a rule filed it in, or a folder under the Inbox) stays where it is, answered.
+#[test]
+fn an_answered_request_outside_the_inbox_stays_where_it_is() {
+    let (mut s, account) = session();
+    s.prefs.delete_answered_requests = true;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let filed = s.mailbox.add_folder(account, None, "Meetings").unwrap();
+    let under = s.mailbox.add_folder(account, Some(inbox), "Invitations").unwrap();
+    for (n, folder) in [filed, under].into_iter().enumerate() {
+        let request = mail(&mut s, account, "bo@example.org", "REQUEST", &format!("uid-{n}"), "bo@example.org");
+        s.mailbox.message_mut(request).unwrap().folder = folder;
+        s.mailbox_changed();
+        let answer = run(&mut s, "calendar.respond", json!({"message": request, "response": "accept"}));
+        assert_eq!((answer["deleted"].as_bool(), s.mailbox.message(request).map(|m| m.folder)), (Some(false), Some(folder)));
+        assert!(s.mailbox.message(request).unwrap().answered);
+    }
+    // A cancellation from the organizer outside the Inbox likewise: the meeting goes, the mail stays.
+    let cancel = mail(&mut s, account, "bo@example.org", "CANCEL", "uid-0", "bo@example.org");
+    s.mailbox.message_mut(cancel).unwrap().folder = filed;
+    s.mailbox_changed();
+    let removed = run(&mut s, "calendar.removeCancelled", json!({"message": cancel}));
+    assert_eq!((removed["deleted"].as_bool(), s.mailbox.message(cancel).map(|m| m.folder)), (Some(false), Some(filed)));
 }
