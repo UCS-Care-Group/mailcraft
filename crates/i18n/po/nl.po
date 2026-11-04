@@ -12827,7 +12827,7 @@ msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noem
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
+msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u op Controleren op updates drukt."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

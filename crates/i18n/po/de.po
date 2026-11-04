@@ -12182,7 +12182,7 @@ msgstr ""
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Dies ist ein Entwicklungsbuild: Er sucht nur, wenn Sie unter Datei › Info auf „Nach Updates suchen“ klicken."
+msgstr "Dies ist ein Entwicklungsbuild: Er sucht nur, wenn Sie auf „Nach Updates suchen“ klicken."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

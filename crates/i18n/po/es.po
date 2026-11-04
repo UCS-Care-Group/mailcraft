@@ -12196,7 +12196,7 @@ msgstr ""
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones en Archivo › Acerca de."
+msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
