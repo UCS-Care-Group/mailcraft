@@ -3167,8 +3167,9 @@ impl Mailbox {
     /// leaving out what is kept on this computer alone. A name written anew in other letters
     /// first (deleted and made again, side by side: a server can't rename one), then what is new,
     /// then colours. A deletion, which can't be undone there, waits while anything is still to be
-    /// made: a rename's old name goes only once the server has the new one. Nothing while the
-    /// list is read-only here or its server's wasn't read.
+    /// made: a rename's old name goes only once the server has the new one, and once the items
+    /// that carried it there have the new one too. Nothing while the list is read-only here or its
+    /// server's wasn't read.
     pub fn category_upload(&self, owner: Id) -> Vec<crate::remote::CategoryChange> {
         use crate::remote::{CategoryChange, CategoryChangeKind};
         let (Some(list), Some(synced)) = (self.account_categories.get(&owner), self.synced_categories.get(&owner)) else { return Vec::new() };
@@ -3200,12 +3201,51 @@ impl Mailbox {
         // (A pair is never cut in two by the limit: half of it would be a deletion alone.)
         let mut changes: Vec<CategoryChange> = respelled.into_iter().take(max / 2).flatten().collect();
         if creates.is_empty() {
-            changes.extend(deletes);
+            // The items that carried it take their new names there first, as Outlook moves them.
+            changes.extend(deletes.into_iter().filter(|d| !self.still_carried_there(owner, &d.name)));
         }
         changes.extend(creates);
         changes.extend(colors);
         changes.truncate(max);
         changes
+    }
+
+    /// Whether an item that uses `owner`'s list still carries `name` on its server while it no
+    /// longer does here, its change still to go (#661): a message (not one in the Outbox, which
+    /// is sent, not changed), a to-do, or an event whose change waits. A deletion of the name in
+    /// Outlook waits for them, as Outlook moves every item to a category's new name. A change the
+    /// server refuses is given up (a message is put back as the server has it, a to-do is kept
+    /// here alone), and the deletion goes; one held for now (a shared calendar whose rights
+    /// shrank) keeps the name on that item there, and the list keeps it with it. Looked at only
+    /// while a deletion waits, once a job, and it stops at the first item found.
+    fn still_carried_there(&self, owner: Id, name: &str) -> bool {
+        let uses = |account: Id| self.category_list_owner(account) == Some(owner);
+        let carries = |list: &[String]| list.iter().any(|c| same_category(c, name));
+        let messages = self.messages.values().any(|m| {
+            uses(m.account)
+                && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty() && carries(&s.categories))
+                && !carries(&m.categories)
+                && self.folder(m.folder).is_none_or(|f| f.kind != FolderKind::Outbox)
+        });
+        let keeps_tasks = |account: Id| self.account(account).is_some_and(Account::keeps_tasks);
+        let tasks = || {
+            self.tasks.values().any(|t| {
+                !t.local_only
+                    && !t.origin.id.is_empty()
+                    && uses(t.origin.account)
+                    && t.synced.as_ref().is_some_and(|f| carries(&f.categories))
+                    && !carries(&t.categories)
+                    && keeps_tasks(t.origin.account)
+            })
+        };
+        let events = || {
+            self.event_changes.iter().any(|c| {
+                uses(c.account)
+                    && c.base.as_ref().is_some_and(|b| carries(&b.categories))
+                    && self.event(c.event).is_some_and(|e| !carries(&e.categories))
+            })
+        };
+        messages || tasks() || events()
     }
 
     /// Take in what `owner`'s server made of the changes sent to it (#661): what it took is the

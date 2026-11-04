@@ -102,14 +102,36 @@ pub fn in_outlook(s: &Session, account: Id, name: &str) -> Option<bool> {
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
     let account = list_account(s, v)?;
+    let before = categorized_events(s);
     s.mailbox.rename_category(account, p::req_str(v, "from")?, p::req_str(v, "to")?)?;
+    tell_events(s, &before)?;
     done()
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let account = list_account(s, v)?;
+    let before = categorized_events(s);
     s.mailbox.remove_category(account, p::req_str(v, "name")?)?;
+    tell_events(s, &before)?;
     done()
+}
+
+/// The events that carry a category, as they are before a change of the list.
+fn categorized_events(s: &Session) -> Vec<mailcraft_model::Event> {
+    s.mailbox.events.values().filter(|e| !e.categories.is_empty()).map(|e| (**e).clone()).collect()
+}
+
+/// The events whose categories a rename or a deletion changed (`before`: as they were) are told
+/// to their servers as an edit of each would be (#661). Mail and to-dos need nothing of the
+/// kind: what differs from the server's copy goes by itself.
+fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(), CmdError> {
+    let offset_at = super::remote::offset_of(s);
+    for e in before {
+        if s.mailbox.event(e.id).is_some_and(|now| now.categories != e.categories) {
+            super::remote::note_changed(&mut s.mailbox, e, &offset_at)?;
+        }
+    }
+    Ok(())
 }
 
 fn add_to_outlook(s: &mut Session, v: &Value) -> CmdResult {

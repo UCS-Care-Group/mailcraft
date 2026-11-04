@@ -3,12 +3,18 @@
 //! A Microsoft account's list of categories kept in step with its server both ways (#661): what
 //! is sent, what the server's answers and lists do here, read-only lists, undo.
 
-use mailcraft_model::remote::{CategoriesDownload, CategoriesUploaded, CategoryChange, CategoryChangeKind, CategoryOutcome, CategoryResult};
-use mailcraft_model::{Calendar, Category, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Task};
+use mailcraft_model::remote::{
+    CategoriesDownload, CategoriesUploaded, CategoryChange, CategoryChangeKind, CategoryOutcome, CategoryResult, EventOutcome, EventResult,
+    EventsUploaded,
+};
+use mailcraft_model::remote_tasks::{TaskOutcome, TaskResult, TasksUploaded};
+use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome, ServerMessage};
+use mailcraft_model::{Calendar, Category, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Task, TaskFields};
 use serde_json::json;
 
 use crate::Session;
 use crate::agent::{Class, Verdict, check};
+use crate::cmd::{graph_up, remote, tasks_remote};
 
 const NOW: i64 = 1_800_000_000;
 /// Outlook's red, green and blue (`preset0`, `preset4`, `preset7`).
@@ -1579,4 +1585,155 @@ fn the_gate_names_what_the_jobs_then_delete_in_outlook() {
         assert!(!text.contains("in Outlook"), "{text}");
     }
     assert_eq!(said_and_deleted(&mut s, a, false), (vec![], vec![]));
+}
+
+// ---- a rename: the items take the new name in Outlook before the old one is deleted there ----
+
+/// A message of `account`'s Inbox that its server has, with `categories` here and there.
+fn server_message(s: &mut Session, account: Id, categories: &[&str]) -> Id {
+    let folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let categories: Vec<String> = categories.iter().map(|c| c.to_string()).collect();
+    let server = ServerMessage { id: "m-1".into(), folder: "inbox".into(), categories: categories.clone(), ..Default::default() };
+    s.mailbox.add_message(Message { folder, categories, server: Some(server), ..Default::default() }).unwrap()
+}
+
+/// The server's answer to the message's change of categories.
+fn mail_answer(s: &mut Session, account: Id, outcome: MessageOutcome) {
+    let (sent, _) = graph_up::message_changes(s, account, 10);
+    let [change @ MessageChange::Update { categories: Some(_), .. }] = sent.as_slice() else { panic!("{sent:?}") };
+    let done = MessageChangeDone { change: change.clone(), outcome, there: None };
+    assert!(graph_up::message_done(&mut s.mailbox, account, &done, &mut Default::default()));
+}
+
+/// A to-do of `account`'s that its server has, with `categories` here and there.
+fn server_task(s: &mut Session, account: Id, categories: &[&str]) -> Id {
+    let categories: Vec<String> = categories.iter().map(|c| c.to_string()).collect();
+    let synced = TaskFields { title: "Do it".into(), categories: categories.clone(), ..Default::default() };
+    let origin = Origin { account, id: "t-1".into(), ..Default::default() };
+    s.mailbox.add_task(Task { title: "Do it".into(), categories, origin, list: "l-1".into(), synced: Some(synced), ..Default::default() })
+}
+
+fn task_answer(s: &mut Session, account: Id, result: TaskResult) {
+    let upload = tasks_remote::task_upload(&s.mailbox, account).unwrap();
+    let [op] = upload.ops.as_slice() else { panic!("{:?}", upload.ops) };
+    let outcome =
+        TaskOutcome { kind: op.kind, task: op.task, id: op.id.clone(), list: op.list.clone(), result, patch: op.patch.clone(), ..Default::default() };
+    let uploaded = TasksUploaded { account, email: "a@example.org".into(), outcomes: vec![outcome], ..Default::default() };
+    tasks_remote::apply_task_changes(s, &uploaded).unwrap();
+}
+
+/// An event of `account`'s calendar that its server has, with `categories`.
+fn server_event(s: &mut Session, account: Id, categories: &[&str]) -> Id {
+    let origin = Origin { account, id: "e-1".into(), ..Default::default() };
+    let calendar = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(Calendar { id: calendar, name: "Calendar".into(), visible: true, origin: origin.clone(), ..Default::default() });
+    let categories = categories.iter().map(|c| c.to_string()).collect();
+    s.mailbox.add_event(Event { calendar, title: "Meeting".into(), categories, origin, ..Default::default() }).unwrap()
+}
+
+fn event_answer(s: &mut Session, account: Id) {
+    let upload = remote::event_upload(s, account).unwrap();
+    let [op] = upload.ops.as_slice() else { panic!("{:?}", upload.ops) };
+    let outcome = EventOutcome { op: op.clone(), result: EventResult::Done, ..Default::default() };
+    let uploaded = EventsUploaded { account, email: "a@example.org".into(), outcomes: vec![outcome], ..Default::default() };
+    remote::apply_event_outcomes(s, &uploaded).unwrap();
+}
+
+/// The old name is not deleted in Outlook while an item there still has it: first the new name
+/// is made, then the items take it, then the old one goes.
+fn waits_then_deletes(s: &mut Session, a: Id, moved: impl FnOnce(&mut Session)) {
+    let sent = changes(s, a);
+    assert_eq!(sent, [change(CategoryChangeKind::Create, "New", GREEN)]);
+    took(s, a, &sent);
+    assert!(changes(s, a).is_empty(), "deleted while an item there has it: {:?}", changes(s, a));
+    moved(s);
+    assert_eq!(changes(s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
+}
+
+#[test]
+fn a_rename_deletes_the_old_name_in_outlook_only_once_the_mail_there_has_the_new_one() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let m = server_message(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    waits_then_deletes(&mut s, a, |s| {
+        let done = MessageOutcome::Done { categories: Some(vec!["New".into()]), flag: None, folder: String::new(), id: String::new() };
+        mail_answer(s, a, done);
+    });
+    assert_eq!(s.mailbox.message(m).unwrap().server.as_ref().unwrap().categories, ["New"]);
+}
+
+#[test]
+fn a_mail_change_outlook_refuses_lets_the_old_name_go_there() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let m = server_message(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    // The message is put back as the server has it, and nothing waits for it.
+    waits_then_deletes(&mut s, a, |s| mail_answer(s, a, MessageOutcome::Refused { status: 403 }));
+    assert_eq!(s.mailbox.message(m).unwrap().categories, ["Old"]);
+}
+
+#[test]
+fn a_rename_deletes_the_old_name_in_outlook_only_once_the_todo_there_has_the_new_one() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let t = server_task(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    waits_then_deletes(&mut s, a, |s| task_answer(s, a, TaskResult::Done));
+    assert_eq!(s.mailbox.task(t).unwrap().synced.as_ref().unwrap().categories, ["New"]);
+
+    // One Microsoft To Do refused stays on this computer and is not sent again: nothing waits for it.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let t = server_task(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    waits_then_deletes(&mut s, a, |s| task_answer(s, a, TaskResult::Refused));
+    assert!(s.mailbox.task(t).unwrap().local_only);
+}
+
+#[test]
+fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["New"]);
+    assert_eq!(s.mailbox.event_changes.len(), 1, "the calendar's server is told");
+    waits_then_deletes(&mut s, a, |s| event_answer(s, a));
+    assert!(s.mailbox.event_changes.is_empty());
+
+    // Removed: the event there is told too, and the name goes once it has.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old", "Red category"]);
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["Red category"]);
+    assert!(changes(&mut s, a).is_empty(), "deleted while the event there has it");
+    event_answer(&mut s, a);
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
+
+    // An event on this computer alone tells nobody.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let calendar = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(Calendar { id: calendar, name: "Here".into(), visible: true, ..Default::default() });
+    s.mailbox.add_event(Event { calendar, title: "Here".into(), categories: vec!["Old".into()], ..Default::default() }).unwrap();
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    assert!(s.mailbox.event_changes.is_empty());
+}
+
+#[test]
+fn other_letters_alone_go_at_once_for_the_items_there_are_the_same_name() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
+    server_message(&mut s, a, &["client"]);
+    server_task(&mut s, a, &["client"]);
+    server_event(&mut s, a, &["client"]);
+    s.run("category.rename", &json!({"account": a, "from": "client", "to": "Client"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "client", GREEN), change(CategoryChangeKind::Create, "Client", GREEN)]);
+}
+
+#[test]
+fn mail_in_the_outbox_is_sent_not_changed_and_nothing_waits_for_it() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let m = server_message(&mut s, a, &["Old"]);
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&m).unwrap()).folder = outbox;
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
 }
