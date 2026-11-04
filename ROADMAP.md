@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -60,7 +60,7 @@ not yet run against any other server.
 | **Servers** | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies; mail moves and copies between accounts, onto the other server (#451); Safe and Blocked Senders per account (#516); an organisation's own Exchange server through Exchange Web Services, for mail, tried against Grommunio (#252). In daily use on one Microsoft 365 mailbox, otherwise proven against stand-ins; no connection in the browser build (gaps 1–5) |
 | **Calendar** | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; Find a Time (everyone's free and busy time) for one day; shared mailboxes' calendars and a colleague's calendar opened by address (#70); reminders with desktop alerts. Missing: rooms, Find a Time over several days, sharing or publishing one's own calendar, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
 | **People** | Contacts with several addresses and phones, favourites, categories, `.vcf` in and out in every character set, a Microsoft account's contacts read. Missing: contact groups, photos, the organisation's directory (gap 17) |
-| **Tasks** | To-dos with dates, importance, categories, completion, links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). Missing: recurrence, assignment, My Day, the To-Do bar (gap 17) |
+| **Tasks** | To-dos with dates, importance, categories, completion, checklist steps (#697), links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). Missing: recurrence, assignment, My Day, the To-Do bar (gap 17) |
 | **Files** | `.eml`, `.mbox`, `.ics`, `.vcf` and MailCraft's own mailbox (a log of records, with message content in files beside it). Missing: `.pst`, `.ost`, `.msg`, `.olm` (gap 12), printing (gap 15) |
 | **Platforms** | Built and tested in CI on Windows, macOS and Linux, FreeBSD and Windows ARM64 on a schedule, and the browser; releases carry MailCraft's own signature and update themselves, and are not signed for Windows or macOS (gap 18); on macOS an update is installed by the owner until the builds are notarized (#497) |
 | **Agents** | Ahead of Outlook: every action is a command with a documented id and parameters, reachable from a CLI, a keyed local control channel and MCP, with a headless mode; what an agent may do is the owner's to allow, an agent names the messages it acts on (#620, #553) and never changes a message the owner is writing (#577) |
@@ -187,6 +187,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-04 | #697: task steps can be added, renamed, checked and removed in the task editor, and checked in the details pane. Microsoft To Do checklist items come with their tasks (`$expand=checklistItems`, one request per page of 20 to-dos, at most 20,000 steps a download) and are sent as independent changes; a checklist that doesn't come whole keeps the steps already here. A step sent without an answer is looked for at once and, failing that, settled by the next download before it is sent again, so it is never made or shown twice; a refused step change holds only that step. Steps are named by local keys to the CLI and agents. A new task reaches the server before its steps go on the next tasks run. Checked against a loopback stand-in, not a live account |
 | 2026-11-03 | The owner's order of the accounts ([#702](https://github.com/UCS-Care-Group/mailcraft/issues/702), point 2): an account is dragged by its heading up or down the folder pane, as in classic Outlook, a line showing where it goes and its shared mailboxes going with it. The order is the list's, kept in the mailbox apart from the accounts (`Mailbox::account_order`), so the default account never changes with it; File › Info, the From list, the calendars' groups, Junk E-mail Options, Signatures, Rules and Alerts, Tasks, `account.list`, `folder.list`, `file.account` and `file.info` follow it, and the To Do jobs start in that order; Send/Receive keeps the order the accounts were added in. Move Up and Move Down on an account's right-click menu do the same as a drag, and the pane scrolls while a heading is dragged near its top or bottom. `account.move` does the same from the command line, MCP and agents (safe: nothing leaves the computer, Undo puts it back). |
 | 2026-11-03 | #631: each account's contacts apart. People has a choice under its heading (All accounts, each Microsoft account, On this computer; `view.peopleAccount`, remembered with the other view choices), on the `AccountChoice` and `widgets::account_choice` of #632. The list, the counts, the search and the status bar follow it; with All accounts each row says where the contact is, and the card says so whatever the list shows; a contact the account's server keeps is marked Read-only there, with why in its hover text, before Edit or Delete is tried. A contact that becomes the selected one (made, imported, merged or picked) where the list doesn't show it moves the list to it, and clears a search that would leave it out; undone, a step puts the list back where the contact selected again is. On this computer is forgotten once the last account that keeps contacts goes, so an account added later opens People on All accounts, and an account's empty list says No contacts from this account yet (they may not have come down). Export Contacts, the contact picker and the recipient suggestions stay on every contact, and `list_contacts` too unless `account` names one (`people.list` takes it). A new contact is still kept on this computer |
 | 2026-11-01 | New Email starts in the reading pane ([#286](https://github.com/UCS-Care-Group/mailcraft/issues/286), after the owner tried it): the owner's New Email, New Items › E-mail Message and Ctrl+N start the message in the reading pane, as Reply and Forward do, with Pop Out at its top right; File › Options › Mail › Open new messages, replies and forwards in a new window (the same setting, kept as it was) opens them in a window from the start. A double-clicked draft and a reply from a message's window still open in a window, and an agent's message still opens in a window behind the owner's, never in the reading pane. Delete for Good is called Delete Permanently, and the questions and messages about it say "permanently deleted" |
@@ -419,6 +420,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | #697: checklist steps in tasks, kept in step with Microsoft To Do |
 | 2026-11-03 | #702, #631: the progress log: Move Up and Move Down, the pane's scroll while dragging, the To Do jobs' order; a contact shown clears a search that hides it |
 | 2026-11-03 | #631: the progress log: each account's contacts apart |
 | 2026-11-03 | #379: one progress-log row for #376, not two |
@@ -429,8 +431,7 @@ follows:
 | 2026-11-01 | #376: DAV model/document foundation and conservative recurrence edits, without server sync |
 | 2026-11-01 | #286: remembered window places and drafts saved in the background, in the progress log |
 | 2026-11-01 | #286: a message being written in a window of its own, in the progress log |
-| 2026-11-01 | #719:
- a window whose monitor is gone opens on the main monitor, in the progress log |
+| 2026-11-01 | #719: a window whose monitor is gone opens on the main monitor, in the progress log |
 | 2026-11-01 | After beta items 16 (combined folders #625, attachments dragged out #626, Quick Look #627) and 17 (colour schemes of the owner's own) |
 | 2026-11-01 | #252: Exchange server accounts on for everyone, in the progress log and the assessment by area |
 | 2026-11-01 | #709: the classic ribbon fits its window, in the progress log |

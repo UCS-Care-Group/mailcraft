@@ -9,12 +9,53 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Id, Importance, Origin};
 
+/// Most checklist items read in one download or added through a whole-checklist edit.
+pub const MAX_TASK_STEPS: usize = 200;
+/// A merge may retain a full remote checklist and a full set of pending local additions.
+/// Editors and acknowledgements must preserve this union, even above the intake limit.
+pub const MAX_MERGED_TASK_STEPS: usize = MAX_TASK_STEPS * 2;
+
+/// A task's checklist item. The id is server-owned after upload; before that it is local.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TaskStep {
+    pub id: String,
+    pub title: String,
+    pub completed: bool,
+}
+
+impl TaskStep {
+    /// Normalize a checklist identity and its single-line title before keeping or sending it.
+    pub fn tidy(&mut self) {
+        self.id = crate::remote::key(&self.id);
+        self.title = crate::remote::line(&self.title, 255);
+    }
+
+    /// What the step is called outside the program (the CLI, an agent): a step made here keeps
+    /// its own `local:` id, and one the server named is `step:` and a digest of that name, so
+    /// that the server's ids never leave the program while a step can still be named again.
+    pub fn key(&self) -> String {
+        if self.id.starts_with("local:") || self.id.is_empty() {
+            return self.id.clone();
+        }
+        // FNV-1a: not a secret, only a name that stays the same and doesn't show the id.
+        let digest = self.id.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3));
+        format!("step:{digest:016x}")
+    }
+
+    /// The step with its outside name ([`TaskStep::key`]) in place of its id.
+    pub fn keyed(&self) -> TaskStep {
+        TaskStep { id: self.key(), ..self.clone() }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Task {
     pub id: Id,
     pub title: String,
     pub notes: String,
+    pub steps: Vec<TaskStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,8 +85,9 @@ pub struct Task {
     /// is what is left to tell it ([`Task::patch`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced: Option<TaskFields>,
-    /// The server refused to make this to-do, or the owner keeps it on this computer
-    /// (`kept_here`): it stays here, neither sent nor offered.
+    /// The server refused to make this to-do, a change to it or one of its steps was refused,
+    /// or the owner keeps it on this computer (`kept_here`): it stays here, neither sent nor
+    /// offered, until it is changed here.
     #[serde(skip_serializing_if = "is_false")]
     pub local_only: bool,
     /// The owner chose to keep this to-do on this computer: the question about the to-dos that
@@ -53,6 +95,15 @@ pub struct Task {
     /// #632 reads and so neither sends it nor offers it, until the to-do is changed there.
     #[serde(skip_serializing_if = "is_false")]
     pub kept_here: bool,
+    /// Steps that were sent to be made and that the server may or may not have made (the answer
+    /// was lost), as they were sent (#697). None of them is sent again until a checklist read whole
+    /// says which: [`Task::settle_unconfirmed`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unconfirmed_steps: Vec<TaskStep>,
+    /// Step changes the server refused, as they were sent: that one change is not sent again
+    /// until the step is changed here (or there), and the rest of the to-do goes up as usual.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub held_steps: Vec<TaskStep>,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -65,6 +116,7 @@ fn is_false(b: &bool) -> bool {
 pub struct TaskFields {
     pub title: String,
     pub notes: String,
+    pub steps: Vec<TaskStep>,
     pub start: Option<Date>,
     pub due: Option<Date>,
     pub completed: Option<Timestamp>,
@@ -81,6 +133,8 @@ pub struct TaskPatch {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steps: Option<Vec<TaskStep>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<Option<Date>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -110,6 +164,7 @@ impl TaskFields {
         TaskPatch {
             title: diff(&self.title, &base.title),
             notes: diff(&self.notes, &base.notes),
+            steps: diff(&self.steps, &base.steps),
             start: diff(&self.start, &base.start),
             due: diff(&self.due, &base.due),
             completed: diff(&self.completed, &base.completed),
@@ -131,6 +186,9 @@ impl TaskFields {
         }
         if let Some(v) = &patch.notes {
             self.notes = v.clone();
+        }
+        if let Some(v) = &patch.steps {
+            self.steps = v.clone();
         }
         if let Some(v) = patch.start {
             self.start = v;
@@ -156,8 +214,29 @@ impl TaskFields {
     /// Per field: what `here` has when it was changed since `base` (this is `base`), else what
     /// `there` has. The three-way merge a download makes with a to-do that was changed here.
     pub fn merged(&self, here: &TaskFields, there: &TaskFields) -> TaskFields {
-        let mine = here.since(self);
-        there.clone().after(&mine)
+        let mut mine = here.since(self);
+        mine.steps = None;
+        let mut merged = there.clone().after(&mine);
+        // Merge each step independently. An edit to one must not replace additions or
+        // changes to another on the server; a deletion here wins over an edit there.
+        merged.steps.retain(|step| !self.steps.iter().any(|base| base.id == step.id) || here.steps.iter().any(|local| local.id == step.id));
+        for local in &here.steps {
+            let base = self.steps.iter().find(|base| base.id == local.id);
+            if base == Some(local) {
+                continue;
+            }
+            if let Some(remote) = merged.steps.iter_mut().find(|remote| remote.id == local.id) {
+                if base.is_none_or(|base| base.title != local.title) {
+                    remote.title = local.title.clone();
+                }
+                if base.is_none_or(|base| base.completed != local.completed) {
+                    remote.completed = local.completed;
+                }
+            } else {
+                merged.steps.push(local.clone());
+            }
+        }
+        merged
     }
 }
 
@@ -165,6 +244,7 @@ impl TaskPatch {
     fn with_all(mut self, f: &TaskFields) -> TaskPatch {
         self.title = Some(f.title.clone());
         self.notes = Some(f.notes.clone());
+        self.steps = Some(f.steps.clone());
         self.start = Some(f.start);
         self.due = Some(f.due);
         self.completed = Some(f.completed);
@@ -260,6 +340,7 @@ impl Task {
     pub fn same_on_server(&self, other: &Task) -> bool {
         self.title == other.title
             && self.notes == other.notes
+            && self.steps == other.steps
             && self.start == other.start
             && self.due == other.due
             && self.completed == other.completed
@@ -276,6 +357,7 @@ impl Task {
         TaskFields {
             title: self.title.clone(),
             notes: self.notes.clone(),
+            steps: self.steps.clone(),
             start: self.start,
             due: self.due,
             completed: self.completed,
@@ -289,12 +371,50 @@ impl Task {
     pub fn set_fields(&mut self, fields: TaskFields) {
         self.title = fields.title;
         self.notes = fields.notes;
+        self.steps = fields.steps;
         self.start = fields.start;
         self.due = fields.due;
         self.completed = fields.completed;
         self.importance = fields.importance;
         self.categories = fields.categories;
         self.reminder = fields.reminder;
+    }
+
+    /// Settle the steps whose making was not confirmed against `there`, a checklist the server
+    /// sent whole (#697). A step there that `base` (what was in step) doesn't have, with the
+    /// title that was sent, is the one that was made: the step here takes its id, and `base` takes
+    /// it as the server has it, so it is neither sent again nor shown twice (a change made here
+    /// since still goes up, a deletion here deletes it there). With no such step it was not made:
+    /// it goes up again as a new step. Each step there is taken for one step here at most.
+    pub fn settle_unconfirmed(&mut self, base: &mut TaskFields, there: &[TaskStep]) {
+        let cut = |s: &str| s.trim().chars().take(255).collect::<String>();
+        let mut taken: Vec<&str> = Vec::new();
+        for sent in std::mem::take(&mut self.unconfirmed_steps) {
+            let made = there.iter().find(|step| {
+                !taken.contains(&step.id.as_str())
+                    && !base.steps.iter().any(|known| known.id == step.id)
+                    && !self.steps.iter().any(|here| here.id == step.id)
+                    && cut(&step.title) == cut(&sent.title)
+            });
+            let Some(made) = made else { continue };
+            taken.push(made.id.as_str());
+            if let Some(here) = self.steps.iter_mut().find(|here| here.id == sent.id) {
+                here.id = made.id.clone();
+            }
+            if base.steps.len() < MAX_MERGED_TASK_STEPS {
+                base.steps.push(made.clone());
+            }
+        }
+    }
+
+    /// Whether a change to `step` was refused as it is now and is held back.
+    pub fn is_held(&self, step: &TaskStep) -> bool {
+        self.held_steps.iter().any(|held| held == step)
+    }
+
+    /// Whether the step with that id was sent to be made without word of whether it was.
+    pub fn is_unconfirmed(&self, id: &str) -> bool {
+        self.unconfirmed_steps.iter().any(|step| step.id == id)
     }
 
     /// What was changed here since the server had it; `None` for a to-do the server doesn't have.

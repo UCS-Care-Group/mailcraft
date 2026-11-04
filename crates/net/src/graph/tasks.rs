@@ -19,11 +19,11 @@ use mailcraft_model::remote_tasks::{
     MAX_TASK_LISTS, MAX_TASK_OPS, MAX_TASKS, MAX_TASKS_PER_LIST, RemoteTask, RemoteTaskList, TaskOpKind, TaskOutcome, TaskResult, TasksDownload,
     TasksUpload, TasksUploaded,
 };
-use mailcraft_model::{Importance, TaskPatch};
+use mailcraft_model::{Importance, MAX_TASK_STEPS, TaskPatch, TaskStep};
 use mailcraft_time::{DateTime, Timestamp};
 use serde_json::{Value, json};
 
-use super::{Doing, Graph, MAX_WRITTEN, PAGE_SIZE, WRITE_TIMEOUT, instant, nonsense, text, when};
+use super::{Doing, Graph, MAX_WRITTEN, WRITE_TIMEOUT, instant, nonsense, text, when};
 use crate::NetError;
 use crate::http;
 
@@ -34,6 +34,12 @@ const WELL_KNOWN: &str = "wellknownListName";
 const MAX_TITLE: usize = 255;
 /// Longest id of a list or a task that is put into an address.
 const MAX_ID: usize = 1_024;
+/// Tasks asked for in one page when their checklists come with them: small enough that a page
+/// of to-dos with long notes and full checklists stays under the size a page may have.
+const EXPANDED_PAGE: &str = "20";
+/// Most checklist steps taken in from one download, all to-dos together; a to-do past it keeps
+/// the steps it has here (#697).
+pub const MAX_STEPS_IN_ALL: usize = 20_000;
 
 /// The owner's to-dos, as Microsoft To Do has them.
 pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
@@ -50,11 +56,15 @@ pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
 ///   [`TaskResult::Failed`], to be tried again; the rest is left untried.
 /// - 409 and 412 (something changed there meanwhile): [`TaskResult::Failed`], to be tried again.
 /// - any other refusal (400, 413…): [`TaskResult::Refused`], for good.
+/// - an unconfirmed checklist creation (transport failure, 5xx or a success without its id):
+///   [`TaskResult::Uncertain`], held for verification rather than retried or matched by title.
 /// - 401: nothing more is sent, and the upload says the sign-in was refused.
 pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
     push_tasks_at(&super::graph_base(), token, upload)
 }
 
+/// Read the lists, then each list's to-dos with their checklists in the same pages
+/// (`$expand=checklistItems`): one request per page, never one per to-do.
 pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = TasksDownload::default();
@@ -70,17 +80,23 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
     })?;
     download.complete = whole;
     let mut seen: HashSet<String> = HashSet::new();
+    let mut steps_left = MAX_STEPS_IN_ALL;
     for (list, _, shared) in found.iter().filter(|(_, well_known, _)| well_known != "flaggedEmails") {
         let shared = *shared;
         let room = MAX_TASKS.saturating_sub(download.tasks.len());
         let mut unread = 0usize;
-        let first = graph.url(&format!("{LISTS}/{}/tasks?{}", http::encode(list), http::form(&[("$top", PAGE_SIZE)])));
+        let query = http::form(&[("$top", EXPANDED_PAGE), ("$expand", "checklistItems")]);
+        let first = graph.url(&format!("{LISTS}/{}/tasks?{query}", http::encode(list)));
         let most = MAX_TASKS_PER_LIST.min(room);
         let read = if room == 0 {
             Ok(false)
         } else {
             graph.list(Doing::Tasks, first, &[], most, &mut |entry| match task_of(entry, list) {
-                Some(task) if seen.insert(task.id.clone()) => download.tasks.push(task),
+                Some(mut task) if seen.insert(task.id.clone()) => {
+                    task.steps = steps_of(entry, steps_left);
+                    steps_left = steps_left.saturating_sub(task.steps.as_ref().map_or(0, Vec::len));
+                    download.tasks.push(task);
+                }
                 Some(_) => {}
                 None => unread += 1,
             })
@@ -96,6 +112,57 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
     }
     log::debug!("tasks: {} of them in {} lists, complete: {}", download.tasks.len(), download.lists.len(), download.complete);
     Ok(download)
+}
+
+/// The checklist that came with a to-do (`checklistItems`, expanded), when it came whole: `None`
+/// when it is missing, cut short (a next link of its own), longer than [`MAX_TASK_STEPS`] or than
+/// `room`, or has an item that makes no sense. `None` keeps the steps here as they are; it is
+/// never read as an empty checklist.
+fn steps_of(entry: &Value, room: usize) -> Option<Vec<TaskStep>> {
+    if entry.get("checklistItems@odata.nextLink").is_some() {
+        return None;
+    }
+    let items = entry.get("checklistItems")?.as_array()?;
+    if items.len() > MAX_TASK_STEPS || items.len() > room {
+        return None;
+    }
+    let mut seen = HashSet::new();
+    let mut steps = Vec::with_capacity(items.len());
+    for item in items {
+        let id = text(item, "id");
+        let title = item.get("displayName").and_then(Value::as_str)?;
+        let completed = item.get("isChecked").and_then(Value::as_bool)?;
+        if !valid_id(id) || !seen.insert(id) {
+            return None;
+        }
+        let mut step = TaskStep { id: id.into(), title: title.into(), completed };
+        step.tidy();
+        steps.push(step);
+    }
+    Some(steps)
+}
+
+/// Whether a checklist item whose making was not confirmed is there after all, read again at
+/// once (#697): `Some(Some(id))`, the one item that the to-do had not got before (`known`), nor
+/// was made in this upload (`made`), with the title that was sent; `Some(None)` when the checklist
+/// was read whole and it isn't there (it was not made, and can be sent again); `None` when that
+/// can't be told.
+fn made_step(graph: &Graph<'_>, list: &str, task: &str, sent: &TaskStep, known: &[String], made: &HashSet<String>) -> Option<Option<String>> {
+    let path = format!("{LISTS}/{}/tasks/{}/checklistItems", http::encode(list), http::encode(task));
+    let mut sent = sent.clone();
+    sent.tidy();
+    let mut found = None;
+    let whole = graph
+        .list(Doing::Tasks, graph.url(&path), &[], MAX_TASK_STEPS, &mut |item| {
+            let id = text(item, "id");
+            let mut step = TaskStep { id: id.into(), title: text(item, "displayName").into(), completed: false };
+            step.tidy();
+            if found.is_none() && valid_id(id) && step.title == sent.title && !known.iter().any(|k| k == id) && !made.contains(id) {
+                found = Some(id.to_string());
+            }
+        })
+        .ok()?;
+    if found.is_some() || whole { Some(found) } else { None }
 }
 
 pub(super) fn valid_id(id: &str) -> bool {
@@ -150,6 +217,7 @@ pub(super) fn task_of(entry: &Value, list: &str) -> Option<RemoteTask> {
         change_key: text(entry, "@odata.etag").to_string(),
         title: text(entry, "title").to_string(),
         notes,
+        steps: None,
         start: day_of(entry.get("startDateTime")),
         due: day_of(entry.get("dueDateTime")),
         completed,
@@ -205,6 +273,7 @@ pub(super) fn task_body(patch: &TaskPatch) -> Value {
     Value::Object(body)
 }
 
+/// Send independently acknowledged writes; an unconfirmed checklist creation is held for verification.
 pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> TasksUploaded {
     let mut uploaded = TasksUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     let Ok(graph) = Graph::at(base, token) else {
@@ -212,6 +281,8 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         return uploaded;
     };
     let mut default_list: Option<Result<String, NetError>> = None;
+    // The checklist items made in this upload, which a step read again is not taken for.
+    let mut made: HashSet<String> = HashSet::new();
     for op in upload.ops.iter().take(MAX_TASK_OPS) {
         let outcome = |result: TaskResult, error: &str| TaskOutcome {
             kind: op.kind,
@@ -251,17 +322,38 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         } else {
             op.list.clone()
         };
+        let step_kind = matches!(op.kind, TaskOpKind::StepCreate | TaskOpKind::StepUpdate | TaskOpKind::StepDelete);
+        let step = op.patch.steps.as_ref().filter(|steps| steps.len() == 1).and_then(|steps| steps.first());
+        if step_kind && step.is_none_or(|step| !valid_id(&step.id) || step.title.chars().count() > MAX_TITLE) {
+            uploaded.outcomes.push(outcome(TaskResult::Refused, "that isn't a checklist change the server could take"));
+            continue;
+        }
         let lists = format!("{LISTS}/{}/tasks", http::encode(&list));
         let (method, path, body) = match op.kind {
             TaskOpKind::Create => ("POST", lists, Some(task_body(&op.patch).to_string())),
             TaskOpKind::Update => ("PATCH", format!("{lists}/{}", http::encode(&op.id)), Some(task_body(&op.patch).to_string())),
             TaskOpKind::Delete => ("DELETE", format!("{lists}/{}", http::encode(&op.id)), None),
+            TaskOpKind::StepCreate | TaskOpKind::StepUpdate | TaskOpKind::StepDelete => {
+                let Some(step) = step else { continue };
+                let path = format!("{lists}/{}/checklistItems", http::encode(&op.id));
+                let body = json!({"displayName": step.title, "isChecked": step.completed}).to_string();
+                match op.kind {
+                    TaskOpKind::StepCreate => ("POST", path, Some(body)),
+                    TaskOpKind::StepDelete => ("DELETE", format!("{path}/{}", http::encode(&step.id)), None),
+                    _ => ("PATCH", format!("{path}/{}", http::encode(&step.id)), Some(body)),
+                }
+            }
         };
         let headers: &[(&str, &str)] = if body.is_some() { &[("Content-Type", "application/json")] } else { &[] };
         let reply = match graph.ask(&graph.url(&path), method, headers, body.as_deref(), WRITE_TIMEOUT, MAX_WRITTEN) {
             Ok(reply) => reply,
             Err(e) => {
-                uploaded.outcomes.push(outcome(TaskResult::Failed, &e.to_string()));
+                let result = if op.kind == TaskOpKind::StepCreate { TaskResult::Uncertain } else { TaskResult::Failed };
+                let mut lost = outcome(result, &e.to_string());
+                if let Some(step) = step.filter(|_| result == TaskResult::Uncertain) {
+                    settle(&mut lost, made_step(&graph, &list, &op.id, step, &op.known_steps, &made));
+                }
+                uploaded.outcomes.push(lost);
                 break;
             }
         };
@@ -285,11 +377,18 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                         done.result = TaskResult::Refused;
                         done.error = "the server made it and didn't say what it is called".into();
                     }
+                } else if op.kind == TaskOpKind::StepCreate {
+                    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+                    done.step_id = text(&json, "id").to_string();
+                    if !valid_id(&done.step_id) {
+                        done.result = TaskResult::Uncertain;
+                        done.error = "the server made a checklist item and didn't say what it is called".into();
+                    }
                 } else if op.kind == TaskOpKind::Update {
                     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
                     done.change_key = text(&json, "@odata.etag").to_string();
                 }
-                false
+                done.result == TaskResult::Uncertain
             }
             404 | 410 => {
                 done.result = TaskResult::Gone;
@@ -300,13 +399,18 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                 done.error = "this account may not change its to-dos".into();
                 true
             }
+            503 | 504 if op.kind == TaskOpKind::StepCreate => {
+                done.result = TaskResult::Uncertain;
+                done.error = "the checklist creation could not be confirmed".into();
+                true
+            }
             409 | 412 | 429 | 503 | 504 => {
                 done.result = TaskResult::Failed;
                 done.error = "Microsoft Graph is busy or the to-do changed there meanwhile".into();
                 true
             }
             status if status >= 500 => {
-                done.result = TaskResult::Failed;
+                done.result = if op.kind == TaskOpKind::StepCreate { TaskResult::Uncertain } else { TaskResult::Failed };
                 done.error = format!("Microsoft Graph failed (status {status})");
                 true
             }
@@ -322,6 +426,14 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                 false
             }
         };
+        if done.result == TaskResult::Uncertain
+            && let Some(step) = step
+        {
+            settle(&mut done, made_step(&graph, &list, &op.id, step, &op.known_steps, &made));
+        }
+        if op.kind == TaskOpKind::StepCreate && done.result == TaskResult::Done {
+            made.insert(done.step_id.clone());
+        }
         uploaded.outcomes.push(done);
         if stop {
             break;
@@ -331,6 +443,23 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         outcome.tidy();
     }
     uploaded
+}
+
+/// What a checklist read again ([`made_step`]) says of a step whose making was not confirmed:
+/// made (with its id), not made (to be sent again), or still not known.
+fn settle(outcome: &mut TaskOutcome, found: Option<Option<String>>) {
+    match found {
+        Some(Some(id)) => {
+            outcome.result = TaskResult::Done;
+            outcome.step_id = id;
+            outcome.error.clear();
+        }
+        Some(None) => {
+            outcome.result = TaskResult::Failed;
+            outcome.error = "the server didn't make the checklist item; it is sent again".into();
+        }
+        None => {}
+    }
 }
 
 /// The id of the owner's default list (the one To Do calls `defaultList`), else the first.

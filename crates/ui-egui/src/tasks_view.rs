@@ -618,6 +618,7 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
 
 // ---- the details pane ----
 
+/// Show a task and its bounded checklist controls without trimming the edit payload.
 fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
     let t = Tokens::get(ui.ctx());
     let id = task.id;
@@ -701,6 +702,26 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                 });
             }
 
+            if !task.steps.is_empty() {
+                section(ui, tl!("Steps"));
+                let editable = task.steps.len() <= mailcraft_model::MAX_MERGED_TASK_STEPS;
+                if !editable {
+                    ui.label(tl!("This task has too many steps to edit here. Edit them in To Do and sync again."));
+                }
+                let base = task.steps.clone();
+                let mut steps = task.steps.iter().take(mailcraft_model::MAX_MERGED_TASK_STEPS).cloned().collect::<Vec<_>>();
+                let mut changed = false;
+                // Every step that counts as editable is shown, so a save never sends a step the
+                // owner couldn't see.
+                for step in steps.iter_mut() {
+                    ui.push_id(&step.id, |ui| {
+                        changed |= ui.add_enabled(editable, egui::Checkbox::new(&mut step.completed, clip_chars(&step.title, 255))).changed();
+                    });
+                }
+                if changed && editable {
+                    let _ = app.run("tasks.edit", json!({"id": id, "steps": steps, "stepsBase": base}));
+                }
+            }
             if !task.notes.trim().is_empty() {
                 section(ui, tl!("Notes"));
                 ui.add(egui::Label::new(RichText::new(clip_chars(task.notes.trim(), NOTES_MAX)).font(regular(13.0)).color(t.text)).wrap());
