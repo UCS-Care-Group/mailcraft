@@ -107,7 +107,7 @@ pub fn sync(caldav: &str, carddav: &str, username: &str, password: &str, from: T
     }
     let auth = basic(username, password);
     let mut out = DavSync::default();
-    match calendars(&servers.caldav, &auth, from, to) {
+    match calendars(&servers.caldav, &auth, username, from, to) {
         Ok((list, mut events, mut errors)) => {
             out.calendars = list;
             out.events.append(&mut events);
@@ -161,6 +161,7 @@ fn propfind(url: &str, depth: &str, body: &str, auth: &str) -> Result<Vec<Respon
 fn calendars(
     base: &str,
     auth: &str,
+    username: &str,
     from: Timestamp,
     to: Timestamp,
 ) -> Result<(CalendarsDownload, Vec<mailcraft_model::remote::EventsDownload>, Vec<String>), NetError> {
@@ -179,7 +180,7 @@ fn calendars(
     let mut out = CalendarsDownload { complete: true, ..Default::default() };
     let mut events = Vec::new();
     let mut errors = Vec::new();
-    let mut main = true;
+    let mut chosen_main = false;
     for response in listing.iter().take(MAX_COLLECTIONS) {
         if !response.has_resource_type("calendar") {
             continue;
@@ -192,15 +193,20 @@ fn calendars(
         let name = response.prop_text("displayname").filter(|name| !name.trim().is_empty()).unwrap_or_else(|| slug(&href));
         let rights = response.rights();
         let color = response.prop_text("calendar-color").and_then(|color| color_of(&color));
-        let is_main = main;
+        let owner = calendar_owner(response);
+        // The account's own calendar is the one `DAV:owner` names, never just the first one the
+        // server lists. If the server names none, no calendar is the main one and an event that
+        // names no calendar waits until a target is known.
+        let is_main = !chosen_main && owner.as_ref().is_some_and(|owner| owner.address.eq_ignore_ascii_case(username.trim()));
+        chosen_main |= is_main;
         out.calendars.push(RemoteCalendar {
             id: href.clone(),
             name: name.clone(),
             color,
             group: String::new(),
             rights,
-            owner: calendar_owner(response),
-            main,
+            owner,
+            main: is_main,
             online_providers: None,
         });
         match events_of(&href, auth, from, to, if is_main { "" } else { &href }) {
@@ -212,7 +218,6 @@ fn calendars(
                 errors.push(format!("the events of \"{name}\" couldn't be read: {e}"));
             }
         }
-        main = false;
     }
     // A server with one unnamed collection, or a calendar not marked as one: use the home itself.
     if out.calendars.is_empty() {
@@ -482,9 +487,8 @@ fn resolve(base: &str, href: &str) -> Option<String> {
     Url::parse(&format!("{origin}{dir}/{href}")).ok().map(|url| canonical(&url))
 }
 
-/// An event's URL as the server addresses it: the path only, without scheme or host. A CalDAV
-/// answer often names the whole address while the download that follows names only the path;
-/// they are the same resource, and a client that kept both spellings would list it twice.
+/// The path of an event or card on its server, without scheme or host. A write's answer may name
+/// the whole URL while a download names only the path, and the two are the same resource.
 fn resource_path(url: &str) -> String {
     let path = url.split(['?', '#']).next().unwrap_or(url);
     if let Some((_, rest)) = path.split_once("://") {
@@ -493,10 +497,12 @@ fn resource_path(url: &str) -> String {
     path.to_string()
 }
 
-/// A stored event URL made absolute for a request: one written by an older client may be only the
-/// path the server lists, while the transport needs an address.
-fn request_url(base: &str, url: &str) -> String {
-    resolve(base, url.trim()).unwrap_or_else(|| url.trim().to_string())
+/// A stored resource URL made absolute for a request: one written by an older client may be only
+/// the path the server lists, while the transport needs an address. `None` when the address is on
+/// another server, so the account's credentials never go there.
+fn request_url(base: &str, url: &str) -> Option<String> {
+    let url = url.split('#').next().unwrap_or(url).trim();
+    resolve(base, url)
 }
 
 fn canonical(url: &Url) -> String {
@@ -532,7 +538,12 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
     match op.kind {
         EventChangeKind::Create | EventChangeKind::Update => {
             let mut event = if op.kind == EventChangeKind::Update {
-                match fetch_event(&request_url(caldav, &op.remote), auth) {
+                let Some(url) = request_url(caldav, &op.remote) else {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = "the event's address can't be used".into();
+                    return outcome;
+                };
+                match fetch_event(&url, auth) {
                     Ok(Some(event)) => event,
                     Ok(None) => {
                         outcome.result = EventResult::Gone;
@@ -557,7 +568,12 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
             event.uid.clone_from(&uid);
             apply_fields(&mut event, &op.fields);
             let url = if op.kind == EventChangeKind::Update && !op.remote.trim().is_empty() {
-                request_url(caldav, &op.remote)
+                let Some(url) = request_url(caldav, &op.remote) else {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = "the event's address can't be used".into();
+                    return outcome;
+                };
+                url
             } else {
                 let base = if calendar.ends_with('/') { calendar.to_string() } else { format!("{calendar}/") };
                 format!("{base}{}.ics", http::encode(&uid))
@@ -598,7 +614,12 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
                 outcome.error = "the event has no address on the server".into();
                 return outcome;
             }
-            match send(&request_url(caldav, &op.remote), "DELETE", None, None, auth, XML, 64 * 1024) {
+            let Some(url) = request_url(caldav, &op.remote) else {
+                outcome.result = EventResult::Failed;
+                outcome.error = "the event's address can't be used".into();
+                return outcome;
+            };
+            match send(&url, "DELETE", None, None, auth, XML, 64 * 1024) {
                 Ok(reply) if matches!(reply.status, 200 | 204) => outcome.result = EventResult::Done,
                 Ok(reply) if reply.status == 404 || reply.status == 410 => outcome.result = EventResult::Gone,
                 Ok(reply) if reply.status == 403 => outcome.result = EventResult::Denied,

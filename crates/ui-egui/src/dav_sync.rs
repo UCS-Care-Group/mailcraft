@@ -165,8 +165,13 @@ impl MailApp {
             let mut calendars = calendars.clone();
             calendars.account = account;
             calendars.email = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-            if let Some(main) = calendars.calendars.iter().find(|calendar| calendar.main).or_else(|| calendars.calendars.first()) {
-                self.dav.main.insert(account, main.id.clone());
+            match calendars.calendars.iter().find(|calendar| calendar.main && calendar.rights == mailcraft_model::Rights::Edit) {
+                Some(main) => {
+                    self.dav.main.insert(account, main.id.clone());
+                }
+                None => {
+                    self.dav.main.remove(&account);
+                }
             }
             if let Err(e) = remote::apply_calendars(&mut self.session, &calendars) {
                 errors.push(crate::i18n::fmt(tl!("The calendars couldn't be taken in: {error}"), &[("error", &e.to_string())]));

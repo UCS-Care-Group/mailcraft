@@ -3070,6 +3070,11 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     for remote in download.events.iter().take(MAX_EVENTS) {
         let mut remote = remote.clone();
         remote.tidy();
+        // A server may name one resource by its whole address in one answer and by its path in
+        // the next. Both are the same event; keep the one spelling the maps use.
+        let id = resource_key(&remote.id).to_string();
+        let series_key = resource_key(&remote.series).to_string();
+        (remote.id, remote.series) = (id, series_key);
         if remote.id.is_empty() || !seen.insert(remote.id.clone()) {
             merged.skipped += 1;
         } else if remote.kind == RemoteEventKind::SeriesMaster {
@@ -3427,12 +3432,13 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
     for contact in mailbox.contacts.values().filter(|contact| contact.origin.account == account && !contact.origin.id.is_empty()) {
-        extra.extend(known.insert(contact.origin.id.clone(), contact.id));
+        extra.extend(known.insert(resource_key(&contact.origin.id).to_string(), contact.id));
     }
     let mut seen: HashSet<String> = HashSet::new();
     for remote in download.contacts.iter().take(MAX_CONTACTS) {
         let mut remote = remote.clone();
         remote.tidy();
+        remote.id = resource_key(&remote.id).to_string();
         let mut fresh = contact_from_remote(&remote);
         // Somebody with no name, company or address would be an empty line in the list.
         if remote.id.is_empty() || fresh.name().is_empty() || !seen.insert(remote.id.clone()) {
