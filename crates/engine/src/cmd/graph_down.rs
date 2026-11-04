@@ -331,7 +331,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // fetched and may be smaller than the background fetch's limit, which its old size is held
     // against. Until then the list says what is here, its old version.
     let size = if now.size > 0 || changed_there { now.size } else { last.size };
-    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, ..now.clone() });
+    // The conversation id, as the size: one a listing doesn't say (a JMAP server's marks alone)
+    // is the last one known (#795).
+    let (thread, thread_asked, thread_tries) =
+        if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
+    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
     *m != before
 }
 
@@ -575,6 +579,43 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
             && m.moving_out.is_none()
             && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
         if whole_from_server && unreadable(m) {
+            let m = std::sync::Arc::make_mut(m);
+            m.attachments_on_server = m.has_attachments();
+            m.unfetched = true;
+            marked = marked.saturating_add(1);
+        }
+    }
+    marked
+}
+
+/// Once a mailbox (#793): the messages of Microsoft and Exchange server accounts that look as
+/// 0.5.0 up to #793 put back a message whose delete for good the server refused (no text, or a
+/// file of no bytes, with nothing kept on disk for them: [`Message::looks_hollow`]) are marked
+/// not fetched, so that they are fetched whole again from the server, which has them, before
+/// anything moves or copies them anywhere (an empty copy would be made there and the original
+/// deleted). One being moved out of such an account is fetched from its original there. Drafts,
+/// and messages no server has, are left alone. How many were marked; none once the mailbox has
+/// been looked through ([`Mailbox::unhollowed`]).
+pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
+    if mb.unhollowed {
+        return 0;
+    }
+    let servers: HashSet<Id> = mb
+        .accounts
+        .iter()
+        .filter(|a| matches!(a.kind, mailcraft_model::AccountKind::Microsoft | mailcraft_model::AccountKind::Exchange))
+        .map(|a| a.id)
+        .collect();
+    if servers.is_empty() {
+        return 0;
+    }
+    mb.unhollowed = true;
+    let mut marked = 0usize;
+    for m in mb.messages.values_mut() {
+        let on_server = servers.contains(&m.account) && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
+        let original = m.moving_out.as_ref().is_some_and(|o| servers.contains(&o.account) && !o.left && !o.id.is_empty());
+        let candidate = !m.unfetched && !m.incomplete && !m.draft && m.server_draft.is_none() && m.held.is_empty() && (on_server || original);
+        if candidate && m.looks_hollow() {
             let m = std::sync::Arc::make_mut(m);
             m.attachments_on_server = m.has_attachments();
             m.unfetched = true;

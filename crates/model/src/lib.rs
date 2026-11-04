@@ -35,6 +35,7 @@ pub mod sender_warnings;
 pub mod signature;
 pub mod sync;
 mod task;
+pub mod thread_index;
 pub mod update;
 pub mod words;
 pub mod zoned;
@@ -59,7 +60,7 @@ pub use mailbox::{
 pub use mailcraft_time as time;
 pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
@@ -67,6 +68,7 @@ pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
+pub use thread_index::{ThreadIndex, ThreadKey};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;

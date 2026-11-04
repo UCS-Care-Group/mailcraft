@@ -1,6 +1,6 @@
 # Exchange servers other than Microsoft's
 
-> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-01 · **Change:** minor
+> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-04 · **Change:** patch
 
 An Exchange server account (#252) reaches an organisation's own mail server through Exchange Web
 Services, for mail (its calendar and contacts are not kept in step yet). This page says what has been seen
@@ -44,16 +44,46 @@ This does not close every window. If MailCraft is killed, or the computer loses 
 
 - A Calendar (or Contacts, Tasks) folder taken in as a mail folder by the earlier trial build stays in the folder list as an empty stub on a delta run, until the next fresh read of the folders. It only affects accounts added with that build, which needed a testing switch to add one.
 
+## Exchange Server 2019
+
+**Seen:** Exchange Server 2019 (a current cumulative update), on premises, reached through Exchange Web
+Services over HTTPS with a certificate the system trusts (so no fingerprint was needed), release 0.10.0,
+Linux x86_64 build. The mailbox was a real one kept for testing, about 24,500 messages, nearly all in
+Sent Items. It was reported by a tester, who ran it without a screen in a container whose only network
+access was the Exchange server on port 443, driven through the control channel: `account.add` with
+`"kind": "exchange"` and the server's address typed in (no Autodiscover), then `ui.sync` with the
+password, then reads. Nothing was changed on the server: one Send/Receive, no flags, moves, drafts or
+sends.
+
+| What | Result | Notes |
+|---|---|---|
+| Sign-in: Basic over TLS | Works | NTLM was not tried |
+| Certificate | Works | Trusted by the system; no fingerprint question |
+| First download | Works | 24,574 messages as headers with a preview in 82.7 s; the whole messages then came down in the background ("Downloading 3052 of 24574" a few seconds later) |
+| Folder counts | Exact | The 7 mail folders the server lists (Inbox, Drafts, Sent Items, Deleted Items, Junk Email, Outbox, Conversation History) each match the server's own `FindFolder` `TotalCount` |
+| Archive | Extra, empty | MailCraft also shows an empty Archive, which the server does not list; being looked at |
+| Non-mail folders | Left out | "20 folders that are not mail folders are left out" |
+| A message in full (`mail.get`) | Works | Body, HTML and attachments present |
+| Calendar, contacts | Not there | As this page says (#720) |
+| Crashes | None | 8 log lines |
+
+Two small things were seen and are tracked apart from this page: the folder pane showed Outbox
+twice for the account, and `sync.progress` gave empty `timings` for it.
+
+**Not tried:** NTLM, Autodiscover from an address, any change sent up (read, flag, move, draft, send),
+the Windows installer, and the window used by hand.
+
 ## Not yet tried
 
-Exchange Server 2019 and Subscription Edition, SmarterMail, NTLM against a real server, Kerberos
+Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
 and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | patch | #746: Exchange Server 2019 seen working for mail (Basic over TLS, 24,574 messages, exact folder counts), and taken off the not yet tried list |
+| 2026-11-01 | minor | #252: Exchange server accounts are on for everyone, for mail; the testing switch is gone |
 | 2026-10-30 | major | First version: what was seen on Grommunio (#252, E8) |
 | 2026-10-30 | minor | Sending a saved draft, the Archive folder, the folder class and the log line, fixed and tried again on Grommunio |
 | 2026-10-30 | patch | Review: a draft whose make was lost is found by its marker; the log line is left out only for the pinned certificate; the "never twice" wording; one stale stub noted |
-| 2026-11-01 | minor | #252: Exchange server accounts are on for everyone, for mail; the testing switch is gone |

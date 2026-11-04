@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name,
+    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
+    clean_name,
 };
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -757,10 +758,16 @@ pub enum Queued {
     /// server has answered: one the server refuses to delete is put back from it, with all that
     /// was fetched of it (S20). An entry without one (from an earlier version, or for a copy the
     /// server made of a message gone here) is put back from what the server says of it.
+    ///
+    /// The copy is whole only while it is whole in memory: one whose text or files were kept on
+    /// disk is kept to be fetched again ([`Message::to_fetch_again`]), and so is every copy
+    /// written to a file and read back from one (#793), since nothing in the mailbox file names
+    /// the content of a copy and a sweep takes it. The server, having refused the delete, has
+    /// the message whole.
     DeleteMessage {
         account: Id,
         id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "kept_written", deserialize_with = "kept_read_back")]
         kept: Option<Box<Message>>,
     },
     /// The message `message` was moved or copied here into a folder of `account` from another
@@ -782,6 +789,45 @@ pub enum Queued {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<Id>,
     },
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: to be fetched again, whatever it
+/// holds (#793). A file written by 0.5.0 up to #793 kept the copy without the text and files it
+/// had on disk, which would come back as a message with no text and files of no bytes.
+fn kept_read_back<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Box<Message>>, D::Error> {
+    let kept = Option::<Box<Message>>::deserialize(d)?;
+    Ok(kept.map(|mut m| {
+        m.to_fetch_again();
+        m
+    }))
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: as [`kept_read_back`] would
+/// take it, so that a copy whole in memory isn't written whole into the file at every save only
+/// to be let go of when it is read.
+fn kept_written<S: serde::Serializer>(kept: &Option<Box<Message>>, s: S) -> Result<S::Ok, S::Error> {
+    let written = kept.as_deref().map(|m| {
+        let mut m = m.clone();
+        m.to_fetch_again();
+        m
+    });
+    written.serialize(s)
+}
+
+/// What a message deleted for good keeps of itself while its server is asked to delete it
+/// ([`Queued::DeleteMessage`]): all of it when it is whole in memory (named by nothing on disk:
+/// what is in memory is all it needs), else what [`Message::to_fetch_again`] leaves (#793).
+fn kept_for_put_back(m: &Message) -> Message {
+    let mut copy = m.clone();
+    if copy.is_loaded() && !copy.kept.as_deref().is_some_and(|k| k.failed) {
+        copy.kept = None;
+        for a in &mut copy.attachments {
+            a.kept = None;
+        }
+    } else {
+        copy.to_fetch_again();
+    }
+    copy
 }
 
 impl Queued {
@@ -1037,6 +1083,12 @@ pub struct Mailbox {
     /// for once only, so that a message whose own bytes are broken isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub redecoded: bool,
+    /// The messages of Microsoft and Exchange server accounts that look as one put back with no
+    /// text and files of no bytes after a refused delete for good (#793) were looked for once,
+    /// and marked to be fetched again from the server: once only, so that a message that really
+    /// is empty isn't fetched at every start.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unhollowed: bool,
     next_id: Id,
 }
 
@@ -1072,6 +1124,7 @@ impl Default for Mailbox {
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
+            unhollowed: false,
             next_id: 1,
         }
     }
@@ -1142,22 +1195,6 @@ fn subject_said(m: &Message) -> String {
 /// Why a message can't go elsewhere before it is fetched whole.
 fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
-}
-
-/// Whether `x` is of the conversation whose key ([`Message::thread_key`]) is `key`, with a cheap
-/// no first: the topic is what is left of the subject once its prefixes are taken off, so an
-/// ASCII subject that doesn't end in the key (letter case aside; lower case keeps an ASCII text's
-/// length) isn't of it, and the key of one that might be is worked out, which takes a string.
-fn same_thread(x: &Message, key: &str) -> bool {
-    let s = x.subject.trim();
-    if s.is_ascii() && key.is_ascii() {
-        let ends_in_key =
-            s.len().checked_sub(key.len()).and_then(|at| s.as_bytes().get(at..)).is_some_and(|end| end.eq_ignore_ascii_case(key.as_bytes()));
-        if !ends_in_key {
-            return false;
-        }
-    }
-    x.thread_key() == key
 }
 
 impl Mailbox {
@@ -2520,10 +2557,10 @@ impl Mailbox {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
         if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
-            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if let Some(out) = &m.moving_out {
-            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if !self.queued.is_empty() {
             self.queued.retain(|q| match q {
@@ -2600,24 +2637,26 @@ impl Mailbox {
         }
     }
 
-    /// The messages of the conversation `id` is part of (same account, same topic), oldest first.
+    /// The messages of the conversation `id` is part of (same account, same topic, linked by
+    /// their headers or their server's conversation id: [`ThreadIndex`], #795), oldest first,
+    /// but for those of the folders it leaves out ([`Mailbox::conversation_skips`]).
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
-        let skips = self.conversation_skips(m.account, m.folder);
-        let among = self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account && !skips.contains(&x.folder));
-        self.conversation_among(m, among)
+        let threads = ThreadIndex::build(self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account));
+        self.conversation_in(&threads, id)
     }
 
-    /// [`Mailbox::conversation`] of `m`, looked for among `among`: the messages of its account
-    /// but for those of the folders a conversation leaves out ([`Mailbox::conversation_skips`]),
-    /// for a caller that has them listed by folder and needn't walk every message.
-    pub fn conversation_among<'a>(&self, m: &Message, among: impl Iterator<Item = &'a Message>) -> Vec<Id> {
-        let key = m.thread_key();
-        // A message without a subject is a conversation of its own ([`Message::thread_key`]).
-        if key.starts_with('\0') {
-            return vec![m.id];
-        }
-        let mut v: Vec<&Message> = among.filter(|x| same_thread(x, &key)).collect();
+    /// [`Mailbox::conversation`] of `id` by `threads`, built of (at least) the messages of its
+    /// account, for a caller that keeps one rather than walk every message each time.
+    pub fn conversation_in(&self, threads: &ThreadIndex, id: Id) -> Vec<Id> {
+        let Some(m) = self.message(id) else { return Vec::new() };
+        let skips = self.conversation_skips(m.account, m.folder);
+        let mut v: Vec<&Message> = threads
+            .members(id)
+            .into_iter()
+            .filter_map(|x| self.message(x))
+            .filter(|x| x.account == m.account && !skips.contains(&x.folder))
+            .collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }

@@ -63,5 +63,5 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-20 | major | First version: French, German, Spanish and Italian as preview languages; reviewing and adding a language; ribbon labels' line breaks and `msgctxt` |
 | 2026-10-29 | minor | Dutch as a preview language (`nl.po`); File › Options names it Nederlands (voorbeeld) |
+| 2026-10-20 | major | First version: French, German, Spanish and Italian as preview languages; reviewing and adding a language; ribbon labels' line breaks and `msgctxt` |
