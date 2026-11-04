@@ -2087,3 +2087,22 @@ mod launch;
 
 #[path = "store_hidden_tests.rs"]
 mod hidden;
+
+/// #702: the order the owner put the accounts in goes into the mailbox file with the save after
+/// the move, and comes back from it; the default account stays the first added.
+#[test]
+fn the_order_of_the_accounts_is_saved_with_the_mailbox() {
+    let tmp = Temp::new("account-order");
+    let path = tmp.file();
+    let mut s = Session::empty();
+    let mut add = |email: &str| s.run("account.add", &json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (a, b, c) = (add("a@example.org"), add("b@example.org"), add("c@example.org"));
+    save(&path, &s.mailbox).unwrap();
+    s.run("account.move", &json!({"id": c, "before": b})).unwrap();
+    assert!(save(&path, &s.mailbox).unwrap().bytes > 0, "the move is written");
+    let back = whole(&path);
+    let order: Vec<Id> = back.accounts_in_order().iter().map(|x| x.id).collect();
+    assert_eq!(order, [a, c, b]);
+    assert_eq!(back.default_account().map(|x| x.id), Some(a));
+    assert!(back == s.mailbox);
+}

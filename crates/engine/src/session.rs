@@ -309,6 +309,8 @@ pub struct ViewState {
     pub task_sort: TaskSort,
     /// Whose tasks Tasks shows.
     pub task_account: AccountChoice,
+    /// Whose contacts People shows.
+    pub people_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -336,6 +338,7 @@ impl Default for ViewState {
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
+            people_account: AccountChoice::All,
         }
     }
 }
@@ -822,8 +825,10 @@ pub struct Prefs {
     /// The date navigator and the Month view say which week of the year a week is
     /// (`view.weekNumbers`).
     pub week_numbers: bool,
-    /// A meeting request (or a cancellation) that was answered from the mail goes to Deleted
-    /// Items (`calendar.deleteAnsweredRequests`). Off unless the owner turns it on.
+    /// A meeting request (or a cancellation) in an Inbox of the owner's own accounts that was
+    /// answered from the mail goes to Deleted Items (`calendar.deleteAnsweredRequests`). Off here,
+    /// so a session without the window's settings (`mailcraft-cli run`, headless `mcp`) keeps the
+    /// request; the window's settings for a new install turn it on, as in Outlook (#755).
     pub delete_answered_requests: bool,
     /// The working hours above are used even when the account's mailbox has its own
     /// (`view.workHours`).
@@ -2725,6 +2730,7 @@ impl Session {
         self.view.open.clear();
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
+        self.view.people_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2810,6 +2816,11 @@ impl Session {
             // is, and what is selected in it (#485).
             self.sel.messages_of(&cur.sel);
         }
+        // The contact selected again is shown in People's list (#631): a New Contact that moved
+        // the list to this computer, undone, has it back on the account it showed.
+        if let Some(contact) = self.sel.contact {
+            crate::cmd::people::reveal(self, contact);
+        }
         self.normalize();
         cur
     }
@@ -2847,6 +2858,19 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
+    /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
+    /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
+    /// and compares the message ids after: a key difference with the step's mailbox alone is not
+    /// enough, since the merge keeps mail that came down since and can drop one that both have.
+    /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
+    /// not yet made on the server is dropped, so that asks (fails closed).
+    pub fn undo_takes_mail(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
@@ -2881,7 +2905,7 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() {
+        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {

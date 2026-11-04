@@ -424,3 +424,5 @@ mod strict_ids_all_tests;
 mod strict_ids_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod undo_removes_mail_tests;
