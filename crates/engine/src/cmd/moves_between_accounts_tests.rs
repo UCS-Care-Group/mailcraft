@@ -2207,15 +2207,14 @@ fn copied_and_deleted(s: &mut Session, id: Id, to: Id) {
 
 /// #765 small check: the same within one Microsoft account, a copy into another of its folders.
 /// Deleted on a phone while its delete for good here waited for the copy (said as removed, left
-/// out of a fresh listing), and the copy then refused or answered with "no such message"; or put
-/// back after that answer and then deleted there: either way the message stays, on this computer,
-/// whole, and isn't swept away with its server's.
+/// out of a fresh listing, or not seen yet), and the copy then refused or answered with "no such
+/// message"; or put back after a refusal and then deleted there: either way the message stays,
+/// on this computer, whole, and isn't swept away with its server's.
 #[test]
 fn a_refused_copy_within_microsoft_whose_original_went_on_a_phone_keeps_the_message() {
-    use MessageOutcome::Gone;
     let refused = MessageOutcome::Refused { status: 403 };
     for (phone, answer) in
-        [("removed", &refused), ("left out", &refused), ("after", &refused), ("removed", &Gone), ("left out", &Gone), ("after", &Gone)]
+        [("removed", &refused), ("left out", &refused), ("after", &refused), ("removed", &MessageOutcome::Gone), ("unseen", &MessageOutcome::Gone)]
     {
         let mut s = Session::empty();
         let ms = microsoft(&mut s, OWNER);
@@ -2251,8 +2250,7 @@ fn a_refused_copy_within_microsoft_whose_original_went_on_a_phone_keeps_the_mess
 /// another Microsoft account) while it was on its way to its folder, and then refused or answered
 /// with "no such message": it stays where the owner put it, and still goes to the other account.
 /// So it does when the original was deleted on a phone meanwhile, and when the original wasn't
-/// deleted here at all. The original's delete goes on none of these answers, and the original
-/// comes back unless the phone took it.
+/// deleted here at all. The original's delete goes on none of these answers.
 #[test]
 fn a_copy_moved_on_while_on_its_way_stays_where_the_owner_put_it() {
     let refused = MessageOutcome::Refused { status: 403 };
@@ -2290,9 +2288,9 @@ fn a_copy_moved_on_while_on_its_way_stays_where_the_owner_put_it() {
             if into_other {
                 assert_eq!(graph_mail_request(&s, other).unwrap().places.len(), 1, "it still goes to the other account's server: {said}");
             }
-            // The original the server still has comes back too, or was never deleted.
+            // Refused, the original the server still has comes back too, or was never deleted.
             let back = s.mailbox.messages.values().any(|m| m.server.as_ref().is_some_and(|x| x.id == "AAkA7"));
-            assert_eq!(back, original != "deleted, and on a phone", "{said}");
+            assert_eq!(back, *answer == refused && original != "deleted, and on a phone", "{said}");
             let left = graph_mail_request(&s, ms).unwrap().messages;
             assert!(!left.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{said}: {left:?}");
         }
@@ -2424,46 +2422,57 @@ fn a_refused_copy_whose_microsoft_folder_went_comes_back_on_the_imap_server_as_i
     assert!(asked.iter().any(|c| matches!(c, MessageChange::Delete { id, .. } if id == "AAkX")), "{asked:?}");
 }
 
-/// #765 small check: a copy within a Microsoft account answered with "no such message" because
-/// its folder went on the server, while the original, deleted for good here, waited for it there:
-/// the original comes back where the server has it, fetched whole or only its headers, isn't
-/// deleted there, and isn't kept a second time in Imported; ordinary runs leave it so.
+/// #765 small check: a message of which only the headers are here, copied within its Microsoft
+/// account and deleted permanently, the copy answered with "no such message" (its folder gone
+/// there, say): nothing is deleted on the server, and what is here of it is kept in Imported.
 #[test]
-fn a_copy_whose_folder_went_on_the_server_brings_its_original_back() {
-    for whole in [true, false] {
-        let mut s = Session::empty();
-        let ms = microsoft(&mut s, OWNER);
-        let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
-        let m = if whole {
-            receipt(&mut s, ms, "AAkA7")
-        } else {
-            let there = GraphMessage {
-                server: ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() },
-                from: Address::new("", "shop@example.org"),
-                subject: "Receipt".into(),
-                message_id: "receipt@example.org".into(),
-                ..Default::default()
-            };
-            let page = MessagePage { folder: "in".into(), messages: vec![there], ..Default::default() };
-            apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() })
-                .unwrap();
-            titled(&s, "Receipt")
-        };
-        copied_and_deleted(&mut s, m, archive);
-        let change = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
-        let messages = vec![MessageChangeDone { change, outcome: MessageOutcome::Gone, there: None }];
-        apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, ..Default::default() }).unwrap();
-        for _ in 0..2 {
-            let link = "https://graph.example.org/delta?$deltatoken=2".to_string();
-            let page = MessagePage { folder: "in".into(), caught_up: true, link, ..Default::default() };
-            apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], whole: true, ..Default::default() })
-                .unwrap();
-        }
-        assert_eq!(where_titled(&s, "Receipt"), [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string()))], "fetched whole: {whole}");
-        if whole {
-            assert!(s.mailbox.messages.values().any(|m| m.subject == "Receipt" && m.body.text == "Paid."));
-        }
-        let left = graph_mail_request(&s, ms).unwrap().messages;
-        assert!(!left.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "fetched whole: {whole}: {left:?}");
-    }
+fn a_copy_of_mail_not_here_whole_answered_no_such_message_deletes_nothing_there() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, OWNER);
+    let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() },
+        from: Address::new("", "shop@example.org"),
+        subject: "Receipt".into(),
+        message_id: "receipt@example.org".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "in".into(), messages: vec![there], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
+    let m = titled(&s, "Receipt");
+    copied_and_deleted(&mut s, m, archive);
+    let copy = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+    let messages = vec![MessageChangeDone { change: copy, outcome: MessageOutcome::Gone, there: None }];
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, ..Default::default() }).unwrap();
+    let left = graph_mail_request(&s, ms).unwrap().messages;
+    assert!(!left.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{left:?}");
+    let local = s.mailbox.local_account();
+    assert_eq!(where_titled(&s, "Receipt"), [(local, "Imported".to_string(), 0, None)]);
+}
+
+/// #765 small check: a refused copy within a Microsoft account brings its original back while
+/// the server's index here was built without it (an Inbox pass looked something up after the
+/// delete); the phone's delete of it, said in the next listing, is still heard, and the message is
+/// kept on this computer, in Imported, not swept away later.
+#[test]
+fn an_original_put_back_after_the_index_was_built_still_hears_the_phones_delete() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, OWNER);
+    let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+    let m = receipt(&mut s, ms, "AAkA7");
+    copied_and_deleted(&mut s, m, archive);
+    let page = MessagePage { folder: "in".into(), removed: vec!["ZZZ".into()], ..Default::default() };
+    let pass = GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, inbox_pass: true, ..Default::default() };
+    apply_graph_mail(&mut s, pass).unwrap();
+    let copy = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+    let messages = vec![MessageChangeDone { change: copy, outcome: MessageOutcome::Refused { status: 403 }, there: None }];
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, partial: true, ..Default::default() }).unwrap();
+    assert_eq!(where_titled(&s, "Receipt"), [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string()))], "put back");
+    let link = "https://graph.example.org/delta?$deltatoken=2".to_string();
+    let page = MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], caught_up: true, link, ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], whole: true, ..Default::default() }).unwrap();
+    swept_twice(&mut s, ms);
+    let local = s.mailbox.local_account();
+    assert_eq!(where_titled(&s, "Receipt"), [(local, "Imported".to_string(), 0, None)]);
+    assert!(s.mailbox.messages.values().any(|m| m.subject == "Receipt" && m.body.text == "Paid."));
 }

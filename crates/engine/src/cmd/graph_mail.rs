@@ -360,6 +360,9 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 MessageOutcome::Done { .. } => taken.pushed += 1,
                 _ => taken.updated += 1,
             }
+            // A message's server id is new or gone, or a message is put back as its server's: where
+            // each message is, is looked at afresh, as for an Exchange server account.
+            s.graph_index = Default::default();
         }
     }
     // What was made here from another mailbox of the same owner's (#70).

@@ -410,20 +410,13 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // (onto this computer, into another account), and then it is theirs where
                     // they put it, and nothing here takes it away or moves it again.
                     let here = matches!(mb.message(*copy), Some(m) if m.account == account);
-                    // Its original deleted for good here, its delete waiting for this answer.
-                    let held =
-                        mb.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account: a, id: d, kept: Some(_) } if *a == account && d == id));
                     // Refused: the server has no copy, and the copy here (unless the owner moved it
-                    // on) is taken away. "No such message" while the original's delete waits is
-                    // taken the same way: the server may still have the original (the copy's
-                    // folder there gone) or not (deleted on a phone), and either way no copy was
-                    // made. Otherwise a source that is gone leaves the copy here, which is all
+                    // on) is taken away. A source that is gone leaves the copy here, which is all
                     // there is of it.
-                    if matches!(outcome, MessageOutcome::Refused { .. }) || (matches!(outcome, MessageOutcome::Gone) && held) {
+                    if matches!(outcome, MessageOutcome::Refused { .. }) {
                         // Its original deleted for good here meanwhile, by the owner or by a rule
-                        // that copies and then deletes: its delete waited for this answer, so the
-                        // server still has it, or says it is gone in its next listing (and then
-                        // it is kept here instead), and it comes back rather than being lost (#566),
+                        // that copies and then deletes: it is still on the server (its delete
+                        // waited for this answer), and comes back rather than being lost (#566),
                         // with the copy's content, which the copy names for the mailbox file (what
                         // the delete kept may have been read back from it without its content).
                         // (Not a delete of another kind, of a message moved out of the account
@@ -455,6 +448,16 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                             }
                             None => {}
                         }
+                    } else if matches!(outcome, MessageOutcome::Gone) && take_delete(mb, account, id, true).flatten().is_some() && here {
+                        // No such message on the server while it is deleted for good here, its
+                        // delete waiting for this answer: deleted there meanwhile (on a phone, say),
+                        // or the copy's folder there gone with the message still in place. Nothing
+                        // confirms a copy anywhere, so the delete is called off, and the copy, never
+                        // made there and perhaps all there is of it, is kept on this computer, in
+                        // Imported (as much of it as was fetched), as on a refusal (#566). A message
+                        // the server still has stays there, and is shown here again once its folder
+                        // is read afresh. A copy the owner moved on stays where they put it.
+                        let _ = super::graph_place::kept_in_imported(mb, *copy);
                     }
                     if let Some(why) = why {
                         refusals.note(Kind::Copy, why, &subject, to_name);
