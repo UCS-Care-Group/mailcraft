@@ -60,6 +60,25 @@ fn tokens(email: &str, name: &str) -> Tokens {
     }
 }
 
+fn pending_sign_in(a: &mut MailApp, id: Id, refresh: String) -> (mpsc::Sender<Result<Tokens, String>>, Arc<AtomicBool>) {
+    let (tx, rx) = mpsc::channel();
+    let rx = Mutex::new(Some(rx));
+    a.services.sign_in = Some(Box::new(move |_| rx.lock().unwrap().take().unwrap()));
+    let account = a.session.mailbox.account(id).unwrap().clone();
+    a.begin_sign_in(id, account.oauth.unwrap(), &account.email, refresh, false, false).unwrap();
+    (tx, a.signing_in.as_ref().unwrap().cancel.clone())
+}
+
+fn record_sync(a: &mut MailApp) -> Arc<Mutex<Vec<SyncRequest>>> {
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let recorded = requests.clone();
+    a.services.sync = Some(Box::new(move |request| {
+        recorded.lock().unwrap().push(request);
+        mpsc::channel().1
+    }));
+    requests
+}
+
 #[test]
 fn google_security_tokens_never_enter_mailbox_ui_files_diagnostics_or_debug() {
     let store = Store::default();
@@ -178,6 +197,114 @@ fn google_security_an_account_edit_cancels_a_pending_refresh_before_it_can_be_re
     assert!(!a.tokens.contains_key(&first));
     assert!(store.get(&first_key).is_none());
     assert_eq!(store.get(&second_key).as_deref(), Some("audit-refresh-old-two-unique"));
+}
+
+#[test]
+fn google_security_unrelated_account_edits_accept_pending_sign_in_and_sync() {
+    for direct in [false, true] {
+        let store = Store::default();
+        let mut a = app(&store);
+        a.ui.remember_sign_in = true;
+        let id = add_google(&mut a, "one@example.org");
+        let requests = record_sync(&mut a);
+        let (tx, cancel) = pending_sign_in(&mut a, id, String::new());
+        let changes = json!({
+            "id":id,"name":"Personal mail","displayName":"Avery",
+            "downloadInFull":"everything","keepOffline":"1m","askBeforeDeletingConversation":false
+        });
+        if direct {
+            a.session.run("account.edit", &changes).unwrap();
+        } else {
+            a.execute("account.edit", changes).unwrap();
+        }
+        // Signatures are also preferences; a controller may edit them while the host waits.
+        let account = a.session.mailbox.account_mut(id).unwrap();
+        account.signature = "Personal signature".into();
+        account.reply_signature = Some("Reply signature".into());
+        let edited = account.clone();
+        assert!(a.signing_in());
+        assert!(!cancel.load(Ordering::Relaxed));
+
+        let given = tokens("one@example.org", "after-preferences");
+        tx.send(Ok(given.clone())).unwrap();
+        a.poll_sign_in();
+
+        assert!(!a.signing_in());
+        assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some(given.access.as_str()), "direct engine edit: {direct}");
+        assert_eq!(store.get(&MailApp::secret_key("refresh", &edited)).as_deref(), Some(given.refresh.as_str()));
+        assert_eq!(a.session.mailbox.account(id), Some(&edited));
+        let requests = requests.lock().unwrap();
+        assert_eq!(requests.len(), 1, "the accepted answer should resume Send/Receive");
+        assert_eq!(requests[0].account, edited, "Send/Receive must use the updated preferences");
+        assert_eq!(requests[0].access_token, given.access);
+        assert!(requests[0].password.is_empty());
+    }
+}
+
+#[test]
+fn google_security_credential_edits_reject_identityless_pending_refresh() {
+    use mailcraft_model::{Account, AccountKind, OAuthProvider, Security};
+
+    let edits: &[(&str, fn(&mut Account))] = &[
+        ("address", |a| a.email = "other@example.org".into()),
+        ("login", |a| a.username = "alias@example.org".into()),
+        ("auth method", |a| a.oauth = None),
+        ("provider", |a| a.oauth.as_mut().unwrap().provider = OAuthProvider::Microsoft),
+        ("client", |a| a.oauth.as_mut().unwrap().client_id = "other-client".into()),
+        ("tenant", |a| a.oauth.as_mut().unwrap().tenant = "other-tenant".into()),
+        ("incoming host", |a| a.incoming.as_mut().unwrap().host = "imap.changed.example".into()),
+        ("outgoing host", |a| a.outgoing.as_mut().unwrap().host = "smtp.changed.example".into()),
+        ("incoming port", |a| a.incoming.as_mut().unwrap().port = 1993),
+        ("outgoing port", |a| a.outgoing.as_mut().unwrap().port = 1465),
+        ("incoming security", |a| a.incoming.as_mut().unwrap().security = Security::None),
+        ("outgoing security", |a| a.outgoing.as_mut().unwrap().security = Security::StartTls),
+        ("account kind", |a| a.kind = AccountKind::Local),
+        ("shared owner", |a| a.shared_of = Some(1)),
+        ("account id", |a| a.id = 999_999),
+    ];
+    for (name, edit) in edits {
+        let store = Store::default();
+        let mut a = app(&store);
+        let id = add_google(&mut a, "one@example.org");
+        let requests = record_sync(&mut a);
+        let (tx, _) = pending_sign_in(&mut a, id, "audit-refresh-before-edit".into());
+        // Bypass the UI cancellation hook, as another controller or mailbox edit can do.
+        edit(a.session.mailbox.account_mut(id).unwrap());
+        // Renewal may omit the email: rejection must come from the saved credential identity,
+        // not signed_in_as_other's independent check of a provider-supplied email.
+        tx.send(Ok(tokens("", "stale-identity"))).unwrap();
+        a.poll_sign_in();
+        assert!(!a.signing_in(), "{name}");
+        assert!(!a.tokens.contains_key(&id), "{name}");
+        assert!(!a.graph_tokens.contains_key(&id), "{name}");
+        assert!(!store.0.lock().unwrap().values().any(|value| value.contains("stale-identity")), "{name}");
+        assert!(requests.lock().unwrap().is_empty(), "{name}");
+    }
+}
+
+#[test]
+fn google_security_removed_or_reassigned_accounts_reject_pending_refresh() {
+    for reuse_id in [false, true] {
+        let store = Store::default();
+        let mut a = app(&store);
+        let id = add_google(&mut a, "one@example.org");
+        let requests = record_sync(&mut a);
+        let (tx, _) = pending_sign_in(&mut a, id, "audit-refresh-before-removal".into());
+        let mut replacement = a.session.mailbox.account(id).unwrap().clone();
+        a.session.run("account.remove", &json!({"id":id})).unwrap();
+        if reuse_id {
+            replacement.email = "replacement@example.org".into();
+            replacement.username = replacement.email.clone();
+            a.session.mailbox.accounts.push(replacement);
+        }
+        tx.send(Ok(tokens("", "late-removed"))).unwrap();
+        a.poll_sign_in();
+        assert!(!a.signing_in());
+        assert!(!a.tokens.contains_key(&id), "reassigned id: {reuse_id}");
+        assert!(!a.graph_tokens.contains_key(&id));
+        assert!(!store.0.lock().unwrap().values().any(|value| value.contains("late-removed")));
+        assert!(requests.lock().unwrap().is_empty());
+    }
 }
 
 #[test]

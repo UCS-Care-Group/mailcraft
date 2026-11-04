@@ -2,7 +2,9 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-03 · **Change:** minor
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-03 · **Change:** patch
+>
+> **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -187,6 +189,9 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-03 | The owner's order of the accounts ([#702](https://github.com/UCS-Care-Group/mailcraft/issues/702), point 2): an account is dragged by its heading up or down the folder pane, as in classic Outlook, a line showing where it goes and its shared mailboxes going with it. The order is the list's, kept in the mailbox apart from the accounts (`Mailbox::account_order`), so the default account never changes with it; File › Info, the From list, the calendars' groups, Junk E-mail Options, Signatures, Rules and Alerts, Tasks, `account.list`, `folder.list`, `file.account` and `file.info` follow it, and the To Do jobs start in that order; Send/Receive keeps the order the accounts were added in. Move Up and Move Down on an account's right-click menu do the same as a drag, and the pane scrolls while a heading is dragged near its top or bottom. `account.move` does the same from the command line, MCP and agents (safe: nothing leaves the computer, Undo puts it back). |
+| 2026-11-03 | #631: each account's contacts apart. People has a choice under its heading (All accounts, each Microsoft account, On this computer; `view.peopleAccount`, remembered with the other view choices), on the `AccountChoice` and `widgets::account_choice` of #632. The list, the counts, the search and the status bar follow it; with All accounts each row says where the contact is, and the card says so whatever the list shows; a contact the account's server keeps is marked Read-only there, with why in its hover text, before Edit or Delete is tried. A contact that becomes the selected one (made, imported, merged or picked) where the list doesn't show it moves the list to it, and clears a search that would leave it out; undone, a step puts the list back where the contact selected again is. On this computer is forgotten once the last account that keeps contacts goes, so an account added later opens People on All accounts, and an account's empty list says No contacts from this account yet (they may not have come down). Export Contacts, the contact picker and the recipient suggestions stay on every contact, and `list_contacts` too unless `account` names one (`people.list` takes it). A new contact is still kept on this computer |
+| 2026-11-03 | #232 review fixes: validate mail-token destinations for the selected provider so Gmail IMAP and SMTP are accepted without relaxing host restrictions; retain a pending sign-in across unrelated account preference edits while rejecting changed credential identities. Regression coverage uses the actual Gmail hostnames without contacting a real mailbox. |
 | 2026-11-03 | #232: desktop Google OAuth-first setup, app-password fallback, opt-in same-address conversion and reconnect, account-bound refresh credentials, and [setup documentation](docs/google-accounts.md). Bounded owner-authorized Windows Gmail/Workspace acceptance passed; public production registration/verification and browser Gmail remain separate. |
 | 2026-11-01 | New Email starts in the reading pane ([#286](https://github.com/UCS-Care-Group/mailcraft/issues/286), after the owner tried it): the owner's New Email, New Items › E-mail Message and Ctrl+N start the message in the reading pane, as Reply and Forward do, with Pop Out at its top right; File › Options › Mail › Open new messages, replies and forwards in a new window (the same setting, kept as it was) opens them in a window from the start. A double-clicked draft and a reply from a message's window still open in a window, and an agent's message still opens in a window behind the owner's, never in the reading pane. Delete for Good is called Delete Permanently, and the questions and messages about it say "permanently deleted" |
 | 2026-11-01 | An update refreshes the app icon on Linux and FreeBSD ([#732](https://github.com/UCS-Care-Group/mailcraft/issues/732)): at start, a release build whose launcher (`applications/io.github.billsecond.mailcraft.desktop`) is in the owner's own data folder (`$XDG_DATA_HOME`, else `~/.local/share`) writes its own icons over the ones there that differ: only files that are already there, reached through no link and written through a new file renamed into place; never the system's folders, never in a Flatpak. The `hicolor` folder is then marked as changed, so GTK reads it again, and KDE's cache is rebuilt with `kbuildsycoca6` or `kbuildsycoca5` when installed. Anything that goes wrong is logged and never stops the program. Tests in `desktop_icons_tests.rs` |
@@ -418,8 +423,12 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-03 | #702, #631: the progress log: Move Up and Move Down, the pane's scroll while dragging, the To Do jobs' order; a contact shown clears a search that hides it |
+| 2026-11-03 | #631: the progress log: each account's contacts apart |
+| 2026-11-03 | #232: record the provider-specific mail-destination and pending-sign-in review fixes |
 | 2026-11-03 | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-03 | #379: one progress-log row for #376, not two |
+| 2026-11-03 | #702: the owner's order of the accounts, in the progress log |
 | 2026-11-01 | #286: New Email in the reading pane, and Delete Permanently, in the progress log |
 | 2026-11-01 | #732: an update refreshes the desktop icons, in the progress log |
 | 2026-11-01 | Gap 8: a frame of the window over 326,000 messages under 1 ms, was 59 ms, in the progress log |

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, FolderState, Moved, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage,
 };
-use mailcraft_model::{Account, AccountKind, Address, FlagStatus, FolderKind, Id, Message, OAuth, Security, Server};
+use mailcraft_model::{Account, AccountKind, Address, FlagStatus, FolderKind, Id, Message, OAuth, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 
 use crate::fake::{Fake, FakeImap, FakeMailbox, FakeMessage, FakeSmtp, ImapWorld, SmtpWorld};
@@ -384,6 +384,57 @@ fn google_xoauth2_reuses_imap_smtp_without_sending_a_password() {
     assert!(imap.log.iter().any(|line| line.contains("AUTHENTICATE XOAUTH2")));
     assert!(smtp.log.iter().any(|line| line.starts_with("AUTH XOAUTH2")));
     assert!(!imap.log.iter().chain(smtp.log.iter()).any(|line| line.contains(PASSWORD) || line.contains(TOKEN)));
+}
+
+#[test]
+fn oauth_named_mail_servers_reach_the_transport_security_check() {
+    // Use the real destination names, but refuse cleartext before DNS or a connection. The
+    // loopback protocol tests alone cannot catch a provider rejecting its own mail servers.
+    for (provider, incoming, outgoing) in [
+        (OAuthProvider::Google, "imap.gmail.com", "smtp.gmail.com"),
+        (OAuthProvider::Google, " IMAP.GMAIL.COM. ", " SMTP.GMAIL.COM. "),
+        (OAuthProvider::Microsoft, "outlook.office365.com", "smtp.office365.com"),
+        (OAuthProvider::Microsoft, " IMAP-MAIL.OUTLOOK.COM. ", " SMTP-MAIL.OUTLOOK.COM. "),
+    ] {
+        let mut account = oauth_account(None, None);
+        account.oauth.as_mut().unwrap().provider = provider;
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
+            assert!(matches!(&error, NetError::Config(why) if why.contains("is set to use no encryption")), "{provider:?}: {error:?}");
+            assert!(!format!("{error} {error:?}").contains(TOKEN));
+        }
+    }
+}
+
+#[test]
+fn oauth_destinations_cannot_cross_providers_or_protocols() {
+    for (provider, incoming, outgoing) in [
+        (OAuthProvider::Google, "outlook.office365.com", "smtp.office365.com"),
+        (OAuthProvider::Google, "smtp.gmail.com", "imap.gmail.com"),
+        (OAuthProvider::Google, "mail.example.org", "relay.example.org"),
+        (OAuthProvider::Google, "imap.gmail.com.attacker.example", "smtp.gmail.com.attacker.example"),
+        (OAuthProvider::Google, "other.imap.gmail.com", "other.smtp.gmail.com"),
+        (OAuthProvider::Google, "imap.googlemail.com", "smtp.googlemail.com"),
+        (OAuthProvider::Microsoft, "imap.gmail.com", "smtp.gmail.com"),
+        (OAuthProvider::Microsoft, "mail.example.org", "relay.example.org"),
+        (OAuthProvider::Microsoft, "office365.com.attacker.example", "evil-outlook.com"),
+    ] {
+        let mut account = oauth_account(None, None);
+        account.oauth.as_mut().unwrap().provider = provider;
+        // Even a broken destination guard would stop at the encryption check without reaching
+        // a real server; the provider-specific error proves the guard ran first on each path.
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        let expected = match provider {
+            OAuthProvider::Google => "Google OAuth access tokens may only be sent",
+            OAuthProvider::Microsoft => "a Microsoft sign-in is only used",
+        };
+        for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
+            assert!(matches!(&error, NetError::Config(why) if why.starts_with(expected)), "{provider:?}: {error:?}");
+            assert!(!format!("{error} {error:?}").contains(TOKEN));
+        }
+    }
 }
 
 #[test]

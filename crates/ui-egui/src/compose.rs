@@ -386,7 +386,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
         }
         paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
-        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts.iter().map(|a| (a.id, a.address().full())).collect();
+        // (In the order of the folder pane, #702.)
+        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts_in_order().into_iter().map(|a| (a.id, a.address().full())).collect();
         egui::Popup::menu(&resp).show(|ui| {
             for (id, label) in accounts {
                 if ui.selectable_label(id == c.account, label).clicked() {

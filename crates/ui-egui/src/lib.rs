@@ -816,8 +816,8 @@ struct SigningIn {
     /// Nobody asked for it (a Send/Receive that started by itself).
     quiet: bool,
     account: Id,
-    /// The complete saved account at the start of the request. An answer for a deleted,
-    /// replaced or edited account must never be applied to another credential identity.
+    /// The saved account at the start of the request. Its credential identity must still match
+    /// when the answer arrives; unrelated account preferences may have changed meanwhile.
     snapshot: Option<mailcraft_model::Account>,
     /// For reading this shared mailbox, which is read once it is had (#70).
     shared: Option<Id>,
@@ -881,6 +881,9 @@ pub struct UiState {
     /// The address of the account whose tasks the list showed (`view.task_account`): an account's
     /// id is that account in its own mailbox only (#632).
     pub task_account_address: String,
+    /// The address of the account whose contacts People showed (`view.people_account`), for the
+    /// same reason (#631).
+    pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
@@ -972,6 +975,7 @@ impl Default for UiState {
             options: mailcraft_engine::Prefs::default(),
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
+            people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
@@ -1881,15 +1885,21 @@ impl MailApp {
         self
     }
 
+    /// The address of the account `choice` names, kept beside its id in `ui.json`.
+    fn choice_address(&self, choice: mailcraft_model::AccountChoice) -> String {
+        match choice {
+            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
-        ui.task_account_address = match ui.view.task_account {
-            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
-            _ => String::new(),
-        };
+        ui.task_account_address = self.choice_address(ui.view.task_account);
+        ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
         ui.view.search.clear();
         ui.view.people_search.clear();
@@ -1933,17 +1943,11 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
-        // One account's tasks only in the mailbox it was chosen in: in another, the same id is
-        // somebody else's account, or none, and the list starts on All accounts.
-        let address = self.ui.task_account_address.trim();
-        v.task_account = match saved.task_account {
-            mailcraft_model::AccountChoice::Account(id)
-                if address.is_empty() || !self.session.mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
-            {
-                mailcraft_model::AccountChoice::All
-            }
-            choice => choice,
-        };
+        // One account's tasks and contacts only in the mailbox they were chosen in: in another,
+        // the same id is somebody else's account, or none, and the list starts on All accounts.
+        let mailbox = &self.session.mailbox;
+        v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
+        v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -2712,6 +2716,21 @@ impl MailApp {
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
+    }
+
+    /// Whether a pending sign-in still belongs to the saved account. The storage key binds
+    /// its address and endpoints; login, transport security, ownership and OAuth registration
+    /// also belong to its credential identity. Names, signatures and download preferences do not.
+    fn same_sign_in_identity(before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        before.id == after.id
+            && before.kind == after.kind
+            && before.shared_of == after.shared_of
+            && before.login() == after.login()
+            && Self::secret_key("refresh", before) == Self::secret_key("refresh", after)
+            && before.incoming.as_ref().map(|s| s.security) == after.incoming.as_ref().map(|s| s.security)
+            && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
+            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
     }
 
     /// The name secrets were kept under before they were bound to servers.
@@ -3803,11 +3822,11 @@ impl MailApp {
             self.setup_sign_in = Some(answer);
             return;
         }
-        // A removed account cannot be recreated by a response which arrived after removal.
-        // Do not remember tokens, restart sync, or use a now-reassigned account ID.
-        if self.session.mailbox.account(account).is_none() || self.session.mailbox.account(account) != snapshot.as_ref() {
-            // Nothing about an earlier account configuration is reusable for a new one,
-            // even if an ID was reused or the host ignored a cancellation request.
+        // A removed or changed credential identity cannot take a late response, even if an ID
+        // was reused or the host ignored cancellation. Ordinary account preferences can change.
+        let same_identity =
+            snapshot.as_ref().zip(self.session.mailbox.account(account)).is_some_and(|(before, after)| Self::same_sign_in_identity(before, after));
+        if !same_identity {
             self.session.sync_status.clear();
             return;
         }
@@ -4946,6 +4965,20 @@ impl MailApp {
             let _ = reply.send(json!({"ok": false, "error": "no frame was presented (window hidden?)"}));
             false
         });
+    }
+}
+
+/// A list's saved choice of account, when `address` says it is the same account in `mailbox`;
+/// else All accounts (a file from before the address was kept says nothing, so All too).
+fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::AccountChoice, address: &str) -> mailcraft_model::AccountChoice {
+    let address = address.trim();
+    match choice {
+        mailcraft_model::AccountChoice::Account(id)
+            if address.is_empty() || !mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
+        {
+            mailcraft_model::AccountChoice::All
+        }
+        choice => choice,
     }
 }
 
