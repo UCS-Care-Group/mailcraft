@@ -172,6 +172,8 @@ mod search_suggest_tests;
 mod search_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod well_known_folder_tests;
 
 #[cfg(test)]
 mod tests {
