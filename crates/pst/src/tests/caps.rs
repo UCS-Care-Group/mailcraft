@@ -56,7 +56,11 @@ fn items_past_the_cap_are_counted_and_left_out() {
     let projects = pst.items(id("Projects")).unwrap();
     assert_eq!((projects.items.len(), projects.left_out.len()), (1, 0));
     let calendar = pst.items(id("Calendar")).unwrap();
-    assert_eq!((calendar.items.len(), calendar.left_out.len()), (0, 1));
+    assert_eq!((calendar.items.len(), calendar.past_cap), (0, 1));
+    assert_eq!(calendar.left_out, vec![crate::LeftOut { id: id("Calendar"), parent: None, property: None, reason: Error::Cap(Cap::Items) }]);
+    // A table of more rows than the cap is refused as it is read.
+    let mut small = open(&bytes, Limits { max_items: 1, ..Default::default() });
+    assert_eq!(small.items(id("Inbox")).err(), Some(Error::Cap(Cap::Items)));
     // Listing a folder again doesn't count it twice.
     let again = pst.items(id("Inbox")).unwrap();
     assert_eq!((again.items.len(), again.left_out.len()), (2, 0));

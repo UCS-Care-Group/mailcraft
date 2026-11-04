@@ -6,6 +6,7 @@
 
 use crate::crc::{crc32, table_head};
 use crate::crypt::{Encryption, decode, encode, tables};
+use crate::error::Error;
 use crate::header::{Format, Header};
 use crate::heap::Heap;
 use crate::ndb::signature;
@@ -85,7 +86,7 @@ fn sample_hierarchy_table_heap() {
     assert_eq!(heap.client, 0x7C);
     let info = heap.item(heap.user_root).unwrap();
     assert_eq!(info[1], 0x0D);
-    let index = crate::bth::read(&heap, 0x20).unwrap();
+    let index = crate::bth::read(&heap, 0x20, 1000, Error::Corrupt("")).unwrap();
     let rows: Vec<(u32, u32)> =
         index.records.iter().map(|r| (u32::from_le_bytes(r[0..4].try_into().unwrap()), u32::from_le_bytes(r[4..8].try_into().unwrap()))).collect();
     assert_eq!(rows, vec![(0x2223, 2), (0x8022, 0), (0x8042, 1)]);

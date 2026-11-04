@@ -22,6 +22,9 @@ const NID_NAME_TO_ID_MAP: u32 = 0x61;
 const NID_ROOT_FOLDER: u32 = 0x122;
 const NID_ATTACHMENT_TABLE: u32 = 0x671;
 const NID_RECIPIENT_TABLE: u32 = 0x692;
+/// Rows of a recipient or attachment table read at most: the caps of each are applied to what
+/// is read, so a table may be larger than they are, but not without bound.
+const MAX_PART_ROWS: usize = 1 << 16;
 
 /// Node types ([MS-PST] 2.2.2.1), the low five bits of a node id.
 pub mod node_types {
@@ -182,9 +185,12 @@ pub struct ItemSummary {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ItemList {
     pub items: Vec<ItemSummary>,
-    /// Items past [`Limits::max_items`] (counted across the folders listed so far), not listed;
-    /// and items whose row, or a property of it, could not be read (listed all the same).
+    /// Items whose row, or a property of it, could not be read (listed all the same); and,
+    /// once, the folder itself when items were past [`Limits::max_items`].
     pub left_out: Vec<LeftOut>,
+    /// How many items were past [`Limits::max_items`] (counted across the folders listed so
+    /// far): not listed.
+    pub past_cap: usize,
 }
 
 /// Where a message is: a folder's item, or attached to one (through its attachments).
@@ -340,8 +346,17 @@ pub struct Pst<R> {
     named: Option<NamedMap>,
     listed: HashMap<u32, usize>,
     listed_total: usize,
-    /// The item whose attached messages are being read, and how many have been.
-    embedded: (u32, usize),
+    /// The item whose attached messages are being read: what is left of its budget, and how
+    /// many have been read.
+    tree: ItemTree,
+}
+
+/// What one item and the messages attached to it, together, may still read.
+#[derive(Debug, Clone, Copy, Default)]
+struct ItemTree {
+    node: u32,
+    left: u64,
+    embedded: usize,
 }
 
 /// `s` in Windows-1252, when every character is in it.
@@ -386,7 +401,7 @@ impl<R: Read + Seek> Pst<R> {
         let node = NodeData::load(&mut ndb, entry.data, entry.sub, &mut budget)?;
         let store = pc_properties(&mut ndb, &node, &mut budget, &[])?;
         let password = store.int(0x67FF).map(|v| v as u32).unwrap_or(0);
-        Ok(Pst { ndb, store, password, unlocked: password == 0, named: None, listed: HashMap::new(), listed_total: 0, embedded: (0, 0) })
+        Ok(Pst { ndb, store, password, unlocked: password == 0, named: None, listed: HashMap::new(), listed_total: 0, tree: ItemTree::default() })
     }
 
     pub fn format(&self) -> Format {
@@ -491,10 +506,16 @@ impl<R: Read + Seek> Pst<R> {
         })
     }
 
-    fn table(&mut self, nid: u32, budget: &mut Budget) -> Result<Table> {
-        let entry = self.ndb.node(nid)?;
+    /// The table at `nid`, or None when the file has no such node (a folder without
+    /// subfolders, say). Anything that fails after the node is found is an error.
+    fn table(&mut self, nid: u32, budget: &mut Budget, max_rows: usize, cap: Cap) -> Result<Option<Table>> {
+        let entry = match self.ndb.node(nid) {
+            Ok(e) => e,
+            Err(Error::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
         let node = self.load(&entry, budget)?;
-        Table::open(&mut self.ndb, node)
+        Table::open(&mut self.ndb, node, max_rows, cap).map(Some)
     }
 
     /// A folder's subfolders, in the order of its hierarchy table.
@@ -505,11 +526,11 @@ impl<R: Read + Seek> Pst<R> {
 
     fn subfolders_in(&mut self, id: Nid, budget: &mut Budget) -> Result<Vec<Nid>> {
         self.gate()?;
-        let table = self.table(id.with_kind(HIERARCHY_TABLE).0, budget)?;
-        if table.rows.len() > self.ndb.limits.max_folders {
-            return Err(Error::Cap(Cap::Folders));
-        }
-        let mut rows = table.rows.clone();
+        let max = self.ndb.limits.max_folders;
+        let Some(table) = self.table(id.with_kind(HIERARCHY_TABLE).0, budget, max, Cap::Folders)? else {
+            return Ok(Vec::new());
+        };
+        let mut rows = table.rows;
         rows.sort_by_key(|&(_, index)| index);
         Ok(rows.into_iter().map(|(rowid, _)| Nid(rowid)).collect())
     }
@@ -560,8 +581,6 @@ impl<R: Read + Seek> Pst<R> {
                         stack.push((child, Some(id), depth.saturating_add(1), in_ipm));
                     }
                 }
-                // A folder without a hierarchy table has no subfolders.
-                Err(Error::NotFound(_)) => {}
                 Err(reason) => tree.left_out.push(LeftOut::new(id, parent, reason)),
             }
         }
@@ -588,19 +607,21 @@ impl<R: Read + Seek> Pst<R> {
         }
         let nid = folder.with_kind(kind).0;
         let mut budget = self.listing_budget();
-        let mut table = match self.table(nid, &mut budget) {
-            Ok(t) => t,
-            Err(Error::NotFound(_)) => return Ok(ItemList::default()),
-            Err(e) => return Err(e),
+        let max = self.ndb.limits.max_items;
+        let Some(mut table) = self.table(nid, &mut budget, max, Cap::Items)? else {
+            return Ok(ItemList::default());
         };
-        let mut rows = table.rows.clone();
+        let mut rows = std::mem::take(&mut table.rows);
         rows.sort_by_key(|&(_, index)| index);
         let room = match self.listed.get(&nid) {
             Some(&n) => n,
             None => self.ndb.limits.max_items.saturating_sub(self.listed_total),
         };
-        let past = rows.get(room..).unwrap_or(&[]);
-        let mut left_out: Vec<LeftOut> = past.iter().map(|&(rowid, _)| LeftOut::new(Nid(rowid), Some(folder), Error::Cap(Cap::Items))).collect();
+        let past_cap = rows.len().saturating_sub(room);
+        let mut left_out = Vec::new();
+        if past_cap > 0 {
+            left_out.push(LeftOut::new(folder, None, Error::Cap(Cap::Items)));
+        }
         rows.truncate(room);
         if let std::collections::hash_map::Entry::Vacant(e) = self.listed.entry(nid) {
             e.insert(rows.len());
@@ -619,7 +640,7 @@ impl<R: Read + Seek> Pst<R> {
             left_out.extend(LeftOut::damaged(id, Some(folder), &properties));
             items.push(ItemSummary { id, class: properties.text(0x001A), properties });
         }
-        Ok(ItemList { items, left_out })
+        Ok(ItemList { items, left_out, past_cap })
     }
 
     /// The data and subnodes of the object at `path` under the node `node`.
@@ -646,11 +667,14 @@ impl<R: Read + Seek> Pst<R> {
         Ok(chain)
     }
 
-    /// A message (or any item) with its recipients and attachments, all read within
-    /// [`Limits::max_item_bytes`]. Property values larger than [`Limits::max_inline_value`]
-    /// come back as [`PropValue::Large`]; what could not be read is named in `left_out`.
-    /// Attached messages are counted per item: past [`Limits::max_embedded_messages`] under
-    /// the same item, [`Cap::EmbeddedMessages`].
+    /// A message (or any item) with its recipients and attachments. Property values larger
+    /// than [`Limits::max_inline_value`] come back as [`PropValue::Large`]; what could not be
+    /// read is named in `left_out`.
+    ///
+    /// An item and the messages attached to it share one budget: reading the item (a call
+    /// with an empty path) starts it at [`Limits::max_item_bytes`], and the messages attached
+    /// to it, read after it, take from what is left, as many as
+    /// [`Limits::max_embedded_messages`]. So the whole of an item's tree is within the cap.
     pub fn message(&mut self, id: &MessageRef) -> Result<Message> {
         self.gate()?;
         let limits = self.ndb.limits.clone();
@@ -660,20 +684,27 @@ impl<R: Read + Seek> Pst<R> {
         if id.path.is_empty() && !matches!(id.node.kind(), NORMAL_MESSAGE | ASSOC_MESSAGE) {
             return Err(Error::Unsupported("a node that is not an item"));
         }
-        if self.embedded.0 != id.node.0 {
-            self.embedded = (id.node.0, 0);
+        if id.path.is_empty() || self.tree.node != id.node.0 {
+            self.tree = ItemTree { node: id.node.0, left: limits.max_item_bytes, embedded: 0 };
         }
         if !id.path.is_empty() {
-            self.embedded.1 = self.embedded.1.saturating_add(1);
-            if self.embedded.1 > limits.max_embedded_messages {
+            self.tree.embedded = self.tree.embedded.saturating_add(1);
+            if self.tree.embedded > limits.max_embedded_messages {
                 return Err(Error::Cap(Cap::EmbeddedMessages));
             }
         }
+        let mut budget = Budget::new(self.tree.left, limits.max_inline_value, Cap::ItemSize);
+        let read = self.message_in(id, &limits, &mut budget);
+        // What a failed read took counts too.
+        self.tree.left = budget.left;
+        read
+    }
+
+    fn message_in(&mut self, id: &MessageRef, limits: &Limits, budget: &mut Budget) -> Result<Message> {
         let chain = self.chain(id.node, &id.path)?;
         let (data, sub) = chain.last().copied().ok_or(Error::NotFound("a node"))?;
-        let mut budget = self.budget();
-        let node = NodeData::load(&mut self.ndb, data, sub, &mut budget)?;
-        let properties = pc_properties(&mut self.ndb, &node, &mut budget, &[])?;
+        let node = NodeData::load(&mut self.ndb, data, sub, budget)?;
+        let properties = pc_properties(&mut self.ndb, &node, budget, &[])?;
         let mut left_out: Vec<LeftOutPart> =
             properties.damaged().map(|(p, reason)| LeftOutPart { part: Part::Property { id: p }, reason: reason.clone() }).collect();
 
@@ -684,7 +715,7 @@ impl<R: Read + Seek> Pst<R> {
             .copied()
             .or_else(|| node.subnodes.iter().find(|(nid, _)| Nid(**nid).kind() == RECIPIENT_TABLE).map(|(_, e)| *e));
         if let Some(e) = recipient_table {
-            match NodeData::load(&mut self.ndb, e.data, e.sub, &mut budget).and_then(|n| Table::open(&mut self.ndb, n)) {
+            match NodeData::load(&mut self.ndb, e.data, e.sub, budget).and_then(|n| Table::open(&mut self.ndb, n, MAX_PART_ROWS, Cap::Recipients)) {
                 Ok(mut table) => {
                     let mut rows = table.rows.clone();
                     rows.sort_by_key(|&(_, index)| index);
@@ -696,7 +727,7 @@ impl<R: Read + Seek> Pst<R> {
                         rows.truncate(limits.max_recipients);
                     }
                     for (rowid, index) in rows {
-                        match table.row(&mut self.ndb, rowid, index, &mut budget) {
+                        match table.row(&mut self.ndb, rowid, index, budget) {
                             Ok(properties) => {
                                 let row = index;
                                 left_out.extend(
@@ -723,7 +754,7 @@ impl<R: Read + Seek> Pst<R> {
             .copied()
             .or_else(|| node.subnodes.iter().find(|(nid, _)| Nid(**nid).kind() == ATTACHMENT_TABLE).map(|(_, e)| *e));
         if let Some(e) = attachment_table {
-            match NodeData::load(&mut self.ndb, e.data, e.sub, &mut budget).and_then(|n| Table::open(&mut self.ndb, n)) {
+            match NodeData::load(&mut self.ndb, e.data, e.sub, budget).and_then(|n| Table::open(&mut self.ndb, n, MAX_PART_ROWS, Cap::Attachments)) {
                 Ok(table) => {
                     let mut rows = table.rows.clone();
                     rows.sort_by_key(|&(_, index)| index);
@@ -741,7 +772,7 @@ impl<R: Read + Seek> Pst<R> {
                             left_out.push(LeftOutPart { part: Part::Attachment { id: att }, reason: Error::Cycle("an attachment listed twice") });
                             continue;
                         }
-                        match self.attachment_from(&node, id, &chain, att, &mut budget) {
+                        match self.attachment_from(&node, id, &chain, att, budget) {
                             Ok(a) => {
                                 left_out.extend(a.properties.damaged().map(|(p, reason)| LeftOutPart {
                                     part: Part::AttachmentProperty { attachment: att, id: p },

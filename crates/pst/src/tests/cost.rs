@@ -277,7 +277,8 @@ fn attached_messages_are_counted_per_item() {
     let mut pst = open(&bytes, Limits { max_embedded_messages: 5, ..Default::default() });
     let folder = inbox(&mut pst);
     let items = pst.items(folder).unwrap().items;
-    for item in &items {
+    // The first item twice: reading it again starts its count again.
+    for item in [&items[0], &items[0], &items[1]] {
         let (mut read, mut refused) = (0, 0);
         let mut queue = vec![MessageRef::item(item.id)];
         while let Some(m) = queue.pop() {
@@ -298,4 +299,138 @@ fn attached_messages_are_counted_per_item() {
         }
         assert_eq!((read, refused), (5, 4), "counted again for each item");
     }
+}
+
+/// A heap block (not the first) whose page map holds `k` items that all span the same leaf of
+/// `l` property records: the odd items run from its start to its end, the even ones back.
+fn aliasing_block(k: usize, l: usize) -> Vec<u8> {
+    let mut b = vec![0u8; 2];
+    let start = b.len() as u16;
+    for i in 0..l {
+        b.extend_from_slice(&((0x6000 + (i % 0x1000)) as u16).to_le_bytes());
+        b.extend_from_slice(&0x0003u16.to_le_bytes());
+        b.extend_from_slice(&(i as u32).to_le_bytes());
+    }
+    let end = b.len() as u16;
+    b[0..2].copy_from_slice(&end.to_le_bytes());
+    b.extend_from_slice(&((2 * k - 1) as u16).to_le_bytes());
+    b.extend_from_slice(&0u16.to_le_bytes());
+    for i in 0..2 * k {
+        b.extend_from_slice(&(if i % 2 == 0 { start } else { end }).to_le_bytes());
+    }
+    b
+}
+
+/// A message store whose property context's index names every aliasing item of `blocks`
+/// aliasing blocks: `blocks × k × l` records from a few kilobytes.
+fn aliased_store(blocks: usize, k: usize, l: usize) -> Vec<u8> {
+    let mut index = Vec::new();
+    for j in 1..=blocks {
+        for i in 0..k {
+            index.extend_from_slice(&0x6000u16.to_le_bytes());
+            index.extend_from_slice(&(((j as u32) << 16) | (((2 * i + 1) as u32) << 5)).to_le_bytes());
+        }
+    }
+    let mut b0 = vec![0u8; 12];
+    b0[2] = 0xEC;
+    b0[3] = 0xBC;
+    b0[4..8].copy_from_slice(&(1u32 << 5).to_le_bytes());
+    let s1 = b0.len() as u16;
+    b0.extend_from_slice(&[0xB5, 2, 6, 1]);
+    b0.extend_from_slice(&(2u32 << 5).to_le_bytes());
+    let s2 = b0.len() as u16;
+    b0.extend_from_slice(&index);
+    let s3 = b0.len() as u16;
+    b0[0..2].copy_from_slice(&s3.to_le_bytes());
+    b0.extend_from_slice(&2u16.to_le_bytes());
+    b0.extend_from_slice(&0u16.to_le_bytes());
+    for o in [s1, s2, s3] {
+        b0.extend_from_slice(&o.to_le_bytes());
+    }
+    let mut heap = vec![b0];
+    heap.extend((0..blocks).map(|_| aliasing_block(k, l)));
+    let layout = Layout::new(Format::Unicode, Encryption::None);
+    let mut all = nodes(&sample(layout.clone(), None));
+    let store = all.iter_mut().find(|n| n.nid == 0x21).unwrap();
+    store.data = Data::Blocks(heap);
+    store.subnodes = vec![];
+    raw(&layout, &all)
+}
+
+#[test]
+fn heap_items_that_share_bytes_are_refused() {
+    // 2 blocks × 500 items × 450 records: 450,000 properties from a file of about 70 KB.
+    let bytes = aliased_store(2, 500, 450);
+    assert!(bytes.len() < 100_000, "{}", bytes.len());
+    assert_eq!(Pst::open(Cursor::new(&bytes[..])).err(), Some(Error::Corrupt("a heap's page map")));
+    // A page map whose offsets run back, alone.
+    let mut block = vec![12u8, 0, 0xEC, 0xBC, 0, 0, 0, 0, 0, 0, 0, 0];
+    block.extend_from_slice(&[2, 0, 0, 0, 12, 0, 8, 0, 12, 0]);
+    assert!(crate::heap::Heap::new(vec![block]).is_err());
+}
+
+#[test]
+fn a_property_context_of_more_records_than_ids_is_refused() {
+    let spec = sample(unicode_layout(), None);
+    let mut all = nodes(&spec);
+    let props: Vec<(u16, writer::Value)> = (0..=65_536u32).map(|i| (i as u16, int32(1))).collect();
+    let mut spill = Spill::new();
+    let store = all.iter_mut().find(|n| n.nid == 0x21).unwrap();
+    store.data = Data::Blocks(pc(&spec.layout, &props, &mut spill));
+    let bytes = raw(&spec.layout, &all);
+    assert_eq!(Pst::open(Cursor::new(&bytes[..])).err(), Some(Error::Corrupt("a property context with more records than ids")));
+}
+
+#[test]
+fn a_table_that_cannot_be_read_is_named_not_taken_for_none() {
+    // The Inbox's hierarchy and contents tables name a block that isn't in the file.
+    let spec = sample(unicode_layout(), None);
+    let mut all = nodes(&spec);
+    for kind in [0x0D, 0x0E] {
+        let table = all.iter_mut().find(|n| n.nid == (0x403 << 5) | kind).unwrap();
+        table.data = Data::Bid(0x9_9990);
+        table.subnodes = vec![];
+    }
+    let bytes = raw(&spec.layout, &all);
+    let mut pst = open(&bytes, Limits::default());
+    let tree = pst.walk_folders().unwrap();
+    let inbox = Nid((0x403 << 5) | 2);
+    assert!(tree.folders.iter().any(|f| f.folder.id == inbox));
+    assert!(!tree.folders.iter().any(|f| f.folder.name == "Projects"));
+    assert_eq!(tree.left_out.len(), 1);
+    assert_eq!((tree.left_out[0].id, &tree.left_out[0].reason), (inbox, &Error::NotFound("a block")));
+    assert_eq!(pst.items(inbox).err(), Some(Error::NotFound("a block")));
+    // A folder with no tables at all has no subfolders and no items.
+    let mut all = nodes(&spec);
+    // The folder made last (Projects), without its tables.
+    let bare = Nid(all.iter().filter(|n| n.nid & 0x1F == 2).map(|n| n.nid).max().unwrap());
+    all.retain(|n| n.nid & !0x1F != bare.0 & !0x1F || n.nid == bare.0);
+    let bytes = raw(&spec.layout, &all);
+    let mut pst = open(&bytes, Limits::default());
+    assert_eq!(pst.subfolders(bare), Ok(vec![]));
+    assert!(pst.items(bare).unwrap().items.is_empty());
+}
+
+#[test]
+fn an_item_and_its_attached_messages_share_one_budget() {
+    let body = "Words, and more words. ".repeat(1500);
+    let mut inner = note("Inside");
+    inner.body = body.clone();
+    let mut top = note("Outside");
+    top.body = body;
+    top.attachments = vec![AttachSpec::Message(Box::new(inner))];
+    let mut spec = sample(unicode_layout(), None);
+    spec.folders[0].messages = vec![top];
+    let bytes = build_spec(&spec);
+    // Each message is about 70 KB: one fits in 100 KB, the two together don't.
+    let mut pst = open(&bytes, Limits { max_item_bytes: 100_000, ..Default::default() });
+    let item = first_item(&mut pst);
+    let m = pst.message(&MessageRef::item(item)).unwrap();
+    let AttachmentContent::Message(inner) = m.attachments[0].content.clone() else { panic!() };
+    assert_eq!(pst.message(&inner).err(), Some(Error::Cap(Cap::ItemSize)));
+    // Reading the item again starts its budget again.
+    pst.message(&MessageRef::item(item)).unwrap();
+    let mut pst = open(&bytes, Limits::default());
+    pst.message(&MessageRef::item(item)).unwrap();
+    pst.message(&inner).unwrap();
 }

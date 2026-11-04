@@ -106,7 +106,8 @@ pub(crate) fn pc_records(node: &NodeData) -> Result<Vec<(u16, u16, u32)>> {
     if node.heap.client != CLIENT_PC {
         return Err(Error::Corrupt("a property context's signature"));
     }
-    let tree = bth::read(&node.heap, node.heap.user_root)?;
+    // Property ids are 16 bits: more records than that are repeats.
+    let tree = bth::read(&node.heap, node.heap.user_root, 1 << 16, Error::Corrupt("a property context with more records than ids"))?;
     if tree.key_size != 2 || tree.data_size != 6 {
         return Err(Error::Corrupt("a property context's record sizes"));
     }
@@ -172,7 +173,8 @@ pub(crate) struct Table {
 }
 
 impl Table {
-    pub(crate) fn open<R: Read + Seek>(ndb: &mut Ndb<R>, node: NodeData) -> Result<Table> {
+    /// A table of at most `max_rows` rows; more are refused (`cap`) as the row index is read.
+    pub(crate) fn open<R: Read + Seek>(ndb: &mut Ndb<R>, node: NodeData, max_rows: usize, cap: Cap) -> Result<Table> {
         let format = ndb.header.format;
         if node.heap.client != CLIENT_TC {
             return Err(Error::Corrupt("a table context's signature"));
@@ -210,7 +212,7 @@ impl Table {
         if bm > block_capacity {
             return Err(Error::Corrupt("a table row larger than a block"));
         }
-        let tree = bth::read(&node.heap, row_index_hid)?;
+        let tree = bth::read(&node.heap, row_index_hid, max_rows, Error::Cap(cap))?;
         let index_size = match format {
             Format::Unicode => 4,
             Format::Ansi => 2,

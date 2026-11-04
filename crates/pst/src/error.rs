@@ -158,7 +158,9 @@ pub struct Limits {
     /// Attached messages read under one item, at every depth together.
     pub max_embedded_messages: usize,
     /// All that may be read from the file while it is open: this many times its size, plus
-    /// [`Limits::read_floor`], so that the work stays in proportion to the file.
+    /// [`Limits::read_floor`], so that the work stays in proportion to the file. It is
+    /// counted for each [`crate::Pst`] from its opening: an import that reads a file more than
+    /// once (again after a cancel, say) opens it again.
     pub read_multiple: u64,
     pub read_floor: u64,
 }

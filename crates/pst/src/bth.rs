@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The B-tree-on-heap ([MS-PST] 2.3.2). Every heap item of the tree is read at most once and the
-//! tree is at most [`MAX_LEVELS`] index levels deep, so a hostile tree costs no more than its heap.
+//! The B-tree-on-heap ([MS-PST] 2.3.2). The tree is at most [`MAX_LEVELS`] index levels deep,
+//! every heap item of it is read at most once, the heap's items share no bytes
+//! ([`Heap::new`] checks its page maps) and the items read are charged against the heap's size,
+//! so a hostile tree reads no more than its heap holds; and it gives at most `max_records`
+//! records, refused past them while they are gathered.
 
 use std::collections::HashSet;
 
@@ -18,7 +21,7 @@ pub(crate) struct Bth<'h> {
     pub records: Vec<&'h [u8]>,
 }
 
-pub(crate) fn read(heap: &Heap, header_hid: u32) -> Result<Bth<'_>> {
+pub(crate) fn read(heap: &Heap, header_hid: u32, max_records: usize, cap: Error) -> Result<Bth<'_>> {
     let h = heap.item(header_hid)?;
     if u8_at(h, 0)? != CLIENT_BTH {
         return Err(Error::Corrupt("a B-tree-on-heap's signature"));
@@ -38,16 +41,21 @@ pub(crate) fn read(heap: &Heap, header_hid: u32) -> Result<Bth<'_>> {
         return Ok(Bth { key_size, data_size, records });
     }
     let mut seen = HashSet::new();
+    let mut left = heap.size();
     let mut stack = vec![(root, levels)];
     while let Some((hid, level)) = stack.pop() {
         if !seen.insert(hid) {
             return Err(Error::Cycle("a B-tree-on-heap"));
         }
         let item = heap.item(hid)?;
+        left = left.checked_sub(item.len()).ok_or(Error::Corrupt("a B-tree-on-heap larger than its heap"))?;
         if level == 0 {
             let size = key_size.saturating_add(data_size);
             if !item.len().is_multiple_of(size) {
                 return Err(Error::Corrupt("a B-tree-on-heap's records"));
+            }
+            if item.len().checked_div(size).unwrap_or(0) > max_records.saturating_sub(records.len()) {
+                return Err(cap);
             }
             records.extend(item.chunks_exact(size));
             continue;

@@ -10,7 +10,7 @@
 //! most two levels, its claimed size is checked against the cap before a block is read, and it
 //! may not be spread over more blocks than its size needs.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Seek};
 
 use crate::bytes::{slice, u8_at, u16_at, u32_at};
@@ -27,6 +27,9 @@ const PTYPE_NBT: u8 = 0x81;
 const MAX_LEVEL: u8 = 8;
 /// A data tree's average block holds at least this much, or it is refused ([`Cap::DataBlocks`]).
 const MIN_AVERAGE_BLOCK: u64 = 64;
+/// B-tree pages kept once read (512 bytes each), so that the upper pages, which every lookup
+/// passes through, are read from the file once.
+const CACHED_PAGES: usize = 256;
 
 /// A leaf of the node B-tree (`NBTENTRY`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,11 +88,27 @@ pub(crate) struct Ndb<R> {
     src: Source<R>,
     pub header: Header,
     pub limits: Limits,
+    /// Pages as read, by offset; checked again each time they are used.
+    pages: HashMap<u64, Vec<u8>>,
 }
 
 impl<R: Read + Seek> Ndb<R> {
     pub(crate) fn new(src: Source<R>, header: Header, limits: Limits) -> Self {
-        Ndb { src, header, limits }
+        Ndb { src, header, limits, pages: HashMap::new() }
+    }
+
+    fn page_bytes(&mut self, ib: u64) -> Result<Vec<u8>> {
+        if let Some(p) = self.pages.get(&ib) {
+            return Ok(p.clone());
+        }
+        let data = self.src.read_at(ib, PAGE)?;
+        // ponytail: emptied when full, not least-recently-used; the root and upper pages come
+        // back at once. An LRU if lookups in very large files show it matters.
+        if self.pages.len() >= CACHED_PAGES {
+            self.pages.clear();
+        }
+        self.pages.insert(ib, data.clone());
+        Ok(data)
     }
 
     fn format(&self) -> Format {
@@ -98,7 +117,7 @@ impl<R: Read + Seek> Ndb<R> {
 
     fn read_page(&mut self, bref: Bref, ptype: u8) -> Result<Page> {
         let f = self.format();
-        let data = self.src.read_at(bref.ib, PAGE)?;
+        let data = self.page_bytes(bref.ib)?;
         let t = PAGE.saturating_sub(f.trailer_size());
         let (crc_at, bid_at) = match f {
             Format::Unicode => (t.saturating_add(4), t.saturating_add(8)),

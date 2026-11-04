@@ -161,7 +161,7 @@ fn a_heap_tree_that_points_at_itself_is_refused() {
     header.extend_from_slice(&0x20u32.to_le_bytes());
     heap.user_root = heap.alloc(header);
     let heap = Heap::new(heap.finish()).unwrap();
-    assert!(matches!(crate::bth::read(&heap, heap.user_root).err(), Some(Error::Cycle(_))));
+    assert!(matches!(crate::bth::read(&heap, heap.user_root, 1000, Error::Corrupt("")).err(), Some(Error::Cycle(_))));
 }
 
 #[test]

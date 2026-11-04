@@ -33,7 +33,27 @@ impl Heap {
         if blocks.len() > 1 << 16 {
             return Err(Error::Corrupt("a heap of too many blocks"));
         }
+        // Every page map's offsets run forward and end before the map, so that no two items
+        // share a byte and the items of a heap together are no larger than it.
+        for block in &blocks {
+            let map = usize::from(u16_at(block, 0)?);
+            let count = usize::from(u16_at(block, map)?);
+            let mut last = 0usize;
+            for i in 0..=count {
+                let off = i.checked_mul(2).and_then(|o| o.checked_add(map)).and_then(|o| o.checked_add(4)).ok_or(Error::OutOfBounds)?;
+                let at = usize::from(u16_at(block, off)?);
+                if at < last || at > map {
+                    return Err(Error::Corrupt("a heap's page map"));
+                }
+                last = at;
+            }
+        }
         Ok(Heap { blocks, client, user_root })
+    }
+
+    /// The bytes of all its blocks.
+    pub(crate) fn size(&self) -> usize {
+        self.blocks.iter().map(Vec::len).sum()
     }
 
     /// The item `hid`; an HID of zero is an empty item.
