@@ -92,8 +92,18 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
             });
             return uploaded;
         }
+        // Busy, or not to be had now: nothing is sent, and all of it goes again after the wait,
+        // as when the server is too busy for a change.
         Err(e) => {
             log::debug!("categories: the server's list couldn't be read before a change: {e}");
+            uploaded.outcomes.push(CategoryOutcome {
+                kind: first.kind,
+                name: first.name.clone(),
+                color: first.color,
+                result: CategoryResult::Failed,
+                error: e.to_string(),
+                found: false,
+            });
             return uploaded;
         }
     };

@@ -211,12 +211,14 @@ fn a_sign_in_without_leave_to_change_the_list_stops_the_upload() {
     assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [CategoryResult::Refused, CategoryResult::Refused]);
     assert!(done.outcomes.iter().all(|o| !o.error.is_empty() && !o.error.contains(TOKEN)));
 
-    // A list that can't be read: nothing is sent, nothing is said, and it goes again later.
+    // A list that can't be read: nothing is sent, and it goes again after the wait, as when the
+    // server is too busy for a change.
     let s = state(Vec::new());
     s.lock().unwrap().list_status = Some(503);
     let server = serve(&s);
     let done = push_categories_at(&server.url(""), TOKEN, &upload(changes.clone()));
-    assert!(done.outcomes.is_empty() && !done.token_refused);
+    assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [CategoryResult::Failed]);
+    assert!(!done.token_refused && !done.outcomes[0].error.contains(TOKEN));
     assert!(writes(&s).is_empty());
 
     // One the server won't let read either is no list to change.
