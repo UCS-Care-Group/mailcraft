@@ -3218,6 +3218,9 @@ impl MailApp {
             self.rules = rule_sync::RuleSync::default();
             // And so is the categories job's (`poll_categories`), with what was known of them.
             self.category_sync = category_sync::CategorySync::default();
+            // And the one question's, put or turned down for the old mailbox's accounts.
+            self.sync_asking.clear();
+            self.sync_declined.clear();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
         }

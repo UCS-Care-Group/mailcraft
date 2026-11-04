@@ -3,8 +3,9 @@
 //! Each Microsoft account's own list of categories (#633) in the window: what Categorize offers
 //! and whose list the Categories dialog shows and changes.
 
+use egui::accesskit::Role;
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{By, NodeT as _, Queryable};
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::remote;
 use mailcraft_model::remote::CategoriesDownload;
@@ -247,4 +248,32 @@ fn an_events_window_offers_what_the_event_has_off_its_list() {
     let Some(Form::Event(f)) = Form::open("editEvent", &app, &json!({"id": id})) else { panic!("no form") };
     let offered: Vec<String> = f.offered_categories(&app.session).into_iter().map(|(name, _)| name).collect();
     assert_eq!(offered, ["Red", "Client X", "Came with it"]);
+}
+
+#[test]
+fn a_read_only_list_greys_out_its_fields_and_keeps_allow() {
+    for allowed in [true, false] {
+        let (mut app, a, _) = rig();
+        app.services.graph_categories = Some(Box::new(|_| std::sync::mpsc::channel().1));
+        app.stand_in_categories(allowed);
+        let h = dialog(app, json!({"account": a}));
+        for name in ["Red", "Client X"] {
+            let field = h.get(By::new().role(Role::TextInput).value(name));
+            assert_eq!(field.accesskit_node().is_disabled(), !allowed, "{name}, allowed: {allowed}");
+        }
+        if !allowed {
+            assert!(!h.get_by_label("Allow").accesskit_node().is_disabled());
+        }
+    }
+}
+
+#[test]
+fn an_item_carrying_a_name_of_the_list_in_other_letters_shows_one_chip() {
+    let list = [Category { name: "Équipe".into(), color: RED }, Category { name: "Red".into(), color: RED }];
+    let names = |chosen: &[&str]| -> Vec<String> {
+        let chosen: Vec<String> = chosen.iter().map(|c| c.to_string()).collect();
+        super::kit::chips_of(&list, &chosen).into_iter().map(|(name, _)| name).collect()
+    };
+    assert_eq!(names(&["équipe", "RED"]), ["Équipe", "Red"]);
+    assert_eq!(names(&["Came with it"]), ["Équipe", "Red", "Came with it"]);
 }

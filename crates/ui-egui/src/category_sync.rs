@@ -281,7 +281,8 @@ impl MailApp {
         {
             log::warn!("categories, account {account}: whether the list may be changed couldn't be noted: {e}");
         }
-        let mut worked = result.covered.is_some();
+        // (A token the server refused part-way, after it was renewed, is tried again after a wait.)
+        let mut worked = result.covered.is_some() && !result.sign_in_refused;
         if let Some(uploaded) = &result.uploaded {
             match self.session.mailbox.account(account).cloned() {
                 Some(owner) => match categories_remote::apply_category_changes(&mut self.session, &uploaded.clone().for_account(&owner)) {
@@ -304,7 +305,7 @@ impl MailApp {
             // (Tried again after the wait noted above.)
         } else if worked && errors.is_empty() {
             self.category_sync.failures.remove(&account);
-        } else if !result.sign_in_refused && result.covered != Some(false) {
+        } else if (result.tokens.is_some() || !result.sign_in_refused) && result.covered != Some(false) {
             let (n, _) = self.category_sync.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.category_sync.failures.insert(account, (n.saturating_add(1), started));
             // (Tried again later: a job that came to nothing has told nothing.)

@@ -677,7 +677,8 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     // doesn't cover keeping them in step with the server (#661), and the owner said go ahead: the
     // page comes up for what all four take, by itself.
     if request.graph && request.sync {
-        let asked = mailcraft_net::oauth::sign_in_for_sync(&request.oauth, &request.email, &open, &request.cancel);
+        // (Reading and changing mail only for an account kept in step through Graph, R3.)
+        let asked = mailcraft_net::oauth::sign_in_for_sync(&request.oauth, &request.email, request.mail_write, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
     // Calendars are opened by address for the first time (#70): the page comes up for the same

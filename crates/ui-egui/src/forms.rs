@@ -715,16 +715,23 @@ pub(crate) mod kit {
         ui.spacing_mut().item_spacing.x = gap;
     }
 
+    /// The chips [`category_chips`] shows: the list's categories, then the names the item carries
+    /// that the list doesn't have (no colour), each once whatever the case of its letters.
+    pub fn chips_of(all: &[Category], chosen: &[String]) -> Vec<(String, Option<Color32>)> {
+        let mut chips: Vec<(String, Option<Color32>)> = all.iter().map(|c| (c.name.clone(), Some(c32(c.color)))).collect();
+        for name in chosen {
+            if !chips.iter().any(|(n, _)| mailcraft_model::sync::same_category(n, name)) {
+                chips.push((name.clone(), None));
+            }
+        }
+        chips
+    }
+
     /// Toggle chips for the mailbox's categories, and for names the item carries that the
     /// mailbox doesn't list.
     pub fn category_chips(ui: &mut Ui, all: &[Category], chosen: &mut Vec<String>) {
         let t = Tokens::get(ui.ctx());
-        let mut chips: Vec<(String, Color32)> = all.iter().map(|c| (c.name.clone(), c32(c.color))).collect();
-        for name in chosen.iter() {
-            if !chips.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
-                chips.push((name.clone(), t.text_disabled));
-            }
-        }
+        let chips: Vec<(String, Color32)> = chips_of(all, chosen).into_iter().map(|(name, color)| (name, color.unwrap_or(t.text_disabled))).collect();
         if chips.is_empty() {
             ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
             return;
@@ -732,9 +739,9 @@ pub(crate) mod kit {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
             for (name, color) in chips {
-                let on = chosen.iter().any(|c| c.eq_ignore_ascii_case(&name));
+                let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
                 if chip(ui, &name, on, color) {
-                    chosen.retain(|c| !c.eq_ignore_ascii_case(&name));
+                    chosen.retain(|c| !mailcraft_model::sync::same_category(c, &name));
                     if !on {
                         chosen.push(name);
                     }
@@ -5564,6 +5571,8 @@ mod categories {
                 })
                 .collect();
             let read_only = app.categories_read_only_line(self.account);
+            // Nothing of a read-only list can be changed here: its fields are shown greyed.
+            let editable = read_only.is_none();
             let mut run: Option<(&'static str, Value)> = None;
             let mut adding = false;
             let mut picked = None;
@@ -5596,29 +5605,31 @@ mod categories {
                 }
                 for (i, c) in list.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if let Some(color) = swatch(ui, c.color, palette) {
-                            run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
-                        }
-                        let mut text = match &self.editing {
-                            Some((name, text)) if *name == c.name => text.clone(),
-                            _ => c.name.clone(),
-                        };
-                        let width = (ui.available_width() - 44.0).max(40.0);
-                        let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
-                        let resp = crate::text_menu::field(resp);
-                        if resp.changed() {
-                            self.editing = Some((c.name.clone(), text));
-                        }
-                        // Enter, or leaving the field, renames.
-                        if crate::text_menu::left(&resp)
-                            && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
-                            && to.trim() != from
-                        {
-                            run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
-                        }
-                        if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
-                            run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
-                        }
+                        ui.add_enabled_ui(editable, |ui| {
+                            if let Some(color) = swatch(ui, c.color, palette) {
+                                run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
+                            }
+                            let mut text = match &self.editing {
+                                Some((name, text)) if *name == c.name => text.clone(),
+                                _ => c.name.clone(),
+                            };
+                            let width = (ui.available_width() - 44.0).max(40.0);
+                            let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                            let resp = crate::text_menu::field(resp);
+                            if resp.changed() {
+                                self.editing = Some((c.name.clone(), text));
+                            }
+                            // Enter, or leaving the field, renames.
+                            if crate::text_menu::left(&resp)
+                                && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
+                                && to.trim() != from
+                            {
+                                run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
+                            }
+                            if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
+                                run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
+                            }
+                        });
                     });
                     if not_outlooks.get(i).copied().unwrap_or(false) {
                         ui.horizontal(|ui| {
@@ -5642,27 +5653,29 @@ mod categories {
                     ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
                 }
                 ui.separator();
-                ui.horizontal(|ui| {
-                    if let Some(color) = swatch(ui, self.new_color, palette) {
-                        self.new_color = color;
-                    }
-                    let width = (ui.available_width() - 80.0).max(40.0);
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut self.new_name)
-                            .id(field_id("new_category"))
-                            .desired_width(width)
-                            .hint_text(tl!("New category")),
-                    );
-                    let resp = crate::text_menu::field(resp);
-                    if std::mem::take(&mut self.focus) {
-                        resp.request_focus();
-                    }
-                    let named = !self.new_name.trim().is_empty();
-                    let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
-                    if named && (add || (enter && resp.lost_focus())) {
-                        run = Some(self.add_command());
-                        adding = true;
-                    }
+                ui.add_enabled_ui(editable, |ui| {
+                    ui.horizontal(|ui| {
+                        if let Some(color) = swatch(ui, self.new_color, palette) {
+                            self.new_color = color;
+                        }
+                        let width = (ui.available_width() - 80.0).max(40.0);
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(&mut self.new_name)
+                                .id(field_id("new_category"))
+                                .desired_width(width)
+                                .hint_text(tl!("New category")),
+                        );
+                        let resp = crate::text_menu::field(resp);
+                        if std::mem::take(&mut self.focus) {
+                            resp.request_focus();
+                        }
+                        let named = !self.new_name.trim().is_empty();
+                        let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
+                        if named && (add || (enter && resp.lost_focus())) {
+                            run = Some(self.add_command());
+                            adding = true;
+                        }
+                    })
                 });
             });
             if let Some(account) = picked {

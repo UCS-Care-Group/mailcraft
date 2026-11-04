@@ -359,3 +359,45 @@ fn an_undo_while_the_job_is_on_its_way_never_deletes_what_it_found_in_outlook() 
     let deletes: Vec<&str> = upload.changes.iter().filter(|c| c.kind == CategoryChangeKind::Delete).map(|c| c.name.as_str()).collect();
     assert!(deletes.is_empty(), "Outlook's own to be deleted: {deletes:?}");
 }
+
+#[test]
+fn a_token_refused_while_a_change_goes_is_tried_again_after_a_wait() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    let green = OUTLOOK_COLORS[4].hex();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": green})).unwrap();
+    let at = 60_000.0;
+    assert!(!app.categories_tick_at(at));
+    // The renewal worked, then the server refused the token for the change.
+    let refused = CategoriesResult {
+        account: owner,
+        tokens: Some(tokens("cat-access", "ref-1")),
+        covered: Some(true),
+        sign_in_refused: true,
+        uploaded: Some(CategoriesUploaded { account: owner, token_refused: true, ..Default::default() }),
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back(refused);
+    assert!(app.categories_tick_at(at + 5_000.0));
+    app.poll_categories();
+    assert_eq!(mailcraft_engine::cmd::categories_remote::categories_waiting(&app.session, owner), 1, "still to go");
+    // Not again a moment later, but after the wait.
+    assert!(!app.categories_tick_at(at + 9_000.0));
+    assert!(!app.categories_tick_at(at + 20_000.0));
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(at + 5_000.0 + 31_000.0));
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn the_one_question_put_or_turned_down_goes_with_the_mailbox_it_was_for() {
+    let (mut app, owner, _, _, _) = window();
+    app.sync_asking.insert(owner);
+    app.sync_declined.insert(owner);
+    let other = app.session.mailbox.clone();
+    app.session.replace_mailbox(other);
+    app.drop_secrets_if_replaced();
+    assert!(app.sync_asking.is_empty() && app.sync_declined.is_empty());
+}

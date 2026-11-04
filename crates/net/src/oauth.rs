@@ -893,19 +893,27 @@ pub fn refresh_graph_replies_at(
 
 /// What the one question of the window for an account signed in before #661 asks for: what
 /// keeping the to-dos, the rules, the automatic replies and the categories in step with the
-/// server takes, together, with what the account's mail takes.
-fn sync_scope() -> String {
-    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+/// server takes, together; with `mail_write`, for an account kept in step through Graph (R3),
+/// reading and changing its mail as well, and for no other.
+fn sync_scope(mail_write: bool) -> String {
+    let mail = if mail_write { format!(" {MICROSOFT_GRAPH_MAIL}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
 }
 
 /// Ask the owner, on the provider's page, once, for everything that keeping the account's
 /// to-dos, rules, automatic replies and categories in step with its server takes
 /// (`Tasks.ReadWrite`, `MailboxSettings.ReadWrite`): for an account that signed in before they
-/// were put on a sign-in's page, after the window has asked him. A no says whose it is
-/// ([`FavoritesRefusal`]); nothing is tried a second time.
-pub fn sign_in_for_sync(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: sync_scope(), consent: String::new(), lesser: String::new(), ..plain };
+/// were put on a sign-in's page, after the window has asked him; `mail_write` as for
+/// [`sync_scope`]. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
+pub fn sign_in_for_sync(
+    oauth: &OAuth,
+    login_hint: &str,
+    mail_write: bool,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
+    let endpoints = Endpoints { scope: sync_scope(mail_write), consent: String::new(), lesser: String::new(), ..plain };
     sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 

@@ -2178,10 +2178,14 @@ fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for()
         assert!(endpoints.consent.starts_with(&endpoints.lesser), "{resource:?}");
         assert!(!endpoints.scope.contains("Tasks"), "{resource:?}: {}", endpoints.scope);
     }
-    // An account signed in before asks for them on one page of their own, both together.
-    let sync = sync_scope();
-    assert!(sync.split(' ').any(|s| s == TASKS_SCOPE) && sync.split(' ').any(|s| s == SETTINGS_WRITE), "{sync}");
-    assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
+    // An account signed in before asks for them on one page of their own, both together; its
+    // mail too only when it is kept in step through Graph.
+    for mail_write in [false, true] {
+        let sync = sync_scope(mail_write);
+        assert!(sync.split(' ').any(|s| s == TASKS_SCOPE) && sync.split(' ').any(|s| s == SETTINGS_WRITE), "{sync}");
+        assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
+        assert_eq!(sync.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite"), mail_write, "{sync}");
+    }
     // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.
     let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
     let server = FakeHttp::answering(ok(granted));
