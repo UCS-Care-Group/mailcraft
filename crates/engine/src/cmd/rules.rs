@@ -23,7 +23,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.edit", "Change Rule", "Home › Move", edit).params(
-            r#"{"id": number, "name": string, "conditions": [condition], "exceptions"?: [condition], "actions": [action], "stop"?: bool, "alert"?: bool} — as `rules.add` takes them: what the rule is becomes that; it stays for its account, where it is kept, switched on or off and in its place. One its server keeps is changed there too at the next look, and can have only what the server can do; refused for one the server doesn't let be changed, one with parts MailCraft can't show (made in another program or on the web) and one the server is still making. Answers {"id", "keep": "server"|"here"}"#,
+            r#"{"id": number, "name": string, "conditions": [condition], "exceptions"?: [condition], "actions": [action], "stop"?: bool, "alert"?: bool, "account"?: number (for a rule for every account, from before rules had accounts, required: the account it is then for alone, kept on this computer, first of its rules there; for any other rule, its own)} — as `rules.add` takes them: what the rule is becomes that; it stays for its account, where it is kept, switched on or off and in its place. One its server keeps is changed there too at the next look, and can have only what the server can do; refused for one the server doesn't let be changed, one with parts MailCraft can't show (made in another program or on the web) and one the server is still making. Answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -37,6 +37,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
             r#"{"id": number, "direction": "up"|"down"} — within its list: the rules its account's server keeps, those of this computer for its account, or those for every account (from before rules had accounts; they run after the server's rules and before the account's own of this computer); a rule the server doesn't let be changed moves too, and goes back to its place there if the server won't have it"#,
+        ),
+        CommandSpec::new("rules.forAccount", "For One Account", "Home › Move", for_account).params(
+            r#"{"id": number, "account": number} — a rule for every account (from before rules had accounts) becomes that account's alone: it runs on its mail only, kept on this computer, first of its rules there, and leaves All accounts; refused for one that moves or copies mail to another account's folder, whose folder is chosen again with `rules.edit` and `account`. Answers {"id", "account"}"#,
         ),
         CommandSpec::new("rules.keepOnServer", "Keep Rule on Server", "Home › Move", keep_on_server).params(
             r#"{"id": number, "account"?: number (for a rule for every account: the Microsoft account whose server is to keep it, which it is then for alone)} — a rule kept on this computer goes to its Microsoft account's server at the next look, when the server can do all of it"#,
@@ -473,6 +476,13 @@ pub(crate) fn edited_rule(s: &Session, v: &Value) -> Result<(usize, Rule), CmdEr
     if old.unanswered {
         return Err(fail("the server is still making this rule: change it once the server has answered"));
     }
+    // A rule for every account is changed as it is given to one (#566).
+    let given = match (old.account, given_account(s, v)?) {
+        (0, None) => return Err(fail("a rule for every account is changed as it is given to one account: say which (`account`)")),
+        (0, Some(account)) => Some(account),
+        (own, Some(other)) if other != own => return Err(fail("a rule stays for its account")),
+        _ => None,
+    };
     let parts = rule_parts(s, v)?;
     let mut rule = Rule {
         name: parts.name,
@@ -484,6 +494,10 @@ pub(crate) fn edited_rule(s: &Session, v: &Value) -> Result<(usize, Rule), CmdEr
         refused: String::new(),
         ..old.clone()
     };
+    if let Some(account) = given {
+        rule.account = account;
+        rule.keep = Keep::Here;
+    }
     // Kept on a server that keeps rules: there it is to be whole, or not changed.
     if rule.keep == Keep::Server && rule.account != 0 && s.mailbox.keeps_rules(rule.account) {
         if let Some(why) = server_cannot(&s.mailbox, &rule, rule.account) {
@@ -506,8 +520,70 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = rule.id;
     let keep = if rule.keep == Keep::Server { "server" } else { "here" };
     let slot = s.mailbox.rules.get_mut(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+    let given = slot.account == 0 && rule.account != 0;
     *slot = rule;
+    if given {
+        first_of_its_own(&mut s.mailbox, i);
+    }
     Ok(json!({"id": id, "keep": keep}))
+}
+
+/// The account `v` gives a rule for every account to (#566): one whose rules the Rules window
+/// shows, not a shared mailbox (whose mail the rules leave alone), nor one of a kind this version
+/// doesn't know.
+fn given_account(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
+    let Some(account) = p::id_strict(v, "account")? else { return Ok(None) };
+    let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
+    if a.is_shared() {
+        return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));
+    }
+    if a.kind == mailcraft_model::AccountKind::Unknown {
+        return Err(fail("this version doesn't keep rules for that kind of account"));
+    }
+    Ok(Some(account))
+}
+
+/// Whether `r` moves or copies mail to a folder of another account than `account`: given to that
+/// account, a rule for every account has that folder chosen again before it runs (#566).
+pub fn files_elsewhere(mb: &Mailbox, r: &Rule, account: Id) -> bool {
+    r.actions.iter().any(|a| match a {
+        Action::MoveTo(f) | Action::CopyTo(f) => mb.folder(*f).is_some_and(|f| f.account != account),
+        _ => false,
+    })
+}
+
+/// Put rule `i`, given to its account a moment ago, first of that account's rules of this
+/// computer: as a rule for every account it ran before them, and it still does (#566).
+fn first_of_its_own(mb: &mut Mailbox, i: usize) {
+    let Some((id, account)) = mb.rules.get(i).map(|r| (r.id, r.account)) else { return };
+    let first = mb.rules.iter().position(|r| r.id != id && r.account == account && r.keep != Keep::Server);
+    if let Some(first) = first.filter(|first| *first < i) {
+        let rule = mb.rules.remove(i);
+        mb.rules.insert(first, rule);
+    }
+}
+
+/// Give a rule for every account to one account (#566): it runs on that account's mail alone,
+/// kept on this computer, and leaves All accounts. One that moves or copies mail to another
+/// account's folder has that folder chosen again first, which `rules.edit` with `account` does.
+fn for_account(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let account = given_account(s, v)?.ok_or_else(|| bad("`account` (a number) is required"))?;
+    let i = changeable(s, id)?;
+    let rule = s.mailbox.rules.get(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+    if rule.account != 0 {
+        return Err(fail("this rule is for one account already"));
+    }
+    if files_elsewhere(&s.mailbox, rule, account) {
+        return Err(fail("it moves or copies mail to another account's folder: choose the folder again, giving it with `rules.edit` and `account`"));
+    }
+    if let Some(r) = s.mailbox.rules.get_mut(i) {
+        r.account = account;
+        r.keep = Keep::Here;
+        r.refused.clear();
+    }
+    first_of_its_own(&mut s.mailbox, i);
+    Ok(json!({"id": id, "account": account}))
 }
 
 fn changeable(s: &Session, id: Id) -> Result<usize, CmdError> {

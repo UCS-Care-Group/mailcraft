@@ -425,3 +425,94 @@ fn rules_for_every_account_are_listed_apart_under_all_accounts() {
     assert!(h.query_by_label("Mine").is_some());
     assert!(h.query_by_label("All accounts").is_none());
 }
+
+/// A window over two accounts, each with its standard folders, with rules `every` for every
+/// account's mail (from before a rule was for one account, as they are read from a file), and
+/// the Rules dialog on All accounts. The accounts' ids.
+fn all_accounts(every: Vec<(&str, Vec<Action>)>) -> (Harness<'static, MailApp>, Id, Id) {
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("First", "first@example.org"), NOW, 0), Services::default());
+    app.autosave = false;
+    let first = app.session.mailbox.accounts[0].id;
+    let second = app.execute("account.add", json!({"email": "second@example.org"})).unwrap()["id"].as_u64().unwrap();
+    for (name, actions) in every {
+        let id = app.session.mailbox.alloc_id();
+        let conditions = vec![mailcraft_model::Condition::FromContains(vec!["news".into()])];
+        app.session.mailbox.rules.push(Rule { id, name: name.into(), enabled: true, conditions, actions, ..Default::default() });
+    }
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(6);
+    h.get_by_role(egui::accesskit::Role::ComboBox).click();
+    h.run_steps(3);
+    h.get_by_label("All accounts").click();
+    h.run_steps(4);
+    (h, first, second)
+}
+
+/// In All accounts, a rule's menu has For One Account and the accounts, and Edit Rule is greyed:
+/// a rule for every account is changed as it is given to one (#566). Given to an account, it
+/// leaves All accounts at once.
+#[test]
+fn for_one_account_gives_a_rule_for_every_account_to_one() {
+    let (mut h, _, second) = all_accounts(vec![("Flagger", vec![Action::Flag]), ("Reader", vec![Action::MarkRead])]);
+    h.get_all_by_label("More for this rule").next().unwrap().click();
+    h.run_steps(3);
+    assert!(h.get_by_label("Edit Rule").accesskit_node().is_disabled());
+    h.get_by_label("For One Account").click();
+    h.run_steps(3);
+    // The account in the menu: the last of its names on screen, over the folder pane's.
+    h.get_all_by_label("second@example.org").last().unwrap().click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    let flagger = mb.rules.iter().find(|r| r.name == "Flagger").unwrap();
+    assert_eq!((flagger.account, flagger.keep), (second, Keep::Here));
+    // Out of All accounts, which still has the other.
+    assert!(h.query_by_label("Flagger").is_none() && h.query_by_label("Reader").is_some());
+}
+
+/// A rule for every account that moves mail to the first account's Inbox, given to the second:
+/// the rule page opens with no folder for the move, Save greyed until one is chosen, and the
+/// rule stays in All accounts, as it was, until then; Cancel leaves it there (#566).
+#[test]
+fn a_rule_given_to_another_account_than_its_folders_opens_for_the_folder_to_be_chosen() {
+    let (mut h, first, second) = all_accounts(vec![("News", vec![Action::MarkRead])]);
+    let inbox = h.state().session.mailbox.folder_of_kind(first, FolderKind::Inbox).unwrap();
+    h.state_mut().session.mailbox.rules[0].actions = vec![Action::MoveTo(inbox), Action::MarkRead];
+    h.run_steps(2);
+    let open = |h: &mut Harness<'_, MailApp>| {
+        h.get_all_by_label("More for this rule").next().unwrap().click();
+        h.run_steps(3);
+        h.get_by_label("For One Account").click();
+        h.run_steps(3);
+        h.get_all_by_label("second@example.org").last().unwrap().click();
+        h.run_steps(4);
+    };
+    open(&mut h);
+    assert!(h.query_by_label_contains("choose the folder again").is_some());
+    assert!(h.get_by_label("Save").accesskit_node().is_disabled());
+    assert_eq!(h.state().session.mailbox.rules[0].account, 0, "nothing changes before Save");
+    h.get_by_label("Cancel").click();
+    h.run_steps(4);
+    assert_eq!(h.state().session.mailbox.rules[0].account, 0);
+    assert!(h.query_by_label("News").is_some(), "back on All accounts");
+    // Again, and the second account's Inbox chosen (the first of the list, over the folder
+    // pane's): saved, it is the second account's.
+    open(&mut h);
+    h.get_all_by_role(egui::accesskit::Role::ComboBox).find(|n| n.accesskit_node().value().as_deref() == Some("Choose a folder")).unwrap().click();
+    h.run_steps(3);
+    h.get_all_by_label("Inbox").last().unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Save").click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    let theirs = mb.folder_of_kind(second, FolderKind::Inbox).unwrap();
+    let r = &mb.rules[0];
+    assert_eq!((r.account, r.actions.clone()), (second, vec![Action::MoveTo(theirs), Action::MarkRead]));
+}

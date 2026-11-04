@@ -419,3 +419,107 @@ fn a_change_asked_about_for_a_rule_beside_it_names_that_rule() {
         "{said}"
     );
 }
+
+/// A rule for every account's mail, as one from before rules had accounts is read from its file
+/// (`rules.add` makes none, #566), doing `actions`: its id.
+fn for_every_account(s: &mut Session, name: &str, actions: Vec<Action>) -> Id {
+    let id = s.mailbox.alloc_id();
+    let conditions = vec![Condition::FromContains(vec!["news".into()])];
+    s.mailbox.rules.push(Rule { id, name: name.into(), enabled: true, conditions, actions, ..Default::default() });
+    id
+}
+
+/// Given to one account (#566), a rule for every account is that account's alone, kept on this
+/// computer and first of its rules there, where it ran before them; it leaves All accounts and
+/// no other account's mail. One of an account already, or given to a shared mailbox, an account
+/// that isn't there or one of a kind this version doesn't know, is refused.
+#[test]
+fn a_rule_for_every_account_is_given_to_one_and_runs_where_it_did() {
+    let (mut s, account, local) = session();
+    let theirs =
+        run(&mut s, "rules.add", json!({"name": "Theirs", "account": local, "conditions": [{"type": "toMe"}], "actions": [{"type": "markRead"}]}));
+    let theirs = theirs["id"].as_u64().unwrap();
+    let every = for_every_account(&mut s, "Every", vec![Action::Flag]);
+    let names = |s: &Session, a: Id| s.mailbox.rules_in_order(a).iter().map(|i| s.mailbox.rules[*i].name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&s, local), ["Every", "Theirs"]);
+    let said = run(&mut s, "rules.forAccount", json!({"id": every, "account": local}));
+    assert_eq!(said, json!({"id": every, "account": local}));
+    let r = rule(&s, every);
+    assert_eq!((r.account, r.keep, r.enabled), (local, Keep::Here, true));
+    assert_eq!(names(&s, local), ["Every", "Theirs"], "it runs where it ran");
+    assert_eq!(names(&s, account), Vec::<String>::new(), "and not on the other account's mail");
+    let before = s.mailbox.rules.clone();
+    for (params, said) in [
+        (json!({"id": every, "account": local}), "one account already"),
+        (json!({"id": theirs, "account": account}), "one account already"),
+        (json!({"id": every, "account": 999}), "no account"),
+        (json!({"id": 999, "account": local}), "no rule"),
+    ] {
+        let e = s.run("rules.forAccount", &params).unwrap_err().to_string();
+        assert!(e.contains(said), "{params}: {e}");
+    }
+    for params in [json!({"id": every}), json!({"id": every, "account": "2"}), json!({"account": local})] {
+        assert!(matches!(s.run("rules.forAccount", &params), Err(crate::CmdError::Params(_))), "{params}");
+    }
+    assert_eq!(s.mailbox.rules, before);
+    // An Undo puts it back for every account.
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(rule(&s, every).account, 0);
+}
+
+/// A rule for every account that moves mail to one account's folder: given to that account, it
+/// keeps its folder; given to another, it is refused until the folder is chosen again, which a
+/// change given with `account` does (#566). A rule for every account isn't changed without one.
+#[test]
+fn a_rule_given_to_another_account_than_its_folders_has_the_folder_chosen_again() {
+    let (mut s, account, local) = session();
+    let archive = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Archive).unwrap();
+    let mine = s.mailbox.folder_of_kind(local, mailcraft_model::FolderKind::Archive).unwrap();
+    let every = for_every_account(&mut s, "News", vec![Action::MoveTo(archive), Action::MarkRead]);
+    let e = s.run("rules.forAccount", &json!({"id": every, "account": local})).unwrap_err().to_string();
+    assert!(e.contains("another account's folder") && e.contains("rules.edit"), "{e}");
+    assert_eq!(rule(&s, every).account, 0);
+    // A change of a rule for every account says which account it is then for.
+    let change = |folder: Id| {
+        json!({"id": every, "name": "News", "conditions": [{"type": "fromContains", "value": "news"}],
+               "actions": [{"type": "moveTo", "value": folder}, {"type": "markRead"}]})
+    };
+    let e = s.run("rules.edit", &change(mine)).unwrap_err().to_string();
+    assert!(e.contains("`account`"), "{e}");
+    let mut given = change(mine);
+    given["account"] = json!(local);
+    run(&mut s, "rules.edit", given);
+    let r = rule(&s, every);
+    assert_eq!((r.account, r.keep, r.actions.clone()), (local, Keep::Here, vec![Action::MoveTo(mine), Action::MarkRead]));
+    // Changed again, it stays for its account.
+    let mut elsewhere = change(mine);
+    elsewhere["account"] = json!(account);
+    assert!(s.run("rules.edit", &elsewhere).unwrap_err().to_string().contains("stays for its account"));
+    // Another such rule, given to the account whose folder it names, keeps it.
+    let other = for_every_account(&mut s, "Archived", vec![Action::MoveTo(archive)]);
+    run(&mut s, "rules.forAccount", json!({"id": other, "account": account}));
+    assert_eq!((rule(&s, other).account, rule(&s, other).actions.clone()), (account, vec![Action::MoveTo(archive)]));
+}
+
+/// An agent asks the owner before it gives a rule to one account, as for any change to the
+/// rules, and the question says what it does (#566).
+#[test]
+fn an_agent_asks_before_it_gives_a_rule_to_one_account() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, local) = session();
+    let every = for_every_account(&mut s, "Every", vec![Action::Flag]);
+    let params = json!({"id": every, "account": local});
+    assert_eq!(classify(&s, "rules.forAccount", &params), Access::Owner(Class::Settings));
+    let said = describe(&s, "rules.forAccount", &params);
+    assert!(said.contains("\u{201c}Every\u{201d}") && said.contains("every account") && said.contains("me@example.org"), "{said}");
+    // Given as it is changed: the question names the account it is then for.
+    let inbox = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let change = json!({"id": every, "account": account, "name": "Every", "conditions": [{"type": "toMe"}],
+                        "actions": [{"type": "moveTo", "value": inbox}]});
+    let said = describe(&s, "rules.edit", &change);
+    assert!(said.contains("every account") && said.contains(&format!("for the mail of \u{201c}{EMAIL}\u{201d} alone")), "{said}");
+    // A rule here that deletes for good is named, as for any change to the rules.
+    let gone = json!({"name": "Gone", "account": local, "conditions": [{"type": "toMe"}], "actions": [{"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", gone);
+    assert_eq!(classify(&s, "rules.forAccount", &params), Access::Owner(Class::Delete));
+}

@@ -488,6 +488,7 @@ const SETTINGS: &[&str] = &[
     "rules.fromMessage",
     "rules.move",
     "rules.keepOnServer",
+    "rules.forAccount",
     // Junk E-mail Options (#504): what the lists send to Junk E-mail or let through.
     "junk.blockSender",
     "junk.neverBlockSender",
@@ -934,7 +935,7 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
             Ok((_, r)) => (r.account, r.id, r.enabled && for_good(&r), false),
             Err(_) => return false,
         },
-        "rules.keepOnServer" | "rules.move" | "rules.remove" => match named() {
+        "rules.keepOnServer" | "rules.move" | "rules.remove" | "rules.forAccount" => match named() {
             Some(r) => (r.account, r.id, false, id != "rules.remove"),
             None => return false,
         },
@@ -1515,7 +1516,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         quoted(&r.name),
                         rule_words(s, &r)
                     ),
-                    None => format!("change the rule {was} into the rule {}: {}{beside}", quoted(&r.name), rule_words(s, &r)),
+                    // A rule for every account given to one as it is changed (#566).
+                    None => match s.mailbox.account(r.account).filter(|_| s.mailbox.rules.get(i).is_some_and(|old| old.account == 0)) {
+                        Some(a) => format!(
+                            "change the rule {was}, which runs on the mail of every account, into the rule {} for the mail of {} alone: {}{beside}",
+                            quoted(&r.name),
+                            quoted(&plain(&a.email)),
+                            rule_words(s, &r)
+                        ),
+                        None => format!("change the rule {was} into the rule {}: {}{beside}", quoted(&r.name), rule_words(s, &r)),
+                    },
                 }
             }
             Err(_) => "change a rule that can't be changed as asked".to_string(),
@@ -1598,6 +1608,20 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     beside_for_good_said(&s.mailbox, r.account, r.id, true)
                 ),
                 None => "move a rule that isn't there".to_string(),
+            }
+        }
+        "rules.forAccount" => {
+            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            let to = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| quoted(&plain(&a.email)));
+            match (r, to) {
+                (Some(r), Some(to)) => format!(
+                    "make the rule {}, which runs on the mail of every account, the rule of {to} alone, kept on this computer: {}{}",
+                    quoted(&r.name),
+                    rule_words(s, r),
+                    beside_for_good_said(&s.mailbox, r.account, r.id, true)
+                ),
+                (Some(r), None) => format!("give the rule {} to an account that isn't there", quoted(&r.name)),
+                (None, _) => "give a rule that isn't there to one account".to_string(),
             }
         }
         "rules.keepOnServer" => {

@@ -5692,7 +5692,7 @@ mod task_place_tests;
 pub(crate) mod rules {
     use egui::{Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
-    use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
+    use mailcraft_engine::cmd::rules::{NotOnServer, by_address, files_elsewhere, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
     use mailcraft_model::{Action, Condition, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
@@ -6486,6 +6486,11 @@ pub(crate) mod rules {
         folder: &'a str,
         /// The rule Edit Rule was chosen for, once it is.
         edit: &'a std::cell::Cell<Option<Id>>,
+        /// The accounts a rule for every account can be given to: id and address.
+        accounts: &'a [(Id, String)],
+        /// A rule for every account and the account it is given to on the rule page, where the
+        /// folder it moved or copied mail to in another account is chosen again (#566).
+        give: &'a std::cell::Cell<Option<(Id, Id)>>,
     }
 
     /// Whether a rule can go one place up or down in its list: `Err` with why not, in words, or
@@ -6611,7 +6616,10 @@ pub(crate) mod rules {
     /// a server that can, delete it.
     fn rule_menu(ui: &mut Ui, rows: &Rows<'_>, r: &Rule, to: &[&(Id, String)], run: &mut Option<(&'static str, Value)>) {
         let fixed = r.read_only();
-        let cannot = not_changeable(r);
+        // A rule for every account is changed as it is given to one (#566).
+        let every = r.account == 0;
+        let cannot =
+            if every { Some(tl!("A rule for All accounts is changed as it is given to one account: For One Account")) } else { not_changeable(r) };
         if ui.add_enabled(cannot.is_none(), egui::Button::new(tl!("Edit Rule"))).on_disabled_hover_text(cannot.unwrap_or_default()).clicked() {
             rows.edit.set(Some(r.id));
             ui.close();
@@ -6645,11 +6653,44 @@ pub(crate) mod rules {
                 }
             }
         }
+        if every {
+            for_one_account(ui, rows, r, run);
+        }
         let tip = tl!("The server doesn't let this rule be changed");
         if ui.add_enabled(!fixed, egui::Button::new(tl!("Delete Rule"))).on_disabled_hover_text(tip).clicked() {
             *run = Some(("rules.remove", json!({"id": r.id})));
             ui.close();
         }
+    }
+
+    /// For One Account ▸ and the accounts, in a rule for every account's menu (#566): one of them
+    /// takes the rule at once, or, where it moves or copies mail to another account's folder, the
+    /// rule page opens for that folder to be chosen again.
+    fn for_one_account(ui: &mut Ui, rows: &Rows<'_>, r: &Rule, run: &mut Option<(&'static str, Value)>) {
+        let mb = &rows.app.session.mailbox;
+        ui.menu_button(tl!("For One Account"), |ui| {
+            for (account, address) in rows.accounts {
+                let elsewhere = files_elsewhere(mb, r, *account);
+                // The folder is chosen on the rule page, which has to be able to show the rule.
+                let cannot = if elsewhere { not_changeable(r) } else { None };
+                let tip = if elsewhere {
+                    tl!(
+                        "It moves or copies mail to another account's folder: choose the folder again, and the rule runs on this account's mail alone"
+                    )
+                } else {
+                    tl!("Run this rule on this account's mail alone")
+                };
+                let button = ui.add_enabled(cannot.is_none(), egui::Button::new(shown(address, 80)));
+                if button.on_hover_text(tip).on_disabled_hover_text(cannot.unwrap_or_default()).clicked() {
+                    if elsewhere {
+                        rows.give.set(Some((r.id, *account)));
+                    } else {
+                        *run = Some(("rules.forAccount", json!({"id": r.id, "account": account})));
+                    }
+                    ui.close();
+                }
+            }
+        });
     }
 
     /// The Rules dialog.
@@ -6661,6 +6702,9 @@ pub(crate) mod rules {
         open: bool,
         /// The rule the page changes (Edit Rule); `None` for a new one.
         editing: Option<Id>,
+        /// The account the rule being changed, one for every account, is given to as it is saved
+        /// (For One Account, #566); the lists stay on All accounts meanwhile.
+        giving: Option<Id>,
         /// What the list is searched for: the rules whose names have it are shown.
         query: String,
         /// The rules of the lists that show what they do under them.
@@ -6754,6 +6798,7 @@ pub(crate) mod rules {
         /// Start the builder over: one empty condition, one action, for a new rule.
         fn reset(&mut self) {
             self.editing = None;
+            self.giving = None;
             self.name.clear();
             self.stop = false;
             self.alert = false;
@@ -6813,6 +6858,25 @@ pub(crate) mod rules {
             true
         }
 
+        /// The rule page for giving rule `r`, one for every account, to `account` as it is changed
+        /// (#566): filled in with what it is, its moves and copies to another account's folder
+        /// with no folder, for the owner to choose again, and that account's folders to choose
+        /// from. `false`, with nothing changed, when the page can't show all of it.
+        fn give(&mut self, mb: &Mailbox, r: &Rule, account: Id) -> bool {
+            if !self.change(mb, r) {
+                return false;
+            }
+            self.folders = move_choices(mb, account);
+            self.first_folder = mb.folder_of_kind(account, FolderKind::Archive).or(self.folders.first().map(|f| f.0)).unwrap_or(0);
+            for a in &mut self.acts {
+                if a.kind.takes_folder() && mb.folder(a.folder).is_some_and(|f| f.account != account) {
+                    a.folder = 0;
+                }
+            }
+            self.giving = Some(account);
+            true
+        }
+
         /// The command Add Rule (or Save, for a rule changed) runs, with its params.
         pub fn command(&self) -> (&'static str, Value) {
             let conditions: Vec<Value> = self.conds.iter().map(Cond::param).collect();
@@ -6826,6 +6890,9 @@ pub(crate) mod rules {
             }
             if let Some(id) = self.editing {
                 params["id"] = json!(id);
+                if let Some(account) = self.giving {
+                    params["account"] = json!(account);
+                }
                 return ("rules.edit", params);
             }
             if self.account != 0 {
@@ -6970,7 +7037,9 @@ pub(crate) mod rules {
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
             let edit = std::cell::Cell::new(None);
-            let rows = Rows { app, servers: &servers, folder: &folder_in_view, edit: &edit };
+            let give = std::cell::Cell::new(None);
+            let owners: Vec<(Id, String)> = accounts.iter().filter(|(id, _)| *id != 0).cloned().collect();
+            let rows = Rows { app, servers: &servers, folder: &folder_in_view, edit: &edit, accounts: &owners, give: &give };
             let mut new = false;
             let ran = self.ran;
             let (query, unfolded) = (&mut self.query, &mut self.unfolded);
@@ -7079,6 +7148,10 @@ pub(crate) mod rules {
             if let Some(r) = edit.get().and_then(|id| mb.rules.iter().find(|r| r.id == id)) {
                 self.change(mb, r);
             }
+            // For One Account, where a folder is to be chosen again: the page, for that account.
+            if let Some((r, account)) = give.get().and_then(|(id, account)| mb.rules.iter().find(|r| r.id == id).map(|r| (r, account))) {
+                self.give(mb, r, account);
+            }
             false
         }
 
@@ -7091,9 +7164,11 @@ pub(crate) mod rules {
             let t = pass.t;
             let mb = &app.session.mailbox;
             let categories: Vec<String> = mb.every_category().into_iter().map(|c| c.name).collect();
-            let held = app.rules_held(self.account);
+            // The account a rule for every account is given to, or the one in the lists.
+            let account = self.giving.unwrap_or(self.account);
+            let held = app.rules_held(account);
             let changed = self.editing.and_then(|id| mb.rules.iter().find(|r| r.id == id));
-            let whose = mb.account(self.account).map(|a| if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() });
+            let whose = mb.account(account).map(|a| if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() });
             let place = match changed {
                 // A rule its server keeps is to stay something the server can do.
                 Some(r) if r.keep == Keep::Server && r.account != 0 && mb.keeps_rules(r.account) => {
@@ -7109,7 +7184,9 @@ pub(crate) mod rules {
                     None => Where::Here,
                 },
             };
-            let kept = changed.map(|r| mark(app, r, self.account));
+            let kept = changed.filter(|_| self.giving.is_none()).map(|r| mark(app, r, self.account));
+            // Given to one account: a move or copy to another account's folder has it chosen again.
+            let choose_again = self.giving.is_some() && self.acts.iter().any(|a| a.kind.takes_folder() && a.folder == 0);
             let mut back = false;
             let mut asked = false;
             let room = error_room(ui, &self.error);
@@ -7132,6 +7209,10 @@ pub(crate) mod rules {
                         ui.label(egui::RichText::new(said).size(11.5).color(t.text_dim));
                     }
                 });
+                if choose_again {
+                    let said = tl!("It moved or copied mail to another account's folder: choose the folder again.");
+                    ui.label(egui::RichText::new(said).size(11.5).color(t.orange));
+                }
                 asked = self.builder(ui, &mut pass, &categories, &place, held);
             });
             error(ui, &self.error);

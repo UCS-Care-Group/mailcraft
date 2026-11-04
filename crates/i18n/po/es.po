@@ -416,6 +416,12 @@ msgstr "Un puerto es un número del 1 al 65535"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A rule for All accounts is changed as it is given to one account: For One Account"
+msgstr "Una regla de Todas las cuentas se cambia al darla a una cuenta: Para una cuenta"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A rule needs a name, and something to look for."
 msgstr "Una regla necesita un nombre y algo que buscar."
 
@@ -4216,6 +4222,12 @@ msgstr "Color de fuente"
 msgid "Font Size"
 msgstr "Tamaño de fuente"
 
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "For One Account"
+msgstr "Para una cuenta"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
@@ -5225,6 +5237,18 @@ msgstr ""
 #, fuzzy
 msgid "It looks for several categories at once, or for words with a semicolon in them, which the rule page can't show"
 msgstr "Busca varias categorías a la vez, o palabras que contienen un punto y coma, y la página de la regla no puede mostrarlo"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It moved or copied mail to another account's folder: choose the folder again."
+msgstr "Movía o copiaba el correo a una carpeta de otra cuenta: vuelva a elegir la carpeta."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It moves or copies mail to another account's folder: choose the folder again, and the rule runs on this account's mail alone"
+msgstr "Mueve o copia el correo a una carpeta de otra cuenta: vuelva a elegir la carpeta y la regla se aplicará solo al correo de esta cuenta"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9298,6 +9322,12 @@ msgstr "Ejecutar sobre {folder} todas las reglas activadas"
 #, fuzzy
 msgid "Run this rule on mail as it arrives"
 msgstr "Ejecutar esta regla sobre el correo a medida que llega"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Run this rule on this account's mail alone"
+msgstr "Aplicar esta regla solo al correo de esta cuenta"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14412,6 +14442,12 @@ msgstr "la regla de una cuenta no puede ir al servidor de otra cuenta"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule stays for its account"
+msgstr "una regla sigue siendo de su cuenta"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "una regla que espera ir al servidor va después de las que ya están allí; se puede mover cuando esté allí"
 
@@ -16330,6 +16366,12 @@ msgid "this rule has parts MailCraft can't show: change it in the program it was
 msgstr "esta regla tiene partes que MailCraft no puede mostrar: cámbiela en el programa en que se creó, o en la web"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this rule is for one account already"
+msgstr "esta regla ya es de una sola cuenta"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
@@ -16340,6 +16382,12 @@ msgstr "esta serie tiene demasiados días cancelados"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "esta serie tiene demasiados días cambiados"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this version doesn't keep rules for that kind of account"
+msgstr "esta versión no guarda reglas para ese tipo de cuenta"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

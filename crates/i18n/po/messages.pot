@@ -360,6 +360,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A rule for All accounts is changed as it is given to one account: For One Account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "A rule needs a name, and something to look for."
 msgstr ""
 
@@ -3650,6 +3655,11 @@ msgstr ""
 msgid "Font Size"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+msgid "For One Account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
@@ -4535,6 +4545,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "It looks for several categories at once, or for words with a semicolon in them, which the rule page can't show"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It moved or copied mail to another account's folder: choose the folder again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It moves or copies mail to another account's folder: choose the folder again, and the rule runs on this account's mail alone"
 msgstr ""
 
 #. interface
@@ -8035,6 +8055,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Run this rule on mail as it arrives"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Run this rule on this account's mail alone"
 msgstr ""
 
 #. interface
@@ -12518,6 +12543,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule stays for its account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr ""
 
@@ -14171,6 +14201,11 @@ msgid "this rule has parts MailCraft can't show: change it in the program it was
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule is for one account already"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 msgid "this series has too many cancelled days"
 msgstr ""
@@ -14178,6 +14213,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "this series has too many changed days"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this version doesn't keep rules for that kind of account"
 msgstr ""
 
 #. interface
