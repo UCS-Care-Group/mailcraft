@@ -5973,12 +5973,6 @@ msgstr "MailCraft kon de instellingen voor dit adres niet vinden. Controleer de 
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Microsoft. Kopieer in plaats daarvan het bericht: de koppeling erin opent dezelfde pagina."
 
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
-msgstr "MailCraft zoekt niet zelf naar nieuwe versies; via Bestand › Opties kan het één keer per dag zoeken."
-
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -6028,12 +6022,6 @@ msgid "MailCraft keeps this account's rules on this computer: the rule runs whil
 msgstr "MailCraft bewaart de regels van dit account op deze computer: de regel wordt uitgevoerd zolang MailCraft open is."
 
 #. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
-msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › Opties). Alleen GitHub wordt gevraagd."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
@@ -6048,8 +6036,8 @@ msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
-msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Opties."
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
+msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Info."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -12848,7 +12836,7 @@ msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noem
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+msgid "This is a development build: it checks only when you press Check for Updates."
 msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
 
 #. interface
@@ -17722,6 +17710,22 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
+#~ msgstr "MailCraft zoekt niet zelf naar nieuwe versies; via Bestand › Opties kan het één keer per dag zoeken."
+
+#, fuzzy
+#~ msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+#~ msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › Opties). Alleen GitHub wordt gevraagd."
+
+#, fuzzy
+#~ msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
+#~ msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Opties."
+
+#, fuzzy
+#~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+#~ msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
 
 #, fuzzy
 #~ msgid "This account has no contacts"
