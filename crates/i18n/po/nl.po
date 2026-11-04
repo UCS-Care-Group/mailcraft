@@ -6025,7 +6025,7 @@ msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
-msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Opties."
+msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Info."
 
 #. name
 #: crates/engine/src/cmd/rules.rs

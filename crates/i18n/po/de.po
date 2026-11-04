@@ -5731,7 +5731,7 @@ msgstr ""
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
-msgstr "MailCraft installiert seine Updates jetzt selbst. Unter Datei › Optionen können Sie das ausschalten."
+msgstr "MailCraft installiert seine Updates jetzt selbst. Unter Datei › Info können Sie das ausschalten."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
