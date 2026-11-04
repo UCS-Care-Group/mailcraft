@@ -5,7 +5,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use mailcraft_model::{FlagStatus, FolderKind, GREY_CATEGORY, Id, Queued};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Queued};
 use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_whole};
@@ -833,11 +833,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
     let mut spelled = HashMap::new();
     for account in accounts {
-        let spelling = s.mailbox.category_of(account, &name).map(|c| c.name.clone());
-        if spelling.is_none() && on {
-            s.mailbox.set_category(account, &name, GREY_CATEGORY)?;
-        }
-        spelled.insert(account, spelling.unwrap_or_else(|| name.clone()));
+        spelled.insert(account, super::category::spelled(s, account, &name, on)?);
     }
     each(s, v, |m| {
         m.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
