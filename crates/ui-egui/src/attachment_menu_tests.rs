@@ -297,4 +297,3 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
     click(&mut h, at, PointerButton::Primary, 1);
     assert_eq!(menus(&h), 1);
 }
-
