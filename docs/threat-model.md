@@ -546,4 +546,4 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-28 | minor | A message's `<style>` blocks are read for the style whitelist by a reader of our own, within caps and fuzzed; nothing in a sheet is run or fetched (#598) |
 | 2026-10-31 | minor | #566 part 2: a rule copies mail into no Outbox either; an agent is asked before a rule that deletes for good |
 | 2026-11-03 | patch | #566 part 2: what a rule that deletes for good does on the server, said; a rule that can't tell yet deletes nothing for good after it |
-| 2026-11-04 | patch | #566 part 2: an undo or redo that leaves a rule on that deletes permanently asks `delete`, beside #473's causes |
+| 2026-11-04 | patch | #566 part 2: an undo or redo that changes the rules and leaves one on that deletes permanently asks `delete`, beside #473's causes |

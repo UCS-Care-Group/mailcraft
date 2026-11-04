@@ -2476,3 +2476,33 @@ fn an_original_put_back_after_the_index_was_built_still_hears_the_phones_delete(
     assert_eq!(where_titled(&s, "Receipt"), [(local, "Imported".to_string(), 0, None)]);
     assert!(s.mailbox.messages.values().any(|m| m.subject == "Receipt" && m.body.text == "Paid."));
 }
+
+/// #765 small check (on main too): a message copied to another folder of a Microsoft account,
+/// with the index of the server's mail built after the copy was made here and before the server
+/// answered (an Inbox pass looked something up): when that folder is then listed, the copy is
+/// there once, not twice.
+#[test]
+fn a_copy_listed_after_its_answer_shows_once_though_the_index_was_built_before() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, OWNER);
+    let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+    let m = receipt(&mut s, ms, "AAkA7");
+    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+    let page = MessagePage { folder: "in".into(), removed: vec!["ZZZ".into()], ..Default::default() };
+    let pass = GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, inbox_pass: true, ..Default::default() };
+    apply_graph_mail(&mut s, pass).unwrap();
+    let copy = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+    let made = MessageOutcome::Done { categories: None, flag: None, folder: "ar".into(), id: "AAkC1".into() };
+    let messages = vec![MessageChangeDone { change: copy, outcome: made, there: None }];
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, partial: true, ..Default::default() }).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "AAkC1".into(), folder: "ar".into(), ..Default::default() },
+        subject: "Receipt".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "ar".into(), messages: vec![there], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
+    let mut seen = where_titled(&s, "Receipt");
+    seen.sort_by(|a, b| a.3.cmp(&b.3));
+    assert_eq!(seen, [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string())), (ms, "Archive".to_string(), 0, Some("AAkC1".to_string()))]);
+}
