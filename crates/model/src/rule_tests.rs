@@ -309,3 +309,84 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
     rule.conditions = vec![Condition::SubjectOrBodyContains(words("report"))];
     assert!(rule.matches(&stub) && !rule.undecided_in(&stub, &Matching::default()));
 }
+
+/// Every condition, exception and action of a rule is said in the window's language: each goes
+/// through the catalogue (the accented look-alikes differ from the English for every one), and
+/// the English the CLI and the agents read is what it was.
+#[test]
+fn a_rule_in_words_goes_through_the_catalogue() {
+    use crate::time::Date;
+    use mailcraft_i18n::Lang;
+    let w = |s: &str| vec![s.to_string(), "x2".to_string()];
+    let conditions = vec![
+        Condition::FromContains(w("a")),
+        Condition::ToContains(w("a")),
+        Condition::SubjectContains(w("a")),
+        Condition::BodyContains(w("a")),
+        Condition::HasAttachment,
+        Condition::Importance(Importance::Low),
+        Condition::Importance(Importance::Normal),
+        Condition::Importance(Importance::High),
+        Condition::From(w("a@example.org")),
+        Condition::SentTo(w("a@example.org")),
+        Condition::SentOnlyToMe,
+        Condition::ToMe,
+        Condition::CcMe,
+        Condition::ToOrCcMe,
+        Condition::NotToMe,
+        Condition::SubjectOrBodyContains(w("a")),
+        Condition::HeaderContains(w("a")),
+        Condition::Sensitivity(Sensitivity::Normal),
+        Condition::Sensitivity(Sensitivity::Personal),
+        Condition::Sensitivity(Sensitivity::Private),
+        Condition::Sensitivity(Sensitivity::Confidential),
+        Condition::SizeBetween { min: 10, max: 20 },
+        Condition::MeetingRequest,
+        Condition::AutomaticReply,
+        Condition::Category(w("Blue")),
+        Condition::Flagged,
+        Condition::ReceivedBetween { from: Date::new(2026, 11, 1), to: Date::new(2026, 11, 30) },
+        Condition::ReceivedBetween { from: Date::new(2026, 11, 1), to: None },
+        Condition::ReceivedBetween { from: None, to: Date::new(2026, 11, 30) },
+        Condition::ReceivedBetween { from: None, to: None },
+    ];
+    for c in &conditions {
+        for addresses in [false, true] {
+            let english = c.describe_in(Lang::English, addresses);
+            assert_eq!(english, c.describe_as(addresses));
+            assert_ne!(c.describe_in(Lang::Pseudo, addresses), english, "{c:?}");
+        }
+    }
+    // The words looked for stay as they are, joined by the language's "or".
+    assert_eq!(conditions[2].describe_in(Lang::English, false), "subject contains \"a\" or \"x2\"");
+    assert_eq!(conditions[2].describe_in(Lang::Pseudo, false), "súbjéct cóntáíns \"a\" ór \"x2\"");
+    let actions = vec![
+        Action::MoveTo(1),
+        Action::Categorize("Blue".into()),
+        Action::Flag,
+        Action::MarkRead,
+        Action::SetImportance(Importance::Low),
+        Action::SetImportance(Importance::Normal),
+        Action::SetImportance(Importance::High),
+        Action::Delete,
+        Action::CopyTo(1),
+        Action::DeleteForGood,
+        Action::FlagFor(FollowUp::Today),
+        Action::FlagFor(FollowUp::Tomorrow),
+        Action::FlagFor(FollowUp::ThisWeek),
+        Action::FlagFor(FollowUp::NextWeek),
+        Action::ClearFlag,
+        Action::ClearCategories,
+    ];
+    for a in &actions {
+        assert_eq!(a.describe_in(Lang::English), a.describe());
+        assert_ne!(a.describe_in(Lang::Pseudo), a.describe(), "{a:?}");
+    }
+    // Conditions joined by "and", exceptions by "or", each in the language.
+    let rule = Rule { conditions: conditions[..2].to_vec(), exceptions: vec![Condition::Flagged, Condition::ToMe], ..Default::default() };
+    assert_eq!(
+        rule.looks_for_in(Lang::English, false),
+        ("from contains \"a\" or \"x2\" and recipient contains \"a\" or \"x2\"".to_string(), "is flagged or my address is in To".to_string())
+    );
+    assert_eq!(rule.looks_for_in(Lang::Pseudo, false).1, "ís flággéd ór my áddréss ís ín Tó");
+}

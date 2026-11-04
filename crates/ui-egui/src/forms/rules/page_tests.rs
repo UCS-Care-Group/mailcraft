@@ -238,3 +238,47 @@ fn a_click_in_the_search_box_lets_the_owner_type_in_it() {
     h.run_steps(3);
     assert!(h.query_by_label("Alpha").is_none() && h.query_by_label("Beta").is_some());
 }
+
+/// What a rule does is said in the window's language, in the list and in a rule opened there: its
+/// conditions and exceptions, the words joining them, its actions with the folder a move goes to,
+/// and the stop and the alert. The words it looks for stay as they are.
+#[test]
+fn a_rule_in_words_is_in_the_windows_language() {
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    let inbox = app.session.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Inbox).map(|f| f.id).unwrap();
+    let rule = json!({
+        "name": "Atlas",
+        "conditions": [{"type": "subjectContains", "value": "Atlas"}, {"type": "hasAttachment"}],
+        "exceptions": [{"type": "flagged"}, {"type": "toMe"}],
+        "actions": [{"type": "moveTo", "value": inbox}, {"type": "markRead"}],
+        "stop": true,
+        "alert": true,
+    });
+    let id = app.execute("rules.add", rule).unwrap()["id"].as_u64().unwrap();
+    let mb = &app.session.mailbox;
+    let r = mb.rules.iter().find(|r| r.id == id).unwrap();
+    let english = describe(mb, r);
+    assert_eq!(
+        english,
+        "When subject contains \"Atlas\" and has an attachment, except if is flagged or my address is in To: move it to Inbox, mark it as read, show a desktop alert"
+    );
+    let _language = crate::i18n::RestoreLanguage::hold();
+    crate::i18n::set_current(crate::i18n::Lang::Pseudo);
+    let said = describe(mb, r);
+    let parts = describe_parts(mb, r);
+    crate::i18n::set_current(crate::i18n::Lang::English);
+    assert_eq!(
+        said,
+        "Whén súbjéct cóntáíns \"Atlas\" ánd hás án áttáchmént, éxcépt íf ís flággéd ór my áddréss ís ín Tó: móvé ít tó Ínbóx, márk ít ás réád, shów á désktóp álért"
+    );
+    let parts: Vec<String> = parts.into_iter().map(|(label, said)| format!("{label}: {said}")).collect();
+    assert_eq!(
+        parts,
+        [
+            "Whén: súbjéct cóntáíns \"Atlas\" ánd hás án áttáchmént",
+            "Éxcépt íf: ís flággéd ór my áddréss ís ín Tó",
+            "Thén: móvé ít tó Ínbóx, márk ít ás réád",
+            "Álsó: stóp prócéssíng móré rúlés, shów á désktóp álért",
+        ]
+    );
+}

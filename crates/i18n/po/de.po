@@ -13587,7 +13587,7 @@ msgid "What's new and how to get it:"
 msgstr "Was neu ist und wie Sie es erhalten:"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reading/invitation.rs
+#: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "When"
 msgstr "Wann"
@@ -13597,6 +13597,18 @@ msgstr "Wann"
 #, fuzzy
 msgid "When you switch:"
 msgstr "Beim Wechsel:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {conditions}, except if {exceptions}: {actions}"
+msgstr "Wenn {conditions}, außer wenn {exceptions}: {actions}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {conditions}: {actions}"
+msgstr "Wenn {conditions}: {actions}"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -14466,6 +14478,12 @@ msgstr[1] ""
 msgid "at most 200 messages can be forwarded together"
 msgstr "höchstens 200 Nachrichten können zusammen weitergeleitet werden"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "body contains {words}"
+msgstr "der Text {words} enthält"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -14476,6 +14494,30 @@ msgstr "Kalender"
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "categorize it as \"{category}\""
+msgstr "als \"{category}\" kategorisieren"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "category is {words}"
+msgstr "die Kategorie {words} ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "clear its categories"
+msgstr "die Kategorien entfernen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "clear its flag"
+msgstr "die Kennzeichnung entfernen"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -14489,11 +14531,47 @@ msgstr "schließen Sie zuerst eine Unterhaltung: in jeder der 1.000 geöffneten 
 msgid "contact"
 msgstr "Kontakt"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "copy it to a folder"
+msgstr "in einen Ordner kopieren"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to a folder that is gone"
+msgstr "in einen nicht mehr vorhandenen Ordner kopieren"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder}"
+msgstr "in {folder} kopieren"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder} - {mailbox}"
+msgstr "in {folder} - {mailbox} kopieren"
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
 msgid "day"
 msgstr "Tag"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "delete it"
+msgstr "löschen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "delete it permanently"
+msgstr "endgültig löschen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14506,6 +14584,36 @@ msgstr "fällig"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "alle bei @{domain}"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "flag it"
+msgstr "zur Nachverfolgung kennzeichnen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "flag it for next week"
+msgstr "für nächste Woche kennzeichnen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "flag it for this week"
+msgstr "für diese Woche kennzeichnen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "flag it for today"
+msgstr "für heute kennzeichnen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "flag it for tomorrow"
+msgstr "für morgen kennzeichnen"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -14575,15 +14683,39 @@ msgstr "Ordner sind zu tief verschachtelt"
 msgid "for the mail of {account}"
 msgstr "für die Mail von {account}"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "from contains {words}"
+msgstr "der Absender {words} enthält"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "from {from} to {to}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "from {words}"
+msgstr "der Absender {words} ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "has an attachment"
+msgstr "eine Anlage vorhanden ist"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "der Nachrichtenkopf {words} enthält"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -14603,6 +14735,24 @@ msgstr "iCloud"
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com und mac.com"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "importance is high"
+msgstr "die Wichtigkeit hoch ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "importance is low"
+msgstr "die Wichtigkeit niedrig ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "importance is normal"
+msgstr "die Wichtigkeit normal ist"
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -14619,6 +14769,24 @@ msgstr "incomplete"
 #: crates/ui-egui/src/data_removal.rs
 msgid "is a link: not followed, and nothing in it was removed"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "is a meeting invitation or update"
+msgstr "die Nachricht eine Besprechungsanfrage oder -aktualisierung ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "is an automatic reply"
+msgstr "die Nachricht eine automatische Antwort ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "is flagged"
+msgstr "die Nachricht gekennzeichnet ist"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -14793,6 +14961,12 @@ msgstr "es schreibt an andere Personen oder greift auf das Web zu"
 msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "mark it as read"
+msgstr "als gelesen markieren"
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -14809,6 +14983,54 @@ msgstr ""
 #, fuzzy
 msgid "month"
 msgstr "Monat"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "move it to a folder"
+msgstr "in einen Ordner verschieben"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to a folder that is gone"
+msgstr "in einen nicht mehr vorhandenen Ordner verschieben"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to {folder}"
+msgstr "in {folder} verschieben"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to {folder} - {mailbox}"
+msgstr "in {folder} - {mailbox} verschieben"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "my address is in Cc"
+msgstr "meine Adresse im Feld Cc steht"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "my address is in To"
+msgstr "meine Adresse im Feld An steht"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "my address is in To or Cc"
+msgstr "meine Adresse im Feld An oder Cc steht"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "my address isn't in To"
+msgstr "meine Adresse nicht im Feld An steht"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -15163,9 +15385,52 @@ msgid "readOnly"
 msgstr "readOnly"
 
 #. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "received from {from} to {to}"
+msgstr "die Nachricht vom {from} bis {to} empfangen wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "received on any day"
+msgstr "die Nachricht an einem beliebigen Tag empfangen wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "received on or after {date}"
+msgstr "die Nachricht am {date} oder später empfangen wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "received on or before {date}"
+msgstr "die Nachricht am {date} oder früher empfangen wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "recipient contains {words}"
+msgstr "ein Empfänger {words} enthält"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "recipient's address contains {words}"
+msgstr "die Adresse eines Empfängers {words} enthält"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "replies can go to at most {n} addresses"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "rule"
+msgid "When"
+msgstr "Wenn"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -15215,6 +15480,12 @@ msgstr "wählen Sie zuerst eine Aufgabe aus"
 msgid "select an appointment first"
 msgstr "wählen Sie zuerst einen Termin aus"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sender's address contains {words}"
+msgstr "die Adresse des Absenders {words} enthält"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -15243,6 +15514,60 @@ msgctxt "sensitivity"
 msgid "Private"
 msgstr "Privat"
 
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sensitivity is confidential"
+msgstr "die Vertraulichkeit vertraulich ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sensitivity is normal"
+msgstr "die Vertraulichkeit normal ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sensitivity is personal"
+msgstr "die Vertraulichkeit persönlich ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sensitivity is private"
+msgstr "die Vertraulichkeit privat ist"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sent only to me"
+msgstr "die Nachricht nur an mich gesendet wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "sent to {words}"
+msgstr "die Nachricht an {words} gesendet wurde"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "set importance to high"
+msgstr "die Wichtigkeit auf hoch setzen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "set importance to low"
+msgstr "die Wichtigkeit auf niedrig setzen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "set importance to normal"
+msgstr "die Wichtigkeit auf normal setzen"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -15256,9 +15581,39 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph abgeglichen wird"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "show a desktop alert"
+msgstr "eine Desktopbenachrichtigung anzeigen"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "size is {min} KB to {max} KB"
+msgstr "die Größe {min} KB bis {max} KB beträgt"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "stop processing more rules"
+msgstr "keine weiteren Regeln anwenden"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "subject contains {words}"
+msgstr "der Betreff {words} enthält"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "subject or body contains {words}"
+msgstr "Betreff oder Text {words} enthalten"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -16087,6 +16442,18 @@ msgstr ""
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. See File › Info."
 msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "{all} and {next}"
+msgstr "{all} und {next}"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "{all} or {next}"
+msgstr "{all} oder {next}"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -17232,6 +17599,12 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "{words} or {word}"
+msgstr "{words} oder {word}"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
