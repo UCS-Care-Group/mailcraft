@@ -173,6 +173,29 @@ fn the_keyboard_reaches_the_arrow_and_opens_the_menu() {
     }
 }
 
+/// With the menu open from the keyboard, the arrows move through its entries and Enter takes
+/// the one that has the keyboard.
+#[test]
+fn the_keyboard_moves_into_the_menu_and_enter_opens_the_file() {
+    let (mut h, o) = window_with(&["first.pdf", "second.pdf"]);
+    let label = "Attachment options for second.pdf";
+    h.get_by_role_and_label(Role::Button, label).focus();
+    h.run_steps(2);
+    key(&mut h, Key::Enter);
+    assert!(egui::Popup::is_any_open(&h.ctx), "Enter opens the menu");
+    let focused = |h: &Window, entry: &str| entry_nodes(h, entry).next().unwrap_or_else(|| panic!("no {entry}")).is_focused();
+    key(&mut h, Key::ArrowDown);
+    assert!(focused(&h, "Open"), "Down goes into the menu, to its first entry");
+    key(&mut h, Key::ArrowDown);
+    assert!(focused(&h, "Save As…"), "Down again goes on to the next");
+    key(&mut h, Key::ArrowUp);
+    assert!(focused(&h, "Open"), "Up comes back");
+    assert!(opened(&o).is_empty(), "moving opens nothing");
+    key(&mut h, Key::Enter);
+    assert_eq!(opened(&o), vec![("second.pdf".to_string(), b"a1".to_vec())]);
+    assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed");
+}
+
 /// Enter on the chip's own part does what it did before the `▾`: nothing.
 #[test]
 fn enter_on_the_chip_opens_nothing() {
@@ -274,3 +297,4 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
     click(&mut h, at, PointerButton::Primary, 1);
     assert_eq!(menus(&h), 1);
 }
+
