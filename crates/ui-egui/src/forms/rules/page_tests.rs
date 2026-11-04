@@ -542,3 +542,33 @@ fn with_no_account_yet_there_is_no_all_accounts() {
     h.run_steps(3);
     assert!(h.query_by_label("Add Rule").is_some());
 }
+
+/// A rule whose folder was deleted since opens on Edit Rule with that folder to be chosen
+/// again, and Save waits for it, rather than be refused after it (#566).
+#[test]
+fn edit_rule_has_a_deleted_folder_chosen_again() {
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("First", "first@example.org"), NOW, 0), Services::default());
+    app.autosave = false;
+    let account = app.session.mailbox.accounts[0].id;
+    let archive = app.session.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let rule = json!({"name": "Filed", "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "moveTo", "value": archive}]});
+    app.execute("rules.add", rule).unwrap();
+    app.session.mailbox.folders.retain(|f| f.id != archive);
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(6);
+    h.get_all_by_label("More for this rule").next().unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Edit Rule").click();
+    h.run_steps(4);
+    let combos: Vec<Option<String>> = h.get_all_by_role(egui::accesskit::Role::ComboBox).map(|n| n.accesskit_node().value()).collect();
+    assert!(combos.contains(&Some("Choose a folder".to_string())), "{combos:?}");
+    assert!(h.get_by_label("Save").accesskit_node().is_disabled());
+}

@@ -6838,13 +6838,17 @@ pub(crate) mod rules {
                 return false;
             };
             self.reset();
-            // A folder of the rule's that the list of folders doesn't offer (one gone since) stays
-            // as it is, rather than be changed to the first.
+            // A folder of the rule's that the list of folders doesn't offer stays as it is, rather
+            // than be changed to the first; one deleted since is to be chosen again, which Save
+            // waits for.
             let fresh = self.fresh_action();
             self.acts = r.actions.iter().map(|a| act_of(a, &fresh)).collect();
-            for a in &self.acts {
-                if a.kind.takes_folder() && !self.folders.iter().any(|f| f.0 == a.folder) && mb.folder(a.folder).is_some() {
-                    self.folders.push((a.folder, mb.folder_path(a.folder)));
+            let (acts, folders) = (&mut self.acts, &mut self.folders);
+            for a in acts.iter_mut().filter(|a| a.kind.takes_folder()) {
+                if mb.folder(a.folder).is_none() {
+                    a.folder = 0;
+                } else if !folders.iter().any(|f| f.0 == a.folder) {
+                    folders.push((a.folder, mb.folder_path(a.folder)));
                 }
             }
             self.name = r.name.clone();
@@ -6868,9 +6872,16 @@ pub(crate) mod rules {
             }
             self.folders = move_choices(mb, account);
             self.first_folder = mb.folder_of_kind(account, FolderKind::Archive).or(self.folders.first().map(|f| f.0)).unwrap_or(0);
-            for a in &mut self.acts {
-                if a.kind.takes_folder() && mb.folder(a.folder).is_some_and(|f| f.account != account) {
-                    a.folder = 0;
+            let (acts, folders) = (&mut self.acts, &mut self.folders);
+            for a in acts.iter_mut().filter(|a| a.kind.takes_folder() && a.folder != 0) {
+                match mb.folder(a.folder) {
+                    // The account's own, offered even where the list leaves it out.
+                    Some(f) if f.account == account => {
+                        if !folders.iter().any(|x| x.0 == a.folder) {
+                            folders.push((a.folder, mb.folder_path(a.folder)));
+                        }
+                    }
+                    _ => a.folder = 0,
                 }
             }
             self.giving = Some(account);
@@ -7188,7 +7199,8 @@ pub(crate) mod rules {
             };
             let kept = changed.filter(|_| self.giving.is_none()).map(|r| mark(app, r, self.account));
             // Given to one account: a move or copy to another account's folder has it chosen again.
-            let choose_again = self.giving.is_some() && self.acts.iter().any(|a| a.kind.takes_folder() && a.folder == 0);
+            let choose_again = self.giving.is_some_and(|to| changed.is_some_and(|r| files_elsewhere(mb, r, to)))
+                && self.acts.iter().any(|a| a.kind.takes_folder() && a.folder == 0);
             let mut back = false;
             let mut asked = false;
             let room = error_room(ui, &self.error);

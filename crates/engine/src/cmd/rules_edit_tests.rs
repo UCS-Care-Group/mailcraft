@@ -491,6 +491,11 @@ fn a_rule_given_to_another_account_than_its_folders_has_the_folder_chosen_again(
     run(&mut s, "rules.edit", given);
     let r = rule(&s, every);
     assert_eq!((r.account, r.keep, r.actions.clone()), (local, Keep::Here, vec![Action::MoveTo(mine), Action::MarkRead]));
+    // Undone, it is the rule for every account it was; redone, the account's again.
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!((rule(&s, every).account, rule(&s, every).actions.clone()), (0, vec![Action::MoveTo(archive), Action::MarkRead]));
+    run(&mut s, "edit.redo", json!({}));
+    assert_eq!(rule(&s, every).account, local);
     // Changed again, it stays for its account.
     let mut elsewhere = change(mine);
     elsewhere["account"] = json!(account);
