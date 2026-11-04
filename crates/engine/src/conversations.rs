@@ -8,10 +8,16 @@
 //! each message, a weak pointer to it and a hash of what [`ThreadIndex::build`] reads of it (its
 //! account, subject, linking headers and server conversation id). When the mailbox has changed
 //! since, the next ask walks the messages once: one that is the same `Arc` is the same, and only
-//! one that isn't has its hash worked out again. So a flag, a category, a move or a read mark
-//! keeps the conversations (a pass of pointer comparisons), and a changed subject or header, or a
-//! message more or less, has them worked out again. The check is made at every ask after a
-//! change, within a command too, so nothing ever sees conversations of a mailbox that was.
+//! one that isn't has its hash worked out again, and is pointed at as it is now, so that it isn't
+//! hashed again at the next check and what it was is let go of. So a flag, a category, a move or
+//! a read mark keeps the conversations (a pass of pointer comparisons), and a changed subject or
+//! header, a server's answer about its conversation, or a message more or less, has them worked
+//! out again.
+//!
+//! The check is made at the first ask after a command begins and after it ends. Within one
+//! command, an ask, then a change of what groups a message, then another ask would get the first
+//! answer: no command does that (each works out the conversation it acts on before it changes
+//! anything), and one that would must call [`Session::threads_may_change`] between the two.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -32,23 +38,41 @@ pub(crate) struct Kept {
     /// Of each message, in the mailbox's order: its id, a weak pointer to it and the hash of what
     /// groups it.
     seen: Vec<(Id, Weak<Message>, u64)>,
+    /// How many messages were hashed again in checks (for tests).
+    rehashed: u64,
 }
 
 /// The hash of what [`ThreadIndex::build`] reads of `m`.
 fn grouping_hash(m: &Message) -> u64 {
     let mut h = DefaultHasher::new();
-    (m.account, &m.subject, &m.message_id, &m.in_reply_to, &m.references, m.server.as_ref().map(|s| s.thread.as_str())).hash(&mut h);
+    let server = m.server.as_ref().map(|s| (s.thread.as_str(), s.thread_asked));
+    (m.account, &m.subject, &m.message_id, &m.in_reply_to, &m.references, server).hash(&mut h);
     h.finish()
 }
 
-/// Whether `kept` is of the messages of `mailbox`, as far as conversations go.
-fn still_of(kept: &Kept, mailbox: &Mailbox) -> bool {
-    kept.seen.len() == mailbox.messages.len()
-        && kept
-            .seen
-            .iter()
-            .zip(&mailbox.messages)
-            .all(|((was_id, was, hash), (id, now))| was_id == id && (std::ptr::eq(was.as_ptr(), Arc::as_ptr(now)) || grouping_hash(now) == *hash))
+/// Whether `kept` is of the messages of `mailbox`, as far as conversations go; a message found
+/// the same by its hash is pointed at as it is now.
+fn still_of(kept: &mut Kept, mailbox: &Mailbox) -> bool {
+    if kept.seen.len() != mailbox.messages.len() {
+        return false;
+    }
+    let mut rehashed = 0u64;
+    let same = kept.seen.iter_mut().zip(&mailbox.messages).all(|((was_id, was, hash), (id, now))| {
+        if was_id != id {
+            return false;
+        }
+        if std::ptr::eq(was.as_ptr(), Arc::as_ptr(now)) {
+            return true;
+        }
+        rehashed = rehashed.saturating_add(1);
+        let same = grouping_hash(now) == *hash;
+        if same {
+            *was = Arc::downgrade(now);
+        }
+        same
+    });
+    kept.rehashed = kept.rehashed.saturating_add(rehashed);
+    same
 }
 
 impl Session {
@@ -73,7 +97,7 @@ impl Session {
         }
         let threads = Arc::new(ThreadIndex::build(self.mailbox.messages.values().map(|m| m.as_ref())));
         let seen = self.mailbox.messages.iter().map(|(id, m)| (*id, Arc::downgrade(m), grouping_hash(m))).collect();
-        *cache = Some(Kept { at: Some(key), threads: threads.clone(), seen });
+        *cache = Some(Kept { at: Some(key), threads: threads.clone(), seen, rehashed: 0 });
         threads
     }
 
@@ -95,5 +119,17 @@ impl Session {
 #[cfg(test)]
 pub(crate) fn grouping_kept(before: &Mailbox, after: &Mailbox) -> bool {
     let seen = before.messages.iter().map(|(id, m)| (*id, Arc::downgrade(m), grouping_hash(m))).collect();
-    still_of(&Kept { at: None, threads: Arc::default(), seen }, after)
+    still_of(&mut Kept { at: None, threads: Arc::default(), seen, rehashed: 0 }, after)
+}
+
+#[cfg(test)]
+impl Session {
+    /// How many messages the checks of what is kept hashed again, and whether what is kept points
+    /// at every message as it is now (holds nothing of one that was).
+    pub(crate) fn threads_checked(&self) -> (u64, bool) {
+        let cache = self.threads_cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(kept) = cache.as_ref() else { return (0, false) };
+        let current = kept.seen.iter().zip(&self.mailbox.messages).all(|((_, was, _), (_, now))| std::ptr::eq(was.as_ptr(), Arc::as_ptr(now)));
+        (kept.rehashed, current)
+    }
 }

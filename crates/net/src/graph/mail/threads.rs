@@ -12,8 +12,11 @@
 //! This is never worth failing a run for: a busy server (said in the run's `busy_for`), an answer
 //! that can't be read or the network gone end the look-up where it is, and what wasn't answered is
 //! asked in a later run. A message the server no longer has (404) is said with no id, so that it
-//! isn't asked again; one it refuses to say for (another 4xx, for the message or the whole batch)
-//! is said refused, and is asked again only a few runs ([`ThreadOf::refused`]).
+//! isn't asked again; one it refuses to say for (another 4xx for the message, or a 403 for the
+//! whole batch) is said refused, and is asked again only a few runs ([`ThreadOf::refused`]). A
+//! batch refused otherwise (a 400 from a server that takes no `$batch`) refuses nothing of the
+//! messages: they are asked again in a later run, a batch at a time, as no other part of a run
+//! asks such a server either.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -60,7 +63,7 @@ pub(super) fn conversations(graph: &Graph<'_>, request: &GraphMailRequest, cance
             }
             Ok(reply) => {
                 log::info!("graph mail: conversation ids not asked for now (status {}); a later run goes on", reply.status);
-                if refusal(reply.status) {
+                if reply.status == 403 {
                     out.extend(some.iter().map(|id| ThreadOf::refused(id)));
                 }
                 break;

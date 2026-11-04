@@ -75,11 +75,11 @@ fn a_server_that_wont_answer_ends_the_look_up_and_never_the_run() {
     let inbox = server.state().well_known("inbox");
     let ids = server.state().mailbox.generate(&inbox, 3, NOW);
     server.state().refuse_batches = true;
-    let pieces = run(&server, ids.clone());
+    let pieces = run(&server, ids);
     let last = pieces.last().unwrap();
     assert!(!last.partial && last.errors.is_empty(), "{:?}", last.errors);
-    // Refused (400): said so, and the engine asks again only a few runs.
-    assert_eq!(last.threads, ids.iter().map(|id| ThreadOf::refused(id)).collect::<Vec<_>>());
+    // A server that takes no batch (400) refuses nothing of the messages themselves.
+    assert_eq!(last.threads, Vec::<ThreadOf>::new());
     // Ids that are none, or more than a run asks, are not sent.
     let server = StandIn::start().unwrap();
     let mut junk: Vec<String> = vec!["../../me/sendMail".into(), String::new(), "x".repeat(5_000)];

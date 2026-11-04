@@ -17,8 +17,9 @@
 //! A thread moved to an account of another kind stays one: its headers go with it.
 //!
 //! A message **not known** yet ([`unknown`]) is one that nothing links and nothing could: a
-//! server's message that its server hasn't given a conversation id (it was listed before that
-//! was asked for) and whose headers, all that is here of it, name no other; or one with no
+//! server's message that its server hasn't given a conversation id and hasn't yet been asked
+//! for one ([`crate::sync::ServerMessage::thread_asked`]: once it has, and the server gave none,
+//! it links by its headers alone, as an IMAP server's mail does), and whose headers, all that is here of it, name no other; or one with no
 //! `Message-ID` at all. Those of one topic that nothing else links to either are one
 //! conversation among themselves, as every conversation was before, until a Send/Receive brings
 //! their ids; one that a known message links to is of that message's conversation alone.
@@ -64,8 +65,10 @@ pub fn unknown(m: &Message) -> bool {
         return false;
     }
     match &m.server {
-        Some(server) => thread_id(&server.thread).is_empty(),
-        None => m.message_id.trim().is_empty(),
+        // Asked of its server, which gave none (or refused, as often as it is asked): linked by
+        // its headers alone, as mail of an IMAP server is.
+        Some(server) if !server.thread_asked => thread_id(&server.thread).is_empty(),
+        _ => m.message_id.trim().is_empty(),
     }
 }
 

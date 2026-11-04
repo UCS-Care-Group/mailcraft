@@ -240,5 +240,103 @@ fn a_flag_over_a_large_mailbox() {
     run(&mut s, "mail.flag", json!({"id": first}));
     let _ = s.threads();
     println!("flag and threads after: {:?}", started.elapsed());
+    run(&mut s, "folder.select", json!({"id": inbox}));
+    let started = std::time::Instant::now();
+    run(&mut s, "mail.markAllRead", json!({}));
+    let _ = s.threads();
+    println!("mark all read and threads after: {:?}", started.elapsed());
+    let started = std::time::Instant::now();
+    run(&mut s, "mail.flag", json!({"id": first}));
+    let _ = s.threads();
+    println!("a flag after it, and threads after: {:?}", started.elapsed());
     assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()));
+    assert!(s.threads_checked().1);
+}
+
+#[test]
+fn what_is_kept_points_at_each_message_as_it_is_and_hashes_it_once() {
+    let (mut s, [ours, ..]) = invoices();
+    let threads = s.threads();
+    // Every message changed: each is hashed again once, and then pointed at as it is now.
+    run(&mut s, "mail.markAllRead", json!({}));
+    assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()));
+    let (after_all, current) = s.threads_checked();
+    assert!(current, "nothing kept holds a message as it was");
+    assert!(after_all >= 2, "the unread ones were changed and checked: {after_all}");
+    // A flag after it: only the flagged message is hashed again.
+    run(&mut s, "mail.flag", json!({"id": ours}));
+    assert!(std::sync::Arc::ptr_eq(&threads, &s.threads()));
+    let (after_flag, current) = s.threads_checked();
+    assert!(current);
+    assert!(after_flag.saturating_sub(after_all) <= 1, "{after_all} then {after_flag}");
+}
+
+/// An Exchange server account whose server doesn't know `ConversationId`, with two unrelated
+/// "Invoice for October" from two senders.
+fn exchange_invoices() -> (Session, Id, [Id; 2]) {
+    use mailcraft_model::sync::{EwsFolderDeltas, EwsMailResult, EwsMessagePage, GraphFolder, GraphMessage};
+    const URL: &str = "https://exchange.example.org/EWS/Exchange.asmx";
+    let mut s = Session::empty();
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": URL}})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let base = || EwsMailResult { account, email: "ada@example.org".into(), url: URL.into(), partial: true, ..Default::default() };
+    let inbox = GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() };
+    let folders = EwsFolderDeltas { changed: vec![inbox], afresh: true, ..Default::default() };
+    crate::cmd::ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(folders), hierarchy: "H1".into(), ..base() }).unwrap();
+    let invoice = |id: &str, from: &str, when: i64| GraphMessage {
+        server: ServerMessage { id: id.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
+        message_id: format!("{id}@{from}.example"),
+        subject: "Invoice for October".into(),
+        sent: when - 60,
+        received: when,
+        ..Default::default()
+    };
+    let page = EwsMessagePage {
+        folder: "F1".into(),
+        messages: vec![invoice("AAMk-X", "x", 1_000), invoice("AAMk-Y", "y", 2_000)],
+        afresh: true,
+        last: true,
+        state: "S1".into(),
+        ..Default::default()
+    };
+    crate::cmd::ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![page], ..base() }).unwrap();
+    crate::cmd::ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..base() }).unwrap();
+    let id = |server: &str| {
+        s.mailbox.messages.values().find(|m| m.account == account && m.server.as_ref().is_some_and(|x| x.id == server)).map(|m| m.id).unwrap()
+    };
+    let ids = [id("AAMk-X"), id("AAMk-Y")];
+    (s, account, ids)
+}
+
+#[test]
+fn mail_whose_server_wont_say_its_conversation_threads_by_its_headers_once_asked() {
+    let (mut s, account, [x, y]) = exchange_invoices();
+    const URL: &str = "https://exchange.example.org/EWS/Exchange.asmx";
+    // Never asked yet: together, as before.
+    assert_eq!(*s.conversation(x), [x, y]);
+    for run in 1..=mailcraft_model::sync::MAX_THREAD_TRIES {
+        let asked = crate::cmd::ews_mail::ews_mail_request(&s, account, false).unwrap().threads;
+        assert_eq!(asked, ["AAMk-Y", "AAMk-X"], "run {run}");
+        let threads = asked.iter().map(|id| ThreadOf::refused(id)).collect();
+        let result = mailcraft_model::sync::EwsMailResult {
+            account,
+            email: "ada@example.org".into(),
+            url: URL.into(),
+            whole: true,
+            threads,
+            ..Default::default()
+        };
+        crate::cmd::ews_mail::apply_ews_mail(&mut s, result).unwrap();
+    }
+    assert!(crate::cmd::ews_mail::ews_mail_request(&s, account, false).unwrap().threads.is_empty());
+    // Asked as often as it is: linked by their headers alone, which link nothing.
+    assert_eq!(*s.conversation(x), [x]);
+    assert_eq!(*s.conversation(y), [y]);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "folder.select", json!({"id": inbox}));
+    run(&mut s, "view.conversations", json!({"value": true}));
+    run(&mut s, "mail.select", json!({"id": x}));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!(s.mailbox.message(y).unwrap().folder, inbox, "the other invoice is left where it was");
+    assert_ne!(s.mailbox.message(x).unwrap().folder, inbox);
 }

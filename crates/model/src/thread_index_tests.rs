@@ -230,3 +230,23 @@ fn two_threads_never_join_through_mail_kept_from_before() {
     }
     assert!([l2, r2].iter().all(|id| mb.message(*id).unwrap().folder == inbox), "Y's mail is left where it was");
 }
+
+#[test]
+fn mail_its_server_was_asked_about_links_by_its_headers_alone() {
+    let asked = |id: Id, message_id: &str| {
+        let mut m = listed(id, "Invoice for October", message_id, "");
+        if let Some(server) = m.server.as_mut() {
+            server.thread_asked = true;
+        }
+        m
+    };
+    let (x, y) = (asked(1, "x@x.example"), asked(2, "y@y.example"));
+    assert!(!unknown(&x) && !unknown(&y));
+    assert!(!ThreadIndex::build([&x, &y]).same(1, 2));
+    // Its answer still joins it, by its headers.
+    let answer = Message { in_reply_to: "x@x.example".into(), ..asked(3, "RE: Invoice for October") };
+    let answer = Message { subject: "RE: Invoice for October".into(), message_id: "r@example.org".into(), ..answer };
+    assert!(ThreadIndex::build([&x, &y, &answer]).same(1, 3));
+    // Without a Message-ID it is still not known.
+    assert!(unknown(&asked(4, "")));
+}
