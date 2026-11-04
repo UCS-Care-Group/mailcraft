@@ -723,6 +723,17 @@ fn a_new_install_files_an_answered_request_away_and_a_saved_choice_is_kept() {
     assert!(!app.prefs().options.delete_answered_requests);
 }
 
+/// #755: settings saved before the choice existed (no `options`, or `options` without
+/// `deleteAnsweredRequests`) are read back with it off, so an older install keeps its answered
+/// requests; only a run without settings starts on a new install's.
+#[test]
+fn older_settings_keep_answered_requests() {
+    let without_options: crate::UiState = serde_json::from_value(json!({"tab": "Home"})).unwrap();
+    assert!(!without_options.options.delete_answered_requests);
+    let without_key: crate::UiState = serde_json::from_value(json!({"options": {"timeScale": 30}})).unwrap();
+    assert!(!without_key.options.delete_answered_requests);
+}
+
 #[test]
 fn a_message_in_a_window_of_its_own_has_the_bar_too() {
     let (app, _, ids) = mail_app(vec![Meeting::default().mail(), super::message(1, ("Jo", "jo@example.org"), "Lunch?", None, "Lunch?".into())]);

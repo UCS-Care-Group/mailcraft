@@ -861,7 +861,10 @@ pub struct UiState {
     pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
-    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
+    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]). Settings
+    /// saved without them (an older install's) are read back on the engine's own, not on a new
+    /// install's: an owner who never chose is not moved onto what a new install turns on (#755).
+    #[serde(default = "mailcraft_engine::Prefs::default")]
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
