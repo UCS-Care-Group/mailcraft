@@ -140,6 +140,21 @@ impl Element {
         self
     }
 
+    /// The elements directly inside it.
+    pub fn parts(&self) -> &[Element] {
+        &self.children
+    }
+
+    /// Its name, with its prefix.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Its text, as it was set.
+    pub fn text_value(&self) -> &str {
+        &self.text
+    }
+
     /// The element as text.
     pub fn write(&self) -> String {
         let mut out = String::new();

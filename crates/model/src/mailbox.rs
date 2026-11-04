@@ -390,6 +390,12 @@ pub struct Account {
     /// other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub opened_calendars: Vec<crate::OpenedCalendar>,
+    /// For an Exchange server account: the address books its owner opened by their owner's
+    /// address (Open Shared Address Book), kept here only, at most
+    /// [`crate::MAX_OPENED_ADDRESS_BOOKS`]. Empty for every other account, and in a file from
+    /// before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub opened_address_books: Vec<crate::OpenedAddressBook>,
     /// For a Microsoft account: the shared mailboxes open under it whose calendar its server lists
     /// among its own calendars as well, and whether that copy is hidden ([`crate::ListedTwice`],
     /// #70), at most [`MAX_SHARED`]. An entry says the owner was asked: MailCraft offers once.
@@ -458,6 +464,17 @@ impl Account {
             kept.push(opened);
         }
         self.opened_calendars = kept;
+        let mut books: Vec<crate::OpenedAddressBook> = Vec::new();
+        for mut opened in std::mem::take(&mut self.opened_address_books) {
+            opened.address = crate::calendar::flat_line(&opened.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");
+            opened.name = crate::calendar::flat_line(&opened.name, crate::MAX_NAME);
+            let known = books.iter().any(|have| have.address.eq_ignore_ascii_case(&opened.address));
+            if opened.address.is_empty() || known || books.len() >= crate::MAX_OPENED_ADDRESS_BOOKS {
+                continue;
+            }
+            books.push(opened);
+        }
+        self.opened_address_books = books;
         let mut twice: Vec<crate::ListedTwice> = Vec::new();
         for mut entry in std::mem::take(&mut self.listed_twice) {
             entry.address = crate::calendar::flat_line(&entry.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");
@@ -692,9 +709,12 @@ impl Account {
         self.shared_of.is_some()
     }
 
-    /// Whether Microsoft keeps its to-dos: it signs in with Microsoft and is not a shared mailbox.
+    /// Whether its server keeps its to-dos: it signs in with Microsoft or is an Exchange server
+    /// account, and is not a shared mailbox.
     pub fn keeps_tasks(&self) -> bool {
-        !self.is_shared() && self.kind != AccountKind::Jmap && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
+        !self.is_shared()
+            && self.kind != AccountKind::Jmap
+            && (self.kind == AccountKind::Exchange || self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft))
     }
 
     /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).

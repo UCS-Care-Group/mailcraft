@@ -594,6 +594,7 @@ fn home_people(app: &MailApp) -> Tab {
             "Share",
             vec![
                 Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
+                Item::big("address", "Open Shared\nAddress Book", "contacts.openShared", no()).at(4, 5),
                 Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],

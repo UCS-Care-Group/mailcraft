@@ -155,6 +155,11 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
         .take(MAX_EWS_STATES)
         .map(|server| EwsFolderState { folder: server.id.clone(), state: server.sync_state.clone() })
         .collect();
+    // The calendar, contacts and to-dos after the mail: a full run only (not an Inbox pass or a
+    // light look), so that the lists on screen stay current without holding mail up.
+    if !light && !request.inbox_pass {
+        request.directory = Some(Box::new(super::ews_directory::ews_directory_request(s, account, None, None, false)?));
+    }
     // The conversation ids of mail listed before they were asked for, in a run of every folder (#795).
     if !light {
         request.threads = super::thread_ids::to_ask(mb, account);
@@ -287,7 +292,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
     let name = receiving(&s.mailbox, account, &result.email, &result.url)?;
-    let (result, cut) = ews_down::bounded(result);
+    let (mut result, cut) = ews_down::bounded(result);
     if ews_down::state_bytes_after(&s.mailbox, account, &result) > MAX_EWS_STATE_BYTES {
         // (The sync states kept for one account are held to a total, as one is held to a size: a
         // piece that would go over is refused whole, and what it was for is read again.)
@@ -370,6 +375,23 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         }
     }
     s.graph_index = index;
+    // The calendar, contacts and to-dos the run brought after its mail. A part that goes wrong is
+    // said and leaves the mail it brought as it is.
+    let mut directory_auth = false;
+    if let Some(directory) = &result.directory {
+        match super::ews_directory::apply_ews_directory(s, directory) {
+            Ok(applied) => {
+                if let Some(lines) = applied.get("errors").and_then(Value::as_array) {
+                    errors.extend(lines.iter().filter_map(Value::as_str).map(str::to_owned));
+                }
+                directory_auth = applied.get("authRefused").and_then(Value::as_bool).unwrap_or(false);
+            }
+            Err(e) => errors.push(e.to_string()),
+        }
+    }
+    if directory_auth {
+        result.auth_refused = true;
+    }
     // A rule moved new mail out of the account (#567): there is no going back past it
     // ([`super::graph_mail::apply_graph_mail`] says why).
     if down.left > 0 {

@@ -116,3 +116,25 @@ fn a_calendar_listed_twice_is_remembered_cleaned_and_forgotten_with_its_shared_m
     mb.remove_account(shared).unwrap();
     assert!(mb.account(owner).unwrap().listed_twice.is_empty());
 }
+
+#[test]
+fn address_books_opened_by_address_are_kept_cleaned_and_bounded() {
+    let mut mb = Mailbox::with_local_account("Ada", "ada@example.org");
+    let account = mb.alloc_id();
+    mb.accounts.push(Account { id: account, email: "ada@example.org".into(), kind: AccountKind::Exchange, ..Default::default() });
+    let list: Vec<OpenedAddressBook> =
+        (0..MAX_OPENED_ADDRESS_BOOKS + 5).map(|n| OpenedAddressBook { address: format!("p{n}@example.org"), name: format!("P{n}") }).collect();
+    mb.account_mut(account).unwrap().opened_address_books = list;
+    mb.repair();
+    assert_eq!(mb.account(account).unwrap().opened_address_books.len(), MAX_OPENED_ADDRESS_BOOKS);
+    // Junk and a duplicate are cleaned away, and the list survives a save.
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let at = mb.accounts.iter().position(|a| a.id == account).unwrap();
+    value["accounts"][at]["openedAddressBooks"] =
+        json!([{"address": "p0@example.org", "name": "P0"}, {"address": "P0@EXAMPLE.org"}, 5, "x", {"address": " "}]);
+    let mut back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    back.repair();
+    assert_eq!(back.account(account).unwrap().opened_address_books, [OpenedAddressBook { address: "p0@example.org".into(), name: "P0".into() }]);
+    value["accounts"][at]["openedAddressBooks"] = json!("junk");
+    assert!(serde_json::from_value::<Mailbox>(value).is_ok());
+}

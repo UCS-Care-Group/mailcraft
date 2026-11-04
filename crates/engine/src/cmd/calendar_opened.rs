@@ -112,9 +112,12 @@ fn listed_twice(s: &Session, account: Id) -> Vec<Value> {
 /// is no shared mailbox, and isn't a personal one (Microsoft Graph has other people's calendars
 /// for the accounts of an organisation only).
 pub fn eligible(account: &Account) -> Result<(), &'static str> {
+    if account.kind == mailcraft_model::AccountKind::Exchange && !account.is_shared() {
+        return Ok(());
+    }
     let microsoft = account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Microsoft);
     if !microsoft || account.is_shared() {
-        return Err("Other people's calendars can be opened under an account that signs in with Microsoft");
+        return Err("Other people's calendars can be opened under an account that signs in with Microsoft or on an Exchange server");
     }
     let personal = account
         .oauth

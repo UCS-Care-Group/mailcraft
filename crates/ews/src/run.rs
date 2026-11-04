@@ -419,6 +419,32 @@ pub async fn sync_mail<E: HttpExchange>(
             }
         }
     }
+    // The calendar, contacts and to-dos, in a run of their own after the mail: a part that fails
+    // does not make the mail fail, and the next run asks again.
+    if let Some(directory) = request.directory.as_deref().filter(|_| !out.auth_refused && !out.stopped) {
+        let mut result = crate::directory_run::sync_directory(client, exchange, directory, cancel, &mut *run.wait).await;
+        if !result.whole() {
+            out.incomplete = true;
+            if result.auth_refused {
+                out.auth_refused = true;
+            }
+            if let Some(seconds) = result.busy_for {
+                out.busy_for = Some(seconds);
+            }
+        }
+        out.errors.append(&mut result.errors);
+        log::info!(
+            "ews directory: {} calendars, {} event lists, {} contacts, {} to-dos, {} calendar changes, {} contact changes, {} to-do changes",
+            result.calendars.as_ref().map_or(0, |list| list.calendars.len()),
+            result.events.len(),
+            result.contacts.as_ref().map_or(0, |list| list.contacts.len()),
+            result.tasks.as_ref().map_or(0, |list| list.tasks.len()),
+            result.uploaded.as_ref().map_or(0, |upload| upload.outcomes.len()),
+            result.contacts_uploaded.as_ref().map_or(0, |upload| upload.outcomes.len()),
+            result.tasks_uploaded.as_ref().map_or(0, |upload| upload.outcomes.len()),
+        );
+        emit(EwsMailResult { directory: Some(Box::new(result)), partial: true, ..base(request) });
+    }
     // Then the conversations of mail listed before they were asked for (#795), unless the run was
     // stopped or the server asked to be left alone. Never worth failing the run for.
     let threads = if request.threads.is_empty() || out.stopped || out.busy_for.is_some() || out.auth_refused {

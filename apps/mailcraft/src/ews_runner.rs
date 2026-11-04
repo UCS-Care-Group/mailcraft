@@ -465,6 +465,8 @@ fn phase_of(inbox_pass: bool, piece: &EwsMailResult, before: SyncPhase) -> SyncP
         SyncPhase::NewMail
     } else if piece.folders.is_some() {
         SyncPhase::Folders
+    } else if piece.directory.is_some() {
+        SyncPhase::CalendarAndContacts
     } else if !piece.sent.is_empty() {
         SyncPhase::Sending
     } else if !(piece.changes.is_empty() && piece.messages.is_empty() && piece.drafts.is_empty() && piece.placed.is_empty()) {

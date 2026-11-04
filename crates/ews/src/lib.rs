@@ -30,6 +30,10 @@
 //!   `SyncFolderItems` (headers and a preview first) and `GetItem` with the MIME content, each a
 //!   request and a reader of its answer; and [`sync_mail`] and [`fetch_messages`], which run them
 //!   over an [`HttpExchange`] and hand the run back in pieces.
+//! - [`directory`], [`directory_run`]: calendars, address books and to-do lists: `FindFolder`,
+//!   `FindItem` (with a `CalendarView` for the days on screen), `CreateItem`, `UpdateItem` and
+//!   `DeleteItem` for appointments, contacts and to-dos, and the same folders of a mailbox another
+//!   person shared with the owner ([`sync_directory`]).
 //!
 //! Everything a server sends is hostile: nothing indexes into what came over the wire, and a
 //! server's ids stay behind types whose `Debug` shows nothing ([`FolderId`], [`Secret`]).
@@ -56,6 +60,12 @@ pub mod client;
 pub mod compose;
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 mod delete_check;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod directory;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod directory_run;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod error;
@@ -123,6 +133,8 @@ pub use basic::CredentialError;
 pub use changes::{DeleteMode, ItemUpdate};
 pub use client::Client;
 pub use compose::Unsendable;
+pub use directory::{Answer as MeetingAnswer, FindItems, Item as DirectoryItem, Kind as DirectoryKind};
+pub use directory_run::sync_directory;
 pub use error::{Error, PolicyReason, ResponseClass, ResponseCode};
 pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder};
 pub use hierarchy::{HierarchyPage, SyncFolderHierarchy};

@@ -1,11 +1,20 @@
 # Exchange servers other than Microsoft's
 
-> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-04 · **Change:** patch
+> **Last reviewed:** 2026-11-04 · **Last updated:** 2026-11-04 · **Change:** minor
 
 An Exchange server account (#252) reaches an organisation's own mail server through Exchange Web
-Services, for mail (its calendar and contacts are not kept in step yet). This page says what has been seen
-working on servers other than Microsoft's, one at a time, and what has not. Everything here was
-tried with made-up mail on a server running on the same computer; no real mailbox was used.
+Services: its mail, and now its calendars, address books and to-do lists, including a person's
+calendar or address book opened by address. This page says what has been seen working on servers
+other than Microsoft's, one at a time, and what has not. Everything here was tried with made-up
+data on a server running on the same computer; no real mailbox was used.
+
+The directory is read after the mail of a Send/Receive: the account's calendars, books and lists
+(the folders the server gives that kind), the events of the days on screen and a week either side,
+and every contact and to-do. What is made, changed or deleted here goes up before it is read.
+Another mailbox's calendar or address book is read with the owner's sign-in by putting its address
+in every folder request; it is listed under Shared Calendars or with the account's books. Grommunio
+lets the owner into the shared folder it is given but not list that mailbox's other folders, so a
+shared calendar or book is read as its default folder there.
 
 ## Grommunio
 
@@ -33,6 +42,19 @@ against this server.
 | Bcc | Does not leak | The To recipient's copy has no Bcc, and the Bcc recipient got the message |
 | Copy in Sent Items | Works (fixed) | Sending the saved draft with `SendItem` delivered it but filed no copy in Sent Items and left the draft in Drafts. Every send, a saved draft too, now goes as one `CreateItem` with `SendAndSaveCopy` and the message's own content, and the draft is then taken away with a soft delete, only after a clear success. Tried again after the fix: delivered once to the To and Bcc recipients, one copy in Sent Items, no draft left. **Not yet checked against Exchange Server itself**, which filed the copy for `SendItem` and is expected to do the same here |
 | Undo of a move | Works | The message went back to where it was, on the server too |
+| Calendar read | Works | The account's main calendar came down with its subject, place, body, times, importance and people invited; a shared calendar's events came too |
+| Contacts read | Works | Names, company, job title, e-mail addresses, phone numbers and notes came down. A physical address did not: Grommunio answers `FindItem` without `PhysicalAddresses` even when it is asked for (see Not fixed) |
+| To-dos read | Works | Subject, notes, start, due, importance and status came down |
+| Calendar made, changed, deleted | Works | An appointment made in the window arrived on the server; changing its title, place and time and then deleting it was seen on the server after the next Send/Receive |
+| Contact made, changed, deleted | Works (fixed) | A contact made here arrived, a change to its company and title arrived, and a deletion took it from the server. A deletion first sent no request at all (it was taken for a card that couldn't be read); with that fixed it goes as one `DeleteItem` |
+| To-do made, changed, deleted | Works | A to-do made here arrived in the server's Tasks folder; a change to its due date and importance arrived, and a deletion took it away |
+| Shared calendar by address | Works | The calendar of another mailbox that gave the owner reading rights came down after Open Shared Calendar, and its events showed. Grommunio refuses `FindFolder` on the shared mailbox's top, so only its default calendar is found there (its other calendars wait for a server that lists them) |
+| Shared address book by address | Works | The address book of another mailbox that gave the owner reading rights came down as a book of its own, named after its owner; the same `FindFolder` limit applies |
+
+This table's calendar, contact and to-do rows were tried on a Grommunio container (gromox-core,
+openSUSE Leap 16, 2026-11-04) through the desktop window's control channel, with two made-up users
+and the window's own commands; the server was checked directly with `FindItem` afterwards. None of
+it has been tried against Exchange Server itself.
 
 ### How sending keeps to "never twice"
 
@@ -43,6 +65,10 @@ This does not close every window. If MailCraft is killed, or the computer loses 
 ### Not fixed
 
 - A Calendar (or Contacts, Tasks) folder taken in as a mail folder by the earlier trial build stays in the folder list as an empty stub on a delta run, until the next fresh read of the folders. It only affects accounts added with that build, which needed a testing switch to add one.
+- Grommunio's `FindItem` does not return a contact's physical addresses, even when `contacts:PhysicalAddresses` is asked for; the other fields of a contact do come. A server that returns them is read as any other field.
+- A shared mailbox's other calendars and address books are not found on Grommunio, which refuses `FindFolder` on that mailbox's top: only the default calendar and address book of a person whose folder is shared are read.
+- A recurring series is read as the occurrences the server gives and the master when its rule can be said here; whether Exchange Server and Grommunio agree on the series' time zone over a daylight-saving change has not been tried.
+- Changing a shared calendar's or address book's items needs the same editing rights Grommunio's `grant` names; only reading was tried there.
 
 ## Exchange Server 2019
 
@@ -87,3 +113,4 @@ and modern sign-in (not built), a shared mailbox, and Autodiscover from an addre
 | 2026-10-30 | major | First version: what was seen on Grommunio (#252, E8) |
 | 2026-10-30 | minor | Sending a saved draft, the Archive folder, the folder class and the log line, fixed and tried again on Grommunio |
 | 2026-10-30 | patch | Review: a draft whose make was lost is found by its marker; the log line is left out only for the pinned certificate; the "never twice" wording; one stale stub noted |
+| 2026-11-04 | minor | #252: calendars, contacts and to-dos kept in step both ways, and a person's calendar or address book opened by address; tried on a Grommunio container, including the shared folders and the limits there |

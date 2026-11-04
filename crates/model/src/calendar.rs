@@ -110,6 +110,21 @@ pub struct OpenedCalendar {
 /// Most calendars one account may have opened by address.
 pub const MAX_OPENED_CALENDARS: usize = 20;
 
+/// An address book opened by its owner's address (Open Shared Address Book), for an Exchange
+/// server account whose contacts folders can be read at another mailbox's address: the person
+/// whose book it is, and what it is called here. Kept on this computer only.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OpenedAddressBook {
+    /// The person's address: what it is read through.
+    pub address: String,
+    /// What it is called (the person's name).
+    pub name: String,
+}
+
+/// Most address books one account may have opened by address.
+pub const MAX_OPENED_ADDRESS_BOOKS: usize = 20;
+
 /// A shared mailbox open under an account whose calendar the account's server lists among the
 /// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under
 /// Shared Calendars), and what the owner said when MailCraft offered, once, to hide that copy:

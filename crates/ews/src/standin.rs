@@ -238,15 +238,35 @@ impl Default for State {
                 },
                 class: if *distinguished == "root" || *distinguished == "msgfolderroot" { String::new() } else { "IPF.Note".into() },
             })
-            .chain([Folder {
-                distinguished: "calendar".into(),
-                id: id_of(100),
-                name: "Calendar".into(),
-                total: 0,
-                unread: 0,
-                parent: id_of(1),
-                class: "IPF.Appointment".into(),
-            }])
+            .chain([
+                Folder {
+                    distinguished: "calendar".into(),
+                    id: id_of(100),
+                    name: "Calendar".into(),
+                    total: 0,
+                    unread: 0,
+                    parent: id_of(1),
+                    class: "IPF.Appointment".into(),
+                },
+                Folder {
+                    distinguished: "contacts".into(),
+                    id: id_of(101),
+                    name: "Contacts".into(),
+                    total: 0,
+                    unread: 0,
+                    parent: id_of(1),
+                    class: "IPF.Contact".into(),
+                },
+                Folder {
+                    distinguished: "tasks".into(),
+                    id: id_of(102),
+                    name: "Tasks".into(),
+                    total: 0,
+                    unread: 0,
+                    parent: id_of(1),
+                    class: "IPF.Task".into(),
+                },
+            ])
             .collect();
         Self {
             authorization: AUTHORIZATION.into(),
@@ -461,6 +481,11 @@ impl State {
         }
         match operation.name.as_str() {
             "GetFolder" => self.get_folder(operation),
+            "FindFolder" => self.find_folder(operation),
+            // (The stand-in's other `FindItem` looks for a draft by its marker, with a
+            // restriction; a directory read has none.)
+            "FindItem" if operation.child_in(MESSAGES, "Restriction").is_none() => self.find_directory_item(operation),
+            "FindItem" => self.write("FindItem", operation),
             "SyncFolderHierarchy" => self.sync_hierarchy(operation),
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
@@ -477,6 +502,148 @@ impl State {
         }
     }
 
+    /// The folders a `FindFolder` names, as the service holds them.
+    fn find_folder(&self, operation: &Node) -> Result<(u16, String, String), Refusal> {
+        Check::is(operation, MESSAGES, "FindFolder", &["Traversal"])?;
+        let traversal = Check::attribute(operation, "Traversal")?;
+        if !matches!(traversal, "Shallow" | "Deep") {
+            return Err(invalid("Traversal is Shallow or Deep"));
+        }
+        let parts = Check::children(
+            operation,
+            MESSAGES,
+            &["FolderShape", "IndexedPageFolderView", "FractionalPageFolderView", "Restriction", "ParentFolderIds"],
+        )?;
+        let shape = Check::required(operation, parts.first().copied().flatten(), "FolderShape")?;
+        Check::is(shape, MESSAGES, "FolderShape", &[])?;
+        let inside = Check::children(shape, TYPES, &["BaseShape", "AdditionalProperties"])?;
+        let base = Check::required(shape, inside.first().copied().flatten(), "BaseShape")?;
+        Check::is(base, TYPES, "BaseShape", &[])?;
+        Check::no_children(base)?;
+        if !["IdOnly", "Default", "AllProperties"].contains(&base.text.trim()) {
+            return Err(invalid("BaseShape is IdOnly, Default or AllProperties"));
+        }
+        if let Some(additional) = inside.get(1).copied().flatten() {
+            Check::is(additional, TYPES, "AdditionalProperties", &[])?;
+            Check::no_text(additional)?;
+            for field in &additional.children {
+                Check::is(field, TYPES, "FieldURI", &["FieldURI"])?;
+                Check::no_children(field)?;
+                if !matches!(Check::attribute(field, "FieldURI")?, "folder:FolderClass" | "folder:EffectiveRights") {
+                    return Err(Refusal {
+                        code: "ErrorInvalidPropertyRequest",
+                        why: "this stand-in answers the folder class and rights only".into(),
+                    });
+                }
+            }
+        }
+        let page = parts.get(1).copied().flatten();
+        let offset = page.and_then(|page| page.attribute("Offset")).and_then(|offset| offset.parse::<usize>().ok()).unwrap_or(0);
+        let max = page.and_then(|page| page.attribute("MaxEntriesReturned")).and_then(|max| max.parse::<usize>().ok()).unwrap_or(512).clamp(1, 1000);
+        let parents = Check::required(operation, parts.get(4).copied().flatten(), "ParentFolderIds")?;
+        Check::is(parents, MESSAGES, "ParentFolderIds", &[])?;
+        Check::no_text(parents)?;
+        let mut parent = None;
+        for one in &parents.children {
+            if one.is(TYPES, "DistinguishedFolderId") {
+                Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
+                Check::empty(one)?;
+                parent = self.folder(Check::attribute(one, "Id")?, true).map(|folder| folder.id.clone());
+            } else if one.is(TYPES, "FolderId") {
+                Check::is(one, TYPES, "FolderId", &["Id", "ChangeKey"])?;
+                Check::empty(one)?;
+                parent = self.folder(Check::attribute(one, "Id")?, false).map(|folder| folder.id.clone());
+            } else {
+                return Err(invalid(format!("ParentFolderIds has no place for {}", one.name)));
+            }
+        }
+        if parent.is_none() {
+            return Err(invalid("FindFolder names a folder this mailbox has not"));
+        }
+        let mut folders: Vec<&Folder> = self
+            .folders
+            .iter()
+            .filter(|folder| folder.distinguished != "root" && folder.distinguished != "msgfolderroot")
+            .filter(|folder| traversal == "Deep" || parent.as_deref() == Some(folder.parent.as_str()))
+            .skip(offset)
+            .take(max)
+            .collect();
+        let total = folders.len();
+        let mut xml = String::new();
+        for folder in folders.drain(..) {
+            xml.push_str(&format!(
+                "<t:Folder><t:FolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/><t:ParentFolderId Id=\"{}\"/><t:DisplayName>{}</t:DisplayName>\
+                 <t:FolderClass>{}</t:FolderClass><t:EffectiveRights><t:Read>true</t:Read><t:Modify>true</t:Modify></t:EffectiveRights></t:Folder>",
+                escape(&folder.id),
+                escape(&folder.parent),
+                escape(&folder.name),
+                escape(&folder.class)
+            ));
+        }
+        let message = format!(
+            "<m:FindFolderResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>\
+             <m:RootFolder IndexedPagingOffset=\"0\" TotalItemsInView=\"{total}\" IncludesLastItemInRange=\"true\"><t:Folders>{xml}</t:Folders></m:RootFolder>\
+             </m:FindFolderResponseMessage>"
+        );
+        Ok((200, "NoError".into(), response("FindFolder", &message)))
+    }
+
+    /// A `FindItem` whose folder this stand-in has no calendar, contact or to-do items in: an
+    /// empty page. (The tests of the directory run seed the answers by hand.)
+    fn find_directory_item(&self, operation: &Node) -> Result<(u16, String, String), Refusal> {
+        Check::is(operation, MESSAGES, "FindItem", &["Traversal"])?;
+        let traversal = Check::attribute(operation, "Traversal")?;
+        if !matches!(traversal, "Shallow" | "Associated") {
+            return Err(invalid("Traversal is Shallow or Associated"));
+        }
+        let parts = Check::children(
+            operation,
+            MESSAGES,
+            &[
+                "ItemShape",
+                "IndexedPageItemView",
+                "FractionalPageItemView",
+                "CalendarView",
+                "ContactsView",
+                "GroupBy",
+                "DistinguishedGroupBy",
+                "Restriction",
+                "SortOrder",
+                "ParentFolderIds",
+            ],
+        )?;
+        let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
+        Check::is(shape, MESSAGES, "ItemShape", &[])?;
+        let inside = Check::children(
+            shape,
+            TYPES,
+            &["BaseShape", "IncludeMimeContent", "BodyType", "FilterHtmlContent", "ConvertHtmlCodePageToUTF8", "AdditionalProperties"],
+        )?;
+        Check::required(shape, inside.first().copied().flatten(), "BaseShape")?;
+        if parts.get(3).copied().flatten().is_some() {
+            let view = parts.get(3).copied().flatten().unwrap_or(shape);
+            Check::is(view, MESSAGES, "CalendarView", &["StartDate", "EndDate", "MaxEntriesReturned"])?;
+            Check::attribute(view, "StartDate")?;
+            Check::attribute(view, "EndDate")?;
+        } else {
+            let page = parts.get(1).copied().flatten().or_else(|| parts.get(2).copied().flatten());
+            if let Some(page) = page {
+                Check::is(page, MESSAGES, "IndexedPageItemView", &["MaxEntriesReturned", "Offset", "BasePoint"])?;
+            }
+        }
+        let parents = parts
+            .get(9)
+            .copied()
+            .flatten()
+            .or_else(|| parts.iter().skip(1).find_map(|part| *part))
+            .ok_or_else(|| invalid("FindItem needs a ParentFolderIds"))?;
+        let _ = parents;
+        let message = "<m:FindItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>\
+                       <m:RootFolder IndexedPagingOffset=\"0\" TotalItemsInView=\"0\" IncludesLastItemInRange=\"true\"><t:Items/></m:RootFolder>\
+                       </m:FindItemResponseMessage>";
+        Ok((200, "NoError".into(), response("FindItem", message)))
+    }
+
     fn get_folder(&self, operation: &Node) -> Result<(u16, String, String), Refusal> {
         Check::is(operation, MESSAGES, "GetFolder", &[])?;
         let parts = Check::children(operation, MESSAGES, &["FolderShape", "FolderIds"])?;
@@ -490,8 +657,20 @@ impl State {
         if !["IdOnly", "Default", "AllProperties"].contains(&base) {
             return Err(invalid("BaseShape is IdOnly, Default or AllProperties"));
         }
-        if inside.get(1).copied().flatten().is_some() {
-            return Err(Refusal { code: "ErrorInvalidRequest", why: "this stand-in answers shapes without added properties only".into() });
+        let added = inside.get(1).copied().flatten();
+        if let Some(additional) = added {
+            Check::is(additional, TYPES, "AdditionalProperties", &[])?;
+            Check::no_text(additional)?;
+            for field in &additional.children {
+                Check::is(field, TYPES, "FieldURI", &["FieldURI"])?;
+                Check::no_children(field)?;
+                if !matches!(Check::attribute(field, "FieldURI")?, "folder:FolderClass" | "folder:EffectiveRights") {
+                    return Err(Refusal {
+                        code: "ErrorInvalidPropertyRequest",
+                        why: "this stand-in answers the folder class and rights only".into(),
+                    });
+                }
+            }
         }
         let ids = self.folder_ids(Check::required(operation, parts.get(1).copied().flatten(), "FolderIds")?)?;
         let skip = usize::from(self.hostile == Some(Hostile::TooFew));
@@ -503,10 +682,12 @@ impl State {
                     let mut xml = format!("<t:Folder><t:FolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/>", escape(&id));
                     if base != "IdOnly" {
                         xml.push_str(&format!(
-                            "<t:DisplayName>{}</t:DisplayName><t:TotalCount>{}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{}</t:UnreadCount>",
+                            "<t:DisplayName>{}</t:DisplayName><t:TotalCount>{}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{}</t:UnreadCount>\
+                             <t:FolderClass>{}</t:FolderClass><t:EffectiveRights><t:Read>true</t:Read><t:Modify>true</t:Modify></t:EffectiveRights>",
                             escape(&folder.name),
                             folder.total,
-                            folder.unread
+                            folder.unread,
+                            escape(&folder.class)
                         ));
                     }
                     xml.push_str("</t:Folder>");
