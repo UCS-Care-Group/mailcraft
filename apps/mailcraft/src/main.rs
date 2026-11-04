@@ -2135,13 +2135,8 @@ fn main() -> eframe::Result {
                 if after.favorites_now_graph > 0 {
                     app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
                 }
-                if after.unreadable > 0 {
-                    let again = after.unreadable;
-                    app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
-                }
-                if after.hollow > 0 {
-                    let again = after.hollow;
-                    app.status(format!("{again} messages that came back empty after a refused delete are being downloaded again."));
+                for notice in mailcraft_ui_egui::fetched_again_notices(after.unreadable, after.hollow) {
+                    app.status(notice);
                 }
                 // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
                 app.offer_setup = kept && !sample;

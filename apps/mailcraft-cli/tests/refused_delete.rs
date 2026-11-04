@@ -54,6 +54,7 @@ fn a_message_put_back_empty_is_fetched_again_when_the_cli_opens_the_mailbox_and_
     let moved = cli().args(["run", "--file", path_text, "--cmd", &format!(r#"mail.move={{"ids":[{id}],"folder":{theirs}}}"#)]).output().unwrap();
     let stderr = String::from_utf8_lossy(&moved.stderr);
     assert!(!moved.status.success(), "moved: {stderr}");
+    assert!(stderr.contains("\"Invoice 42\" isn't downloaded yet"), "{stderr}");
     assert!(!stderr.contains("panicked"), "{stderr}");
     // And it is saved so.
     let out = dir.join("out.mailcraft");
