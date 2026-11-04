@@ -284,6 +284,11 @@ impl MailApp {
         // (A token the server refused part-way, after it was renewed, is tried again after a wait.)
         let mut worked = result.covered.is_some() && !result.sign_in_refused;
         if let Some(uploaded) = &result.uploaded {
+            // A change the server couldn't take now (busy, or changed there meanwhile) goes again
+            // after the wait, as a job that came to nothing does.
+            if uploaded.outcomes.iter().any(|o| o.result == mailcraft_model::remote::CategoryResult::Failed) {
+                worked = false;
+            }
             match self.session.mailbox.account(account).cloned() {
                 Some(owner) => match categories_remote::apply_category_changes(&mut self.session, &uploaded.clone().for_account(&owner)) {
                     Ok(said) => errors.extend(said),

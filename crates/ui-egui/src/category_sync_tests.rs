@@ -401,3 +401,34 @@ fn the_one_question_put_or_turned_down_goes_with_the_mailbox_it_was_for() {
     app.drop_secrets_if_replaced();
     assert!(app.sync_asking.is_empty() && app.sync_declined.is_empty());
 }
+
+#[test]
+fn a_change_the_server_was_too_busy_for_is_tried_again_after_a_wait() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    let green = OUTLOOK_COLORS[4].hex();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": green})).unwrap();
+    let at = 60_000.0;
+    assert!(!app.categories_tick_at(at));
+    // Microsoft Graph said "busy" (429) for the change.
+    let busy = CategoryOutcome {
+        kind: CategoryChangeKind::Create,
+        name: "Travel".into(),
+        color: OUTLOOK_COLORS[4],
+        result: CategoryResult::Failed,
+        error: "Microsoft Graph is busy or the category changed there meanwhile".into(),
+        found: false,
+    };
+    let mut answer = covered(owner, &["Red category"]);
+    answer.uploaded = Some(CategoriesUploaded { account: owner, outcomes: vec![busy], ..Default::default() });
+    answers.lock().unwrap().push_back(answer);
+    assert!(app.categories_tick_at(at + 5_000.0));
+    app.poll_categories();
+    assert_eq!(mailcraft_engine::cmd::categories_remote::categories_waiting(&app.session, owner), 1, "still to go");
+    assert!(!app.categories_tick_at(at + 9_000.0), "not again a moment later");
+    assert!(!app.categories_tick_at(at + 20_000.0));
+    assert!(app.categories_tick_at(at + 5_000.0 + 31_000.0), "after the wait");
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+}
