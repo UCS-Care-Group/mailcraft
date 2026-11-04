@@ -56,27 +56,34 @@ pub enum Cap {
     Subnodes,
     DataBlocks,
     NamedProperties,
-    TableRows,
+    /// [`Limits::max_listing_bytes`]: what one folder walk or one listing may read.
+    ListingSize,
+    /// [`Limits::max_embedded_messages`]: attached messages read under one item.
+    EmbeddedMessages,
+    /// [`Limits::read_multiple`]: more read from the file, in all, than its size allows for.
+    TotalRead,
 }
 
 impl fmt::Display for Cap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let what = match self {
-            Cap::FileSize => "the file is larger than the cap (100 GB)",
-            Cap::Items => "more items than the cap (2,000,000)",
-            Cap::Folders => "more folders than the cap (10,000)",
-            Cap::FolderDepth => "folders nested deeper than the cap (64)",
-            Cap::ItemSize => "an item larger than the cap (256 MB)",
-            Cap::AttachmentSize => "an attachment larger than the cap (150 MB)",
-            Cap::Recipients => "more recipients than the cap (1,000)",
-            Cap::Attachments => "more attachments than the cap (1,000)",
-            Cap::EmbeddedDepth => "messages attached deeper than the cap (8)",
+            Cap::FileSize => "the file is larger than the cap",
+            Cap::Items => "more items than the cap",
+            Cap::Folders => "more folders than the cap",
+            Cap::FolderDepth => "folders nested deeper than the cap",
+            Cap::ItemSize => "an item larger than the cap",
+            Cap::AttachmentSize => "an attachment larger than the cap",
+            Cap::Recipients => "more recipients than the cap",
+            Cap::Attachments => "more attachments than the cap",
+            Cap::EmbeddedDepth => "messages attached deeper than the cap",
             Cap::BTreeDepth => "a tree deeper than the format allows",
             Cap::BTreePages => "a tree with more pages than the cap",
             Cap::Subnodes => "an item with more parts than the cap",
             Cap::DataBlocks => "data spread over more blocks than its size needs",
-            Cap::NamedProperties => "more named properties than the format allows",
-            Cap::TableRows => "a table with more rows than the cap",
+            Cap::NamedProperties => "a named property's name, or all of them, longer than the cap",
+            Cap::ListingSize => "a folder list or a list of items larger than the cap",
+            Cap::EmbeddedMessages => "more attached messages under one item than the cap",
+            Cap::TotalRead => "more read from the file than its size allows for",
         };
         f.write_str(what)
     }
@@ -87,6 +94,8 @@ impl fmt::Display for Error {
         match self {
             Error::Io(kind) => write!(f, "the file could not be read ({kind})"),
             Error::NotPst => f.write_str("not a .pst file"),
+            Error::UnsupportedVersion(36) => f.write_str("an offline folders file (.ost) with 4 KB pages, not supported (version 36)"),
+            Error::UnsupportedVersion(37) => f.write_str("a file protected by Windows Information Protection, not supported (version 37)"),
             Error::UnsupportedVersion(v) => write!(f, "a .pst file of a version not supported ({v})"),
             Error::UnsupportedEncryption(m) => write!(f, "the file's data is encoded in a way not supported ({m:#04x})"),
             Error::BadChecksum(what) => write!(f, "damaged file: {what} doesn't match its checksum"),
@@ -118,7 +127,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The caps, checked before anything is read or allocated. [`Limits::default`] is the import's
 /// (the file at most 100 GB, 2,000,000 items, 10,000 folders nested at most 64 deep, 256 MB an
 /// item, 150 MB an attachment, 1,000 recipients and 1,000 attachments an item, attached
-/// messages at most 8 deep); lower ones serve tests.
+/// messages at most 8 deep, 10,000 of them under one item; a folder walk or a listing at most
+/// 1 GB; at most 64 times the file's size plus 256 MB read in all); lower ones serve tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Limits {
     pub max_file_size: u64,
@@ -140,6 +150,17 @@ pub struct Limits {
     /// A property value larger than this is not read with the rest ([`crate::PropValue::Large`])
     /// and is read on its own ([`crate::Pst::read_property`]).
     pub max_inline_value: u64,
+    /// All that one [`crate::Pst::walk_folders`] or one listing of a folder's items may read
+    /// and keep (tables and values together).
+    pub max_listing_bytes: u64,
+    /// A value larger than this in a folder walk or an item list is [`crate::PropValue::Large`].
+    pub max_summary_value: u64,
+    /// Attached messages read under one item, at every depth together.
+    pub max_embedded_messages: usize,
+    /// All that may be read from the file while it is open: this many times its size, plus
+    /// [`Limits::read_floor`], so that the work stays in proportion to the file.
+    pub read_multiple: u64,
+    pub read_floor: u64,
 }
 
 impl Default for Limits {
@@ -157,6 +178,11 @@ impl Default for Limits {
             max_btree_pages: 4_000_000,
             max_subnodes: 200_000,
             max_inline_value: 4 * 1024 * 1024,
+            max_listing_bytes: 1024 * 1024 * 1024,
+            max_summary_value: 64 * 1024,
+            max_embedded_messages: 10_000,
+            read_multiple: 64,
+            read_floor: 256 * 1024 * 1024,
         }
     }
 }

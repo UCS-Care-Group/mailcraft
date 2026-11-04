@@ -20,22 +20,32 @@ pub(crate) struct NodeData {
     pub subnodes: Subnodes,
 }
 
-/// How much more of an item may be read at once ([`crate::Limits::max_item_bytes`]).
+/// How much more one call may read and keep: every node it loads, every table block and
+/// every value, charged as read (so a value named twice costs twice). Past it, `cap`.
 pub(crate) struct Budget {
     pub left: u64,
+    /// A value larger than this is not read but left as [`PropValue::Large`].
+    pub inline: u64,
+    pub cap: Cap,
 }
 
 impl Budget {
+    pub(crate) fn new(left: u64, inline: u64, cap: Cap) -> Budget {
+        Budget { left, inline, cap }
+    }
+
     pub(crate) fn take(&mut self, n: u64) -> Result<()> {
-        self.left = self.left.checked_sub(n).ok_or(Error::Cap(Cap::ItemSize))?;
+        self.left = self.left.checked_sub(n).ok_or(Error::Cap(self.cap))?;
         Ok(())
     }
 }
 
 impl NodeData {
-    pub(crate) fn load<R: Read + Seek>(ndb: &mut Ndb<R>, data: u64, sub: u64) -> Result<NodeData> {
-        let max = ndb.limits.max_item_bytes;
-        let pieces = ndb.read_pieces(data, max, Cap::ItemSize)?;
+    /// A node's heap and subnodes, charged to `budget`.
+    pub(crate) fn load<R: Read + Seek>(ndb: &mut Ndb<R>, data: u64, sub: u64, budget: &mut Budget) -> Result<NodeData> {
+        let max = ndb.limits.max_item_bytes.min(budget.left);
+        let pieces = ndb.read_pieces(data, max, budget.cap)?;
+        budget.take(pieces.iter().map(|p| p.len() as u64).sum())?;
         let heap = Heap::new(pieces)?;
         let subnodes = ndb.subnodes(sub)?;
         Ok(NodeData { heap, subnodes })
@@ -70,24 +80,24 @@ impl NodeData {
 
     /// A value stored apart: read when small enough, else [`PropValue::Large`].
     fn apart<R: Read + Seek>(&self, ndb: &mut Ndb<R>, ty: u16, hnid: u32, budget: &mut Budget) -> Result<PropValue> {
-        let inline = ndb.limits.max_inline_value;
+        let inline = budget.inline;
         let size = self.hnid_len(ndb, hnid)?;
         if size > inline {
             return Ok(PropValue::Large { size });
         }
         budget.take(size)?;
-        let b = self.hnid_bytes(ndb, hnid, inline, Cap::ItemSize)?;
+        let b = self.hnid_bytes(ndb, hnid, inline, budget.cap)?;
         prop::stored(ty, &b)
     }
 }
 
-/// A value that failed to read becomes [`PropValue::Unknown`] with nothing in it, so that one
+/// A value that failed to read becomes [`PropValue::Damaged`] with its reason, so that one
 /// damaged property doesn't cost the rest; a cap is passed on.
 fn salvage(ty: u16, r: Result<PropValue>) -> Result<PropValue> {
     match r {
         Ok(v) => Ok(v),
         Err(e @ Error::Cap(_)) => Err(e),
-        Err(_) => Ok(PropValue::Unknown { ty, data: Vec::new() }),
+        Err(reason) => Ok(PropValue::Damaged { ty, reason }),
     }
 }
 
@@ -233,7 +243,7 @@ impl Table {
     }
 
     /// The bytes of the row at `index` in the row matrix.
-    fn row_bytes<R: Read + Seek>(&mut self, ndb: &mut Ndb<R>, index: u32) -> Result<Vec<u8>> {
+    fn row_bytes<R: Read + Seek>(&mut self, ndb: &mut Ndb<R>, index: u32, budget: &mut Budget) -> Result<Vec<u8>> {
         let index = index as usize;
         let size = self.row_size;
         match &mut self.matrix {
@@ -248,7 +258,9 @@ impl Table {
                     if is_internal(bid) {
                         return Err(Error::Corrupt("a table row in an internal block"));
                     }
-                    *cached = Some((block, ndb.block(bid)?));
+                    let b = ndb.block(bid)?;
+                    budget.take(b.len() as u64)?;
+                    *cached = Some((block, b));
                 }
                 let data = cached.as_ref().map(|(_, d)| d.as_slice()).unwrap_or(&[]);
                 Ok(slice(data, within.saturating_mul(size), size)?.to_vec())
@@ -259,7 +271,7 @@ impl Table {
     /// The row with row id `id` at `index`: its cells, those that exist. Values larger than the
     /// inline cap come back as [`PropValue::Large`].
     pub(crate) fn row<R: Read + Seek>(&mut self, ndb: &mut Ndb<R>, id: u32, index: u32, budget: &mut Budget) -> Result<Properties> {
-        let row = self.row_bytes(ndb, index)?;
+        let row = self.row_bytes(ndb, index, budget)?;
         if u32_at(&row, 0)? != id {
             return Err(Error::Corrupt("a table row under another row's id"));
         }

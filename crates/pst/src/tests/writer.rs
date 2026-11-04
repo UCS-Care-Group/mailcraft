@@ -24,6 +24,15 @@ use crate::prop::types::*;
 pub enum Data {
     Blocks(Vec<Vec<u8>>),
     Stream(Vec<u8>),
+    /// A block id given as it is, for nothing written (to name another node's data).
+    Bid(u64),
+    /// One data block named `times` times by an XBLOCK, and (with `levels` 2) that XBLOCK
+    /// named `times` times by an XXBLOCK: a data tree that reads one block over and over.
+    Repeated {
+        piece: Vec<u8>,
+        times: usize,
+        levels: u8,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -31,6 +40,16 @@ pub struct SubNode {
     pub nid: u32,
     pub data: Data,
     pub subnodes: Vec<SubNode>,
+}
+
+/// Marks a subnode's own subnode tree as a block id given as it is ([`SubNode::with_sub_bid`]).
+const SUB_BID: u32 = u32::MAX;
+
+impl SubNode {
+    /// A subnode whose data and subnode tree are the block ids given, for nothing written.
+    pub fn with_sub_bid(nid: u32, data: u64, sub: u64) -> SubNode {
+        SubNode { nid, data: Data::Bid(data), subnodes: vec![SubNode { nid: SUB_BID, data: Data::Bid(sub), subnodes: Vec::new() }] }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +79,10 @@ pub struct Layout {
     pub bth_leaf: usize,
     /// Store a table's rows in a subnode even when they would fit the heap.
     pub rows_in_subnode: bool,
+    /// Set the reserved bit A (bit 0) of every block id where a block is referred to (the
+    /// B-trees, data and subnode trees), or in each block's own trailer.
+    pub bit_a_in_references: bool,
+    pub bit_a_in_trailers: bool,
 }
 
 impl Layout {
@@ -75,6 +98,8 @@ impl Layout {
             heap_block: 3800,
             bth_leaf: 400,
             rows_in_subnode: false,
+            bit_a_in_references: false,
+            bit_a_in_trailers: false,
         }
     }
 
@@ -113,6 +138,11 @@ impl Ndb {
         Ndb { layout, out: vec![0; 0x4400], next_block: 1, next_page: 1, blocks: Vec::new() }
     }
 
+    /// A block id as it is written where the block is referred to.
+    fn r(&self, bid: u64) -> u64 {
+        if self.layout.bit_a_in_references && bid != 0 { bid | 1 } else { bid }
+    }
+
     fn align(&mut self, to: usize) {
         while !self.out.len().is_multiple_of(to) {
             self.out.push(0);
@@ -132,18 +162,19 @@ impl Ndb {
         let ts = f.trailer_size();
         let total = (stored.len() + ts).div_ceil(64) * 64;
         assert!(total <= 8192, "block too large");
+        let own = if self.layout.bit_a_in_trailers { bid | 1 } else { bid };
         let mut b = stored.clone();
         b.resize(total - ts, 0xAB);
         b.extend_from_slice(&(stored.len() as u16).to_le_bytes());
-        b.extend_from_slice(&signature(ib, bid).to_le_bytes());
+        b.extend_from_slice(&signature(ib, own).to_le_bytes());
         let crc = crc32(&stored);
         match f {
             Format::Unicode => {
                 b.extend_from_slice(&crc.to_le_bytes());
-                b.extend_from_slice(&bid.to_le_bytes());
+                b.extend_from_slice(&own.to_le_bytes());
             }
             Format::Ansi => {
-                b.extend_from_slice(&(bid as u32).to_le_bytes());
+                b.extend_from_slice(&(own as u32).to_le_bytes());
                 b.extend_from_slice(&crc.to_le_bytes());
             }
         }
@@ -154,6 +185,28 @@ impl Ndb {
 
     fn stream(&mut self, data: &Data) -> u64 {
         let pieces: Vec<Vec<u8>> = match data {
+            Data::Bid(bid) => return *bid,
+            Data::Repeated { piece, times, levels } => {
+                let f = self.layout.format;
+                let one = self.block(piece, false);
+                let mut x = vec![1u8, 1];
+                x.extend_from_slice(&(*times as u16).to_le_bytes());
+                x.extend_from_slice(&((piece.len() * times) as u32).to_le_bytes());
+                for _ in 0..*times {
+                    put_id(&mut x, f, self.r(one));
+                }
+                let xb = self.block(&x, true);
+                if *levels < 2 {
+                    return xb;
+                }
+                let mut xx = vec![1u8, 2];
+                xx.extend_from_slice(&(*times as u16).to_le_bytes());
+                xx.extend_from_slice(&((piece.len() * times * times) as u32).to_le_bytes());
+                for _ in 0..*times {
+                    put_id(&mut xx, f, self.r(xb));
+                }
+                return self.block(&xx, true);
+            }
             Data::Blocks(b) => b.clone(),
             Data::Stream(s) if s.is_empty() => vec![Vec::new()],
             Data::Stream(s) => s.chunks(self.layout.block_data).map(<[u8]>::to_vec).collect(),
@@ -171,7 +224,7 @@ impl Ndb {
             x.extend_from_slice(&(ids.len() as u16).to_le_bytes());
             x.extend_from_slice(&(total as u32).to_le_bytes());
             for id in ids {
-                put_id(&mut x, f, id);
+                put_id(&mut x, f, self.r(id));
             }
             xblocks.push((self.block(&x, true), total));
         }
@@ -184,7 +237,7 @@ impl Ndb {
         xx.extend_from_slice(&(xblocks.len() as u16).to_le_bytes());
         xx.extend_from_slice(&(total as u32).to_le_bytes());
         for (id, _) in xblocks {
-            put_id(&mut xx, f, id);
+            put_id(&mut xx, f, self.r(id));
         }
         self.block(&xx, true)
     }
@@ -194,7 +247,16 @@ impl Ndb {
             return 0;
         }
         let f = self.layout.format;
-        let mut entries: Vec<(u32, u64, u64)> = subs.iter().map(|s| (s.nid, self.stream(&s.data), self.subnodes(&s.subnodes))).collect();
+        let mut entries: Vec<(u32, u64, u64)> = subs
+            .iter()
+            .map(|s| {
+                let sub = match s.subnodes.as_slice() {
+                    [SubNode { nid: SUB_BID, data: Data::Bid(bid), .. }] => *bid,
+                    other => self.subnodes(other),
+                };
+                (s.nid, self.stream(&s.data), sub)
+            })
+            .collect();
         entries.sort_by_key(|e| e.0);
         let head = |level: u8, n: usize| -> Vec<u8> {
             let mut b = vec![2u8, level];
@@ -209,8 +271,8 @@ impl Ndb {
             let mut b = head(0, group.len());
             for &(nid, data, sub) in group {
                 put_id(&mut b, f, u64::from(nid));
-                put_id(&mut b, f, data);
-                put_id(&mut b, f, sub);
+                put_id(&mut b, f, self.r(data));
+                put_id(&mut b, f, self.r(sub));
             }
             leaves.push((group[0].0, self.block(&b, true)));
         }
@@ -220,7 +282,7 @@ impl Ndb {
         let mut b = head(1, leaves.len());
         for (nid, bid) in leaves {
             put_id(&mut b, f, u64::from(nid));
-            put_id(&mut b, f, bid);
+            put_id(&mut b, f, self.r(bid));
         }
         self.block(&b, true)
     }
@@ -303,8 +365,8 @@ impl Ndb {
             let sub = self.subnodes(&n.subnodes);
             let mut e = Vec::new();
             put_id(&mut e, f, u64::from(n.nid));
-            put_id(&mut e, f, data);
-            put_id(&mut e, f, sub);
+            put_id(&mut e, f, self.r(data));
+            put_id(&mut e, f, self.r(sub));
             e.extend_from_slice(&n.parent.to_le_bytes());
             nbt.push((u64::from(n.nid), e));
         }
@@ -314,7 +376,7 @@ impl Ndb {
             .iter()
             .map(|&(bid, ib, cb)| {
                 let mut e = Vec::new();
-                put_id(&mut e, f, bid);
+                put_id(&mut e, f, self.r(bid));
                 put_id(&mut e, f, ib);
                 e.extend_from_slice(&cb.to_le_bytes());
                 e.extend_from_slice(&2u16.to_le_bytes());
@@ -500,6 +562,22 @@ pub struct Value {
     pub bytes: Vec<u8>,
 }
 
+/// What [`hnid_ref`] puts before the HNID.
+const HNID_REF: &[u8; 8] = b"\xFFHNIDREF";
+
+/// A variable-size value whose record names `hnid` as it is (an HNID another record names
+/// too, or one that names nothing).
+pub fn hnid_ref(ty: u16, hnid: u32) -> Value {
+    let mut bytes = HNID_REF.to_vec();
+    bytes.extend_from_slice(&hnid.to_le_bytes());
+    Value { ty, bytes }
+}
+
+fn as_ref(v: &Value) -> Option<u32> {
+    let rest = v.bytes.strip_prefix(HNID_REF)?;
+    Some(u32::from_le_bytes(rest.try_into().ok()?))
+}
+
 pub fn int32(v: i32) -> Value {
     Value { ty: INT32, bytes: v.to_le_bytes().to_vec() }
 }
@@ -563,7 +641,7 @@ pub fn pc(layout: &Layout, props: &[(u16, Value)], spill: &mut Spill) -> Vec<Vec
             }
             Some(_) => heap.alloc(v.bytes.clone()),
             None if v.ty == OBJECT => heap.alloc(v.bytes.clone()),
-            None => hnid(&mut heap, spill, &v.bytes),
+            None => as_ref(v).unwrap_or_else(|| hnid(&mut heap, spill, &v.bytes)),
         };
         let mut r = id.to_le_bytes().to_vec();
         r.extend_from_slice(&v.ty.to_le_bytes());
@@ -628,7 +706,7 @@ pub fn tc(layout: &Layout, columns: &[u32], rows: &[(u32, Vec<(u32, Value)>)]) -
                     row[off..off + w].copy_from_slice(&b);
                 }
                 _ => {
-                    let h = hnid(&mut heap, &mut spill, &v.bytes);
+                    let h = as_ref(v).unwrap_or_else(|| hnid(&mut heap, &mut spill, &v.bytes));
                     row[off..off + 4].copy_from_slice(&h.to_le_bytes());
                 }
             }
@@ -705,8 +783,14 @@ pub struct MessageSpec {
 
 #[derive(Clone, Debug)]
 pub enum AttachSpec {
-    File { name: String, mime: String, data: Vec<u8> },
+    File {
+        name: String,
+        mime: String,
+        data: Vec<u8>,
+    },
     Message(Box<MessageSpec>),
+    /// An attached message (method 5) whose object is this subnode, as it is.
+    Object(SubNode),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -721,6 +805,9 @@ pub struct FolderSpec {
 pub struct FileSpec {
     pub layout: Layout,
     pub password: Option<String>,
+    /// The password's CRC taken of its Windows-1252 bytes (its characters as bytes) rather
+    /// than its UTF-8.
+    pub password_ansi: bool,
     pub name: String,
     pub folders: Vec<FolderSpec>,
     /// Named properties: (property set, numeric name).
@@ -847,12 +934,20 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
                     ];
                     (props, size, 5)
                 }
+                AttachSpec::Object(object) => {
+                    aspill.subnodes.push(object.clone());
+                    let mut obj = object.nid.to_le_bytes().to_vec();
+                    obj.extend_from_slice(&0u32.to_le_bytes());
+                    let props = vec![(0x3705, int32(5)), (0x3704, text(l, "object")), (0x3701, Value { ty: OBJECT, bytes: obj })];
+                    (props, 0, 5)
+                }
             };
             let ablocks = pc(l, &aprops, &mut aspill);
             subs.push(SubNode { nid, data: Data::Blocks(ablocks), subnodes: aspill.subnodes });
             let name = match a {
                 AttachSpec::File { name, .. } => name.clone(),
                 AttachSpec::Message(inner) => inner.subject.clone(),
+                AttachSpec::Object(_) => "object".into(),
             };
             arows.push((
                 nid,
@@ -990,7 +1085,8 @@ pub fn nodes(spec: &FileSpec) -> Vec<Node> {
         (0x35E7, binary(&entry_id(SEARCH_ROOT))),
     ];
     if let Some(p) = &spec.password {
-        store.push((0x67FF, int32(crc32(p.as_bytes()) as i32)));
+        let bytes: Vec<u8> = if spec.password_ansi { p.chars().map(|c| c as u8).collect() } else { p.as_bytes().to_vec() };
+        store.push((0x67FF, int32(crc32(&bytes) as i32)));
     }
     let mut spill = Spill::new();
     let blocks = pc(l, &store, &mut spill);

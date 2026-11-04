@@ -20,6 +20,11 @@ pub const PS_PUBLIC_STRINGS: [u8; 16] = [0x29, 0x03, 0x02, 0x00, 0x00, 0x00, 0x0
 /// The ids 0x8000 to 0xFFFF.
 const MAX_ENTRIES: usize = 0x8000;
 const MAX_STRINGS: u64 = 16 * 1024 * 1024;
+/// One name, as stored (UTF-16): longer ones are left out.
+pub(crate) const MAX_NAME: usize = 1024;
+/// All names together, as stored: each entry may name the same string, so this is counted per
+/// entry and not per string.
+pub(crate) const MAX_NAMES: usize = 4 * 1024 * 1024;
 
 /// A named property's name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +46,7 @@ pub struct NamedProperty {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedMap {
     map: BTreeMap<u16, NamedProperty>,
+    left_out: Vec<(u16, Error)>,
 }
 
 impl NamedMap {
@@ -64,13 +70,18 @@ impl NamedMap {
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
+
+    /// The ids whose names were left out (damaged, or past a cap), and why.
+    pub fn left_out(&self) -> &[(u16, Error)] {
+        &self.left_out
+    }
 }
 
 pub(crate) fn read<R: Read + Seek>(ndb: &mut Ndb<R>, node: &NodeData) -> Result<NamedMap> {
     let mut guids = Vec::new();
     let mut entries = Vec::new();
     let mut strings = Vec::new();
-    let mut budget = Budget { left: ndb.limits.max_item_bytes };
+    let mut budget = Budget::new(ndb.limits.max_item_bytes, MAX_STRINGS, Cap::NamedProperties);
     for (id, ty, raw) in pc_records(node)? {
         if ty != crate::prop::types::BINARY {
             continue;
@@ -90,28 +101,42 @@ pub(crate) fn read<R: Read + Seek>(ndb: &mut Ndb<R>, node: &NodeData) -> Result<
         }
     }
     let mut map = BTreeMap::new();
+    let mut left_out = Vec::new();
+    let mut names = 0usize;
     for e in entries.as_chunks::<8>().0 {
         let value = u32_at(e, 0)?;
         let flags = u16_at(e, 4)?;
         let index = u16_at(e, 6)?;
-        let is_string = flags & 1 != 0;
-        let guid = match flags >> 1 {
-            0 => [0u8; 16],
-            1 => PS_MAPI,
-            2 => PS_PUBLIC_STRINGS,
-            n => array16(&guids, usize::from(n.saturating_sub(3)).saturating_mul(16))?,
-        };
-        let name = if is_string {
-            let at = value as usize;
-            let len = u32_at(&strings, at)? as usize;
-            PropName::Name(utf16(slice(&strings, at.saturating_add(4), len)?))
-        } else {
-            PropName::Id(value)
-        };
         let Some(id) = 0x8000u16.checked_add(index) else {
-            return Err(Error::Cap(Cap::NamedProperties));
+            return Err(Error::Corrupt("a named property's index"));
         };
-        map.entry(id).or_insert(NamedProperty { id, guid, name });
+        let is_string = flags & 1 != 0;
+        let name = || -> Result<(NamedProperty, usize)> {
+            let guid = match flags >> 1 {
+                0 => [0u8; 16],
+                1 => PS_MAPI,
+                2 => PS_PUBLIC_STRINGS,
+                n => array16(&guids, usize::from(n.saturating_sub(3)).saturating_mul(16))?,
+            };
+            let name = if is_string {
+                let at = value as usize;
+                let len = u32_at(&strings, at)? as usize;
+                if len > MAX_NAME || names.saturating_add(len) > MAX_NAMES {
+                    return Err(Error::Cap(Cap::NamedProperties));
+                }
+                (PropName::Name(utf16(slice(&strings, at.saturating_add(4), len)?)), len)
+            } else {
+                (PropName::Id(value), 0)
+            };
+            Ok((NamedProperty { id, guid, name: name.0 }, name.1))
+        };
+        match name() {
+            Ok((p, stored)) => {
+                names = names.saturating_add(stored);
+                map.entry(id).or_insert(p);
+            }
+            Err(reason) => left_out.push((id, reason)),
+        }
     }
-    Ok(NamedMap { map })
+    Ok(NamedMap { map, left_out })
 }

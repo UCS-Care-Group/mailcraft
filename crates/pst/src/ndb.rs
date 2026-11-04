@@ -111,7 +111,7 @@ impl<R: Read + Seek> Ndb<R> {
             return Err(Error::BadChecksum("a B-tree page"));
         }
         let bid = f.read_id(&data, bid_at)?;
-        if bid != bref.bid || u16_at(&data, t.saturating_add(2))? != signature(bref.ib, bid) {
+        if key(bid) != key(bref.bid) || u16_at(&data, t.saturating_add(2))? != signature(bref.ib, bid) {
             return Err(Error::BadChecksum("a B-tree page's id"));
         }
         let (area, meta) = match f {
@@ -228,7 +228,9 @@ impl<R: Read + Seek> Ndb<R> {
         }
         raw.truncate(cb);
         if !is_internal(bid) {
-            decode(self.header.encryption, &mut raw, stored_bid);
+            // The key of cyclic encoding is the block's id without the reserved bit A, which
+            // a file may set on a reference or on the trailer alone.
+            decode(self.header.encryption, &mut raw, key(stored_bid));
         }
         Ok(raw)
     }
@@ -280,9 +282,13 @@ impl<R: Read + Seek> Ndb<R> {
             (0..n).map(|i| f.read_id(b, i.saturating_mul(id).saturating_add(8))).collect()
         };
         let mut out = Vec::new();
+        // A block named twice in one data tree would be read twice: refused.
+        let mut seen = HashSet::new();
+        let mut once = |bid: u64| if seen.insert(key(bid)) { Ok(()) } else { Err(Error::Cycle("a data tree")) };
         match level {
             1 => {
                 for child in ids(&top)? {
+                    once(child)?;
                     if is_internal(child) {
                         return Err(Error::Corrupt("an XBLOCK pointing at an internal block"));
                     }
@@ -291,6 +297,7 @@ impl<R: Read + Seek> Ndb<R> {
             }
             2 => {
                 for child in ids(&top)? {
+                    once(child)?;
                     if !is_internal(child) {
                         return Err(Error::Corrupt("an XXBLOCK pointing at a data block"));
                     }
@@ -299,6 +306,7 @@ impl<R: Read + Seek> Ndb<R> {
                         return Err(Error::Corrupt("an XXBLOCK pointing at something else than an XBLOCK"));
                     }
                     for grandchild in ids(&x)? {
+                        once(grandchild)?;
                         if is_internal(grandchild) {
                             return Err(Error::Corrupt("an XBLOCK pointing at an internal block"));
                         }

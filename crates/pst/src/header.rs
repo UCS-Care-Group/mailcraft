@@ -73,7 +73,9 @@ impl Header {
         let version = u16_at(b, 10)?;
         let format = match version {
             14 | 15 => Format::Ansi,
-            v if v >= 23 => Format::Unicode,
+            // 36 is an offline folders file with 4 KB pages, 37 one protected by Windows
+            // Information Protection: neither is read.
+            23..=35 => Format::Unicode,
             v => return Err(Error::UnsupportedVersion(v)),
         };
         // dwCRCPartial: the 471 bytes from wMagicClient.

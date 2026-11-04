@@ -4,7 +4,9 @@
 //! invented people at `example.org`, or is a sample printed in [MS-PST]; none was made by
 //! Outlook, and none is a real archive.
 
+mod accounting;
 mod caps;
+mod cost;
 mod hostile;
 mod properties;
 mod roundtrip;
@@ -59,6 +61,7 @@ pub fn sample(layout: Layout, password: Option<&str>) -> FileSpec {
     FileSpec {
         layout,
         password: password.map(str::to_string),
+        password_ansi: false,
         name: "Personal Folders".into(),
         folders: vec![
             FolderSpec {
@@ -130,4 +133,11 @@ pub fn exercise(bytes: &[u8], limits: Limits) -> usize {
         }
     }
     seen
+}
+
+/// The first item of the folder named Inbox.
+pub fn first_item(pst: &mut Pst<Cursor<&[u8]>>) -> crate::Nid {
+    let walk = pst.walk_folders().unwrap();
+    let inbox = walk.folders.iter().find(|f| f.folder.name == "Inbox").unwrap().folder.id;
+    pst.items(inbox).unwrap().items[0].id
 }

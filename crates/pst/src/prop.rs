@@ -83,6 +83,12 @@ pub enum PropValue {
         ty: u16,
         data: Vec<u8>,
     },
+    /// A value that could not be read, and why: kept in its place so that it is accounted for,
+    /// and named in the `left_out` of whatever holds it.
+    Damaged {
+        ty: u16,
+        reason: crate::Error,
+    },
 }
 
 /// One property of an object.
@@ -121,14 +127,24 @@ impl Properties {
         self.0.is_empty()
     }
 
-    /// A text property (Unicode, or 8-bit read as Latin-1 when that is all there is; callers who
-    /// know the code page decode [`PropValue::String8`] themselves).
+    /// A text property: Unicode, or 8-bit text read as Latin-1. Latin-1 is right only for
+    /// part of the code pages an ANSI file may use; the import decodes [`PropValue::String8`]
+    /// with the item's own code page (`PidTagMessageCodepage`, `PidTagInternetCodepage`)
+    /// instead of calling this.
     pub fn text(&self, id: u16) -> Option<String> {
         match self.get(id)? {
             PropValue::String(s) => Some(s.clone()),
             PropValue::String8(b) => Some(b.iter().map(|&c| char::from(c)).collect()),
             _ => None,
         }
+    }
+
+    /// The properties that could not be read ([`PropValue::Damaged`]): id and reason.
+    pub fn damaged(&self) -> impl Iterator<Item = (u16, &crate::Error)> {
+        self.0.iter().filter_map(|p| match &p.value {
+            PropValue::Damaged { reason, .. } => Some((p.id, reason)),
+            _ => None,
+        })
     }
 
     pub fn int(&self, id: u16) -> Option<i64> {

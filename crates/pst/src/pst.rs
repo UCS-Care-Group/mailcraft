@@ -141,15 +141,29 @@ pub struct FolderEntry {
 pub struct LeftOut {
     pub id: Nid,
     pub parent: Option<Nid>,
+    /// The one property left out of the folder or item, when that is what was.
+    pub property: Option<u16>,
     pub reason: Error,
+}
+
+impl LeftOut {
+    fn new(id: Nid, parent: Option<Nid>, reason: Error) -> LeftOut {
+        LeftOut { id, parent, property: None, reason }
+    }
+
+    /// One for each damaged property of `properties`.
+    fn damaged(id: Nid, parent: Option<Nid>, properties: &Properties) -> impl Iterator<Item = LeftOut> + '_ {
+        properties.damaged().map(move |(p, reason)| LeftOut { id, parent, property: Some(p), reason: reason.clone() })
+    }
 }
 
 /// Every folder of the file, parents before children.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FolderTree {
     pub folders: Vec<FolderEntry>,
-    /// Folders that could not be read (with their subfolders), or past a cap. A folder whose
-    /// subfolders were left out for a cap is named with that cap.
+    /// Folders that could not be read (with their subfolders), or past a cap, and folders'
+    /// properties that could not be read. A folder whose subfolders were left out for a cap is
+    /// named with that cap.
     pub left_out: Vec<LeftOut>,
 }
 
@@ -158,7 +172,9 @@ pub struct FolderTree {
 pub struct ItemSummary {
     pub id: Nid,
     pub class: Option<String>,
-    /// The table's columns for it (subject, flags, times…); empty when the row was damaged.
+    /// The table's columns for it (subject, flags, times…); empty when the row could not be
+    /// read (and then named in [`ItemList::left_out`]). A value larger than
+    /// [`Limits::max_summary_value`] is [`PropValue::Large`].
     pub properties: Properties,
 }
 
@@ -166,8 +182,9 @@ pub struct ItemSummary {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ItemList {
     pub items: Vec<ItemSummary>,
-    /// Items past [`Limits::max_items`] (counted across the folders listed so far), not listed.
-    pub left_out: usize,
+    /// Items past [`Limits::max_items`] (counted across the folders listed so far), not listed;
+    /// and items whose row, or a property of it, could not be read (listed all the same).
+    pub left_out: Vec<LeftOut>,
 }
 
 /// Where a message is: a folder's item, or attached to one (through its attachments).
@@ -281,6 +298,12 @@ pub enum Part {
     Attachment { id: Nid },
     /// The attachment table as a whole.
     AttachmentTable,
+    /// A property of the message.
+    Property { id: u16 },
+    /// A property of a recipient (by its row).
+    RecipientProperty { row: u32, id: u16 },
+    /// A property of an attachment.
+    AttachmentProperty { attachment: Nid, id: u16 },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -317,6 +340,27 @@ pub struct Pst<R> {
     named: Option<NamedMap>,
     listed: HashMap<u32, usize>,
     listed_total: usize,
+    /// The item whose attached messages are being read, and how many have been.
+    embedded: (u32, usize),
+}
+
+/// `s` in Windows-1252, when every character is in it.
+fn windows_1252(s: &str) -> Option<Vec<u8>> {
+    // 0x80 to 0x9F; zero where the code page has no character.
+    const HIGH: [u32; 32] = [
+        0x20AC, 0, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0, 0x017D, 0, 0, 0x2018, 0x2019, 0x201C,
+        0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0, 0x017E, 0x0178,
+    ];
+    s.chars()
+        .map(|c| {
+            let n = u32::from(c);
+            if n < 0x80 || (0xA0..=0xFF).contains(&n) {
+                u8::try_from(n).ok()
+            } else {
+                HIGH.iter().position(|&h| h != 0 && h == n).and_then(|i| u8::try_from(i).ok()).map(|i| i | 0x80)
+            }
+        })
+        .collect()
 }
 
 /// The node id an entry id names (its last four bytes, [MS-PST] 2.4.3.2).
@@ -333,16 +377,16 @@ impl<R: Read + Seek> Pst<R> {
     }
 
     pub fn open_with(reader: R, limits: Limits) -> Result<Self> {
-        let mut src = Source::new(reader, limits.max_file_size)?;
+        let mut src = Source::new(reader, &limits)?;
         let len = HEADER_READ.min(usize::try_from(src.size()).unwrap_or(HEADER_READ));
         let header = Header::parse(&src.read_at(0, len)?)?;
         let mut ndb = Ndb::new(src, header, limits);
         let entry = ndb.node(NID_MESSAGE_STORE)?;
-        let node = NodeData::load(&mut ndb, entry.data, entry.sub)?;
-        let mut budget = Budget { left: ndb.limits.max_item_bytes };
+        let mut budget = Budget::new(ndb.limits.max_item_bytes, ndb.limits.max_inline_value, Cap::ItemSize);
+        let node = NodeData::load(&mut ndb, entry.data, entry.sub, &mut budget)?;
         let store = pc_properties(&mut ndb, &node, &mut budget, &[])?;
         let password = store.int(0x67FF).map(|v| v as u32).unwrap_or(0);
-        Ok(Pst { ndb, store, password, unlocked: password == 0, named: None, listed: HashMap::new(), listed_total: 0 })
+        Ok(Pst { ndb, store, password, unlocked: password == 0, named: None, listed: HashMap::new(), listed_total: 0, embedded: (0, 0) })
     }
 
     pub fn format(&self) -> Format {
@@ -360,14 +404,15 @@ impl<R: Read + Seek> Pst<R> {
 
     /// Whether `password` is the file's: its CRC ([MS-PST] 5.3) is what the message store keeps
     /// (`PidTagPstPassword`). The specification doesn't say in which encoding the text is
-    /// hashed, so its UTF-8 bytes and its UTF-16LE bytes are both tried. A file without a
-    /// password takes any.
+    /// hashed, so its Windows-1252 bytes (when it has them), its UTF-8 bytes and its UTF-16LE
+    /// bytes are all tried. A file without a password takes any.
     pub fn check_password(&self, password: &str) -> bool {
         if self.password == 0 {
             return true;
         }
         let utf16: Vec<u8> = password.encode_utf16().flat_map(u16::to_le_bytes).collect();
-        crc32(password.as_bytes()) == self.password || crc32(&utf16) == self.password
+        let ansi = windows_1252(password).is_some_and(|b| crc32(&b) == self.password);
+        ansi || crc32(password.as_bytes()) == self.password || crc32(&utf16) == self.password
     }
 
     /// Gives the file's password; nothing of the file is read until it has been.
@@ -384,8 +429,15 @@ impl<R: Read + Seek> Pst<R> {
         if self.unlocked { Ok(()) } else { Err(Error::PasswordRequired) }
     }
 
+    /// What one item or folder may read.
     fn budget(&self) -> Budget {
-        Budget { left: self.ndb.limits.max_item_bytes }
+        Budget::new(self.ndb.limits.max_item_bytes, self.ndb.limits.max_inline_value, Cap::ItemSize)
+    }
+
+    /// What one folder walk or one listing may read, all of it.
+    fn listing_budget(&self) -> Budget {
+        let l = &self.ndb.limits;
+        Budget::new(l.max_listing_bytes, l.max_summary_value.min(l.max_inline_value), Cap::ListingSize)
     }
 
     pub fn store(&self) -> Result<Store> {
@@ -406,19 +458,24 @@ impl<R: Read + Seek> Pst<R> {
         Nid(NID_ROOT_FOLDER)
     }
 
-    fn load(&mut self, entry: &NodeEntry) -> Result<NodeData> {
-        NodeData::load(&mut self.ndb, entry.data, entry.sub)
+    fn load(&mut self, entry: &NodeEntry, budget: &mut Budget) -> Result<NodeData> {
+        NodeData::load(&mut self.ndb, entry.data, entry.sub, budget)
     }
 
+    /// A folder's properties; a property that could not be read is [`PropValue::Damaged`].
     pub fn folder(&mut self, id: Nid) -> Result<Folder> {
+        let mut budget = self.budget();
+        self.folder_in(id, &mut budget)
+    }
+
+    fn folder_in(&mut self, id: Nid, budget: &mut Budget) -> Result<Folder> {
         self.gate()?;
         if !matches!(id.kind(), NORMAL_FOLDER | SEARCH_FOLDER) {
             return Err(Error::Unsupported("a node that is not a folder"));
         }
         let entry = self.ndb.node(id.0)?;
-        let node = self.load(&entry)?;
-        let mut budget = self.budget();
-        let properties = pc_properties(&mut self.ndb, &node, &mut budget, &[])?;
+        let node = self.load(&entry, budget)?;
+        let properties = pc_properties(&mut self.ndb, &node, budget, &[])?;
         let container_class = properties.text(0x3613);
         let parent = Some(Nid(entry.parent)).filter(|p| p.0 != 0 && *p != id);
         Ok(Folder {
@@ -434,16 +491,21 @@ impl<R: Read + Seek> Pst<R> {
         })
     }
 
-    fn table(&mut self, nid: u32) -> Result<Table> {
+    fn table(&mut self, nid: u32, budget: &mut Budget) -> Result<Table> {
         let entry = self.ndb.node(nid)?;
-        let node = self.load(&entry)?;
+        let node = self.load(&entry, budget)?;
         Table::open(&mut self.ndb, node)
     }
 
     /// A folder's subfolders, in the order of its hierarchy table.
     pub fn subfolders(&mut self, id: Nid) -> Result<Vec<Nid>> {
+        let mut budget = self.budget();
+        self.subfolders_in(id, &mut budget)
+    }
+
+    fn subfolders_in(&mut self, id: Nid, budget: &mut Budget) -> Result<Vec<Nid>> {
         self.gate()?;
-        let table = self.table(id.with_kind(HIERARCHY_TABLE).0)?;
+        let table = self.table(id.with_kind(HIERARCHY_TABLE).0, budget)?;
         if table.rows.len() > self.ndb.limits.max_folders {
             return Err(Error::Cap(Cap::Folders));
         }
@@ -453,39 +515,44 @@ impl<R: Read + Seek> Pst<R> {
     }
 
     /// Every folder from the root down, within the caps: at most [`Limits::max_folders`],
-    /// nested at most [`Limits::max_folder_depth`], each once (a folder met again is a cycle).
+    /// nested at most [`Limits::max_folder_depth`], each once (a folder met again is a cycle),
+    /// all of it within [`Limits::max_listing_bytes`] and each value within
+    /// [`Limits::max_summary_value`] (larger ones are [`PropValue::Large`]; [`Pst::folder`]
+    /// reads a folder whole).
     pub fn walk_folders(&mut self) -> Result<FolderTree> {
         self.gate()?;
         let ipm = self.store()?.ipm_subtree;
         let limits = self.ndb.limits.clone();
+        let mut budget = self.listing_budget();
         let mut tree = FolderTree::default();
         let mut seen = HashSet::new();
         let mut scheduled = 1usize;
         let mut stack = vec![(Nid(NID_ROOT_FOLDER), None::<Nid>, 0usize, false)];
         while let Some((id, parent, depth, under_ipm)) = stack.pop() {
             if !seen.insert(id) {
-                tree.left_out.push(LeftOut { id, parent, reason: Error::Cycle("the folder hierarchy") });
+                tree.left_out.push(LeftOut::new(id, parent, Error::Cycle("the folder hierarchy")));
                 continue;
             }
             if depth > limits.max_folder_depth {
-                tree.left_out.push(LeftOut { id, parent, reason: Error::Cap(Cap::FolderDepth) });
+                tree.left_out.push(LeftOut::new(id, parent, Error::Cap(Cap::FolderDepth)));
                 continue;
             }
-            let folder = match self.folder(id) {
+            let folder = match self.folder_in(id, &mut budget) {
                 Ok(f) => f,
                 Err(reason) => {
-                    tree.left_out.push(LeftOut { id, parent, reason });
+                    tree.left_out.push(LeftOut::new(id, parent, reason));
                     continue;
                 }
             };
+            tree.left_out.extend(LeftOut::damaged(id, parent, &folder.properties));
             let in_ipm = under_ipm || Some(id) == ipm;
-            let children = if id.kind() == SEARCH_FOLDER { Ok(Vec::new()) } else { self.subfolders(id) };
+            let children = if id.kind() == SEARCH_FOLDER { Ok(Vec::new()) } else { self.subfolders_in(id, &mut budget) };
             tree.folders.push(FolderEntry { folder, depth, in_ipm_subtree: in_ipm });
             match children {
                 Ok(children) => {
                     let room = limits.max_folders.saturating_sub(scheduled);
                     if children.len() > room {
-                        tree.left_out.push(LeftOut { id, parent, reason: Error::Cap(Cap::Folders) });
+                        tree.left_out.push(LeftOut::new(id, parent, Error::Cap(Cap::Folders)));
                     }
                     let take: Vec<Nid> = children.into_iter().take(room).collect();
                     scheduled = scheduled.saturating_add(take.len());
@@ -495,13 +562,14 @@ impl<R: Read + Seek> Pst<R> {
                 }
                 // A folder without a hierarchy table has no subfolders.
                 Err(Error::NotFound(_)) => {}
-                Err(reason) => tree.left_out.push(LeftOut { id, parent, reason }),
+                Err(reason) => tree.left_out.push(LeftOut::new(id, parent, reason)),
             }
         }
         Ok(tree)
     }
 
-    /// The items of a folder (its contents table), in the table's order.
+    /// The items of a folder (its contents table), in the table's order: all of the listing
+    /// within [`Limits::max_listing_bytes`], each value within [`Limits::max_summary_value`].
     pub fn items(&mut self, folder: Nid) -> Result<ItemList> {
         self.list(folder, CONTENTS_TABLE)
     }
@@ -519,7 +587,8 @@ impl<R: Read + Seek> Pst<R> {
             _ => return Err(Error::Unsupported("a node that is not a folder")),
         }
         let nid = folder.with_kind(kind).0;
-        let mut table = match self.table(nid) {
+        let mut budget = self.listing_budget();
+        let mut table = match self.table(nid, &mut budget) {
             Ok(t) => t,
             Err(Error::NotFound(_)) => return Ok(ItemList::default()),
             Err(e) => return Err(e),
@@ -530,7 +599,8 @@ impl<R: Read + Seek> Pst<R> {
             Some(&n) => n,
             None => self.ndb.limits.max_items.saturating_sub(self.listed_total),
         };
-        let left_out = rows.len().saturating_sub(room);
+        let past = rows.get(room..).unwrap_or(&[]);
+        let mut left_out: Vec<LeftOut> = past.iter().map(|&(rowid, _)| LeftOut::new(Nid(rowid), Some(folder), Error::Cap(Cap::Items))).collect();
         rows.truncate(room);
         if let std::collections::hash_map::Entry::Vacant(e) = self.listed.entry(nid) {
             e.insert(rows.len());
@@ -538,28 +608,49 @@ impl<R: Read + Seek> Pst<R> {
         }
         let mut items = Vec::with_capacity(rows.len());
         for (rowid, index) in rows {
-            let mut budget = self.budget();
-            let properties = table.row(&mut self.ndb, rowid, index, &mut budget).unwrap_or_default();
-            items.push(ItemSummary { id: Nid(rowid), class: properties.text(0x001A), properties });
+            let id = Nid(rowid);
+            let properties = match table.row(&mut self.ndb, rowid, index, &mut budget) {
+                Ok(p) => p,
+                Err(reason) => {
+                    left_out.push(LeftOut::new(id, Some(folder), reason));
+                    Properties::default()
+                }
+            };
+            left_out.extend(LeftOut::damaged(id, Some(folder), &properties));
+            items.push(ItemSummary { id, class: properties.text(0x001A), properties });
         }
         Ok(ItemList { items, left_out })
     }
 
     /// The data and subnodes of the object at `path` under the node `node`.
     fn locate(&mut self, node: Nid, path: &[Nid]) -> Result<(u64, u64)> {
+        let chain = self.chain(node, path)?;
+        chain.last().copied().ok_or(Error::NotFound("a node"))
+    }
+
+    /// The data and subnodes of each object from `node` down `path`; one met again on the way
+    /// (an attached message that holds itself) is a cycle.
+    fn chain(&mut self, node: Nid, path: &[Nid]) -> Result<Vec<(u64, u64)>> {
         let entry = self.ndb.node(node.0)?;
-        let (mut data, mut sub) = (entry.data, entry.sub);
+        let mut chain = vec![(entry.data, entry.sub)];
+        let mut sub = entry.sub;
         for step in path {
             let subs = self.ndb.subnodes(sub)?;
             let s = subs.get(&step.0).ok_or(Error::NotFound("an attachment"))?;
-            data = s.data;
+            if chain.contains(&(s.data, s.sub)) {
+                return Err(Error::Cycle("an attached message"));
+            }
+            chain.push((s.data, s.sub));
             sub = s.sub;
         }
-        Ok((data, sub))
+        Ok(chain)
     }
 
-    /// A message (or any item) with its recipients and attachments. Property values larger
-    /// than [`Limits::max_inline_value`] come back as [`PropValue::Large`].
+    /// A message (or any item) with its recipients and attachments, all read within
+    /// [`Limits::max_item_bytes`]. Property values larger than [`Limits::max_inline_value`]
+    /// come back as [`PropValue::Large`]; what could not be read is named in `left_out`.
+    /// Attached messages are counted per item: past [`Limits::max_embedded_messages`] under
+    /// the same item, [`Cap::EmbeddedMessages`].
     pub fn message(&mut self, id: &MessageRef) -> Result<Message> {
         self.gate()?;
         let limits = self.ndb.limits.clone();
@@ -569,11 +660,22 @@ impl<R: Read + Seek> Pst<R> {
         if id.path.is_empty() && !matches!(id.node.kind(), NORMAL_MESSAGE | ASSOC_MESSAGE) {
             return Err(Error::Unsupported("a node that is not an item"));
         }
-        let (data, sub) = self.locate(id.node, &id.path)?;
-        let node = NodeData::load(&mut self.ndb, data, sub)?;
+        if self.embedded.0 != id.node.0 {
+            self.embedded = (id.node.0, 0);
+        }
+        if !id.path.is_empty() {
+            self.embedded.1 = self.embedded.1.saturating_add(1);
+            if self.embedded.1 > limits.max_embedded_messages {
+                return Err(Error::Cap(Cap::EmbeddedMessages));
+            }
+        }
+        let chain = self.chain(id.node, &id.path)?;
+        let (data, sub) = chain.last().copied().ok_or(Error::NotFound("a node"))?;
         let mut budget = self.budget();
+        let node = NodeData::load(&mut self.ndb, data, sub, &mut budget)?;
         let properties = pc_properties(&mut self.ndb, &node, &mut budget, &[])?;
-        let mut left_out = Vec::new();
+        let mut left_out: Vec<LeftOutPart> =
+            properties.damaged().map(|(p, reason)| LeftOutPart { part: Part::Property { id: p }, reason: reason.clone() }).collect();
 
         let mut recipients = Vec::new();
         let recipient_table = node
@@ -582,7 +684,7 @@ impl<R: Read + Seek> Pst<R> {
             .copied()
             .or_else(|| node.subnodes.iter().find(|(nid, _)| Nid(**nid).kind() == RECIPIENT_TABLE).map(|(_, e)| *e));
         if let Some(e) = recipient_table {
-            match NodeData::load(&mut self.ndb, e.data, e.sub).and_then(|n| Table::open(&mut self.ndb, n)) {
+            match NodeData::load(&mut self.ndb, e.data, e.sub, &mut budget).and_then(|n| Table::open(&mut self.ndb, n)) {
                 Ok(mut table) => {
                     let mut rows = table.rows.clone();
                     rows.sort_by_key(|&(_, index)| index);
@@ -595,12 +697,21 @@ impl<R: Read + Seek> Pst<R> {
                     }
                     for (rowid, index) in rows {
                         match table.row(&mut self.ndb, rowid, index, &mut budget) {
-                            Ok(properties) => recipients.push(Recipient { properties }),
+                            Ok(properties) => {
+                                let row = index;
+                                left_out.extend(
+                                    properties
+                                        .damaged()
+                                        .map(|(p, reason)| LeftOutPart { part: Part::RecipientProperty { row, id: p }, reason: reason.clone() }),
+                                );
+                                recipients.push(Recipient { properties });
+                            }
                             Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
                             Err(reason) => left_out.push(LeftOutPart { part: Part::Recipient { row: index }, reason }),
                         }
                     }
                 }
+                Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
                 Err(reason) => left_out.push(LeftOutPart { part: Part::RecipientTable, reason }),
             }
         }
@@ -612,7 +723,7 @@ impl<R: Read + Seek> Pst<R> {
             .copied()
             .or_else(|| node.subnodes.iter().find(|(nid, _)| Nid(**nid).kind() == ATTACHMENT_TABLE).map(|(_, e)| *e));
         if let Some(e) = attachment_table {
-            match NodeData::load(&mut self.ndb, e.data, e.sub).and_then(|n| Table::open(&mut self.ndb, n)) {
+            match NodeData::load(&mut self.ndb, e.data, e.sub, &mut budget).and_then(|n| Table::open(&mut self.ndb, n)) {
                 Ok(table) => {
                     let mut rows = table.rows.clone();
                     rows.sort_by_key(|&(_, index)| index);
@@ -623,15 +734,27 @@ impl<R: Read + Seek> Pst<R> {
                         });
                         rows.truncate(limits.max_attachments);
                     }
+                    let mut seen = HashSet::new();
                     for (rowid, _) in rows {
                         let att = Nid(rowid);
-                        match self.attachment_from(&node, id, att, &mut budget) {
-                            Ok(a) => attachments.push(a),
+                        if !seen.insert(rowid) {
+                            left_out.push(LeftOutPart { part: Part::Attachment { id: att }, reason: Error::Cycle("an attachment listed twice") });
+                            continue;
+                        }
+                        match self.attachment_from(&node, id, &chain, att, &mut budget) {
+                            Ok(a) => {
+                                left_out.extend(a.properties.damaged().map(|(p, reason)| LeftOutPart {
+                                    part: Part::AttachmentProperty { attachment: att, id: p },
+                                    reason: reason.clone(),
+                                }));
+                                attachments.push(a);
+                            }
                             Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
                             Err(reason) => left_out.push(LeftOutPart { part: Part::Attachment { id: att }, reason }),
                         }
                     }
                 }
+                Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
                 Err(reason) => left_out.push(LeftOutPart { part: Part::AttachmentTable, reason }),
             }
         }
@@ -639,9 +762,9 @@ impl<R: Read + Seek> Pst<R> {
         Ok(Message { id: id.clone(), class: properties.text(0x001A), properties, recipients, attachments, left_out })
     }
 
-    fn attachment_from(&mut self, message: &NodeData, id: &MessageRef, att: Nid, budget: &mut Budget) -> Result<Attachment> {
+    fn attachment_from(&mut self, message: &NodeData, id: &MessageRef, chain: &[(u64, u64)], att: Nid, budget: &mut Budget) -> Result<Attachment> {
         let e = message.subnodes.get(&att.0).copied().ok_or(Error::NotFound("an attachment"))?;
-        let node = NodeData::load(&mut self.ndb, e.data, e.sub)?;
+        let node = NodeData::load(&mut self.ndb, e.data, e.sub, budget)?;
         let properties = pc_properties(&mut self.ndb, &node, budget, &[0x3701])?;
         let method = properties.int(0x3705);
         let records = pc_records(&node)?;
@@ -655,6 +778,12 @@ impl<R: Read + Seek> Pst<R> {
                     return Err(Error::Corrupt("an attachment's object"));
                 };
                 if method == Some(5) {
+                    // An attached message that is its attachment, or the message it is
+                    // attached to (or one above), would be read for ever.
+                    let again = |o: &crate::ndb::SubEntry| (o.data == e.data && o.sub == e.sub) || chain.contains(&(o.data, o.sub));
+                    if node.subnodes.get(&nid).is_some_and(again) {
+                        return Err(Error::Cycle("an attached message"));
+                    }
                     let mut path = id.path.clone();
                     path.extend([att, Nid(nid)]);
                     let child = MessageRef { node: id.node, path };
@@ -688,7 +817,8 @@ impl<R: Read + Seek> Pst<R> {
         let mut path = att.message.path.clone();
         path.push(att.id);
         let (data, sub) = self.locate(att.message.node, &path)?;
-        let node = NodeData::load(&mut self.ndb, data, sub)?;
+        let mut budget = self.budget();
+        let node = NodeData::load(&mut self.ndb, data, sub, &mut budget)?;
         let (_, ty, raw) = pc_records(&node)?.into_iter().find(|(id, _, _)| *id == 0x3701).ok_or(Error::NotFound("an attachment's data"))?;
         let hnid = match ty {
             types::BINARY => raw,
@@ -735,17 +865,14 @@ impl<R: Read + Seek> Pst<R> {
     fn read_property_at(&mut self, node: Nid, path: &[Nid], id: u16, max: u64) -> Result<Option<PropValue>> {
         self.gate()?;
         let (data, sub) = self.locate(node, path)?;
-        let n = NodeData::load(&mut self.ndb, data, sub)?;
+        let mut budget = self.budget();
+        let n = NodeData::load(&mut self.ndb, data, sub, &mut budget)?;
         let Some((_, ty, raw)) = pc_records(&n)?.into_iter().find(|(pid, _, _)| *pid == id) else {
             return Ok(None);
         };
         let max = max.min(self.ndb.limits.max_item_bytes);
-        let saved = self.ndb.limits.max_inline_value;
-        self.ndb.limits.max_inline_value = max;
-        let mut budget = Budget { left: max };
-        let value = pc_value(&mut self.ndb, &n, ty, raw, &mut budget);
-        self.ndb.limits.max_inline_value = saved;
-        value.map(Some)
+        let mut budget = Budget::new(max, max, Cap::ItemSize);
+        pc_value(&mut self.ndb, &n, ty, raw, &mut budget).map(Some)
     }
 
     /// The file's named properties (what the ids from 0x8000 stand for).
@@ -754,7 +881,8 @@ impl<R: Read + Seek> Pst<R> {
         if self.named.is_none() {
             let map = match self.ndb.node(NID_NAME_TO_ID_MAP) {
                 Ok(entry) => {
-                    let node = self.load(&entry)?;
+                    let mut budget = self.budget();
+                    let node = self.load(&entry, &mut budget)?;
                     named::read(&mut self.ndb, &node)?
                 }
                 Err(Error::NotFound(_)) => NamedMap::default(),

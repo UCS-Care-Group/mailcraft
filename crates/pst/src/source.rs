@@ -13,15 +13,19 @@ pub(crate) const MAX_READ: usize = 8192;
 pub(crate) struct Source<R> {
     inner: R,
     size: u64,
+    /// Bytes read so far, and how many may be ([`crate::Limits::read_multiple`]).
+    read: u64,
+    allowed: u64,
 }
 
 impl<R: Read + Seek> Source<R> {
-    pub(crate) fn new(mut inner: R, max_size: u64) -> Result<Self> {
+    pub(crate) fn new(mut inner: R, limits: &crate::Limits) -> Result<Self> {
         let size = inner.seek(SeekFrom::End(0))?;
-        if size > max_size {
+        if size > limits.max_file_size {
             return Err(Error::Cap(Cap::FileSize));
         }
-        Ok(Source { inner, size })
+        let allowed = size.saturating_mul(limits.read_multiple).saturating_add(limits.read_floor);
+        Ok(Source { inner, size, read: 0, allowed })
     }
 
     pub(crate) fn size(&self) -> u64 {
@@ -36,6 +40,10 @@ impl<R: Read + Seek> Source<R> {
         let end = offset.checked_add(len as u64).ok_or(Error::OutOfBounds)?;
         if end > self.size {
             return Err(Error::OutOfBounds);
+        }
+        self.read = self.read.saturating_add(len as u64);
+        if self.read > self.allowed {
+            return Err(Error::Cap(Cap::TotalRead));
         }
         self.inner.seek(SeekFrom::Start(offset))?;
         let mut buf = vec![0u8; len];

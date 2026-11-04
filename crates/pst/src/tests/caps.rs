@@ -52,14 +52,14 @@ fn items_past_the_cap_are_counted_and_left_out() {
     let tree = pst.walk_folders().unwrap();
     let id = |name: &str| tree.folders.iter().find(|f| f.folder.name == name).unwrap().folder.id;
     let inbox = pst.items(id("Inbox")).unwrap();
-    assert_eq!((inbox.items.len(), inbox.left_out), (2, 0));
+    assert_eq!((inbox.items.len(), inbox.left_out.len()), (2, 0));
     let projects = pst.items(id("Projects")).unwrap();
-    assert_eq!((projects.items.len(), projects.left_out), (1, 0));
+    assert_eq!((projects.items.len(), projects.left_out.len()), (1, 0));
     let calendar = pst.items(id("Calendar")).unwrap();
-    assert_eq!((calendar.items.len(), calendar.left_out), (0, 1));
+    assert_eq!((calendar.items.len(), calendar.left_out.len()), (0, 1));
     // Listing a folder again doesn't count it twice.
     let again = pst.items(id("Inbox")).unwrap();
-    assert_eq!((again.items.len(), again.left_out), (2, 0));
+    assert_eq!((again.items.len(), again.left_out.len()), (2, 0));
 }
 
 #[test]

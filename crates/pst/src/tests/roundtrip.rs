@@ -52,7 +52,7 @@ fn every_layout_reads_back() {
         assert_eq!(inbox.parent, Some(ipm));
 
         let items = pst.items(inbox.id).unwrap();
-        assert_eq!(items.left_out, 0);
+        assert!(items.left_out.is_empty(), "{what}: {:?}", items.left_out);
         let classes: Vec<Option<&str>> = items.items.iter().map(|i| i.class.as_deref()).collect();
         assert_eq!(classes, vec![Some("IPM.Note"), Some("IPM.Note")], "{what}");
         assert_eq!(items.items[0].properties.text(0x0037).as_deref(), Some("Quarterly figures"));
