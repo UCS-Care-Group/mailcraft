@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-02 · **Change:** patch
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-04 · **Change:** minor
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -71,7 +71,7 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-01 | minor | #697: task checklist steps kept in step with Microsoft To Do (gap 17); recurrence, assignment, My Day and delta reads remain |
+| 2026-11-04 | minor | #697: task checklist steps kept in step with Microsoft To Do (gap 17); recurrence, assignment, My Day and delta reads remain |
 | 2026-11-02 | patch | Correct punctuation in the DAV foundation note |
 | 2026-11-01 | minor | #376: DAV model/document foundation; server discovery and sync remain unavailable |
 | 2026-11-01 | minor | Gap 2: a draft saved by itself every five minutes (#286) stays in Drafts here for an IMAP account, as Save Draft's does |

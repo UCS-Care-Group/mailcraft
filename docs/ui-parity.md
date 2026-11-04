@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -93,7 +93,7 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-01 | minor | #697: checklist steps in the task editor and details pane, kept in step with To Do |
+| 2026-11-04 | minor | #697: checklist steps in the task editor and details pane, kept in step with To Do |
 | 2026-11-03 | minor | #702 (point 2): the accounts put in the owner's order by dragging their headings in the folder pane |
 | 2026-11-03 | minor | #702: Move Up and Move Down on an account's right-click menu; the folder pane scrolls while an account is dragged near its edge; To Do jobs start in the pane's order |
 | 2026-11-03 | minor | #631: People: a contact made or picked clears a search that would hide it; "No contacts from this account yet" |

@@ -156,6 +156,11 @@ pub struct TaskOp {
     pub id: String,
     pub list: String,
     pub patch: TaskPatch,
+    /// For a `stepCreate`: the server ids of the steps of the to-do that are known here, so that
+    /// a step whose making was not confirmed can be told from those when the checklist is read
+    /// again at once (#697).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub known_steps: Vec<String>,
 }
 
 /// What a host is to tell an account's server.

@@ -30,6 +30,23 @@ impl TaskStep {
         self.id = crate::remote::key(&self.id);
         self.title = crate::remote::line(&self.title, 255);
     }
+
+    /// What the step is called outside the program (the CLI, an agent): a step made here keeps
+    /// its own `local:` id, and one the server named is `step:` and a digest of that name, so
+    /// that the server's ids never leave the program while a step can still be named again.
+    pub fn key(&self) -> String {
+        if self.id.starts_with("local:") || self.id.is_empty() {
+            return self.id.clone();
+        }
+        // FNV-1a: not a secret, only a name that stays the same and doesn't show the id.
+        let digest = self.id.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3));
+        format!("step:{digest:016x}")
+    }
+
+    /// The step with its outside name ([`TaskStep::key`]) in place of its id.
+    pub fn keyed(&self) -> TaskStep {
+        TaskStep { id: self.key(), ..self.clone() }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +95,15 @@ pub struct Task {
     /// #632 reads and so neither sends it nor offers it, until the to-do is changed there.
     #[serde(skip_serializing_if = "is_false")]
     pub kept_here: bool,
+    /// Steps that were sent to be made and that the server may or may not have made (the answer
+    /// was lost), as they were sent (#697). None of them is sent again until a checklist read whole
+    /// says which: [`Task::settle_unconfirmed`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unconfirmed_steps: Vec<TaskStep>,
+    /// Step changes the server refused, as they were sent: that one change is not sent again
+    /// until the step is changed here (or there), and the rest of the to-do goes up as usual.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub held_steps: Vec<TaskStep>,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -352,6 +378,43 @@ impl Task {
         self.importance = fields.importance;
         self.categories = fields.categories;
         self.reminder = fields.reminder;
+    }
+
+    /// Settle the steps whose making was not confirmed against `there`, a checklist the server
+    /// sent whole (#697). A step there that `base` (what was in step) doesn't have, with the
+    /// title that was sent, is the one that was made: the step here takes its id, and `base` takes
+    /// it as the server has it, so it is neither sent again nor shown twice (a change made here
+    /// since still goes up, a deletion here deletes it there). With no such step it was not made:
+    /// it goes up again as a new step. Each step there is taken for one step here at most.
+    pub fn settle_unconfirmed(&mut self, base: &mut TaskFields, there: &[TaskStep]) {
+        let cut = |s: &str| s.trim().chars().take(255).collect::<String>();
+        let mut taken: Vec<&str> = Vec::new();
+        for sent in std::mem::take(&mut self.unconfirmed_steps) {
+            let made = there.iter().find(|step| {
+                !taken.contains(&step.id.as_str())
+                    && !base.steps.iter().any(|known| known.id == step.id)
+                    && !self.steps.iter().any(|here| here.id == step.id)
+                    && cut(&step.title) == cut(&sent.title)
+            });
+            let Some(made) = made else { continue };
+            taken.push(made.id.as_str());
+            if let Some(here) = self.steps.iter_mut().find(|here| here.id == sent.id) {
+                here.id = made.id.clone();
+            }
+            if base.steps.len() < MAX_MERGED_TASK_STEPS {
+                base.steps.push(made.clone());
+            }
+        }
+    }
+
+    /// Whether a change to `step` was refused as it is now and is held back.
+    pub fn is_held(&self, step: &TaskStep) -> bool {
+        self.held_steps.iter().any(|held| held == step)
+    }
+
+    /// Whether the step with that id was sent to be made without word of whether it was.
+    pub fn is_unconfirmed(&self, id: &str) -> bool {
+        self.unconfirmed_steps.iter().any(|step| step.id == id)
     }
 
     /// What was changed here since the server had it; `None` for a to-do the server doesn't have.

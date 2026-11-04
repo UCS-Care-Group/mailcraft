@@ -44,7 +44,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected task). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const TASK: &str = r#"{"title": string, "notes"?: string, "steps"?: [{"id"?: string (existing step only), "title": string, "completed"?: bool}] (whole checklist), "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null, "account"?: number} — `account`: the account whose To Do keeps it, 0 for this computer (default: whose tasks the list shows; with all of them, where the last one was put; if nobody has said, it stays here and can be offered to an account later). The list moves to show it"#;
+const TASK: &str = r#"{"title": string, "notes"?: string, "steps"?: [{"id"?: string (an existing step's, as tasks.get gives it), "title": string, "completed"?: bool}] (whole checklist), "due"?: "YYYY-MM-DD" | null, "start"?: "YYYY-MM-DD" | null, "importance"?: "low"|"normal"|"high", "categories"?: [string], "reminder"?: "YYYY-MM-DDTHH:MM" | null, "account"?: number} — `account`: the account whose To Do keeps it, 0 for this computer (default: whose tasks the list shows; with all of them, where the last one was put; if nobody has said, it stays here and can be offered to an account later). The list moves to show it"#;
 
 fn needs_task(s: &Session) -> Option<&'static str> {
     if s.sel.task.is_none() { Some("select a task first") } else { None }
@@ -63,7 +63,8 @@ fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
     if let Some(value) = v.get("steps") {
         if let Some(base) = v.get("stepsBase") {
             let base: Vec<mailcraft_model::TaskStep> = serde_json::from_value(base.clone()).map_err(|_| bad("`stepsBase` must be a checklist"))?;
-            if base != t.steps {
+            let keyed: Vec<mailcraft_model::TaskStep> = t.steps.iter().map(mailcraft_model::TaskStep::keyed).collect();
+            if base != t.steps && base != keyed {
                 return Err(fail("The task steps changed while this editor was open. Reopen the task to edit its current steps."));
             }
         }
@@ -75,8 +76,13 @@ fn apply(s: &mut Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
         }
         let mut seen = std::collections::HashSet::new();
         for step in &mut steps {
+            // A step is named by its id here or by the name `tasks.get` gives it.
             if !step.id.is_empty() && !t.steps.iter().any(|old| old.id == step.id) {
-                return Err(bad("a step id must belong to this task; omit the id for a new step"));
+                let mut named = t.steps.iter().filter(|old| old.key() == step.id);
+                match (named.next(), named.next()) {
+                    (Some(old), None) => step.id = old.id.clone(),
+                    _ => return Err(bad("a step id must belong to this task; omit the id for a new step")),
+                }
             }
             if step.id.is_empty() {
                 step.id = format!("local:{}", s.mailbox.alloc_id());
@@ -271,7 +277,8 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 /// The task fields returned by commands, including every stored checklist item.
 fn task_json(s: &Session, t: &Task) -> Value {
     json!({
-        "id": t.id, "title": t.title, "notes": t.notes, "steps": t.steps, "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
+        "id": t.id, "title": t.title, "notes": t.notes,
+        "steps": t.steps.iter().map(mailcraft_model::TaskStep::keyed).collect::<Vec<_>>(), "due": t.due.map(Date::iso), "start": t.start.map(Date::iso),
         "complete": t.is_complete(), "completed": t.completed.map(mailcraft_time::format_iso_utc), "overdue": t.is_overdue(s.today()),
         "dueLabel": t.due_label(s.today()), "importance": t.importance, "categories": t.categories, "message": t.message,
         "reminder": t.reminder.map(|r| s.local(r).iso()), "account": t.origin.account, "keptAt": kept_at(&s.mailbox, &t.origin),

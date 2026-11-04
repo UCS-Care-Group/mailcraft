@@ -24,6 +24,11 @@ struct Todo {
     write_status: Option<u16>,
     /// Answer every request with this status.
     all_status: Option<u16>,
+    /// Make a new checklist item, then answer with this status as if the answer were lost.
+    made_then_status: Option<u16>,
+    /// The requests for a checklist of its own (`…/checklistItems`), and for pages of tasks.
+    checklist_reads: usize,
+    task_pages: usize,
     next: u32,
 }
 
@@ -51,6 +56,9 @@ fn serve(todo: &Arc<Mutex<Todo>>) -> FakeHttp {
         }
         let json = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
         if pieces.get(8) == Some(&"checklistItems") {
+            if method == "GET" {
+                todo.checklist_reads += 1;
+            }
             if method != "GET"
                 && let Some(status) = todo.write_status
             {
@@ -74,7 +82,10 @@ fn serve(todo: &Arc<Mutex<Todo>>) -> FakeHttp {
                     let mut step = json;
                     step["id"] = json!(format!("S{}", steps.len() + 1));
                     steps.push(step.clone());
-                    json_answer("201 Created", &step.to_string())
+                    match todo.made_then_status {
+                        Some(status) => raw(&format!("{status} Other")),
+                        None => json_answer("201 Created", &step.to_string()),
+                    }
                 }
                 ("PATCH", Some(id)) => match steps.iter_mut().find(|step| step["id"] == **id) {
                     Some(step) => {
@@ -101,10 +112,31 @@ fn serve(todo: &Arc<Mutex<Todo>>) -> FakeHttp {
                     .collect();
                 json_answer("200 OK", &json!({"value": value}).to_string())
             }
-            ("GET", Some(list), Some(&"tasks"), None) => match todo.lists.iter().find(|l| l.0 == *list) {
-                Some(l) => json_answer("200 OK", &json!({"value": l.2}).to_string()),
-                None => raw("404 Not Found"),
-            },
+            ("GET", Some(list), Some(&"tasks"), None) => {
+                todo.task_pages += 1;
+                // The checklists come with the tasks only when they are asked for.
+                let expand = target.contains("expand=checklistItems");
+                match todo.lists.iter().find(|l| l.0 == *list) {
+                    Some(l) => {
+                        let tasks: Vec<Value> =
+                            l.2.iter()
+                                .map(|task| {
+                                    let mut task = task.clone();
+                                    if let Some(fields) = task.as_object_mut() {
+                                        if expand {
+                                            fields.entry("checklistItems").or_insert(json!([]));
+                                        } else {
+                                            fields.remove("checklistItems");
+                                        }
+                                    }
+                                    task
+                                })
+                                .collect();
+                        json_answer("200 OK", &json!({"value": tasks}).to_string())
+                    }
+                    None => raw("404 Not Found"),
+                }
+            }
             (write, Some(list), Some(&"tasks"), id) => {
                 if let Some(status) = todo.write_status {
                     return raw(&format!("{status} Other"));
@@ -259,7 +291,7 @@ fn a_change_sends_only_the_fields_that_changed() {
     let server = serve(&state);
     let patch =
         TaskPatch { title: Some("New".into()), due: Some(Date::new(2026, 11, 2)), completed: Some(Some(1_790_000_000)), ..Default::default() };
-    let op = TaskOp { kind: TaskOpKind::Update, task: 3, id: "A".into(), list: "L2".into(), patch };
+    let op = TaskOp { kind: TaskOpKind::Update, task: 3, id: "A".into(), list: "L2".into(), patch, ..Default::default() };
     let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op]));
     assert_eq!(done.outcomes[0].result, TaskResult::Done);
     let task = state.lock().unwrap().lists[1].2[0].clone();
@@ -337,21 +369,59 @@ fn a_due_date_written_in_a_zone_stays_on_its_day() {
 }
 
 #[test]
-fn task_steps_are_downloaded_from_checklist_items() {
-    let server = FakeHttp::start(|_, request| {
-        let target = request.split_whitespace().nth(1).unwrap();
-        let value = if target.contains("/checklistItems") {
-            json!({"value": [{"id": "S1", "displayName": "Pack tea", "isChecked": true}]})
-        } else if target.contains("/tasks") {
-            json!({"value": [{"id": "T1", "title": "Trip"}]})
-        } else {
-            json!({"value": [{"id": "L1", "wellknownListName": "defaultList"}]})
-        };
-        json_answer("200 OK", &value.to_string())
-    });
+fn task_steps_come_with_their_tasks_in_one_request_per_page() {
+    let state = todo();
+    state.lock().unwrap().lists[0].2 = (0..30)
+        .map(|n| json!({"id": format!("T{n}"), "title": "Trip", "checklistItems": [{"id": "S1", "displayName": "Pack tea", "isChecked": true}]}))
+        .collect();
+    let server = serve(&state);
     let got = tasks_at(&server.url(""), TOKEN).unwrap();
+    assert_eq!(got.tasks.len(), 30);
     let task = serde_json::to_value(&got.tasks[0]).unwrap();
     assert_eq!(task["steps"], json!([{ "id": "S1", "title": "Pack tea", "completed": true }]));
+    let todo = state.lock().unwrap();
+    assert_eq!(todo.checklist_reads, 0, "no request per to-do");
+    assert_eq!(todo.task_pages, 2, "the stand-in answers both lists' pages whole");
+}
+
+#[test]
+fn steps_are_capped_in_all_and_the_rest_are_unknown_not_empty() {
+    let per = mailcraft_model::MAX_TASK_STEPS;
+    let tasks = super::tasks::MAX_STEPS_IN_ALL / per + 2;
+    let state = todo();
+    state.lock().unwrap().lists[0].2 = (0..tasks)
+        .map(|n| {
+            let steps: Vec<Value> = (0..per).map(|i| json!({"id": format!("S{i}"), "displayName": "Step", "isChecked": false})).collect();
+            json!({"id": format!("T{n}"), "title": "Trip", "checklistItems": steps})
+        })
+        .collect();
+    let server = serve(&state);
+    let got = tasks_at(&server.url(""), TOKEN).unwrap();
+    let read: usize = got.tasks.iter().filter_map(|t| t.steps.as_ref()).map(Vec::len).sum();
+    assert!(read <= super::tasks::MAX_STEPS_IN_ALL);
+    assert_eq!(got.tasks.iter().filter(|t| t.steps.is_none()).count(), 2);
+}
+
+#[test]
+fn incomplete_or_malformed_checklists_are_unknown_not_empty() {
+    let too_many: Vec<Value> =
+        (0..=mailcraft_model::MAX_TASK_STEPS).map(|i| json!({"id": format!("S{i}"), "displayName": "Step", "isChecked": false})).collect();
+    for task in [
+        json!({"id": "T1", "title": "Trip", "checklistItems": [{"id": "S1", "displayName": "missing checked state"}]}),
+        json!({"id": "T1", "title": "Trip", "checklistItems": too_many}),
+        json!({"id": "T1", "title": "Trip", "checklistItems": [], "checklistItems@odata.nextLink": "https://graph.microsoft.com/more"}),
+        json!({"id": "T1", "title": "Trip"}),
+        json!({"id": "T1", "title": "Trip", "checklistItems": "nonsense"}),
+    ] {
+        let server = FakeHttp::start(move |_, request| {
+            let target = request.split_whitespace().nth(1).unwrap();
+            let value = if target.contains("/tasks") { json!({"value": [task]}) } else { json!({"value": [{"id": "L1"}]}) };
+            json_answer("200 OK", &value.to_string())
+        });
+        let got = tasks_at(&server.url(""), TOKEN).unwrap();
+        assert_eq!(got.tasks[0].title, "Trip");
+        assert!(got.tasks[0].steps.is_none());
+    }
 }
 
 #[test]
@@ -365,6 +435,7 @@ fn checklist_changes_use_their_own_endpoints_and_keep_the_parent() {
         id: "T1".into(),
         list: "L1".into(),
         patch: TaskPatch { steps: Some(vec![mailcraft_model::TaskStep { id: id.into(), title: title.into(), completed }]), ..Default::default() },
+        known_steps: Vec::new(),
     };
     let created = push_tasks_at(&server.url(""), TOKEN, &upload(vec![step_op(TaskOpKind::StepCreate, "local:1", "Pack tea", false)]));
     assert_eq!(created.outcomes[0].result, TaskResult::Done);
@@ -383,58 +454,9 @@ fn checklist_changes_use_their_own_endpoints_and_keep_the_parent() {
 }
 
 #[test]
-fn incomplete_or_malformed_checklists_are_unknown_not_empty() {
-    for malformed in [true, false] {
-        let server = FakeHttp::start(move |_, request| {
-            let target = request.split_whitespace().nth(1).unwrap();
-            let value = if target.contains("/checklistItems") {
-                if malformed {
-                    json!({"value": [{"id": "S1", "displayName": "missing checked state"}]})
-                } else {
-                    json!({"value": (0..=mailcraft_model::MAX_TASK_STEPS).map(|i|
-                    json!({"id": format!("S{i}"), "displayName": "Step", "isChecked": false})).collect::<Vec<_>>()})
-                }
-            } else if target.contains("/tasks") {
-                json!({"value": [{"id": "T1", "title": "Trip"}]})
-            } else {
-                json!({"value": [{"id": "L1"}]})
-            };
-            json_answer("200 OK", &value.to_string())
-        });
-        let got = tasks_at(&server.url(""), TOKEN).unwrap();
-        assert!(got.tasks[0].steps.is_none());
-    }
-}
-
-#[test]
-fn checklist_pages_are_followed_and_step_only_changes_are_read_again() {
-    let title = Arc::new(Mutex::new("First".to_string()));
-    let changed = title.clone();
-    let server = FakeHttp::start(move |_, request| {
-        let host = request.lines().find_map(|line| line.strip_prefix("Host: ").or_else(|| line.strip_prefix("host: "))).unwrap();
-        let target = request.split_whitespace().nth(1).unwrap();
-        let value = if target.contains("page2") {
-            json!({"value": [{"id": "S2", "displayName": "Second", "isChecked": true}]})
-        } else if target.contains("/checklistItems") {
-            json!({"value": [{"id": "S1", "displayName": *changed.lock().unwrap(), "isChecked": false}],
-                "@odata.nextLink": format!("http://{host}/page2")})
-        } else if target.contains("/tasks") {
-            json!({"value": [{"id": "T1", "title": "Unchanged", "@odata.etag": "same"}]})
-        } else {
-            json!({"value": [{"id": "L1"}]})
-        };
-        json_answer("200 OK", &value.to_string())
-    });
-    let first = tasks_at(&server.url(""), TOKEN).unwrap();
-    assert_eq!(first.tasks[0].steps.as_ref().unwrap().len(), 2);
-    *title.lock().unwrap() = "Changed elsewhere".into();
-    let next = tasks_at(&server.url(""), TOKEN).unwrap();
-    assert_eq!(next.tasks[0].steps.as_ref().unwrap()[0].title, "Changed elsewhere");
-}
-
-#[test]
 fn a_failed_checklist_write_is_not_acknowledged_and_stops_the_upload() {
-    for (status, result) in [(429, TaskResult::Failed), (503, TaskResult::Uncertain), (403, TaskResult::Denied)] {
+    // A 503 is checked at once: the checklist read again shows nothing was made, so it can go again.
+    for (status, result) in [(429, TaskResult::Failed), (503, TaskResult::Failed), (403, TaskResult::Denied)] {
         let state = todo();
         state.lock().unwrap().lists[0].2 = vec![json!({"id": "T1", "title": "Trip"})];
         state.lock().unwrap().write_status = Some(status);
@@ -448,6 +470,7 @@ fn a_failed_checklist_write_is_not_acknowledged_and_stops_the_upload() {
                 steps: Some(vec![mailcraft_model::TaskStep { id: "local:1".into(), title: "Tea".into(), completed: false }]),
                 ..Default::default()
             },
+            known_steps: Vec::new(),
         };
         let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op.clone(), op]));
         assert_eq!(uploaded.outcomes.len(), 1);
@@ -464,48 +487,10 @@ fn a_failed_checklist_write_is_not_acknowledged_and_stops_the_upload() {
             steps: Some(vec![mailcraft_model::TaskStep { id: "local:1".into(), title: "Tea".into(), completed: false }]),
             ..Default::default()
         },
+        known_steps: Vec::new(),
     };
     let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op]));
     assert_eq!(uploaded.outcomes[0].result, TaskResult::Uncertain);
-}
-
-#[test]
-fn a_task_disappearing_before_its_checklist_does_not_lose_the_download() {
-    let server = FakeHttp::start(|_, request| {
-        let target = request.split_whitespace().nth(1).unwrap();
-        if target.contains("/checklistItems") {
-            return raw("404 Not Found");
-        }
-        let value = if target.contains("/tasks") { json!({"value": [{"id": "T1", "title": "Trip"}]}) } else { json!({"value": [{"id": "L1"}]}) };
-        json_answer("200 OK", &value.to_string())
-    });
-    let got = tasks_at(&server.url(""), TOKEN).unwrap();
-    assert_eq!(got.tasks[0].title, "Trip");
-    assert!(got.tasks[0].steps.is_none());
-}
-
-#[test]
-fn review_throttling_keeps_parents_and_stops_further_checklist_requests() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    let calls = Arc::new(AtomicUsize::new(0));
-    let requests = calls.clone();
-    let server = FakeHttp::start(move |_, request| {
-        let target = request.split_whitespace().nth(1).unwrap();
-        if target.contains("/checklistItems") {
-            requests.fetch_add(1, Ordering::SeqCst);
-            return b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 3600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec();
-        }
-        let value = if target.contains("/tasks") {
-            json!({"value":[{"id":"T1","title":"One"},{"id":"T2","title":"Two"}]})
-        } else {
-            json!({"value":[{"id":"L1"}]})
-        };
-        json_answer("200 OK", &value.to_string())
-    });
-    let got = tasks_at(&server.url(""), TOKEN).unwrap();
-    assert_eq!(got.tasks.len(), 2);
-    assert!(got.tasks.iter().all(|task| task.steps.is_none()));
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -520,8 +505,49 @@ fn review_a_lost_create_reply_is_uncertain_not_automatically_retried() {
             steps: Some(vec![mailcraft_model::TaskStep { id: "local:1".into(), title: "Tea".into(), completed: false }]),
             ..Default::default()
         },
+        known_steps: Vec::new(),
     };
     let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op.clone(), op]));
+    assert_eq!(uploaded.outcomes.len(), 1);
+    assert_eq!(uploaded.outcomes[0].result, TaskResult::Uncertain);
+    assert!(uploaded.outcomes[0].step_id.is_empty());
+}
+
+fn step_create(title: &str, known: &[&str]) -> TaskOp {
+    TaskOp {
+        kind: TaskOpKind::StepCreate,
+        task: 1,
+        id: "T1".into(),
+        list: "L1".into(),
+        patch: TaskPatch {
+            steps: Some(vec![mailcraft_model::TaskStep { id: "local:1".into(), title: title.into(), completed: false }]),
+            ..Default::default()
+        },
+        known_steps: known.iter().map(|k| k.to_string()).collect(),
+    }
+}
+
+#[test]
+fn a_step_made_without_its_answer_is_found_at_once_not_made_twice() {
+    for status in [503, 500] {
+        let state = todo();
+        state.lock().unwrap().lists[0].2 =
+            vec![json!({"id": "T1", "title": "Trip", "checklistItems": [{"id": "S1", "displayName": "Tea", "isChecked": false}]})];
+        state.lock().unwrap().made_then_status = Some(status);
+        let server = serve(&state);
+        // "Tea" S1 was there before: the one made now is S2.
+        let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![step_create("Tea", &["S1"])]));
+        assert_eq!(uploaded.outcomes[0].result, TaskResult::Done, "{status}");
+        assert_eq!(uploaded.outcomes[0].step_id, "S2");
+        assert_eq!(state.lock().unwrap().lists[0].2[0]["checklistItems"].as_array().unwrap().len(), 2);
+    }
+}
+
+#[test]
+fn a_step_that_cannot_be_checked_again_stays_uncertain() {
+    // Every request fails: whether it was made can't be told.
+    let server = FakeHttp::answering(raw("500 Internal Server Error"));
+    let uploaded = push_tasks_at(&server.url(""), TOKEN, &upload(vec![step_create("Tea", &[])]));
     assert_eq!(uploaded.outcomes.len(), 1);
     assert_eq!(uploaded.outcomes[0].result, TaskResult::Uncertain);
     assert!(uploaded.outcomes[0].step_id.is_empty());

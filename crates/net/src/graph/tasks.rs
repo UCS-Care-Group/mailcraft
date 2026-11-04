@@ -23,7 +23,7 @@ use mailcraft_model::{Importance, MAX_TASK_STEPS, TaskPatch, TaskStep};
 use mailcraft_time::{DateTime, Timestamp};
 use serde_json::{Value, json};
 
-use super::{Doing, Graph, MAX_WRITTEN, PAGE_SIZE, WRITE_TIMEOUT, instant, nonsense, text, when};
+use super::{Doing, Graph, MAX_WRITTEN, WRITE_TIMEOUT, instant, nonsense, text, when};
 use crate::NetError;
 use crate::http;
 
@@ -34,6 +34,12 @@ const WELL_KNOWN: &str = "wellknownListName";
 const MAX_TITLE: usize = 255;
 /// Longest id of a list or a task that is put into an address.
 const MAX_ID: usize = 1_024;
+/// Tasks asked for in one page when their checklists come with them: small enough that a page
+/// of to-dos with long notes and full checklists stays under the size a page may have.
+const EXPANDED_PAGE: &str = "20";
+/// Most checklist steps taken in from one download, all to-dos together; a to-do past it keeps
+/// the steps it has here (#697).
+pub const MAX_STEPS_IN_ALL: usize = 20_000;
 
 /// The owner's to-dos, as Microsoft To Do has them.
 pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
@@ -57,7 +63,8 @@ pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
     push_tasks_at(&super::graph_base(), token, upload)
 }
 
-/// Read task metadata first, then enrich it with complete checklists where available.
+/// Read the lists, then each list's to-dos with their checklists in the same pages
+/// (`$expand=checklistItems`): one request per page, never one per to-do.
 pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = TasksDownload::default();
@@ -73,17 +80,23 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
     })?;
     download.complete = whole;
     let mut seen: HashSet<String> = HashSet::new();
+    let mut steps_left = MAX_STEPS_IN_ALL;
     for (list, _, shared) in found.iter().filter(|(_, well_known, _)| well_known != "flaggedEmails") {
         let shared = *shared;
         let room = MAX_TASKS.saturating_sub(download.tasks.len());
         let mut unread = 0usize;
-        let first = graph.url(&format!("{LISTS}/{}/tasks?{}", http::encode(list), http::form(&[("$top", PAGE_SIZE)])));
+        let query = http::form(&[("$top", EXPANDED_PAGE), ("$expand", "checklistItems")]);
+        let first = graph.url(&format!("{LISTS}/{}/tasks?{query}", http::encode(list)));
         let most = MAX_TASKS_PER_LIST.min(room);
         let read = if room == 0 {
             Ok(false)
         } else {
             graph.list(Doing::Tasks, first, &[], most, &mut |entry| match task_of(entry, list) {
-                Some(task) if seen.insert(task.id.clone()) => download.tasks.push(task),
+                Some(mut task) if seen.insert(task.id.clone()) => {
+                    task.steps = steps_of(entry, steps_left);
+                    steps_left = steps_left.saturating_sub(task.steps.as_ref().map_or(0, Vec::len));
+                    download.tasks.push(task);
+                }
                 Some(_) => {}
                 None => unread += 1,
             })
@@ -97,50 +110,59 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
             Err(e) => return Err(e),
         }
     }
-    // Steps are a navigation collection, not fields in the task response. Read them
-    // even when the parent did not change: a checklist-only edit must come down too.
-    for task in &mut download.tasks {
-        let path = format!("{LISTS}/{}/tasks/{}/checklistItems", http::encode(&task.list), http::encode(&task.id));
-        let mut steps = Vec::new();
-        let mut seen = HashSet::new();
-        let mut malformed = false;
-        let read = graph.list(Doing::Tasks, graph.url(&path), &[], MAX_TASK_STEPS, &mut |entry| {
-            let id = text(entry, "id");
-            if !valid_id(id)
-                || !seen.insert(id.to_string())
-                || entry.get("displayName").and_then(Value::as_str).is_none()
-                || entry.get("isChecked").and_then(Value::as_bool).is_none()
-            {
-                malformed = true;
-                return;
-            }
-            let mut step = TaskStep {
-                id: id.into(),
-                title: text(entry, "displayName").into(),
-                completed: entry.get("isChecked").and_then(Value::as_bool).unwrap_or(false),
-            };
-            step.tidy();
-            steps.push(step);
-        });
-        task.steps = match read {
-            Ok(whole) => (whole && !malformed).then_some(steps),
-            // A task can disappear between the list and its checklist request. As for
-            // a list that disappears above, keep the rest of the download usable.
-            Err(NetError::Proto(mailcraft_proto::ProtoError::Rejected(_))) => {
-                log::warn!("tasks: a checklist could not be read; existing steps will be kept");
-                None
-            }
-            Err(e) if e.is_refused_sign_in() || matches!(e, NetError::Forbidden(_)) => return Err(e),
-            Err(_) => {
-                // A busy/unreachable checklist must not discard the parent-task snapshot.
-                // Leave subsequent checklists unknown too: don't keep hitting a throttled service.
-                log::warn!("tasks: checklist reads stopped; existing steps will be kept");
-                break;
-            }
-        };
-    }
     log::debug!("tasks: {} of them in {} lists, complete: {}", download.tasks.len(), download.lists.len(), download.complete);
     Ok(download)
+}
+
+/// The checklist that came with a to-do (`checklistItems`, expanded), when it came whole: `None`
+/// when it is missing, cut short (a next link of its own), longer than [`MAX_TASK_STEPS`] or than
+/// `room`, or has an item that makes no sense. `None` keeps the steps here as they are; it is
+/// never read as an empty checklist.
+fn steps_of(entry: &Value, room: usize) -> Option<Vec<TaskStep>> {
+    if entry.get("checklistItems@odata.nextLink").is_some() {
+        return None;
+    }
+    let items = entry.get("checklistItems")?.as_array()?;
+    if items.len() > MAX_TASK_STEPS || items.len() > room {
+        return None;
+    }
+    let mut seen = HashSet::new();
+    let mut steps = Vec::with_capacity(items.len());
+    for item in items {
+        let id = text(item, "id");
+        let title = item.get("displayName").and_then(Value::as_str)?;
+        let completed = item.get("isChecked").and_then(Value::as_bool)?;
+        if !valid_id(id) || !seen.insert(id) {
+            return None;
+        }
+        let mut step = TaskStep { id: id.into(), title: title.into(), completed };
+        step.tidy();
+        steps.push(step);
+    }
+    Some(steps)
+}
+
+/// Whether a checklist item whose making was not confirmed is there after all, read again at
+/// once (#697): `Some(Some(id))`, the one item that the to-do had not got before (`known`), nor
+/// was made in this upload (`made`), with the title that was sent; `Some(None)` when the checklist
+/// was read whole and it isn't there (it was not made, and can be sent again); `None` when that
+/// can't be told.
+fn made_step(graph: &Graph<'_>, list: &str, task: &str, sent: &TaskStep, known: &[String], made: &HashSet<String>) -> Option<Option<String>> {
+    let path = format!("{LISTS}/{}/tasks/{}/checklistItems", http::encode(list), http::encode(task));
+    let mut sent = sent.clone();
+    sent.tidy();
+    let mut found = None;
+    let whole = graph
+        .list(Doing::Tasks, graph.url(&path), &[], MAX_TASK_STEPS, &mut |item| {
+            let id = text(item, "id");
+            let mut step = TaskStep { id: id.into(), title: text(item, "displayName").into(), completed: false };
+            step.tidy();
+            if found.is_none() && valid_id(id) && step.title == sent.title && !known.iter().any(|k| k == id) && !made.contains(id) {
+                found = Some(id.to_string());
+            }
+        })
+        .ok()?;
+    if found.is_some() || whole { Some(found) } else { None }
 }
 
 pub(super) fn valid_id(id: &str) -> bool {
@@ -259,6 +281,8 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         return uploaded;
     };
     let mut default_list: Option<Result<String, NetError>> = None;
+    // The checklist items made in this upload, which a step read again is not taken for.
+    let mut made: HashSet<String> = HashSet::new();
     for op in upload.ops.iter().take(MAX_TASK_OPS) {
         let outcome = |result: TaskResult, error: &str| TaskOutcome {
             kind: op.kind,
@@ -325,7 +349,11 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
             Ok(reply) => reply,
             Err(e) => {
                 let result = if op.kind == TaskOpKind::StepCreate { TaskResult::Uncertain } else { TaskResult::Failed };
-                uploaded.outcomes.push(outcome(result, &e.to_string()));
+                let mut lost = outcome(result, &e.to_string());
+                if let Some(step) = step.filter(|_| result == TaskResult::Uncertain) {
+                    settle(&mut lost, made_step(&graph, &list, &op.id, step, &op.known_steps, &made));
+                }
+                uploaded.outcomes.push(lost);
                 break;
             }
         };
@@ -398,6 +426,14 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                 false
             }
         };
+        if done.result == TaskResult::Uncertain
+            && let Some(step) = step
+        {
+            settle(&mut done, made_step(&graph, &list, &op.id, step, &op.known_steps, &made));
+        }
+        if op.kind == TaskOpKind::StepCreate && done.result == TaskResult::Done {
+            made.insert(done.step_id.clone());
+        }
         uploaded.outcomes.push(done);
         if stop {
             break;
@@ -407,6 +443,23 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         outcome.tidy();
     }
     uploaded
+}
+
+/// What a checklist read again ([`made_step`]) says of a step whose making was not confirmed:
+/// made (with its id), not made (to be sent again), or still not known.
+fn settle(outcome: &mut TaskOutcome, found: Option<Option<String>>) {
+    match found {
+        Some(Some(id)) => {
+            outcome.result = TaskResult::Done;
+            outcome.step_id = id;
+            outcome.error.clear();
+        }
+        Some(None) => {
+            outcome.result = TaskResult::Failed;
+            outcome.error = "the server didn't make the checklist item; it is sent again".into();
+        }
+        None => {}
+    }
 }
 
 /// The id of the owner's default list (the one To Do calls `defaultList`), else the first.

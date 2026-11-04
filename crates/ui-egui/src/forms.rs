@@ -5038,7 +5038,11 @@ mod task {
 
         /// The form for an existing task: the one `p.id` names, else the selected one.
         pub fn edit(s: &Session, p: &Value) -> Option<TaskForm> {
-            let id = p.get("id").and_then(Value::as_u64).filter(|i| *i != 0).or(s.sel.task)?;
+            // An id that names nothing (null, text, 0) opens nothing, not the selected task.
+            let id = match p.get("id") {
+                Some(id) => id.as_u64().filter(|i| *i != 0)?,
+                None => s.sel.task?,
+            };
             let t = s.mailbox.task(id)?;
             let reminder = t.reminder.map(|r| s.local(r));
             let mut f = TaskForm {

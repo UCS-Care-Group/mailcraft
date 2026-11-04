@@ -930,15 +930,17 @@ fn review_merged_steps_beyond_the_read_cap_are_editable_and_uploaded_once() {
     );
 }
 
-#[test]
-fn review_uncertain_creates_are_held_without_claiming_an_independent_remote_step() {
+/// A trip whose server copy has "Old" (S0), and a step "Tea" sent for it whose answer was lost.
+fn step_sent_without_answer() -> (Session, Id, Id, RemoteTask) {
     let (mut s, account) = session();
     let mut there = remote("T1", "Trip");
-    there.steps = Some(Vec::new());
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S0".into(), title: "Old".into(), completed: false }]);
     merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
     let id = titled(&s, "Trip").id;
-    run(&mut s, "tasks.edit", json!({"id":id,"steps":[{"title":"Tea"}]}));
-    let op = task_upload(&s.mailbox, account).unwrap().ops.into_iter().find(|op| op.task == id).unwrap();
+    let old = s.mailbox.task(id).unwrap().steps[0].clone();
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": [old, {"title": "Tea"}]}));
+    let op = task_upload(&s.mailbox, account).unwrap().ops.into_iter().find(|op| op.kind == TaskOpKind::StepCreate).unwrap();
+    assert_eq!(op.known_steps, vec!["S0".to_string()]);
     let applied = super::tasks_remote::apply_task_outcomes(
         &mut s.mailbox,
         &TasksUploaded {
@@ -955,12 +957,130 @@ fn review_uncertain_creates_are_held_without_claiming_an_independent_remote_step
         },
     )
     .unwrap();
-    assert!(applied.messages.iter().any(|message| message.contains("Check it there")));
-    assert!(s.mailbox.task(id).unwrap().local_only);
-    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false }]);
+    assert!(applied.messages.iter().any(|message| message.contains("checks before sending it again")));
+    (s, account, id, there)
+}
+
+fn step_creates(s: &Session, account: Id, id: Id) -> usize {
+    task_upload(&s.mailbox, account).unwrap().ops.iter().filter(|op| op.task == id && op.kind == TaskOpKind::StepCreate).count()
+}
+
+#[test]
+fn review_a_step_sent_without_an_answer_is_not_sent_again_even_after_another_edit() {
+    let (mut s, account, id, _) = step_sent_without_answer();
+    let task = s.mailbox.task(id).unwrap();
+    assert!(!task.local_only, "only that step waits; the rest of the to-do goes on");
+    assert_eq!(step_creates(&s, account, id), 0);
+    // Ticking another step (as the details pane does) sends that change, not the step again.
+    let mut steps = task.steps.clone();
+    steps[0].completed = true;
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": steps}));
+    let ops = task_upload(&s.mailbox, account).unwrap().ops;
+    assert!(ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepUpdate));
+    assert_eq!(step_creates(&s, account, id), 0);
+}
+
+#[test]
+fn review_a_step_the_server_made_without_answering_is_taken_in_not_shown_twice() {
+    let (mut s, account, id, mut there) = step_sent_without_answer();
+    there.steps = Some(vec![
+        mailcraft_model::TaskStep { id: "S0".into(), title: "Old".into(), completed: false },
+        mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false },
+    ]);
     merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
-    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 2);
+    let task = s.mailbox.task(id).unwrap();
+    let ids: Vec<&str> = task.steps.iter().map(|step| step.id.as_str()).collect();
+    assert_eq!(ids, ["S0", "S1"]);
+    assert!(task.unconfirmed_steps.is_empty());
     assert!(!task_upload(&s.mailbox, account).unwrap().ops.iter().any(|op| op.task == id));
+}
+
+#[test]
+fn review_a_step_the_server_never_made_is_sent_again_once() {
+    let (mut s, account, id, there) = step_sent_without_answer();
+    // The checklist, read whole, has only what it had.
+    merge_tasks(&mut s.mailbox, &download(account, vec![there.clone()])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 2);
+    assert_eq!(step_creates(&s, account, id), 1);
+    // A download that couldn't read the checklist settles nothing.
+    let (mut s, account, id, mut there) = step_sent_without_answer();
+    there.steps = None;
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!(step_creates(&s, account, id), 0);
+    assert_eq!(s.mailbox.task(id).unwrap().unconfirmed_steps.len(), 1);
+}
+
+#[test]
+fn review_a_step_made_here_and_deleted_before_it_was_settled_is_deleted_there() {
+    let (mut s, account, id, mut there) = step_sent_without_answer();
+    let old = s.mailbox.task(id).unwrap().steps[0].clone();
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": [old]}));
+    there.steps = Some(vec![
+        mailcraft_model::TaskStep { id: "S0".into(), title: "Old".into(), completed: false },
+        mailcraft_model::TaskStep { id: "S1".into(), title: "Tea".into(), completed: false },
+    ]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().steps.len(), 1);
+    let ops = task_upload(&s.mailbox, account).unwrap().ops;
+    let delete = ops.iter().find(|op| op.task == id && op.kind == TaskOpKind::StepDelete).expect("the step made there goes there too");
+    assert_eq!(delete.patch.steps.as_ref().unwrap()[0].id, "S1");
+}
+
+#[test]
+fn review_a_refused_step_holds_only_itself_until_it_is_changed() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "S0".into(), title: "Old".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let id = titled(&s, "Trip").id;
+    let mut steps = s.mailbox.task(id).unwrap().steps.clone();
+    steps[0].title = "Refused".into();
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": steps}));
+    let op = task_upload(&s.mailbox, account).unwrap().ops.into_iter().find(|op| op.kind == TaskOpKind::StepUpdate).unwrap();
+    let applied = super::tasks_remote::apply_task_outcomes(
+        &mut s.mailbox,
+        &TasksUploaded {
+            account,
+            outcomes: vec![TaskOutcome {
+                kind: op.kind,
+                task: id,
+                id: "T1".into(),
+                result: TaskResult::Refused,
+                patch: op.patch,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(applied.messages.iter().any(|message| message.contains("until you change that step")));
+    assert!(!s.mailbox.task(id).unwrap().local_only);
+    assert!(task_upload(&s.mailbox, account).unwrap().ops.iter().all(|op| op.task != id));
+    // The rest of the to-do still goes up.
+    run(&mut s, "tasks.edit", json!({"id": id, "title": "Trip to the sea"}));
+    let ops = task_upload(&s.mailbox, account).unwrap().ops;
+    assert!(ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::Update));
+    assert!(!ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepUpdate));
+    // Changing that step tries it once more.
+    let mut steps = s.mailbox.task(id).unwrap().steps.clone();
+    steps[0].title = "Accepted".into();
+    run(&mut s, "tasks.edit", json!({"id": id, "steps": steps}));
+    assert!(task_upload(&s.mailbox, account).unwrap().ops.iter().any(|op| op.task == id && op.kind == TaskOpKind::StepUpdate));
+}
+
+#[test]
+fn review_agents_see_local_step_keys_and_can_name_steps_by_them() {
+    let (mut s, account) = session();
+    let mut there = remote("T1", "Trip");
+    there.steps = Some(vec![mailcraft_model::TaskStep { id: "AAMkAGraphId=".into(), title: "Old".into(), completed: false }]);
+    merge_tasks(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let id = titled(&s, "Trip").id;
+    let got = run(&mut s, "tasks.get", json!({"id": id}));
+    let key = got["steps"][0]["id"].as_str().unwrap().to_string();
+    assert!(key.starts_with("step:") && !got.to_string().contains("AAMkAGraphId"));
+    run(&mut s, "tasks.edit", json!({"id": id, "stepsBase": got["steps"], "steps": [{"id": key, "title": "Old", "completed": true}]}));
+    let task = s.mailbox.task(id).unwrap();
+    assert_eq!((task.steps[0].id.as_str(), task.steps[0].completed), ("AAMkAGraphId=", true));
 }
 
 #[test]
