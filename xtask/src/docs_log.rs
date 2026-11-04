@@ -45,6 +45,13 @@ pub struct Fragment {
     pub lines: Vec<String>,
 }
 
+impl Fragment {
+    /// Where it is from the workspace root, as errors name it.
+    pub fn shown(&self) -> String {
+        format!("{DIR}/{}/{}/{}.md", self.doc.strip_suffix(".md").unwrap_or(&self.doc), self.table, self.name)
+    }
+}
+
 /// The lines of a fragment's text, or why it can't go into a table: every line that isn't blank
 /// is a row (`| … |`), and there is at least one. Whether the row has the table's columns is
 /// [`join`]'s to say.
@@ -90,7 +97,18 @@ pub fn is_date(s: &str) -> bool {
         return false;
     }
     let digits = |r: std::ops::Range<usize>| s.get(r).filter(|p| p.bytes().all(|c| c.is_ascii_digit())).and_then(|p| p.parse::<u32>().ok());
-    matches!((digits(0..4), digits(5..7), digits(8..10)), (Some(_), Some(m), Some(d)) if (1..=12).contains(&m) && (1..=31).contains(&d))
+    let (Some(y), Some(m), Some(d)) = (digits(0..4), digits(5..7), digits(8..10)) else {
+        return false;
+    };
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let days = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&d)
 }
 
 /// A table under a heading: its column names, which of them is the date, and the line its first
@@ -166,7 +184,7 @@ pub fn join(doc: &str, text: &str, fragments: &[Fragment]) -> Result<String, Str
         let table = table(&out, heading).map_err(|e| format!("{doc} {e}"))?;
         let mut dated = Vec::new();
         for fragment in found.drain(..) {
-            let shown = fragment.path.display();
+            let shown = fragment.shown();
             for row in &fragment.lines {
                 check_row(row, &table).map_err(|e| format!("{shown}: {e}"))?;
             }
@@ -283,19 +301,34 @@ pub fn run(root: &Path, args: &[&str]) -> Result<(), String> {
         eprintln!("docs-log: {count} fragment(s) would be joined into {} document(s) (nothing changed; --write to join them)", docs.len());
         return Ok(());
     }
+    // Every document is written beside itself first, so a failure leaves them all as they were;
+    // then each takes its place by a rename, and its fragments go at once, so a run that stops
+    // part way and is run again never joins a row twice.
+    let mut written = Vec::new();
     for (doc, text) in &docs {
-        std::fs::write(root.join(doc), text).map_err(|e| format!("{doc}: {e}"))?;
+        let temp = root.join(format!("{doc}.docs-log.tmp"));
+        if let Err(e) = std::fs::write(&temp, text) {
+            for (_, t) in &written {
+                let _ = std::fs::remove_file(t);
+            }
+            let _ = std::fs::remove_file(&temp);
+            return Err(format!("{doc}: {e}"));
+        }
+        written.push((doc.as_str(), temp));
     }
     let top = root.join(DIR);
-    for fragment in &fragments {
-        std::fs::remove_file(&fragment.path).map_err(|e| format!("{}: {e}", fragment.path.display()))?;
-        // The folders it leaves empty go too (a folder that isn't empty stays, and stops it).
-        let mut folder = fragment.path.parent();
-        while let Some(f) = folder.filter(|f| f.starts_with(&top) && *f != top) {
-            if std::fs::remove_dir(f).is_err() {
-                break;
+    for (doc, temp) in &written {
+        std::fs::rename(temp, root.join(doc)).map_err(|e| format!("{doc}: {e}"))?;
+        for fragment in fragments.iter().filter(|f| f.doc == *doc) {
+            std::fs::remove_file(&fragment.path).map_err(|e| format!("{}: {e}", fragment.shown()))?;
+            // The folders it leaves empty go too (a folder that isn't empty stays, and stops it).
+            let mut folder = fragment.path.parent();
+            while let Some(f) = folder.filter(|f| f.starts_with(&top) && *f != top) {
+                if std::fs::remove_dir(f).is_err() {
+                    break;
+                }
+                folder = f.parent();
             }
-            folder = f.parent();
         }
     }
     eprintln!("docs-log: {count} fragment(s) joined into {} document(s) and removed", docs.len());

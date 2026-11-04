@@ -107,8 +107,8 @@ Found something wrong? Use the
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
-| 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
-| 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |
-| 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
-| 2026-10-19 | minor | The Contributor Licence Agreement ([CLA.md](CLA.md)), signed once by a comment on a pull request |
 | 2026-10-21 | minor | Tests go in files of their own (`tests.rs`, `*_tests.rs`, `tests/`), which code scanning skips |
+| 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
+| 2026-10-19 | minor | The Contributor Licence Agreement ([CLA.md](CLA.md)), signed once by a comment on a pull request |
+| 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
+| 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |

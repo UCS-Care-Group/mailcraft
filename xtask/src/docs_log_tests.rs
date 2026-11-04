@@ -98,6 +98,12 @@ fn dates_are_checked() {
     assert!(!is_date("2026-11-4"));
     assert!(!is_date("2026-00-04"));
     assert!(!is_date("2026-11-32"));
+    assert!(!is_date("2026-02-29"));
+    assert!(!is_date("2026-04-31"));
+    assert!(!is_date("1900-02-29"));
+    assert!(is_date("2028-02-29"));
+    assert!(is_date("2000-02-29"));
+    assert!(is_date("2026-12-31"));
     assert!(!is_date("2026/11/04"));
     assert!(!is_date("２０２６-11-04"));
 }
@@ -152,7 +158,8 @@ fn a_bad_fragment_leaves_every_document_as_it_was() {
     let root = scratch("bad");
     let good = put(&root, "ROADMAP/progress/1.md", "| 2026-11-04 | Fine |\n");
     put(&root, "docs/gaps/revisions/2.md", "| 2026-11-04 | Two cells |\n");
-    assert!(run(&root, &["--write"]).unwrap_err().contains("2 cells"));
+    let err = run(&root, &["--write"]).unwrap_err();
+    assert!(err.starts_with("docs/log.d/docs/gaps/revisions/2.md: ") && err.contains("2 cells"), "{err}");
     assert_eq!(std::fs::read_to_string(root.join("ROADMAP.md")).unwrap(), ROADMAP);
     assert!(good.exists());
     let _ = std::fs::remove_dir_all(&root);
@@ -201,8 +208,17 @@ fn every_table_in_the_real_documents_takes_fragments() {
         for (_, heading) in TABLES {
             if lines.iter().any(|l| l.trim_end() == heading) {
                 let table = table(&lines, heading).unwrap_or_else(|e| panic!("{doc} {e}"));
-                if let Some(first) = lines.get(table.first_row).filter(|l| l.starts_with('|')) {
+                let rows: Vec<&String> = lines.iter().skip(table.first_row).take_while(|l| l.starts_with('|')).collect();
+                if let Some(first) = rows.first() {
                     check_row(first, &table).unwrap_or_else(|e| panic!("{doc}: {e}"));
+                }
+                // Newest first, so that rows joined in at the top stay in order (a date may carry
+                // a word after it, `2026-10-12 (night)`).
+                let dates: Vec<String> = rows.iter().filter_map(|r| cells(r)?.get(table.date).map(|d| d.chars().take(10).collect())).collect();
+                for pair in dates.windows(2) {
+                    if let [newer, older] = pair {
+                        assert!(newer >= older, "{doc} `{heading}`: {older} is under {newer}; the table runs newest first");
+                    }
                 }
                 seen += 1;
             }
