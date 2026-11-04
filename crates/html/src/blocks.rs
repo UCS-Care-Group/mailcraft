@@ -2362,10 +2362,14 @@ pub(crate) fn floated(tag: &Tag<'_>, css: &Css) -> Option<Align> {
     if tag.name != "table" || css.inline_block || left_out(tag, css) {
         return None;
     }
-    let side = match tag.attr("align")?.trim().to_ascii_lowercase().as_str() {
-        "left" => Align::Left,
-        "right" => Align::Right,
-        _ => return None,
+    let align = tag.attr("align")?;
+    let align = align.trim();
+    let side = if align.eq_ignore_ascii_case("left") {
+        Align::Left
+    } else if align.eq_ignore_ascii_case("right") {
+        Align::Right
+    } else {
+        return None;
     };
     (sized(css, tag.attr("width").and_then(|w| style::attr_length(&w))) != Some(Length::Percent(100))).then_some(side)
 }

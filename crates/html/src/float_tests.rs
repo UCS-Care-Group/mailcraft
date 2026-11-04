@@ -43,6 +43,14 @@ fn a_table_at_the_left_and_one_at_the_right_stand_on_one_line() {
 }
 
 #[test]
+fn a_side_written_in_capitals_or_with_spaces_floats_too() {
+    let blocks = parse(&PAIR.replace("align='left' border", "align=' LEFT ' border").replace("align='right' border", "align='Right' border"));
+    let found = boxes(&blocks);
+    assert_eq!(found.len(), 2, "{blocks:?}");
+    assert_eq!((found[0].0.align, found[1].0.align), (Align::Left, Align::Right), "{blocks:?}");
+}
+
+#[test]
 fn a_greeting_and_a_framed_notice_stand_side_by_side_in_their_shares() {
     let html = "<table width='100%'><tr><td valign='top'>\
          <table width='55%' align='left'><tr><td><b>Good morning,</b></td></tr><tr><td>we have issued your invoice.</td></tr></table>\
