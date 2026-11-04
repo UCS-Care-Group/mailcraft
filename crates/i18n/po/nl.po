@@ -6052,7 +6052,7 @@ msgid "Mark as Unread"
 msgstr "Als ongelezen markeren"
 
 #. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Als gelezen markeren"

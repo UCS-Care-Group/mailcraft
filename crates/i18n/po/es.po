@@ -5758,7 +5758,7 @@ msgid "Mark as Unread"
 msgstr "Marcar como no leído"
 
 #. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Marcar como leído"

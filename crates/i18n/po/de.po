@@ -3882,7 +3882,6 @@ msgstr ""
 "Ordner-\n"
 "bereich"
 
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3945,7 +3944,7 @@ msgstr "Ordner…"
 msgid ""
 "Follow\n"
 "Up"
-msgstr  ""
+msgstr ""
 "Nach-\n"
 "verfolgung"
 
@@ -5773,7 +5772,7 @@ msgid "Mark as Unread"
 msgstr "Als ungelesen markieren"
 
 #. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Als gelesen markieren"
