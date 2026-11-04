@@ -15229,6 +15229,12 @@ msgstr "il server non consente di spostare la regola accanto"
 msgid "the server doesn't let this rule be changed"
 msgstr "il server non consente di modificare questa regola"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "il server mantiene questa cartella: non può essere rinominata, spostata o eliminata"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -16384,12 +16390,26 @@ msgstr[0] "{n} messaggio rimosso"
 msgstr[1] "{n} messaggi rimossi"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message that came back empty after a refused delete is being downloaded again."
+msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 msgstr[1] "{n} messaggi verranno eliminati definitivamente."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message with characters that couldn't be read is being downloaded again."
+msgid_plural "{n} messages with characters that couldn't be read are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

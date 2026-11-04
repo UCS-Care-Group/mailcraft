@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-02 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-04 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -37,6 +37,14 @@ WordCraft does.
    fragments' lines at the top of their sections and removes the fragments, in the release's own
    pull request: what is tagged is what is released, and `release.yml` reads the file as before.
    **In short** and the closing paragraphs are written in the file itself.
+
+   The documents' tables are joined the same way: a pull request adds its row of a document's
+   **Revision history** (or of `ROADMAP.md`'s **Progress log**) as a file of its own,
+   `docs/log.d/<document without .md>/revisions/<name>.md` (`progress/` for the progress log;
+   [`docs/log.d/README.md`](log.d/README.md)). `cargo xtask docs-log` prints the documents with
+   the rows joined in and changes nothing; `cargo xtask ci` checks them. In the same release
+   pull request, `cargo xtask docs-log --write` puts the rows into their tables by date,
+   newest first, and removes the fragments.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.

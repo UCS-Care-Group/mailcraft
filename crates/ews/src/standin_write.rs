@@ -392,6 +392,7 @@ impl State {
             marker: String::new(),
             files: Vec::new(),
             mime: Vec::new(),
+            conversation: String::new(),
         };
         if let Some(mime) = message.child_in(TYPES, "MimeContent") {
             let bytes = crate::b64::decode(&mime.text, 64 << 20).ok_or_else(|| invalid("MimeContent is Base64"))?;

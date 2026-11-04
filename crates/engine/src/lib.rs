@@ -29,6 +29,7 @@ pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
 pub mod composing;
+mod conversations;
 pub mod counts;
 pub mod import_tree;
 pub mod io;

@@ -66,6 +66,9 @@ fn open(path: &str) -> Result<Session, String> {
     }
     let mut s = Session::new(opened.mailbox);
     s.path = Some(path.into());
+    // The steps every opening takes (#793): mail put back empty is fetched again before a
+    // command can move it.
+    mailcraft_engine::cmd::file::after_opening(&mut s);
     Ok(s)
 }
 
