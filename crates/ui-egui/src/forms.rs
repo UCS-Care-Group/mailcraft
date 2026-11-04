@@ -7027,7 +7027,9 @@ pub(crate) mod rules {
             // All accounts: the rules for every account, which aren't in an account's lists; a
             // new rule is for one account.
             let apart = account == 0 && accounts.iter().any(|(id, _)| *id != 0);
-            let any_apart = mb.rules.iter().any(|r| r.account == 0);
+            // (With no account yet, a rule is the first account's once it is added, not All
+            // accounts'.)
+            let any_apart = accounts.iter().any(|(id, _)| *id != 0) && mb.rules.iter().any(|r| r.account == 0);
             let rules: Vec<Rule> =
                 mb.rules_in_order(account).into_iter().filter_map(|i| mb.rules.get(i)).filter(|r| r.account == account).cloned().collect();
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);

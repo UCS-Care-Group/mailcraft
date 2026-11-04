@@ -516,3 +516,29 @@ fn a_rule_given_to_another_account_than_its_folders_opens_for_the_folder_to_be_c
     let r = &mb.rules[0];
     assert_eq!((r.account, r.actions.clone()), (second, vec![Action::MoveTo(theirs), Action::MarkRead]));
 }
+
+/// With no account yet, a rule is the first account's once one is added: the dialog lists it
+/// with no All accounts, nor a word about them, and New Rule makes more (#566).
+#[test]
+fn with_no_account_yet_there_is_no_all_accounts() {
+    let mut app = MailApp::new(Session::at(Mailbox::default(), NOW, 0), Services::default());
+    app.autosave = false;
+    let rule = json!({"name": "Early", "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "markRead"}]});
+    app.execute("rules.add", rule).unwrap();
+    assert_eq!(app.session.mailbox.rules[0].account, 0);
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(6);
+    assert!(h.query_by_label("Early").is_some());
+    assert!(h.query_by_label_contains("All accounts").is_none());
+    h.get_by_label("New Rule").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Add Rule").is_some());
+}
