@@ -591,10 +591,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
-    if app.services.update_check.is_some() {
-        section(ui, tl!("Updates"), t);
-        crate::updates::options(app, ui, t);
-    }
     let prefs = app.session.prefs.clone();
     let set = |app: &mut MailApp, params: serde_json::Value| {
         let _ = app.run("file.options", params);

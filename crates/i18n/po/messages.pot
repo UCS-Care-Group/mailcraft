@@ -4999,11 +4999,6 @@ msgstr ""
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/updates.rs
-msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
-msgstr ""
-
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
@@ -5045,11 +5040,6 @@ msgid "MailCraft keeps this account's rules on this computer: the rule runs whil
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/updates.rs
-msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
 msgstr ""
@@ -5061,7 +5051,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
-msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr ""
 
 #. name
@@ -10693,7 +10683,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
-msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+msgid "This is a development build: it checks only when you press Check for Updates."
 msgstr ""
 
 #. interface
