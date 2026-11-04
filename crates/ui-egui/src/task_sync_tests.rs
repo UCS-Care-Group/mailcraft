@@ -419,3 +419,22 @@ fn undo_stays_while_no_job_can_start() {
     assert!(!app.tasks_tick_at(10_000.0));
     assert!(app.session.can_undo());
 }
+
+/// #702: with two accounts whose To Do works, the question lists them in the order the owner put
+/// them in, but offers first the account added first, wherever the owner moved it; so does
+/// File › Info.
+#[test]
+fn the_question_offers_the_first_account_added_first() {
+    let (mut app, owner, _, _, _) = window();
+    let zoe = app.execute("account.add", json!({"email": "zoe@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    app.stand_in_tasks_work();
+    app.execute("account.move", json!({"id": zoe, "before": owner})).unwrap();
+    let mb = &app.session.mailbox;
+    assert_eq!(mailcraft_engine::cmd::tasks_remote::task_accounts(mb), [zoe, owner], "listed in the owner's order");
+    assert_eq!(app.tasks_working_first(), Some(owner));
+    assert!(app.offer_local_tasks());
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("the owner is asked") };
+    assert_eq!(ask.with, json!({"account": owner}));
+    assert_eq!(ask.more.iter().map(|(_, with)| with.clone()).collect::<Vec<_>>(), [json!({"account": zoe})]);
+}

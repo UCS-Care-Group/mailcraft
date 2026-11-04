@@ -80,9 +80,10 @@ pub fn local_task_count(mailbox: &Mailbox) -> usize {
     local_tasks(mailbox).count()
 }
 
-/// The accounts whose to-dos are kept in step now.
+/// The accounts whose to-dos are kept in step now, in the order the owner put the accounts in
+/// (#702).
 pub fn task_accounts(mailbox: &Mailbox) -> Vec<Id> {
-    mailbox.accounts.iter().map(|a| a.id).filter(|id| keeps_tasks(mailbox, *id)).collect()
+    mailbox.accounts_in_order().into_iter().map(|a| a.id).filter(|id| keeps_tasks(mailbox, *id)).collect()
 }
 
 /// How many changes wait to be told to `account`'s server.

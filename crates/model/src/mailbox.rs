@@ -647,6 +647,11 @@ impl Account {
         !self.is_shared() && self.kind != AccountKind::Jmap && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
     }
 
+    /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).
+    pub fn keeps_contacts(&self) -> bool {
+        self.keeps_tasks()
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
@@ -914,6 +919,15 @@ pub struct Mailbox {
     /// ([`Account::as_written`]).
     #[serde(serialize_with = "write_accounts", deserialize_with = "read_accounts")]
     pub accounts: Vec<Account>,
+    /// The order the owner put their accounts in, by dragging them in the folder pane (#702):
+    /// their ids, the top one first. It belongs to the list, not to any account: the accounts
+    /// stay in [`Mailbox::accounts`] in the order they were added, so the default account
+    /// ([`Mailbox::default_account`]) is never changed by it. Empty until the owner first moves
+    /// one, and in a file from before there was an order. An account it doesn't name (one added
+    /// since) comes after those it names, in the order it was added; a shared mailbox is never
+    /// named, as it stays under the account it is opened through ([`Mailbox::accounts_in_order`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_ids")]
+    pub account_order: Vec<Id>,
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub folders: Vec<Folder>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
@@ -1019,6 +1033,7 @@ impl Default for Mailbox {
         Mailbox {
             version: 1,
             accounts: Vec::new(),
+            account_order: Vec::new(),
             folders: Vec::new(),
             messages: BTreeMap::new(),
             contacts: BTreeMap::new(),
@@ -1226,6 +1241,7 @@ impl Mailbox {
             }
         }
         self.accounts.retain(|a| !going.contains(&a.id));
+        self.account_order.retain(|a| !going.contains(a));
         self.folders.retain(|f| !going.contains(&f.account));
         self.messages.retain(|_, m| !going.contains(&m.account));
         self.pending.retain(|p| !going.contains(&p.account()));
@@ -1302,9 +1318,10 @@ impl Mailbox {
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
     }
 
-    /// The accounts in the order the folder pane lists them: each account of its own, followed
-    /// by the shared mailboxes opened through it. A shared mailbox whose owner is gone comes
-    /// last, as it is (it can't be read, and says so when it is).
+    /// The accounts in the order the folder pane lists them: each account of its own, in the
+    /// order the owner put them in ([`Mailbox::account_order`]; else as they were added),
+    /// followed by the shared mailboxes opened through it. A shared mailbox whose owner is gone
+    /// comes last, as it is (it can't be read, and says so when it is).
     pub fn accounts_in_order(&self) -> Vec<&Account> {
         let mut shared: HashMap<Id, Vec<&Account>> = HashMap::new();
         for a in self.accounts.iter().filter(|a| a.shared_of.is_some_and(|o| o != a.id)) {
@@ -1312,8 +1329,16 @@ impl Mailbox {
                 shared.entry(owner).or_default().push(a);
             }
         }
+        // Where the owner put each account they placed: the first time the list names it.
+        let mut place: HashMap<Id, usize> = HashMap::new();
+        for (n, id) in self.account_order.iter().take(MAX_ACCOUNTS).enumerate() {
+            place.entry(*id).or_insert(n);
+        }
+        let mut own: Vec<&Account> = self.accounts.iter().filter(|a| !a.is_shared()).collect();
+        // (A stable sort: those not placed keep the order they were added in, after the others.)
+        own.sort_by_key(|a| place.get(&a.id).copied().unwrap_or(usize::MAX));
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
-        for a in self.accounts.iter().filter(|a| !a.is_shared()) {
+        for a in own {
             out.push(a);
             out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
         }
@@ -1321,6 +1346,36 @@ impl Mailbox {
         let placed: HashSet<Id> = out.iter().map(|a| a.id).collect();
         out.extend(self.accounts.iter().filter(|a| !placed.contains(&a.id)));
         out
+    }
+
+    /// Put the account `id` in another place of the folder pane (#702): right before the account
+    /// `before`, or last without one. The shared mailboxes opened through it go with it, and
+    /// neither account may be a shared mailbox. Only [`Mailbox::account_order`] changes: the
+    /// default account stays the one it was. Whether anything moved.
+    pub fn move_account(&mut self, id: Id, before: Option<Id>) -> Result<bool, ModelError> {
+        let own = |mb: &Mailbox, id: Id| -> Result<(), ModelError> {
+            match mb.account(id) {
+                None => Err(not_found("account", id)),
+                Some(a) if a.is_shared() => Err(invalid("a shared mailbox stays under the account it is opened through: move that account")),
+                Some(_) => Ok(()),
+            }
+        };
+        own(self, id)?;
+        if let Some(before) = before {
+            if before == id {
+                return Err(invalid("an account can't be put before itself"));
+            }
+            own(self, before)?;
+        }
+        let was: Vec<Id> = self.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect();
+        let mut order: Vec<Id> = was.iter().copied().filter(|a| *a != id).collect();
+        let at = before.and_then(|b| order.iter().position(|a| *a == b)).unwrap_or(order.len());
+        order.insert(at, id);
+        let moved = order != was;
+        if moved {
+            self.account_order = order;
+        }
+        Ok(moved)
     }
 
     /// Open the shared mailbox at `address` under the Microsoft account `owner`: an account of
@@ -3209,6 +3264,14 @@ impl Mailbox {
         self.account_categories.retain(|account, _| own.contains(account));
         self.server_categories.retain(|account, _| own.contains(account));
         self.tidy_listed_twice();
+        // The owner's order names their own accounts (`own`, above), each once (#702): whatever
+        // else a file says there is dropped.
+        let mut named = HashSet::new();
+        let before = self.account_order.len();
+        self.account_order.retain(|id| own.contains(id) && named.insert(*id));
+        if self.account_order.len() != before {
+            fixed.push("the order of the accounts tidied".into());
+        }
         // A to-do of this computer's that the server refused is one kept here (#632): it can't go
         // to To Do but through the question, which leaves it out. A build from before #632 that
         // saved the file kept that mark of a kept one and dropped `kept_here`.

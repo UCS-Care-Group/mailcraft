@@ -120,11 +120,12 @@ impl JunkForm {
         let t = Tokens::get(ui.ctx());
         let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
         let entries: Vec<String> = app.session.mailbox.junk_accounts.get(&self.account).map(|l| l.list(self.page).to_vec()).unwrap_or_default();
+        // (In the order of the folder pane, #702.)
         let accounts: Vec<(Id, String)> = app
             .session
             .mailbox
-            .accounts
-            .iter()
+            .accounts_in_order()
+            .into_iter()
             .filter(|a| a.shared_of.is_none())
             .map(|a| (a.id, shown(if a.email.is_empty() { &a.name } else { &a.email }, 60)))
             .collect();
