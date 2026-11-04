@@ -3980,7 +3980,6 @@ msgstr ""
 "Ordner-\n"
 "bereich"
 
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4043,7 +4042,7 @@ msgstr "Ordner…"
 msgid ""
 "Follow\n"
 "Up"
-msgstr  ""
+msgstr ""
 "Nach-\n"
 "verfolgung"
 
