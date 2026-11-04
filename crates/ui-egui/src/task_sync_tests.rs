@@ -93,10 +93,13 @@ fn a_change_made_here_goes_after_a_quiet_moment() {
     app.poll_tasks();
     app.execute("tasks.sendLocal", json!({"account": owner})).unwrap();
     app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    assert!(app.session.can_undo());
     assert!(!app.tasks_tick_at(1_000.0));
     assert!(app.tasks_tick_at(10_000.0));
     let sent = jobs.lock().unwrap().last().cloned().unwrap();
     assert_eq!((sent.0, sent.2 >= 1), (owner, true));
+    // #706: only a delete that goes out forgets the undo; a create keeps it.
+    assert!(app.session.can_undo(), "a create that goes out keeps its undo step");
 }
 
 #[test]
