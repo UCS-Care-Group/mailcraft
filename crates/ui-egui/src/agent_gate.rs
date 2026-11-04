@@ -333,10 +333,13 @@ pub fn expire(app: &mut MailApp, now: f64) {
     }
 }
 
-/// The buttons: going ahead, and not (the default).
-fn verbs(class: Class) -> (&'static str, &'static str) {
+/// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
+/// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
+/// (#566). One made from a message does: it runs at once on the mail from that sender.
+pub(crate) fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
+        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }
@@ -374,7 +377,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
-    let (yes_label, no_label) = verbs(a.class);
+    let (yes_label, no_label) = verbs(a.class, &a.id);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));

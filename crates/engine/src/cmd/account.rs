@@ -28,7 +28,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
-        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
+        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
+        CommandSpec::new("account.move", "Move Account", "Folder Pane", move_account).params(r#"{"id": number, "before"?: number | null} — puts the account in another place in the folder pane, as dragging its name there does (#702): right before the account `before` names, or last without one. The shared mailboxes opened through it move with it; a shared mailbox can't be moved by itself, nor named as `before`. The order is kept in the mailbox and followed by the folder pane, File › Info, the From list of a new message, the list of calendars, Junk E-mail Options, Signatures, Rules and Alerts, the accounts of Tasks, account.list, folder.list, file.account and file.info (Send/Receive keeps the order the accounts were added in); the default account, which new mail is written from, stays the one it was. Answers {"moved": bool, "order": [id] (the accounts as the folder pane lists them, shared mailboxes included)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
@@ -545,6 +546,7 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("there is no account to remove"));
     }
     let left = remove_with_content(s, id)?;
+    super::people::forget_here(s);
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }
@@ -613,17 +615,8 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     // which of their calendars is kept as the mailbox's own, when only theirs are left, doesn't
     // depend on a hash.
     let accounts: Vec<Id> = s.mailbox.accounts.iter().filter(|a| going.contains(&a.id)).map(|a| a.id).collect();
-    // Outlook's list of categories, which is the mailbox's, from whichever Microsoft account read
-    // it last: one that stays reads its own again with its contacts, which the window brings
-    // every quarter of an hour.
-    // (A shared mailbox reads no list of categories of its own: the owner's sign-in reads the
-    // owner's.)
-    let microsoft = s.mailbox.accounts.iter().any(|a| going.contains(&a.id) && a.kind == AccountKind::Microsoft && !a.is_shared());
     for account in accounts {
         super::remote::forget(s, account)?;
-    }
-    if microsoft {
-        s.mailbox.outlook_categories.clear();
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
@@ -645,11 +638,24 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     Ok(left)
 }
 
+/// Put an account in another place of the folder pane (#702).
+fn move_account(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let before = match v.get("before") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(p::req_id(v, "before")?),
+    };
+    let moved = s.mailbox.move_account(id, before)?;
+    let order: Vec<Id> = s.mailbox.accounts_in_order().iter().map(|a| a.id).collect();
+    Ok(json!({"moved": moved, "order": order}))
+}
+
+/// The accounts as the folder pane lists them (#702).
 fn list(s: &mut Session, _: &Value) -> CmdResult {
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })

@@ -64,7 +64,8 @@ fn whats_new(_: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn account(s: &mut Session, _: &Value) -> CmdResult {
-    let accounts: Vec<Value> = s.mailbox.accounts.iter().map(|a| json!({"id": a.id, "name": a.name, "email": a.email, "kind": a.kind})).collect();
+    let accounts: Vec<Value> =
+        s.mailbox.accounts_in_order().into_iter().map(|a| json!({"id": a.id, "name": a.name, "email": a.email, "kind": a.kind})).collect();
     Ok(json!({"version": VERSION, "accounts": accounts, "offline": s.prefs.offline}))
 }
 

@@ -58,7 +58,10 @@ fn the_cli_removes_what_came_from_the_accounts_server() {
     from_server(&mut s, keep, "Ada");
     from_server(&mut s, going, "Grace");
     s.mailbox.add_contact(Contact { display_name: "Neighbour".into(), ..Default::default() });
-    s.mailbox.outlook_categories = vec!["Red category".into()];
+    for account in [keep, going] {
+        s.mailbox.account_categories.insert(account, Vec::new());
+        s.mailbox.server_categories.insert(account, vec!["Red category".into()]);
+    }
     s.run("file.saveAs", &json!({"path": before})).unwrap();
 
     let out = Command::new(env!("CARGO_BIN_EXE_mailcraft-cli"))
@@ -83,5 +86,5 @@ fn the_cli_removes_what_came_from_the_accounts_server() {
     assert_eq!(people, ["Ada's colleague", "Neighbour"]);
     assert!(!m.calendars.iter().any(|c| c.origin.account == going), "{:?}", m.calendars);
     assert!(m.calendars.iter().any(|c| c.origin.account == keep));
-    assert!(m.outlook_categories.is_empty());
+    assert!(m.account_categories.keys().eq([&keep]) && m.server_categories.keys().eq([&keep]));
 }

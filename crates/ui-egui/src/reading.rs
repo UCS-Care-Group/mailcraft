@@ -562,7 +562,8 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::hover());
         let mut x = r.min.x;
         for c in m.categories.iter().take(SHOWN_CATEGORIES) {
-            x += crate::widgets::category_chip(ui, pos2(x, r.center().y), c, crate::theme::c32(app.session.mailbox.category_color(c))) + 6.0;
+            x += crate::widgets::category_chip(ui, pos2(x, r.center().y), c, crate::theme::c32(app.session.mailbox.category_color_of(m.account, c)))
+                + 6.0;
         }
     }
     // The rest of the conversation, to jump to.
