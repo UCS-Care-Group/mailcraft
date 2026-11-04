@@ -714,6 +714,9 @@ fn a_new_install_files_an_answered_request_away_and_a_saved_choice_is_kept() {
 
     // An owner who turned it off: saved so, and kept at the next start.
     let (mut app, account, ids) = mail_app(vec![Meeting::default().mail()]);
+    // Start from a new install's choice, so the saved one is what turns it off.
+    app.fresh_prefs();
+    assert!(app.session.prefs.delete_answered_requests);
     let mut off = crate::UiState::default();
     off.options.delete_answered_requests = false;
     app.apply_prefs(serde_json::from_value(serde_json::to_value(off).unwrap()).unwrap());
