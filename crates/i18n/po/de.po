@@ -1470,13 +1470,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options"
-msgstr ""
+msgstr "Anlagenoptionen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options for {name}"
-msgstr ""
+msgstr "Anlagenoptionen für {name}"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs

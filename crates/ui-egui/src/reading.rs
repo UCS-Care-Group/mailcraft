@@ -620,6 +620,8 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
             let drop_sense = if filed { Sense::click() } else { Sense::hover() };
             let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
+            app.hit.add("attachment", attachment_key(m.id, index), main_rect);
+            app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
             ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
             let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
@@ -629,12 +631,16 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
                 ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
             }
-            let divider = drop_rect.min.x.floor() + 0.5;
+            let divider = ui.painter().round_to_pixel_center(drop_rect.min.x);
             ui.painter().line_segment([pos2(divider, r.min.y + 7.0), pos2(divider, r.max.y - 7.0)], Stroke::new(1.0, t.border));
             crate::ribbon::drop_mark(ui, drop_rect.center(), if filed { t.icon } else { t.text_disabled });
+            if resp.has_focus() {
+                ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+            }
             if drop.has_focus() {
                 ui.painter().rect_stroke(drop_rect.shrink(1.0), right, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
             }
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &shown));
             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
             paint_clipped(ui.painter(), pos2(r.min.x + 34.0, r.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
             ui.painter().text(
@@ -662,10 +668,15 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             let label = crate::i18n::fmt(tl!("Attachment options for {name}"), &[("name", &shown)]);
             drop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
             let drop = drop.on_hover_text(tl!("Attachment options"));
-            drop.context_menu(|ui| attachment_menu(ui, app, m.id, index));
             egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
         }
     });
+}
+
+/// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,
+/// `attachmentMenu` for its `▾`).
+pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
+    crate::ribbon::hit_id(&format!("{id}:{index}"))
 }
 
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
