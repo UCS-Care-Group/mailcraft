@@ -276,4 +276,10 @@ fn an_item_carrying_a_name_of_the_list_in_other_letters_shows_one_chip() {
     };
     assert_eq!(names(&["équipe", "RED"]), ["Équipe", "Red"]);
     assert_eq!(names(&["Came with it"]), ["Équipe", "Red", "Came with it"]);
+    // A click on its chip takes the carried spelling off, and a second puts the list's on.
+    let mut chosen = vec!["équipe".to_string(), "RED".to_string()];
+    super::kit::toggle_chip(&mut chosen, "Équipe");
+    assert_eq!(chosen, ["RED"]);
+    super::kit::toggle_chip(&mut chosen, "Équipe");
+    assert_eq!(chosen, ["RED", "Équipe"]);
 }

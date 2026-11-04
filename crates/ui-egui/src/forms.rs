@@ -715,6 +715,16 @@ pub(crate) mod kit {
         ui.spacing_mut().item_spacing.x = gap;
     }
 
+    /// A click on the chip `name` in [`category_chips`]: a category the item carries, in any case
+    /// of its letters, is taken off it; one it doesn't carry is put on.
+    pub fn toggle_chip(chosen: &mut Vec<String>, name: &str) {
+        let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, name));
+        chosen.retain(|c| !mailcraft_model::sync::same_category(c, name));
+        if !on {
+            chosen.push(name.to_string());
+        }
+    }
+
     /// The chips [`category_chips`] shows: the list's categories, then the names the item carries
     /// that the list doesn't have (no colour), each once whatever the case of its letters.
     pub fn chips_of(all: &[Category], chosen: &[String]) -> Vec<(String, Option<Color32>)> {
@@ -741,10 +751,7 @@ pub(crate) mod kit {
             for (name, color) in chips {
                 let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
                 if chip(ui, &name, on, color) {
-                    chosen.retain(|c| !mailcraft_model::sync::same_category(c, &name));
-                    if !on {
-                        chosen.push(name);
-                    }
+                    toggle_chip(chosen, &name);
                 }
             }
         });
