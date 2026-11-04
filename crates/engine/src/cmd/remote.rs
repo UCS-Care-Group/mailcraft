@@ -2974,6 +2974,17 @@ fn check_sent(
 ///
 /// `offset_at` is the local zone's offset (minutes east of UTC) at an instant
 /// ([`event_from_remote`]). Nothing is changed when this returns an error.
+/// An event or card's identity for comparisons: its path, without scheme or host. A server may
+/// name the whole address in the answer to a write and only the path in a download, and the two
+/// are the same resource.
+#[allow(dead_code)]
+fn resource_key(id: &str) -> &str {
+    match id.split_once("://") {
+        Some((_, rest)) => rest.find('/').map(|at| &rest[at..]).unwrap_or(rest),
+        None => id,
+    }
+}
+
 pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at: &dyn Fn(Timestamp) -> i32) -> Result<Merged, CmdError> {
     let (account, email) = owner(mailbox, download.account, &download.email).map(|owner| (owner.id, owner.email.clone()))?;
     let remote_calendar = download.calendar.trim();

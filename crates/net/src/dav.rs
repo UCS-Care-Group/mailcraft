@@ -434,6 +434,24 @@ fn canonical(url: &Url) -> String {
     )
 }
 
+/// The path of an event or card on its server, without scheme or host. A write's answer may name
+/// the whole URL while a download names only the path, and the two are the same resource.
+#[allow(dead_code)]
+fn resource_path(url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    if let Some((_, rest)) = path.split_once("://") {
+        return rest.find('/').map(|at| rest[at..].to_string()).unwrap_or_else(|| "/".to_string());
+    }
+    path.to_string()
+}
+
+/// A stored resource URL made absolute for a request: one written by an older client may be only
+/// the path the server lists, while the transport needs an address.
+#[allow(dead_code)]
+fn request_url(base: &str, url: &str) -> String {
+    resolve(base, url.trim()).unwrap_or_else(|| url.trim().to_string())
+}
+
 // --- what changes here go up --------------------------------------------------------------
 
 /// Tell a CalDAV server what was made, changed or deleted here. `main_calendar` is the calendar

@@ -213,58 +213,60 @@ mod tests {
                 ],
                 ..Default::default()
             }),
-            events: vec![EventsDownload {
-                account,
-                email: "ada@example.org".into(),
-                calendar: String::new(),
-                from: 1_800_000_000,
-                to: 1_800_003_600,
-                complete: true,
-                events: vec![
-                    RemoteEvent {
-                        id: format!("{main}e-1.ics"),
-                        title: "Stand-up".into(),
+            events: vec![
+                EventsDownload {
+                    account,
+                    email: "ada@example.org".into(),
+                    calendar: String::new(),
+                    from: 1_800_000_000,
+                    to: 1_800_003_600,
+                    complete: true,
+                    events: vec![
+                        RemoteEvent {
+                            id: format!("{main}e-1.ics"),
+                            title: "Stand-up".into(),
+                            start: 1_800_000_000,
+                            end: 1_800_003_600,
+                            ..Default::default()
+                        },
+                        RemoteEvent {
+                            id: "/caldav/ada@example.org/Investigation/c3ed%2540linchange.ics".into(),
+                            uid: "c3ed@linchange".into(),
+                            title: "Investigation event".into(),
+                            start: 1_800_003_600,
+                            end: 1_800_007_200,
+                            start_zone: "UTC".into(),
+                            ..Default::default()
+                        },
+                        RemoteEvent {
+                            id: "/caldav/ada@example.org/Investigation/28cd%2540linchange.ics".into(),
+                            uid: "28cd@linchange".into(),
+                            title: "Rome event".into(),
+                            start: 1_800_010_800,
+                            end: 1_800_014_400,
+                            start_zone: "Europe/Rome".into(),
+                            ..Default::default()
+                        },
+                    ],
+                    ..Default::default()
+                },
+                EventsDownload {
+                    account,
+                    email: "ada@example.org".into(),
+                    calendar: shared.into(),
+                    from: 1_800_000_000,
+                    to: 1_800_003_600,
+                    complete: true,
+                    events: vec![RemoteEvent {
+                        id: format!("{shared}team.ics"),
+                        title: "Team event".into(),
                         start: 1_800_000_000,
                         end: 1_800_003_600,
                         ..Default::default()
-                    },
-                    RemoteEvent {
-                        id: "/caldav/ada@example.org/Investigation/c3ed%2540linchange.ics".into(),
-                        uid: "c3ed@linchange".into(),
-                        title: "Investigation event".into(),
-                        start: 1_800_003_600,
-                        end: 1_800_007_200,
-                        start_zone: "UTC".into(),
-                        ..Default::default()
-                    },
-                    RemoteEvent {
-                        id: "/caldav/ada@example.org/Investigation/28cd%2540linchange.ics".into(),
-                        uid: "28cd@linchange".into(),
-                        title: "Rome event".into(),
-                        start: 1_800_010_800,
-                        end: 1_800_014_400,
-                        start_zone: "Europe/Rome".into(),
-                        ..Default::default()
-                    },
-                ],
-                ..Default::default()
-            },
-            EventsDownload {
-                account,
-                email: "ada@example.org".into(),
-                calendar: shared.into(),
-                from: 1_800_000_000,
-                to: 1_800_003_600,
-                complete: true,
-                events: vec![RemoteEvent {
-                    id: format!("{shared}team.ics"),
-                    title: "Team event".into(),
-                    start: 1_800_000_000,
-                    end: 1_800_003_600,
+                    }],
                     ..Default::default()
-                }],
-                ..Default::default()
-            }],
+                },
+            ],
             contacts: Some(ContactsDownload {
                 account,
                 email: "ada@example.org".into(),
