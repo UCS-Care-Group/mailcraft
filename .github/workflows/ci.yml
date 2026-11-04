@@ -102,10 +102,30 @@ jobs:
           tool: cargo-deny@0.20.2
       - run: cargo run --locked --package xtask -- deny
 
+  # A pull request of documentation alone skips `ci`, but its fragments (`docs/log.d/`,
+  # `packaging/release-notes.d/`) are joined at release time: they are checked here, so that one
+  # that wouldn't join fails the pull request that adds it and not the release.
+  fragments:
+    needs: changes
+    if: needs.changes.outputs.code != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: false
+      - run: cargo run --locked --package xtask -- docs-log --check
+      - run: cargo run --locked --package xtask -- release-notes > /dev/null
+
   # The one check main's protection requires: passes when every platform passed, or when there
   # was nothing but documentation to check.
   ci-ok:
-    needs: [changes, ci, deny]
+    needs: [changes, ci, deny, fragments]
     if: always()
     runs-on: ubuntu-24.04
     steps:

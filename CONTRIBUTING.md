@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -48,6 +48,12 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   waiting for you.
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
   spdx, test-files, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+- **Rows of the documents' tables and lines of the release notes are files of their own.** A row
+  of a document's revision history goes in `docs/log.d/<document without .md>/revisions/<issue>.md`,
+  a row of `ROADMAP.md`'s progress log in `docs/log.d/ROADMAP/progress/<issue>.md`
+  ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
+  `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
+  table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
   brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
