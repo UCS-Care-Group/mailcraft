@@ -392,3 +392,27 @@ fn the_question_offers_the_first_account_added_first() {
     assert_eq!(ask.with, json!({"account": owner}));
     assert_eq!(ask.more.iter().map(|(_, with)| with.clone()).collect::<Vec<_>>(), [json!({"account": zoe})]);
 }
+
+/// A job that takes long to come to nothing waits its whole wait from when it ended, not from
+/// when it began (#661).
+#[test]
+fn a_change_whose_answer_comes_late_waits_from_the_answer() {
+    let (mut app, owner, answers, jobs, _) = window();
+    let nothing =
+        TasksResult { account: owner, download: Some(TasksDownload { account: owner, complete: true, ..Default::default() }), ..Default::default() };
+    answers.lock().unwrap().push_back(nothing);
+    answers.lock().unwrap().push_back(TasksResult { account: owner, errors: vec!["Microsoft Graph is busy".into()], ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    app.execute("tasks.sendLocal", json!({"account": owner})).unwrap();
+    app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    assert!(!app.tasks_tick_at(1_000.0));
+    assert!(app.tasks_tick_at(10_000.0));
+    // The answer comes 40 seconds later.
+    assert!(!app.tasks_tick_at(50_000.0));
+    app.poll_tasks();
+    assert!(!app.tasks_tick_at(51_000.0), "not at once");
+    assert!(!app.tasks_tick_at(79_000.0));
+    assert!(app.tasks_tick_at(81_000.0), "after the wait");
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+}

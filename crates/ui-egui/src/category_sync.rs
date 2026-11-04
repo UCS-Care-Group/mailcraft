@@ -79,6 +79,9 @@ pub struct CategorySync {
     /// The accounts a job has looked at in this session, and when.
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
+    /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
+    /// job that came to nothing waits from when it ended, however long it ran (#661).
+    clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     settling: HashMap<Id, u32>,
     /// How many changes were waiting the last time, and since when.
@@ -116,6 +119,7 @@ impl MailApp {
     /// Look whether any account's list is due, and start a job when it is. Called every frame.
     /// (Public for a host's tests, which have no window.)
     pub fn categories_tick_at(&mut self, now: f64) -> bool {
+        self.category_sync.clock = now;
         self.categories_ask_tick();
         if !self.auto_sync || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
@@ -260,7 +264,7 @@ impl MailApp {
             log::info!("categories, account {account}: refused just after the owner allowed it; trying again ({settling} more)");
             self.category_sync.settling.insert(account, settling - 1);
             let (n, _) = self.category_sync.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.category_sync.failures.insert(account, (n.saturating_add(1), started));
+            self.category_sync.failures.insert(account, (n.saturating_add(1), self.category_sync.clock.max(started)));
             self.category_sync.checked.remove(&account);
             settles = true;
         } else if result.covered == Some(false) {
@@ -312,7 +316,7 @@ impl MailApp {
             self.category_sync.failures.remove(&account);
         } else if (result.tokens.is_some() || !result.sign_in_refused) && result.covered != Some(false) {
             let (n, _) = self.category_sync.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.category_sync.failures.insert(account, (n.saturating_add(1), started));
+            self.category_sync.failures.insert(account, (n.saturating_add(1), self.category_sync.clock.max(started)));
             // (Tried again later: a job that came to nothing has told nothing.)
             if !worked {
                 self.category_sync.checked.remove(&account);

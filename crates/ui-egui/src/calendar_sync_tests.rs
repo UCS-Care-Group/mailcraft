@@ -629,3 +629,22 @@ fn a_sign_in_without_the_newest_permission_is_no_disconnected_calendar() {
     assert!(!app.graph_extras_missing(account) && errors.is_empty());
     assert!(app.session.mailbox.category("Project X").is_some());
 }
+
+/// A job that takes long to come to nothing waits its whole wait from when it ended, not from
+/// when it began (#661).
+#[test]
+fn a_server_that_answers_late_is_waited_for_from_its_answer() {
+    let (mut app, server, _) = app();
+    app.execute("view.calendar", json!({})).unwrap();
+    server.lock().unwrap().down = true;
+    let t0 = now_ms();
+    assert!(app.calendar_tick_at(true, t0));
+    // The answer comes 40 seconds later.
+    assert!(!app.calendar_tick_at(true, t0 + 40.0 * SECOND));
+    settle(&mut app);
+    assert!(app.has_sync_problems());
+    assert!(!app.calendar_tick_at(true, t0 + 41.0 * SECOND), "not at once");
+    assert!(!app.calendar_tick_at(true, t0 + 69.0 * SECOND));
+    assert!(app.calendar_tick_at(true, t0 + 71.0 * SECOND), "after the wait");
+    assert_eq!(jobs(&server), 2);
+}

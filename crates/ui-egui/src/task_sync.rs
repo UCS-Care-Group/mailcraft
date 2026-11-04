@@ -103,6 +103,9 @@ pub struct TaskSync {
     /// When each account's to-dos were last asked for, and the failures since the last answer.
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
+    /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
+    /// job that came to nothing waits from when it ended, however long it ran (#661).
+    clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     /// The owner allowed the to-dos on Microsoft's page: how many refusals are still taken for
     /// Microsoft not having taken it in yet, rather than for a no.
@@ -138,6 +141,7 @@ impl MailApp {
     /// Look whether any account's to-dos are due, and start a job when they are. Called every
     /// frame. (Public for a host's tests, which have no window.)
     pub fn tasks_tick_at(&mut self, now: f64) -> bool {
+        self.tasks.clock = now;
         self.tasks_ask_tick();
         if !self.auto_sync || self.services.graph_tasks.is_none() || self.tasks.rx.is_some() {
             return false;
@@ -262,7 +266,7 @@ impl MailApp {
             log::info!("tasks, account {account}: refused just after the owner allowed them; trying again ({settling} more)");
             self.tasks.settling.insert(account, settling - 1);
             let (n, _) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.tasks.failures.insert(account, (n.saturating_add(1), started));
+            self.tasks.failures.insert(account, (n.saturating_add(1), self.tasks.clock.max(started)));
             self.tasks.checked.remove(&account);
         } else if result.consent_needed {
             log::info!("tasks, account {account}: the sign-in doesn't cover to-dos; the owner is to be asked");
@@ -308,7 +312,7 @@ impl MailApp {
         } else if !worked || !errors.is_empty() {
             let (n, _) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
             if !result.consent_needed && !result.sign_in_refused {
-                self.tasks.failures.insert(account, (n.saturating_add(1), started));
+                self.tasks.failures.insert(account, (n.saturating_add(1), self.tasks.clock.max(started)));
             }
         }
         self.note_sync_problems(account, &errors, false);

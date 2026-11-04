@@ -90,6 +90,9 @@ pub(crate) struct CalendarSync {
     pub(crate) checked: HashMap<Id, f64>,
     /// How many jobs in a row came to nothing for an account, and when the last one did.
     pub(crate) failures: HashMap<Id, (u32, f64)>,
+    /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
+    /// job that came to nothing waits from when it ended, however long it ran (#661).
+    clock: f64,
     /// How many changes of an account were ready to go at the last look, and since when.
     waiting: HashMap<Id, (usize, f64)>,
     /// What an account's server was last told, and when: the very same again right away would
@@ -187,6 +190,7 @@ impl MailApp {
     /// [`calendar_tick`](Self::calendar_tick) at `now` (milliseconds), with the window in front
     /// or not. Whether a job was started. (Public for a host's tests, which have no window.)
     pub fn calendar_tick_at(&mut self, focused: bool, now: f64) -> bool {
+        self.calendar.clock = now;
         // A shared mailbox has a calendar to tick from the moment it is there (#70).
         if self.calendar.shared_rev != Some(self.session.rev()) {
             remote::ensure_shared_calendars(&mut self.session);
@@ -490,7 +494,7 @@ impl MailApp {
         let nothing = !taken || (carried && !went);
         match (nothing, self.calendar.failures.get(&account).copied()) {
             (true, earlier) => {
-                self.calendar.failures.insert(account, (earlier.map_or(0, |(n, _)| n).saturating_add(1), started));
+                self.calendar.failures.insert(account, (earlier.map_or(0, |(n, _)| n).saturating_add(1), self.calendar.clock.max(started)));
             }
             (false, _) => {
                 self.calendar.failures.remove(&account);

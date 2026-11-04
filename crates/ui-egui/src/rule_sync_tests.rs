@@ -431,3 +431,20 @@ fn the_new_rule_is_not_filled_in_from_a_shared_mailboxs_message_or_an_id_that_is
     assert!(h.query(By::new().label_contains("Then run it over")).is_none(), "nothing is filled in");
     assert!(h.state().session.mailbox.rules.is_empty());
 }
+
+/// A job that takes long to come to nothing waits its whole wait from when it ended, not from
+/// when it began (#661).
+#[test]
+fn a_rule_whose_answer_comes_late_waits_from_the_answer() {
+    let (mut app, owner, answers, jobs, _) = window();
+    add_rule(&mut app, owner);
+    answers.lock().unwrap().push_back(RulesResult { account: owner, errors: vec!["Microsoft Graph is busy".into()], ..Default::default() });
+    assert!(app.rules_tick_at(0.0));
+    // The answer comes 40 seconds later.
+    assert!(!app.rules_tick_at(40_000.0));
+    app.poll_rules();
+    assert!(!app.rules_tick_at(41_000.0), "not at once");
+    assert!(!app.rules_tick_at(69_000.0));
+    assert!(app.rules_tick_at(71_000.0), "after the wait");
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+}

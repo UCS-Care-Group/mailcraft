@@ -104,6 +104,9 @@ pub struct RuleSync {
     /// When each account's rules were last asked for, and the failures since the last answer.
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
+    /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
+    /// job that came to nothing waits from when it ended, however long it ran (#661).
+    clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     settling: HashMap<Id, u32>,
     /// Which mailbox the job under way is for ([`Session::openings`]): its answer is for that one
@@ -146,6 +149,7 @@ impl MailApp {
     /// Look whether any account's rules are due, and start a job when they are. Called every
     /// frame. (Public for a host's tests, which have no window.)
     pub fn rules_tick_at(&mut self, now: f64) -> bool {
+        self.rules.clock = now;
         self.rules_ask_tick();
         if !self.auto_sync || self.services.graph_rules.is_none() || self.rules.rx.is_some() {
             return false;
@@ -305,7 +309,7 @@ impl MailApp {
             log::info!("rules: refused just after the owner allowed them; trying again ({settling} more)");
             self.rules.settling.insert(account, settling - 1);
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.rules.failures.insert(account, (n.saturating_add(1), started));
+            self.rules.failures.insert(account, (n.saturating_add(1), self.rules.clock.max(started)));
             self.rules.checked.remove(&account);
         } else if result.consent_needed {
             log::info!("rules: the sign-in doesn't cover changing the rules; the owner is to be asked");
@@ -355,7 +359,7 @@ impl MailApp {
             self.rules.failures.remove(&account);
         } else if !result.consent_needed && !result.sign_in_refused && !result.unreadable {
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.rules.failures.insert(account, (n.saturating_add(1), started));
+            self.rules.failures.insert(account, (n.saturating_add(1), self.rules.clock.max(started)));
         }
         self.note_sync_problems(account, &errors, false);
     }
