@@ -48,11 +48,14 @@ fn a_message_too_large_to_download_has_its_size_on_the_server() {
     assert_eq!(marked.list_size(), Some(62_914_560));
     // A sender's header saying otherwise changes nothing.
     assert_eq!(Message { headers: header(NOT_DOWNLOADED, "1"), ..too_large.clone() }.list_size(), Some(62_914_560));
-    // Only the header (a sender's, or one a file from before kept): no size.
+    // Only the header (a sender's, or one a file from before kept): no size, and a rule can't
+    // tell how big it is (#566).
     for name in [NOT_DOWNLOADED, "x-mailcraft-not-downloaded"] {
         let only_header = Message { body: preview(), headers: header(name, "62914560"), ..Default::default() };
         assert_eq!(only_header.list_size(), None, "{name}");
+        assert!(!only_header.size_known(), "{name}");
     }
+    assert!(too_large.size_known() && whole().size_known());
 }
 
 /// #300: the size kept in the mailbox file, under its own name, and only when there is one; a

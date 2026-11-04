@@ -94,9 +94,15 @@ pub mod remote;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+#[cfg(test)]
+mod rules_edit_tests;
+#[cfg(test)]
+mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
+#[cfg(test)]
+mod rules_waiting_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;

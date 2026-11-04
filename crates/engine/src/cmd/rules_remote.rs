@@ -10,15 +10,20 @@
 //! **What a rule remembers.** A rule the server has keeps its id there and, beside whether it is
 //! switched on and where it stands, the same two as the server last had them
 //! ([`mailcraft_model::ServerRule`]). What was changed here since is the difference, and only that
-//! is sent: a rule is never rewritten on the server, so one with parts this version doesn't know
-//! stays as it was made. A rule to go to the server and not there yet is sent whole, after those
-//! there; one the server refuses stays on this computer, and says why.
+//! is sent; a rule changed here (`rules.edit`, counted in [`mailcraft_model::ServerRule::edited`])
+//! is sent whole, its name, conditions, exceptions and actions in place of the server's. One with
+//! parts this version doesn't know is never rewritten on the server, and stays as it was made. A
+//! rule to go to the server and not there yet is sent whole, after those there; one the server
+//! refuses stays on this computer, and says why. One the server says it doesn't let be changed is
+//! moved all the same: its new place goes first, and if the server won't have it, it and every
+//! place of the account's rules not yet sent go back to where the server has them, and that is
+//! said.
 //!
 //! **A lost answer.** A rule whose creation went out and got no answer (the connection dropped,
 //! or MailCraft was closed) may be on the server already: it is marked
 //! ([`mailcraft_model::Rule::unanswered`], from when its job starts, [`mark_sent`]) and not sent
-//! again until the server's rules have been read whole. A rule there with the same name, conditions
-//! and actions is then taken as it; when there is none, it is sent again. Only such a rule is
+//! again until the server's rules have been read whole. A rule there with the same name, conditions,
+//! exceptions and actions is then taken as it; when there is none, it is sent again. Only such a rule is
 //! taken for one of the server's that looks the same: a rule never sent is never taken for one
 //! made elsewhere. One deleted here meanwhile is remembered by what it is
 //! ([`mailcraft_model::RuleGone::made`]): the next whole read deletes the one there that looks the
@@ -52,18 +57,20 @@ const MAX_SHOWN: usize = 200;
 /// What a move to a folder is called among the parts of a server's rule, when it goes to a folder
 /// this mailbox doesn't have.
 const MOVE_PART: &str = "moveToFolder";
+/// And of the folder it copies mail to.
+const COPY_PART: &str = "copyToFolder";
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.ruleChanges", "Rule Changes to Send", "Send / Receive", rule_changes_command)
             .pure()
-            .params(r#"{"account": number} — what that Microsoft account's server is to be told of rules made, switched on or off, moved or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "rule": number, "id"?: string, "enabled"?: bool, "sequence"?: number, "body"?: RemoteRule}]}"#),
+            .params(r#"{"account": number} — what that Microsoft account's server is to be told of rules made, switched on or off, moved, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "rule": number, "id"?: string, "enabled"?: bool, "sequence"?: number, "body"?: RemoteRule (a rule made, or one changed: then with "edit"), "edit"?: number (the count of changes made here that the update carries), "locked"?: bool (the move of a rule the server says it doesn't let be changed: it comes first, its refusal is the rule's and not the account's, and stops the rest)}]}"#),
         CommandSpec::new("sync.applyRuleChanges", "Apply Sent Rule Changes", "Send / Receive", apply_rule_changes_command)
             .pure()
-            .params(r#"{"result": RulesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "rule": number, "id"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "enabled"?: bool, "sequence"?: number, "error"?: string}]} — answers {"done", "failed", "messages": [string]}"#),
+            .params(r#"{"result": RulesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "rule": number, "id"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "enabled"?: bool, "sequence"?: number, "edit"?: number, "error"?: string}]} — answers {"done", "failed", "messages": [string]}"#),
         CommandSpec::new("sync.applyRules", "Apply Downloaded Rules", "Send / Receive", apply_rules_command)
             .pure()
-            .params(r#"{"download": RulesDownload} — what a host brought from the account's server: {"account": number, "email"?: string, "complete": bool, "rules": [{"id", "name", "sequence", "enabled", "readOnly", "error", "conditions", "actions", "moveTo", "stop", "unknown": [string]}]} — answers {"added", "updated", "removed", "unchanged", "skipped", "complete"}"#),
+            .params(r#"{"download": RulesDownload} — what a host brought from the account's server: {"account": number, "email"?: string, "complete": bool, "rules": [{"id", "name", "sequence", "enabled", "readOnly", "error", "conditions", "exceptions", "actions", "moveTo", "copyTo", "stop", "unknown": [string]}]} — answers {"added", "updated", "removed", "unchanged", "skipped", "complete"}"#),
     ]
 }
 
@@ -86,10 +93,12 @@ fn server_folder(mailbox: &Mailbox, account: Id, folder: Id) -> Option<String> {
 /// The rule as it is sent to the server to be made there.
 fn remote_of(mailbox: &Mailbox, account: Id, rule: &Rule, sequence: i32) -> RemoteRule {
     let mut move_to = String::new();
+    let mut copy_to = String::new();
     let mut actions = Vec::new();
     for action in &rule.actions {
         match action {
             Action::MoveTo(folder) => move_to = server_folder(mailbox, account, *folder).unwrap_or_default(),
+            Action::CopyTo(folder) => copy_to = server_folder(mailbox, account, *folder).unwrap_or_default(),
             other => actions.push(other.clone()),
         }
     }
@@ -99,8 +108,10 @@ fn remote_of(mailbox: &Mailbox, account: Id, rule: &Rule, sequence: i32) -> Remo
         sequence,
         enabled: rule.enabled,
         conditions: rule.conditions.clone(),
+        exceptions: rule.exceptions.clone(),
         actions,
         move_to,
+        copy_to,
         stop: rule.stop,
         ..Default::default()
     }
@@ -115,15 +126,31 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
         ops.push(RuleOp { kind: RuleOpKind::Delete, id: gone.id.clone(), ..Default::default() });
     }
     let mine = || mailbox.rules.iter().filter(move |r| r.account == account);
-    for rule in mine().filter(|r| r.changed_here() && !r.read_only()) {
+    // A rule the server doesn't let be changed, moved here, is told its place first, and alone
+    // (it is never switched here): the server may not have it, and then the places of the others
+    // aren't sent, and go back with it (#566).
+    let (locked, free): (Vec<&Rule>, Vec<&Rule>) = mine().filter(|r| r.changed_here()).partition(|r| r.read_only());
+    for rule in locked.into_iter().chain(free) {
         let Some(server) = rule.server.as_ref() else { continue };
+        let locked = rule.read_only();
+        // What the rule is, changed here (`rules.edit`): sent whole, as it is now, while the
+        // server can do all of it. One whose folder has gone from the server since waits, and
+        // keeps saying so, rather than reach the server without its move.
+        let edit = if server.edited != 0 && !locked && rule.known() && server_cannot(mailbox, rule, account).is_none() { server.edited } else { 0 };
+        let enabled = (rule.enabled != server.synced_enabled && !locked).then_some(rule.enabled);
+        let sequence = (server.sequence != server.synced_sequence).then_some(server.sequence);
+        if edit == 0 && enabled.is_none() && sequence.is_none() {
+            continue;
+        }
         ops.push(RuleOp {
             kind: RuleOpKind::Update,
             rule: rule.id,
             id: server.id.clone(),
-            enabled: (rule.enabled != server.synced_enabled).then_some(rule.enabled),
-            sequence: (server.sequence != server.synced_sequence).then_some(server.sequence),
-            body: None,
+            enabled,
+            sequence,
+            body: (edit != 0).then(|| remote_of(mailbox, account, rule, server.sequence)),
+            edit,
+            locked,
         });
     }
     // After every rule the server has.
@@ -202,11 +229,14 @@ pub fn rule_upload(mailbox: &Mailbox, account: Id) -> Result<RulesUpload, CmdErr
 fn local_of(mailbox: &Mailbox, account: Id, remote: &RemoteRule) -> (Vec<Action>, Vec<String>) {
     let mut actions = remote.actions.clone();
     let mut unknown = remote.unknown.clone();
-    if !remote.move_to.is_empty() {
-        let folder = mailbox.folders.iter().find(|f| f.account == account && f.server.as_ref().is_some_and(|s| s.id == remote.move_to));
+    for (there, part, copy) in [(&remote.copy_to, COPY_PART, true), (&remote.move_to, MOVE_PART, false)] {
+        if there.is_empty() {
+            continue;
+        }
+        let folder = mailbox.folders.iter().find(|f| f.account == account && f.server.as_ref().is_some_and(|s| s.id == *there));
         match folder {
-            Some(f) => actions.insert(0, Action::MoveTo(f.id)),
-            None if !unknown.iter().any(|u| u == MOVE_PART) => unknown.push(MOVE_PART.to_string()),
+            Some(f) => actions.insert(0, if copy { Action::CopyTo(f.id) } else { Action::MoveTo(f.id) }),
+            None if !unknown.iter().any(|u| u == part) => unknown.push(part.to_string()),
             None => {}
         }
     }
@@ -230,9 +260,12 @@ fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool
 /// The words of two conditions are the same but for their letters' case: the server keeps the
 /// text of a condition in capitals.
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
-    let words = |c: &Condition| match c {
-        Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) => Some(t.to_lowercase()),
-        _ => None,
+    let words = |c: &Condition| {
+        c.words().map(|w| {
+            let mut w: Vec<String> = w.iter().map(|t| t.to_lowercase()).collect();
+            w.sort_unstable();
+            w
+        })
     };
     same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
 }
@@ -250,6 +283,7 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String
         && !remote.read_only
         && here.name.eq_ignore_ascii_case(&remote.name)
         && same_words(&here.conditions, &remote.conditions)
+        && same_words(&here.exceptions, &remote.exceptions)
         && same_actions(&here.actions, actions)
         && here.stop == remote.stop
 }
@@ -296,6 +330,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             unknown: unknown.clone(),
             read_only: remote.read_only,
             error: remote.error,
+            edited: 0,
         };
         let at = known.get(&remote.id).and_then(|id| mailbox.rules.iter().position(|r| r.id == *id));
         if let Some(i) = at {
@@ -307,14 +342,30 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             let sequence = if had.sequence != had.synced_sequence { had.sequence } else { remote.sequence };
             rule.enabled = enabled;
             rule.server = Some(fresh(sequence));
-            rule.name = if rule.name.eq_ignore_ascii_case(&remote.name) { rule.name } else { remote.name.clone() };
-            if !same_words(&rule.conditions, &remote.conditions) {
-                rule.conditions = remote.conditions.clone();
+            // What the rule is, changed here and not sent yet, stays too, and goes up; a server
+            // that no longer lets it be changed, or that now has parts not known here, has its
+            // own, and the change here is let go of, and said.
+            let edited = had.edited != 0;
+            if edited && (remote.read_only || !unknown.is_empty()) {
+                merged.say(format!("The server no longer lets the rule \"{}\" be changed, so the change made to it here is let go of", rule.name));
             }
-            if !same_actions(&rule.actions, &actions) {
-                rule.actions = actions;
+            if edited && !remote.read_only && unknown.is_empty() {
+                if let Some(server) = rule.server.as_mut() {
+                    server.edited = had.edited;
+                }
+            } else {
+                rule.name = if rule.name.eq_ignore_ascii_case(&remote.name) { rule.name } else { remote.name.clone() };
+                if !same_words(&rule.conditions, &remote.conditions) {
+                    rule.conditions = remote.conditions.clone();
+                }
+                if !same_words(&rule.exceptions, &remote.exceptions) {
+                    rule.exceptions = remote.exceptions.clone();
+                }
+                if !same_actions(&rule.actions, &actions) {
+                    rule.actions = actions;
+                }
+                rule.stop = remote.stop;
             }
-            rule.stop = remote.stop;
             rule.keep = Keep::Server;
             rule.refused.clear();
             if rule == *old {
@@ -357,6 +408,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             name: remote.name.clone(),
             enabled: remote.enabled,
             conditions: remote.conditions.clone(),
+            exceptions: remote.exceptions.clone(),
             actions,
             stop: remote.stop,
             account,
@@ -393,6 +445,11 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
 
 /// Put the rules the server of `account` has in the order they stand there, in the places they
 /// take among the mailbox's rules.
+/// Whether `rule` is one the server doesn't let be changed, moved here and not there yet.
+fn moving_locked(rule: &Rule) -> bool {
+    rule.read_only() && rule.server.as_ref().is_some_and(|s| !s.id.is_empty() && s.sequence != s.synced_sequence)
+}
+
 fn in_server_order(mailbox: &mut Mailbox, account: Id) {
     let slots: Vec<usize> = mailbox.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
     let mut rules: Vec<Rule> = slots.iter().filter_map(|i| mailbox.rules.get(*i).cloned()).collect();
@@ -463,6 +520,11 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     if let Some(sequence) = outcome.sequence {
                         server.synced_sequence = sequence;
                     }
+                    // The server has the rule as it was sent; one changed again meanwhile goes
+                    // again.
+                    if outcome.edit != 0 && outcome.edit == server.edited {
+                        server.edited = 0;
+                    }
                     merged.updated += 1;
                 }
             }
@@ -475,6 +537,17 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                     merged.removed += 1;
                 }
             }
+            // A rule the server doesn't let be changed, not moved there: it goes back to its place,
+            // and the places not sent after it go back to the server's too.
+            (RuleOpKind::Update, RuleResult::Refused) if at.and_then(|i| mailbox.rules.get(i)).is_some_and(moving_locked) => {
+                for rule in mailbox.rules.iter_mut().filter(|r| r.account == account) {
+                    if let Some(server) = rule.server.as_mut().filter(|s| !s.id.is_empty()) {
+                        server.sequence = server.synced_sequence;
+                    }
+                }
+                merged.say(format!("The server didn't let the rule \"{name}\" be moved{why}; the rules are back in the order the server has them"));
+                failed += 1;
+            }
             // Refused: the rule is as the server has it again, and that is said.
             (RuleOpKind::Update, RuleResult::Refused) => {
                 if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i))
@@ -482,6 +555,12 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 {
                     rule.enabled = server.synced_enabled;
                     server.sequence = server.synced_sequence;
+                    // What the rule is, too, which the next read of the server's rules brings
+                    // back (they are read after the changes are sent); one changed again
+                    // meanwhile goes again, as it is now.
+                    if outcome.edit != 0 && outcome.edit == server.edited {
+                        server.edited = 0;
+                    }
                 }
                 merged.say(format!("The server didn't take the change to the rule \"{name}\"{why}"));
                 failed += 1;

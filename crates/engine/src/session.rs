@@ -1309,6 +1309,12 @@ impl Session {
         self.clock.zone.unwrap_or_else(Zone::system)
     }
 
+    /// The clock the rules run by: now, in the zone the calendar is shown in, with a flag a rule
+    /// sets falling due at the end of the working day.
+    pub fn rule_clock(&self) -> mailcraft_model::RuleClock {
+        mailcraft_model::RuleClock { now: self.now(), zone: self.zone(), due_hour: self.prefs.work_end }
+    }
+
     /// The offset at `ts` of the zone the calendar is shown in, in minutes east of UTC.
     pub fn offset_at(&self, ts: Timestamp) -> i32 {
         match self.clock.offset {
@@ -2749,6 +2755,13 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing (`redo`: redoing) changes the rules and leaves one switched on that deletes
+    /// mail for good here (#566).
+    pub fn undo_rules_delete_for_good(&self, redo: bool) -> bool {
+        let step = if redo { self.redo.last() } else { self.history.last() };
+        step.is_some_and(|step| crate::agent::undo_rules_delete_for_good(&self.mailbox, &step.mailbox))
+    }
+
     /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
     /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
     /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
@@ -2796,7 +2809,7 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
+        if gone || !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
@@ -3079,8 +3092,7 @@ fn wipes_history(id: &str) -> bool {
 
 /// Whether an attachment is a calendar part (an invitation, an answer to one).
 pub(crate) fn is_calendar_part(a: &Attachment) -> bool {
-    let kind = a.mime.trim().to_ascii_lowercase();
-    kind.starts_with("text/calendar") || kind.starts_with("application/ics") || a.name.to_ascii_lowercase().ends_with(".ics")
+    a.is_calendar()
 }
 
 /// A calendar part small enough to be read ([`MAX_CALENDAR_PART`]), by its size before it is

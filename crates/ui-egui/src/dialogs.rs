@@ -263,6 +263,16 @@ impl Dialog {
         }
     }
 
+    /// The layer of the window it is shown in: where its Escape and Enter are asked for, and the
+    /// modal layer while it is open. Rules is a window the owner moves and sizes, of its own
+    /// ([`sized_window`]); the rest share one.
+    pub(crate) fn layer(&self) -> egui::LayerId {
+        match self {
+            Dialog::Form(Form::Rules(_)) => sized_layer("rules"),
+            _ => crate::keys::dialog_layer(),
+        }
+    }
+
     /// Whether it has something of its own open over it, which gets Escape and Enter before it
     /// does ([`crate::keys`]): the recurrence editor of an appointment, Folder Size.
     pub(crate) fn inner_open(&self) -> bool {
@@ -1374,6 +1384,61 @@ pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnO
     open
 }
 
+/// The smallest a dialog the owner sizes ([`sized_window`]) is made, and the largest kept.
+pub(crate) const SIZED_MIN: [f32; 2] = [560.0, 360.0];
+const SIZED_MAX: [f32; 2] = [2400.0, 1600.0];
+
+/// A size kept for a dialog the owner sizes: within bounds, or 0 (its own) for one that isn't a
+/// size.
+pub(crate) fn sane_size(width: f32, height: f32) -> (f32, f32) {
+    let one = |v: f32, min: f32, max: f32| if v.is_finite() && v > 0.0 { v.clamp(min, max) } else { 0.0 };
+    (one(width, SIZED_MIN[0], SIZED_MAX[0]), one(height, SIZED_MIN[1], SIZED_MAX[1]))
+}
+
+/// The layer of a dialog the owner sizes ([`sized_window`]), where its keys are asked for: it is
+/// a window of its own, not [`crate::keys::dialog_layer`].
+pub(crate) fn sized_layer(salt: &str) -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Middle, egui::Id::unique(("sized_dialog", salt)))
+}
+
+/// A dialog the owner moves by its title and makes larger or smaller by its edges and corners
+/// (Rules, as Outlook's Rules and Alerts is): it opens in the middle at `size` (0 for `own`, and
+/// never larger than the window), and what it holds fills it ([`crate::forms::kit::Host`]).
+/// Returns whether it is still open, and its size when the owner has made it another than it was
+/// given.
+pub(crate) fn sized_window(
+    ctx: &egui::Context,
+    title: &str,
+    salt: &str,
+    (size, own): (egui::Vec2, egui::Vec2),
+    add: impl FnOnce(&mut Ui),
+) -> (bool, Option<egui::Vec2>) {
+    let mut open = true;
+    let layer = sized_layer(salt);
+    let id = layer.id;
+    ctx.move_to_top(layer);
+    let screen = ctx.content_rect();
+    let min = vec2(SIZED_MIN[0], SIZED_MIN[1]).min(screen.size() - vec2(24.0, 24.0)).max(vec2(240.0, 160.0));
+    let wanted = vec2(if size.x > 0.0 { size.x } else { own.x }, if size.y > 0.0 { size.y } else { own.y });
+    let size = wanted.min(screen.size() - vec2(24.0, 48.0)).max(min);
+    let shown = egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
+        .id(id)
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(true)
+        .constrain(true)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(screen.center() - vec2(0.0, 20.0))
+        .default_size(size)
+        .min_size(min)
+        .show(ctx, |ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+            crate::forms::kit::hosted(crate::forms::kit::Host { id: 0, fill: true }, || add(ui));
+        });
+    let outer = shown.map(|r| r.response.rect.size());
+    (open, outer.filter(|outer| (*outer - size).length() > 1.0))
+}
+
 /// A row of buttons along the right edge, one button high and no more. (A right-to-left layout
 /// that centres its buttons otherwise takes all the height that is left, which leaves a gap
 /// above and below them in a dialog that has room to spare.)
@@ -1398,7 +1463,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     // something of its own over it, which get them first (#406). A held key is one press (#393):
     // its repeats don't close the dialog or press OK. (Enter's repeats are still in the input for
     // the boxes of several lines that type them.)
-    let layer = crate::keys::dialog_layer();
+    let layer = dialog.layer();
     let escape = crate::keys::escape(ctx, layer);
     let enter = crate::keys::enter(ctx, layer);
     let t = Tokens::get(ctx);
@@ -2004,6 +2069,27 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let account = *account;
             // (Escape doesn't answer it: closed with its close button, it is asked again next time.)
             close = crate::graph_switch::show(app, ctx, account);
+        }
+        // Rules: moved and sized by the owner, and kept at that size. Escape on the rule page
+        // goes back to the lists, as Cancel does (as Escape in Outlook's Rules Wizard goes back
+        // to Rules and Alerts); on the lists it closes the dialog.
+        Dialog::Form(form) if matches!(form, Form::Rules(_)) => {
+            let title = form.title();
+            let mut done = false;
+            let kept = vec2(app.ui.rules_width, app.ui.rules_height);
+            let (open, sized) = sized_window(ctx, &title, "rules", (kept, vec2(form.width(), 640.0)), |ui| done = form.show(app, ui));
+            if let Some(size) = sized {
+                (app.ui.rules_width, app.ui.rules_height) = sane_size(size.x, size.y);
+            }
+            if !open {
+                form.closed(app);
+            }
+            let escaped = escape
+                && match form {
+                    Form::Rules(f) => !f.back(),
+                    _ => true,
+                };
+            close = !open || done || escaped;
         }
         Dialog::Form(form) => {
             let title = form.title();

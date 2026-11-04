@@ -41,6 +41,9 @@ pub struct Asking {
     /// The messages a Delete or Move names, with the folder each was in when the owner was asked
     /// (#503).
     counted: Vec<(u64, u64)>,
+    /// For `rules.fromMessage`, whether the rule it makes deletes mail, when the owner was asked
+    /// ([`agent::rule_from_message_deletes`]): the buttons say Delete only then.
+    deletes: bool,
 }
 
 /// The questions waiting, the first one on screen.
@@ -106,9 +109,11 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
+            let deletes = id == "rules.fromMessage" && agent::rule_from_message_deletes(&app.session, &params);
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
+                deletes,
                 params,
                 class,
                 what,
@@ -333,13 +338,17 @@ pub fn expire(app: &mut MailApp, now: f64) {
     }
 }
 
-/// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
-/// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
-/// (#566). One made from a message does: it runs at once on the mail from that sender.
-pub(crate) fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
+/// The buttons: going ahead, and not (the default). A rule made, changed or switched on asks as a
+/// delete does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
+/// (#566). One made from a message that deletes mail (`deletes`) does: it runs at once on the
+/// mail from that sender.
+pub(crate) fn verbs(class: Class, id: &str, deletes: bool) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
-        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
+        Class::Delete if matches!(id, "rules.add" | "rules.edit" | "rules.keepOnServer" | "rules.enable" | "rules.move") => {
+            (tl!("Allow"), tl!("Don't Allow"))
+        }
+        Class::Delete if id == "rules.fromMessage" && !deletes => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }
@@ -377,7 +386,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
-    let (yes_label, no_label) = verbs(a.class, &a.id);
+    let (yes_label, no_label) = verbs(a.class, &a.id, a.deletes);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));

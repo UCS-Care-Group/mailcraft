@@ -59,12 +59,15 @@ pub use mailbox::{
 pub use mailcraft_time as time;
 pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    RETURNED_LISTINGS, Sensitivity, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
-pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
+pub use rule::{
+    Action, Condition, FollowUp, Keep, MAX_RULE_GONE, MAX_WORDS_EACH, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting, ServerRule,
+    fold_exceptions,
+};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 
@@ -158,6 +161,8 @@ mod pop_tests;
 mod recurrence_tests;
 #[cfg(test)]
 mod rule_tests;
+#[cfg(test)]
+mod rules_waiting_tests;
 #[cfg(test)]
 mod search_advanced_tests;
 #[cfg(test)]

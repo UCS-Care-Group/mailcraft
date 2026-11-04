@@ -615,7 +615,19 @@ fn graph_s_first_round_of_a_folder_runs_no_rules() {
 fn the_rules_leave_a_shared_mailbox_s_mail_as_its_server_has_it() {
     let (mut s, owner, _) = graph_with_rule(true);
     // (A move out of a shared mailbox waits for the whole message: a flag would be there at once.)
-    s.run("rules.add", &json!({"name": "Flag", "conditions": [{"type": "fromContains", "value": "shop"}], "actions": [{"type": "flag"}]})).unwrap();
+    // A rule for every account's mail, as one from before rules had accounts is read from its file
+    // (`rules.add` makes none), would reach the shared mailbox's mail if anything did.
+    let id = s.mailbox.alloc_id();
+    let conditions = vec![mailcraft_model::Condition::FromContains(vec!["shop".into()])];
+    let flag = mailcraft_model::Rule {
+        id,
+        name: "Flag".into(),
+        enabled: true,
+        conditions,
+        actions: vec![mailcraft_model::Action::Flag],
+        ..Default::default()
+    };
+    s.mailbox.rules.push(flag);
     let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
     let folders = vec![GraphFolder { id: "S-in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
     let listing = FolderListing { folders, complete: true };
@@ -641,7 +653,7 @@ fn graph_rule_to_local() -> (Session, Id, Id, Id) {
     let kept_here = s.mailbox.folder_of_kind(local, FolderKind::Archive).unwrap();
     s.run(
         "rules.add",
-        &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
+        &json!({"name": "News", "account": account, "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
     )
     .unwrap();
     (s, account, local, kept_here)
@@ -751,7 +763,8 @@ fn a_rule_that_deletes_graph_mail_moves_it_to_deleted_items_on_the_server_too() 
     let (mut s, account, _) = graph_with_rule(true);
     let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
     s.mailbox.folder_mut(deleted).unwrap().server = Some(ServerFolder { id: "F-del".into(), caught_up: true, ..Default::default() });
-    s.run("rules.add", &json!({"name": "Bin", "conditions": [{"type": "fromContains", "value": "bin"}], "actions": [{"type": "delete"}]})).unwrap();
+    s.run("rules.add", &json!({"name": "Bin", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "bin"}], "actions": [{"type": "delete"}]}))
+        .unwrap();
     apply_graph_mail(&mut s, graph_page(account, "F-in", &["bin@spam.example"])).unwrap();
     let m = s.mailbox.messages.values().find(|m| m.subject == "bin@spam.example").unwrap();
     assert_eq!(m.folder, deleted);
@@ -764,7 +777,7 @@ fn what_a_rule_marks_on_graph_mail_goes_up() {
     let (mut s, account, [inbox, ..]) = graph_with_rule(true);
     s.run(
         "rules.add",
-        &json!({"name": "Boss", "conditions": [{"type": "fromContains", "value": "boss"}], "actions": [
+        &json!({"name": "Boss", "account": account, "conditions": [{"type": "fromContains", "value": "boss"}], "actions": [
             {"type": "flag"}, {"type": "markRead"}, {"type": "categorize", "value": "Red"}, {"type": "setImportance", "value": "high"}
         ]}),
     )

@@ -1,0 +1,218 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The rest of Outlook's conditions, exceptions and actions (#566): what `rules.add` takes and
+//! refuses, and what a rule does with the mail it finds.
+
+use mailcraft_model::{Action, Address, Condition, FlagStatus, FolderKind, FollowUp, Id, Importance, Message, Sensitivity};
+use serde_json::{Value, json};
+
+use crate::Session;
+
+/// Wednesday 2026-10-14 16:00 UTC.
+const NOW: i64 = 1_791_993_600;
+const ME: &str = "me@example.org";
+
+/// A session on this computer at [`NOW`], with an account of this computer; its id, its Inbox's
+/// and the id of a folder "Kept" of its own.
+fn session() -> (Session, Id, Id, Id) {
+    let mut s = Session::at(Default::default(), NOW, 0);
+    let account = s.run("account.add", &json!({"email": ME})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let kept = s.mailbox.add_folder(account, None, "Kept").unwrap();
+    (s, account, inbox, kept)
+}
+
+fn arriving(s: &mut Session, inbox: Id, from: &str, subject: &str) -> Id {
+    let to = vec![Address::new("Me", ME)];
+    let categories = vec!["Red category".to_string()];
+    let m = Message { folder: inbox, from: Address::new("", from), to, subject: subject.into(), categories, ..Default::default() };
+    s.mailbox.add_message(m).unwrap()
+}
+
+#[test]
+fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
+    let (mut s, account, _, kept) = session();
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let rule = |conditions: Value, exceptions: Value, actions: Value| json!({"name": "Club", "account": account, "conditions": conditions, "exceptions": exceptions, "actions": actions});
+    let conditions = json!([
+        {"type": "from", "value": ["Ada@Example.org", "ada@example.org", "noor@example.org"]},
+        {"type": "sentTo", "value": "team@example.org"},
+        {"type": "subjectOrBodyContains", "value": "agenda"},
+        {"type": "headerContains", "value": "X-Club: yes"},
+        {"type": "sizeBetween", "value": {"min": 1, "max": 100}},
+        {"type": "receivedBetween", "value": {"to": "2026-10-31"}},
+        {"type": "sensitivity", "value": "company-confidential"},
+        {"type": "category", "value": ["Red category"]},
+        {"type": "sentOnlyToMe"}, {"type": "toMe"}, {"type": "ccMe"}, {"type": "toOrCcMe"}, {"type": "notToMe"},
+        {"type": "meetingRequest"}, {"type": "automaticReply"}, {"type": "flagged"},
+    ]);
+    // Exceptions of one kind are one, as a server keeps them.
+    let exceptions = json!([
+        {"type": "subjectContains", "value": "opt out"}, {"type": "subjectContains", "value": ["Unsubscribe", "OPT OUT"]},
+        {"type": "hasAttachment"}, {"type": "hasAttachment"}, {"type": "importance", "value": "low"},
+    ]);
+    let actions = json!([
+        {"type": "copyTo", "value": kept}, {"type": "flagFor", "value": "nextWeek"}, {"type": "clearFlag"},
+        {"type": "clearCategories"}, {"type": "deleteForGood"},
+    ]);
+    let id = s.run("rules.add", &rule(conditions.clone(), exceptions, actions.clone())).unwrap()["id"].as_u64().unwrap();
+    let r = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
+    assert_eq!(r.conditions.len(), 16);
+    // The same address once, as it was first written.
+    assert_eq!(r.conditions[0], Condition::From(vec!["Ada@Example.org".into(), "noor@example.org".into()]));
+    assert_eq!(r.conditions[6], Condition::Sensitivity(Sensitivity::Confidential));
+    assert_eq!(
+        r.exceptions,
+        [Condition::SubjectContains(vec!["opt out".into(), "Unsubscribe".into()]), Condition::HasAttachment, Condition::Importance(Importance::Low)]
+    );
+    assert_eq!(
+        r.actions,
+        [Action::CopyTo(kept), Action::FlagFor(FollowUp::NextWeek), Action::ClearFlag, Action::ClearCategories, Action::DeleteForGood]
+    );
+    // A desktop alert is something to do by itself; nothing at all is not.
+    let alert = json!({"name": "Boss", "conditions": [{"type": "from", "value": "boss@example.org"}], "actions": [], "alert": true});
+    let boss = s.run("rules.add", &alert).unwrap()["id"].as_u64().unwrap();
+    assert!(s.mailbox.rules.iter().any(|r| r.id == boss && r.alert && r.actions.is_empty()));
+    let before = serde_json::to_value(&s.mailbox).unwrap();
+    let mut wrong: Vec<Value> = [
+        json!({"type": "from", "value": "Noor"}),
+        json!({"type": "from", "value": "<ada@example.org>"}),
+        json!({"type": "sentTo", "value": ["ada@example.org", "Noor Smith"]}),
+        json!({"type": "subjectContains", "value": 7}),
+        json!({"type": "subjectContains", "value": []}),
+        json!({"type": "subjectContains", "value": ["ok", 3]}),
+        json!({"type": "subjectContains", "value": "  "}),
+        json!({"type": "sizeBetween", "value": {"min": 5, "max": 1}}),
+        json!({"type": "sizeBetween", "value": {"min": "5", "max": 10}}),
+        json!({"type": "sizeBetween", "value": {"min": -1, "max": 10}}),
+        // More than a Microsoft account's server keeps.
+        json!({"type": "sizeBetween", "value": {"min": 1, "max": 2_147_483_648_u64}}),
+        json!({"type": "sizeBetween"}),
+        json!({"type": "receivedBetween", "value": {}}),
+        json!({"type": "receivedBetween", "value": {"from": "2026-11-02", "to": "2026-11-01"}}),
+        json!({"type": "receivedBetween", "value": {"from": "yesterday"}}),
+        json!({"type": "receivedBetween", "value": "2026-11-01"}),
+        json!({"type": "sensitivity", "value": "secret"}),
+        json!({"type": "category", "value": ""}),
+        json!({"type": "category", "value": 1}),
+    ]
+    .into_iter()
+    .map(|c| rule(json!([c]), json!([]), actions.clone()))
+    .collect();
+    wrong.extend([
+        rule(conditions.clone(), json!("not a list"), actions.clone()),
+        rule(conditions.clone(), json!([{"type": "from", "value": "Noor"}]), actions.clone()),
+        rule(conditions.clone(), json!([]), json!([{"type": "flagFor", "value": "someday"}])),
+        rule(conditions.clone(), json!([]), json!([{"type": "flagFor"}])),
+        rule(conditions.clone(), json!([]), json!([{"type": "copyTo", "value": "1"}])),
+        rule(conditions.clone(), json!([]), json!([{"type": "copyTo", "value": outbox}])),
+        rule(conditions.clone(), json!([]), json!([{"type": "copyTo", "value": 999_999}])),
+        rule(conditions.clone(), json!([]), json!([])),
+        json!({"name": "Boss", "conditions": [{"type": "flagged"}], "actions": [], "alert": "yes"}),
+        json!({"name": "Boss", "conditions": [{"type": "flagged"}], "actions": [], "alert": false}),
+    ]);
+    for params in wrong {
+        assert!(s.run("rules.add", &params).is_err(), "{params}");
+    }
+    assert_eq!(serde_json::to_value(&s.mailbox).unwrap(), before);
+}
+
+#[test]
+fn more_words_or_exceptions_than_a_rule_keeps_are_refused_not_cut() {
+    let (mut s, account, _, _) = session();
+    let many = |n: usize| (0..n).map(|i| format!("w{i}@example.org")).collect::<Vec<_>>();
+    let rule = |conditions: Value, exceptions: Value| json!({"name": "Club", "account": account, "conditions": conditions, "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]});
+    let plain = json!([{"type": "toMe"}]);
+    let tried = [
+        rule(json!([{"type": "from", "value": many(21)}]), json!([])),
+        rule(plain.clone(), json!([{"type": "from", "value": many(21)}])),
+        // Each is short enough; together, as a server keeps them, they aren't.
+        rule(plain.clone(), json!([{"type": "from", "value": many(15)}, {"type": "from", "value": many(30)[15..].to_vec()}])),
+        rule(plain.clone(), Value::Array((0..21).map(|i| json!({"type": "subjectContains", "value": format!("w{i}")})).collect())),
+        // Nor more conditions or actions: one without a condition acts on more mail.
+        rule(Value::Array((0..21).map(|i| json!({"type": "subjectContains", "value": format!("w{i}")})).collect()), json!([])),
+        json!({"name": "Club", "account": account, "conditions": plain, "actions": vec![json!({"type": "markRead"}); 21]}),
+    ];
+    let before = s.mailbox.rules.len();
+    for params in tried {
+        assert!(s.run("rules.add", &params).is_err(), "{params}");
+    }
+    assert_eq!(s.mailbox.rules.len(), before);
+    // As many as it keeps go in.
+    s.run("rules.add", &rule(plain.clone(), json!([{"type": "from", "value": many(20)}]))).unwrap();
+    let twenty = Value::Array((0..20).map(|i| json!({"type": "subjectContains", "value": format!("w{i}")})).collect());
+    let id = s.run("rules.add", &rule(twenty, json!([]))).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).map(|r| r.conditions.len()), Some(20));
+}
+
+#[test]
+fn the_new_parts_act_on_arriving_mail_and_on_mail_already_there() {
+    let (mut s, account, inbox, kept) = session();
+    let rule = json!({
+        "name": "Club",
+        "conditions": [{"type": "from", "value": "ada@example.org"}, {"type": "toOrCcMe"}],
+        "exceptions": [{"type": "subjectContains", "value": ["unsubscribe", "opt out"]}],
+        "actions": [{"type": "copyTo", "value": kept}, {"type": "flagFor", "value": "tomorrow"}, {"type": "clearCategories"}],
+    });
+    s.run("rules.add", &rule).unwrap();
+    // Due tomorrow, Thursday, at the end of the working day, as Follow Up's Tomorrow is.
+    let due = NOW + 8 * 3600 + i64::from(s.prefs.work_end) * 3600;
+    let m = arriving(&mut s, inbox, "Ada@Example.org", "Agenda");
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    let got = s.mailbox.message(m).unwrap();
+    assert_eq!((got.flag, got.flag_due, got.categories.len(), got.folder), (FlagStatus::Flagged, Some(due), 0, inbox));
+    assert_eq!(s.mailbox.messages_in(kept).map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["Agenda"]);
+    // An exception leaves it alone; so does another sender, or mail not to me.
+    let unsubscribe = arriving(&mut s, inbox, "ada@example.org", "Opt out of the club");
+    let other = arriving(&mut s, inbox, "ada.lovelace@example.org", "Agenda");
+    let bcc = s
+        .mailbox
+        .add_message(Message { folder: inbox, from: Address::new("", "ada@example.org"), subject: "Bcc".into(), ..Default::default() })
+        .unwrap();
+    for id in [unsubscribe, other, bcc] {
+        s.mailbox.apply_rules(id, &s.rule_clock());
+        let got = s.mailbox.message(id).unwrap();
+        assert!(got.flag == FlagStatus::None && got.flag_due.is_none(), "{}", got.subject);
+    }
+    assert_eq!(s.mailbox.messages_in(kept).count(), 1);
+    // Run Rules Now does the same with mail already there.
+    let later = s
+        .mailbox
+        .add_message(Message {
+            folder: inbox,
+            from: Address::new("", "ada@example.org"),
+            to: vec![Address::new("", ME)],
+            subject: "Later".into(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], 2);
+    assert_eq!(s.mailbox.message(later).unwrap().flag_due, Some(due));
+    // Clearing the flag, and deleting for good.
+    let clear = json!({"name": "Unflag", "conditions": [{"type": "subjectContains", "value": "later"}], "actions": [{"type": "clearFlag"}]});
+    s.run("rules.add", &clear).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let got = s.mailbox.message(later).unwrap();
+    assert_eq!((got.flag, got.flag_due), (FlagStatus::None, None));
+    let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "opt out"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &gone).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    // Gone, not in Deleted Items.
+    assert!(s.mailbox.message(unsubscribe).is_none());
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    assert!(!s.mailbox.messages_in(deleted).any(|m| m.subject.starts_with("Opt out")));
+}
+
+#[test]
+fn always_move_messages_from_a_sender_without_a_whole_address_looks_for_its_words() {
+    let (mut s, _, inbox, kept) = session();
+    for (from, made) in [
+        ("digest@news.example", Condition::From(vec!["digest@news.example".into()])),
+        ("noreply", Condition::FromContains(vec!["noreply".into()])),
+        ("a@b@news.example", Condition::FromContains(vec!["a@b@news.example".into()])),
+    ] {
+        let m = arriving(&mut s, inbox, from, "x");
+        let id = s.run("rules.fromMessage", &json!({"folder": kept, "id": m})).unwrap()["id"].as_u64().unwrap();
+        assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().conditions, [made], "{from}");
+    }
+}

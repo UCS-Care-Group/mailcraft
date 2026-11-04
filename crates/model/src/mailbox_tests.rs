@@ -154,7 +154,7 @@ fn rules_run_on_new_mail() {
             id: 1,
             name: "Digest".into(),
             enabled: true,
-            conditions: vec![Condition::SubjectContains("digest".into())],
+            conditions: vec![Condition::SubjectContains(vec!["digest".into()])],
             actions: vec![Action::MoveTo(news), Action::MarkRead, Action::Categorize("Blue category".into())],
             stop: true,
             ..Default::default()
@@ -163,7 +163,7 @@ fn rules_run_on_new_mail() {
             id: 2,
             name: "Flag Bob".into(),
             enabled: true,
-            conditions: vec![Condition::FromContains("bob".into())],
+            conditions: vec![Condition::FromContains(vec!["bob".into()])],
             actions: vec![Action::Flag],
             stop: false,
             ..Default::default()
@@ -172,21 +172,21 @@ fn rules_run_on_new_mail() {
             id: 3,
             name: "Gone".into(),
             enabled: true,
-            conditions: vec![Condition::SubjectContains("hello".into())],
+            conditions: vec![Condition::SubjectContains(vec!["hello".into()])],
             actions: vec![Action::MoveTo(4242), Action::Delete],
             stop: false,
             ..Default::default()
         },
     ];
     let digest = mb.add_message(mail(inbox, "Weekly Digest", 1)).unwrap();
-    assert_eq!(mb.apply_rules(digest), ["Digest"]);
+    assert_eq!(mb.apply_rules(digest, &utc_clock()), ["Digest"]);
     let m = mb.message(digest).unwrap();
     assert_eq!((m.folder, m.read, m.flag, m.categories.len()), (news, true, FlagStatus::None, 1));
     let hello = mb.add_message(mail(inbox, "Hello", 2)).unwrap();
-    assert_eq!(mb.apply_rules(hello), ["Flag Bob", "Gone"]);
+    assert_eq!(mb.apply_rules(hello, &utc_clock()), ["Flag Bob", "Gone"]);
     let m = mb.message(hello).unwrap();
     assert_eq!((m.flag, mb.folder(m.folder).map(|f| f.kind)), (FlagStatus::Flagged, Some(FolderKind::Deleted)));
-    assert!(mb.apply_rules(4242).is_empty());
+    assert!(mb.apply_rules(4242, &utc_clock()).is_empty());
 }
 
 #[test]
@@ -380,10 +380,13 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
     assert_eq!(mb.pending, [Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to: deleted }]);
     // And then for good, before the server heard of the move: deleted where the server has it.
     assert_eq!(mb.delete_message(a), Ok(true));
-    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None }]);
+    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None, kept: None }]);
     // For good straight away.
     mb.remove_message(b).unwrap();
-    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None }));
+    assert_eq!(
+        mb.pending.last(),
+        Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None, kept: None })
+    );
     // What a synchronisation takes out because the server no longer has it is not told back.
     mb.forget_message(c).unwrap();
     // A message that was never on the server is nobody's business.
@@ -561,8 +564,8 @@ fn repair_drops_nonsense_about_the_server() {
         mb.pending,
         [
             Pending::Move { account: 1, message: 16, from: "INBOX".into(), uid: 40, synced: None, to: 6 },
-            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new(), seen: None },
-            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new(), seen: None },
+            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new(), seen: None, kept: None },
+            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new(), seen: None, kept: None },
         ]
     );
     assert!(mb.repair().is_empty(), "{:?}", mb.clone().repair());
@@ -601,12 +604,12 @@ fn a_change_waiting_for_a_mailbox_numbered_anew_is_kept_when_it_can_be_found_aga
     let inbox = mb.inbox().unwrap();
     mb.folder_mut(inbox).unwrap().remote = "INBOX".into();
     let seen = MailIdentity { date: 1_700_000_000, from: "a@mail.example".into(), subject: "Hi".into(), people: vec!["b@mail.example".into()] };
-    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen) };
+    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen), kept: None };
     let saved = serde_json::to_value(&waiting).unwrap();
     assert_eq!(saved["delete"]["messageId"], "gone@mail.example");
     assert_eq!(serde_json::from_value::<Pending>(saved).unwrap(), waiting);
     // Without a Message-ID it could never be found again: the repair lets it go.
-    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new(), seen: None }];
+    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new(), seen: None, kept: None }];
     let fixed = mb.repair();
     assert!(fixed.iter().any(|line| line.contains("waiting for the mail server")), "{fixed:?}");
     assert_eq!(mb.pending, [waiting]);
@@ -1135,4 +1138,8 @@ fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_o
     }
     let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
     assert!(said.skip_conversation_question);
+}
+
+fn utc_clock() -> RuleClock {
+    RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 }
 }
