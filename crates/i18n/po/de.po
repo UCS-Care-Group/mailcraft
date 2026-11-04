@@ -3589,7 +3589,7 @@ msgstr "Exchange-Server"
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "Exchange server (your organisation's own)"
-msgstr "Exchange-Server (der eigene Server deiner Organisation)"
+msgstr "Exchange-Server (der eigene Server Ihrer Organisation)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4150,7 +4150,7 @@ msgstr "Von enthält"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "From outside your organisation."
-msgstr "Von außerhalb deiner Organisation."
+msgstr "Von außerhalb Ihrer Organisation."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -4233,12 +4233,12 @@ msgstr "Wird vorbereitet …"
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
-msgstr "GitHub ist öffentlich und erfordert ein GitHub-Konto. E-Mail ist privat und wird von ihrem eigenen Konto an die Entwickler von MailCraft gesendet."
+msgstr "GitHub ist öffentlich und erfordert ein GitHub-Konto. E-Mail ist privat und wird von Ihrem eigenen Konto an die Entwickler von MailCraft gesendet."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
-msgstr "GitHub-Issues sind öffentlich: Gib darin keine E-Mail-Adressen, Namen oder Inhalte aus deinen Nachrichten an. Beschreibe mit eigenen Worten, was passiert ist."
+msgstr "GitHub-Issues sind öffentlich: Gebn Sie darin keine E-Mail-Adressen, Namen oder Inhalte aus Ihren Nachrichten an. Beschreiben Sie mit eigenen Worten, was passiert ist."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -4248,7 +4248,7 @@ msgstr "Die GitHub-Seite ist geöffnet: Hänge dort die Diagnosedatei an und sen
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
-msgstr "Die GitHub-Seite ist geöffnet: Überprüfe deinen Beitrag und sende ihn anschließend ab. MailCraft hat nichts gesendet."
+msgstr "Die GitHub-Seite ist geöffnet: Überprüfe Sie Ihren Beitrag und sende Sie ihn anschließend ab. MailCraft hat nichts gesendet."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4576,12 +4576,12 @@ msgstr "Falls die Seite meldet, dass eine Administratorgenehmigung nötig ist"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
-msgstr "Wenn Sie das nicht tuen, werden keine Daten dorthin gesendet und die Suche wird an anderer Stelle fortgesetzt oder beendet."
+msgstr "Wenn Sie das nicht tun, werden keine Daten dorthin gesendet und die Suche wird an anderer Stelle fortgesetzt oder beendet."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "If you go on, your user name and password are sent to {host}. Go on only if you know it is your organisation's."
-msgstr "Wenn sie fortfahren, werden Ihre Benutzername und ihr Passwort an {host} gesendet. Fahren Sie nur fort, wenn sie sicher sind, dass der Server zu Ihrer Organisation gehört."
+msgstr "Wenn Sie fortfahren, werden Ihr Benutzername und Ihr Passwort an {host} gesendet. Fahren Sie nur fort, wenn Sie sicher sind, dass der Server zu Ihrer Organisation gehört."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -4624,12 +4624,12 @@ msgstr "Einen Ordner mit Postfächern importieren"
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "Import the appointments and tasks in {name} into your calendar?"
-msgstr "Möchten Sie die Termine und Aufgaben aus {name} in ihren Kalender importieren?"
+msgstr "Möchten Sie die Termine und Aufgaben aus {name} in Ihren Kalender importieren?"
 
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "Import the contacts in {name} into Contacts?"
-msgstr "Möchten Sie die Kontakte aus {name} in ihre Kontakte importieren?"
+msgstr "Möchten Sie die Kontakte aus {name} in Ihre Kontakte importieren?"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
@@ -5228,7 +5228,7 @@ msgstr "Leer lassen, um das aktuelle beizubehalten"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Leave it empty to look for the server from your address. It must begin with https://."
-msgstr "Lass das Feld leer, damit der Server anhand deiner Adresse gesucht wird. Die Adresse muss mit https:// beginnen."
+msgstr "Lass das Feld leer, damit der Server anhand Ihrer Adresse gesucht wird. Die Adresse muss mit https:// beginnen."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -5245,7 +5245,7 @@ msgstr "Konto manuell einrichten"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
-msgstr "Lass andere wissen, dass sie abwesend sind oder eine Zeit lang nicht antworten können: Dein Postfach antwortet automatisch."
+msgstr "Lass Sie andere wissen, dass Sie abwesend sind oder eine Zeit lang nicht antworten können: Ihr Postfach antwortet automatisch."
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -5337,7 +5337,7 @@ msgstr "Erneut suchen"
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Look at the certificate the server shows now. Nothing is signed in while you decide."
-msgstr "Sieh dir das Zertifikat an, das der Server gerade anzeigt. Während Sie sich entscheiden, wird keine Anmeldung vorgenommen."
+msgstr "Sehen Sie sich das Zertifikat an, das der Server gerade anzeigt. Während Sie sich entscheiden, wird keine Anmeldung vorgenommen."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5364,7 +5364,7 @@ msgstr "Diese Besprechung wird in Ihrem Kalender gesucht…"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Looking for your Exchange server…"
-msgstr "Dein Exchange-Server wird gesucht …"
+msgstr "Ihr Exchange-Server wird gesucht…"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -5415,7 +5415,7 @@ msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würde
 #. what a command says
 #: crates/engine/src/io.rs
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
-msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würden gesendet werden. Wähle einen anderen Ordner."
+msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würden gesendet werden. Wähle Sie einen anderen Ordner."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -5506,7 +5506,7 @@ msgstr "MailCraft kann {account} jetzt statt über IMAP über Microsoft Graph mi
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
-msgstr "MailCraft kann sich derzeit auf diesem Weg noch nicht bei diesem Server anmelden (er verlangt Kerberos). Frag deinen Administrator, ob eine Anmeldung mit Benutzername und Passwort über eine verschlüsselte Verbindung möglich ist."
+msgstr "MailCraft kann sich derzeit auf diesem Weg noch nicht bei diesem Server anmelden (er verlangt Kerberos). Fragen Sie ihren Administrator, ob eine Anmeldung mit Benutzername und Passwort über eine verschlüsselte Verbindung möglich ist."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5574,12 +5574,12 @@ msgstr "MailCraft sucht einmal täglich nach einer neuen Version (Datei › Opti
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-msgstr "MailCraft benötigt eine erneute Anmeldung, um ihre automatischen Antworten abzurufen: Die Microsoft-Seite wird in ihrem Browser geöffnet. E-Mails und Kalender funktionieren währenddessen wie gewohnt."
+msgstr "MailCraft benötigt eine erneute Anmeldung, um Ihre automatischen Antworten abzurufen: Die Microsoft-Seite wird in Ihrem Browser geöffnet. E-Mails und Kalender funktionieren währenddessen wie gewohnt."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr "MailCraft benötigt zunächst ihre Erlaubnis, um ihre automatischen Antworten zu ändern: Datei › Informationen › Erneut fragen."
+msgstr "MailCraft benötigt zunächst Ihre Erlaubnis, um Ihre automatischen Antworten zu ändern: Datei › Informationen › Erneut fragen."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5966,7 +5966,7 @@ msgstr "Microsoft benötigt eine Anwendungs-ID"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
-msgstr "Microsoft akzeptiert ihre Anmeldung nicht mehr. Melde dich erneut an, um ihre automatischen Antworten abzurufen und zu ändern."
+msgstr "Microsoft akzeptiert Ihre Anmeldung nicht mehr. Melde Sie sich erneut an, um Ihre automatischen Antworten abzurufen und zu ändern."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6198,7 +6198,7 @@ msgstr "Wird in den anderen Kalender verschoben: Der Server des Kontos legt es d
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Moving them puts them into your account's calendar, where Outlook and your other devices have them too."
-msgstr "Durch das Verschieben kommen sie in den Kalender Ihres Kontos, wo auch Outlook und ihre anderen Geräte sie haben."
+msgstr "Durch das Verschieben kommen sie in den Kalender Ihres Kontos, wo auch Outlook und Ihre anderen Geräte sie haben."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
