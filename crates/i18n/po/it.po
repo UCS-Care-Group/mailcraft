@@ -5929,7 +5929,7 @@ msgid "Mark as Unread"
 msgstr "Segna come da leggere"
 
 #. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/windows.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Segna come letto"
