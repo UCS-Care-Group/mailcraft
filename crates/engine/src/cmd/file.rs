@@ -130,6 +130,45 @@ pub(crate) fn servers_in(v: &Value) -> String {
     if accounts.is_empty() { "no account connects to a server".to_string() } else { format!("accounts connect to {}", accounts.join("; ")) }
 }
 
+/// What [`after_opening`] did to a mailbox just opened.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AfterOpening {
+    /// Accounts whose way of reading Outlook's Favorites is no more: they are read through Graph.
+    pub favorites_now_graph: usize,
+    /// Messages kept with characters that couldn't be read, to be fetched again (#185, #650).
+    pub unreadable: usize,
+    /// Messages an earlier version put back empty after a refused delete for good, to be fetched
+    /// again (#793).
+    pub hollow: usize,
+}
+
+impl AfterOpening {
+    /// Every message marked to be fetched again.
+    pub fn fetched_again(&self) -> usize {
+        self.unreadable.saturating_add(self.hollow)
+    }
+}
+
+/// What is done to a mailbox once it is opened, whichever way: `file.open`, and every host's
+/// own start-up (the desktop window, the CLI, the browser), so that none of them skips a step
+/// (#793). Each step is done once in a mailbox's life and costs nothing after; a mailbox it
+/// changed is marked changed, to be saved.
+/// - A way of reading Outlook's Favorites other than Graph, which is no more, is forgotten.
+/// - Mail of Microsoft accounts kept with characters that couldn't be read is fetched again
+///   (#185), and that of IMAP accounts by UID at the next Send/Receive (#650).
+/// - Mail an earlier version put back empty after a refused delete for good is fetched again
+///   before anything can move it (#793).
+pub fn after_opening(s: &mut Session) -> AfterOpening {
+    let favorites_now_graph = s.mailbox.take_retired_favorites_choices();
+    let unreadable = super::graph_down::refetch_unreadable(&mut s.mailbox).saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
+    let hollow = super::graph_down::refetch_hollow(&mut s.mailbox);
+    let after = AfterOpening { favorites_now_graph, unreadable, hollow };
+    if after.favorites_now_graph > 0 || after.fetched_again() > 0 {
+        s.mailbox_changed();
+    }
+    after
+}
+
 fn open(s: &mut Session, v: &Value) -> CmdResult {
     // First, so that opening the file the mailbox is kept in reads what was just written.
     settle(s)?;
@@ -137,23 +176,8 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     s.replace_mailbox(mailbox);
     // Only a real file is a place to save back to.
     s.path = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
-    // A mailbox whose owner chose another way than Microsoft Graph of reading Outlook's
-    // Favorites, which is no more: said once, and the file is saved without it.
-    let favorites_now_graph = s.mailbox.take_retired_favorites_choices();
-    if favorites_now_graph > 0 {
-        s.mailbox_changed();
-    }
-    // Mail of Microsoft accounts kept with characters that couldn't be read is fetched again,
-    // once (#185).
-    let fetched_again = super::graph_down::refetch_unreadable(&mut s.mailbox);
-    if fetched_again > 0 {
-        s.mailbox_changed();
-    }
-    // So is that of IMAP accounts, by UID, at the next Send/Receive (#650).
-    let fetched_again = fetched_again.saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
-    if fetched_again > 0 {
-        s.mailbox_changed();
-    }
+    let after = after_opening(s);
+    let (favorites_now_graph, fetched_again) = (after.favorites_now_graph, after.fetched_again());
     Ok(json!({
         "favoritesNowGraph": favorites_now_graph,
         "fetchedAgain": fetched_again,

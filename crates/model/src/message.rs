@@ -114,6 +114,10 @@ impl Attachment {
     }
 }
 
+/// Most characters of its text a message to be fetched again keeps as its preview
+/// ([`Message::to_fetch_again`]): as many as Microsoft Graph gives as one.
+pub const PREVIEW_CHARS: usize = 255;
+
 /// A hash of a body's text, to know it again within one run ([`KeptBody::text_hash`]).
 pub fn text_hash(text: &str) -> u64 {
     use std::hash::{Hash, Hasher};
@@ -466,6 +470,35 @@ impl Message {
         };
         let hidden = if self.hidden_text.is_empty() { kept.and_then(|k| k.hidden).map_or(0, |r| r.len) } else { self.hidden_text.len() as u64 };
         self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html).saturating_add(hidden), u64::saturating_add)
+    }
+
+    /// To be fetched again, whole, from the server that has it (#793): its headers, marks and
+    /// server state stay, with the first [`PREVIEW_CHARS`] characters of its text as its preview
+    /// when that text is in memory (its HTML may be on disk); its body and files go, and it
+    /// wears the paperclip when it had files. What a message deleted for good keeps of itself, unless it was whole in memory,
+    /// while its server is asked to delete it: the content kept on disk for it is named by
+    /// nothing once the mailbox file no longer has the message, and goes with the next sweep.
+    pub fn to_fetch_again(&mut self) {
+        let had_files = self.has_attachments();
+        // (The text in memory, when there is one: a short text stays in the mailbox file while
+        // its HTML is kept on disk. Not the words that say the text couldn't be read.)
+        let failed = self.kept.as_deref().is_some_and(|k| k.failed);
+        let preview = if failed { String::new() } else { self.body.text.chars().take(PREVIEW_CHARS).collect() };
+        self.body = Body { text: preview, html: None };
+        self.hidden_text = String::new();
+        self.attachments.clear();
+        self.kept = None;
+        self.attachments_on_server = had_files;
+        self.unfetched = true;
+    }
+
+    /// Whether the message looks as one put back by 0.5.0 up to #793 after a refused delete for
+    /// good: a file of no bytes that names nothing kept outside, or no text at all with nothing
+    /// kept outside. (A message that really is so is fetched again once, for nothing.)
+    pub fn looks_hollow(&self) -> bool {
+        let empty_file = self.attachments.iter().any(|a| a.data.is_empty() && a.kept.is_none());
+        let no_text = self.body.text.is_empty() && self.body.html.is_none() && self.kept.as_deref().is_none_or(|k| k.is_empty() && !k.failed);
+        empty_file || no_text
     }
 
     /// Whether some of the body is kept outside memory and not brought in yet ([`Message::kept`]):

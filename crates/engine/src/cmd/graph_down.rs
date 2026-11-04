@@ -584,6 +584,43 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
     marked
 }
 
+/// Once a mailbox (#793): the messages of Microsoft and Exchange server accounts that look as
+/// 0.5.0 up to #793 put back a message whose delete for good the server refused (no text, or a
+/// file of no bytes, with nothing kept on disk for them: [`Message::looks_hollow`]) are marked
+/// not fetched, so that they are fetched whole again from the server, which has them, before
+/// anything moves or copies them anywhere (an empty copy would be made there and the original
+/// deleted). One being moved out of such an account is fetched from its original there. Drafts,
+/// and messages no server has, are left alone. How many were marked; none once the mailbox has
+/// been looked through ([`Mailbox::unhollowed`]).
+pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
+    if mb.unhollowed {
+        return 0;
+    }
+    let servers: HashSet<Id> = mb
+        .accounts
+        .iter()
+        .filter(|a| matches!(a.kind, mailcraft_model::AccountKind::Microsoft | mailcraft_model::AccountKind::Exchange))
+        .map(|a| a.id)
+        .collect();
+    if servers.is_empty() {
+        return 0;
+    }
+    mb.unhollowed = true;
+    let mut marked = 0usize;
+    for m in mb.messages.values_mut() {
+        let on_server = servers.contains(&m.account) && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
+        let original = m.moving_out.as_ref().is_some_and(|o| servers.contains(&o.account) && !o.left && !o.id.is_empty());
+        let candidate = !m.unfetched && !m.incomplete && !m.draft && m.server_draft.is_none() && m.held.is_empty() && (on_server || original);
+        if candidate && m.looks_hollow() {
+            let m = std::sync::Arc::make_mut(m);
+            m.attachments_on_server = m.has_attachments();
+            m.unfetched = true;
+            marked = marked.saturating_add(1);
+        }
+    }
+    marked
+}
+
 /// How large a message of `account` is fetched whole in the background: its own Download
 /// messages in full, and for a shared mailbox its owner's (#70: it keeps as much mail as its
 /// owner's account does; there is no setting of its own).
