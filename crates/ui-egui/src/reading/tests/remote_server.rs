@@ -386,6 +386,9 @@ fn exchange_online_vouches_for_mail_from_inside_the_organisation() {
     // The server's own failed check wins over the stamp.
     let failed = "spf=fail smtp.mailfrom=lumen.example; dmarc=fail action=quarantine header.from=lumen.example;";
     assert!(!vouched(Some(&work), &colleague(&["Internal"], &[failed])));
+    // And so does one that may be hidden past what is read of the server's word.
+    let long = format!("{}{failed}", "x=y (padding) ; ".repeat(400));
+    assert!(!vouched(Some(&work), &colleague(&["Internal"], &[&long])));
     // Another domain, though Exchange calls it internal (a partner's connector).
     let mut partner = colleague(&["Internal"], &[]);
     partner.from = Address::new("Partner", "bo@partner.example");

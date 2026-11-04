@@ -121,9 +121,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             auth_as if auth_as.eq_ignore_ascii_case(AUTH_AS) => {
                 if kept_auth_as < MAX_AUTH_AS {
                     kept_auth_as += 1;
-                    // Cut short, a value must not become `Internal`.
-                    let value = if value.chars().count() > 64 { value.chars().take(64).chain(['…']).collect() } else { value.to_string() };
-                    m.headers.push((field.name.clone(), value));
+                    // Cut short by `header::split` already.
+                    m.headers.push((field.name.clone(), value.to_string()));
                 }
             }
             _ => {

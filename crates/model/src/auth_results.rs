@@ -271,8 +271,9 @@ fn result(words: &[String]) -> Option<(String, String)> {
 /// vouched for too, unless the server says it failed its checks ([`failed_check`]).
 pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
     if internal(account, m) {
-        // An organisation's connector may call a partner's mail internal: the server's word wins.
-        return failed_check(account, m).is_none();
+        // An organisation's connector may call a partner's mail internal: the server's word wins,
+        // and a word cut short may have hidden a failure.
+        return failed_check(account, m).is_none() && own_results(account, m).is_none_or(|results| results.first().is_none_or(|v| clauses(v).1));
     }
     let Some(results) = own_results(account, m) else { return false };
     let Some((value, below)) = results.split_first() else { return false };
