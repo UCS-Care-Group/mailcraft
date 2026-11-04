@@ -454,7 +454,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let shown = mailcraft_engine::list::listed(&app.session.rows());
                         let folder = app.session.view.folder;
                         st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
-                        let unread = app.session.mailbox.unread_count(folder);
+                        // (Counted once per change, not at every frame: `Session::folder_counts`.)
+                        let unread = app.session.folder_counts().unread(folder);
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                         }
@@ -469,10 +470,12 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
                     }
                     Module::People => {
-                        st(ui, &tln!(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
+                        let shown = crate::people_view::shown_total(app, ui.ctx());
+                        st(ui, &tln!(shown, "{n} contact", "{n} contacts"), t.text_dim);
                     }
                     Module::Tasks => {
-                        let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete()).count();
+                        let shown = mailcraft_engine::cmd::tasks::shown_account(&app.session);
+                        let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete() && shown.shows(&x.origin)).count();
                         st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
                     }
                 }

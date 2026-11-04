@@ -167,19 +167,55 @@ fn files_arriving_from_the_browser_go_where_they_belong() {
     a.services.inbox = Some(inbox.clone());
     let contacts = a.session.mailbox.contacts.len();
     let card = b"BEGIN:VCARD\r\nVERSION:3.0\r\nN:Haddad;Noor;;;\r\nFN:Noor Haddad\r\nEMAIL:noor@example.org\r\nEND:VCARD\r\n";
-    inbox.lock().unwrap().push(("noor.vcf".into(), card.to_vec()));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("noor.vcf".into(), card.to_vec()));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.mailbox.contacts.len(), contacts + 1);
     // While writing, an unknown file is an attachment.
     a.run("mail.new", json!({})).unwrap();
-    inbox.lock().unwrap().push(("notes.bin".into(), vec![1, 2, 3]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("notes.bin".into(), vec![1, 2, 3]));
     crate::files::drain_inbox(&mut a);
     assert_eq!(a.session.compose.as_ref().unwrap().attachments.len(), 1);
     // Junk is refused with a message, not a crash.
     a.run("compose.close", json!({})).unwrap();
-    inbox.lock().unwrap().push(("junk.bin".into(), vec![0, 159, 146, 150]));
+    inbox.lock().unwrap().push(crate::Delivered::dropped("junk.bin".into(), vec![0, 159, 146, 150]));
     crate::files::drain_inbox(&mut a);
     assert!(a.status_msg.is_some());
+}
+
+/// A cancelled picker delivers nothing and leaves nothing behind: a file dropped after it goes
+/// by its kind. What the picker does deliver says what it was picked for, and for which message.
+#[test]
+fn a_file_dropped_after_the_browsers_picker_was_cancelled_goes_where_its_kind_says() {
+    let mut a = app();
+    let (inbox, picked): (crate::Inbox, crate::Inbox) = Default::default();
+    (a.services.inbox, a.services.picked) = (Some(inbox.clone()), Some(picked.clone()));
+    // What the picker was last opened for, and for which message, as the host is told.
+    let opened: std::sync::Arc<std::sync::Mutex<Option<(String, Option<u64>)>>> = Default::default();
+    let noted = opened.clone();
+    a.services.open_async = Some(Box::new(move |purpose, asking| *noted.lock().unwrap() = Some((purpose.to_string(), asking))));
+    a.execute("mail.new", json!({})).unwrap();
+    // Attach opens the picker, and the owner cancels it: nothing is delivered. Then the message
+    // is closed.
+    a.run("compose.attach", json!({})).unwrap();
+    assert_eq!(opened.lock().unwrap().as_ref().map(|(p, _)| p.as_str()), Some("attach"));
+    crate::files::drain_inbox(&mut a);
+    a.run("compose.close", json!({"discard": true})).unwrap();
+    // A calendar file dropped next is brought in, not taken for the attachment asked for.
+    let events = a.session.mailbox.events.len();
+    let ics = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:drop-1@example.org\r\nDTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Dropped\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    inbox.lock().unwrap().push(crate::Delivered::dropped("dropped.ics".into(), ics.to_vec()));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.mailbox.events.len(), events + 1, "{:?}", a.status_msg);
+    // What the picker delivers is for what it was opened for, and for the message that asked:
+    // an attachment, whatever the file is.
+    let compose = a.execute("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
+    a.run("compose.attach", json!({})).unwrap();
+    let (purpose, asking) = opened.lock().unwrap().clone().unwrap();
+    assert_eq!((purpose.as_str(), asking), ("attach", Some(compose)));
+    picked.lock().unwrap().push(crate::Delivered::picked("invite.ics".into(), ics.to_vec(), &purpose, asking, 1));
+    crate::files::drain_inbox(&mut a);
+    assert_eq!(a.session.composing_by_id(compose).map(|c| c.attachments.len()), Some(1));
+    assert_eq!(a.session.mailbox.events.len(), events + 1);
 }
 
 #[test]
@@ -1423,7 +1459,7 @@ fn what_cant_be_taken_back_is_asked_about_first() {
     assert_eq!(a.run("mail.delete", json!({"ids": [first]})).unwrap()["pending"], "confirm");
     assert!(asked(&a) && a.session.mailbox.message(first).is_some());
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
-    assert!(ask.text.contains("for good") && !ask.text.contains("server"), "{}", ask.text);
+    assert!(ask.text.contains("permanently") && !ask.text.contains("server"), "{}", ask.text);
     // Cancelled: still there. Confirmed: gone.
     a.dialog = None;
     assert_eq!(a.session.mailbox.messages.len(), total);
@@ -1476,7 +1512,7 @@ fn deleting_a_contact_is_asked_about_first() {
     assert_eq!(a.run("people.delete", json!({"id": id})).unwrap()["pending"], "confirm");
     let Some(crate::dialogs::Dialog::Confirm { ask, command, .. }) = &a.dialog else { panic!("no question") };
     assert_eq!((command.as_str(), ask.title.as_str(), ask.action.as_str()), ("people.delete", "Delete Contact", "Delete"));
-    assert_eq!(ask.text, "\"Ivana Horvat\" will be deleted for good. Contacts don't go to Deleted Items.");
+    assert_eq!(ask.text, "\"Ivana Horvat\" will be permanently deleted. Contacts don't go to Deleted Items.");
     // Cancelled: still there. Confirmed: gone, and Undo brings it back.
     a.dialog = None;
     assert_eq!(a.session.mailbox.contacts.len(), total);
@@ -1496,7 +1532,7 @@ fn deleting_a_contact_is_asked_about_first() {
     let only = a.execute("people.new", json!({"email": "kim@example.org"})).unwrap()["id"].as_u64().unwrap();
     a.run("people.delete", json!({"id": only})).unwrap();
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
-    assert!(ask.text.starts_with("\"kim@example.org\" will be deleted for good."), "{}", ask.text);
+    assert!(ask.text.starts_with("\"kim@example.org\" will be permanently deleted."), "{}", ask.text);
     let a = frames(a, (1280.0, 800.0), 3);
     assert!(a.session.mailbox.contact(only).is_some());
 }
@@ -2267,7 +2303,7 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let kept = mailcraft_model::Message { folder: inbox, subject: "Kept there".into(), ..Default::default() };
     let kept = a.session.mailbox.add_message(kept).unwrap();
     let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
-    assert_eq!(ask.text, "This message will be deleted for good.");
+    assert_eq!(ask.text, "This message will be permanently deleted.");
 }
 
 /// A noisy PNG far over a signature picture's cap.

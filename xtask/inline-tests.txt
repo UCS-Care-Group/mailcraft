@@ -63,7 +63,6 @@ crates/model/src/message.rs
 crates/model/src/offline.rs
 crates/model/src/provider.rs
 crates/model/src/remote.rs
-crates/model/src/rule.rs
 crates/model/src/search.rs
 crates/model/src/sync/progress.rs
 crates/model/src/sync.rs
@@ -109,7 +108,6 @@ crates/ui-egui/src/i18n.rs
 crates/ui-egui/src/keep_offline.rs
 crates/ui-egui/src/keys.rs
 crates/ui-egui/src/mail_view.rs
-crates/ui-egui/src/nav.rs
 crates/ui-egui/src/people_view.rs
 crates/ui-egui/src/reading/colors.rs
 crates/ui-egui/src/reading/images.rs

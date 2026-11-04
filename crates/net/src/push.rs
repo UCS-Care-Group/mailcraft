@@ -447,7 +447,7 @@ impl<'a> Push<'a> {
         let trash_name = shown(&kinds::remote_name(trash));
         let selected = match imap.select(&trash.raw, false) {
             Ok(selected) => selected,
-            Err(e) => return Err(stop(result, format!("Couldn't open \"{trash_name}\" to delete messages for good: {e}"), &e.into())),
+            Err(e) => return Err(stop(result, format!("Couldn't open \"{trash_name}\" to permanently delete messages: {e}"), &e.into())),
         };
         // UIDs the server gave under another life of the mailbox name other messages now.
         let new_uids: Vec<u32> = there.iter().filter(|(validity, _)| *validity == selected.uid_validity).map(|(_, uid)| *uid).collect();

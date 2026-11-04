@@ -54,6 +54,7 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
         conditions: vec![Condition::SubjectContains(String::new())],
         actions: vec![Action::MoveTo(out)],
         stop: false,
+        ..Default::default()
     });
     let from = s.mailbox.message(m).unwrap().folder;
     s.mailbox.apply_rules(m);
@@ -84,7 +85,7 @@ fn agents_are_asked_before_deleting_contacts_tasks_events_and_categories() {
         assert_eq!(check(&s, id, &params, &[Class::Delete]), Verdict::Run, "{id}");
     }
     let d = describe(&s, "people.delete", &json!({"id": c}));
-    assert!(d.contains("Ada Example") && d.contains("for good"), "{d}");
+    assert!(d.contains("Ada Example") && d.contains("permanently"), "{d}");
     assert!(describe(&s, "tasks.delete", &json!({"id": t})).contains("Pay the invoice"));
     // Telling the people invited too is the stronger question.
     assert!(matches!(check(&s, "calendar.delete", &json!({"id": e, "send": true}), &[Class::Delete]), Verdict::Ask(Class::Send, _)));

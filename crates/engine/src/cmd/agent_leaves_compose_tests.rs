@@ -367,3 +367,50 @@ fn moving_the_cursor_in_the_agents_message_doesnt_make_it_the_owners() {
     run(&mut s, "compose.type", json!({"text": "and the owner "}));
     assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
 }
+
+#[test]
+fn a_message_in_drafts_only_by_the_background_saves_is_asked_about_as_thrown_away() {
+    // The owner typed; the window's timer saved it; nothing typed since.
+    let mut s = writing();
+    let id = s.compose.as_ref().unwrap().id;
+    s.save_in_background(id).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && c.autosaved));
+    // `discard` takes it out of Drafts: asked as a deletion, and said so.
+    let thrown = json!({"discard": true});
+    assert_eq!(classify(&s, "compose.close", &thrown), Access::Asked(Class::Delete));
+    let said = describe(&s, "compose.close", &thrown);
+    assert!(said.contains("thrown away") && !said.contains("stays in Drafts"), "{said}");
+    // Closed and kept, it stays in Drafts as it was saved.
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
+    let said = describe(&s, "compose.close", &json!({}));
+    assert!(said.contains("stays in Drafts"), "{said}");
+}
+
+#[test]
+fn no_agent_saves_the_owners_message_in_the_background() {
+    let mut s = writing();
+    let id = s.compose.as_ref().unwrap().id;
+    // Not while an agent's command runs, and not by any param of Save Draft.
+    s.agent = Some(Vec::new());
+    assert!(s.save_in_background(id).is_err());
+    s.agent = None;
+    as_agent(&mut s, "compose.saveDraft", json!({"background": true}));
+    assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && !c.autosaved));
+    // A real draft: closing it, even with `discard`, leaves it in Drafts and is asked as leaving.
+    assert_eq!(classify(&s, "compose.close", &json!({"discard": true})), Access::Asked(Class::Leave));
+    run(&mut s, "compose.close", json!({"discard": true}));
+    assert!(draft_with(&s, "Mine").is_some());
+}
+
+#[test]
+fn background_saves_are_no_steps_to_undo() {
+    let mut s = writing();
+    let id = s.compose.as_ref().unwrap().id;
+    s.save_in_background(id).unwrap();
+    run(&mut s, "compose.set", json!({"body": "Half a thought, and more"}));
+    s.save_in_background(id).unwrap();
+    run(&mut s, "compose.close", json!({"discard": true}));
+    assert!(draft_with(&s, "Mine").is_none());
+    let _ = s.run("edit.undo", &json!({}));
+    assert!(draft_with(&s, "Mine").is_none(), "undone back into Drafts");
+}

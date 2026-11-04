@@ -285,6 +285,20 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
+        // Where keeping rules on the server stands, with a way to ask again (#566).
+        if let Some((line, again)) = app.rules_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+                );
+                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                    app.ask_rules_again(a.id);
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Where the automatic replies stand, and whether MailCraft may change them, with a way
         // to sign in again or to ask for that permission again.
         if let Some((line, again)) = app.auto_replies_line(a.id) {
@@ -614,7 +628,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
-        .checkbox(&mut in_window, tl!("Open replies and forwards in a new window"))
+        .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))
         .on_hover_text(tl!("Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."));
     app.hit.add("optionRepliesInWindow", 0, switch.rect);
     if switch.changed() {

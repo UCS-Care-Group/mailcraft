@@ -3,7 +3,7 @@
 //! The message list: which messages show for the folder, filter and search in view, in what
 //! order, under which group headings.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::search::Query;
 use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
@@ -123,12 +123,18 @@ pub fn fold(name: &str) -> String {
     name.to_lowercase()
 }
 
-/// One spelling for each category name however it was written, by its [`fold`]: the mailbox's
-/// list of categories first, then the first spelling met among `items`' categories. One map per
-/// list build, so no name is searched for item by item.
-pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = &'a [String]>) -> HashMap<String, &'a str> {
-    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
-    for categories in items {
+/// One spelling for each category name however it was written, by its [`fold`]: the lists of the
+/// accounts of `items`, each given by its account, first, then the mailbox's other lists, then the
+/// first spelling met among the items' categories. One map per list build, so no name is searched
+/// for item by item.
+pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = (Id, &'a [String])>) -> HashMap<String, &'a str> {
+    let items: Vec<(Id, &[String])> = items.into_iter().collect();
+    let accounts: BTreeSet<Id> = items.iter().map(|(account, _)| *account).collect();
+    let mut spelling: HashMap<String, &str> = HashMap::new();
+    for k in accounts.iter().flat_map(|account| s.mailbox.categories_of(*account)).chain(s.mailbox.all_categories()) {
+        spelling.entry(fold(&k.name)).or_insert(k.name.as_str());
+    }
+    for (_, categories) in items {
         for c in categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
             spelling.entry(fold(c)).or_insert(c);
         }
@@ -155,6 +161,13 @@ pub fn rows(s: &Session) -> Vec<Row> {
 /// search of the mailbox or of every mailbox leaves out Deleted Items, Junk E-mail and their
 /// subfolders (#493).
 pub fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
+    let (everywhere, folders) = view_folders(s);
+    move |m: &Message| folders.contains(&m.folder) != everywhere
+}
+
+/// The folders the list looks in ([`in_view`]), or, for a search of every mailbox (`true`),
+/// the folders it leaves out.
+fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
     let mb = &s.mailbox;
     let folder = s.view.folder;
     let scope = if Query::parse(&s.view.search).is_empty() { Scope::Folder } else { s.view.scope };
@@ -178,7 +191,21 @@ pub fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
         }
         Scope::Everywhere => (true, hidden(None)),
     };
-    move |m: &Message| folders.contains(&m.folder) != everywhere
+    (everywhere, folders)
+}
+
+/// The messages the list looks at ([`in_view`]): those of the folders looked in, from the
+/// folders' own lists when the session has them counted ([`Session::fresh_counts`]: a few
+/// hundred thousand messages in other folders are then not walked for a list of one), else
+/// every message that is in view.
+fn looked_at<'a>(s: &'a Session, everywhere: bool, folders: &HashSet<Id>) -> Vec<&'a Message> {
+    let mb = &s.mailbox;
+    match s.fresh_counts() {
+        Some(counts) if !everywhere => {
+            folders.iter().flat_map(|f| counts.ids(*f)).filter_map(|id| mb.message(*id)).filter(|m| folders.contains(&m.folder)).collect()
+        }
+        _ => mb.messages.values().map(|m| m.as_ref()).filter(|m| folders.contains(&m.folder) != everywhere).collect(),
+    }
 }
 
 /// [`rows`], for a search answered in part already: `decided` says whether each message the word
@@ -216,21 +243,22 @@ pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
     ids.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(shows)).collect()
 }
 
-/// [`rows_with`], and the messages the rows list only because they are selected (#428): they were
-/// in this list when they were selected and no longer match the filter or the search.
-pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>) {
+/// [`rows_with`], the messages the rows list only because they are selected (#428: they were
+/// in this list when they were selected and no longer match the filter or the search), and how
+/// many messages the list looks at are not fetched whole (a search of them reads their headers
+/// and preview alone, R3.2; counted here, in the one pass over the mail, not at every frame).
+pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>, usize) {
     let mb = &s.mailbox;
     let query = s.search_query();
-    let in_view = in_view(s);
+    let (everywhere, folders) = view_folders(s);
     let me = me(s);
     let kept = s.kept();
     let mut kept_only = Vec::new();
-    let mut shown: Vec<&Message> = mb
-        .messages
-        .values()
-        .map(|m| m.as_ref())
-        .filter(|m| in_view(m))
+    let mut unfetched = 0usize;
+    let mut shown: Vec<&Message> = looked_at(s, everywhere, &folders)
+        .into_iter()
         .filter(|m| {
+            unfetched = unfetched.saturating_add(usize::from(m.unfetched));
             let hit = filtered(s, m, &me)
                 && (query.is_empty()
                     || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
@@ -270,7 +298,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
     });
 
     if s.view.sort == SortBy::Categories {
-        return (by_category(s, &shown, desc), kept_only);
+        return (by_category(s, &shown, desc), kept_only, unfetched);
     }
 
     let mut out: Vec<Row> = Vec::new();
@@ -278,15 +306,15 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         // One row per conversation, where its newest (or, ascending, oldest) message sorts.
         let mut index: HashMap<(Id, String), usize> = HashMap::new();
         for m in &shown {
-            match index.get(&(m.account, m.thread_key())) {
-                Some(i) => {
-                    if let Some(row) = out.get_mut(*i) {
+            match index.entry((m.account, m.thread_key())) {
+                std::collections::hash_map::Entry::Occupied(at) => {
+                    if let Some(row) = out.get_mut(*at.get()) {
                         row.members.push(m.id);
                         row.unread += usize::from(!m.read);
                     }
                 }
-                None => {
-                    index.insert((m.account, m.thread_key()), out.len());
+                std::collections::hash_map::Entry::Vacant(at) => {
+                    at.insert(out.len());
                     out.push(Row::of(m, 0));
                 }
             }
@@ -322,7 +350,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
             last = label;
         }
     }
-    (out, kept_only)
+    (out, kept_only, unfetched)
 }
 
 /// The messages of the conversations of `rows` in the account's other folders (#503), as the
@@ -338,7 +366,19 @@ fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashM
     let folder = s.view.folder;
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
     let skips = mb.conversation_skips(account, folder);
-    for m in mb.messages.values() {
+    // The account's other folders, from their own lists when the session has them counted
+    // ([`Session::fresh_counts`]), else from a walk over every message.
+    let others: Vec<&Message> = match s.fresh_counts() {
+        Some(counts) => mb
+            .folders
+            .iter()
+            .filter(|f| f.account == account && f.id != folder && !skips.contains(&f.id))
+            .flat_map(|f| counts.ids(f.id))
+            .filter_map(|id| mb.message(*id))
+            .collect(),
+        None => mb.messages.values().map(|m| m.as_ref()).collect(),
+    };
+    for m in others {
         if m.account != account || m.folder == folder || skips.contains(&m.folder) {
             continue;
         }
@@ -387,7 +427,7 @@ fn opened(s: &Session, rows: Vec<Row>) -> Vec<Row> {
 /// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
 /// categories grouped as it was (observed 2026-10-22).
 fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
-    let spelling = category_spellings(s, shown.iter().map(|m| m.categories.as_slice()));
+    let spelling = category_spellings(s, shown.iter().map(|m| (m.account, m.categories.as_slice())));
     // (heading's folded name, message); the sort is stable, so under each heading `shown`'s order stays.
     let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
     for m in shown {

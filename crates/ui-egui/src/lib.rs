@@ -40,6 +40,8 @@ mod account_setup;
 mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
+mod agent_gate_tests;
+#[cfg(test)]
 mod agent_leaves_tests;
 #[cfg(test)]
 mod agent_names_tests;
@@ -86,6 +88,8 @@ pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
 mod forms_date_tests;
+#[cfg(test)]
+mod frame_bench_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
@@ -126,6 +130,9 @@ pub mod reading;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+pub mod rule_sync;
+#[cfg(test)]
+mod rule_sync_tests;
 pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
@@ -174,6 +181,7 @@ mod view_source;
 mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
+pub mod window_places;
 pub mod windows;
 #[cfg(test)]
 mod writing_tools_tests;
@@ -201,13 +209,23 @@ pub struct Services {
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
     /// Desktop: show a native file dialog without blocking the UI thread. The host sends the
-    /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
-    /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
-    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
-    /// Web: open a file picker; the file arrives later through `inbox`. The argument says what
-    /// for (`mailbox`, `import`, `attach`).
-    pub open_async: Option<Box<dyn Fn(&str)>>,
-    /// Files (name, bytes) delivered asynchronously (the web picker, drag and drop).
+    /// picked paths (`None` when cancelled; several only for files to attach, one otherwise)
+    /// through the returned channel and wakes the UI; a dropped sender counts as cancelled. The
+    /// app shows one dialog at a time ([`files`]).
+    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>>,
+    /// Web: open a file picker; what is picked arrives later through `picked`, each file with
+    /// what the picker was opened for (`mailbox`, `import`, `attach`, …) and the message being
+    /// written that asked, as given here ([`Delivered::picked`]): the picker's answer is never
+    /// taken for another's, however the pickers overlap, and a cancelled one delivers nothing
+    /// and leaves nothing behind. Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
+    /// of one pick, none larger than a message may carry, and none once the pick would pass
+    /// [`files::MOST_ATTACHED_BYTES`]; each left unread is delivered saying why
+    /// ([`Delivered::unread`]), and nothing past the caps is ever read.
+    pub open_async: Option<Box<dyn Fn(&str, Option<u64>)>>,
+    /// Files the picker of `open_async` delivered, each saying what it was picked for.
+    pub picked: Option<Inbox>,
+    /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
+    /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -244,6 +262,8 @@ pub struct Services {
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
+    /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
+    pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
     /// Read and change the automatic replies of a Microsoft account on its server
     /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
     /// browser: File › Info then has no Automatic Replies.
@@ -472,8 +492,56 @@ pub fn clipboard_picture_png(width: usize, height: usize, rgba: &[u8]) -> Option
     Some(out)
 }
 
-/// Files delivered asynchronously.
-pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
+/// Files delivered asynchronously ([`Delivered`]).
+pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<Delivered>>>;
+
+/// A file that arrived asynchronously: picked in the browser's picker, or dropped on the page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Delivered {
+    pub name: String,
+    /// Its bytes, or why it has none ([`Unread`]): said, and the other files of its pick go in.
+    pub bytes: Result<Vec<u8>, Unread>,
+    /// What the picker it was picked in was opened for (`mailbox`, `import`, `attach`, …) and
+    /// the message being written that asked, if one did; none for a drop, which goes by its
+    /// kind and to the message with the keyboard.
+    pub asked: Option<(String, Option<u64>)>,
+    /// Which pick it came in, counted by the host: two picks for one message that arrive in the
+    /// same frame are two batches, each said by itself. `0` for a drop.
+    pub pick: u64,
+}
+
+/// Why a file that was picked has no bytes: the host read nothing of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// The browser couldn't read it (the file moved or changed since it was picked); what went
+    /// wrong, without the file's name, which the window adds in the reader's language.
+    Failed(String),
+    /// Larger than a message may carry ([`files::MOST_ATTACHMENT_BYTES`]): never read.
+    TooLarge,
+    /// Past the most files of one pick ([`files::MOST_ATTACHED`]): never read.
+    PastMost,
+    /// Past the most bytes of one pick together ([`files::MOST_ATTACHED_BYTES`]): never read,
+    /// nor anything picked after it.
+    PastTotal,
+}
+
+impl Delivered {
+    /// A file dropped on the page.
+    pub fn dropped(name: String, bytes: Vec<u8>) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: None, pick: 0 }
+    }
+
+    /// A file picked in the picker [`Services::open_async`] opened for `purpose`, on behalf of
+    /// the message `asking`, read; `pick` numbers the pick it came in.
+    pub fn picked(name: String, bytes: Vec<u8>, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: Some((purpose.to_string(), asking)), pick }
+    }
+
+    /// A file picked as [`Delivered::picked`], of which nothing was read, for `why`.
+    pub fn unread(name: String, why: Unread, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Err(why), asked: Some((purpose.to_string(), asking)), pick }
+    }
+}
 
 /// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
 /// and `refresh:<address>`.
@@ -577,6 +645,10 @@ pub struct SignInRequest {
     /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
     /// the sign-in doesn't cover it, and the owner said go ahead.
     pub tasks: bool,
+    /// With `graph`: ask for changing the rules the account's server keeps
+    /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
+    /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
+    pub rules: bool,
     /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
     /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
     /// the sign-in doesn't cover it, and the owner said go ahead.
@@ -743,6 +815,8 @@ struct SigningIn {
     shared_calendars: bool,
     /// And for the To Do lists (#248).
     tasks: bool,
+    /// And for changing the rules on the server (#566).
+    rules: bool,
     /// And for changing the automatic replies.
     replies: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
@@ -774,20 +848,29 @@ pub struct UiState {
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
-    /// File › Options › Mail, "Open replies and forwards in a new window" (#286): a reply or a
-    /// forward the owner starts opens in a window of its own rather than in the reading pane.
-    /// Off unless the owner turns it on.
+    /// File › Options › Mail, "Open new messages, replies and forwards in a new window" (#286):
+    /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
+    /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
     pub window: Option<window_geometry::WindowGeometry>,
+    /// Desktop: the size and place each kind of window of its own last had (#286), for the next
+    /// one of its kind.
+    pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
     /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
+    /// The address of the account whose tasks the list showed (`view.task_account`): an account's
+    /// id is that account in its own mailbox only (#632).
+    pub task_account_address: String,
+    /// The address of the account whose contacts People showed (`view.people_account`), for the
+    /// same reason (#631).
+    pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
@@ -869,9 +952,12 @@ impl Default for UiState {
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
+            window_places: Default::default(),
             language: i18n::AUTO.into(),
             options: mailcraft_engine::Prefs::default(),
             view: mailcraft_engine::ViewState::default(),
+            task_account_address: String::new(),
+            people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
@@ -917,7 +1003,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -1016,6 +1102,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Allow Keeping Tasks in Step with Microsoft To Do",
         "File › Info",
         r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowRules",
+        "Allow Keeping Rules on the Server",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the rules the account's server keeps (MailboxSettings.ReadWrite), by itself and never with a sign-in. The window asks first, the first time a rule is to go to the server and the sign-in doesn't cover it, and File › Info has "Ask again". Until it is allowed the account's rules stay on this computer and nothing of them is sent. Allowed, the rules waiting go at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowSharedSend",
@@ -1385,6 +1477,8 @@ pub struct MailApp {
     /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
     replies_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
+    rules_next: bool,
+    pub(crate) rules: rule_sync::RuleSync,
     /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
@@ -1509,8 +1603,9 @@ pub struct MailApp {
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
     last_autosave: f64,
-    /// When the draft being written was last saved by itself (ms; 0: not since it was opened).
-    draft_saved_at: f64,
+    /// When the messages being written were last saved by themselves, by the session's clock
+    /// (seconds; `None`: none has had changes since one was opened).
+    draft_saved_at: Option<i64>,
     saved_rev: u64,
     /// How far the background saver has got with what it was handed, as of this frame (`None`:
     /// nothing waiting or being written).
@@ -1537,8 +1632,6 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
-    /// Web: what the file the picker will deliver is for.
-    pub(crate) pending_open: Option<(String, Option<u64>)>,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,
@@ -1668,8 +1761,10 @@ impl MailApp {
             shared_send_next: false,
             shared_calendars_next: false,
             tasks_next: false,
+            rules_next: false,
             replies_next: false,
             tasks: Default::default(),
+            rules: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
@@ -1724,7 +1819,7 @@ impl MailApp {
             push_only_next: Default::default(),
             push_seen: Default::default(),
             last_autosave: 0.0,
-            draft_saved_at: 0.0,
+            draft_saved_at: None,
             saved_rev,
             save_progress: None,
             closing_after_save: None,
@@ -1735,7 +1830,6 @@ impl MailApp {
             running_after_save: false,
             ctx: None,
             file_dialog: None,
-            pending_open: None,
             opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),
@@ -1764,15 +1858,37 @@ impl MailApp {
         self
     }
 
+    /// The address of the account `choice` names, kept beside its id in `ui.json`.
+    fn choice_address(&self, choice: mailcraft_model::AccountChoice) -> String {
+        match choice {
+            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
+        ui.task_account_address = self.choice_address(ui.view.task_account);
+        ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
         ui.view.search.clear();
         ui.view.people_search.clear();
         ui
+    }
+
+    /// Whether a window of its own is about to open as a window of the system: the host lists the
+    /// monitors connected now for it ([`MailApp::set_monitors`]), so that it opens on one (#286).
+    pub fn wants_monitors(&self) -> bool {
+        self.windows.wants_monitors()
+    }
+
+    /// The monitors connected now, in the system's pixels with each one's scale, for the windows
+    /// about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
+        self.windows.monitors = Some(monitors);
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
@@ -1800,6 +1916,11 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        // One account's tasks and contacts only in the mailbox they were chosen in: in another,
+        // the same id is somebody else's account, or none, and the list starts on All accounts.
+        let mailbox = &self.session.mailbox;
+        v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
+        v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -1903,7 +2024,8 @@ impl MailApp {
             return Ok(json!({"pending": "confirm"}));
         }
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
-        // Where a message it opens goes (#286): New Email into a window of its own, and so on.
+        // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
+        // Options says so or the caller asked for one.
         let place = self.windows.place.take().or_else(|| windows::compose_window::hint(self, id));
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.
@@ -2218,6 +2340,13 @@ impl MailApp {
                     self.sync_panel = Some(panel);
                     return Some(Ok(json!({"panel": "syncProgress"})));
                 }
+                // The New rule filled in from a message: an id that is none is refused, never
+                // taken to mean the selection (#566).
+                if name == "rules"
+                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::id_strict(p, k).err())
+                {
+                    return Some(Err(e.to_string()));
+                }
                 match dialogs::open_dialog(self, name, p) {
                     Some(d) => {
                         self.dialog = Some(d);
@@ -2388,6 +2517,13 @@ impl MailApp {
                 }
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 self.begin_tasks_sign_in(account)
+            }
+            "ui.allowRules" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_rules_sign_in(account)
             }
             "ui.allowSharedSend" => {
                 let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
@@ -2664,7 +2800,8 @@ impl MailApp {
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
         let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
-        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks;
+        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none() && !tasks;
+        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks && !rules;
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2694,12 +2831,27 @@ impl MailApp {
             shared_send,
             shared_calendars,
             tasks,
+            rules,
             replies,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in =
-            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, replies, browser, opening, rx, cancel });
+        self.signing_in = Some(SigningIn {
+            graph,
+            favorites,
+            quiet,
+            account,
+            shared,
+            shared_send,
+            shared_calendars,
+            tasks,
+            rules,
+            replies,
+            browser,
+            opening,
+            rx,
+            cancel,
+        });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -3081,6 +3233,9 @@ impl MailApp {
                 self.session.sync_status.clear();
             }
             self.forget_graph_switch();
+            // The rules job's answer is let go of (`poll_rules`), and what was known of the old
+            // mailbox's permissions goes: its account ids may name others here (#566).
+            self.rules = rule_sync::RuleSync::default();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
         }
@@ -3490,6 +3645,7 @@ impl MailApp {
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
+        let for_rules = waiting.rules;
         let for_replies = waiting.replies;
         let started_under = waiting.opening;
         let on_the_page = waiting.browser;
@@ -3534,6 +3690,10 @@ impl MailApp {
         // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
         if for_tasks {
             return self.tasks_signed_in(account, answer);
+        }
+        // For keeping rules on the server (#566): those waiting go now, or why not is said.
+        if for_rules {
+            return self.rules_signed_in(account, answer);
         }
         // For changing the automatic replies: the change that waited goes now, or why not is said.
         if for_replies {
@@ -3982,6 +4142,7 @@ impl MailApp {
         }
         self.poll_calendar();
         self.poll_tasks();
+        self.poll_rules();
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
@@ -4004,6 +4165,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
+            // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
+            self.rules_tick(ctx);
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }
@@ -4070,39 +4233,39 @@ impl MailApp {
     /// Save a moment after the last change: to the mailbox file on the desktop (through the
     /// host's background saver when it has one, so the window never waits for the disk), to the
     /// host's storage in the browser. A failure shows in the status bar and is tried again later.
-    /// A draft of a Microsoft account that is being written is saved every five minutes while
-    /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
-    fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
-        const EVERY_MS: f64 = 5.0 * 60_000.0;
-        if self.session.compose.is_none() {
-            self.draft_saved_at = 0.0;
-            return;
-        }
-        // Every message being written, the ones put aside too (#286).
-        let mb = &self.session.mailbox;
-        let due: Vec<u64> = self
-            .session
-            .all_composing()
-            .filter(|c| c.dirty && mb.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft))
-            .map(|c| c.id)
-            .collect();
+    /// Every message being written that has changes, the ones in windows, put aside or in the
+    /// reading pane, is saved to Drafts every five minutes, for every kind of account, as Save
+    /// Draft saves it (#286): a Microsoft or Exchange account's goes up to its server with the
+    /// next Send/Receive (R3.4.1), another's is kept in Drafts here. The clock is the session's.
+    /// It is saved as the owner's Save Draft is, which leaves what is written in it as it was: a
+    /// message an agent is writing doesn't become the owner's by being saved (#577).
+    pub(crate) fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
+        const EVERY_SECS: i64 = 5 * 60;
+        let due: Vec<u64> = self.session.all_composing().filter(|c| c.dirty).map(|c| c.id).collect();
         if due.is_empty() {
+            // The five minutes start again with the next change.
+            self.draft_saved_at = None;
             return;
         }
-        let now = now_ms();
-        if self.draft_saved_at == 0.0 {
-            self.draft_saved_at = now;
-        }
-        let waited = now - self.draft_saved_at;
-        if waited >= EVERY_MS {
-            self.draft_saved_at = now;
+        let now = self.session.now();
+        let since = *self.draft_saved_at.get_or_insert(now);
+        let waited = now.saturating_sub(since);
+        // While the owner is asked whether to save a message (Unsaved Message, a window's own
+        // question, an agent's question), nothing is saved behind the answer: once it is given,
+        // a save that is due comes at once.
+        let asked = matches!(self.dialog, Some(dialogs::Dialog::DiscardDraft { .. })) || self.windows.asks() || !self.asking.is_empty();
+        if !(0..EVERY_SECS).contains(&waited) && !asked {
+            self.draft_saved_at = Some(now);
             for compose in due {
-                if let Err(e) = self.run("compose.saveDraft", json!({"compose": compose})) {
-                    log::info!("the draft couldn't be saved by itself: {e}");
+                // (No command: no agent or script can save one in the background, #286. One that
+                // was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.session.save_in_background(compose) {
+                    log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
                 }
             }
-        } else {
-            ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
+        } else if !asked {
+            let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
+            ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }
     }
 
@@ -4634,6 +4797,20 @@ impl MailApp {
             let _ = reply.send(json!({"ok": false, "error": "no frame was presented (window hidden?)"}));
             false
         });
+    }
+}
+
+/// A list's saved choice of account, when `address` says it is the same account in `mailbox`;
+/// else All accounts (a file from before the address was kept says nothing, so All too).
+fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::AccountChoice, address: &str) -> mailcraft_model::AccountChoice {
+    let address = address.trim();
+    match choice {
+        mailcraft_model::AccountChoice::Account(id)
+            if address.is_empty() || !mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
+        {
+            mailcraft_model::AccountChoice::All
+        }
+        choice => choice,
     }
 }
 

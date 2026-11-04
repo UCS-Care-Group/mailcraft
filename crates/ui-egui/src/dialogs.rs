@@ -449,15 +449,15 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             let going: Vec<&mailcraft_model::Message> = ids.iter().filter_map(|id| mb.message(*id)).filter(|m| for_good(m)).collect();
             if going.is_empty() {
-                // (Once the owner said yes to it, it isn't asked again; Delete for Good still is, above.)
+                // (Once the owner said yes to it, it isn't asked again; Delete Permanently still is, above.)
                 let answered = params.get("conversation").and_then(Value::as_bool) == Some(true);
                 return (id == "mail.delete" && !answered).then(|| conversation_question(app, &ids)).flatten();
             }
             let n = going.len();
             let what = if n == 1 {
-                tl!("This message will be deleted for good.").to_string()
+                tl!("This message will be permanently deleted.").to_string()
             } else {
-                tln!(n, "{n} message will be deleted for good.", "{n} messages will be deleted for good.")
+                tln!(n, "{n} message will be permanently deleted.", "{n} messages will be permanently deleted.")
             };
             let text = if going.iter().any(|m| on_server(m.account)) {
                 let too = if n == 1 {
@@ -471,7 +471,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             // It goes ahead with what it counted, not with what the selection stands for when the
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
-            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
+            Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
@@ -483,9 +483,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let name = c.name();
             let name = name.trim();
             let what = if name.is_empty() {
-                tl!("This contact will be deleted for good.").to_string()
+                tl!("This contact will be permanently deleted.").to_string()
             } else {
-                crate::i18n::fmt(tl!("\"{name}\" will be deleted for good."), &[("name", name)])
+                crate::i18n::fmt(tl!("\"{name}\" will be permanently deleted."), &[("name", name)])
             };
             question(tl!("Delete Contact"), format!("{what} {}", tl!("Contacts don't go to Deleted Items.")), tl!("Delete"))
         }
@@ -494,7 +494,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             if mb.count(f.id) == 0 {
                 return None;
             }
-            let everything = crate::i18n::fmt(tl!("Everything in \"{folder}\" will be deleted for good."), &[("folder", crate::nav::folder_name(f))]);
+            let everything =
+                crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
             let text = format!("{everything}{}", server_too(on_server(f.account)));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
@@ -532,6 +533,18 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                     "{text} {}",
                     crate::i18n::fmt(tl!("The {n} shared mailboxes opened through it are removed from this device too."), &[("n", &n.to_string())])
                 ),
+            };
+            // Its rules go with it, as an account's rules are its own (#566); its server keeps its.
+            let rules = mb.rules.iter().filter(|r| r.account == a.id).count();
+            let text = if rules == 0 {
+                text
+            } else {
+                let going = tln!(
+                    rules,
+                    "Its {n} rule goes too; one its server keeps stays there.",
+                    "Its {n} rules go too; those its server keeps stay there."
+                );
+                format!("{text} {going}")
             };
             // The only account leaves an empty mailbox, as at a first start (#313).
             let text = if mb.accounts.iter().all(|x| x.id == a.id || x.shared_of == Some(a.id)) {
@@ -858,10 +871,7 @@ pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
 /// saved draft that is gone (#494): every one for another mailbox, else the current one.
 pub(crate) fn unsaved_closed_by(app: &MailApp, id: &str, params: &Value) -> usize {
     let s = &app.session;
-    mailcraft_engine::cmd::compose::closed_by(s, id, params)
-        .into_iter()
-        .filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c))
-        .count()
+    mailcraft_engine::cmd::compose::closed_by(s, id, params).into_iter().filter(|c| mailcraft_engine::cmd::compose::unsaved(s, c)).count()
 }
 
 /// Whether what waits for Unsaved Message closes every message being written (quitting, another
@@ -874,7 +884,7 @@ fn closes_all(then: &str) -> bool {
 /// Drafts: `false`, with why said, at the first that can't be.
 fn save_all(app: &mut MailApp) -> bool {
     let s = &app.session;
-    let unsaved: Vec<u64> = s.all_composing().filter(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)).map(|c| c.id).collect();
+    let unsaved: Vec<u64> = s.all_composing().filter(|c| mailcraft_engine::cmd::compose::unsaved(s, c)).map(|c| c.id).collect();
     unsaved.into_iter().all(|id| app.run("compose.saveDraft", json!({"compose": id})).is_ok())
 }
 

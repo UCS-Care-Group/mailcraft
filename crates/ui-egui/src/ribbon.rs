@@ -360,7 +360,7 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big("delete", "Delete", "mail.delete", no()).at(1, 1).plain(),
                 Item::big("archive", "Archive", "mail.archive", no()).at(1, 2).plain(),
                 junk.under("mail.delete"),
-                Item::small("deletePermanently", "Delete for Good", "Permanently Delete", "mail.deletePermanently", no()).under("mail.delete"),
+                Item::small("deletePermanently", "Delete Permanently", "Delete Permanently", "mail.deletePermanently", no()).under("mail.delete"),
             ],
         ),
         g(
@@ -1147,9 +1147,48 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     }
 }
 
-/// The categories as menu items that toggle one on the selection through `command`.
-pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn(&MailApp, &str) -> bool, clear: Option<&str>) {
-    let cats: Vec<(String, egui::Color32)> = app.session.mailbox.categories.iter().map(|c| (c.name.clone(), crate::theme::c32(c.color))).collect();
+/// The accounts of the selected messages, each once.
+pub(crate) fn selected_accounts(app: &MailApp) -> Vec<Id> {
+    let mut accounts: Vec<Id> = app.session.sel.messages.iter().filter_map(|id| app.session.mailbox.message(*id)).map(|m| m.account).collect();
+    accounts.sort_unstable();
+    accounts.dedup();
+    accounts
+}
+
+/// The categories the selected messages carry, each once.
+pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
+    let messages = app.session.sel.messages.iter().filter_map(|id| app.session.mailbox.message(*id));
+    let mut names: Vec<String> = messages.flat_map(|m| m.categories.iter().cloned()).collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+/// Most names off the list that the Categorize menu shows.
+const MAX_OFF_LIST: usize = 32;
+
+/// The categories of `accounts`, those of the selection's items (#633), and the names of `carried`
+/// (what the items have) that aren't on those lists, as menu items that toggle one on the
+/// selection through `command`: an item moved from another account, or a name its server stopped
+/// listing, can still have it taken off.
+pub fn category_menu(
+    ui: &mut Ui,
+    app: &mut MailApp,
+    accounts: &[Id],
+    carried: &[String],
+    command: &str,
+    has: impl Fn(&MailApp, &str) -> bool,
+    clear: Option<&str>,
+) {
+    let mailbox = &app.session.mailbox;
+    let mut cats: Vec<(String, egui::Color32)> = mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
+    let listed = cats.len();
+    for name in carried {
+        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|(c, _)| c.eq_ignore_ascii_case(name)) {
+            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
+            cats.push((name.clone(), crate::theme::c32(color)));
+        }
+    }
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1170,7 +1209,7 @@ pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn
     }
     ui.separator();
     if ui.add(egui::Button::new(tl!("All Categories…")).min_size(vec2(190.0, 0.0))).clicked() {
-        let _ = app.run("ui.dialog", json!({"name": "categories"}));
+        let _ = app.run("ui.dialog", json!({"name": "categories", "account": accounts.first()}));
         ui.close();
     }
 }
@@ -1242,11 +1281,21 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Rules => {
             if !app.session.sel.messages.is_empty() {
-                ui.menu_button(tl!("Always Move Messages From This Sender"), |ui| {
-                    folder_menu(ui, app, |app, folder| {
-                        let _ = app.run("rules.fromMessage", json!({"folder": folder}));
+                // A shared mailbox's rules are its own, which this version doesn't make: one for
+                // the owner's account would move the owner's own mail into the shared mailbox.
+                let mb = &app.session.mailbox;
+                let shared = app.session.sel.focus().and_then(|m| mb.message(m)).and_then(|m| mb.account(m.account)).is_some_and(|a| a.is_shared());
+                if shared {
+                    ui.add_enabled(false, egui::Button::new(tl!("Always Move Messages From This Sender")).min_size(vec2(190.0, 0.0)))
+                        .on_disabled_hover_text(tl!("A shared mailbox's rules are its own: this version doesn't make them"));
+                } else {
+                    ui.menu_button(tl!("Always Move Messages From This Sender"), |ui| {
+                        folder_menu(ui, app, |app, folder| {
+                            // The New rule filled in, for the owner to see and add, where it is kept too.
+                            let _ = app.run("ui.dialog", json!({"name": "rules", "folder": folder}));
+                        });
                     });
-                });
+                }
                 ui.separator();
             }
             mi(ui, app, "Run Rules Now", "rules.run", json!({}));
@@ -1257,9 +1306,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::Junk => junk_menu(ui, app),
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
+            let accounts = selected_accounts(app);
+            let carried = selected_categories(app);
             category_menu(
                 ui,
                 app,
+                &accounts,
+                &carried,
                 "mail.categorize",
                 |app, name| !ids.is_empty() && ids.iter().all(|id| app.session.mailbox.message(*id).is_some_and(|m| m.has_category(name))),
                 Some("mail.clearCategories"),
@@ -1303,21 +1356,28 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "calendar.categorize", has, None);
+            let event = id.and_then(|id| app.session.mailbox.event(id));
+            let account = event.map(|e| app.session.mailbox.event_account(e));
+            let carried = event.map(|e| e.categories.clone()).unwrap_or_default();
+            category_menu(ui, app, account.as_slice(), &carried, "calendar.categorize", has, None);
         }
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "people.categorize", has, None);
+            let contact = id.and_then(|id| app.session.mailbox.contact(id));
+            let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
+            category_menu(ui, app, account.as_slice(), &carried, "people.categorize", has, None);
         }
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
                 id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
             };
-            category_menu(ui, app, "tasks.categorize", has, None);
+            let task = id.and_then(|id| app.session.mailbox.task(id));
+            let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
+            category_menu(ui, app, account.as_slice(), &carried, "tasks.categorize", has, None);
         }
         Menu::FilterTasks => {
             let cur = app.session.view.task_filter;
@@ -2648,12 +2708,14 @@ mod tests {
         harness.run_steps(3);
         assert_eq!(message(&harness).folder, junk);
 
-        // And the main part of that button: New Email starts a message, in a window of its own (#286).
+        // And the main part of that button: New Email starts a message, in the reading pane, as a
+        // reply does (#286).
         let pos = at(&harness, "ribbon", "mail.new");
         click(&mut harness, pos);
         let compose = harness.state().session.compose_id().expect("a message");
-        assert!(harness.state().windows.of_compose(compose).is_some());
-        assert_eq!(harness.state().ui.tab, "Home");
+        assert!(harness.state().windows.of_compose(compose).is_none());
+        assert_eq!(crate::windows::compose_window::pane_compose(harness.state()), Some(compose));
+        assert_eq!(harness.state().ui.tab, "Message");
     }
 
     /// The layout is chosen at the right end of the band, in View and by command; it is kept with
@@ -2799,7 +2861,7 @@ mod tests {
             groups,
             [
                 ("New", vec!["New\nEmail", "New\nItems"]),
-                ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
+                ("Delete", vec!["Delete", "Archive", "Junk", "Delete Permanently"]),
                 (
                     "Respond",
                     vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Reply and Delete", "View Source", "Meeting", "Add Sender"]

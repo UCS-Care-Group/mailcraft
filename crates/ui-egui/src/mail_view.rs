@@ -528,8 +528,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
     if !app.session.view.search.trim().is_empty() {
-        let in_view = mailcraft_engine::list::in_view(&app.session);
-        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && in_view(m)).count();
+        // (Counted as the list was built, not at every frame.)
+        let partly = app.session.unfetched_in_view();
         if partly > 0 {
             let said = crate::i18n::fmt(
                 tl!("{count} messages weren't searched in full: only their beginning is here until they download."),
@@ -1071,7 +1071,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
     }
     for c in m.categories.iter().take(4) {
-        let color = crate::theme::c32(app.session.mailbox.category_color(c));
+        let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
@@ -1188,9 +1188,13 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, if pinned { "Unpin" } else { "Pin" }, "mail.pin", json!({}));
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
+            let accounts = crate::ribbon::selected_accounts(app);
+            let carried = crate::ribbon::selected_categories(app);
             crate::ribbon::category_menu(
                 ui,
                 app,
+                &accounts,
+                &carried,
                 "mail.categorize",
                 |app, name| ids.iter().all(|id| app.session.mailbox.message(*id).is_some_and(|m| m.has_category(name))),
                 Some("mail.clearCategories"),
