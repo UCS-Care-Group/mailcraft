@@ -31,6 +31,10 @@ pub struct Asking {
     pub id: String,
     pub params: Value,
     pub class: Class,
+    /// What else it needs, which the question names and a yes covers ([`agent::also`], #473).
+    also: Vec<Class>,
+    /// The messages an undo or redo would take away, which the question names (#473).
+    taken: Vec<u64>,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -106,11 +110,15 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
+            let also = agent::also(&app.session, id, &params, class);
+            let taken = undo_taken(app, id);
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
                 params,
                 class,
+                also,
+                taken,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
@@ -278,6 +286,14 @@ fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value)
     Some(params)
 }
 
+/// The messages an agent's undo or redo would take away (none for any other command).
+fn undo_taken(app: &MailApp, id: &str) -> Vec<u64> {
+    match id {
+        "edit.undo" | "edit.redo" => app.session.undo_taken(id == "edit.redo"),
+        _ => Vec::new(),
+    }
+}
+
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
@@ -297,10 +313,16 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let lost = params.get("unsaved").filter(|u| !u.is_null());
         let other = lost.is_some() && lost != a.params.get("unsaved");
         let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
+        // What else it needs now, which the yes covers only when the question named it (#473).
+        let also = agent::also(&app.session, &a.id, &params, a.class);
+        // Nor does it cover messages other than those the question named.
+        let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c)) || undo_taken(app, &a.id).iter().any(|m| !a.taken.contains(m));
         let mut allow = a.allow.clone();
         allow.push(a.class);
+        allow.extend(also);
         match verdict {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
+            _ if more => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
             _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
             Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),

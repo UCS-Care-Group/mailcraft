@@ -47,7 +47,7 @@ fn undo_of_a_copy_asks_for_delete() {
     s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
     assert!(asks_delete(&s, "edit.undo"));
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Delete]), Verdict::Run);
-    assert!(describe(&s, "edit.undo", &json!({})).contains("messages"));
+    assert!(describe(&s, "edit.undo", &json!({})).contains("takes away 1 message"));
 }
 
 #[test]
@@ -145,14 +145,14 @@ fn a_step_that_takes_mail_and_reverts_the_accounts_is_described_with_the_account
     let mut s = sample();
     let (m, other) = message_and_other_folder(&s);
     s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
-    assert!(describe(&s, "edit.undo", &json!({})).contains("messages"));
+    assert!(describe(&s, "edit.undo", &json!({})).contains("takes away 1 message"));
     if let Some(step) = s.history.last_mut() {
         step.mailbox.accounts.pop();
     }
     assert!(s.undo_takes_mail(false));
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
     let d = describe(&s, "edit.undo", &json!({}));
-    assert!(d.contains("accounts"), "{d}");
+    assert!(d.contains("accounts") && d.contains("takes away"), "{d}");
 }
 
 #[test]
@@ -232,4 +232,153 @@ fn the_gate_agrees_with_what_the_undo_drops() {
             }
         }
     }
+}
+
+/// The accounts changed since the last step, by no step of their own: undoing it puts them back.
+fn accounts_changed_since(s: &mut Session) {
+    if let Some(a) = s.mailbox.accounts.first_mut() {
+        a.name.push_str(" (renamed)");
+    }
+}
+
+/// A draft of the sample's and a message that isn't one, in one account, and a folder of it
+/// that holds neither.
+fn draft_message_and_folder(s: &Session) -> (Id, Id, Id) {
+    let mb = &s.mailbox;
+    let d = mb.messages.values().find(|m| m.draft && !m.subject.trim().is_empty()).unwrap();
+    let m = mb.messages.values().find(|m| !m.draft && m.account == d.account && !m.subject.trim().is_empty()).unwrap();
+    let other =
+        mb.folders.iter().find(|f| f.account == d.account && f.id != d.folder && f.id != m.folder && f.kind == FolderKind::Custom).unwrap().id;
+    (d.id, m.id, other)
+}
+
+fn subject(s: &Session, id: Id) -> String {
+    format!("\u{201c}{}\u{201d}", s.mailbox.message(id).unwrap().subject.trim())
+}
+
+#[test]
+fn a_step_that_reverts_the_accounts_and_takes_mail_is_asked_as_both() {
+    // The question about the accounts names the messages too, and a yes to it covers them;
+    // Accounts allowed in advance doesn't, so Delete is asked.
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    accounts_changed_since(&mut s);
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(also(&s, "edit.undo", &json!({}), Class::Accounts), vec![Class::Delete]);
+    assert_eq!(answered(&s, "edit.undo", &json!({}), &[], Class::Accounts), Verdict::Run);
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(answered(&s, "edit.undo", &json!({}), &[Class::Accounts], Class::Delete), Verdict::Run);
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Delete]), Verdict::Run);
+    // Run with both in its grant, as the window runs it after the yes: the copy goes.
+    let before = s.mailbox.messages.len();
+    s.agent = Some(vec![Class::Accounts, Class::Delete]);
+    let r = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    r.unwrap();
+    assert_eq!(s.mailbox.messages.len(), before - 1);
+    assert!(!s.mailbox.accounts.iter().any(|a| a.name.ends_with(" (renamed)")));
+}
+
+#[test]
+fn a_step_that_reverts_the_accounts_and_takes_no_mail_asks_nothing_more() {
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    accounts_changed_since(&mut s);
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
+    assert!(also(&s, "edit.undo", &json!({}), Class::Accounts).is_empty());
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts]), Verdict::Run);
+    // Nor is a step asked as Delete asked for it twice.
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    assert!(also(&s, "edit.undo", &json!({}), Class::Delete).is_empty());
+}
+
+#[test]
+fn an_unsaved_undo_that_reverts_the_accounts_and_takes_mail_is_covered_by_its_yes() {
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    accounts_changed_since(&mut s);
+    let params = json!({"unsaved": {"form": "appointment", "title": "Lunch"}});
+    assert!(matches!(check(&s, "edit.undo", &params, &[Class::Accounts, Class::Delete]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(also(&s, "edit.undo", &params, Class::Accounts), vec![Class::Delete]);
+    assert_eq!(answered(&s, "edit.undo", &params, &[], Class::Accounts), Verdict::Run);
+}
+
+#[test]
+fn the_question_about_the_accounts_names_the_messages_taken_too() {
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    accounts_changed_since(&mut s);
+    let d = describe(&s, "edit.undo", &json!({}));
+    assert!(d.contains("the accounts") && d.contains("takes away 1 message") && d.contains(&subject(&s, m)), "{d}");
+}
+
+#[test]
+fn an_undo_of_a_copy_of_a_draft_and_a_message_names_both() {
+    // The draft is said, and so is the other message the undo takes away.
+    let mut s = sample();
+    let (d, m, other) = draft_message_and_folder(&s);
+    s.run("mail.copy", &json!({"ids": [d, m], "folder": other})).unwrap();
+    assert!(asks_delete(&s, "edit.undo"));
+    let text = describe(&s, "edit.undo", &json!({}));
+    assert!(text.contains("in Drafts"), "{text}");
+    assert!(text.contains(&subject(&s, d)) && text.contains(&subject(&s, m)), "{text}");
+    assert!(text.contains("takes away 1 message"), "{text}");
+}
+
+#[test]
+fn an_undo_that_takes_a_draft_alone_says_only_the_draft() {
+    let mut s = sample();
+    let (d, _, other) = draft_message_and_folder(&s);
+    s.run("mail.copy", &json!({"ids": [d], "folder": other})).unwrap();
+    let text = describe(&s, "edit.undo", &json!({}));
+    assert!(text.contains("in Drafts") && !text.contains("takes away 1 message"), "{text}");
+}
+
+#[test]
+fn a_redo_that_reverts_the_accounts_and_deletes_for_good_is_asked_as_both() {
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    assert!(s.undo());
+    accounts_changed_since(&mut s);
+    assert!(matches!(check(&s, "edit.redo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(also(&s, "edit.redo", &json!({}), Class::Accounts), vec![Class::Delete]);
+    assert!(describe(&s, "edit.redo", &json!({})).contains("takes away 1 message"));
+    assert!(matches!(check(&s, "edit.redo", &json!({}), &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
+}
+
+#[test]
+fn a_step_that_reverts_the_accounts_and_removes_a_contact_needs_delete_too() {
+    // Not messages, but gone for good all the same: the yes to the accounts covers it, and the
+    // question says so; Accounts allowed in advance doesn't.
+    let mut s = sample();
+    s.run("people.new", &json!({"first": "Noor", "email": "noor@example.org"})).unwrap();
+    accounts_changed_since(&mut s);
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(also(&s, "edit.undo", &json!({}), Class::Accounts), vec![Class::Delete]);
+    let d = describe(&s, "edit.undo", &json!({}));
+    assert!(d.contains("the accounts") && d.contains("contacts"), "{d}");
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Delete]), Verdict::Run);
+}
+
+#[test]
+fn a_step_that_removes_a_contact_and_takes_mail_names_both() {
+    let mut s = sample();
+    let (m, other) = message_and_other_folder(&s);
+    let made = s.run("people.new", &json!({"first": "Noor", "email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    // The same step made the contact too.
+    if let Some(step) = s.history.last_mut() {
+        step.mailbox.contacts.remove(&made);
+    }
+    assert!(asks_delete(&s, "edit.undo"));
+    let d = describe(&s, "edit.undo", &json!({}));
+    assert!(d.contains("contacts") && d.contains("takes away 1 message"), "{d}");
 }

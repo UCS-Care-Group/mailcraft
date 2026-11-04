@@ -2759,9 +2759,16 @@ impl Session {
     /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
     /// not yet made on the server is dropped, so that asks (fails closed).
     pub fn undo_takes_mail(&self, redo: bool) -> bool {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        !self.undo_taken(redo).is_empty()
+    }
+
+    /// The messages that undoing the last step (or redoing, `redo`) would take away, drafts
+    /// among them, as [`Session::undo_takes_mail`] finds them: for the owner's question, which
+    /// names them.
+    pub fn undo_taken(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
-        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+        self.mailbox.messages.keys().filter(|k| !back.messages.contains_key(k)).copied().collect()
     }
 
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
@@ -2789,22 +2796,35 @@ impl Session {
         if crate::agent::places_tasks(now, to) {
             return Some(Class::Send);
         }
-        // Things that go for good (they don't go to Deleted Items) and that the step lacks.
-        let category_gone =
-            |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
-            || now.events.keys().any(|k| !to.events.contains_key(k))
-            || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
-            || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
-            || category_gone(&now.categories, &to.categories)
-            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
+        if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
             return Some(Class::Settings);
         }
         None
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,
+    /// calendars or categories made since: things that go for good (they don't go to Deleted
+    /// Items) and that the step lacks.
+    pub fn undo_removes_items(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (to, now) = (&step.mailbox, &self.mailbox);
+        let category_gone =
+            |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
+        now.contacts.keys().any(|k| !to.contacts.contains_key(k))
+            || now.events.keys().any(|k| !to.events.contains_key(k))
+            || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
+            || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
+            || category_gone(&now.categories, &to.categories)
+            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)))
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
+    /// the like, a draft (or puts back an earlier version of one), or another message.
+    pub fn undo_deletes(&self, redo: bool) -> bool {
+        self.undo_removes_items(redo) || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo)
     }
 
     pub fn undo(&mut self) -> bool {
