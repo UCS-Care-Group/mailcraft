@@ -13240,6 +13240,11 @@ msgstr ""
 msgid "the server doesn't let this rule be changed"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "the server sent a web page instead of a picture"
