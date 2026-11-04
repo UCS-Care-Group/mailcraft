@@ -9,7 +9,7 @@ use mailcraft_model::{Id, Importance, Task};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
-use super::tasks_remote::{mark_sent, merge_tasks, task_upload};
+use super::tasks_remote::{carries_delete, mark_sent, merge_tasks, task_upload};
 use crate::Session;
 
 const NOW: i64 = 1_790_000_000;
@@ -721,7 +721,7 @@ fn undo_after_the_delete_went_out_does_nothing_and_the_task_stays_gone() {
     let (mut s, a) = deleted_one();
     let up = task_upload(&s.mailbox, a).unwrap();
     assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete && op.id == "t1"));
-    mark_sent(&mut s, &up);
+    mark_sent(&mut s, carries_delete(&up));
     assert!(!s.can_undo() && !s.undo());
     assert!(s.mailbox.tasks.values().all(|t| t.title != "One"));
 }
@@ -747,7 +747,7 @@ fn an_upload_without_a_delete_leaves_the_history_alone() {
     let up = task_upload(&s.mailbox, a).unwrap();
     assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Update) && up.ops.iter().any(|op| op.kind == TaskOpKind::Create));
     assert!(up.ops.iter().all(|op| op.kind != TaskOpKind::Delete));
-    mark_sent(&mut s, &up);
+    mark_sent(&mut s, carries_delete(&up));
     assert!(s.can_undo());
     assert!(s.undo());
     assert!(s.mailbox.tasks.values().all(|t| t.title != "Fresh"));
@@ -763,7 +763,7 @@ fn a_delete_going_out_forgets_earlier_unrelated_steps_too() {
     run(&mut s, "tasks.delete", json!({"id": one}));
     assert!(s.can_undo());
     let up = task_upload(&s.mailbox, a).unwrap();
-    mark_sent(&mut s, &up);
+    mark_sent(&mut s, carries_delete(&up));
     // The whole history goes (as with rules and the answer to a sent change), not just the delete.
     assert!(!s.can_undo() && !s.undo());
     assert_eq!(titled(&s, "Two").notes, "unrelated");
@@ -777,7 +777,7 @@ fn a_delete_going_out_forgets_redo_too() {
     assert!(s.can_redo());
     let up = task_upload(&s.mailbox, a).unwrap();
     assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete));
-    mark_sent(&mut s, &up);
+    mark_sent(&mut s, carries_delete(&up));
     assert!(!s.can_redo() && !s.redo());
     assert!(!s.can_undo());
 }
@@ -786,7 +786,7 @@ fn a_delete_going_out_forgets_redo_too() {
 fn a_failed_delete_is_sent_again_with_the_next_job() {
     let (mut s, a) = deleted_one();
     let up = task_upload(&s.mailbox, a).unwrap();
-    mark_sent(&mut s, &up);
+    mark_sent(&mut s, carries_delete(&up));
     let op = up.ops.iter().find(|op| op.kind == TaskOpKind::Delete).unwrap();
     run(&mut s, "sync.applyTaskChanges", told(a, vec![outcome(op, TaskResult::Failed)]));
     let again = task_upload(&s.mailbox, a).unwrap();
@@ -794,6 +794,6 @@ fn a_failed_delete_is_sent_again_with_the_next_job() {
     // A step made meanwhile is lost when the retry starts: the trade-off the rules make too.
     run(&mut s, "tasks.new", json!({"title": "Meanwhile"}));
     assert!(s.can_undo());
-    mark_sent(&mut s, &again);
+    mark_sent(&mut s, carries_delete(&again));
     assert!(!s.can_undo());
 }

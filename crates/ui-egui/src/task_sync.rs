@@ -217,12 +217,12 @@ impl MailApp {
         }
         let Ok(upload) = tasks_remote::task_upload(&self.session.mailbox, account) else { return false };
         let given = fingerprint(&refresh);
-        let sent = upload.clone();
+        let deletes = tasks_remote::carries_delete(&upload);
         let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, cancel: Default::default() };
         let Some(graph) = self.services.graph_tasks.as_ref().filter(|_| !self.offline()) else { return false };
         let rx = graph(job);
         // A delete that goes out can't be undone: the task would come back here, gone there (#706).
-        tasks_remote::mark_sent(&mut self.session, &sent);
+        tasks_remote::mark_sent(&mut self.session, deletes);
         self.tasks.rx = Some((account, now, given, rx));
         self.tasks.checked.insert(account, now);
         true
