@@ -548,7 +548,7 @@ msgid "Accessibility"
 msgstr "Toegankelijkheid"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -1519,10 +1519,11 @@ msgstr "Hetzelfde bijvoegen als een iCalendar-bestand"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bestand bijgevoegd"
+msgstr[1] "{n} bestanden bijgevoegd"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4176,8 +4177,8 @@ msgstr ""
 "Map\n"
 "eigenschappen"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
@@ -5356,10 +5357,11 @@ msgstr "De tekst ervan is vervangen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Its {n} rule goes too; one its server keeps stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
+msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5961,12 +5963,6 @@ msgstr "MailCraft kon de instellingen voor dit adres niet vinden. Controleer de 
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Microsoft. Kopieer in plaats daarvan het bericht: de koppeling erin opent dezelfde pagina."
 
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
-msgstr "MailCraft zoekt niet zelf naar nieuwe versies; via Bestand › Opties kan het één keer per dag zoeken."
-
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -6016,12 +6012,6 @@ msgid "MailCraft keeps this account's rules on this computer: the rule runs whil
 msgstr "MailCraft bewaart de regels van dit account op deze computer: de regel wordt uitgevoerd zolang MailCraft open is."
 
 #. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
-msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › Opties). Alleen GitHub wordt gevraagd."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
@@ -6036,8 +6026,8 @@ msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
-msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Opties."
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
+msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Info."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -6597,11 +6587,23 @@ msgstr ""
 "Map\n"
 "verplaatsen"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Account verplaatsen"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Alles verplaatsen en uitnodigingen verzenden"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Omlaag"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6626,6 +6628,12 @@ msgstr "Terugkerend item verplaatsen"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Regel verplaatsen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Omhoog"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7120,6 +7128,12 @@ msgstr "Geen opdracht komt overeen."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Nog geen voltooide taken."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Nog geen contactpersonen van dit account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8650,6 +8664,12 @@ msgstr "Favorieten uit Outlook nu opnieuw lezen"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Lezen met de aanmelding van {owner}, zolang u die bewaart: de persoon moet diens agenda met u hebben gedeeld. De agenda wordt alleen op deze computer bewaard: die verschijnt niet in Outlook of op uw andere apparaten. Microsoft vraagt u één keer om MailCraft de agenda's van anderen te laten lezen."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Alleen-lezen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10364,6 +10384,12 @@ msgstr "Weergeven als"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Agenda weergeven"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Contactpersonen tonen van"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12558,6 +12584,12 @@ msgid "This account's calendar can't be asked yet: Send/Receive signs it in firs
 msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvangen meldt deze eerst aan."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
@@ -12794,7 +12826,7 @@ msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noem
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+msgid "This is a development build: it checks only when you press Check for Updates."
 msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
 
 #. interface
@@ -14740,6 +14772,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waarmee het is geopend: noem dat account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "een gedeeld postvak blijft onder het account waarmee het is geopend: verplaats dat account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14816,6 +14854,12 @@ msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door
 #, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een Exchange-serveraccount, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "een account kan niet vóór zichzelf worden gezet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15971,6 +16015,12 @@ msgstr "de server staat niet toe dat de regel ernaast wordt verplaatst"
 msgid "the server doesn't let this rule be changed"
 msgstr "de server staat niet toe dat deze regel wordt gewijzigd"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of verwijderd"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -16649,8 +16699,9 @@ msgstr "{name} heeft deze uitnodiging beantwoord."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} couldn't be read ({why})"
-msgstr ""
+msgstr "{name} kon niet worden gelezen ({why})"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -17226,17 +17277,19 @@ msgstr[1] "{n} vragen wachten nog."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{n} more was left out: at most {mb} MB at a time"
 msgid_plural "{n} more were left out: at most {mb} MB at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "nog {n} is weggelaten: hoogstens {mb} MB per keer"
+msgstr[1] "nog {n} zijn weggelaten: hoogstens {mb} MB per keer"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "nog {n} is weggelaten: hoogstens {most} bestanden per keer"
+msgstr[1] "nog {n} zijn weggelaten: hoogstens {most} bestanden per keer"
 
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
@@ -17370,10 +17423,11 @@ msgstr[1] "{n} resultaten in {scope}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
 msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} regel die hier is verwijderd, staat nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
+msgstr[1] "{n} regels die hier zijn verwijderd, staan nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -17652,6 +17706,26 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
+#~ msgstr "MailCraft zoekt niet zelf naar nieuwe versies; via Bestand › Opties kan het één keer per dag zoeken."
+
+#, fuzzy
+#~ msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+#~ msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › Opties). Alleen GitHub wordt gevraagd."
+
+#, fuzzy
+#~ msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
+#~ msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Opties."
+
+#, fuzzy
+#~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+#~ msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Dit account heeft geen contactpersonen"
 
 #, fuzzy
 #~ msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
