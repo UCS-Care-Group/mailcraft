@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Telling the owner when a new version of MailCraft is out (File › About, File › Options, the
+//! Telling the owner when a new version of MailCraft is out (File › About, the
 //! status bar), and, for a copy that updates itself, downloading it and having the host install
 //! it. Any other copy's owner is told, with a link to the release's page.
 //!
 //! - The daily check is off until the owner turns it on. At the first starts of a build that has
 //!   it, a question above the status bar asks once a run, at most [`MOST_ASKS`] runs: Yes or No
-//!   is final (File › Options changes it), and a run where it is left unanswered checks nothing.
+//!   is final (File › About changes it), and a run where it is left unanswered checks nothing.
 //!   A development build never asks and never checks by itself.
 //! - On, it checks at most once a day, through the host ([`Services::update_check`]), which asks
 //!   GitHub alone and tells it nothing of the owner. The window does no I/O of its own.
@@ -18,7 +18,7 @@
 //!   it is notarized: the host says so by giving [`Services::update_download`]) downloads a
 //!   newer release in the
 //!   background, when the daily check (or the owner's press while it is on) finds one and File ›
-//!   Options › Install updates automatically is on (as it is unless the owner turns it off; it
+//!   About › Install updates automatically is on (as it is unless the owner turns it off; it
 //!   needs the daily check). The host checks it by the release's own signature and deletes
 //!   what doesn't pass; the owner is told only the notice, as for any other copy. Not for a
 //!   pre-release, nor in a development build, nor when the organisation has turned it off
@@ -67,7 +67,7 @@ pub const GO_BACK: &str = "ui.goBackVersion";
 /// The refusal of either by an agent or a script.
 pub const OWNERS_CLICK: &str = "Restart to update is the owner's click.";
 /// Said once, the first time a new version is ready to install.
-pub const INSTALLS_ITSELF: &str = "MailCraft now installs its updates itself. Turn this off in File › Options.";
+pub const INSTALLS_ITSELF: &str = "MailCraft now installs its updates itself. Turn this off in File › About.";
 
 /// What the host found at this start about the last update it installed (versions as text,
 /// `0.5.1`; the host's own record, made safe here).
@@ -448,7 +448,7 @@ impl MailApp {
         Ok(json!({"pending": "updateCheck", "version": env!("CARGO_PKG_VERSION")}))
     }
 
-    /// `ui.updateCheck`: the daily check on or off (the question's answer, File › Options).
+    /// `ui.updateCheck`: the daily check on or off (the question's answer, File › About).
     pub(crate) fn set_update_check(&mut self, p: &Value) -> Result<Value, String> {
         let on = match p.get("value") {
             None | Some(Value::Null) => self.ui.update_check != UpdateCheck::On,
@@ -459,7 +459,7 @@ impl MailApp {
         Ok(update_state(self))
     }
 
-    /// `ui.updateInstall`: Install updates automatically on or off (File › Options).
+    /// `ui.updateInstall`: Install updates automatically on or off (File › About).
     pub(crate) fn set_update_install(&mut self, p: &Value) -> Result<Value, String> {
         if self.services.updates_turned_off_by_organisation {
             return Err(tl!(TURNED_OFF).to_string());
@@ -625,53 +625,7 @@ pub(crate) fn status_item(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
 }
 
-/// File › Options: the switch, where the build can check at all.
-pub(crate) fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
-    if app.services.update_check.is_none() {
-        return;
-    }
-    let mut on = app.ui.update_check == UpdateCheck::On;
-    let switch = ui.checkbox(&mut on, tl!("Check for new versions"));
-    app.hit.add("updateOption", 0, switch.rect);
-    if switch.changed() {
-        let _ = app.run("ui.updateCheck", json!({"value": on}));
-    }
-    let setting = install_setting(app);
-    let detail = if app.services.development_build {
-        tl!("This is a development build: it checks only when you press Check for Updates in File › About.")
-    } else if setting == "notThisCopy" {
-        tl!("Once a day. Only GitHub is asked; nothing about you or your mail is sent. Nothing is downloaded or installed.")
-    } else {
-        tl!("Once a day. Only GitHub is asked; nothing about you or your mail is sent.")
-    };
-    ui.label(egui::RichText::new(detail).color(t.text_dim));
-    if setting == "notThisCopy" {
-        return;
-    }
-    // Install updates automatically: it needs the daily check, and the organisation's word wins.
-    ui.add_space(4.0);
-    let mut install = setting == "on";
-    let enabled = matches!(setting, "on" | "off");
-    let switch = ui.add_enabled(enabled, egui::Checkbox::new(&mut install, tl!("Install updates automatically")));
-    app.hit.add("updateInstallOption", 0, switch.rect);
-    if switch.changed() {
-        let _ = app.run("ui.updateInstall", json!({"value": install}));
-    }
-    let (detail, color) = match setting {
-        "organisation" => (tl!(TURNED_OFF), t.text),
-        "needsCheck" => (tl!("Needs Check for new versions."), t.text_dim),
-        _ => (
-            tl!(
-                "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
-            ),
-            t.text_dim,
-        ),
-    };
-    let said = ui.label(egui::RichText::new(detail).color(color));
-    app.hit.add("updateInstallDetail", 0, said.rect);
-}
-
-/// File › About: the newer version, when there is one, and Check for Updates.
+/// File › About: the newer version, when there is one, Check for Updates and the two switches.
 pub(crate) fn about(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if app.services.update_check.is_none() {
         return;
@@ -712,12 +666,46 @@ pub(crate) fn about(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if let Some(said) = app.updates.said.clone().filter(|_| !checking) {
         ui.label(egui::RichText::new(said).color(t.text_dim));
     }
-    let how = if app.ui.update_check == UpdateCheck::On && !app.services.development_build {
-        tl!("MailCraft looks for a new version once a day (File › Options). Only GitHub is asked.")
+    ui.add_space(8.0);
+    let mut on = app.ui.update_check == UpdateCheck::On;
+    let switch = ui.checkbox(&mut on, tl!("Check for new versions"));
+    app.hit.add("updateOption", 0, switch.rect);
+    if switch.changed() {
+        let _ = app.run("ui.updateCheck", json!({"value": on}));
+    }
+    let setting = install_setting(app);
+    let detail = if app.services.development_build {
+        tl!("This is a development build: it checks only when you press Check for Updates.")
+    } else if setting == "notThisCopy" {
+        tl!("Once a day. Only GitHub is asked; nothing about you or your mail is sent. Nothing is downloaded or installed.")
     } else {
-        tl!("MailCraft doesn't look for new versions by itself; File › Options can have it look once a day.")
+        tl!("Once a day. Only GitHub is asked; nothing about you or your mail is sent.")
     };
-    ui.label(egui::RichText::new(how).color(t.text_dim));
+    ui.label(egui::RichText::new(detail).color(t.text_dim));
+    if setting == "notThisCopy" {
+        return;
+    }
+    // Install updates automatically: it needs the daily check, and the organisation's word wins.
+    ui.add_space(4.0);
+    let mut install = setting == "on";
+    let enabled = matches!(setting, "on" | "off");
+    let switch = ui.add_enabled(enabled, egui::Checkbox::new(&mut install, tl!("Install updates automatically")));
+    app.hit.add("updateInstallOption", 0, switch.rect);
+    if switch.changed() {
+        let _ = app.run("ui.updateInstall", json!({"value": install}));
+    }
+    let (detail, color) = match setting {
+        "organisation" => (tl!(TURNED_OFF), t.text),
+        "needsCheck" => (tl!("Needs Check for new versions."), t.text_dim),
+        _ => (
+            tl!(
+                "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
+            ),
+            t.text_dim,
+        ),
+    };
+    let said = ui.label(egui::RichText::new(detail).color(color));
+    app.hit.add("updateInstallDetail", 0, said.rect);
 }
 
 /// The window commands about new versions (`UI_COMMANDS` lists them). `ui.checkForUpdates` here

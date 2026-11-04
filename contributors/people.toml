@@ -29,3 +29,14 @@ sync_github_name = true
 [people.AchimGrolimund]
 real_name = "Achim Grolimund"
 sync_github_name = true
+
+[people.darryll077]
+sync_github_name = true
+
+[people.VenimK]
+real_name = "VenimK"
+display_name = "VenimK"
+sync_github_name = true   # use the name on your public GitHub profile as display name
+
+[people.vangel76]
+real_name = "Valentin Klein"

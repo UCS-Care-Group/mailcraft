@@ -117,3 +117,17 @@ fn capitals_make_no_second_heading() {
     assert_eq!(headings, ["Blue category", "Été"]);
     assert_eq!(rows_of_first, 1, "one category in two spellings");
 }
+
+#[test]
+fn a_heading_has_the_spelling_of_its_accounts_own_list() {
+    let (mut s, [first, ..]) = arranged();
+    s.mailbox.message_mut(first).unwrap().categories = vec!["TRAVEL".to_string()];
+    s.mailbox.set_category(0, "travel", mailcraft_model::Rgb(1, 2, 3)).unwrap();
+    // An account's own list, its server's spelling; and another account's, which isn't in view.
+    let (account, other) = (s.mailbox.message(first).unwrap().account, s.mailbox.alloc_id());
+    s.mailbox.account_categories.insert(other, vec![mailcraft_model::Category { name: "tRAVEL".into(), color: mailcraft_model::Rgb(1, 2, 3) }]);
+    s.mailbox.account_categories.insert(account, vec![mailcraft_model::Category { name: "Travel".into(), color: mailcraft_model::Rgb(1, 2, 3) }]);
+    s.mailbox_changed();
+    run(&mut s, "view.sort", json!({"by": "categories"}));
+    assert!(headings(&s.rows()).contains(&"Travel"), "{:?}", headings(&s.rows()));
+}

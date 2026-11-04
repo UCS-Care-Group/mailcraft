@@ -285,6 +285,15 @@ pub mod p {
     pub fn req_id(v: &Value, k: &str) -> Result<Id, CmdError> {
         id(v, k).ok_or_else(|| CmdError::Params(format!("`{k}` (id) is required")))
     }
+    /// `true` or `false` under `k`, read strictly: `None` when `k` isn't given; anything else
+    /// (`"false"`, `0`, `null`) is refused.
+    pub fn opt_bool(v: &Value, k: &str) -> Result<Option<bool>, CmdError> {
+        match v.get(k) {
+            None => Ok(None),
+            Some(Value::Bool(b)) => Ok(Some(*b)),
+            Some(_) => Err(CmdError::Params(format!("`{k}` is true or false"))),
+        }
+    }
     /// `ids` (an array of ids) or `id` (one), read strictly, for a command whose mistake reaches
     /// other people (#360): `None` when neither is given. Anything else under those names (`null`,
     /// which a look-up that found nothing gives (#512), an id as text, zero, a fraction, `ids`
@@ -413,3 +422,5 @@ mod strict_ids_all_tests;
 mod strict_ids_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod undo_removes_mail_tests;

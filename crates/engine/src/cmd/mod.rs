@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_order_tests;
+#[cfg(test)]
 mod agent_leaves_compose_tests;
 #[cfg(test)]
 mod agent_owners_message_tests;
@@ -17,6 +19,8 @@ pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod category;
+#[cfg(test)]
+mod category_tests;
 pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
@@ -90,6 +94,9 @@ pub mod remote;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+pub mod rules_remote;
+#[cfg(test)]
+mod rules_remote_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
@@ -105,6 +112,8 @@ pub mod tasks;
 pub mod tasks_remote;
 #[cfg(test)]
 mod tasks_remote_tests;
+#[cfg(test)]
+mod tasks_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -145,6 +154,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
+    v.extend(rules_remote::specs());
     v.extend(junk::specs());
     v.extend(category::specs());
     v.extend(account::specs());
