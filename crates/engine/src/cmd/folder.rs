@@ -126,19 +126,21 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
-/// Why a folder of the server's own (Conversation History and the like, #756) is left as it is.
-const SERVER_OWNED: &str = "the server keeps this folder: it can't be renamed, moved or deleted";
-
-/// Whether the folder in view is one of its server's own ([`mailcraft_model::Folder::server_owned`]).
-fn in_view_server_owned(s: &Session) -> bool {
-    s.mailbox.folder(s.view.folder).is_some_and(|f| f.server_owned())
+/// Why the folder in view is left as it is, when it is one of its server's own (Conversation
+/// History and the like, #756; [`mailcraft_model::Folder::server_owned`]). The reason is written
+/// out here, in a `fn …(s: &Session) -> Option<&'static str>`, so `cargo xtask i18n` finds it.
+fn server_owned(s: &Session) -> Option<&'static str> {
+    if s.mailbox.folder(s.view.folder).is_some_and(|f| f.server_owned()) {
+        return Some("the server keeps this folder: it can't be renamed, moved or deleted");
+    }
+    None
 }
 
 /// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
 /// Nor one of the server's own folders (#756).
 fn can_rename(s: &Session) -> Option<&'static str> {
-    if in_view_server_owned(s) {
-        return Some(SERVER_OWNED);
+    if let r @ Some(_) = server_owned(s) {
+        return r;
     }
     s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
@@ -146,8 +148,8 @@ fn can_rename(s: &Session) -> Option<&'static str> {
 /// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
 /// Nor one of the server's own folders (#756).
 fn can_move(s: &Session) -> Option<&'static str> {
-    if in_view_server_owned(s) {
-        return Some(SERVER_OWNED);
+    if let r @ Some(_) = server_owned(s) {
+        return r;
     }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
@@ -155,8 +157,8 @@ fn can_move(s: &Session) -> Option<&'static str> {
 /// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
 /// Nor one of the server's own folders (#756).
 fn can_delete(s: &Session) -> Option<&'static str> {
-    if in_view_server_owned(s) {
-        return Some(SERVER_OWNED);
+    if let r @ Some(_) = server_owned(s) {
+        return r;
     }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }

@@ -15215,6 +15215,12 @@ msgstr "der Server lässt die benachbarte Regel nicht verschieben"
 msgid "the server doesn't let this rule be changed"
 msgstr "der Server lässt keine Änderung dieser Regel zu"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "der Server behält diesen Ordner: Er kann nicht umbenannt, verschoben oder gelöscht werden"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy

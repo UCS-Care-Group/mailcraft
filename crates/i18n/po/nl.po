@@ -16027,6 +16027,12 @@ msgstr "de server staat niet toe dat de regel ernaast wordt verplaatst"
 msgid "the server doesn't let this rule be changed"
 msgstr "de server staat niet toe dat deze regel wordt gewijzigd"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of verwijderd"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy

@@ -15233,6 +15233,12 @@ msgstr "le serveur ne permet pas de déplacer la règle voisine"
 msgid "the server doesn't let this rule be changed"
 msgstr "le serveur ne permet pas de modifier cette règle"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "le serveur conserve ce dossier : il ne peut être ni renommé, ni déplacé, ni supprimé"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
