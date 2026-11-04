@@ -6,6 +6,8 @@
 //! which are the mailbox's own (as a host brought them from the account's server) unless the
 //! owner would rather have the local options.
 
+use std::collections::HashSet;
+
 use mailcraft_model::{Account, Calendar, Id, Rgb};
 use mailcraft_time::Weekday;
 use serde::{Deserialize, Serialize};
@@ -96,7 +98,10 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let mailbox = &s.mailbox;
     let keeper = |c: &Calendar| remote::keeper(mailbox, &c.origin).map(|account| account.id);
     let listed: Vec<&Calendar> = mailbox.calendars.iter().take(MAX_LISTED).collect();
-    let accounts: Vec<&Account> = mailbox.accounts.iter().take(50).filter(|a| listed.iter().any(|c| keeper(c) == Some(a.id))).collect();
+    // The first 50 accounts that keep a calendar listed, in the order the owner put the accounts
+    // in (#702): one that keeps none doesn't take another's place.
+    let keepers: HashSet<Id> = listed.iter().filter_map(|c| keeper(c)).collect();
+    let accounts: Vec<&Account> = mailbox.accounts_in_order().into_iter().filter(|a| keepers.contains(&a.id)).take(50).collect();
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
         let group_of = |c: &Calendar| {

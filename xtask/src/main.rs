@@ -5,6 +5,7 @@
 //! Pure Rust (std + serde_json). `cargo` and `git` are invoked through `std::process::Command`.
 
 mod assets;
+mod docs_log;
 mod i18n;
 mod ico;
 mod icon;
@@ -31,7 +32,7 @@ commands:
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
   ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check,
-                  release-notes (the fragments join)
+                  release-notes and docs-log (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -44,6 +45,9 @@ commands:
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
+  docs-log [--check | --write]
+                  print each document with the table-row fragments in docs/log.d/ joined in; --check
+                  only checks they join; --write (in the release's pull request) joins them and removes them
   release-key new <dir>
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
@@ -68,6 +72,7 @@ fn main() -> ExitCode {
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
+        Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -195,6 +200,24 @@ fn cmd_deny() -> Result<(), String> {
     run(c, "cargo deny --locked check")
 }
 
+/// The workspace's tests. With cargo-nextest installed (CI installs it) the test binaries run side
+/// by side rather than one after another, and the doc-tests, which nextest doesn't run, follow;
+/// without it, `cargo test` runs the lot.
+fn cmd_test() -> Result<(), String> {
+    let nextest = cargo().args(["nextest", "--version"]).output().map(|o| o.status.success()).unwrap_or(false);
+    if !nextest {
+        let mut c = cargo();
+        c.args(["test", "--locked", "--workspace"]);
+        return run(c, "cargo test --locked --workspace");
+    }
+    let mut c = cargo();
+    c.args(["nextest", "run", "--locked", "--workspace", "--no-fail-fast"]);
+    run(c, "cargo nextest run --locked --workspace --no-fail-fast")?;
+    let mut c = cargo();
+    c.args(["test", "--locked", "--workspace", "--doc"]);
+    run(c, "cargo test --locked --workspace --doc")
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -214,14 +237,7 @@ fn cmd_ci() -> Result<(), String> {
                 run(c, "cargo clippy --locked --workspace --all-targets -- -D warnings")
             }),
         ),
-        (
-            "test",
-            Box::new(|| {
-                let mut c = cargo();
-                c.args(["test", "--locked", "--workspace"]);
-                run(c, "cargo test --locked --workspace")
-            }),
-        ),
+        ("test", Box::new(cmd_test)),
         ("assets", Box::new(|| assets::run(&root()))),
         ("spdx", Box::new(|| spdx::run(&root(), false))),
         ("test-files", Box::new(|| test_files::run(&root()))),
@@ -230,6 +246,7 @@ fn cmd_ci() -> Result<(), String> {
         ("deny", Box::new(cmd_deny)),
         ("i18n", Box::new(|| i18n::run(&root(), true))),
         ("release-notes", Box::new(|| release_notes::check(&root()))),
+        ("docs-log", Box::new(|| docs_log::check(&root()))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();

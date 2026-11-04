@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
+use mailcraft_model::{AccountChoice, Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -278,11 +278,11 @@ pub struct ViewState {
     /// Show messages grouped into conversations.
     pub conversations: bool,
     /// The conversations opened in the list (#503), each by its account and its key
-    /// ([`Message::thread_key`]): their messages are listed under their rows. Another folder, tab
+    /// ([`Session::threads`], #795): their messages are listed under their rows. Another folder, tab
     /// or search starts with all of them closed. Not kept with the view's settings, which would
     /// write subjects of mail into them.
     #[serde(skip)]
-    pub open: Vec<(Id, String)>,
+    pub open: Vec<(Id, mailcraft_model::ThreadKey)>,
     pub filter: Filter,
     pub search: String,
     pub scope: Scope,
@@ -307,6 +307,10 @@ pub struct ViewState {
     pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
     pub task_sort: TaskSort,
+    /// Whose tasks Tasks shows.
+    pub task_account: AccountChoice,
+    /// Whose contacts People shows.
+    pub people_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -333,6 +337,8 @@ impl Default for ViewState {
             people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
+            task_account: AccountChoice::All,
+            people_account: AccountChoice::All,
         }
     }
 }
@@ -819,8 +825,10 @@ pub struct Prefs {
     /// The date navigator and the Month view say which week of the year a week is
     /// (`view.weekNumbers`).
     pub week_numbers: bool,
-    /// A meeting request (or a cancellation) that was answered from the mail goes to Deleted
-    /// Items (`calendar.deleteAnsweredRequests`). Off unless the owner turns it on.
+    /// A meeting request (or a cancellation) in an Inbox of the owner's own accounts that was
+    /// answered from the mail goes to Deleted Items (`calendar.deleteAnsweredRequests`). Off here,
+    /// so a session without the window's settings (`mailcraft-cli run`, headless `mcp`) keeps the
+    /// request; the window's settings for a new install turn it on, as in Outlook (#755).
     pub delete_answered_requests: bool,
     /// The working hours above are used even when the account's mailbox has its own
     /// (`view.workHours`).
@@ -979,6 +987,7 @@ pub struct Clock {
     pub zone: Option<Zone>,
 }
 
+#[derive(Clone)]
 pub(crate) struct Undo {
     label: &'static str,
     pub(crate) mailbox: Mailbox,
@@ -1090,6 +1099,9 @@ pub struct Session {
     /// The conversation last asked for ([`Session::conversation`]), as of the revision, message
     /// count and message it was worked out for.
     conversation_cache: Option<((u64, usize, Id), Arc<Vec<Id>>)>,
+    /// The conversations of the mailbox ([`Session::threads`]), as of the revision and message
+    /// count they were worked out at.
+    pub(crate) threads_cache: crate::conversations::ThreadsCache,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
     /// The known correspondents, and the sender warnings worked out against them
@@ -1227,6 +1239,7 @@ impl Session {
             list_cache: None,
             counts_cache: None,
             conversation_cache: None,
+            threads_cache: Default::default(),
             list_builds: 0,
             sender_checks: Default::default(),
             content_source: None,
@@ -1597,6 +1610,7 @@ impl Session {
         let key = if self.today() == day { key(self) } else { String::new() };
         // (So that the list is built from the folder's own messages: `list::listing`.)
         let _ = self.folder_counts();
+        let _ = self.threads();
         let (rows, kept, unfetched) = crate::list::listing(self, &decided, &searched);
         self.list_builds = self.list_builds.saturating_add(1);
         // What it lists of the selection stays in it too: the rows don't change for that, as each
@@ -1617,8 +1631,8 @@ impl Session {
     }
 
     /// The messages of the conversation `id` is part of ([`Mailbox::conversation`]: same
-    /// account, same topic, oldest first), kept while the mailbox doesn't change: the reading
-    /// pane asks at every frame, and the answer is a walk over every message.
+    /// account, same topic, one thread, oldest first), kept while the mailbox doesn't change:
+    /// the reading pane asks at every frame.
     pub fn conversation(&mut self, id: Id) -> Arc<Vec<Id>> {
         let key = (self.rev, self.mailbox.messages.len(), id);
         if let Some((at, thread)) = &self.conversation_cache
@@ -1626,18 +1640,8 @@ impl Session {
         {
             return thread.clone();
         }
-        let thread = {
-            let mb = &self.mailbox;
-            match (self.fresh_counts(), mb.message(id)) {
-                // From the account's folders' own lists, not a walk over every account's messages.
-                (Some(counts), Some(m)) => {
-                    let skips = mb.conversation_skips(m.account, m.folder);
-                    let folders = mb.folders.iter().filter(|f| f.account == m.account && !skips.contains(&f.id));
-                    mb.conversation_among(m, folders.flat_map(|f| counts.ids(f.id)).filter_map(|i| mb.message(*i)))
-                }
-                _ => mb.conversation(id),
-            }
-        };
+        let threads = self.threads();
+        let thread = self.mailbox.conversation_in(&threads, id);
         let thread = Arc::new(thread);
         self.conversation_cache = Some((key, thread.clone()));
         thread
@@ -2624,6 +2628,9 @@ impl Session {
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
         self.view.open.clear();
+        // An account's id means another account there, or none.
+        self.view.task_account = AccountChoice::All;
+        self.view.people_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2698,6 +2705,11 @@ impl Session {
             // is, and what is selected in it (#485).
             self.sel.messages_of(&cur.sel);
         }
+        // The contact selected again is shown in People's list (#631): a New Contact that moved
+        // the list to this computer, undone, has it back on the account it showed.
+        if let Some(contact) = self.sel.contact {
+            crate::cmd::people::reveal(self, contact);
+        }
         self.normalize();
         cur
     }
@@ -2735,6 +2747,19 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
+    /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
+    /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
+    /// and compares the message ids after: a key difference with the step's mailbox alone is not
+    /// enough, since the merge keeps mail that came down since and can drop one that both have.
+    /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
+    /// not yet made on the server is dropped, so that asks (fails closed).
+    pub fn undo_takes_mail(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
@@ -2756,6 +2781,10 @@ impl Session {
         if crate::agent::changes_shared_tasks(now, to) {
             return Some(Class::Send);
         }
+        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
+        if crate::agent::places_tasks(now, to) {
+            return Some(Class::Send);
+        }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
         let category_gone =
             |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
@@ -2765,13 +2794,27 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() {
+        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
             return Some(Class::Settings);
         }
         None
+    }
+
+    /// The stacks as they were before an undo (`redo`: a redo) that failed (#767): what it pushed
+    /// onto the other stack is taken off, and the step it took is put back on top of its own.
+    fn put_back_step(&mut self, redo: bool, history: usize, redo_len: usize, step: Option<Undo>) {
+        let (from, from_len, to, to_len) =
+            if redo { (&mut self.redo, redo_len, &mut self.history, history) } else { (&mut self.history, history, &mut self.redo, redo_len) };
+        to.truncate(to_len);
+        if from.len() < from_len
+            && let Some(step) = step
+        {
+            from.truncate(from_len.saturating_sub(1));
+            from.push(step);
+        }
     }
 
     pub fn undo(&mut self) -> bool {
@@ -2853,9 +2896,11 @@ impl Session {
         let claimed = spec.reads.then(|| self.mailbox.clone());
         // What was counted of the mailbox is counted again after the command, and by a command
         // that changes the mailbox and then asks of its list ([`Session::folder_counts`]).
+        // (The conversations are checked when next asked, and kept when it left them alone.)
         if spec.mutates {
             self.counts_cache = None;
             self.conversation_cache = None;
+            self.threads_may_change();
         }
         let compose = self.compose.clone();
         let composing = self.composing.clone();
@@ -2867,6 +2912,12 @@ impl Session {
         // (Undo shows what it selects again, and a conversation open in the list has that built)
         // are of the mailbox after the marks already.
         let counts_before = self.counts_cache.as_ref().map(|(_, counts)| counts.clone());
+        // Undo and redo move a step from one stack to the other: a run that then fails (refused
+        // for an agent, or a panic) puts the step back as it was, with the mailbox (#767).
+        let stacks = matches!(id, "edit.undo" | "edit.redo").then(|| {
+            let from = if id == "edit.redo" { &self.redo } else { &self.history };
+            (self.history.len(), self.redo.len(), from.last().cloned())
+        });
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
@@ -3001,6 +3052,9 @@ impl Session {
                     self.list_cache = None;
                 }
                 self.sel = before.sel;
+                if let Some((history, redo, step)) = stacks {
+                    self.put_back_step(id == "edit.redo", history, redo, step);
+                }
                 self.compose = compose;
                 self.composing = composing;
                 self.signature_edit = signature_edit;

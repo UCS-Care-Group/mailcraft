@@ -2125,27 +2125,27 @@ fn main() -> eframe::Result {
                     app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
                 }
                 // A mailbox whose Outlook Favorites were read another way than Microsoft Graph,
-                // which is no more: said once, and the file is saved without it.
-                if app.session.mailbox.take_retired_favorites_choices() > 0 {
-                    app.session.mailbox_changed();
+                // which is no more: said once, and the file is saved without it. Mail of
+                // Microsoft accounts kept with characters that couldn't be read (fetched before
+                // their character sets were) is fetched again, once (#185); IMAP accounts' mail
+                // the same way, by UID, at the next Send/Receive (#650); and mail an earlier
+                // version put back empty after a refused delete for good, before anything can
+                // move it (#793). The same steps as `file.open`'s.
+                let after = mailcraft_engine::cmd::file::after_opening(&mut app.session);
+                if after.favorites_now_graph > 0 {
                     app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
                 }
-                // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
-                // before their character sets were) is fetched again, once (#185).
-                // IMAP accounts' mail the same way, by UID, at the next Send/Receive (#650).
-                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox)
-                    + mailcraft_engine::cmd::imap_again::mark_unreadable(&mut app.session.mailbox);
-                if again > 0 {
-                    app.session.mailbox_changed();
-                    app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
+                for notice in mailcraft_ui_egui::fetched_again_notices(after.unreadable, after.hollow) {
+                    app.status(notice);
                 }
                 // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
                 app.offer_setup = kept && !sample;
                 // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only
                 // for a mailbox kept in a file, which is where the copy from before the switch goes.
                 app.offer_graph_switch = kept && !sample;
-                if let Some(ui) = prefs {
-                    app.apply_prefs(ui);
+                match prefs {
+                    Some(ui) => app.apply_prefs(ui),
+                    None => app.fresh_prefs(),
                 }
                 app.settings_unread = settings_unread;
                 app.ui.window = restored;

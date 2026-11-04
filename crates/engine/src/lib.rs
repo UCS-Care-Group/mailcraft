@@ -29,6 +29,7 @@ pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
 pub mod composing;
+mod conversations;
 pub mod counts;
 pub mod import_tree;
 pub mod io;
@@ -422,3 +423,5 @@ mod strict_ids_all_tests;
 mod strict_ids_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod undo_removes_mail_tests;

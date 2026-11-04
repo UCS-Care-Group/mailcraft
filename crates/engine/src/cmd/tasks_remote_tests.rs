@@ -9,7 +9,7 @@ use mailcraft_model::{Id, Importance, Task};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
-use super::tasks_remote::{merge_tasks, task_upload};
+use super::tasks_remote::{carries_delete, mark_sent, merge_tasks, task_upload};
 use crate::Session;
 
 const NOW: i64 = 1_790_000_000;
@@ -367,6 +367,17 @@ fn a_refused_change_is_kept_not_reverted_and_tried_again_after_an_edit() {
 }
 
 #[test]
+fn a_task_taken_in_when_the_answer_was_lost_is_saved() {
+    let (mut s, a) = session();
+    let id = run(&mut s, "tasks.new", json!({"title": "Lost answer", "account": a}))["id"].as_u64().unwrap();
+    let rev = s.rev();
+    let merged = super::tasks_remote::apply_tasks(&mut s, &download(a, vec![remote("srv-9", "Lost answer")])).unwrap();
+    assert!(merged.changed());
+    assert!(s.rev() > rev, "or the task is made again after a restart");
+    assert_eq!(s.mailbox.task(id).unwrap().origin.id, "srv-9");
+}
+
+#[test]
 fn a_refused_new_task_is_tried_again_once_it_is_changed() {
     let (mut s, a) = session();
     run(&mut s, "tasks.sendLocal", json!({"account": a}));
@@ -694,4 +705,95 @@ fn a_to_do_taken_out_of_a_shared_list_by_another_way_is_an_overstep() {
     let mut after = s.mailbox.clone();
     after.task_mut(ours).unwrap().list = "L1".into();
     assert_eq!(overstep(&s.mailbox, &after, &[]), Some(Class::Send));
+}
+
+/// A synced to-do "One" deleted here, ready for the job that tells the server.
+fn deleted_one() -> (Session, Id) {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "One")])).unwrap();
+    let id = titled(&s, "One").id;
+    run(&mut s, "tasks.delete", json!({"id": id}));
+    (s, a)
+}
+
+#[test]
+fn undo_after_the_delete_went_out_does_nothing_and_the_task_stays_gone() {
+    let (mut s, a) = deleted_one();
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete && op.id == "t1"));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(!s.can_undo() && !s.undo());
+    assert!(s.mailbox.tasks.values().all(|t| t.title != "One"));
+}
+
+#[test]
+fn undo_before_the_delete_went_out_cancels_it() {
+    let (mut s, a) = deleted_one();
+    assert!(s.undo());
+    assert!(s.mailbox.tasks.values().any(|t| t.title == "One"));
+    assert!(s.mailbox.task_gone.is_empty());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().all(|op| op.kind != TaskOpKind::Delete));
+}
+
+#[test]
+fn an_upload_without_a_delete_leaves_the_history_alone() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+    let id = titled(&s, "Call Bo").id;
+    run(&mut s, "tasks.edit", json!({"id": id, "notes": "bring tea"}));
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    run(&mut s, "tasks.new", json!({"title": "Fresh"}));
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Update) && up.ops.iter().any(|op| op.kind == TaskOpKind::Create));
+    assert!(up.ops.iter().all(|op| op.kind != TaskOpKind::Delete));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(s.can_undo());
+    assert!(s.undo());
+    assert!(s.mailbox.tasks.values().all(|t| t.title != "Fresh"));
+}
+
+#[test]
+fn a_delete_going_out_forgets_earlier_unrelated_steps_too() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "One"), remote("t2", "Two")])).unwrap();
+    let two = titled(&s, "Two").id;
+    run(&mut s, "tasks.edit", json!({"id": two, "notes": "unrelated"}));
+    let one = titled(&s, "One").id;
+    run(&mut s, "tasks.delete", json!({"id": one}));
+    assert!(s.can_undo());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    mark_sent(&mut s, carries_delete(&up));
+    // The whole history goes (as with rules and the answer to a sent change), not just the delete.
+    assert!(!s.can_undo() && !s.undo());
+    assert_eq!(titled(&s, "Two").notes, "unrelated");
+}
+
+#[test]
+fn a_delete_going_out_forgets_redo_too() {
+    let (mut s, a) = deleted_one();
+    run(&mut s, "tasks.new", json!({"title": "Later"}));
+    assert!(s.undo());
+    assert!(s.can_redo());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(!s.can_redo() && !s.redo());
+    assert!(!s.can_undo());
+}
+
+#[test]
+fn a_failed_delete_is_sent_again_with_the_next_job() {
+    let (mut s, a) = deleted_one();
+    let up = task_upload(&s.mailbox, a).unwrap();
+    mark_sent(&mut s, carries_delete(&up));
+    let op = up.ops.iter().find(|op| op.kind == TaskOpKind::Delete).unwrap();
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![outcome(op, TaskResult::Failed)]));
+    let again = task_upload(&s.mailbox, a).unwrap();
+    assert_eq!(again.ops.iter().filter(|op| op.kind == TaskOpKind::Delete && op.id == "t1").count(), 1);
+    // A step made meanwhile is lost when the retry starts: the trade-off the rules make too.
+    run(&mut s, "tasks.new", json!({"title": "Meanwhile"}));
+    assert!(s.can_undo());
+    mark_sent(&mut s, carries_delete(&again));
+    assert!(!s.can_undo());
 }
