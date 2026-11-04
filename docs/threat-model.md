@@ -293,7 +293,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
   that puts back the accounts (or a change that writes to people) and also takes away messages,
   drafts, contacts or the like is asked about once: the question names those too, and a yes
-  covers `delete` for them; `--allow accounts` alone doesn't.
+  covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
+  what it would take away when asked: another step meanwhile, or a message or contact that came
+  down since, and the yes is refused.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
@@ -497,7 +499,6 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages away is asked once, naming both, and a yes covers both |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |

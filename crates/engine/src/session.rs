@@ -2816,16 +2816,29 @@ impl Session {
     /// calendars or categories made since: things that go for good (they don't go to Deleted
     /// Items) and that the step lacks.
     pub fn undo_removes_items(&self, redo: bool) -> bool {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        !self.undo_removed_items(redo).is_empty()
+    }
+
+    /// What [`Session::undo_removes_items`] finds, each named by its kind and id (a category by
+    /// its name): for the owner's question, whose yes holds for exactly these (#473).
+    pub fn undo_removed_items(&self, redo: bool) -> Vec<String> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         let (to, now) = (&step.mailbox, &self.mailbox);
-        let category_gone =
-            |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        now.contacts.keys().any(|k| !to.contacts.contains_key(k))
-            || now.events.keys().any(|k| !to.events.contains_key(k))
-            || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
-            || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
-            || category_gone(&now.categories, &to.categories)
-            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)))
+        let categories_gone = |now: &[Category], to: &[Category]| -> Vec<String> {
+            now.iter().filter(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase())).map(|c| c.name.to_lowercase()).collect()
+        };
+        let mut gone: Vec<String> = Vec::new();
+        gone.extend(now.contacts.keys().filter(|k| !to.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
+        gone.extend(now.events.keys().filter(|k| !to.events.contains_key(*k)).map(|k| format!("event {k}")));
+        gone.extend(now.tasks.keys().filter(|k| !to.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.calendars.iter().filter(|c| !to.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
+        gone.extend(categories_gone(&now.categories, &to.categories).into_iter().map(|n| format!("category {n}")));
+        for (id, list) in &now.account_categories {
+            if let Some(to) = to.account_categories.get(id) {
+                gone.extend(categories_gone(list, to).into_iter().map(|n| format!("category {id} {n}")));
+            }
+        }
+        gone
     }
 
     /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and

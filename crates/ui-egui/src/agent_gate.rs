@@ -37,6 +37,9 @@ pub struct Asking {
     /// as they were when it was asked ([`mailcraft_engine::Session::undo_steps_moved`], #473).
     taken: Vec<u64>,
     steps: u64,
+    /// The contacts, events, tasks, calendars and categories it would take away
+    /// ([`mailcraft_engine::Session::undo_removed_items`]): a yes reaches none that came since.
+    items: Vec<String>,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -115,6 +118,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
             let also = agent::also(&app.session, id, &params, class);
             let taken = undo_taken(app, id);
             let steps = app.session.undo_steps_moved();
+            let items = undo_items(app, id);
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
@@ -123,6 +127,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 also,
                 taken,
                 steps,
+                items,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
@@ -298,6 +303,14 @@ fn undo_taken(app: &MailApp, id: &str) -> Vec<u64> {
     }
 }
 
+/// The contacts and the like an agent's undo or redo would take away (none for any other command).
+fn undo_items(app: &MailApp, id: &str) -> Vec<String> {
+    match id {
+        "edit.undo" | "edit.redo" => app.session.undo_removed_items(id == "edit.redo"),
+        _ => Vec::new(),
+    }
+}
+
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
@@ -324,6 +337,7 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let undoing = matches!(a.id.as_str(), "edit.undo" | "edit.redo");
         let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c))
             || undo_taken(app, &a.id).iter().any(|m| !a.taken.contains(m))
+            || undo_items(app, &a.id).iter().any(|i| !a.items.contains(i))
             || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
         let mut allow = a.allow.clone();
         allow.push(a.class);
