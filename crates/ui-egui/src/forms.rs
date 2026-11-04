@@ -4955,6 +4955,7 @@ mod contact {
 mod task {
     use egui::Ui;
     use mailcraft_engine::Session;
+    use mailcraft_engine::cmd::{tasks, tasks_remote};
     use mailcraft_model::{Id, Importance};
     use mailcraft_time::{Date, time_short};
     use serde_json::{Map, Value, json};
@@ -4988,6 +4989,11 @@ mod task {
     pub struct TaskForm {
         /// The task being edited; `None` for a new one.
         id: Option<Id>,
+        /// Where the task is: an account, or 0 for this computer. `None` for a new one that
+        /// nobody has said where to put: it stays here, like one that isn't put anywhere.
+        pub(super) place: Option<Id>,
+        /// The place as the form opened: choosing another is something to ask about.
+        opened_place: Option<Id>,
         title: String,
         due: String,
         start: String,
@@ -5019,6 +5025,8 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.place = p.get("account").and_then(Value::as_u64).or_else(|| tasks::new_task_place(s));
+            f.opened_place = f.place;
             f.opened = f.fields();
             f
         }
@@ -5030,6 +5038,8 @@ mod task {
             let reminder = t.reminder.map(|r| s.local(r));
             let mut f = TaskForm {
                 id: Some(id),
+                place: Some(t.origin.account),
+                opened_place: Some(t.origin.account),
                 title: t.title.clone(),
                 due: t.due.map(Date::iso).unwrap_or_default(),
                 start: t.start.map(Date::iso).unwrap_or_default(),
@@ -5059,10 +5069,10 @@ mod task {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
         }
 
-        /// Whether the fields differ from what the form opened with, Completed too: there is
-        /// something to save.
+        /// Whether the fields differ from what the form opened with, Completed and the Account
+        /// list too: there is something to save.
         pub fn dirty(&self) -> bool {
-            self.fields() != self.opened || self.completed != self.was_completed
+            self.fields() != self.opened || self.completed != self.was_completed || self.place != self.opened_place
         }
 
         /// The task it changes; `None` for a new one.
@@ -5108,7 +5118,12 @@ mod task {
                     m.insert("id".into(), json!(id));
                     ("tasks.edit", Value::Object(m))
                 }
-                None => ("tasks.new", Value::Object(m)),
+                None => {
+                    if let Some(place) = self.place {
+                        m.insert("account".into(), json!(place));
+                    }
+                    ("tasks.new", Value::Object(m))
+                }
             }
         }
 
@@ -5129,16 +5144,59 @@ mod task {
                 && time_ok(&self.remind_time, false)
         }
 
+        /// The account whose categories the task takes: the one its Account list says.
+        pub(crate) fn category_account(&self) -> Id {
+            self.place.unwrap_or(0)
+        }
+
+        /// A new task that nobody had said a place for when the form opened ("On this computer
+        /// for now") stays on this computer once something says one meanwhile (the list moved to
+        /// an account, a task put somewhere else): OK puts it where the form says, not there.
+        pub(crate) fn hold_place(&mut self, s: &Session) {
+            if self.id.is_none() && self.place.is_none() && tasks::new_task_place(s).is_some() {
+                (self.place, self.opened_place) = (Some(0), Some(0));
+            }
+        }
+
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            self.hold_place(&app.session);
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
             let today = pass.today;
-            let account = self.id.and_then(|id| app.session.mailbox.task(id)).map_or(0, |t| t.origin.account);
-            let categories = app.session.mailbox.categories_of(account).to_vec();
+            let mailbox = &app.session.mailbox;
+            let categories = mailbox.categories_of(self.category_account()).to_vec();
+            let place = self.place.unwrap_or(0);
+            let places: Vec<(Id, String)> =
+                tasks_remote::task_accounts(mailbox).into_iter().chain([0]).map(|a| (a, crate::widgets::place_name(mailbox, a))).collect();
+            // Nobody has said: it can still be offered to an account.
+            let place_name =
+                if self.place.is_some() { crate::widgets::place_name(mailbox, place) } else { tl!("On this computer for now").to_string() };
+            let held = place != 0 && app.tasks_held(place);
             body(ui, |ui| {
                 row(ui, tl!("Title"), |ui| {
                     pass.text(ui, "title", &mut self.title, f32::INFINITY, "");
                 });
+                if self.id.is_some() && (places.len() > 1 || place != 0) {
+                    // Where it is, as it stays there.
+                    row(ui, tl!("Account"), |ui| {
+                        ui.add(egui::Label::new(place_name.as_str()).truncate());
+                    });
+                } else if places.len() > 1 {
+                    row(ui, tl!("Account"), |ui| {
+                        egui::ComboBox::from_id_salt("task_account").width(220.0).selected_text(place_name.as_str()).truncate().show_ui(ui, |ui| {
+                            for (account, name) in &places {
+                                if ui.selectable_label(self.place == Some(*account), name.as_str()).clicked() {
+                                    self.place = Some(*account);
+                                }
+                            }
+                        });
+                    });
+                    if held {
+                        row(ui, "", |ui| {
+                            ui.label(egui::RichText::new(tl!("It waits on this computer until To Do is allowed for this account")).size(11.5));
+                        });
+                    }
+                }
                 row(ui, tl!("Due date"), |ui| {
                     pass.date(ui, "due", &mut self.due, false);
                     date_note(ui, &self.due, false);
@@ -5627,6 +5685,8 @@ mod categories_tests;
 mod junk;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod task_place_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 pub(crate) mod rules {
@@ -5780,13 +5840,26 @@ pub(crate) mod rules {
     }
 
     /// The accounts the dialog shows the rules of (#566): every account but a shared mailbox and
-    /// one of a kind this version doesn't know, with what it is called.
+    /// one of a kind this version doesn't know, with what it is called, in the order the owner
+    /// put them in the folder pane (#702).
     pub fn rule_accounts(mb: &Mailbox) -> Vec<(Id, String)> {
-        mb.accounts
-            .iter()
-            .filter(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown)
+        mb.accounts_in_order()
+            .into_iter()
+            .filter(|a| has_rules(a))
             .map(|a| (a.id, if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() }))
             .collect()
+    }
+
+    /// Whether the dialog shows an account's rules: not a shared mailbox's, nor one of a kind this
+    /// version doesn't know.
+    fn has_rules(a: &mailcraft_model::Account) -> bool {
+        !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown
+    }
+
+    /// The account the dialog falls back on when none is in view: the first added that has
+    /// rules, whatever order the owner put the accounts in (#702).
+    fn first_with_rules(mb: &Mailbox) -> Option<Id> {
+        mb.accounts.iter().find(|a| has_rules(a)).map(|a| a.id)
     }
 
     /// The account the dialog opens on: the one in view, as Outlook's "Apply changes to this
@@ -5794,7 +5867,7 @@ pub(crate) mod rules {
     fn account_in_view(s: &Session) -> Id {
         let shown = rule_accounts(&s.mailbox);
         let in_view = s.mailbox.folder(s.view.folder).map(|f| f.account).or(s.mailbox.default_account().map(|a| a.id));
-        in_view.filter(|a| shown.iter().any(|(id, _)| id == a)).or(shown.first().map(|(id, _)| *id)).unwrap_or(0)
+        in_view.filter(|a| shown.iter().any(|(id, _)| id == a)).or_else(|| first_with_rules(&s.mailbox)).unwrap_or(0)
     }
 
     /// An account's folders as a rule can move mail to them: id and path, in the folder pane's
@@ -6136,9 +6209,9 @@ pub(crate) mod rules {
             let t = pass.t;
             let accounts = rule_accounts(&app.session.mailbox);
             if !accounts.iter().any(|(id, _)| *id == self.account)
-                && let Some((first, _)) = accounts.first()
+                && let Some(first) = first_with_rules(&app.session.mailbox)
             {
-                self.choose(&app.session.mailbox, *first);
+                self.choose(&app.session.mailbox, first);
             }
             let account = self.account;
             let mb = &app.session.mailbox;

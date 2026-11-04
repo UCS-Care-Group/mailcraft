@@ -15,6 +15,7 @@ use std::time::Duration;
 use mailcraft_engine::Session;
 use mailcraft_ews::standin::{StandIn, block_on};
 use mailcraft_ews::{HttpExchange, HttpRequest, Secret};
+use mailcraft_model::sync::SyncPhase;
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use mailcraft_ui_egui::{MailApp, Services};
 use serde_json::{Value, json};
@@ -176,6 +177,9 @@ fn the_window_reads_an_exchange_account_and_fetches_what_is_opened_or_answered_w
     // Send/Receive Progress: the account's row, done, with what came.
     let row = app.session.sync_progress.accounts.iter().find(|r| r.account == account).unwrap();
     assert_eq!((row.state, row.new), (mailcraft_engine::cmd::sync_progress::RunState::Done, 4));
+    // With how long it took and the requests it made, by phase, as for a Microsoft account (#748).
+    let phases: Vec<SyncPhase> = row.timings.phases.iter().map(|p| p.phase).collect();
+    assert!(row.timings.requests() > 0 && phases.contains(&SyncPhase::Folders) && phases.contains(&SyncPhase::NewMail), "{:?}", row.timings);
     // Nothing but reading went to the server.
     assert!(server.standin.state().writes.is_empty());
     // (The first request of a run goes with no credential and is told how to sign in: that 401 is all that isn't 200.)

@@ -62,7 +62,7 @@ pub use message::{
     RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
-pub use remote::Origin;
+pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
@@ -138,6 +138,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod account_categories_tests;
+#[cfg(test)]
+mod account_order_tests;
 #[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]

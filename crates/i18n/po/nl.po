@@ -548,7 +548,7 @@ msgid "Accessibility"
 msgstr "Toegankelijkheid"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -668,6 +668,54 @@ msgstr "Een taak toevoegen"
 #, fuzzy
 msgid "Add a task due today"
 msgstr "Een taak toevoegen die vandaag vervalt"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer"
+msgstr "Een taak die vandaag vervalt toevoegen op deze computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer for now"
+msgstr "Voorlopig een taak voor vandaag op deze computer toevoegen"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address}"
+msgstr "Een taak die vandaag vervalt toevoegen aan {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address} (it waits here until To Do is allowed)"
+msgstr "Een taak voor vandaag aan {address} toevoegen (deze wacht hier tot To Do is toegestaan)"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer"
+msgstr "Een taak toevoegen op deze computer"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer for now"
+msgstr "Voorlopig een taak op deze computer toevoegen"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address}"
+msgstr "Een taak toevoegen aan {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address} (it waits here until To Do is allowed)"
+msgstr "Een taak aan {address} toevoegen (deze wacht hier tot To Do is toegestaan)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -822,6 +870,12 @@ msgstr "Alle categorieën…"
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Alle postvakken"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "All accounts"
+msgstr "Alle accounts"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -4122,8 +4176,8 @@ msgstr ""
 "Map\n"
 "eigenschappen"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
@@ -5245,6 +5299,12 @@ msgstr "Hij wordt op deze computer uitgevoerd, zolang MailCraft open is."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijnt in Outlook op het web en op uw telefoon."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It waits on this computer until To Do is allowed for this account"
+msgstr "Deze wacht op deze computer tot To Do voor dit account is toegestaan"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -6537,11 +6597,23 @@ msgstr ""
 "Map\n"
 "verplaatsen"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Account verplaatsen"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Alles verplaatsen en uitnodigingen verzenden"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Omlaag"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6566,6 +6638,12 @@ msgstr "Terugkerend item verplaatsen"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Regel verplaatsen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Omhoog"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7060,6 +7138,12 @@ msgstr "Geen opdracht komt overeen."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Nog geen voltooide taken."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Nog geen contactpersonen van dit account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -7572,10 +7656,16 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "Op de server: hier kan hij worden in- of uitgeschakeld, verplaatst of verwijderd"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Op deze computer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On this computer for now"
+msgstr "Voorlopig op deze computer"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8584,6 +8674,12 @@ msgstr "Favorieten uit Outlook nu opnieuw lezen"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Lezen met de aanmelding van {owner}, zolang u die bewaart: de persoon moet diens agenda met u hebben gedeeld. De agenda wordt alleen op deze computer bewaard: die verschijnt niet in Outlook of op uw andere apparaten. Microsoft vraagt u één keer om MailCraft de agenda's van anderen te laten lezen."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Alleen-lezen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10299,6 +10395,12 @@ msgstr "Weergeven als"
 msgid "Show Calendar"
 msgstr "Agenda weergeven"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Contactpersonen tonen van"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -10340,6 +10442,12 @@ msgstr "Voortgang van verzenden/ontvangen weergeven"
 #, fuzzy
 msgid "Show Sender Images"
 msgstr "Afbeeldingen van afzenders tonen"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Tasks Of"
+msgstr "Taken tonen van"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -12380,14 +12488,14 @@ msgstr "Deze konden niet worden verwijderd. Verwijder ze zelf:"
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
-msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt, en elke taak die u vanaf nu maakt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden ze bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12484,6 +12592,12 @@ msgstr "De favorieten van dit account komen uit Outlook en worden daar gewijzigd
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvangen meldt deze eerst aan."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -14668,6 +14782,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waarmee het is geopend: noem dat account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "een gedeeld postvak blijft onder het account waarmee het is geopend: verplaats dat account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14744,6 +14864,12 @@ msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door
 #, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een Exchange-serveraccount, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "een account kan niet vóór zichzelf worden gezet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -17582,6 +17708,18 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Dit account heeft geen contactpersonen"
+
+#, fuzzy
+#~ msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
+#~ msgstr "Deze taken bestaan alleen op deze computer. Kies het Microsoft-account waarvan To Do ze krijgt, en elke taak die u vanaf nu maakt. Totdat u kiest, blijven ze hier en wordt er niets van verzonden."
+
+#, fuzzy
+#~ msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+#~ msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
+
+#, fuzzy
 #~ msgid ""
 #~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 #~ "\n"
@@ -17650,4 +17788,14 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
+
+#, fuzzy
+#~ msgid ""
+#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+#~ msgstr ""
+#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
 

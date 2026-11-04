@@ -524,9 +524,10 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "Account"
-msgstr ""
+msgstr "Compte"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -642,6 +643,54 @@ msgstr "Ajouter une tâche"
 #, fuzzy
 msgid "Add a task due today"
 msgstr "Ajouter une tâche à échéance aujourd'hui"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer"
+msgstr "Ajouter une tâche à échéance aujourd'hui sur cet ordinateur"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today on this computer for now"
+msgstr "Ajouter une tâche à faire aujourd’hui sur cet ordinateur pour l’instant"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address}"
+msgstr "Ajouter une tâche à échéance aujourd'hui à {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task due today to {address} (it waits here until To Do is allowed)"
+msgstr "Ajouter une tâche à faire aujourd’hui à {address} (elle attend ici que To Do soit autorisé)"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer"
+msgstr "Ajouter une tâche sur cet ordinateur"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task on this computer for now"
+msgstr "Ajouter une tâche sur cet ordinateur pour l’instant"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address}"
+msgstr "Ajouter une tâche à {address}"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Add a task to {address} (it waits here until To Do is allowed)"
+msgstr "Ajouter une tâche à {address} (elle attend ici que To Do soit autorisé)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -790,6 +839,12 @@ msgstr "Toutes les catégories…"
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Toutes les boîtes aux lettres"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "All accounts"
+msgstr "Tous les comptes"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -3927,8 +3982,8 @@ msgstr ""
 "Propriétés\n"
 "du dossier"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Volet des dossiers"
@@ -4984,6 +5039,12 @@ msgstr "Elle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Elle s'y exécute que MailCraft soit ouvert ou non, et apparaît dans Outlook sur le web et sur votre téléphone."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It waits on this computer until To Do is allowed for this account"
+msgstr "Elle attend sur cet ordinateur que To Do soit autorisé pour ce compte"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -6225,11 +6286,23 @@ msgstr ""
 "Déplacer\n"
 "le dossier"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Déplacer le compte"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Tout déplacer et envoyer les invitations"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Descendre"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6254,6 +6327,12 @@ msgstr "Déplacer un élément périodique"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Déplacer la règle"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Monter"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6739,6 +6818,12 @@ msgstr "Aucune commande ne correspond."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Aucune tâche terminée pour l'instant."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Pas encore de contacts de ce compte"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -7233,10 +7318,16 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "Sur le serveur : ici, elle peut être activée ou désactivée, déplacée ou supprimée"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Sur cet ordinateur"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On this computer for now"
+msgstr "Sur cet ordinateur pour l’instant"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8186,6 +8277,12 @@ msgstr "Relire maintenant les favoris d'Outlook"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Lecture seule"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9820,6 +9917,12 @@ msgstr "Afficher comme"
 msgid "Show Calendar"
 msgstr "Afficher le calendrier"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Afficher les contacts de"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -9860,6 +9963,12 @@ msgstr "Afficher la progression d'Envoyer/Recevoir"
 #: crates/ui-egui/src/lib.rs
 msgid "Show Sender Images"
 msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Tasks Of"
+msgstr "Afficher les tâches de"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -11759,13 +11868,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Ces tâches n'existent que sur cet ordinateur. Choisissez le compte Microsoft dont To Do les recevra. Tant que vous n'avez pas choisi, elles restent ici et rien n'en est envoyé."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr ""
+#, fuzzy
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Ces tâches n'existent que sur cet ordinateur. Si vous les envoyez, elles seront synchronisées avec Microsoft To Do. Tant que vous ne le faites pas, elles restent ici et rien n'en est envoyé. Fichier › Informations le propose à nouveau."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11858,6 +11969,12 @@ msgstr "Les favoris de ce compte proviennent d'Outlook et se modifient là-bas (
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Le calendrier de ce compte ne peut pas encore être interrogé : Envoyer/Recevoir le connecte d'abord."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Le serveur de ce compte conserve ce contact. Les modifications faites ici ne sont pas encore renvoyées, il ne peut donc être ni modifié ni supprimé ici. Le favori et les catégories sont conservés sur cet ordinateur."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -13926,6 +14043,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "une boîte aux lettres partagée conserve hors connexion autant de courrier que le compte par lequel elle est ouverte : indiquez ce compte"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "une boîte aux lettres partagée reste sous le compte par lequel elle est ouverte : déplacez ce compte"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -13996,6 +14119,12 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "un compte ne peut pas être placé avant lui-même"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -16725,6 +16854,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Ce compte n'a aucun contact"
 
 #, fuzzy
 #~ msgid "Permanently Delete"

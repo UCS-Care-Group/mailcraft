@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-01 · **Change:** patch · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-02 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -65,9 +65,12 @@ WordCraft does.
 
 A pushed tag builds and signs only if its commit is on `main` and `ci-ok` passed on it: the first
 job of `release.yml` (`version`) checks both and every other job needs it, so a tag on a branch
-commit, or on a commit that CI never passed, stops before any signing secret is in reach. Tag
-the merge commit once CI on `main` is green (a documentation-only commit runs no `ci-ok` and
-can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
+commit, or on a commit that CI never passed, stops before any signing secret is in reach. The
+merge commit of a pull request that was up to date with `main` (as the release's own pull request
+is) can be tagged as soon as it is merged: it holds the very tree the pull request's `ci-ok`
+passed on, and that check stands for it, so the release doesn't wait for CI to run again on
+`main`. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
+no `ci-ok` and can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
 secret in the environment (`package.ps1 -BuildOnly`, `package.sh --build-only`) and sign in a
 later one (`-SkipBuild`, `--skip-build`); the job that signs the checksums builds `xtask` first
 and runs the finished binary with the key (`MAILCRAFT_XTASK`), so no build script or macro of a
@@ -293,6 +296,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | The merge commit of an up-to-date pull request is tagged at once, on its pull request's `ci-ok`, without waiting for CI on `main` |
 | 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
 | 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |
 | 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |

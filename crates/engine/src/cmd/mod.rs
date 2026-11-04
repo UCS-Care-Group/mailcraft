@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_order_tests;
+#[cfg(test)]
 mod agent_leaves_compose_tests;
 #[cfg(test)]
 mod agent_owners_message_tests;
@@ -110,6 +112,8 @@ pub mod tasks;
 pub mod tasks_remote;
 #[cfg(test)]
 mod tasks_remote_tests;
+#[cfg(test)]
+mod tasks_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;

@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
+use mailcraft_model::{AccountChoice, Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -307,6 +307,10 @@ pub struct ViewState {
     pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
     pub task_sort: TaskSort,
+    /// Whose tasks Tasks shows.
+    pub task_account: AccountChoice,
+    /// Whose contacts People shows.
+    pub people_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -333,6 +337,8 @@ impl Default for ViewState {
             people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
+            task_account: AccountChoice::All,
+            people_account: AccountChoice::All,
         }
     }
 }
@@ -2624,6 +2630,9 @@ impl Session {
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
         self.view.open.clear();
+        // An account's id means another account there, or none.
+        self.view.task_account = AccountChoice::All;
+        self.view.people_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2698,6 +2707,11 @@ impl Session {
             // is, and what is selected in it (#485).
             self.sel.messages_of(&cur.sel);
         }
+        // The contact selected again is shown in People's list (#631): a New Contact that moved
+        // the list to this computer, undone, has it back on the account it showed.
+        if let Some(contact) = self.sel.contact {
+            crate::cmd::people::reveal(self, contact);
+        }
         self.normalize();
         cur
     }
@@ -2735,6 +2749,19 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
+    /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
+    /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
+    /// and compares the message ids after: a key difference with the step's mailbox alone is not
+    /// enough, since the merge keeps mail that came down since and can drop one that both have.
+    /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
+    /// not yet made on the server is dropped, so that asks (fails closed).
+    pub fn undo_takes_mail(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
@@ -2756,6 +2783,10 @@ impl Session {
         if crate::agent::changes_shared_tasks(now, to) {
             return Some(Class::Send);
         }
+        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
+        if crate::agent::places_tasks(now, to) {
+            return Some(Class::Send);
+        }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
         let category_gone =
             |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
@@ -2765,7 +2796,7 @@ impl Session {
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
             || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() {
+        if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {

@@ -456,7 +456,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "Account"
 msgstr ""
 
@@ -552,6 +552,46 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "Add a task due today"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today on this computer for now"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today to {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task due today to {address} (it waits here until To Do is allowed)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task on this computer for now"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task to {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr ""
 
 #. interface
@@ -679,6 +719,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "All Mailboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+msgid "All accounts"
 msgstr ""
 
 #. interface, what a command says
@@ -3408,8 +3453,8 @@ msgid ""
 "Properties"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -4335,6 +4380,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It waits on this computer until To Do is allowed for this account"
 msgstr ""
 
 #. command label, ribbon
@@ -5408,9 +5458,19 @@ msgid ""
 "Folder"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Move Account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Move All and Send Invitations"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Down"
 msgstr ""
 
 #. command label
@@ -5431,6 +5491,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/rules.rs
 msgid "Move Rule"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Up"
 msgstr ""
 
 #. interface
@@ -5832,6 +5897,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "No completed tasks yet."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "No contacts from this account yet"
 msgstr ""
 
 #. interface
@@ -6260,8 +6330,13 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 msgid "On this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "On this computer for now"
 msgstr ""
 
 #. interface
@@ -7098,6 +7173,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Read-only"
 msgstr ""
 
 #. ribbon
@@ -8504,6 +8584,11 @@ msgstr ""
 msgid "Show Calendar"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contacts Of"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show Contributors"
@@ -8537,6 +8622,11 @@ msgstr ""
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Show Sender Images"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Tasks Of"
 msgstr ""
 
 #. command label
@@ -10231,12 +10321,12 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
-msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
 msgstr ""
 
 #. interface
@@ -10317,6 +10407,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr ""
 
 #. interface
@@ -12117,6 +12212,11 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr ""
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
 msgstr ""
@@ -12179,6 +12279,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an account can't be put before itself"
 msgstr ""
 
 #. what a command says
