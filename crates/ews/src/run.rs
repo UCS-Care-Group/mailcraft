@@ -30,13 +30,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, GraphFetchResult, GraphFetched, GraphProgress,
+    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, GraphFetchResult, GraphFetched, GraphFolder,
+    GraphProgress,
 };
 
 use crate::client::Client;
 use crate::error::{Error, ResponseCode};
-use crate::folder::{DistinguishedFolder, GetFolder};
-use crate::hierarchy::SyncFolderHierarchy;
+use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
+use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
 use crate::items::{GetItemMime, Shape, SyncFolderItems};
 use crate::reply::Reply;
@@ -188,14 +189,17 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 }
 
-/// The distinguished folders a run asks the ids of, with the kind each is.
-const KNOWN: [(DistinguishedFolder, Option<FolderKind>); 6] = [
+/// The distinguished folders a run asks the ids of, with the kind each is. The server's Outbox is
+/// no kind of MailCraft's (AU2-V2: mail goes from MailCraft's own Outbox): it is asked for to be
+/// left out of the folder list while it is empty ([`server_outbox`]).
+const KNOWN: [(DistinguishedFolder, Option<FolderKind>); 7] = [
     (DistinguishedFolder::MessageRoot, None),
     (DistinguishedFolder::Inbox, Some(FolderKind::Inbox)),
     (DistinguishedFolder::Drafts, Some(FolderKind::Drafts)),
     (DistinguishedFolder::SentItems, Some(FolderKind::Sent)),
     (DistinguishedFolder::DeletedItems, Some(FolderKind::Deleted)),
     (DistinguishedFolder::JunkEmail, Some(FolderKind::Junk)),
+    (DistinguishedFolder::Outbox, None),
 ];
 
 /// What the server calls its special folders.
@@ -204,6 +208,39 @@ struct Specials {
     root: Option<String>,
     inbox: Option<String>,
     kinds: HashMap<String, FolderKind>,
+    /// The server's Outbox, as it is now.
+    outbox: Option<FolderInfo>,
+}
+
+/// The server's Outbox is left out of the folder list while it holds nothing and has no folder in
+/// it, as an Exchange mailbox's is over IMAP and a Microsoft account's (#743), so that the account
+/// shows one Outbox, MailCraft's own, not two (#747). A list that had it loses it (its id is among
+/// the deleted). While it holds mail it is listed like any other folder, so nothing is hidden: a
+/// delta that doesn't bring it has it as the server says it is now, at the top of the mail, where
+/// every server keeps it. Never sent from, either way. The id it left out, if it did.
+fn server_outbox(deltas: &mut EwsFolderDeltas, specials: &Specials) -> Option<String> {
+    let outbox = specials.outbox.as_ref()?;
+    let id = outbox.id.as_str();
+    if outbox.total_count == Some(0) && outbox.child_folder_count == Some(0) {
+        deltas.changed.retain(|f| f.id != id);
+        if !deltas.deleted.iter().any(|have| have == id) {
+            deltas.deleted.push(id.to_owned());
+        }
+        return Some(id.to_owned());
+    }
+    let name: String = outbox.display_name.chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();
+    if !name.is_empty() && !deltas.changed.iter().any(|f| f.id == id) {
+        deltas.changed.push(GraphFolder {
+            id: id.to_owned(),
+            name,
+            kind: FolderKind::Custom,
+            total: outbox.total_count.unwrap_or(0),
+            unread: outbox.unread_count.unwrap_or(0),
+            counted: outbox.total_count.is_some() && outbox.unread_count.is_some(),
+            ..GraphFolder::default()
+        });
+    }
+    None
 }
 
 impl<E: HttpExchange> Run<'_, E> {
@@ -216,6 +253,7 @@ impl<E: HttpExchange> Run<'_, E> {
             let id = info.id.as_str().to_owned();
             match (folder, kind) {
                 (DistinguishedFolder::MessageRoot, _) => out.root = Some(id),
+                (DistinguishedFolder::Outbox, _) => out.outbox = Some(info),
                 (DistinguishedFolder::Inbox, Some(kind)) => {
                     out.inbox = Some(id.clone());
                     out.kinds.insert(id, *kind);
@@ -323,8 +361,10 @@ impl<E: HttpExchange> Run<'_, E> {
             out.line("Couldn't find the Inbox on the server");
         }
         let mut order: Vec<String> = Vec::new();
+        // (The server's Outbox, when the list leaves it out: there is nothing in it to read.)
+        let mut left_out: Option<String> = None;
         if request.list_folders && !request.inbox_pass {
-            let (deltas, state) = match self.folders(&request.hierarchy, &specials).await {
+            let (mut deltas, state) = match self.folders(&request.hierarchy, &specials).await {
                 Ok(found) => found,
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
                 Err(_) => {
@@ -333,13 +373,14 @@ impl<E: HttpExchange> Run<'_, E> {
                     return Ok(());
                 }
             };
+            left_out = server_outbox(&mut deltas, &specials);
             order.extend(deltas.changed.iter().map(|f| f.id.clone()));
             emit(EwsMailResult { folders: Some(deltas), hierarchy: state, partial: true, ..base(request) });
         }
         // Which folders are read, in which order.
         let mut read: Vec<String> = Vec::new();
         let put = |id: &str, read: &mut Vec<String>| {
-            if !id.is_empty() && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
+            if !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
                 read.push(id.to_owned());
             }
         };
