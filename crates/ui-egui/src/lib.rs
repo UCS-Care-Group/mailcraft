@@ -4840,6 +4840,35 @@ pub fn damaged_mailbox_notice() -> String {
     tl!("Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved.").to_string()
 }
 
+/// What the owner is told of the messages a mailbox just opened marked to be fetched again
+/// (`mailcraft_engine::cmd::file::after_opening`): those kept with characters that couldn't be
+/// read (#185, #650), and those an earlier version put back empty after a refused delete for
+/// good (#793). Nothing for none.
+pub fn fetched_again_notices(unreadable: usize, hollow: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    if unreadable > 0 {
+        out.push(
+            tln!(
+                unreadable,
+                "{n} message with characters that couldn't be read is being downloaded again.",
+                "{n} messages with characters that couldn't be read are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    if hollow > 0 {
+        out.push(
+            tln!(
+                hollow,
+                "{n} message that came back empty after a refused delete is being downloaded again.",
+                "{n} messages that came back empty after a refused delete are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    out
+}
+
 /// What the status bar says after a command the user ran, when it is worth saying.
 /// The window's input this frame came from the owner's hand: a press or a release of the pointer,
 /// or a key going down (#152). Moving the pointer about isn't doing anything.

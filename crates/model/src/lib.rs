@@ -60,7 +60,7 @@ pub use mailbox::{
 pub use mailcraft_time as time;
 pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
