@@ -2144,8 +2144,9 @@ fn main() -> eframe::Result {
                 // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only
                 // for a mailbox kept in a file, which is where the copy from before the switch goes.
                 app.offer_graph_switch = kept && !sample;
-                if let Some(ui) = prefs {
-                    app.apply_prefs(ui);
+                match prefs {
+                    Some(ui) => app.apply_prefs(ui),
+                    None => app.fresh_prefs(),
                 }
                 app.settings_unread = settings_unread;
                 app.ui.window = restored;
