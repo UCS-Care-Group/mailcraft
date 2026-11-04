@@ -76,34 +76,104 @@ this code base.
 | 2026-11-02 | patch | Correct punctuation in the DAV foundation note |
 | 2026-11-01 | minor | #376: DAV model/document foundation; server discovery and sync remain unavailable |
 | 2026-11-01 | minor | Gap 2: a draft saved by itself every five minutes (#286) stays in Drafts here for an IMAP account, as Save Draft's does |
-| 2026-10-11 | major | First version |
-| 2026-10-12 | minor | Rough edges: what is and isn't proven of calendar changes reaching the server |
-| 2026-10-12 | major | Gap 9 rewritten after the calendar's second and third waves (meetings, invitations in mail, the Scheduling Assistant); rough edges updated |
-| 2026-10-12 | major | Gaps 1, 5, 6, 9 and 18 rewritten after a day on a real Microsoft 365 mailbox, calendar write-back, pictures on request and the first installer builds; rough edges updated |
-| 2026-10-12 | major | Gap 10 rewritten after time zones (M3.5): a zone database, every stored time a moment, zones of an item's own, the calendar's zone and a second one, a computer that travels; gaps 5 and 9 no longer count time zones as missing |
-| 2026-10-13 | minor | Rough edges: Outlook's Favorites are read from the server for Microsoft accounts (M4.2), and what is not proven of that |
-| 2026-10-13 | minor | Rough edges: the choice between Microsoft Graph and Exchange Web Services for Outlook's Favorites (M4.3), and what is not proven of the second |
-| 2026-10-13 | minor | Rough edges: an organisation that has to approve MailCraft first (M4.4): what the wizard says and does, and what of it is not proven |
-| 2026-10-14 | minor | Gap 6: the pictures' cache on disk exists; gap 18: four releases are published, unsigned; rough edges: a mailbox numbered anew; the roadmap reset leads |
-| 2026-10-15 | minor | Gap 4: sign-ins remembered on Linux and FreeBSD through the Secret Service (R5); what is left is seeing it across a restart on GNOME and KDE |
-| 2026-10-15 | minor | Rough edges: Exchange Web Services removed (R2); Outlook's Favorites are read through Microsoft Graph alone |
-| 2026-10-15 | minor | Gap 7: the message being written is rich text underneath, with its own undo and the formatting commands (R4.1), sent as HTML with a plain-text part, and pasted HTML reduced to the set (R4.4); a reply's HTML original carried below as it came (R4.3) |
-| 2026-10-15 | minor | Gap 7: the rich-text editor (R4.2): the owner's text is written as it will look, with the formatting keys in the body only, and the carried original is shown as the reading pane shows it |
-| 2026-10-15 | minor | Gap 2 and rough edges: behind the switch for testing, a Microsoft account's folders are kept in step through Microsoft Graph by server id (R3.1); `Mail.ReadWrite` is asked for that account only |
-| 2026-10-15 | minor | Gap 2 and rough edges: behind the switch for testing, a Microsoft account's mail comes down through Graph (R3.2) and the changes of its messages go up (R3.3.2); what is not proven of them |
-| 2026-10-15 | minor | Rough edges: a delete for good the server refuses is put back at once (R3.3 follow-up) |
-| 2026-10-15 | minor | Gap 8: the index is no longer rewritten whole on each save (format 3, a log of records, R6); what is left is holding everything in memory (R6.1) |
-| 2026-10-16 | minor | Gap 2 and rough edges: undo of a change that reached a Microsoft account's server is sent as the reverse (R3.5) |
-| 2026-10-16 | minor | Rough edges: mail imported for a Microsoft account goes to a local folder, and received mail in a local folder never goes into one (R3.6) |
-| 2026-10-16 | minor | Gap 18 and rough edges: a new version is told of when the owner wants that, and never installed (R7.3) |
-| 2026-10-16 | minor | Gap 2 and rough edges: the switch from IMAP to Graph (R3.7); no switch for testing |
-| 2026-10-17 | minor | Gap 8: attachments and older bodies stay on disk and are read when wanted, within a bounded budget (R6.1); after review, Undo after a sweep, a search past the budget and a rule that reads the body find what is on disk, and bringing content in is no change to undo or save; Graph sends and draft uploads read what is kept on disk |
-| 2026-10-17 | minor | Gap 8: the window never waits for a save (R6.3): the first save after a large download is written in the background with progress, and closing, File › New and File › Open wait for it without holding the window |
-| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: read through Graph, searched with All Mailboxes, counted on their own, and their folders among the Favorites (#70) |
-| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: read marks, flags, categories, folders, moves and copies within them, delete (to their own Deleted Items) and delete for good go up to their own address, and undo with them; a refusal leaves the change waiting, counted and said; moves and copies between mailboxes are refused with the reason (#70) |
-| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: mail written in one is from its address, its drafts are kept in its own Drafts, and it is sent through its own address (the copy in its Sent Items); `Mail.Send.Shared` is asked for at the first send, by itself; a refusal holds the message with why, never sending it from another address (#70) |
-| 2026-10-17 | minor | Rough edges: search finds only what is on this computer; Graph's own search could find the rest for an account kept in step through Graph |
-| 2026-10-17 | minor | Gap 1: no CI job against a mail server in a container; gap 17: delayed delivery with undo send and an outbox, Snooze, Sweep, conversation clean-up, unsubscribe, `winmail.dat`, sender warnings and Report Phishing, Focused Inbox, server rules, the directory and To Do named |
+| 2026-11-01 | minor | Gap 8: a frame of the window over 326,000 messages takes under 1 ms, was 59 ms (107 ms with a message open); the list is built from the folder's own messages; the frame after a change is 50–90 ms, was 100–130 |
+| 2026-11-01 | minor | Gap 17: colour schemes of the owner's own, not yet (four accents and high contrast are there) |
+| 2026-11-01 | minor | #252: gap 5: Exchange server accounts are on for everyone, for mail; the testing switch is gone |
+| 2026-10-31 | patch | Gap 18: the count of published releases brought up to date |
+| 2026-10-31 | minor | Gap 7: Find and Replace in the message being written |
+| 2026-10-31 | minor | Gap 7: Text Highlight Color, Format Painter and Insert › Symbol |
+| 2026-10-31 | patch | Gap 17: 101 catalog features lack a command after parity B1 (Work Offline, Cancel All, Help's pages) |
+| 2026-10-31 | patch | Gap 17: read receipts are asked for (Request a Read Receipt); five catalog rows marked out of scope |
+| 2026-10-31 | minor | Gap 17: Automatic Replies for Microsoft accounts (File › Info, read and changed through Graph); other servers wait for Sieve |
+| 2026-10-31 | patch | Gap 8: Undo and Redo of a command that brought a body in from disk keep the body for a Microsoft or Exchange account (#688) |
+| 2026-10-31 | patch | #633: rough edges: what an account's list of categories is made from |
+| 2026-10-30 | minor | #252 E8: gap 5: Exchange server accounts tried against Grommunio with made-up mail; what works and what does not is in exchange-servers.md |
+| 2026-10-30 | minor | #252 E8: gap 5: on Grommunio a sent draft is filed in Sent Items and taken out of Drafts, an Exchange account's Archive is made on the server when mail is put in it, and folders of other kinds are no longer taken for mail |
+| 2026-10-30 | patch | #252 E8 review: gap 5: an Exchange draft whose make was lost is found by its marker and taken away after its message is sent |
+| 2026-10-30 | minor | #650: gap 13: IMAP mail kept with � before #178 is downloaded again once, by UID, and read properly |
+| 2026-10-30 | patch | #649: rough edges: Mail to keep offline: IMAP's mailbox file size until slice 2; the sizes of mailbox file opened, and no save writes one open refuses |
+| 2026-10-30 | patch | #649: rough edges: Mail to keep offline: a one-file mailbox of any size opens, read as a stream with its content going to the content folder as it is read |
+| 2026-10-30 | minor | #451 follow-up: rough edges: mail held in an IMAP account's Outbox moves or is copied into another account; what no server has comes back into its Outbox held when refused |
+| 2026-10-30 | minor | #633: rough edges: each Microsoft account's own list of categories, read and not written yet (#661) |
+| 2026-10-29 | minor | Gap 14: Dutch as a preview language; Automatic follows `nl-NL`; incoming `Antw:` and `Doorst:` thread |
+| 2026-10-29 | minor | #599: gap 6: `@media` is read for the body's width and the theme (a sender's dark palette is used in a dark window); what the sender hid is not shown or quoted but is in search, rules and what agents read |
+| 2026-10-29 | patch | #599 review: gap 6: `@media` follows the body's exact width, not a class; a sender's dark palette needs a dark rule that gives colours to something shown |
+| 2026-10-29 | minor | #252: gap 5: Exchange server accounts, first step: the kind of account and its settings, behind `MAILCRAFT_EWS=1`; nothing connects yet |
+| 2026-10-29 | minor | #252 E3: gap 5: Autodiscover, Basic sign-in and certificate trust by fingerprint are built and tested; nothing drives them yet |
+| 2026-10-29 | minor | #252 E5: gap 5: an Exchange server account's changes, drafts and sent mail go up, and NTLM is driven by the desktop runner, behind `MAILCRAFT_EWS=1`; mail moved between accounts, calendar and contacts are not built |
+| 2026-10-29 | minor | #252 E4: gap 5: an Exchange server account's mail comes down (folders, headers, whole messages), behind `MAILCRAFT_EWS=1`; nothing goes up yet |
+| 2026-10-29 | patch | #252 E4 review: gap 5: an Exchange run never moves a folder past a change it could not take in; a password is for one address, server and user name |
+| 2026-10-29 | patch | #252 E4 second review: gap 5: an Exchange folder that holds a change that can not be taken in is named (as the owner knows it) in Send/Receive and File › Info, and blocks only itself |
+| 2026-10-29 | patch | #252 E3 review: gap 5: Autodiscover sends the sign-in only in answer to a Basic challenge; Microsoft's own mail is never asked |
+| 2026-10-29 | minor | #252 E6: gap 5: NTLMv2 sign-in and the choice of NTLM or Basic are built and tested against a server that ties the sign-in to the connection; nothing drives them yet |
+| 2026-10-29 | minor | #252 E7: gap 5: Add Account has an Exchange server choice (behind `MAILCRAFT_EWS=1`): Server settings, the owner's say before a sign-in goes to another host, the certificate question, a Microsoft 365 mailbox offered as a Microsoft account, the password remembered; File › Info shows the server, user name, sign-in and trusted certificate with Forget |
+| 2026-10-29 | minor | #566 part 1: gap 17: a Microsoft account's rules kept on its server; the rest of Outlook's conditions, exceptions and actions, changing a rule there, forwarding, a shared mailbox's rules and Sieve left |
+| 2026-10-28 | minor | #596: gap 6: where a cell sits in its row, and the gaps between cells, as the message gives them |
+| 2026-10-28 | minor | Gap 12: exporting to `.pst` added, under consideration |
+| 2026-10-28 | minor | Moving mail out of an IMAP account leaves its original on the server (#578, #561) |
+| 2026-10-28 | minor | Gap 5: JMAP accounts read in the browser build (M6, #226) |
+| 2026-10-28 | minor | #451 rough edges: the copy on an IMAP server carries MailCraft's marker (`X-MailCraft-Place`), and only a message carrying it is taken for the copy, found by its Message-ID or by the marker when the server doesn't say where it went, and a copy already there isn't made twice; no Bcc in the copy, Microsoft's too; a lost answer to a removal keeps the message in Imported; no mail from another mailbox into an Outbox; removing the account mail was moved into, on this computer too; a folder deleted for good with mail moved into it; a look for a copy cut off by the server is said; a copy left behind by a lost answer and a move on; Undo while the original goes keeps the message in Imported; nothing back into an Outbox (#607); with #607's hold merged, an IMAP account's Outbox holds mail from another mailbox and only a Microsoft account's refuses it; no Resent-Bcc in a copy; 64 bits of the marker nobody can work out; rules into another account; an agent asked before mail goes onto another server, and wrong ids refused; #578's entry is gone, folded into #451's: a move out of an IMAP account, by the owner or a rule, removes the original once the copy is safe |
+| 2026-10-28 | minor | #451: a Microsoft message not downloaded yet moves into an IMAP account and goes there once downloaded, a rule's too; what can't go onto another server, said exactly; a copy the server didn't place is known by its marker alone; an agent asked before a rule puts mail on another server; a homeless message goes into its own account's Inbox; 200 messages and 64 MB a run; Undo isn't offered once the copy is on an IMAP server |
+| 2026-10-28 | minor | Gap 6: a message's `<style>` blocks are read for the same facts as a `style` attribute (selectors, specificity, order, `!important`), so classes style text and what a rule hides is not shown; `@media`, fonts and background pictures still to come (#598) |
+| 2026-10-28 | minor | #597: gap 6: `display: inline-block` is laid out as boxes on a line that wrap, where what holds them holds nothing else; a picture in a line of text wraps with it |
+| 2026-10-28 | patch | #614: rough edges: an HTML signature is shown in the message being written as it goes out |
+| 2026-10-27 | minor | #547: gap 7: pictures in the message being written |
+| 2026-10-27 | minor | #516: gap 17: Safe and Blocked Senders are per account; keeping them on the server named as blocked on Graph |
+| 2026-10-27 | minor | #519 slice 2: gap 8: a large mailbox opens faster; measured on a made-up 64,000-message mailbox |
+| 2026-10-27 | patch | #519 slice 2 review: gap 8: the bodies the budget holds come in the background |
+| 2026-10-26 | minor | #217, #452: system fonts fill in the scripts the bundled ones lack (gap 13 notes it); right-to-left layout stays open in gap 6 |
+| 2026-10-26 | minor | #493: search Subfolders and Current Mailbox beside Current Folder and All Mailboxes (rough edges) |
+| 2026-10-26 | minor | #451: mail moves and copies between accounts (IMAP, Microsoft, this computer), made on the destination's server (between servers) or kept in the mailbox file (onto this computer), and the original removed once the copy is there (gap 2, rough edges) |
+| 2026-10-26 | minor | #508: sender warnings when reading (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External); send warnings and Report Phishing stay among the smaller things (17) |
+| 2026-10-26 | minor | #493 follow-up: the limit of Subfolders' More results on the server |
+| 2026-10-26 | minor | #360: forwarding several messages at once, as attachments, leaves the smaller things (17); row 17, which was there twice, is one row |
+| 2026-10-26 | minor | #521: Find a Time and Action Shortcuts named as MailCraft names them (gaps 5, 9, 17); gap 5 says Find a Time over several days is missing; gap 17 catalog figures brought up to date (118 of 315 lack a command) |
+| 2026-10-26 | minor | Gap 6: pictures written into a message (`data:`) are shown (#533); a reply or forward doesn't carry them yet |
+| 2026-10-26 | minor | #504: gap 17: Safe and Blocked Senders lists are there; what is left of Junk E-mail Options named; 118 of 319 catalog features lack a command |
+| 2026-10-26 | minor | R7.3: macOS self-update is off until the app is notarized (#497) |
+| 2026-10-26 | minor | #505: one MailCraft at a time, offered as the system's mail program on Windows and Linux; macOS `mailto:` stays open (18) |
+| 2026-10-26 | patch | #519: the opening screen in the browser build (rough edges) |
+| 2026-10-25 | minor | #248: tasks of a Microsoft account kept in step with Microsoft To Do (gap 17) |
+| 2026-10-25 | minor | Gap 3 wipe: credential-store entries noted by name and all removed; failures listed (AU2-18) |
+| 2026-10-25 | minor | #276: an Inbox known but never read has an Inbox pass, before the folders are listed |
+| 2026-10-25 | minor | Security run 2, batch P3: a cancellation is removed from the calendar only for its organizer or the keeping account (gap 9); imports and vouching tightened |
+| 2026-10-25 | minor | Search: the box suggests people after `from:`, `to:` and `cc:`, from the contacts and the mail on this computer; a new message's and a meeting's recipient lines ask for people only when what is typed or the mailbox changes, and Shift+Tab in their lists goes back (#308) |
+| 2026-10-25 | minor | Rough edges: an HTML signature is a simpler copy in the composer and has no pictures of its own |
+| 2026-10-25 | minor | #350: links are read by `crates/link`, no `url` or `webbrowser` crate; no gap changes |
+| 2026-10-25 | patch | #402: POP is "not yet" (tracked in #437), and Add Account says so before connecting instead of showing a TLS error |
+| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once (gap 12 notes it) |
+| 2026-10-25 | minor | #315: Forward as Attachment of one message; forwarding several at once stays among the smaller things (17) |
+| 2026-10-25 | patch | #325: removing an account, or closing a shared mailbox, takes what came from its server and is kept in the mailbox file (events, contacts and calendars, Outlook's list of categories) whoever removes it; the working hours and the remembered sign-in, with its name in `ui.json`, only when the window removes it; the word index drops mail removed elsewhere when the window opens the mailbox; the copies of the mailbox kept aside are listed |
+| 2026-10-24 | minor | #70 calendars 5: an appointment moves between the owner's calendar and a shared mailbox's or an opened one, copy first |
+| 2026-10-24 | minor | #70 calendars 4: calendars opened by address, one permission and one free/busy path with the shared mailboxes' calendars |
+| 2026-10-24 | minor | Gap 17: rules, forwarding and automatic replies kept on the server, through Graph for Microsoft accounts and Sieve (ManageSieve, JMAP) elsewhere |
+| 2026-10-22 | minor | #276: Send/Receive passes over the owner's folders whose counts are unchanged and caught up; a full sweep at the first run and hourly; empty pages not applied; the folders-skipped count is real |
+| 2026-10-22 | minor | #276: Graph requests go on connections kept open, done |
+| 2026-10-22 | minor | #276: the folder listing asks for twenty folders' subfolders in one `$batch`, a level of the tree at a time |
+| 2026-10-22 | patch | #306: a Graph Send/Receive whose sign-in runs out part-way renews it once and goes on; one within five minutes of running out is renewed before a job |
+| 2026-10-22 | minor | #276: the Inbox of every Graph account is checked by itself every minute between rounds, quietly |
+| 2026-10-22 | patch | #305: a Graph Send/Receive whose folder listing is cut short removes no message marked gone; a run with the whole listing finds it in its new folder or removes it |
+| 2026-10-22 | minor | Search: `from:`, `to:` and `cc:` with a whole address find that address alone, a plus-address or a quoted name too, and a plus-address goes to Graph whole (#301); a domain in `xn--` form and in its own letters don't match each other |
+| 2026-10-21 | minor | #177 review: nothing writes after the removal starts, the mailbox goes before its content, Undo dropped by the engine, the report says what is left; #177: removing an account wipes its content files; File › Info › Remove MailCraft's data from this computer; rough edges: what it leaves |
+| 2026-10-21 | minor | #276: a Send/Receive starts with an Inbox pass for every Graph account, timed as the Inbox phase |
+| 2026-10-21 | minor | #276: a Microsoft account's calendar and contacts come in a job after the Send/Receive round, not inside it, so they never hold up another account's mail |
+| 2026-10-21 | minor | #276: Send/Receive Progress says how long each account and phase took; Copy Diagnostics adds time, requests and folders skipped per account |
+| 2026-10-21 | minor | Gap 6: `width` in a table's or cell's style, `max-width` and centring by `margin: auto` are read from a message's inline style (#150); padding, `vertical-align` and `inline-block` stay with #71 |
+| 2026-10-21 | minor | Gap 6: padding, margins with real sizes, lines of three styles with a colour per side, rounded corners and a line height are read from a message's inline style, all clamped (#71); `vertical-align` and `inline-block` stay unread |
+| 2026-10-20 | minor | Gap 5 and rough edges: shared mailboxes out of testing (no switch); what is still missing of them (#70) |
+| 2026-10-20 | minor | Gap 5 and rough edges: mail moves and copies between a shared mailbox and its owner's mailbox (or two of his shared mailboxes), the copy made at the destination's own address and the original removed only once the copy is there; what differs from a move within one mailbox (#70) |
+| 2026-10-20 | patch | Gap 9 brought in line with the code and `calendar-parity.md`: Propose New Time, forwarding a meeting, Teams meetings and response options are done; gap 17: 122 of 311 catalog features lack a command |
+| 2026-10-20 | minor | R8.3: one of two roadmap documents with `ROADMAP.md`; what was current of `docs/target-app-parity.md` (the assessment by area, how the numbers are estimated) and `docs/roadmap.md` (the milestones) folded into `ROADMAP.md`, both gone; the last column of gaps 1, 2, 3, 5, 9 and 16 points at `ROADMAP.md` or `calendar-parity.md`; gap 1 names no other mail server program |
+| 2026-10-20 | minor | Gap 14: what commands say is a template with values, said in the window in the interface language; Send/Receive's progress, sizes, a reply's quoted headers and a meeting answer too; French reply prefixes thread, i18n-4 |
+| 2026-10-20 | minor | Gap 14: dates and times in the interface language (names, patterns, the clock, lengths of time); a clock and a first day of the week the owner never chose follow the language, i18n-3 |
+| 2026-10-20 | minor | Gap 14: interface text in a crate of its own (`crates/i18n`) with a `.po` reader, plural rules, the Language choice in File › Options and `cargo xtask i18n`; no catalogue but English yet, i18n-1 |
+| 2026-10-20 | minor | Gap 14: a sentence built from parts is one text with named places (`{address}`, `{error}`) a translation can move; Inbox, Sent Items and the other standard folders, and Imported, named in the interface language wherever the window shows a folder, while what is kept and what the server calls them never change, i18n-5 |
+| 2026-10-20 | minor | Gap 14: French, German, Spanish and Italian as preview languages, every text of the template translated and marked as not yet reviewed by a native speaker; Automatic picks them for any country's variant; incoming `AW:`, `WG:`, `RV:`, `R:`, `I:` thread; how to add or review a language in `translating.md`, i18n-2 |
+| 2026-10-19 | minor | Gap 17: Safe and Blocked Senders lists, @mentions, contacts to and from Outlook's CSV |
+| 2026-10-19 | minor | Rough edges: File › Options is one long page and will need sections as it grows |
+| 2026-10-19 | minor | Gap 7: a reply or forward carries the original's look (layout, inline styles, pictures) and nothing in it that runs, embeds or tracks: no scripts, style sheets, frames, forms, hidden text or tracking pixels go to the recipients (R1) |
+| 2026-10-19 | minor | Gap 11: desktop alerts for each reminder as it falls due and for new mail in an Inbox of the owner's own accounts while the window isn't in front, through the system's notifications on Linux and the BSDs, Windows and macOS, switched in File › Options (R7.1); what remains is anything while the program is closed |
+| 2026-10-19 | patch | Gap 17: catalog figures brought up to date (124 of 311 lack a command) |
 | 2026-10-18 | minor | Gap 8: R6.2's measurement repeated on a quiet machine (search 150–188 ms) |
 | 2026-10-18 | minor | Gap 8: R6.2 measured at 200,000 messages (search 155–173 ms, peak 849 MB) |
 | 2026-10-18 | minor | Rough edges: no POP |
@@ -121,101 +191,31 @@ this code base.
 | 2026-10-18 | minor | Gap 18 and rough edges: a copy that updates itself installs a new version at Restart to update or at quit, keeps the one it replaced and offers to go back to it after two failed starts; the mailbox file kept before a newer format |
 | 2026-10-18 | minor | Rough edges: Mail to keep offline for Microsoft accounts; IMAP keeps its per-folder count until slice 2; gap 8: a 1-month window measured at 200,000 messages (4.9 GB on disk to 184 MB), #143 |
 | 2026-10-18 | minor | Gap 18 and rough edges: MailCraft's own release signature (`SHA256SUMS.txt.sig`); a copy from the `.msi`, the macOS app or an AppImage downloads a newer release and checks it, Install updates automatically and the organisation's off-switch; nothing installed yet, nothing downloaded until the release keys are set |
-| 2026-10-19 | minor | Gap 17: Safe and Blocked Senders lists, @mentions, contacts to and from Outlook's CSV |
-| 2026-10-19 | minor | Rough edges: File › Options is one long page and will need sections as it grows |
-| 2026-10-19 | minor | Gap 7: a reply or forward carries the original's look (layout, inline styles, pictures) and nothing in it that runs, embeds or tracks: no scripts, style sheets, frames, forms, hidden text or tracking pixels go to the recipients (R1) |
-| 2026-10-19 | minor | Gap 11: desktop alerts for each reminder as it falls due and for new mail in an Inbox of the owner's own accounts while the window isn't in front, through the system's notifications on Linux and the BSDs, Windows and macOS, switched in File › Options (R7.1); what remains is anything while the program is closed |
-| 2026-10-19 | patch | Gap 17: catalog figures brought up to date (124 of 311 lack a command) |
-| 2026-10-20 | minor | Gap 5 and rough edges: shared mailboxes out of testing (no switch); what is still missing of them (#70) |
-| 2026-10-20 | minor | Gap 5 and rough edges: mail moves and copies between a shared mailbox and its owner's mailbox (or two of his shared mailboxes), the copy made at the destination's own address and the original removed only once the copy is there; what differs from a move within one mailbox (#70) |
-| 2026-10-20 | patch | Gap 9 brought in line with the code and `calendar-parity.md`: Propose New Time, forwarding a meeting, Teams meetings and response options are done; gap 17: 122 of 311 catalog features lack a command |
-| 2026-10-20 | minor | R8.3: one of two roadmap documents with `ROADMAP.md`; what was current of `docs/target-app-parity.md` (the assessment by area, how the numbers are estimated) and `docs/roadmap.md` (the milestones) folded into `ROADMAP.md`, both gone; the last column of gaps 1, 2, 3, 5, 9 and 16 points at `ROADMAP.md` or `calendar-parity.md`; gap 1 names no other mail server program |
-| 2026-10-20 | minor | Gap 14: what commands say is a template with values, said in the window in the interface language; Send/Receive's progress, sizes, a reply's quoted headers and a meeting answer too; French reply prefixes thread, i18n-4 |
-| 2026-10-20 | minor | Gap 14: dates and times in the interface language (names, patterns, the clock, lengths of time); a clock and a first day of the week the owner never chose follow the language, i18n-3 |
-| 2026-10-20 | minor | Gap 14: interface text in a crate of its own (`crates/i18n`) with a `.po` reader, plural rules, the Language choice in File › Options and `cargo xtask i18n`; no catalogue but English yet, i18n-1 |
-| 2026-10-20 | minor | Gap 14: a sentence built from parts is one text with named places (`{address}`, `{error}`) a translation can move; Inbox, Sent Items and the other standard folders, and Imported, named in the interface language wherever the window shows a folder, while what is kept and what the server calls them never change, i18n-5 |
-| 2026-10-20 | minor | Gap 14: French, German, Spanish and Italian as preview languages, every text of the template translated and marked as not yet reviewed by a native speaker; Automatic picks them for any country's variant; incoming `AW:`, `WG:`, `RV:`, `R:`, `I:` thread; how to add or review a language in `translating.md`, i18n-2 |
-| 2026-10-25 | minor | #248: tasks of a Microsoft account kept in step with Microsoft To Do (gap 17) |
-| 2026-10-25 | minor | Gap 3 wipe: credential-store entries noted by name and all removed; failures listed (AU2-18) |
-| 2026-10-21 | minor | #177 review: nothing writes after the removal starts, the mailbox goes before its content, Undo dropped by the engine, the report says what is left; #177: removing an account wipes its content files; File › Info › Remove MailCraft's data from this computer; rough edges: what it leaves |
-| 2026-10-21 | minor | #276: a Send/Receive starts with an Inbox pass for every Graph account, timed as the Inbox phase |
-| 2026-10-21 | minor | #276: a Microsoft account's calendar and contacts come in a job after the Send/Receive round, not inside it, so they never hold up another account's mail |
-| 2026-10-21 | minor | #276: Send/Receive Progress says how long each account and phase took; Copy Diagnostics adds time, requests and folders skipped per account |
-| 2026-10-21 | minor | Gap 6: `width` in a table's or cell's style, `max-width` and centring by `margin: auto` are read from a message's inline style (#150); padding, `vertical-align` and `inline-block` stay with #71 |
-| 2026-10-21 | minor | Gap 6: padding, margins with real sizes, lines of three styles with a colour per side, rounded corners and a line height are read from a message's inline style, all clamped (#71); `vertical-align` and `inline-block` stay unread |
-| 2026-10-22 | minor | #276: Send/Receive passes over the owner's folders whose counts are unchanged and caught up; a full sweep at the first run and hourly; empty pages not applied; the folders-skipped count is real |
-| 2026-10-22 | minor | #276: Graph requests go on connections kept open, done |
-| 2026-10-22 | minor | #276: the folder listing asks for twenty folders' subfolders in one `$batch`, a level of the tree at a time |
-| 2026-10-22 | patch | #306: a Graph Send/Receive whose sign-in runs out part-way renews it once and goes on; one within five minutes of running out is renewed before a job |
-| 2026-10-22 | minor | #276: the Inbox of every Graph account is checked by itself every minute between rounds, quietly |
-| 2026-10-25 | minor | #276: an Inbox known but never read has an Inbox pass, before the folders are listed |
-| 2026-10-22 | patch | #305: a Graph Send/Receive whose folder listing is cut short removes no message marked gone; a run with the whole listing finds it in its new folder or removes it |
-| 2026-10-22 | minor | Search: `from:`, `to:` and `cc:` with a whole address find that address alone, a plus-address or a quoted name too, and a plus-address goes to Graph whole (#301); a domain in `xn--` form and in its own letters don't match each other |
-| 2026-10-24 | minor | #70 calendars 5: an appointment moves between the owner's calendar and a shared mailbox's or an opened one, copy first |
-| 2026-10-24 | minor | #70 calendars 4: calendars opened by address, one permission and one free/busy path with the shared mailboxes' calendars |
-| 2026-10-24 | minor | Gap 17: rules, forwarding and automatic replies kept on the server, through Graph for Microsoft accounts and Sieve (ManageSieve, JMAP) elsewhere |
-| 2026-10-25 | minor | Security run 2, batch P3: a cancellation is removed from the calendar only for its organizer or the keeping account (gap 9); imports and vouching tightened |
-| 2026-10-25 | minor | Search: the box suggests people after `from:`, `to:` and `cc:`, from the contacts and the mail on this computer; a new message's and a meeting's recipient lines ask for people only when what is typed or the mailbox changes, and Shift+Tab in their lists goes back (#308) |
-| 2026-10-25 | minor | Rough edges: an HTML signature is a simpler copy in the composer and has no pictures of its own |
-| 2026-10-25 | minor | #350: links are read by `crates/link`, no `url` or `webbrowser` crate; no gap changes |
-| 2026-10-25 | patch | #402: POP is "not yet" (tracked in #437), and Add Account says so before connecting instead of showing a TLS error |
-| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once (gap 12 notes it) |
-| 2026-10-25 | minor | #315: Forward as Attachment of one message; forwarding several at once stays among the smaller things (17) |
-| 2026-10-25 | patch | #325: removing an account, or closing a shared mailbox, takes what came from its server and is kept in the mailbox file (events, contacts and calendars, Outlook's list of categories) whoever removes it; the working hours and the remembered sign-in, with its name in `ui.json`, only when the window removes it; the word index drops mail removed elsewhere when the window opens the mailbox; the copies of the mailbox kept aside are listed |
-| 2026-10-26 | minor | #217, #452: system fonts fill in the scripts the bundled ones lack (gap 13 notes it); right-to-left layout stays open in gap 6 |
-| 2026-10-26 | minor | #493: search Subfolders and Current Mailbox beside Current Folder and All Mailboxes (rough edges) |
-| 2026-10-26 | minor | #451: mail moves and copies between accounts (IMAP, Microsoft, this computer), made on the destination's server (between servers) or kept in the mailbox file (onto this computer), and the original removed once the copy is there (gap 2, rough edges) |
-| 2026-10-26 | minor | #508: sender warnings when reading (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External); send warnings and Report Phishing stay among the smaller things (17) |
-| 2026-10-26 | minor | #493 follow-up: the limit of Subfolders' More results on the server |
-| 2026-10-26 | minor | #360: forwarding several messages at once, as attachments, leaves the smaller things (17); row 17, which was there twice, is one row |
-| 2026-10-26 | minor | #521: Find a Time and Action Shortcuts named as MailCraft names them (gaps 5, 9, 17); gap 5 says Find a Time over several days is missing; gap 17 catalog figures brought up to date (118 of 315 lack a command) |
-| 2026-10-26 | minor | Gap 6: pictures written into a message (`data:`) are shown (#533); a reply or forward doesn't carry them yet |
-| 2026-10-26 | minor | #504: gap 17: Safe and Blocked Senders lists are there; what is left of Junk E-mail Options named; 118 of 319 catalog features lack a command |
-| 2026-10-26 | minor | R7.3: macOS self-update is off until the app is notarized (#497) |
-| 2026-10-26 | minor | #505: one MailCraft at a time, offered as the system's mail program on Windows and Linux; macOS `mailto:` stays open (18) |
-| 2026-10-26 | patch | #519: the opening screen in the browser build (rough edges) |
-| 2026-10-27 | minor | #547: gap 7: pictures in the message being written |
-| 2026-10-27 | minor | #516: gap 17: Safe and Blocked Senders are per account; keeping them on the server named as blocked on Graph |
-| 2026-10-27 | minor | #519 slice 2: gap 8: a large mailbox opens faster; measured on a made-up 64,000-message mailbox |
-| 2026-10-27 | patch | #519 slice 2 review: gap 8: the bodies the budget holds come in the background |
-| 2026-10-28 | minor | #596: gap 6: where a cell sits in its row, and the gaps between cells, as the message gives them |
-| 2026-10-28 | minor | Gap 12: exporting to `.pst` added, under consideration |
-| 2026-10-28 | minor | Moving mail out of an IMAP account leaves its original on the server (#578, #561) |
-| 2026-10-28 | minor | Gap 5: JMAP accounts read in the browser build (M6, #226) |
-| 2026-10-28 | minor | #451 rough edges: the copy on an IMAP server carries MailCraft's marker (`X-MailCraft-Place`), and only a message carrying it is taken for the copy, found by its Message-ID or by the marker when the server doesn't say where it went, and a copy already there isn't made twice; no Bcc in the copy, Microsoft's too; a lost answer to a removal keeps the message in Imported; no mail from another mailbox into an Outbox; removing the account mail was moved into, on this computer too; a folder deleted for good with mail moved into it; a look for a copy cut off by the server is said; a copy left behind by a lost answer and a move on; Undo while the original goes keeps the message in Imported; nothing back into an Outbox (#607); with #607's hold merged, an IMAP account's Outbox holds mail from another mailbox and only a Microsoft account's refuses it; no Resent-Bcc in a copy; 64 bits of the marker nobody can work out; rules into another account; an agent asked before mail goes onto another server, and wrong ids refused; #578's entry is gone, folded into #451's: a move out of an IMAP account, by the owner or a rule, removes the original once the copy is safe |
-| 2026-10-28 | minor | #451: a Microsoft message not downloaded yet moves into an IMAP account and goes there once downloaded, a rule's too; what can't go onto another server, said exactly; a copy the server didn't place is known by its marker alone; an agent asked before a rule puts mail on another server; a homeless message goes into its own account's Inbox; 200 messages and 64 MB a run; Undo isn't offered once the copy is on an IMAP server |
-| 2026-10-28 | minor | Gap 6: a message's `<style>` blocks are read for the same facts as a `style` attribute (selectors, specificity, order, `!important`), so classes style text and what a rule hides is not shown; `@media`, fonts and background pictures still to come (#598) |
-| 2026-10-28 | minor | #597: gap 6: `display: inline-block` is laid out as boxes on a line that wrap, where what holds them holds nothing else; a picture in a line of text wraps with it |
-| 2026-10-29 | minor | Gap 14: Dutch as a preview language; Automatic follows `nl-NL`; incoming `Antw:` and `Doorst:` thread |
-| 2026-10-29 | minor | #599: gap 6: `@media` is read for the body's width and the theme (a sender's dark palette is used in a dark window); what the sender hid is not shown or quoted but is in search, rules and what agents read |
-| 2026-10-29 | patch | #599 review: gap 6: `@media` follows the body's exact width, not a class; a sender's dark palette needs a dark rule that gives colours to something shown |
-| 2026-10-29 | minor | #252: gap 5: Exchange server accounts, first step: the kind of account and its settings, behind `MAILCRAFT_EWS=1`; nothing connects yet |
-| 2026-10-29 | minor | #252 E3: gap 5: Autodiscover, Basic sign-in and certificate trust by fingerprint are built and tested; nothing drives them yet |
-| 2026-10-29 | minor | #252 E5: gap 5: an Exchange server account's changes, drafts and sent mail go up, and NTLM is driven by the desktop runner, behind `MAILCRAFT_EWS=1`; mail moved between accounts, calendar and contacts are not built |
-| 2026-10-29 | minor | #252 E4: gap 5: an Exchange server account's mail comes down (folders, headers, whole messages), behind `MAILCRAFT_EWS=1`; nothing goes up yet |
-| 2026-10-29 | patch | #252 E4 review: gap 5: an Exchange run never moves a folder past a change it could not take in; a password is for one address, server and user name |
-| 2026-10-29 | patch | #252 E4 second review: gap 5: an Exchange folder that holds a change that can not be taken in is named (as the owner knows it) in Send/Receive and File › Info, and blocks only itself |
-| 2026-10-29 | patch | #252 E3 review: gap 5: Autodiscover sends the sign-in only in answer to a Basic challenge; Microsoft's own mail is never asked |
-| 2026-10-29 | minor | #252 E6: gap 5: NTLMv2 sign-in and the choice of NTLM or Basic are built and tested against a server that ties the sign-in to the connection; nothing drives them yet |
-| 2026-10-29 | minor | #252 E7: gap 5: Add Account has an Exchange server choice (behind `MAILCRAFT_EWS=1`): Server settings, the owner's say before a sign-in goes to another host, the certificate question, a Microsoft 365 mailbox offered as a Microsoft account, the password remembered; File › Info shows the server, user name, sign-in and trusted certificate with Forget |
-| 2026-10-30 | minor | #252 E8: gap 5: Exchange server accounts tried against Grommunio with made-up mail; what works and what does not is in exchange-servers.md |
-| 2026-10-30 | minor | #252 E8: gap 5: on Grommunio a sent draft is filed in Sent Items and taken out of Drafts, an Exchange account's Archive is made on the server when mail is put in it, and folders of other kinds are no longer taken for mail |
-| 2026-10-30 | patch | #252 E8 review: gap 5: an Exchange draft whose make was lost is found by its marker and taken away after its message is sent |
-| 2026-10-30 | minor | #650: gap 13: IMAP mail kept with � before #178 is downloaded again once, by UID, and read properly |
-| 2026-10-30 | patch | #649: rough edges: Mail to keep offline: IMAP's mailbox file size until slice 2; the sizes of mailbox file opened, and no save writes one open refuses |
-| 2026-10-30 | patch | #649: rough edges: Mail to keep offline: a one-file mailbox of any size opens, read as a stream with its content going to the content folder as it is read |
-| 2026-10-28 | patch | #614: rough edges: an HTML signature is shown in the message being written as it goes out |
-| 2026-10-29 | minor | #566 part 1: gap 17: a Microsoft account's rules kept on its server; the rest of Outlook's conditions, exceptions and actions, changing a rule there, forwarding, a shared mailbox's rules and Sieve left |
-| 2026-10-30 | minor | #451 follow-up: rough edges: mail held in an IMAP account's Outbox moves or is copied into another account; what no server has comes back into its Outbox held when refused |
-| 2026-10-30 | minor | #633: rough edges: each Microsoft account's own list of categories, read and not written yet (#661) |
-| 2026-10-31 | patch | Gap 18: the count of published releases brought up to date |
-| 2026-10-31 | minor | Gap 7: Find and Replace in the message being written |
-| 2026-10-31 | minor | Gap 7: Text Highlight Color, Format Painter and Insert › Symbol |
-| 2026-10-31 | patch | Gap 17: 101 catalog features lack a command after parity B1 (Work Offline, Cancel All, Help's pages) |
-| 2026-10-31 | patch | Gap 17: read receipts are asked for (Request a Read Receipt); five catalog rows marked out of scope |
-| 2026-10-31 | minor | Gap 17: Automatic Replies for Microsoft accounts (File › Info, read and changed through Graph); other servers wait for Sieve |
-| 2026-10-31 | patch | Gap 8: Undo and Redo of a command that brought a body in from disk keep the body for a Microsoft or Exchange account (#688) |
-| 2026-10-31 | patch | #633: rough edges: what an account's list of categories is made from |
-| 2026-11-01 | minor | Gap 8: a frame of the window over 326,000 messages takes under 1 ms, was 59 ms (107 ms with a message open); the list is built from the folder's own messages; the frame after a change is 50–90 ms, was 100–130 |
-| 2026-11-01 | minor | Gap 17: colour schemes of the owner's own, not yet (four accents and high contrast are there) |
-| 2026-11-01 | minor | #252: gap 5: Exchange server accounts are on for everyone, for mail; the testing switch is gone |
+| 2026-10-17 | minor | Gap 8: attachments and older bodies stay on disk and are read when wanted, within a bounded budget (R6.1); after review, Undo after a sweep, a search past the budget and a rule that reads the body find what is on disk, and bringing content in is no change to undo or save; Graph sends and draft uploads read what is kept on disk |
+| 2026-10-17 | minor | Gap 8: the window never waits for a save (R6.3): the first save after a large download is written in the background with progress, and closing, File › New and File › Open wait for it without holding the window |
+| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: read through Graph, searched with All Mailboxes, counted on their own, and their folders among the Favorites (#70) |
+| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: read marks, flags, categories, folders, moves and copies within them, delete (to their own Deleted Items) and delete for good go up to their own address, and undo with them; a refusal leaves the change waiting, counted and said; moves and copies between mailboxes are refused with the reason (#70) |
+| 2026-10-17 | minor | Gap 5: shared mailboxes behind a switch for testing: mail written in one is from its address, its drafts are kept in its own Drafts, and it is sent through its own address (the copy in its Sent Items); `Mail.Send.Shared` is asked for at the first send, by itself; a refusal holds the message with why, never sending it from another address (#70) |
+| 2026-10-17 | minor | Rough edges: search finds only what is on this computer; Graph's own search could find the rest for an account kept in step through Graph |
+| 2026-10-17 | minor | Gap 1: no CI job against a mail server in a container; gap 17: delayed delivery with undo send and an outbox, Snooze, Sweep, conversation clean-up, unsubscribe, `winmail.dat`, sender warnings and Report Phishing, Focused Inbox, server rules, the directory and To Do named |
+| 2026-10-16 | minor | Gap 2 and rough edges: undo of a change that reached a Microsoft account's server is sent as the reverse (R3.5) |
+| 2026-10-16 | minor | Rough edges: mail imported for a Microsoft account goes to a local folder, and received mail in a local folder never goes into one (R3.6) |
+| 2026-10-16 | minor | Gap 18 and rough edges: a new version is told of when the owner wants that, and never installed (R7.3) |
+| 2026-10-16 | minor | Gap 2 and rough edges: the switch from IMAP to Graph (R3.7); no switch for testing |
+| 2026-10-15 | minor | Gap 4: sign-ins remembered on Linux and FreeBSD through the Secret Service (R5); what is left is seeing it across a restart on GNOME and KDE |
+| 2026-10-15 | minor | Rough edges: Exchange Web Services removed (R2); Outlook's Favorites are read through Microsoft Graph alone |
+| 2026-10-15 | minor | Gap 7: the message being written is rich text underneath, with its own undo and the formatting commands (R4.1), sent as HTML with a plain-text part, and pasted HTML reduced to the set (R4.4); a reply's HTML original carried below as it came (R4.3) |
+| 2026-10-15 | minor | Gap 7: the rich-text editor (R4.2): the owner's text is written as it will look, with the formatting keys in the body only, and the carried original is shown as the reading pane shows it |
+| 2026-10-15 | minor | Gap 2 and rough edges: behind the switch for testing, a Microsoft account's folders are kept in step through Microsoft Graph by server id (R3.1); `Mail.ReadWrite` is asked for that account only |
+| 2026-10-15 | minor | Gap 2 and rough edges: behind the switch for testing, a Microsoft account's mail comes down through Graph (R3.2) and the changes of its messages go up (R3.3.2); what is not proven of them |
+| 2026-10-15 | minor | Rough edges: a delete for good the server refuses is put back at once (R3.3 follow-up) |
+| 2026-10-15 | minor | Gap 8: the index is no longer rewritten whole on each save (format 3, a log of records, R6); what is left is holding everything in memory (R6.1) |
+| 2026-10-14 | minor | Gap 6: the pictures' cache on disk exists; gap 18: four releases are published, unsigned; rough edges: a mailbox numbered anew; the roadmap reset leads |
+| 2026-10-13 | minor | Rough edges: Outlook's Favorites are read from the server for Microsoft accounts (M4.2), and what is not proven of that |
+| 2026-10-13 | minor | Rough edges: the choice between Microsoft Graph and Exchange Web Services for Outlook's Favorites (M4.3), and what is not proven of the second |
+| 2026-10-13 | minor | Rough edges: an organisation that has to approve MailCraft first (M4.4): what the wizard says and does, and what of it is not proven |
+| 2026-10-12 | minor | Rough edges: what is and isn't proven of calendar changes reaching the server |
+| 2026-10-12 | major | Gap 9 rewritten after the calendar's second and third waves (meetings, invitations in mail, the Scheduling Assistant); rough edges updated |
+| 2026-10-12 | major | Gaps 1, 5, 6, 9 and 18 rewritten after a day on a real Microsoft 365 mailbox, calendar write-back, pictures on request and the first installer builds; rough edges updated |
+| 2026-10-12 | major | Gap 10 rewritten after time zones (M3.5): a zone database, every stored time a moment, zones of an item's own, the calendar's zone and a second one, a computer that travels; gaps 5 and 9 no longer count time zones as missing |
+| 2026-10-11 | major | First version |

@@ -1,6 +1,6 @@
 # Governance
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-23 · **Change:** minor
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-04 · **Change:** minor
 
 How MailCraft is run: who decides what, who does what, and how the project carries on if someone
 can't.
@@ -39,7 +39,7 @@ Every change reaches `main` through a pull request. A reviewer checks, before ap
 - **Tests.** New behaviour has tests; a crash or data-loss fix has a regression test; nothing
   touches a real mailbox.
 - **Docs.** What a user or contributor would need to know is updated in the same pull request,
-  with the touched docs' status lines and revision rows.
+  with the touched docs' status lines and revision-row fragments (`docs/log.d/`).
 - **The checks.** `ci-ok` is green (fmt, clippy, tests, assets, SPDX lines, layers, wasm,
   cargo-deny), and CodeQL raises nothing new.
 - **The code owners' paths.** Changes to sync, the store, sign-in and secrets
