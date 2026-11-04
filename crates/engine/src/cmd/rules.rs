@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
-            r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer; a rule the server doesn't let be changed moves too, and goes back to its place there if the server won't have it"#,
+            r#"{"id": number, "direction": "up"|"down"} — within its list: the rules its account's server keeps, those of this computer for its account, or those for every account (from before rules had accounts; they run after the server's rules and before the account's own of this computer); a rule the server doesn't let be changed moves too, and goes back to its place there if the server won't have it"#,
         ),
         CommandSpec::new("rules.keepOnServer", "Keep Rule on Server", "Home › Move", keep_on_server).params(
             r#"{"id": number, "account"?: number (for a rule for every account: the Microsoft account whose server is to keep it, which it is then for alone)} — a rule kept on this computer goes to its Microsoft account's server at the next look, when the server can do all of it"#,
@@ -598,11 +598,12 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "matched": matched}))
 }
 
-/// The list a rule is in, in the rules of `account`: those for its server, or those of this
-/// computer (with the rules for every account).
+/// Whether a rule is in the list of `account` (0: the rules for every account, from before rules
+/// had accounts) that `server` says: those its server keeps, or those of this computer. Each list
+/// runs in its own place ([`Mailbox::rules_in_order`]), so a rule moves among its own list alone
+/// and no other account's order changes (#566).
 fn same_list(r: &Rule, account: Id, server: bool) -> bool {
-    let for_server = r.account == account && r.keep == Keep::Server;
-    for_server == server && r.is_for(account)
+    r.account == account && (account != 0 && r.keep == Keep::Server) == server
 }
 
 fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
@@ -616,11 +617,8 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     // has it (#566).
     let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
-    let account = match rule.account {
-        0 => p::id_strict(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
-        own => own,
-    };
-    let server = rule.account == account && rule.keep == Keep::Server;
+    let account = rule.account;
+    let server = account != 0 && rule.keep == Keep::Server;
     let rules = &s.mailbox.rules;
     let next = if up {
         rules.iter().enumerate().take(i).rev().find(|(_, r)| same_list(r, account, server)).map(|(j, _)| j)
@@ -635,17 +633,9 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     if server && rule.on_server() != other.on_server() {
         return Err(fail("a rule waiting to go to the server goes after those there; it can be moved once it is there"));
     }
-    // The one of the two that is in this account's list alone is taken out and put in on the
-    // other side of the other, not swapped with it: a rule for every account is in every
-    // account's list, and moving one across others would reorder another account's rules.
     let before = server.then(|| s.mailbox.rules.clone());
-    if rule.account == 0 && other.account != 0 {
-        let neighbour = s.mailbox.rules.remove(j);
-        s.mailbox.rules.insert(i, neighbour);
-    } else {
-        let moving = s.mailbox.rules.remove(i);
-        s.mailbox.rules.insert(j, moving);
-    }
+    let moving = s.mailbox.rules.remove(i);
+    s.mailbox.rules.insert(j, moving);
     // Another rule the server doesn't let be changed can leave no number free for the order asked
     // (two rules before it, and it second on the server): the server would put one of them after
     // it, so the move is refused and nothing changes.

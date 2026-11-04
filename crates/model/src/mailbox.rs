@@ -2767,12 +2767,15 @@ impl Mailbox {
 
     /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
     /// run: those for its server first (the server runs them before anything here does), then
-    /// those of this computer.
+    /// those for every account (from before rules had accounts, which the Rules window lists
+    /// apart, as All accounts), then the account's own of this computer (#566). Each of the three
+    /// is in its own order, which Move Up and Move Down change.
     pub fn rules_in_order(&self, account: Id) -> Vec<usize> {
         let server = |r: &Rule| r.account == account && r.keep == crate::Keep::Server;
-        let first = self.rules.iter().enumerate().filter(|(_, r)| server(r)).map(|(i, _)| i);
-        let then = self.rules.iter().enumerate().filter(|(_, r)| !server(r) && r.is_for(account)).map(|(i, _)| i);
-        first.chain(then).collect()
+        let every = |r: &Rule| r.account == 0 && !server(r);
+        let own = |r: &Rule| r.account == account && !server(r) && !every(r);
+        let band = |of: &dyn Fn(&Rule) -> bool| self.rules.iter().enumerate().filter(|(_, r)| of(r)).map(|(i, _)| i).collect::<Vec<_>>();
+        [band(&server), band(&every), band(&own)].concat()
     }
 
     /// Run the enabled rules on a message (new mail), by `clock`. Returns the names of the rules

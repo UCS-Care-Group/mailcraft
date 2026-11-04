@@ -354,6 +354,12 @@ msgid "A new message to MailCraft's maintainers, from your account: nothing is s
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A new rule is for one account: choose it in Rules for"
+msgstr "Una regla nueva es de una sola cuenta: elíjala en Reglas de"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -436,6 +442,18 @@ msgstr "Una regla indica a MailCraft qué hacer con el correo cuando llega. Las 
 #, fuzzy
 msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then this computer's."
 msgstr "Una regla indica a MailCraft qué hacer con el correo cuando llega. Las reglas se ejecutan de arriba abajo: primero las del servidor, después las de este equipo."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then those of All accounts, then this computer's."
+msgstr "Una regla indica a MailCraft qué hacer con el correo cuando llega. Las reglas se ejecutan de arriba abajo: primero las del servidor, después las de Todas las cuentas y después las de este equipo."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
+msgstr "Una regla indica a MailCraft qué hacer con el correo cuando llega. Las reglas se ejecutan de arriba abajo: primero las de Todas las cuentas y después estas."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -889,7 +907,7 @@ msgid "All Mailboxes"
 msgstr "Todos los buzones"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "Todas las cuentas"
@@ -9132,6 +9150,12 @@ msgstr "Reglas y categorías"
 #, fuzzy
 msgid "Rules for"
 msgstr "Reglas de"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Rules from before a rule was for one account. They run on the mail of every account: after a server's rules, before an account's own on this computer."
+msgstr "Reglas de antes de que una regla fuera de una sola cuenta. Se aplican al correo de todas las cuentas: después de las reglas de un servidor y antes de las propias de una cuenta en este equipo."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs

@@ -309,6 +309,11 @@ msgid "A new message to MailCraft's maintainers, from your account: nothing is s
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A new rule is for one account: choose it in Rules for"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
 msgstr ""
@@ -376,6 +381,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then this computer's."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then those of All accounts, then this computer's."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
 msgstr ""
 
 #. interface
@@ -762,7 +777,7 @@ msgid "All Mailboxes"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 msgid "All accounts"
 msgstr ""
 
@@ -7898,6 +7913,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Rules for"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Rules from before a rule was for one account. They run on the mail of every account: after a server's rules, before an account's own on this computer."
 msgstr ""
 
 #. interface

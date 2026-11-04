@@ -6189,6 +6189,13 @@ pub(crate) mod rules {
         !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown
     }
 
+    /// Whether "Rules for" has All accounts: the rules for every account, from before rules had
+    /// accounts, listed apart from each account's own (#566). Only beside an account: with none
+    /// yet, a rule is the first account's once it is added.
+    fn every_account_rules(mb: &Mailbox, accounts: &[(Id, String)]) -> bool {
+        accounts.iter().any(|(id, _)| *id != 0) && mb.rules.iter().any(|r| r.account == 0)
+    }
+
     /// The account the dialog falls back on when none is in view: the first added that has
     /// rules, whatever order the owner put the accounts in (#702).
     fn first_with_rules(mb: &Mailbox) -> Option<Id> {
@@ -6397,8 +6404,6 @@ pub(crate) mod rules {
     /// What every rule of the lists is laid out with.
     struct Rows<'a> {
         app: &'a MailApp,
-        /// The account whose rules are shown.
-        account: Id,
         /// The accounts whose servers keep rules: id and address.
         servers: &'a [(Id, String)],
         /// The folder in view, by its path: what Run Rule Now runs over.
@@ -6490,7 +6495,7 @@ pub(crate) mod rules {
             if named(resp, &r.name, true).on_hover_text(format!("{words}\n{mark}")).clicked() {
                 unfold(unfolded, r.id);
             }
-            let place = |direction: &str| json!({"id": r.id, "direction": direction, "account": rows.account});
+            let place = |direction: &str| json!({"id": r.id, "direction": direction});
             // Greyed where it can't go, and the tip says why.
             let arrow = |ui: &mut Ui, icon: &str, tip: &'static str, step: Step| {
                 let can = step.is_ok();
@@ -6759,7 +6764,11 @@ pub(crate) mod rules {
             // A held Space on a rule's button is one press: its repeats would reach the button
             // that takes its place, the next rule's, and delete or move that one too.
             ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
-            let accounts = rule_accounts(&app.session.mailbox);
+            let mut accounts = rule_accounts(&app.session.mailbox);
+            // All accounts, last: the rules for every account, while there are any.
+            if every_account_rules(&app.session.mailbox, &accounts) {
+                accounts.push((0, tl!("All accounts").to_string()));
+            }
             if !accounts.iter().any(|(id, _)| *id == self.account)
                 && let Some(first) = first_with_rules(&app.session.mailbox)
             {
@@ -6811,7 +6820,8 @@ pub(crate) mod rules {
 
         /// The lists of rules, as Outlook's list of rules has them: what rules are, whose rules
         /// they are, a search by name and New Rule, then those of the server and those of this
-        /// computer, and Run Rules Now. Returns `false`: a rule is added on the New rule page.
+        /// computer, and Run Rules Now; with All accounts chosen, the rules for every account.
+        /// Returns `false`: a rule is added on the New rule page.
         fn lists(
             &mut self,
             app: &MailApp,
@@ -6825,26 +6835,39 @@ pub(crate) mod rules {
             let account = self.account;
             let mb = &app.session.mailbox;
             let on_server = mb.keeps_rules(account);
-            let rules: Vec<Rule> = mb.rules_in_order(account).into_iter().filter_map(|i| mb.rules.get(i).cloned()).collect();
+            // All accounts: the rules for every account, which aren't in an account's lists; a
+            // new rule is for one account.
+            let apart = account == 0 && accounts.iter().any(|(id, _)| *id != 0);
+            let any_apart = mb.rules.iter().any(|r| r.account == 0);
+            let rules: Vec<Rule> =
+                mb.rules_in_order(account).into_iter().filter_map(|i| mb.rules.get(i)).filter(|r| r.account == account).cloned().collect();
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);
             let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id)).collect::<Vec<_>>();
             let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
-            let rows = Rows { app, account, servers: &servers, folder: &folder_in_view };
+            let rows = Rows { app, servers: &servers, folder: &folder_in_view };
             let mut new = false;
             let ran = self.ran;
             let (query, unfolded) = (&mut self.query, &mut self.unfolded);
             // What a command refused is said under the lists, over Close.
             let room = error_room(ui, &self.error);
             body_over(ui, room, |ui| {
-                let said = if on_server {
-                    tl!(
+                let said = match (apart, any_apart, on_server) {
+                    (true, _, _) => tl!(
+                        "Rules from before a rule was for one account. They run on the mail of every account: after a server's rules, before an account's own on this computer."
+                    ),
+                    (false, true, true) => tl!(
+                        "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then those of All accounts, then this computer's."
+                    ),
+                    (false, true, false) => tl!(
+                        "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
+                    ),
+                    (false, false, true) => tl!(
                         "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then this computer's."
-                    )
-                } else {
-                    tl!("A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down.")
+                    ),
+                    (false, false, false) => tl!("A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down."),
                 };
                 ui.label(egui::RichText::new(said).size(11.5).color(t.text_dim));
                 // Whose rules: Outlook's "Apply changes to this folder".
@@ -6862,7 +6885,11 @@ pub(crate) mod rules {
                 }
                 // New Rule at the right end, the search in the rest of the row.
                 ui.allocate_ui_with_layout(vec2(ui.available_width(), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    new = primary_button(ui, tl!("New Rule"), true).clicked();
+                    // Greyed with All accounts chosen, and its tip says why (the button greys
+                    // itself, so the tip is its hover text).
+                    let button = primary_button(ui, tl!("New Rule"), !apart);
+                    let button = if apart { button.on_hover_text(tl!("A new rule is for one account: choose it in Rules for")) } else { button };
+                    new = button.clicked() && !apart;
                     pass.text(ui, "rules_search", query, ui.available_width(), tl!("Search rules by name"));
                 });
                 ui.add_space(4.0);
@@ -6908,7 +6935,8 @@ pub(crate) mod rules {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_in_view)]);
-                    let any = !(there.is_empty() && here.is_empty());
+                    // The rules of All accounts run over any account's mail too.
+                    let any = !(there.is_empty() && here.is_empty()) || any_apart;
                     if ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip).clicked() {
                         *run = Some(("rules.run", json!({})));
                     }
