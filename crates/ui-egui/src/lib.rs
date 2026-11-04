@@ -871,6 +871,9 @@ pub struct UiState {
     /// The address of the account whose tasks the list showed (`view.task_account`): an account's
     /// id is that account in its own mailbox only (#632).
     pub task_account_address: String,
+    /// The address of the account whose contacts People showed (`view.people_account`), for the
+    /// same reason (#631).
+    pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
@@ -957,6 +960,7 @@ impl Default for UiState {
             options: fresh_options(),
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
+            people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
@@ -1865,15 +1869,21 @@ impl MailApp {
         self
     }
 
+    /// The address of the account `choice` names, kept beside its id in `ui.json`.
+    fn choice_address(&self, choice: mailcraft_model::AccountChoice) -> String {
+        match choice {
+            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
-        ui.task_account_address = match ui.view.task_account {
-            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
-            _ => String::new(),
-        };
+        ui.task_account_address = self.choice_address(ui.view.task_account);
+        ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
         ui.view.search.clear();
         ui.view.people_search.clear();
@@ -1925,17 +1935,11 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
-        // One account's tasks only in the mailbox it was chosen in: in another, the same id is
-        // somebody else's account, or none, and the list starts on All accounts.
-        let address = self.ui.task_account_address.trim();
-        v.task_account = match saved.task_account {
-            mailcraft_model::AccountChoice::Account(id)
-                if address.is_empty() || !self.session.mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
-            {
-                mailcraft_model::AccountChoice::All
-            }
-            choice => choice,
-        };
+        // One account's tasks and contacts only in the mailbox they were chosen in: in another,
+        // the same id is somebody else's account, or none, and the list starts on All accounts.
+        let mailbox = &self.session.mailbox;
+        v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
+        v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -4812,6 +4816,20 @@ impl MailApp {
             let _ = reply.send(json!({"ok": false, "error": "no frame was presented (window hidden?)"}));
             false
         });
+    }
+}
+
+/// A list's saved choice of account, when `address` says it is the same account in `mailbox`;
+/// else All accounts (a file from before the address was kept says nothing, so All too).
+fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::AccountChoice, address: &str) -> mailcraft_model::AccountChoice {
+    let address = address.trim();
+    match choice {
+        mailcraft_model::AccountChoice::Account(id)
+            if address.is_empty() || !mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
+        {
+            mailcraft_model::AccountChoice::All
+        }
+        choice => choice,
     }
 }
 

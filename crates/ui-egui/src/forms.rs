@@ -5840,13 +5840,26 @@ pub(crate) mod rules {
     }
 
     /// The accounts the dialog shows the rules of (#566): every account but a shared mailbox and
-    /// one of a kind this version doesn't know, with what it is called.
+    /// one of a kind this version doesn't know, with what it is called, in the order the owner
+    /// put them in the folder pane (#702).
     pub fn rule_accounts(mb: &Mailbox) -> Vec<(Id, String)> {
-        mb.accounts
-            .iter()
-            .filter(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown)
+        mb.accounts_in_order()
+            .into_iter()
+            .filter(|a| has_rules(a))
             .map(|a| (a.id, if a.email.trim().is_empty() { a.name.clone() } else { a.email.trim().to_string() }))
             .collect()
+    }
+
+    /// Whether the dialog shows an account's rules: not a shared mailbox's, nor one of a kind this
+    /// version doesn't know.
+    fn has_rules(a: &mailcraft_model::Account) -> bool {
+        !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown
+    }
+
+    /// The account the dialog falls back on when none is in view: the first added that has
+    /// rules, whatever order the owner put the accounts in (#702).
+    fn first_with_rules(mb: &Mailbox) -> Option<Id> {
+        mb.accounts.iter().find(|a| has_rules(a)).map(|a| a.id)
     }
 
     /// The account the dialog opens on: the one in view, as Outlook's "Apply changes to this
@@ -5854,7 +5867,7 @@ pub(crate) mod rules {
     fn account_in_view(s: &Session) -> Id {
         let shown = rule_accounts(&s.mailbox);
         let in_view = s.mailbox.folder(s.view.folder).map(|f| f.account).or(s.mailbox.default_account().map(|a| a.id));
-        in_view.filter(|a| shown.iter().any(|(id, _)| id == a)).or(shown.first().map(|(id, _)| *id)).unwrap_or(0)
+        in_view.filter(|a| shown.iter().any(|(id, _)| id == a)).or_else(|| first_with_rules(&s.mailbox)).unwrap_or(0)
     }
 
     /// An account's folders as a rule can move mail to them: id and path, in the folder pane's
@@ -6196,9 +6209,9 @@ pub(crate) mod rules {
             let t = pass.t;
             let accounts = rule_accounts(&app.session.mailbox);
             if !accounts.iter().any(|(id, _)| *id == self.account)
-                && let Some((first, _)) = accounts.first()
+                && let Some(first) = first_with_rules(&app.session.mailbox)
             {
-                self.choose(&app.session.mailbox, *first);
+                self.choose(&app.session.mailbox, first);
             }
             let account = self.account;
             let mb = &app.session.mailbox;
