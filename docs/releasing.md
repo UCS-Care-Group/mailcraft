@@ -43,8 +43,8 @@ WordCraft does.
    `docs/log.d/<document without .md>/revisions/<name>.md` (`progress/` for the progress log;
    [`docs/log.d/README.md`](log.d/README.md)). `cargo xtask docs-log` prints the documents with
    the rows joined in and changes nothing; `cargo xtask ci` checks them. In the same release
-   pull request, `cargo xtask docs-log --write` puts the rows at the top of their tables and
-   removes the fragments.
+   pull request, `cargo xtask docs-log --write` puts the rows into their tables by date,
+   newest first, and removes the fragments.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.

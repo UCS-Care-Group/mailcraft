@@ -45,6 +45,26 @@ fn a_tie_puts_the_last_name_first_by_number_and_nothing_to_join_changes_nothing(
 }
 
 #[test]
+fn a_row_older_than_the_top_goes_in_where_its_date_is() {
+    let doc = "## Revision history\n\n| Date | Change |\n|---|---|\n| 2026-11-03 | Third |\n| 2026-11-01 | First |\n\nAfter.\n";
+    let middle = fragment("a.md", "revisions", "1", &["| 2026-11-02 | Second |"]);
+    assert_eq!(
+        join("a.md", doc, &[middle]).unwrap(),
+        "## Revision history\n\n| Date | Change |\n|---|---|\n| 2026-11-03 | Third |\n| 2026-11-02 | Second |\n| 2026-11-01 | First |\n\nAfter.\n"
+    );
+    let same_day = fragment("a.md", "revisions", "1", &["| 2026-11-01 | Also first |"]);
+    assert!(join("a.md", doc, &[same_day]).unwrap().contains("| 2026-11-03 | Third |\n| 2026-11-01 | Also first |\n| 2026-11-01 | First |\n"));
+    let oldest = fragment("a.md", "revisions", "1", &["| 2026-10-30 | Before all |"]);
+    assert!(join("a.md", doc, &[oldest]).unwrap().contains("| 2026-11-01 | First |\n| 2026-10-30 | Before all |\n\nAfter.\n"));
+    let split = fragment("a.md", "revisions", "1", &["| 2026-11-04 | Newest |", "| 2026-11-02 | Second |"]);
+    assert!(
+        join("a.md", doc, &[split])
+            .unwrap()
+            .contains("|---|---|\n| 2026-11-04 | Newest |\n| 2026-11-03 | Third |\n| 2026-11-02 | Second |\n| 2026-11-01")
+    );
+}
+
+#[test]
 fn a_row_must_have_the_tables_columns_and_a_date() {
     for (row, says) in [
         ("| 2026-11-04 | Two cells |", "2 cells"),

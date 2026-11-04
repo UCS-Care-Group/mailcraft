@@ -19,8 +19,8 @@ columns and the date in its Date column:
 
 The status line at the top of the document is still edited in the document itself.
 
-`cargo xtask docs-log` shows each document with its fragments joined in at the top of the table,
-newest date first, and changes nothing; `cargo xtask ci` checks that every fragment names a
+`cargo xtask docs-log` shows each document with its fragments joined into the table where their
+dates go (the tables run newest first, so as a rule at the top), and changes nothing; `cargo xtask ci` checks that every fragment names a
 document and table that are there, that each row has the table's columns and a date, and that
 they join. At release time, `cargo xtask docs-log --write` moves them into the documents and
 removes them ([`docs/releasing.md`](../releasing.md)).

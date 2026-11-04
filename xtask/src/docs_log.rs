@@ -13,9 +13,11 @@
 //! Without `--write` each document a fragment touches is printed as it would be, and nothing
 //! changes; `--check` (and `cargo xtask ci`) only checks that every fragment names a real document
 //! and table, that each line is a row with the table's columns and a date where the table has
-//! its `Date`, and that they join. `--write`, in the release's pull request, puts each table's
-//! fragments at its top, newest date first (a tie: the last name first, by number when both are
-//! numbers), and removes the fragments.
+//! its `Date`, and that they join. `--write`, in the release's pull request, puts each row into its
+//! table where its date goes, so the table stays newest first (above the table's own rows of the
+//! same date; rows of fragments of one date, the last name first, by number when both are
+//! numbers), and removes the fragments. A fragment older than the table's top row (a pull request
+//! opened before a release and merged after it) goes in lower down, not refused.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -172,8 +174,11 @@ fn by_name(a: &str, b: &str) -> Ordering {
     }
 }
 
-/// `text`, the document at `doc`, with `fragments` (those for `doc`) put at the top of their
-/// tables: newest date first (a fragment's date is its newest row's), a tie the last name first.
+/// `text`, the document at `doc`, with the rows of `fragments` (those for `doc`) put into their
+/// tables by date, so each stays newest first: a row goes above the first of the table's own rows
+/// that is not newer than it. Rows from fragments go in the order of their fragments (newest
+/// first, a fragment's date being its newest row's; a tie, the last name first), and then by
+/// date, a fragment's own rows of one date as it has them.
 pub fn join(doc: &str, text: &str, fragments: &[Fragment]) -> Result<String, String> {
     let mut out: Vec<String> = text.lines().map(str::to_string).collect();
     for (folder, heading) in TABLES {
@@ -192,8 +197,22 @@ pub fn join(doc: &str, text: &str, fragments: &[Fragment]) -> Result<String, Str
             dated.push((newest, fragment));
         }
         dated.sort_by(|(a, fa), (b, fb)| b.cmp(a).then_with(|| by_name(&fb.name, &fa.name)));
-        let rows: Vec<String> = dated.into_iter().flat_map(|(_, f)| f.lines.iter().cloned()).collect();
-        out.splice(table.first_row..table.first_row, rows);
+        let date_of = |row: &str| cells(row).and_then(|c| c.get(table.date).map(|d| d.chars().take(10).collect::<String>())).unwrap_or_default();
+        let mut rows: Vec<(String, String)> = dated.into_iter().flat_map(|(_, f)| f.lines.iter().map(|r| (date_of(r), r.clone()))).collect();
+        rows.sort_by(|(a, _), (b, _)| b.cmp(a));
+        let end = out.iter().skip(table.first_row).take_while(|l| l.trim_start().starts_with('|')).count() + table.first_row;
+        let existing: Vec<String> = out.get(table.first_row..end).map(<[String]>::to_vec).unwrap_or_default();
+        let mut merged = Vec::with_capacity(existing.len() + rows.len());
+        let mut new = rows.into_iter().peekable();
+        for old in existing {
+            let old_date = date_of(&old);
+            while let Some((_, row)) = new.next_if(|(date, _)| *date >= old_date) {
+                merged.push(row);
+            }
+            merged.push(old);
+        }
+        merged.extend(new.map(|(_, row)| row));
+        out.splice(table.first_row..end, merged);
     }
     let mut joined = out.join("\n");
     if text.ends_with('\n') {

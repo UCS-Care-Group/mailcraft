@@ -70,6 +70,8 @@ jobs:
         # Pull requests read main's cache but don't write their own: a cache per PR fills the
         # repository's 10 GB and pushes out the caches that matter (FreeBSD's above all).
         with:
+          # The same cache as `fragments` reads.
+          shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
           # A main run whose tests fail still keeps what it compiled for the next run.
           cache-on-failure: true
@@ -117,7 +119,9 @@ jobs:
         with:
           toolchain: 1.98.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        # `ci`'s cache (main writes it), read and never written here.
         with:
+          shared-key: ci
           save-if: false
       - run: cargo run --locked --package xtask -- docs-log --check
       - run: cargo run --locked --package xtask -- release-notes > /dev/null
