@@ -1539,8 +1539,9 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
-    /// The run in flight has had its password remembered already: once a run (#802).
-    sync_password_kept: bool,
+    /// The password the run in flight went with, until the system is asked to remember it: once
+    /// a run (#802).
+    sync_password: Option<String>,
     /// JMAP accounts whose server turned their credential down this session: no round that starts
     /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
     jmap_refused: std::collections::HashSet<Id>,
@@ -1799,7 +1800,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
-            sync_password_kept: false,
+            sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
@@ -3106,7 +3107,9 @@ impl MailApp {
         }
         let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
         self.sync_run = Some((account, None, false, quiet));
-        self.sync_password_kept = false;
+        // (A refusal said by a run whose thread ended before its last piece is not this run's.)
+        self.sync_refused = false;
+        self.sync_password = Some(request.password.clone()).filter(|password| !password.is_empty());
         self.sync_rx = Some(MailRun::Imap(start(request)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
@@ -3237,6 +3240,7 @@ impl MailApp {
             // The automatic replies' jobs and what waits to go up are the old mailbox's too.
             self.auto_replies_forget_if_replaced();
             self.passwords.clear();
+            self.sync_password = None;
             self.secret_cache.clear();
             self.secret_read = None;
             self.secrets_asked = None;
@@ -3926,16 +3930,20 @@ impl MailApp {
     /// by the end of one), not when it holds that password already (a round by itself comes
     /// every few minutes), and never after a piece of the run said a sign-in was refused: the
     /// end of such a run forgets it. Remembering switched on during the run counts from its
-    /// next piece.
+    /// next piece. Only the password the run went with, while it is still the one in memory: one
+    /// typed since (in Account Settings, say) has not been tried, and the next run tries it.
     pub(crate) fn keep_accepted_password(&mut self, account: Id) {
-        if self.sync_refused || !self.ui.remember_sign_in || std::mem::replace(&mut self.sync_password_kept, true) {
+        if self.sync_refused || !self.ui.remember_sign_in {
             return;
         }
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone());
-        let Some((address, password)) = address.zip(self.passwords.get(&account).cloned()) else { return };
+        let Some(sent) = self.sync_password.take() else { return };
+        if self.passwords.get(&account) != Some(&sent) {
+            return;
+        }
+        let Some(address) = self.session.mailbox.account(account).map(|a| a.email.clone()) else { return };
         let key = self.account_at(&address).map(|a| Self::secret_key("password", a));
-        if key.and_then(|key| self.secret_cache.get(&key)) != Some(&password) {
-            self.remember("password", &address, &password);
+        if key.and_then(|key| self.secret_cache.get(&key)) != Some(&sent) {
+            self.remember("password", &address, &sent);
         }
     }
 
@@ -3958,7 +3966,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
-                    self.sync_rx = None;
+                    (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
@@ -4013,11 +4021,15 @@ impl MailApp {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
-                // It went through: this password is worth remembering, if no piece said so before.
-                self.keep_accepted_password(account);
+                // It went through: this password is worth remembering, if no piece said so before
+                // (a run called off may have been before it signed in, and proves nothing).
+                if !totals.stopped {
+                    self.keep_accepted_password(account);
+                }
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);
             }
+            self.sync_password = None;
             self.status(totals.summary_in(i18n::current()));
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);

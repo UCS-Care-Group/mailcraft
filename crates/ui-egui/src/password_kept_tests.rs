@@ -175,6 +175,54 @@ fn an_imap_password_is_kept_only_when_the_owner_lets_it_be() {
     assert_eq!(kept(&a, &store, id).as_deref(), Some(TYPED));
 }
 
+#[test]
+fn only_the_password_the_run_went_with_is_kept() {
+    // A new one typed in Account Settings before the server let the run in: neither is kept by
+    // this run, and the next one tries the new one.
+    let store = Store::default();
+    let (mut a, id, pipe) = imap_run(&store);
+    a.adopt_password(id, "typed in settings".into());
+    send(&mut a, &pipe, piece(id, SyncStage::Listed, &[]));
+    send(&mut a, &pipe, SyncResult { account: id, ..Default::default() });
+    assert_eq!(kept(&a, &store, id), None);
+    assert_eq!(a.passwords.get(&id).map(String::as_str), Some("typed in settings"));
+
+    // Typed after it: the one the server took stays kept, and the new one isn't written over it.
+    let store = Store::default();
+    let (mut a, id, pipe) = imap_run(&store);
+    send(&mut a, &pipe, piece(id, SyncStage::Listed, &[]));
+    a.adopt_password(id, "typed in settings".into());
+    send(&mut a, &pipe, piece(id, SyncStage::Reading, &[]));
+    send(&mut a, &pipe, SyncResult { account: id, ..Default::default() });
+    assert_eq!((kept(&a, &store, id).as_deref(), store.writes()), (Some(TYPED), 1));
+}
+
+#[test]
+fn a_run_called_off_before_it_signed_in_keeps_nothing() {
+    let store = Store::default();
+    let (mut a, id, pipe) = imap_run(&store);
+    send(&mut a, &pipe, piece(id, SyncStage::Connecting, &[]));
+    send(&mut a, &pipe, SyncResult { account: id, stopped: true, ..Default::default() });
+    assert!(!a.syncing());
+    assert_eq!(kept(&a, &store, id), None);
+}
+
+#[test]
+fn a_refusal_from_a_run_that_ended_unexpectedly_is_not_the_next_runs() {
+    let store = Store::default();
+    let (mut a, id, pipe) = imap_run(&store);
+    send(&mut a, &pipe, piece(id, SyncStage::Connecting, &["Couldn't send mail: the server refused the sign-in"]));
+    // The run's thread ends before its last piece.
+    *pipe.lock().unwrap() = None;
+    a.poll_sync();
+    assert!(!a.syncing());
+    // The next run is let in: its password is kept, and stays kept at its end.
+    assert_eq!(a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap()["started"], true);
+    send(&mut a, &pipe, piece(id, SyncStage::Listed, &[]));
+    send(&mut a, &pipe, SyncResult { account: id, ..Default::default() });
+    assert_eq!(kept(&a, &store, id).as_deref(), Some(TYPED));
+}
+
 /// An Exchange server account and a Send/Receive of it under way with the password just typed.
 fn ews_run(store: &Store) -> (MailApp, u64, Pipe<EwsMailResult>) {
     let mut a = app(store);

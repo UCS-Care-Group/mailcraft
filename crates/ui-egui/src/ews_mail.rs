@@ -91,8 +91,9 @@ impl MailApp {
         let request = self.session.run("sync.ewsRequest", &params).map_err(|e| e.to_string())?;
         let request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
         self.services.sync_cancel.store(false, Ordering::Relaxed);
+        let sent = Some(secret.clone());
         let pieces = run(EwsJob { request, secret, cancel: self.services.sync_cancel.clone() });
-        (self.sync_refused, self.sync_password_kept) = (false, false);
+        (self.sync_refused, self.sync_password) = (false, sent);
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -114,7 +115,7 @@ impl MailApp {
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("ews mail: the run stopped without its last piece (its thread ended early)");
-                    (self.sync_rx, self.sync_refused) = (None, false);
+                    (self.sync_rx, self.sync_refused, self.sync_password) = (None, false, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
@@ -126,7 +127,7 @@ impl MailApp {
             if opening != self.session.openings() {
                 self.services.sync_cancel.store(true, Ordering::Relaxed);
                 if last {
-                    (self.sync_rx, self.sync_run, self.sync_refused) = (None, None, false);
+                    (self.sync_rx, self.sync_run, self.sync_refused, self.sync_password) = (None, None, false, None);
                     self.session.sync_status.clear();
                     return;
                 }
@@ -205,6 +206,7 @@ impl MailApp {
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }
+            self.sync_password = None;
             self.note_pushed(account);
             return;
         }
