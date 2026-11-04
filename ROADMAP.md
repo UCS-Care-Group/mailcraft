@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -187,6 +187,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-04 | Conversations are threads ([#795](https://github.com/UCS-Care-Group/mailcraft/issues/795)): two unrelated messages with the same subject were one conversation, so Delete or Move on its row took both. A conversation is now the messages of one subject that their headers (`Message-ID`, `In-Reply-To`, `References`) or their server (Graph `conversationId`, Exchange `ConversationId`, JMAP `threadId`) link, worked out once per change of the mailbox (linear; 326,000 messages with a 30,000-message subject tested). Mail kept from before with neither is grouped by subject among itself until its server's id comes: Send/Receive asks the account's own server for at most 1,000 a run, once each. |
 | 2026-11-03 | The update switches move ([#488](https://github.com/UCS-Care-Group/mailcraft/issues/488)): File › About › Updates holds Check for new versions and Install updates automatically under Check for Updates, and File › Options has no Updates section; the update logic and the hit names are unchanged. |
 | 2026-11-03 | The owner's order of the accounts ([#702](https://github.com/UCS-Care-Group/mailcraft/issues/702), point 2): an account is dragged by its heading up or down the folder pane, as in classic Outlook, a line showing where it goes and its shared mailboxes going with it. The order is the list's, kept in the mailbox apart from the accounts (`Mailbox::account_order`), so the default account never changes with it; File › Info, the From list, the calendars' groups, Junk E-mail Options, Signatures, Rules and Alerts, Tasks, `account.list`, `folder.list`, `file.account` and `file.info` follow it, and the To Do jobs start in that order; Send/Receive keeps the order the accounts were added in. Move Up and Move Down on an account's right-click menu do the same as a drag, and the pane scrolls while a heading is dragged near its top or bottom. `account.move` does the same from the command line, MCP and agents (safe: nothing leaves the computer, Undo puts it back). |
 | 2026-11-03 | #631: each account's contacts apart. People has a choice under its heading (All accounts, each Microsoft account, On this computer; `view.peopleAccount`, remembered with the other view choices), on the `AccountChoice` and `widgets::account_choice` of #632. The list, the counts, the search and the status bar follow it; with All accounts each row says where the contact is, and the card says so whatever the list shows; a contact the account's server keeps is marked Read-only there, with why in its hover text, before Edit or Delete is tried. A contact that becomes the selected one (made, imported, merged or picked) where the list doesn't show it moves the list to it, and clears a search that would leave it out; undone, a step puts the list back where the contact selected again is. On this computer is forgotten once the last account that keeps contacts goes, so an account added later opens People on All accounts, and an account's empty list says No contacts from this account yet (they may not have come down). Export Contacts, the contact picker and the recipient suggestions stay on every contact, and `list_contacts` too unless `account` names one (`people.list` takes it). A new contact is still kept on this computer |
@@ -420,6 +421,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | #795: conversations by thread, in the progress log |
 | 2026-11-03 | #488: the update switches' move, in the progress log |
 | 2026-11-03 | #702, #631: the progress log: Move Up and Move Down, the pane's scroll while dragging, the To Do jobs' order; a contact shown clears a search that hides it |
 | 2026-11-03 | #631: the progress log: each account's contacts apart |
