@@ -52,9 +52,10 @@ pub(crate) struct Held {
 }
 
 /// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
-/// account's session address too, and how its secret goes), sorted, so the order in the file does
-/// not matter. SHA-256, so that a file cannot be made to match one the owner confirmed with other
-/// servers.
+/// account's session address too, and how its secret goes, an Exchange server's address and user
+/// name, and a Linchange account's CalDAV and CardDAV services), sorted, so the order in the file
+/// does not matter. SHA-256, so that a file cannot be made to match one the owner confirmed with
+/// other servers.
 pub fn fingerprint(mailbox: &Mailbox) -> String {
     let server = |s: &Option<mailcraft_model::Server>| match s {
         Some(s) => format!("{}:{}:{:?}", s.host.trim().to_ascii_lowercase(), s.port, s.security),
@@ -64,6 +65,8 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
     let jmap = |a: &Account| a.jmap.as_ref().map(|j| format!("\u{1}{}\u{1}{}", j.session.trim(), j.bearer)).unwrap_or_default();
     // (An Exchange server account's address and the user name its password goes with, likewise.)
     let ews = |a: &Account| a.ews.as_ref().map(|e| format!("\u{1}{}\u{1}{}", e.url.trim(), e.username.trim())).unwrap_or_default();
+    // (A Linchange account's CalDAV and CardDAV services: the password reaches those too.)
+    let dav = |a: &Account| a.dav.as_ref().map(|d| format!("\u{1}{}\u{1}{}", d.caldav.trim(), d.carddav.trim())).unwrap_or_default();
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
@@ -74,7 +77,7 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
                 a.kind,
                 server(&a.incoming),
                 server(&a.outgoing),
-                jmap(a) + &ews(a)
+                jmap(a) + &ews(a) + &dav(a)
             )
         })
         .collect();
@@ -121,6 +124,8 @@ impl MailApp {
     /// servers and is not the owner's own, nor a file whose servers were confirmed as they are.
     pub(crate) fn judge_mailbox(&mut self) {
         self.unconfirmed = false;
+        // A DAV job of the mailbox before is not for this one, whatever ids it uses.
+        self.dav = Default::default();
         self.release_services();
         if !self.session.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
             return;

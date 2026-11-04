@@ -431,7 +431,11 @@ pub fn servers_text(a: &Account) -> String {
             None => "exchange, no server address that can be used".to_string(),
         };
     }
-    let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
+    let mut parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
+    if let Some(dav) = a.dav.as_ref().filter(|dav| dav.problem().is_none()) {
+        parts.push(format!("caldav {}", dav.caldav.trim()));
+        parts.push(format!("carddav {}", dav.carddav.trim()));
+    }
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
 }
 

@@ -12,7 +12,7 @@
 //! The job runs after a Send/Receive, when the account is added, and otherwise now and then. It
 //! is one at a time, and it never holds up any account's mail.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_engine::cmd::remote;
 use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, EventsUpload, EventsUploaded};
@@ -59,20 +59,24 @@ pub struct DavResult {
 /// The job in flight, when each account was last read, and whether one is wanted now.
 #[derive(Default)]
 pub(crate) struct DavSync {
-    rx: Option<(Id, Receiver<DavResult>)>,
+    /// The account, the mailbox opening the job started under, and the answer to come.
+    rx: Option<(Id, u64, Receiver<DavResult>)>,
     checked: HashMap<Id, f64>,
     /// The server's address of each account's main calendar, once it has been listed: an event
     /// made here that says no calendar of its own goes there.
     main: HashMap<Id, String>,
-    due: bool,
+    /// The accounts whose next read was asked for (a Send/Receive, or a change made here).
+    requested: HashSet<Id>,
 }
 
 impl MailApp {
     /// Ask for `account`'s calendars and address books now (after it was added, or after a
     /// Send/Receive the owner asked for).
     pub(crate) fn dav_sync_soon(&mut self, account: Id) {
-        self.dav.checked.remove(&account);
-        self.dav.due = true;
+        if self.session.mailbox.account(account).is_some_and(Account::is_linchange) {
+            self.dav.checked.remove(&account);
+            self.dav.requested.insert(account);
+        }
     }
 
     /// Look whether a Linchange account's calendars and address books are due, and start a job
@@ -86,7 +90,7 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         } else if self.session.mailbox.accounts.iter().any(Account::is_linchange) {
             // Nothing is happening: look again in a while (sooner if a job is wanted).
-            ctx.request_repaint_after(std::time::Duration::from_secs(if self.dav.due { 1 } else { 5 }));
+            ctx.request_repaint_after(std::time::Duration::from_secs(if self.dav.requested.is_empty() { 5 } else { 1 }));
         }
     }
 
@@ -95,9 +99,10 @@ impl MailApp {
         if !self.auto_sync || self.services.dav.is_none() || self.dav.rx.is_some() || self.offline() {
             return false;
         }
-        let due = std::mem::take(&mut self.dav.due);
+        self.dav.requested.retain(|id| self.session.mailbox.account(*id).is_some_and(Account::is_linchange));
         for account in self.session.mailbox.accounts.iter().filter(|a| a.is_linchange()).map(|a| a.id).collect::<Vec<_>>() {
             let Some(found) = self.session.mailbox.account(account).cloned() else { continue };
+            let due = self.dav.requested.remove(&account);
             if !due && self.dav.checked.get(&account).is_some_and(|at| now - at < EVERY_MS) {
                 continue;
             }
@@ -112,7 +117,8 @@ impl MailApp {
             let job = DavJob { username: found.login().to_string(), password, from, to, account: found, changes, main_calendar };
             let Some(dav) = &self.services.dav else { return false };
             self.dav.checked.insert(account, now);
-            self.dav.rx = Some((account, dav(job)));
+            let opening = self.session.openings();
+            self.dav.rx = Some((account, opening, dav(job)));
             return true;
         }
         // The wish to ask at once doesn't outlive the look when there was nobody to ask.
@@ -122,8 +128,8 @@ impl MailApp {
     /// Take in what the host brought: the calendars, their events and the contacts of every
     /// address book (including the ones shared with the account).
     pub(crate) fn poll_dav(&mut self) {
-        let Some((account, rx)) = &self.dav.rx else { return };
-        let account = *account;
+        let Some((account, opening, rx)) = &self.dav.rx else { return };
+        let (account, opening) = (*account, *opening);
         let mut result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -133,6 +139,12 @@ impl MailApp {
             }
         };
         self.dav.rx = None;
+        // A mailbox that took the place of the one the job was for: its accounts are other
+        // accounts, whatever their ids and addresses, and what the job brings is nobody's.
+        if opening != self.session.openings() {
+            log::info!("calendar and address books, account {account}: the answer came for another mailbox; it is left out");
+            return;
+        }
         let mut errors = std::mem::take(&mut result.errors);
         if let Some(uploaded) = &result.uploaded
             && let Err(e) = remote::apply_event_outcomes(&mut self.session, uploaded)
@@ -173,124 +185,4 @@ impl MailApp {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use mailcraft_engine::Session;
-    use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, RemoteCalendar, RemoteContact, RemoteEvent};
-    use mailcraft_model::{Account, AccountKind, DavServer, Mailbox, Security, Server};
-    use std::sync::mpsc;
-
-    fn app() -> (MailApp, Id) {
-        let mut mailbox = Mailbox::with_local_account("", "");
-        let id = mailbox.add_account(Account {
-            email: "ada@example.org".into(),
-            display_name: "Ada".into(),
-            kind: AccountKind::Imap,
-            incoming: Some(Server { host: "mail.example.org".into(), port: 993, security: Security::Tls }),
-            outgoing: Some(Server { host: "mail.example.org".into(), port: 587, security: Security::StartTls }),
-            dav: Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() }),
-            ..Default::default()
-        });
-        (MailApp::new(Session::at(mailbox, 1_800_000_000, 0), crate::Services::default()), id)
-    }
-
-    #[test]
-    fn the_calendars_and_every_shared_address_book_are_taken_in() {
-        let (mut app, account) = app();
-        let (tx, rx) = mpsc::channel();
-        app.dav.rx = Some((account, rx));
-        let main = "https://mail.example.org/caldav/ada@example.org/calendar/";
-        let shared = "https://mail.example.org/caldav/ada@example.org/shared/";
-        tx.send(DavResult {
-            account,
-            calendars: Some(CalendarsDownload {
-                account,
-                email: "ada@example.org".into(),
-                complete: true,
-                calendars: vec![
-                    RemoteCalendar { id: main.into(), name: "Calendar".into(), main: true, ..Default::default() },
-                    RemoteCalendar { id: shared.into(), name: "Team".into(), ..Default::default() },
-                ],
-                ..Default::default()
-            }),
-            events: vec![
-                EventsDownload {
-                    account,
-                    email: "ada@example.org".into(),
-                    calendar: String::new(),
-                    from: 1_800_000_000,
-                    to: 1_800_003_600,
-                    complete: true,
-                    events: vec![
-                        RemoteEvent {
-                            id: format!("{main}e-1.ics"),
-                            title: "Stand-up".into(),
-                            start: 1_800_000_000,
-                            end: 1_800_003_600,
-                            ..Default::default()
-                        },
-                        RemoteEvent {
-                            id: "/caldav/ada@example.org/Investigation/c3ed%2540linchange.ics".into(),
-                            uid: "c3ed@linchange".into(),
-                            title: "Investigation event".into(),
-                            start: 1_800_003_600,
-                            end: 1_800_007_200,
-                            start_zone: "UTC".into(),
-                            ..Default::default()
-                        },
-                        RemoteEvent {
-                            id: "/caldav/ada@example.org/Investigation/28cd%2540linchange.ics".into(),
-                            uid: "28cd@linchange".into(),
-                            title: "Rome event".into(),
-                            start: 1_800_010_800,
-                            end: 1_800_014_400,
-                            start_zone: "Europe/Rome".into(),
-                            ..Default::default()
-                        },
-                    ],
-                    ..Default::default()
-                },
-                EventsDownload {
-                    account,
-                    email: "ada@example.org".into(),
-                    calendar: shared.into(),
-                    from: 1_800_000_000,
-                    to: 1_800_003_600,
-                    complete: true,
-                    events: vec![RemoteEvent {
-                        id: format!("{shared}team.ics"),
-                        title: "Team event".into(),
-                        start: 1_800_000_000,
-                        end: 1_800_003_600,
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                },
-            ],
-            contacts: Some(ContactsDownload {
-                account,
-                email: "ada@example.org".into(),
-                complete: true,
-                contacts: vec![RemoteContact {
-                    id: "https://mail.example.org/carddav/ada@example.org/contacts/~book-7/one.vcf".into(),
-                    display_name: "Ada Lovelace".into(),
-                    book: "Suppliers".into(),
-                    ..Default::default()
-                }],
-            }),
-            ..Default::default()
-        })
-        .unwrap();
-        app.poll_dav();
-        assert_eq!(app.dav.main.get(&account).map(String::as_str), Some(main));
-        assert!(app.session.mailbox.calendars.iter().any(|c| c.name == "Calendar" && c.origin.account == account));
-        assert!(app.session.mailbox.calendars.iter().any(|c| c.name == "Team" && c.origin.id == shared));
-        assert!(app.session.mailbox.events.values().any(|e| e.title == "Stand-up"));
-        assert!(app.session.mailbox.events.values().any(|e| e.title == "Investigation event"));
-        assert!(app.session.mailbox.events.values().any(|e| e.title == "Rome event"));
-        let team = app.session.mailbox.calendars.iter().find(|c| c.name == "Team").unwrap().id;
-        assert!(app.session.mailbox.events.values().any(|e| e.title == "Team event" && e.calendar == team));
-        let contact = app.session.mailbox.contacts.values().find(|c| c.display_name == "Ada Lovelace").unwrap();
-        assert_eq!(contact.book, "Suppliers");
-    }
-}
+mod tests;

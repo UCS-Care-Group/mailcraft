@@ -64,6 +64,13 @@ pub fn start(server: &str, description: &str) -> Result<AppTokenGrant, NetError>
     if grant.device_code.is_empty() || grant.verification_url.is_empty() || grant.user_code.is_empty() {
         return Err(NetError::Proto(mailcraft_proto::ProtoError::Protocol("the Linchange server's approval answer is incomplete".into())));
     }
+    // The page is the server's own: an answer may not send the owner's browser to another host.
+    let base_url = Url::parse(&base)
+        .map_err(|_| NetError::Proto(mailcraft_proto::ProtoError::Protocol("the Linchange server's address can't be used".into())))?;
+    let page = Url::parse(grant.verification_url.trim()).ok().filter(|url| url.same_server(&base_url));
+    if page.is_none() {
+        return Err(NetError::Proto(mailcraft_proto::ProtoError::Protocol("the Linchange server's approval page is not on the server".into())));
+    }
     Ok(grant)
 }
 
@@ -158,60 +165,5 @@ fn ask(url: &str, body: &str) -> Result<(u16, Vec<u8>), NetError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::fake::{FakeHttp, json_answer};
-
-    #[test]
-    fn an_approval_is_started_and_read() {
-        let server = FakeHttp::answering(json_answer(
-            "200 OK",
-            r#"{"device_code":"device-secret","user_code":"ABCD-EFGH","verification_url":"https://mail.example.org/app-auth?code=ABCD-EFGH","expires_in":600,"interval":5}"#,
-        ));
-        let grant = start(&server.url("/"), "MailCraft on a laptop").unwrap();
-        assert_eq!(grant.device_code, "device-secret");
-        assert_eq!(grant.user_code, "ABCD-EFGH");
-        assert!(grant.verification_url.starts_with("https://mail.example.org/app-auth"));
-        let request = server.request(0);
-        assert!(request.starts_with("POST /api/v1/auth/app-token HTTP/1.1\r\n"), "{request}");
-        assert!(request.contains("MailCraft on a laptop"));
-    }
-
-    #[test]
-    fn a_pending_approval_is_polled_until_the_password_comes() {
-        let server = FakeHttp::start(|n, _| {
-            if n == 0 {
-                json_answer("400 Bad Request", r#"{"error":"authorization_pending"}"#)
-            } else {
-                json_answer("200 OK", r#"{"token":"lcapp_prefix_secret","username":"ada@example.org"}"#)
-            }
-        });
-        let grant = AppTokenGrant {
-            device_code: "device-secret".into(),
-            user_code: "ABCD-EFGH".into(),
-            verification_url: "https://mail.example.org/app-auth?code=ABCD-EFGH".into(),
-            expires_in: 60,
-            interval: 1,
-        };
-        let cancel = AtomicBool::new(false);
-        let password = finish(&server.url("/"), &grant, &cancel).unwrap();
-        assert_eq!(password, "lcapp_prefix_secret");
-        assert_eq!(server.asked(), 2);
-        assert!(server.request(0).contains("\"device_code\":\"device-secret\""));
-    }
-
-    #[test]
-    fn cancelling_the_wait_stops_the_polling() {
-        let server = FakeHttp::answering(json_answer("400 Bad Request", r#"{"error":"authorization_pending"}"#));
-        let grant = AppTokenGrant {
-            device_code: "device-secret".into(),
-            user_code: "ABCD-EFGH".into(),
-            verification_url: "https://mail.example.org/app-auth?code=ABCD-EFGH".into(),
-            expires_in: 60,
-            interval: 1,
-        };
-        let cancel = AtomicBool::new(true);
-        assert!(matches!(finish(&server.url("/"), &grant, &cancel), Err(NetError::SignInCancelled)));
-        assert_eq!(server.asked(), 0);
-    }
-}
+#[path = "linchange_tests.rs"]
+mod tests;

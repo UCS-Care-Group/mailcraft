@@ -2771,6 +2771,16 @@ impl MailApp {
             let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
             let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
             format!("{kind}:{address}|ews={url}|user={user}")
+        } else if let Some(dav) = &a.dav {
+            // (A Linchange account's password reaches the CalDAV and CardDAV services too: another
+            // service root, on the same server or not, is another server.)
+            format!(
+                "{kind}:{address}|imap={}|smtp={}|caldav={}|carddav={}",
+                server(&a.incoming),
+                server(&a.outgoing),
+                dav.caldav.trim(),
+                dav.carddav.trim()
+            )
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -3086,6 +3096,10 @@ impl MailApp {
         description: String,
     ) -> Result<std::sync::Arc<std::sync::atomic::AtomicBool>, String> {
         self.setup_linchange_sign_in = None;
+        // Work Offline: the approval would reach a server and open the browser for it.
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(sign_in) = self.services.linchange_sign_in.as_ref() else {
             return Err(tl!("This build can't sign in to Linchange").to_string());
         };

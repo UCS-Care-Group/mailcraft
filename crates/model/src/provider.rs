@@ -249,11 +249,7 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     if under("zoho.com") {
         return Some(with_password("Zoho", "imap.zoho.com", ("smtp.zoho.com", 465, tls), ""));
     }
-    // A deployment that names its mail exchanger after the server it runs: the name alone is a
-    // hint, and the host still asks the server before an account is set up.
-    if host.split('.').any(|label| label.eq_ignore_ascii_case("linchange")) {
-        return linchange(&host);
-    }
+    // A Linchange server is found by asking the host, never by trusting its name alone.
     None
 }
 
@@ -351,7 +347,7 @@ mod tests {
         assert_eq!(by_mx("aspmx.l.google.com").unwrap().service, "Google Workspace");
         assert_eq!(by_mx("in1-smtp.messagingengine.com").unwrap().service, "Fastmail");
         assert_eq!(by_mx("mx01.mail.icloud.com").unwrap().service, "iCloud");
-        assert_eq!(by_mx("mail.linchange.example").unwrap().service, "Linchange");
+        assert_eq!(by_mx("mail.linchange.example"), None);
         // A look-alike is not the provider, nor is a host that isn't one.
         for host in ["evilgoogle.com", "mail.protection.outlook.com.evil.example", "mx.lumen.example", "", "a b", "x/../mx.microsoft"] {
             assert_eq!(by_mx(host), None, "{host}");
