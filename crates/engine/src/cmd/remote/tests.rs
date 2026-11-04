@@ -4,8 +4,9 @@
 //! `mailcraft-net` brings it from Microsoft Graph.
 
 use mailcraft_model::remote::{
-    ContactsDownload, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime,
-    EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteContact, RemoteEvent, RemoteEventKind,
+    ContactChangeKind, ContactOutcome, ContactsDownload, ContactsUploaded, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome,
+    EventReminder, EventRepeat, EventResult, EventTime, EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteContact,
+    RemoteEvent, RemoteEventKind,
 };
 use mailcraft_model::{Address, Attendee, Contact, ContactBook, Event, Freq, Id, Labeled, Origin, Recurrence, Response, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -13,8 +14,8 @@ use proptest::prelude::*;
 use serde_json::{Value, json};
 
 use super::{
-    EventsWaiting, Merged, apply_contacts, apply_event_outcomes, apply_events, event_from_remote, event_upload, events_waiting, forget, keeper,
-    merge_contacts, merge_events, retry_event_changes, server_start, server_time,
+    EventsWaiting, Merged, apply_contact_outcomes, apply_contacts, apply_event_outcomes, apply_events, contact_upload, event_from_remote,
+    event_upload, events_waiting, forget, keeper, merge_contacts, merge_events, resource_key, retry_event_changes, server_start, server_time,
 };
 use crate::cmd::calendar::current_calendar;
 use crate::{CmdError, Session};
@@ -1445,7 +1446,8 @@ fn contacts_are_merged_and_changes_go_to_their_server() {
             outcomes: vec![mailcraft_model::remote::ContactOutcome {
                 op: upload.ops[0].clone(),
                 result: EventResult::Done,
-                remote: "c-ada".into(),
+                // An answer that does not repeat the address keeps the one the change named.
+                remote: String::new(),
                 status: 204,
                 ..Default::default()
             }],
@@ -1453,6 +1455,7 @@ fn contacts_are_merged_and_changes_go_to_their_server() {
     )
     .unwrap();
     assert!(s.mailbox.contact_changes.is_empty(), "the answer settles the edit");
+    assert_eq!(s.mailbox.contact(kept.id).map(|contact| contact.origin.id.as_str()), Some("c-ada"));
     // What is only kept here is: its categories, and whether it is a favourite.
     run(&mut s, "people.categorize", json!({"id": kept.id, "category": "Red category"}));
     run(&mut s, "people.favorite", json!({"id": kept.id, "value": true}));
@@ -1621,6 +1624,123 @@ fn a_remote_contact_is_deleted_through_its_server() {
     assert_eq!(refused(&mut s, "people.edit", json!({"id": ro, "first": "Changed"})), why);
     assert_eq!(refused(&mut s, "people.delete", json!({"id": ro})), why);
     assert!(s.mailbox.contact(ro).is_some() && s.mailbox.contact_changes.is_empty());
+
+    // A book the server no longer lists is not silently treated as local: the change waits,
+    // and the owner is told why.
+    let gone = s.mailbox.add_contact(Contact {
+        display_name: "Gone Book".into(),
+        uid: "gone-1".into(),
+        book: "Old Team".into(),
+        book_id: "book-gone".into(),
+        origin: Origin { account, id: "c-gone".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let why = "The address book \"Old Team\" is no longer available. Send/Receive may bring it back, and the contact can be changed then.";
+    assert_eq!(refused(&mut s, "people.edit", json!({"id": gone, "first": "Changed"})), why);
+    assert_eq!(refused(&mut s, "people.delete", json!({"id": gone})), why);
+    assert!(s.mailbox.contact(gone).is_some() && s.mailbox.contact_changes.is_empty());
+}
+
+#[test]
+fn a_new_contact_uses_the_account_named_with_its_address_book() {
+    let (mut s, account) = session();
+    let other = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "mail.example.org"}}))["id"].as_u64().unwrap();
+    s.mailbox.contact_books.push(ContactBook { account, id: "same-book".into(), name: "Ada's".into(), rights: Rights::Edit });
+    s.mailbox.contact_books.push(ContactBook { account: other, id: "same-book".into(), name: "Bo's".into(), rights: Rights::Edit });
+    let id = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": "same-book", "addressBookAccount": other}))["id"].as_u64().unwrap();
+    let contact = s.mailbox.contact(id).unwrap();
+    assert_eq!((contact.origin.account, contact.book.as_str()), (other, "Bo's"));
+}
+
+#[test]
+fn an_older_answer_does_not_settle_a_newer_contact_change() {
+    let (mut s, account) = session();
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-1", "Ada", "ada@example.org"))])).unwrap();
+    let id = contact_called(&s, account, "c-1").id;
+    run(&mut s, "people.edit", json!({"id": id, "first": "Augusta"}));
+    let first = contact_upload(&s, account).expect("the first edit waits");
+    run(&mut s, "people.edit", json!({"id": id, "first": "Ada again"}));
+    let second = contact_upload(&s, account).expect("the second edit waits");
+    assert_ne!(first.ops[0].token, second.ops[0].token);
+    apply_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: first.ops[0].clone(),
+                result: EventResult::Done,
+                remote: "c-1".into(),
+                status: 204,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    let left = &s.mailbox.contact_changes;
+    assert_eq!(left.len(), 1, "the newer edit still waits");
+    assert_eq!(left[0].token, second.ops[0].token);
+    assert!(left[0].card.contains("Ada again"), "{}", left[0].card);
+}
+
+#[test]
+fn a_contact_deleted_while_its_creation_was_sent_asks_for_its_deletion() {
+    let (mut s, account) = session();
+    let book = CARDDAV_BOOK.to_string();
+    s.mailbox.contact_books.push(ContactBook { account, id: book.clone(), name: "My contacts".into(), rights: Rights::Edit });
+    let make = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": book}));
+    let id = make["id"].as_u64().unwrap();
+    let upload = contact_upload(&s, account).expect("the new contact waits");
+    run(&mut s, "people.delete", json!({"id": id}));
+    apply_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: format!("{CARDDAV_BOOK}{}.vcf", upload.ops[0].uid),
+                status: 201,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact(id).is_none());
+    let delete = s.mailbox.contact_changes.iter().find(|change| change.kind == ContactChangeKind::Delete).expect("a deletion waits");
+    assert_eq!(resource_key(&delete.remote), format!("/carddav/ada@example.org/contacts/personal/{}.vcf", upload.ops[0].uid));
+}
+
+#[test]
+fn a_contact_changed_while_its_creation_was_sent_queues_the_newer_card() {
+    let (mut s, account) = session();
+    let book = CARDDAV_BOOK.to_string();
+    s.mailbox.contact_books.push(ContactBook { account, id: book.clone(), name: "My contacts".into(), rights: Rights::Edit });
+    let id = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": book}))["id"].as_u64().unwrap();
+    let upload = contact_upload(&s, account).expect("the new contact waits");
+    let remote = format!("{CARDDAV_BOOK}{}.vcf", upload.ops[0].uid);
+    if let Ok(contact) = s.mailbox.contact_mut(id) {
+        contact.first = "Augusta".into();
+    }
+    apply_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: remote.clone(),
+                status: 201,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    let update = s.mailbox.contact_changes.iter().find(|change| change.kind == ContactChangeKind::Update).expect("the newer card waits");
+    assert!(update.card.contains("Augusta"), "{}", update.card);
+    assert_eq!(s.mailbox.contact(id).map(|contact| contact.origin.id.as_str()), Some(remote.as_str()));
 }
 
 #[test]

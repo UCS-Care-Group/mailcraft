@@ -501,6 +501,10 @@ pub struct ContactOp {
     pub remote: String,
     pub uid: String,
     pub card: String,
+    /// The generation of the change this was made from: an answer settles only that one, so an
+    /// older answer cannot clear a newer edit of the same card.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub token: String,
 }
 
 /// A change to a contact that lives on an account's CardDAV server and that server is yet to
@@ -518,6 +522,9 @@ pub struct ContactChange {
     pub card: String,
     /// The contact's name when it was changed, for a line to the owner.
     pub name: String,
+    /// The generation of this change; an answer names the one it settles.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub token: String,
 }
 
 /// The contacts made here that a server is yet to receive.

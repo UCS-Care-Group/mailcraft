@@ -5,8 +5,8 @@
 use super::*;
 use mailcraft_engine::Session;
 use mailcraft_model::remote::{
-    CalendarsDownload, ContactOp, ContactOutcome, ContactsDownload, ContactsUploaded, EventResult, EventsDownload, RemoteAddressBook, RemoteCalendar,
-    RemoteContact, RemoteEvent,
+    CalendarsDownload, ContactChangeKind, ContactOp, ContactOutcome, ContactsDownload, ContactsUploaded, EventResult, EventsDownload,
+    RemoteAddressBook, RemoteCalendar, RemoteContact, RemoteEvent,
 };
 use mailcraft_model::{Account, AccountKind, Calendar, Contact, DavServer, Mailbox, Origin, Rights, Security, Server};
 use serde_json::json;
@@ -103,6 +103,7 @@ fn the_calendars_and_every_shared_address_book_are_taken_in() {
             account,
             email: "ada@example.org".into(),
             complete: true,
+            books: Vec::new(),
             contacts: vec![RemoteContact {
                 id: "https://mail.example.org/carddav/ada@example.org/contacts/~book-7/one.vcf".into(),
                 display_name: "Ada Lovelace".into(),
@@ -124,6 +125,63 @@ fn the_calendars_and_every_shared_address_book_are_taken_in() {
     assert!(app.session.mailbox.events.values().any(|e| e.title == "Team event" && e.calendar == team));
     let contact = app.session.mailbox.contacts.values().find(|c| c.display_name == "Ada Lovelace").unwrap();
     assert_eq!(contact.book, "Suppliers");
+}
+
+#[test]
+fn a_result_from_a_replaced_mailbox_changes_nothing() {
+    let (mut app, account) = app();
+    let (tx, rx) = mpsc::channel();
+    // A job started before the mailbox changed: its opening is no longer the session's.
+    let stale = app.session.openings().wrapping_sub(1);
+    app.dav.rx = Some((account, stale, rx));
+    let before = app.session.mailbox.calendars.len();
+    tx.send(DavResult {
+        account,
+        calendars: Some(CalendarsDownload {
+            account,
+            email: "ada@example.org".into(),
+            complete: true,
+            calendars: vec![RemoteCalendar {
+                id: "https://mail.example.org/caldav/ada@example.org/calendar/".into(),
+                name: "Stale".into(),
+                main: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    assert_eq!(app.session.mailbox.calendars.len(), before);
+    assert!(!app.session.mailbox.calendars.iter().any(|calendar| calendar.name == "Stale"));
+}
+
+#[test]
+fn a_read_only_owner_calendar_is_not_an_upload_target() {
+    let (mut app, account) = app();
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    tx.send(DavResult {
+        account,
+        calendars: Some(CalendarsDownload {
+            account,
+            email: "ada@example.org".into(),
+            complete: true,
+            calendars: vec![RemoteCalendar {
+                id: "https://mail.example.org/caldav/ada@example.org/calendar/".into(),
+                name: "Calendar".into(),
+                main: true,
+                rights: Rights::Read,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    assert!(!app.dav.main.contains_key(&account), "nothing made here can be sent to a calendar that only reads");
 }
 
 #[test]
@@ -180,7 +238,14 @@ fn a_contact_sent_is_not_taken_away_by_the_list_read_before_it() {
             account,
             email: "ada@example.org".into(),
             outcomes: vec![ContactOutcome {
-                op: ContactOp { contact: id, book: book.into(), uid: "one-uid".into(), card: String::new(), ..Default::default() },
+                op: ContactOp {
+                    kind: ContactChangeKind::Create,
+                    contact: id,
+                    book: book.into(),
+                    uid: "one-uid".into(),
+                    card: String::new(),
+                    ..Default::default()
+                },
                 result: EventResult::Done,
                 remote: remote.clone(),
                 status: 201,

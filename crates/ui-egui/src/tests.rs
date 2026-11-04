@@ -1541,8 +1541,9 @@ fn deleting_a_contact_is_asked_about_first() {
 #[test]
 fn deleting_a_server_contact_is_asked_about_first() {
     use crate::dialogs::Dialog;
-    use mailcraft_model::{Contact, Origin};
+    use mailcraft_model::{Contact, ContactBook, Origin, Rights};
     let mut a = app();
+    a.session.mailbox.contact_books.push(ContactBook { account: 1, id: "team".into(), name: "Team".into(), rights: Rights::Edit });
     let id = a.session.mailbox.add_contact(Contact {
         display_name: "Remote Person".into(),
         uid: "remote-1".into(),

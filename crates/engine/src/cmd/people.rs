@@ -60,7 +60,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "addressBook"?: string (the id of an address book of people.addressBooks; default: this computer)} — the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "addressBook"?: string (the id of an address book of people.addressBooks; default: this computer), "addressBookAccount"?: number (the account that book belongs to, when two name the same id)} — the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -127,19 +127,19 @@ fn writable_contact(s: &Session, contact: &Contact) -> Result<(), CmdError> {
     if contact.book_id.is_empty() {
         return remote::changeable(&s.mailbox, &contact.origin, "contact");
     }
-    if let Some(book) = s
-        .mailbox
-        .contact_books
-        .iter()
-        .find(|book| book.account == contact.origin.account && book.id == contact.book_id)
-        .filter(|book| book.rights != Rights::Edit)
-    {
-        return Err(failed!(
+    match s.mailbox.contact_books.iter().find(|book| book.account == contact.origin.account && book.id == contact.book_id) {
+        Some(book) if book.rights != Rights::Edit => Err(failed!(
             "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts.",
             name = book.name
-        ));
+        )),
+        // The server no longer lists this book. A change would be lost, and the next read would
+        // put the server's copy back; say so instead of changing it here alone.
+        None => Err(failed!(
+            "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then.",
+            name = contact.book.trim()
+        )),
+        Some(_) => Ok(()),
     }
-    Ok(())
 }
 
 fn line(v: &Value, k: &str) -> Option<String> {
@@ -247,12 +247,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
     let book = p::str(v, "addressBook").map(str::trim).filter(|id| !id.is_empty());
+    let book_account = p::id(v, "addressBookAccount").unwrap_or(0);
     if let Some(book) = book {
         let found = s
             .mailbox
             .contact_books
             .iter()
-            .find(|known| known.id == book)
+            .find(|known| known.id == book && (book_account == 0 || known.account == book_account))
             .filter(|known| known.rights.can_edit())
             .cloned()
             .ok_or_else(|| bad("that address book can't be written to"))?;

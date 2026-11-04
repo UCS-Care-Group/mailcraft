@@ -39,6 +39,15 @@ fn an_approval_page_on_another_server_is_refused() {
 }
 
 #[test]
+fn an_approval_page_that_is_not_a_web_address_is_refused() {
+    let server = FakeHttp::answering(json_answer(
+        "200 OK",
+        r#"{"device_code":"device-secret","user_code":"ABCD-EFGH","verification_url":"mailto:approve@example.org","expires_in":600,"interval":5}"#,
+    ));
+    assert!(start(&server.url("/"), "MailCraft on a laptop").is_err());
+}
+
+#[test]
 fn a_pending_approval_is_polled_until_the_password_comes() {
     let server = FakeHttp::start(|n, _| {
         if n == 0 {
