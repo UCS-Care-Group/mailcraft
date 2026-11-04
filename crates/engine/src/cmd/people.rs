@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! People: contacts.
 
-use mailcraft_model::{Address, Contact, Id, Labeled, PostalAddress, clean_name};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, clean_name};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
+use super::tasks::kept_at;
 use super::{bad, done, fail, needs_message};
 use crate::session::parse_enum;
 use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 
+#[cfg(test)]
+mod account_tests;
 #[cfg(test)]
 mod share_tests;
 
@@ -22,7 +25,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
         CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
-        CommandSpec::new("people.list", "List Contacts", "People", list).pure().params(r#"{"query"?: string}"#),
+        CommandSpec::new("people.list", "List Contacts", "People", list)
+            .pure()
+            .params(r#"{"query"?: string, "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
         CommandSpec::new("people.favorite", "Add to Favorites", "Home › Actions", favorite)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -43,16 +48,59 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
-            .params(r#"{"id"?: number} (a message; default: the selected one)"#)
+            .params(r#"{"id"?: number} (a message; default: the selected one) — a new contact is kept on this computer; the list moves to show the contact"#)
             .selection(needs_message),
     ]
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool}"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool} — it is kept on this computer; the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
+}
+
+/// Whether the account's contacts are read from its server.
+pub fn keeps_contacts(mailbox: &Mailbox, account: Id) -> bool {
+    mailbox.account(account).is_some_and(|a| a.keeps_contacts())
+}
+
+/// The accounts whose contacts are read from their servers.
+pub fn contact_accounts(mailbox: &Mailbox) -> Vec<Id> {
+    mailbox.accounts.iter().filter(|a| a.keeps_contacts()).map(|a| a.id).collect()
+}
+
+/// Whose contacts the list shows: what the owner chose, while it means something. With no account
+/// that keeps contacts there is nothing to choose, and an account that no longer does is All
+/// accounts.
+pub fn shown_account(s: &Session) -> AccountChoice {
+    match s.view.people_account {
+        AccountChoice::Account(account) if keeps_contacts(&s.mailbox, account) => s.view.people_account,
+        AccountChoice::Here if !contact_accounts(&s.mailbox).is_empty() => AccountChoice::Here,
+        _ => AccountChoice::All,
+    }
+}
+
+/// A contact just made or picked is in view: where the list doesn't show it, the list moves to it,
+/// and a search that would leave it out is cleared, so its row is there beside its card.
+pub(crate) fn reveal(s: &mut Session, id: Id) {
+    let shown = shown_account(s);
+    let Some(c) = s.mailbox.contact(id) else { return };
+    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
+    if hidden {
+        s.view.people_account = choice;
+    }
+    if unmatched {
+        s.view.people_search.clear();
+    }
+}
+
+/// "On this computer" means something only beside an account that keeps contacts: once the last
+/// of them goes, the list is back on All accounts, so one added later doesn't open People on it.
+pub(crate) fn forget_here(s: &mut Session) {
+    if s.view.people_account == AccountChoice::Here && contact_accounts(&s.mailbox).is_empty() {
+        s.view.people_account = AccountChoice::All;
+    }
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
@@ -177,6 +225,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
+    reveal(s, id);
     Ok(json!({"id": id}))
 }
 
@@ -191,11 +240,18 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id}))
 }
 
-/// Contacts in the People list's order: by name, favourites first; arranged by categories, by name
-/// alone (the list then puts each under each of its categories, and favourites have no heading of
-/// their own there). Each contact once: `people.list` and the neighbour a delete selects use it.
+/// The contacts the People list shows, in its order ([`sorted_of`]): `people.list` and the
+/// neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
-    let mut v: Vec<&Contact> = s.mailbox.contacts.values().map(|c| c.as_ref()).filter(|c| c.matches(query)).collect();
+    sorted_of(s, query, shown_account(s))
+}
+
+/// Contacts of `account` in the People list's order: by name, favourites first; arranged by
+/// categories, by name alone (the list then puts each under each of its categories, and favourites
+/// have no heading of their own there). Each contact once.
+pub fn sorted_of(s: &Session, query: &str, account: AccountChoice) -> Vec<Id> {
+    let mut v: Vec<&Contact> =
+        s.mailbox.contacts.values().map(|c| c.as_ref()).filter(|c| account.shows(&c.origin)).filter(|c| c.matches(query)).collect();
     let by_name = |a: &Contact, b: &Contact| a.file_as().to_lowercase().cmp(&b.file_as().to_lowercase()).then(a.id.cmp(&b.id));
     match s.view.people_sort {
         PeopleSort::Name => v.sort_by(|a, b| b.favorite.cmp(&a.favorite).then_with(|| by_name(a, b))),
@@ -228,31 +284,44 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         Some(id) => Some(s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))?),
         None => None,
     };
+    if let Some(id) = s.sel.contact {
+        reveal(s, id);
+    }
     done()
 }
 
-fn contact_json(c: &Contact) -> Value {
+fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
     json!({
         "id": c.id, "name": c.name(), "fileAs": c.file_as(), "first": c.first, "middle": c.middle, "last": c.last, "displayName": c.display_name,
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
+        "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
     })
 }
 
 fn get(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
-    s.mailbox.contact(id).map(contact_json).ok_or_else(|| fail("the contact is gone"))
+    s.mailbox.contact(id).map(|c| contact_json(&s.mailbox, c)).ok_or_else(|| fail("the contact is gone"))
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let query = p::str(v, "query").unwrap_or(&s.view.people_search).to_string();
-    let items: Vec<Value> = sorted(s, &query)
-        .into_iter()
-        .filter_map(|id| s.mailbox.contact(id))
-        .map(|c| json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite}))
-        .collect();
-    Ok(json!({"contacts": items}))
+    let account = match v.get("account") {
+        Some(a) => AccountChoice::parse(a).ok_or_else(|| bad("`account` is all, here or an account's id"))?,
+        None => shown_account(s),
+    };
+    // As `view.peopleAccount`: an account whose contacts aren't read from its server is refused,
+    // not listed as empty.
+    if matches!(account, AccountChoice::Account(id) if !keeps_contacts(&s.mailbox, id)) {
+        return Err(bad("that account's contacts aren't read from its server"));
+    }
+    let row = |c: &Contact| {
+        let kept_at = kept_at(&s.mailbox, &c.origin);
+        json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "account": c.origin.account, "keptAt": kept_at})
+    };
+    let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
+    Ok(json!({"account": account.code(), "contacts": items}))
 }
 
 fn search(s: &mut Session, v: &Value) -> CmdResult {
@@ -295,6 +364,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(existing) = s.mailbox.contact_by_email(&from.email).map(|c| c.id) {
         s.sel.contact = Some(existing);
+        reveal(s, existing);
         s.view.module = Module::People;
         return Ok(json!({"id": existing, "existing": true}));
     }
@@ -305,6 +375,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     };
     let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], ..Default::default() });
     s.sel.contact = Some(id);
+    reveal(s, id);
     s.view.module = Module::People;
     Ok(json!({"id": id, "existing": false}))
 }

@@ -548,7 +548,7 @@ msgid "Accessibility"
 msgstr "Toegankelijkheid"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -4176,8 +4176,8 @@ msgstr ""
 "Map\n"
 "eigenschappen"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
@@ -6585,11 +6585,23 @@ msgstr ""
 "Map\n"
 "verplaatsen"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Account verplaatsen"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Alles verplaatsen en uitnodigingen verzenden"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Omlaag"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6614,6 +6626,12 @@ msgstr "Terugkerend item verplaatsen"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Regel verplaatsen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Omhoog"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7108,6 +7126,12 @@ msgstr "Geen opdracht komt overeen."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Nog geen voltooide taken."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Nog geen contactpersonen van dit account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8638,6 +8662,12 @@ msgstr "Favorieten uit Outlook nu opnieuw lezen"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Lezen met de aanmelding van {owner}, zolang u die bewaart: de persoon moet diens agenda met u hebben gedeeld. De agenda wordt alleen op deze computer bewaard: die verschijnt niet in Outlook of op uw andere apparaten. Microsoft vraagt u één keer om MailCraft de agenda's van anderen te laten lezen."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Alleen-lezen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10352,6 +10382,12 @@ msgstr "Weergeven als"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Agenda weergeven"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Contactpersonen tonen van"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12546,6 +12582,12 @@ msgid "This account's calendar can't be asked yet: Send/Receive signs it in firs
 msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvangen meldt deze eerst aan."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
@@ -14728,6 +14770,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waarmee het is geopend: noem dat account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "een gedeeld postvak blijft onder het account waarmee het is geopend: verplaats dat account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14804,6 +14852,12 @@ msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door
 #, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een Exchange-serveraccount, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "een account kan niet vóór zichzelf worden gezet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -17656,6 +17710,10 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
 #~ msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Dit account heeft geen contactpersonen"
 
 #, fuzzy
 #~ msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them, and every task you make from now on. Until you choose, they stay here and nothing of them is sent."

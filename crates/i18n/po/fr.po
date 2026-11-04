@@ -524,7 +524,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Compte"
@@ -3982,8 +3982,8 @@ msgstr ""
 "Propriétés\n"
 "du dossier"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Volet des dossiers"
@@ -6274,11 +6274,23 @@ msgstr ""
 "Déplacer\n"
 "le dossier"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Déplacer le compte"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Tout déplacer et envoyer les invitations"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Descendre"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6303,6 +6315,12 @@ msgstr "Déplacer un élément périodique"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Déplacer la règle"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Monter"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6788,6 +6806,12 @@ msgstr "Aucune commande ne correspond."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Aucune tâche terminée pour l'instant."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Pas encore de contacts de ce compte"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8241,6 +8265,12 @@ msgstr "Relire maintenant les favoris d'Outlook"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Lecture seule"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9874,6 +9904,12 @@ msgstr "Afficher comme"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Afficher le calendrier"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Afficher les contacts de"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11921,6 +11957,12 @@ msgstr "Les favoris de ce compte proviennent d'Outlook et se modifient là-bas (
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Le calendrier de ce compte ne peut pas encore être interrogé : Envoyer/Recevoir le connecte d'abord."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Le serveur de ce compte conserve ce contact. Les modifications faites ici ne sont pas encore renvoyées, il ne peut donc être ni modifié ni supprimé ici. Le favori et les catégories sont conservés sur cet ordinateur."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -13989,6 +14031,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "une boîte aux lettres partagée conserve hors connexion autant de courrier que le compte par lequel elle est ouverte : indiquez ce compte"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "une boîte aux lettres partagée reste sous le compte par lequel elle est ouverte : déplacez ce compte"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14059,6 +14107,12 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "un compte ne peut pas être placé avant lui-même"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -16804,6 +16858,10 @@ msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas êt
 #, fuzzy
 #~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
 #~ msgstr "Ceci est une version de développement : elle ne recherche les mises à jour que lorsque vous cliquez sur Rechercher des mises à jour dans Fichier › À propos."
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Ce compte n'a aucun contact"
 
 #, fuzzy
 #~ msgid "Permanently Delete"
