@@ -1983,39 +1983,10 @@ fn calendar_color(name: &str) -> Option<Rgb> {
     COLORS.iter().find(|(known, _)| *known == name).map(|(_, color)| *color)
 }
 
-/// Our own colours for the numbered colours Graph gives a category (`preset0` to `preset24`:
-/// red, orange, brown, yellow, green, teal, olive, blue, purple, cranberry, steel, dark steel,
-/// gray, dark gray, black, then the dark ones of the first ten); grey for none or any other.
+/// Our own colour for the numbered colour Graph gives a category (`preset0` to `preset24`);
+/// grey for none or any other ([`mailcraft_model::outlook_colors`]).
 fn category_color(name: &str) -> Rgb {
-    const COLORS: [Rgb; 25] = [
-        Rgb(0xD1, 0x3B, 0x3B),
-        Rgb(0xE0, 0x7B, 0x1F),
-        Rgb(0x9C, 0x6B, 0x3F),
-        Rgb(0xD9, 0xA4, 0x0C),
-        Rgb(0x2E, 0x8B, 0x57),
-        Rgb(0x1A, 0x9B, 0xA6),
-        Rgb(0x7A, 0x8B, 0x2E),
-        Rgb(0x2F, 0x6F, 0xD0),
-        Rgb(0x7E, 0x57, 0xC2),
-        Rgb(0xB0, 0x2E, 0x6B),
-        Rgb(0x6E, 0x8A, 0xA5),
-        Rgb(0x4A, 0x5F, 0x73),
-        Rgb(0x8A, 0x8A, 0x8A),
-        Rgb(0x5A, 0x5A, 0x5A),
-        Rgb(0x2B, 0x2B, 0x2B),
-        Rgb(0x8E, 0x1F, 0x1F),
-        Rgb(0xA8, 0x52, 0x0C),
-        Rgb(0x6B, 0x45, 0x23),
-        Rgb(0x9A, 0x73, 0x00),
-        Rgb(0x1C, 0x5E, 0x38),
-        Rgb(0x0F, 0x66, 0x6E),
-        Rgb(0x52, 0x5E, 0x1A),
-        Rgb(0x1B, 0x45, 0x8A),
-        Rgb(0x52, 0x35, 0x8A),
-        Rgb(0x78, 0x1B, 0x47),
-    ];
-    let number = name.to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<usize>().ok());
-    number.and_then(|n| COLORS.get(n).copied()).unwrap_or(Rgb(0x8A, 0x8A, 0x8A))
+    mailcraft_model::outlook_colors::outlook_color(name)
 }
 
 /// One calendar of a list as the mailbox can take it, in the group called `group`.
@@ -2106,7 +2077,7 @@ fn calendars_at(base: &str, token: &str, shared: Option<&str>) -> Result<Calenda
 fn categories_at(base: &str, token: &str) -> Result<CategoriesDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = CategoriesDownload::default();
-    graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
+    download.complete = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
         download.categories.push(Category { name: text(entry, "displayName").to_string(), color: category_color(text(entry, "color")) });
     })?;
     download.tidy();
@@ -2227,6 +2198,9 @@ pub use tasks::{push_tasks, tasks};
 mod rules;
 pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
 
+mod categories;
+pub use categories::push_categories;
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2249,6 +2223,8 @@ pub mod standin;
 
 #[cfg(test)]
 mod auto_replies_tests;
+#[cfg(test)]
+mod categories_tests;
 #[cfg(test)]
 mod people_tests;
 #[cfg(test)]

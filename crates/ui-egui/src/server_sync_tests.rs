@@ -1,0 +1,176 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The one question for everything a Microsoft account keeps in step with Outlook (#661): asked
+//! once for the to-dos and the categories together, one page of Microsoft's for both, not put
+//! again by itself once it went away, and one line in File › Info. Hosts are fakes; every address
+//! is invented.
+
+use std::collections::VecDeque;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+
+use mailcraft_engine::Session;
+use mailcraft_engine::cmd::remote;
+use mailcraft_model::Id;
+use mailcraft_model::outlook_colors::OUTLOOK_COLORS;
+use mailcraft_model::remote::CategoriesDownload;
+use mailcraft_model::sync::Tokens;
+use serde_json::json;
+
+use crate::category_sync::{CategoriesJob, CategoriesResult};
+use crate::dialogs::Dialog;
+use crate::task_sync::{Permission, TasksJob, TasksResult};
+use crate::{MailApp, Services, SignInRequest};
+
+const OWNER: &str = "noor@example.org";
+const NOW: i64 = 1_791_993_600;
+
+type SignIns = Arc<Mutex<Vec<(Id, bool)>>>;
+type Answer = Arc<Mutex<Result<Tokens, String>>>;
+
+fn tokens(access: &str, refresh: &str) -> Tokens {
+    Tokens { access: access.into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
+}
+
+fn download(owner: Id) -> CategoriesDownload {
+    let red = mailcraft_model::Category { name: "Red category".into(), color: OUTLOOK_COLORS[0] };
+    CategoriesDownload { account: owner, email: OWNER.into(), categories: vec![red], complete: true }
+}
+
+/// A window with one Microsoft account whose sign-in covers neither its to-dos nor changing its
+/// categories, until Microsoft's page gives `answer`.
+fn window() -> (MailApp, Id, SignIns, Answer) {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    remote::apply_categories(&mut s, &download(owner)).unwrap();
+    let mut app = MailApp::new(s, Services::default());
+    app.autosave = false;
+    app.tokens.insert(owner, tokens("own-access", "ref-1"));
+    let tasks: Arc<Mutex<VecDeque<TasksResult>>> = Default::default();
+    tasks.lock().unwrap().push_back(TasksResult { account: owner, consent_needed: true, ..Default::default() });
+    app.services.graph_tasks = Some(Box::new(move |_: TasksJob| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(tasks.lock().unwrap().pop_front().unwrap_or_default()).unwrap();
+        rx
+    }));
+    app.services.graph_categories = Some(Box::new(move |_: CategoriesJob| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(CategoriesResult { account: owner, covered: Some(false), download: Some(download(owner)), ..Default::default() }).unwrap();
+        rx
+    }));
+    let (sign_ins, answer): (SignIns, Answer) = (Default::default(), Arc::new(Mutex::new(Ok(tokens("sync-access", "ref-2")))));
+    let (log, given) = (sign_ins.clone(), answer.clone());
+    app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
+        log.lock().unwrap().push((req.account, req.sync));
+        let (tx, rx) = mpsc::channel();
+        tx.send(given.lock().unwrap().clone()).unwrap();
+        rx
+    }));
+    (app, owner, sign_ins, answer)
+}
+
+/// Both jobs find their sign-in doesn't cover them: one question is up.
+fn both_need_it(app: &mut MailApp, owner: Id) {
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    // The to-dos' question is up; the categories' job runs meanwhile and joins it.
+    app.tasks_tick_at(1.0);
+    assert!(app.dialog.is_some());
+    assert!(app.categories_tick_at(2.0));
+    app.poll_categories();
+    app.categories_tick_at(3.0);
+    app.tasks_tick_at(3.0);
+    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Asking));
+    assert!(matches!(app.category_sync.perm.get(&owner), Some(Permission::Needed | Permission::Asking)));
+}
+
+fn questions(app: &MailApp) -> usize {
+    usize::from(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"))
+}
+
+#[test]
+fn one_question_and_one_page_for_the_to_dos_and_the_categories() {
+    let (mut app, owner, sign_ins, _) = window();
+    both_need_it(&mut app, owner);
+    assert_eq!(questions(&app), 1);
+    let (line, _, _) = app.sync_line(owner).unwrap();
+    assert!(line.contains("asking for your permission"), "{line}");
+    // Continue: one page, for both.
+    let Some(Dialog::Confirm { command, params, ask }) = app.dialog.take() else { panic!("asked") };
+    assert_eq!(ask.action, "Continue");
+    let with = crate::dialogs::answered(&params, &ask.with, None);
+    app.run(&command, with).unwrap();
+    assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
+    assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Asking));
+    app.poll_sign_in();
+    // Allowed: both look again at once, and nobody is asked again.
+    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.category_sync.perm.get(&owner), None);
+    assert_eq!(app.tokens.get(&owner).map(|t| t.refresh.as_str()), Some("ref-2"));
+    app.tasks_tick_at(4.0);
+    assert!(app.dialog.is_none());
+}
+
+#[test]
+fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_turns_it_on() {
+    let (mut app, owner, sign_ins, _) = window();
+    both_need_it(&mut app, owner);
+    app.dialog = None;
+    app.tasks_tick_at(4.0);
+    app.categories_tick_at(4.0);
+    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Declined));
+    assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Declined));
+    // Not put again by itself, by either of them.
+    for minute in 1..30 {
+        app.tasks_tick_at(f64::from(minute) * 60_000.0);
+        app.categories_tick_at(f64::from(minute) * 60_000.0);
+        assert!(app.dialog.is_none(), "asked again by itself at minute {minute}");
+    }
+    // One line in File › Info, off, with Turn On; what each stands at is in its tip.
+    let (line, details, again) = app.sync_line(owner).unwrap();
+    assert!(line.contains("off") && again, "{line}");
+    assert!(details.contains("Tasks") && details.contains("Categories"), "{details}");
+    // Turn On: the question, then the page.
+    assert!(app.ask_sync_again(owner));
+    assert_eq!(questions(&app), 1);
+    assert!(!app.ask_sync_again(owner), "not twice over");
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    assert_eq!(sign_ins.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn a_page_that_says_no_is_said_once_and_leaves_turn_on() {
+    let (mut app, owner, sign_ins, answer) = window();
+    *answer.lock().unwrap() = Err("the owner closed the page".into());
+    both_need_it(&mut app, owner);
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::Refused(_))));
+    assert!(matches!(app.category_sync.perm.get(&owner), Some(Permission::Refused(_))));
+    for minute in 1..30 {
+        app.tasks_tick_at(f64::from(minute) * 60_000.0);
+        app.categories_tick_at(f64::from(minute) * 60_000.0);
+        assert!(app.dialog.is_none());
+    }
+    assert_eq!(sign_ins.lock().unwrap().len(), 1);
+    let (line, _, again) = app.sync_line(owner).unwrap();
+    assert!(line.contains("off") && again, "{line}");
+}
+
+#[test]
+fn the_question_is_the_owners_alone() {
+    let (mut app, owner, sign_ins, _) = window();
+    both_need_it(&mut app, owner);
+    app.dialog = None;
+    // Not meant without a yes; nothing for an account that is not there, or one without a
+    // Microsoft sign-in.
+    assert!(app.run("ui.allowSync", json!({"account": owner})).is_err());
+    assert!(app.run("ui.allowSync", json!({"account": 9_999, "confirmed": true})).is_err());
+    assert!(app.run("ui.allowSync", json!({"account": 0, "confirmed": true})).is_err());
+    assert!(sign_ins.lock().unwrap().is_empty());
+    // An agent asks the owner first, as for adding an account.
+    use mailcraft_engine::agent::{Access, Class, access};
+    assert_eq!(access("ui.allowSync"), Some(Access::Owner(Class::Accounts)));
+}

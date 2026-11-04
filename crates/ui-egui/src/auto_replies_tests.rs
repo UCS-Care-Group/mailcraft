@@ -48,7 +48,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.replies, req.tasks));
+        log.lock().unwrap().push((req.account, req.sync, false));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("ref-2"))).unwrap();
         rx
@@ -129,7 +129,7 @@ fn a_change_without_the_permission_asks_the_owner_and_goes_once_he_allows_it() {
     app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
     app.poll_auto_replies();
     let Some(Dialog::Confirm { command, params, .. }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowAutomaticReplies", Some(owner)));
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
     assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Asking));
     assert!(sign_ins.lock().unwrap().is_empty(), "no page before a yes");
     // Not meant without a yes.
@@ -168,11 +168,13 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
     assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Declined));
     assert!(said(&app).contains("weren't changed"), "{}", said(&app));
     let (line, again) = app.auto_replies_line(owner).unwrap();
-    assert!(again == Some(Again::Ask) && line.contains("waits for your permission"), "{line}");
+    assert!(again.is_none() && line.contains("waits for your permission"), "{line}");
+    // File › Info's one line offers Turn On (#661).
+    assert!(app.sync_line(owner).unwrap().2);
     // The next change asks at once, without a job.
     let before = jobs.lock().unwrap().len();
     app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
-    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies"));
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"));
     assert_eq!(jobs.lock().unwrap().len(), before);
     // And Microsoft's no: dropped, said, offered again.
     app.dialog = None;
@@ -184,7 +186,7 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
     app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
     assert!(matches!(app.auto_replies.perm.get(&owner), Some(Permission::Refused(_))));
-    assert_eq!(app.auto_replies_line(owner).unwrap().1, Some(Again::Ask));
+    assert!(app.sync_line(owner).unwrap().2);
     assert_eq!(jobs.lock().unwrap().len(), before);
     assert!(sign_ins.lock().unwrap().is_empty());
 }
@@ -369,7 +371,7 @@ fn the_question_is_not_put_over_another_window() {
     });
     let before = jobs.lock().unwrap().len();
     let refused = app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap_err();
-    assert!(refused.contains("Ask again"), "{refused}");
+    assert!(refused.contains("Turn On"), "{refused}");
     assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.nothing"));
     assert_eq!(jobs.lock().unwrap().len(), before);
 }
@@ -386,7 +388,7 @@ fn an_account_without_them_is_refused() {
 }
 
 /// Re-review F1, F2: a change that found the permission missing while the owner couldn't be
-/// asked (another window, a sign-in under way) was kept, and a much later Ask again sent it.
+/// asked (another window, a sign-in under way) was kept, and a much later Turn On sent it.
 #[test]
 fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
     for busy in ["window", "signIn"] {
@@ -414,7 +416,7 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
             assert!(app.signing_in());
         }
         app.poll_auto_replies();
-        assert!(!matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies"), "{busy}");
+        assert!(!matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"), "{busy}");
         assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Needed), "{busy}");
         assert!(said(&app).contains("weren't changed"), "{busy}: {}", said(&app));
         // Asked again later: the permission alone; the old change never goes.

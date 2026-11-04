@@ -1,7 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Colour categories.
+//!
+//! A Microsoft account's list is kept in step with its server both ways (#661): what is made,
+//! renamed, recoloured or deleted here is the difference between the list and the server's as
+//! last synced, and goes with the next job ([`super::categories_remote`]). Its colours are the
+//! server's 25 ([`mailcraft_model::outlook_colors`]). A list whose server MailCraft may not change
+//! is read-only here, and says so.
 
+use mailcraft_model::outlook_colors::{OUTLOOK_COLORS, outlook_preset};
 use mailcraft_model::{GREY_CATEGORY, Id, Rgb};
 use serde_json::{Value, json};
 
@@ -11,12 +18,15 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("category.set", "New Category", "Home › Tags", set)
-            .params(r##"{"name": string, "color": "#RRGGBB", "account"?: number} — on the list that account's items use (default: the list the accounts without their own share)"##),
+            .params(r##"{"name": string, "color": "#RRGGBB", "account"?: number} — on the list that account's items use (default: the list the accounts without their own share). A Microsoft account's list takes one of the colours `category.list` gives for it, and refuses any change while it is read-only"##),
         CommandSpec::new("category.rename", "Rename Category", "Home › Tags", rename).params(r#"{"from": string, "to": string, "account"?: number}"#),
         CommandSpec::new("category.remove", "Delete Category", "Home › Tags", remove).params(r#"{"name": string, "account"?: number}"#),
-        CommandSpec::new("category.list", "All Categories", "Home › Tags", list)
-            .pure()
-            .params(r#"{"account"?: number} — answers {"categories": [{"name", "color", "outlook"}], "accounts": the accounts with a list of their own}"#),
+        CommandSpec::new("category.addToOutlook", "Add to Outlook", "Home › Tags", add_to_outlook).params(
+            r#"{"name": string, "account": number} — a category of a Microsoft account's list that is kept on this computer only ("outlook": false in `category.list`) goes to its server with the next job, in the nearest of the server's colours"#,
+        ),
+        CommandSpec::new("category.list", "All Categories", "Home › Tags", list).pure().params(
+            r##"{"account"?: number} — answers {"categories": [{"name", "color", "outlook"}], "accounts": the accounts with a list of their own; for a Microsoft account's list also "readOnly": bool (MailCraft may not change its server's list) and "colors": ["#RRGGBB"] (the colours it takes)}"##,
+        ),
     ]
 }
 
@@ -30,6 +40,9 @@ pub fn list_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
     }
 }
 
+/// Most categories the owner makes on one list.
+const MAX_MADE: usize = 200;
+
 fn set(s: &mut Session, v: &Value) -> CmdResult {
     let color = Rgb::parse(p::req_str(v, "color")?).ok_or_else(|| bad("`color` looks like #2E8B57"))?;
     let account = list_account(s, v)?;
@@ -37,10 +50,9 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.category_of(account, name).is_none() {
         check_room(s, account)?;
     }
-    // A category on Outlook's list has Outlook's colour (R3 spec S18): nothing changes here or
-    // on the server.
-    if on_outlooks_list(s, account, name) && s.mailbox.category_of(account, name).is_some_and(|c| c.color != color) {
-        return Err(super::fail(COLOUR_IN_OUTLOOK));
+    // A list kept in step with a Microsoft account's server has the server's colours (#661).
+    if s.mailbox.synced_list_owner(account).is_some() && outlook_preset(color).is_none() {
+        return Err(bad("a Microsoft account's category takes one of the colours `category.list` gives for its list"));
     }
     s.mailbox.set_category(account, name, color)?;
     done()
@@ -60,16 +72,14 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
     Ok(name.to_string())
 }
 
-/// Refuses a new category when the list `account`'s items use is full.
+/// Refuses a new category when the list `account`'s items use is full. (A list that is read-only
+/// here says that instead, when it is asked to change.)
 fn check_room(s: &Session, account: Id) -> Result<(), CmdError> {
-    if s.mailbox.categories_of(account).len() >= 200 {
+    if s.mailbox.categories_read_only(account).is_none() && s.mailbox.categories_of(account).len() >= MAX_MADE {
         return Err(super::fail("there are too many categories"));
     }
     Ok(())
 }
-
-/// What changing the colour of a category on Outlook's list says.
-pub const COLOUR_IN_OUTLOOK: &str = "The colour is set in Outlook";
 
 /// The names on Outlook's list of categories that `account`'s items use, as its server last gave
 /// them; `None` while no such list was read.
@@ -80,6 +90,14 @@ fn outlooks_list(s: &Session, account: Id) -> Option<&Vec<String>> {
 /// Whether `name` is on Outlook's list of categories, as the server of `account` last gave it.
 pub fn on_outlooks_list(s: &Session, account: Id, name: &str) -> bool {
     outlooks_list(s, account).is_some_and(|names| names.iter().any(|c| mailcraft_model::sync::same_category(c, name.trim())))
+}
+
+/// Whether `name`, on the list `account`'s items use, is a Microsoft account's that is kept in
+/// step with its server (#661): on Outlook's list, or made here and to go there. `None` for a
+/// list that isn't kept in step with a server.
+pub fn in_outlook(s: &Session, account: Id, name: &str) -> Option<bool> {
+    let owner = s.mailbox.synced_list_owner(account)?;
+    Some(!s.mailbox.category_is_local(owner, name))
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
@@ -94,12 +112,33 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
+fn add_to_outlook(s: &mut Session, v: &Value) -> CmdResult {
+    let account = p::req_id(v, "account")?;
+    s.mailbox.account(account).ok_or_else(|| bad("`account` isn't an account"))?;
+    let name = p::req_str(v, "name")?;
+    if s.mailbox.synced_list_owner(account).is_none() {
+        return Err(super::fail("this account's categories aren't kept in step with a server"));
+    }
+    if !s.mailbox.send_category(account, name)? {
+        return Err(super::fail(format!("\"{}\" isn't a category kept on this computer only", name.trim())));
+    }
+    done()
+}
+
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let account = list_account(s, v)?;
-    // `outlook`: on Outlook's list (its colour is Outlook's); `null` while no such list was read.
+    // `outlook`: kept in step with Outlook's list (its colour is Outlook's); false for one kept on
+    // this computer only; `null` while no such list was read.
+    let synced = s.mailbox.synced_list_owner(account).is_some();
     let read = outlooks_list(s, account).is_some();
-    let listed = |name: &str| read.then(|| on_outlooks_list(s, account, name));
+    let listed = |name: &str| if synced { in_outlook(s, account, name) } else { read.then(|| on_outlooks_list(s, account, name)) };
     let categories = s.mailbox.categories_of(account).iter().map(|c| json!({"name": c.name, "color": c.color.hex(), "outlook": listed(&c.name)}));
     let own = s.mailbox.accounts.iter().filter(|a| s.mailbox.account_categories.contains_key(&a.id));
-    Ok(json!({"categories": categories.collect::<Vec<_>>(), "accounts": own.map(|a| json!({"id": a.id, "email": a.email})).collect::<Vec<_>>()}))
+    let mut answer =
+        json!({"categories": categories.collect::<Vec<_>>(), "accounts": own.map(|a| json!({"id": a.id, "email": a.email})).collect::<Vec<_>>()});
+    if synced && let Some(answer) = answer.as_object_mut() {
+        answer.insert("readOnly".into(), s.mailbox.categories_read_only(account).is_some().into());
+        answer.insert("colors".into(), OUTLOOK_COLORS.iter().map(|c| c.hex()).collect::<Vec<_>>().into());
+    }
+    Ok(answer)
 }

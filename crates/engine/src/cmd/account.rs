@@ -467,6 +467,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // Another server or another user name is another mailbox: where the folder list and the
     // folders went on from is the old one's, and is forgotten with it (below).
     let other_mailbox = a.kind == AccountKind::Exchange && (url(&before) != url(&a) || login(&before) != login(&a));
+    // (And a Microsoft account's address is its mailbox: what its server had of its categories is
+    // the old one's, #661.)
+    let was_address = before.email.trim().to_string();
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
@@ -505,9 +508,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // (Whatever its kind now: it may be a Microsoft account again later.)
+    let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
     *s.mailbox.account_mut(id)? = a;
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
+    }
+    if readdressed {
+        s.mailbox.restart_category_sync(id);
     }
     Ok(json!({"id": id}))
 }

@@ -1354,7 +1354,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeEvent => {
             let id = app.session.sel.event;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.event(id))
+                    .is_some_and(|e| e.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let event = id.and_then(|id| app.session.mailbox.event(id));
             let account = event.map(|e| app.session.mailbox.event_account(e));
@@ -1364,7 +1365,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.contact(id))
+                    .is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
             };
             let contact = id.and_then(|id| app.session.mailbox.contact(id));
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
@@ -1373,7 +1375,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.task(id))
+                    .is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let task = id.and_then(|id| app.session.mailbox.task(id));
             let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());

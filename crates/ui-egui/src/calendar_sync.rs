@@ -1950,6 +1950,7 @@ mod tests {
             account,
             email: "avery@mail.example".into(),
             categories: vec![mailcraft_model::Category { name: "Project X".into(), color: mailcraft_model::Rgb(1, 2, 3) }],
+            complete: true,
         };
         let mut errors = Vec::new();
         app.take_in_calendar_list(account, None, Some(&categories), false, &mut errors);

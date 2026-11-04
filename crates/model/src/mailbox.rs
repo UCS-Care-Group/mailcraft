@@ -130,6 +130,22 @@ fn on_list(names: &[String], name: &str) -> bool {
     names.iter().any(|have| same_category(have, name))
 }
 
+/// Whether a list of categories has one named `name`.
+fn on_categories(list: &[Category], name: &str) -> bool {
+    list.iter().any(|have| same_category(&have.name, name))
+}
+
+/// A category's name as [`same_category`] compares it: two names are the same category's when
+/// their keys are equal.
+pub fn category_key(name: &str) -> String {
+    name.chars().flat_map(char::to_lowercase).collect()
+}
+
+/// What a change to a list of categories that is read-only here says (#661).
+pub fn categories_read_only_text(address: &str) -> String {
+    format!("the categories of {address} come from its server, and MailCraft has no permission to change them there")
+}
+
 /// A folder as a Microsoft account's server knows it (ADR 0003): its server id, which stays the
 /// same when the folder is renamed or moved, and what the server last said of its name and of
 /// the folder it lies in. A change made here is the difference between those and the folder as
@@ -1006,6 +1022,33 @@ pub struct Mailbox {
     /// (R3 spec S18, #633): their colours are Outlook's. No entry until such a list was read.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
     pub server_categories: BTreeMap<Id, Vec<String>>,
+    /// Each Microsoft account's list of categories as its server last had it, names and colours
+    /// (#661), kept in step with [`Mailbox::server_categories`]: what is changed here since is the
+    /// difference between the account's own list and this, and only that is sent
+    /// ([`Mailbox::category_upload`]). No entry until its server's list was read.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
+    pub synced_categories: BTreeMap<Id, Vec<Category>>,
+    /// The names on a Microsoft account's own list that are kept on this computer alone and never
+    /// sent to its server unasked (#661): those that came across from the shared list when the
+    /// list was made, and those it had before it was kept in step. The owner sends one with
+    /// [`Mailbox::send_category`].
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_lists")]
+    pub local_categories: BTreeMap<Id, Vec<String>>,
+    /// The Microsoft accounts whose server's list of categories MailCraft may change (#661): their
+    /// sign-in covers changing the mailbox's settings, as the host found. The list of any other
+    /// whose server's list was read is read-only here ([`Mailbox::categories_read_only`]).
+    #[serde(skip_serializing_if = "std::collections::BTreeSet::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub category_writes: std::collections::BTreeSet<Id>,
+    /// The names of each account's [`Mailbox::synced_categories`] that its server had of its own
+    /// (#661), by [`category_key`], with when that was found ([`Mailbox::category_stamp`]): what a
+    /// read brought, and what a job that was to make one found there already. An undo of a step
+    /// from before then never deletes it there ([`Mailbox::category_found_since`]). Not in the
+    /// file: no undo outlives the session.
+    #[serde(skip)]
+    pub categories_found: BTreeMap<Id, BTreeMap<String, u64>>,
+    /// What dates [`Mailbox::categories_found`]: it goes up with each name found.
+    #[serde(skip)]
+    pub category_stamp: u64,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
     /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
@@ -1057,6 +1100,11 @@ impl Default for Mailbox {
             queued: Vec::new(),
             account_categories: BTreeMap::new(),
             server_categories: BTreeMap::new(),
+            synced_categories: BTreeMap::new(),
+            local_categories: BTreeMap::new(),
+            category_writes: std::collections::BTreeSet::new(),
+            categories_found: BTreeMap::new(),
+            category_stamp: 0,
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
@@ -1257,6 +1305,9 @@ impl Mailbox {
         self.junk_accounts.retain(|account, _| !going.contains(account));
         self.account_categories.retain(|account, _| !going.contains(account));
         self.server_categories.retain(|account, _| !going.contains(account));
+        self.synced_categories.retain(|account, _| !going.contains(account));
+        self.local_categories.retain(|account, _| !going.contains(account));
+        self.category_writes.retain(|account| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -2947,7 +2998,7 @@ impl Mailbox {
     /// account's, offer.
     pub fn every_category(&self) -> Vec<Category> {
         let mut seen = HashSet::new();
-        self.all_categories().filter(|c| seen.insert(c.name.to_lowercase())).cloned().collect()
+        self.all_categories().filter(|c| seen.insert(category_key(&c.name))).cloned().collect()
     }
 
     /// The account an event's categories are of: its calendar's (0 for this computer's).
@@ -2959,9 +3010,11 @@ impl Mailbox {
         self.category_of(0, name)
     }
 
-    /// The category `name` on the list the items of `account` use.
+    /// The category `name` on the list the items of `account` use (matched as
+    /// [`same_category`] matches, whatever the case in any script).
     pub fn category_of(&self, account: Id, name: &str) -> Option<&Category> {
-        self.categories_of(account).iter().find(|c| c.name.eq_ignore_ascii_case(name.trim()))
+        let name = name.trim();
+        self.categories_of(account).iter().find(|c| same_category(&c.name, name))
     }
 
     /// A category's colour on the shared list; grey for a name it doesn't have.
@@ -2975,11 +3028,48 @@ impl Mailbox {
         self.category_of(account, name).map_or(GREY_CATEGORY, |c| c.color)
     }
 
-    /// Add a category to the list `account`'s items use, or recolour the one with that name.
+    /// The account whose list the items of `account` use, when that list is kept in step with
+    /// the account's server (#661): a Microsoft account's own list once its server's was read.
+    pub fn synced_list_owner(&self, account: Id) -> Option<Id> {
+        self.category_list_owner(account).filter(|owner| self.server_categories.contains_key(owner))
+    }
+
+    /// The account whose server's list the items of `account` use and MailCraft may not change
+    /// (#661): its sign-in doesn't cover that. Its list is read-only here; `None` for any other.
+    pub fn categories_read_only(&self, account: Id) -> Option<Id> {
+        self.synced_list_owner(account).filter(|owner| !self.category_writes.contains(owner))
+    }
+
+    /// An error when the list `account`'s items use is read-only here.
+    fn refuse_read_only(&self, account: Id) -> Result<(), ModelError> {
+        match self.categories_read_only(account) {
+            Some(owner) => {
+                let address = self.account(owner).map(|a| a.email.trim().to_string()).unwrap_or_default();
+                Err(invalid(categories_read_only_text(&address)))
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// Whether `name` is on `owner`'s list for this computer alone ([`Mailbox::local_categories`]).
+    pub fn category_is_local(&self, owner: Id, name: &str) -> bool {
+        self.local_categories.get(&owner).is_some_and(|names| on_list(names, name))
+    }
+
+    /// Add a category to the list `account`'s items use, or recolour the one with that name. On a
+    /// list kept in step with a server the colour is one of the server's
+    /// ([`crate::outlook_colors::nearest_outlook_color`]), and a list that is read-only here
+    /// refuses any change.
     pub fn set_category(&mut self, account: Id, name: &str, color: Rgb) -> Result<(), ModelError> {
         let name = clean_name(name).ok_or_else(|| invalid("a category needs a name"))?;
+        let color = if self.synced_list_owner(account).is_some() { crate::outlook_colors::nearest_outlook_color(color) } else { color };
+        // (Nothing to change is no change, read-only or not.)
+        if self.category_of(account, &name).is_some_and(|c| c.color == color) {
+            return Ok(());
+        }
+        self.refuse_read_only(account)?;
         let list = self.categories_of_mut(account);
-        match list.iter_mut().find(|c| c.name.eq_ignore_ascii_case(&name)) {
+        match list.iter_mut().find(|c| same_category(&c.name, &name)) {
             Some(c) => c.color = color,
             None => list.push(Category { name, color }),
         }
@@ -2987,19 +3077,31 @@ impl Mailbox {
     }
 
     /// Rename a category on the list `account`'s items use, and on the items that use that list.
+    /// On a list kept in step with a server, the new name goes there and the old one is deleted
+    /// there (a server can't rename one); one kept on this computer alone stays so.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
-        if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
+        let from = from.trim();
+        if !same_category(from, &to) && self.category_of(account, &to).is_some() {
             return Err(invalid(format!("a category named \"{to}\" already exists")));
         }
-        let cat = self
-            .categories_of_mut(account)
-            .iter_mut()
-            .find(|c| c.name.eq_ignore_ascii_case(from.trim()))
-            .ok_or_else(|| invalid(format!("no category named \"{from}\"")))?;
-        cat.name = to.clone();
+        if self.category_of(account, from).is_none() {
+            return Err(invalid(format!("no category named \"{from}\"")));
+        }
+        if self.category_of(account, from).is_some_and(|c| c.name == to) {
+            return Ok(());
+        }
+        self.refuse_read_only(account)?;
+        if let Some(cat) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, from)) {
+            cat.name = to.clone();
+        }
+        if let Some(names) = self.synced_list_owner(account).and_then(|owner| self.local_categories.get_mut(&owner)) {
+            for name in names.iter_mut().filter(|n| same_category(n, from)) {
+                *name = to.clone();
+            }
+        }
         self.each_category_list(account, |list| {
-            for c in list.iter_mut().filter(|c| c.eq_ignore_ascii_case(from.trim())) {
+            for c in list.iter_mut().filter(|c| same_category(c, from)) {
                 *c = to.clone();
             }
         });
@@ -3008,14 +3110,35 @@ impl Mailbox {
 
     /// Remove a category from the list `account`'s items use, and from the items that use it.
     pub fn remove_category(&mut self, account: Id, name: &str) -> Result<(), ModelError> {
-        let list = self.categories_of_mut(account);
-        let before = list.len();
-        list.retain(|c| !c.name.eq_ignore_ascii_case(name.trim()));
-        if list.len() == before {
+        let name = name.trim();
+        if self.category_of(account, name).is_none() {
             return Err(invalid(format!("no category named \"{name}\"")));
         }
-        self.each_category_list(account, |list| list.retain(|c| !c.eq_ignore_ascii_case(name.trim())));
+        self.refuse_read_only(account)?;
+        self.categories_of_mut(account).retain(|c| !same_category(&c.name, name));
+        if let Some(names) = self.synced_list_owner(account).and_then(|owner| self.local_categories.get_mut(&owner)) {
+            names.retain(|n| !same_category(n, name));
+        }
+        self.each_category_list(account, |list| list.retain(|c| !same_category(c, name)));
         Ok(())
+    }
+
+    /// Send a category of `account`'s list that is kept on this computer alone to its server
+    /// (#661, Add to Outlook): from now on it is kept in step there, in the nearest of the
+    /// server's colours. Whether it was such a category.
+    pub fn send_category(&mut self, account: Id, name: &str) -> Result<bool, ModelError> {
+        let Some(owner) = self.synced_list_owner(account) else { return Ok(false) };
+        if !self.category_is_local(owner, name) || self.category_of(account, name).is_none() {
+            return Ok(false);
+        }
+        self.refuse_read_only(account)?;
+        if let Some(names) = self.local_categories.get_mut(&owner) {
+            names.retain(|n| !same_category(n, name));
+        }
+        if let Some(c) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, name.trim())) {
+            c.color = crate::outlook_colors::nearest_outlook_color(c.color);
+        }
+        Ok(true)
     }
 
     /// Apply `f` to the category list of every item that has one (items without stay shared) and
@@ -3039,6 +3162,350 @@ impl Mailbox {
         }
     }
 
+    /// What `owner`'s server is to be told of its list of categories (#661): the difference
+    /// between the list here and the server's as last synced ([`Mailbox::synced_categories`]),
+    /// leaving out what is kept on this computer alone. A name written anew in other letters
+    /// first (deleted and made again, side by side: a server can't rename one), then what is new,
+    /// then colours. A deletion, which can't be undone there, waits while anything is still to be
+    /// made: a rename's old name goes only once the server has the new one. Nothing while the
+    /// list is read-only here or its server's wasn't read.
+    pub fn category_upload(&self, owner: Id) -> Vec<crate::remote::CategoryChange> {
+        use crate::remote::{CategoryChange, CategoryChangeKind};
+        let (Some(list), Some(synced)) = (self.account_categories.get(&owner), self.synced_categories.get(&owner)) else { return Vec::new() };
+        if !self.category_writes.contains(&owner) {
+            return Vec::new();
+        }
+        let here: Vec<&Category> = list.iter().filter(|c| !self.category_is_local(owner, &c.name)).collect();
+        let mut respelled = Vec::new();
+        let mut deletes = Vec::new();
+        let mut creates = Vec::new();
+        let mut colors = Vec::new();
+        for was in synced {
+            match here.iter().find(|c| same_category(&c.name, &was.name)) {
+                None => deletes.push(CategoryChange { kind: CategoryChangeKind::Delete, name: was.name.clone(), color: was.color }),
+                Some(c) if c.name != was.name => respelled.push([
+                    CategoryChange { kind: CategoryChangeKind::Delete, name: was.name.clone(), color: was.color },
+                    CategoryChange { kind: CategoryChangeKind::Create, name: c.name.clone(), color: c.color },
+                ]),
+                Some(c) if c.color != was.color => {
+                    colors.push(CategoryChange { kind: CategoryChangeKind::Color, name: c.name.clone(), color: c.color })
+                }
+                Some(_) => {}
+            }
+        }
+        for c in here.iter().filter(|c| !on_categories(synced, &c.name)) {
+            creates.push(CategoryChange { kind: CategoryChangeKind::Create, name: c.name.clone(), color: c.color });
+        }
+        let max = crate::remote::MAX_CATEGORY_CHANGES;
+        // (A pair is never cut in two by the limit: half of it would be a deletion alone.)
+        let mut changes: Vec<CategoryChange> = respelled.into_iter().take(max / 2).flatten().collect();
+        if creates.is_empty() {
+            changes.extend(deletes);
+        }
+        changes.extend(creates);
+        changes.extend(colors);
+        changes.truncate(max);
+        changes
+    }
+
+    /// Take in what `owner`'s server made of the changes sent to it (#661): what it took is the
+    /// server's from now on ([`Mailbox::synced_categories`]); what it refused for good is put back
+    /// as the server has it (a name it wouldn't make stays on this computer alone), and is said.
+    /// What failed for now goes again with the next job. Lines for the owner.
+    pub fn take_category_outcomes(&mut self, owner: Id, outcomes: &[crate::remote::CategoryOutcome]) -> Vec<String> {
+        use crate::remote::{CategoryChangeKind, CategoryResult};
+        let mut said = Vec::new();
+        let Some(synced) = self.synced_categories.get(&owner).cloned() else { return said };
+        let mut synced = synced;
+        // (Deletions this job sent: their own answers say what became of them.)
+        let sent_deletes: Vec<&str> = outcomes
+            .iter()
+            .take(crate::remote::MAX_CATEGORY_CHANGES)
+            .filter(|o| o.kind == CategoryChangeKind::Delete)
+            .map(|o| o.name.trim())
+            .collect();
+        for outcome in outcomes.iter().take(crate::remote::MAX_CATEGORY_CHANGES) {
+            let name = outcome.name.trim();
+            match (outcome.result, outcome.kind) {
+                (CategoryResult::Done, CategoryChangeKind::Delete) => synced.retain(|c| !same_category(&c.name, name)),
+                (CategoryResult::Done, CategoryChangeKind::Create | CategoryChangeKind::Color) => {
+                    let color = crate::outlook_colors::nearest_outlook_color(outcome.color);
+                    // Made there by this one, or found there already: the server's own.
+                    let made = outcome.kind == CategoryChangeKind::Create && !outcome.found;
+                    if made {
+                        if let Some(found) = self.categories_found.get_mut(&owner) {
+                            found.remove(&category_key(name));
+                        }
+                    } else if outcome.kind == CategoryChangeKind::Create {
+                        self.found_category(owner, name);
+                    }
+                    // Taken off here (or kept here alone) while the job was on its way: what this
+                    // one made there goes again (its reverse); what was the server's own, found
+                    // there or recoloured, is not taken for known there, so that nothing of it is
+                    // deleted there, and the next read brings it.
+                    let here =
+                        self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name)) && !self.category_is_local(owner, name);
+                    match synced.iter().position(|c| same_category(&c.name, name)) {
+                        Some(i) => {
+                            if let Some(c) = synced.get_mut(i) {
+                                *c = Category { name: name.to_string(), color };
+                            }
+                        }
+                        None if (made || here) && synced.len() < MAX_CATEGORIES => synced.push(Category { name: name.to_string(), color }),
+                        None => {}
+                    }
+                }
+                // Other letters for one the server has, which it won't take: the server's again,
+                // as for a colour.
+                (CategoryResult::Refused, CategoryChangeKind::Create) if on_categories(&synced, name) => {
+                    let was = synced.iter().find(|c| same_category(&c.name, name)).map(|c| c.name.clone());
+                    if let (Some(was), Some(list)) = (was, self.account_categories.get_mut(&owner))
+                        && let Some(c) = list.iter_mut().find(|c| same_category(&c.name, name))
+                    {
+                        c.name = was;
+                    }
+                    said.push(format!("The server didn't take the new spelling of the category \"{name}\": it has the server's again."));
+                }
+                (CategoryResult::Refused, CategoryChangeKind::Create) => {
+                    let listed = self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name));
+                    let names = self.local_categories.entry(owner).or_default();
+                    if listed && !on_list(names, name) && names.len() < MAX_CATEGORIES {
+                        names.push(name.to_string());
+                    }
+                    said.push(format!("The server didn't take the category \"{name}\": it stays on this computer only."));
+                    // What was to be deleted there waits on what is made, as a rename's old name
+                    // does: it stays the server's, and comes back here with the next read.
+                    let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+                    let kept: Vec<String> = synced
+                        .iter()
+                        .filter(|c| !on_categories(list, &c.name) && !sent_deletes.iter().any(|d| same_category(d, &c.name)))
+                        .map(|c| c.name.clone())
+                        .collect();
+                    for old in &kept {
+                        synced.retain(|c| !same_category(&c.name, old));
+                        said.push(format!("The category \"{old}\" wasn't deleted in Outlook: it comes back with the next sync."));
+                    }
+                }
+                (CategoryResult::Refused, CategoryChangeKind::Color) => {
+                    let was = synced.iter().find(|c| same_category(&c.name, name)).map(|c| c.color);
+                    if let (Some(color), Some(list)) = (was, self.account_categories.get_mut(&owner))
+                        && let Some(c) = list.iter_mut().find(|c| same_category(&c.name, name))
+                    {
+                        c.color = color;
+                    }
+                    said.push(format!("The server didn't take the new colour of the category \"{name}\": it has the server's again."));
+                }
+                (CategoryResult::Refused, CategoryChangeKind::Delete) => {
+                    let was = synced.iter().find(|c| same_category(&c.name, name)).cloned();
+                    if let (Some(was), Some(list)) = (was, self.account_categories.get_mut(&owner))
+                        && !list.iter().any(|c| same_category(&c.name, name))
+                    {
+                        if list.len() < MAX_CATEGORIES {
+                            list.push(was);
+                        } else {
+                            // No room to put it back: not known here, so it isn't asked again.
+                            synced.retain(|c| !same_category(&c.name, name));
+                        }
+                    }
+                    if self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name)) {
+                        said.push(format!("The server didn't delete the category \"{name}\": it is back on the list."));
+                    } else {
+                        said.push(format!("The server didn't delete the category \"{name}\": it stays in Outlook."));
+                    }
+                }
+                (CategoryResult::Failed | CategoryResult::Denied, _) => {}
+            }
+        }
+        self.set_synced(owner, synced);
+        self.tidy_local(owner);
+        said
+    }
+
+    /// What `owner` keeps on this computer alone is on its list, each name once: one that left
+    /// the list is nothing kept here, and when its server makes it later it is the server's.
+    fn tidy_local(&mut self, owner: Id) {
+        let Some(names) = self.local_categories.get_mut(&owner) else { return };
+        let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+        let mut seen = HashSet::new();
+        names.retain(|n| on_categories(list, n) && seen.insert(category_key(n)));
+        names.truncate(MAX_CATEGORIES);
+        if names.is_empty() {
+            self.local_categories.remove(&owner);
+        }
+    }
+
+    /// `owner` is another mailbox now (another address): what its server had is forgotten, and
+    /// the list stays, kept on this computer alone until a read shows what the new server has.
+    /// Nothing is deleted or made there for what the old one had.
+    pub fn restart_category_sync(&mut self, owner: Id) {
+        if self.synced_categories.remove(&owner).is_none() {
+            return;
+        }
+        self.server_categories.remove(&owner);
+        self.category_writes.remove(&owner);
+        self.categories_found.remove(&owner);
+        let names: Vec<String> = self.categories_of(owner).iter().map(|c| c.name.clone()).collect();
+        if names.is_empty() {
+            self.local_categories.remove(&owner);
+        } else {
+            self.local_categories.insert(owner, names);
+        }
+    }
+
+    /// `name`, on `owner`'s server's list, is the server's own: it was there before this one asked
+    /// for it, or the server listed it by itself ([`Mailbox::categories_found`]).
+    fn found_category(&mut self, owner: Id, name: &str) {
+        self.category_stamp = self.category_stamp.saturating_add(1);
+        let stamp = self.category_stamp;
+        self.categories_found.entry(owner).or_default().insert(category_key(name), stamp);
+    }
+
+    /// Whether the server of `owner` was found to have `name` of its own after `stamp`
+    /// ([`Mailbox::categories_found`]): a step from before then didn't know it.
+    pub fn category_found_since(&self, owner: Id, name: &str, stamp: u64) -> bool {
+        self.categories_found.get(&owner).and_then(|found| found.get(&category_key(name))).is_some_and(|at| *at > stamp)
+    }
+
+    /// `owner`'s server's list as last synced, names and colours (and so its names,
+    /// [`Mailbox::server_categories`]).
+    fn set_synced(&mut self, owner: Id, mut synced: Vec<Category>) {
+        synced.truncate(MAX_CATEGORIES);
+        // What the server no longer has is no longer found there.
+        if let Some(found) = self.categories_found.get_mut(&owner) {
+            let keys: HashSet<String> = synced.iter().map(|c| category_key(&c.name)).collect();
+            found.retain(|key, _| keys.contains(key));
+            if found.is_empty() {
+                self.categories_found.remove(&owner);
+            }
+        }
+        self.server_categories.insert(owner, synced.iter().map(|c| c.name.clone()).collect());
+        self.synced_categories.insert(owner, synced);
+    }
+
+    /// Take in `owner`'s server's list of categories as it is now (#661). What wasn't changed
+    /// here since the last time follows the server: a name it added comes, one it deleted goes
+    /// (what carries it keeps it, in grey), a colour or a spelling it changed is taken. What was
+    /// changed here and not sent yet stays as it is here, to go with the next job. A name the
+    /// server now has that was kept here alone becomes the server's, in its colour. The list
+    /// holds [`MAX_CATEGORIES`] at most: a name the server added beyond it waits. How many
+    /// categories changed.
+    pub fn take_server_categories(&mut self, owner: Id, server: &[Category], complete: bool) -> usize {
+        self.tidy_local(owner);
+        let synced = self.synced_categories.get(&owner).cloned().unwrap_or_default();
+        let mut local = self.local_categories.get(&owner).cloned().unwrap_or_default();
+        let mut list = self.account_categories.get(&owner).cloned().unwrap_or_default();
+        let before = list.clone();
+        // Names the server writes otherwise now: the items that carry them take its spelling.
+        let mut respelled: Vec<String> = Vec::new();
+        // New there, and no room for them here: not known here either, so that the next upload
+        // never takes them for deleted here (a delete there can't be undone).
+        let mut unplaced: Vec<&str> = Vec::new();
+        for s in server {
+            let was = synced.iter().find(|c| same_category(&c.name, &s.name));
+            match (was, list.iter().position(|c| same_category(&c.name, &s.name))) {
+                // Unchanged here: the server's. Changed here: waits to go.
+                (Some(was), Some(i)) => {
+                    if let Some(here) = list.get_mut(i) {
+                        if here.color == was.color {
+                            here.color = s.color;
+                        }
+                        if here.name == was.name && here.name != s.name {
+                            here.name = s.name.clone();
+                            respelled.push(s.name.clone());
+                        }
+                    }
+                }
+                // Deleted here, not told yet.
+                (Some(_), None) => {}
+                // Made here and there, or kept here alone and now made there: the server's.
+                (None, Some(i)) => {
+                    if let Some(here) = list.get_mut(i) {
+                        if here.name != s.name {
+                            respelled.push(s.name.clone());
+                        }
+                        *here = s.clone();
+                    }
+                    local.retain(|n| !same_category(n, &s.name));
+                }
+                // New on the server.
+                (None, None) if list.len() < MAX_CATEGORIES => list.push(s.clone()),
+                (None, None) => unplaced.push(&s.name),
+            }
+        }
+        // Deleted on the server: a deletion there wins (the items keep the name, in grey). Of a
+        // list the server didn't give whole, nothing is taken for deleted, and what it didn't
+        // give stays as it was last synced.
+        let missing: Vec<&Category> = synced.iter().filter(|was| !on_categories(server, &was.name)).collect();
+        let mut synced_now: Vec<Category> = server.iter().filter(|c| !unplaced.iter().any(|n| same_category(n, &c.name))).cloned().collect();
+        if complete {
+            list.retain(|c| !missing.iter().any(|was| same_category(&was.name, &c.name)));
+        } else {
+            synced_now.extend(missing.into_iter().cloned());
+        }
+        let changed = list.iter().filter(|c| !before.contains(c)).count() + before.iter().filter(|c| !list.contains(c)).count();
+        let lists_changed = self.synced_categories.get(&owner) != Some(&synced_now);
+        self.account_categories.insert(owner, list);
+        if local.is_empty() {
+            self.local_categories.remove(&owner);
+        } else {
+            self.local_categories.insert(owner, local);
+        }
+        // What the server lists that wasn't known there before is its own.
+        let came: Vec<String> = synced_now.iter().filter(|c| !on_categories(&synced, &c.name)).map(|c| c.name.clone()).collect();
+        for name in &came {
+            self.found_category(owner, name);
+        }
+        self.set_synced(owner, synced_now);
+        for name in &respelled {
+            self.each_category_list(owner, |list| {
+                for c in list.iter_mut().filter(|c| same_category(c, name)) {
+                    c.clone_from(name);
+                }
+            });
+        }
+        changed + usize::from(lists_changed)
+    }
+
+    /// Give each Microsoft account's list that was read before it was kept in step with its
+    /// server (#661) what that takes: the server's list as last read, in the colours the list here
+    /// has for it (they were the server's, as nobody could change them here), and the names only
+    /// here, which stay on this computer. Entries for an account without a list of its own go.
+    fn settle_synced_categories(&mut self, own: &HashSet<Id>) {
+        self.synced_categories.retain(|account, _| own.contains(account));
+        self.local_categories.retain(|account, _| own.contains(account));
+        self.category_writes.retain(|account| own.contains(account));
+        let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
+        for owner in unsettled {
+            let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
+            let list = self.account_categories.get(&owner).cloned().unwrap_or_default();
+            // A name the server had and the list here doesn't (a list that had no room, or one
+            // taken off it while that stayed here) is not taken for deleted here: it comes with
+            // the next read, as it did.
+            let synced: Vec<Category> = names
+                .iter()
+                .filter(|name| on_categories(&list, name))
+                .map(|name| Category {
+                    name: name.clone(),
+                    color: list.iter().find(|c| same_category(&c.name, name)).map_or(GREY_CATEGORY, |c| c.color),
+                })
+                .collect();
+            let only_here: Vec<String> = list.iter().filter(|c| !on_list(&names, &c.name)).map(|c| c.name.clone()).collect();
+            if !only_here.is_empty() {
+                self.local_categories.insert(owner, only_here);
+            }
+            self.synced_categories.insert(owner, synced);
+        }
+        // Lists hold one name once (a file of an older build compared names in ASCII only).
+        for list in self.account_categories.values_mut().chain(self.synced_categories.values_mut()) {
+            let mut seen = HashSet::new();
+            list.retain(|c| seen.insert(category_key(&c.name)));
+        }
+        let kept: Vec<Id> = self.local_categories.keys().copied().collect();
+        for owner in kept {
+            self.tidy_local(owner);
+        }
+    }
+
     /// The names the items of `owner` (its shared mailboxes' too) carry, each once and fit for a
     /// list (a server wrote them), at most `MAX_REMOTE_CATEGORIES`.
     fn category_names_of(&self, owner: Id) -> Vec<String> {
@@ -3054,7 +3521,7 @@ impl Mailbox {
             .chain(tasks)
             .flatten()
             .filter_map(|name| clean_name(name))
-            .filter(|name| seen.insert(name.to_lowercase()))
+            .filter(|name| seen.insert(category_key(name)))
             .take(crate::remote::MAX_REMOTE_CATEGORIES)
             .collect()
     }
@@ -3074,11 +3541,17 @@ impl Mailbox {
         let elsewhere = |name: &str| self.server_categories.iter().any(|(id, names)| *id != owner && on_list(names, name));
         let mut list: Vec<Category> = self.categories.iter().filter(|c| !elsewhere(&c.name)).cloned().collect();
         for name in self.category_names_of(owner) {
-            if !list.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
+            if !on_categories(&list, &name) {
                 list.push(Category { color: self.category_color(&name), name });
             }
         }
         list.truncate(MAX_CATEGORIES);
+        // What came across that the server doesn't list is kept here alone (#661): it is never
+        // sent unasked.
+        let only_here: Vec<String> = list.iter().filter(|c| !on_list(on_server, &c.name)).map(|c| c.name.clone()).collect();
+        if !only_here.is_empty() {
+            self.local_categories.insert(owner, only_here);
+        }
         self.account_categories.insert(owner, list);
         if owner < self.own_lists_began {
             self.settle_earlier_lists(owner, on_server);
@@ -3107,6 +3580,7 @@ impl Mailbox {
             if let Some(list) = self.account_categories.get_mut(&account) {
                 list.retain(|c| !on_list(&leaving, &c.name) || on_list(&carried, &c.name));
             }
+            self.tidy_local(account);
         }
     }
 
@@ -3213,16 +3687,31 @@ impl Mailbox {
         // rest are dropped (their messages go to the Inbox below), so the work on a hostile file
         // stays bounded.
         let crowded = self.account_categories.values().any(|list| list.len() > MAX_CATEGORIES)
-            || self.server_categories.values().any(|list| list.len() > MAX_CATEGORIES);
+            || self.server_categories.values().any(|list| list.len() > MAX_CATEGORIES)
+            || self.synced_categories.values().any(|list| list.len() > MAX_CATEGORIES)
+            || self.local_categories.values().any(|list| list.len() > MAX_CATEGORIES);
         if self.accounts.len() > MAX_ACCOUNTS || self.folders.len() > MAX_FOLDERS || self.categories.len() > MAX_CATEGORIES || crowded {
+            // A name cut from a list kept in step with its server is not known there any more
+            // either: it is no deletion to send.
+            for (account, list) in &self.account_categories {
+                let cut = list.get(MAX_CATEGORIES..).unwrap_or_default();
+                if let Some(synced) = self.synced_categories.get_mut(account).filter(|_| !cut.is_empty()) {
+                    synced.retain(|c| !cut.iter().any(|gone| same_category(&gone.name, &c.name)));
+                }
+            }
             self.accounts.truncate(MAX_ACCOUNTS);
             self.folders.truncate(MAX_FOLDERS);
             self.categories.truncate(MAX_CATEGORIES);
             self.account_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
             self.server_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
+            self.synced_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
+            // (What is kept here alone is cut to what the list holds below,
+            // `settle_synced_categories`.)
+            self.local_categories.values_mut().for_each(|list| list.truncate(MAX_CATEGORIES));
             fixed.push("accounts, folders or categories beyond the limits dropped".into());
         }
-        for c in self.categories.iter_mut().chain(self.account_categories.values_mut().flatten()) {
+        for c in self.categories.iter_mut().chain(self.account_categories.values_mut().flatten()).chain(self.synced_categories.values_mut().flatten())
+        {
             if let Some(clean) = clean_name(&c.name)
                 && clean != c.name
             {
@@ -3254,6 +3743,15 @@ impl Mailbox {
                     if let Some(names) = self.server_categories.remove(&old) {
                         self.server_categories.insert(a.id, names);
                     }
+                    if let Some(list) = self.synced_categories.remove(&old) {
+                        self.synced_categories.insert(a.id, list);
+                    }
+                    if let Some(names) = self.local_categories.remove(&old) {
+                        self.local_categories.insert(a.id, names);
+                    }
+                    if self.category_writes.remove(&old) {
+                        self.category_writes.insert(a.id);
+                    }
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
@@ -3263,6 +3761,7 @@ impl Mailbox {
         let own: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
         self.account_categories.retain(|account, _| own.contains(account));
         self.server_categories.retain(|account, _| own.contains(account));
+        self.settle_synced_categories(&own);
         self.tidy_listed_twice();
         // The owner's order names their own accounts (`own`, above), each once (#702): whatever
         // else a file says there is dropped.

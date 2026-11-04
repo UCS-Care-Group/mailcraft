@@ -260,41 +260,33 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.kind == AccountKind::Exchange {
             crate::ews_setup::info_rows(app, ui, t, a);
         }
-        // Where keeping the tasks in step with Microsoft To Do stands, with a way to ask again (#248).
-        if let Some((line, again)) = app.tasks_line(a.id) {
+        // Where keeping the to-dos, the rules, the automatic replies and the categories in step
+        // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
+        // is its tip.
+        if let Some((line, details, again)) = app.sync_line(a.id) {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
-                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim)).on_hover_text(&details);
                 let tip = tl!(
-                    "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+                    "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
                 );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_tasks_again(a.id);
+                if again && ui.link(tl!("Turn On")).on_hover_text(tip).clicked() {
+                    app.ask_sync_again(a.id);
                 }
             });
-            if let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id)) {
-                ui.horizontal(|ui| {
-                    ui.add_space(36.0);
-                    ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                    let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
-                    if ui.link(tl!("Send to To Do…")).on_hover_text(tip).clicked() {
-                        app.ui.backstage = false;
-                        app.offer_local_tasks();
-                    }
-                });
-            }
             ui.add_space(4.0);
         }
-        // Where keeping rules on the server stands, with a way to ask again (#566).
-        if let Some((line, again)) = app.rules_line(a.id) {
+        // To-dos that exist only here, with the way to send them to To Do (#248).
+        if app.tasks_line(a.id).is_some()
+            && let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id))
+        {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
-                );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_rules_again(a.id);
+                let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
+                if ui.link(tl!("Send to To Do…")).on_hover_text(tip).clicked() {
+                    app.ui.backstage = false;
+                    app.offer_local_tasks();
                 }
             });
             ui.add_space(4.0);
@@ -307,19 +299,9 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
                 match again {
                     Some(crate::auto_replies::Again::SignIn) => {
-                        let tip = tl!(
-                            "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-                        );
+                        let tip = tl!("Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile.");
                         if ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
                             let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
-                        }
-                    }
-                    Some(crate::auto_replies::Again::Ask) => {
-                        let tip = tl!(
-                            "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-                        );
-                        if ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                            app.auto_replies_ask_again(a.id);
                         }
                     }
                     None => {}

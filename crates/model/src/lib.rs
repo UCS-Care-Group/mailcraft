@@ -22,6 +22,7 @@ mod load_limit;
 mod mailbox;
 mod message;
 mod offline;
+pub mod outlook_colors;
 pub mod pictures;
 pub mod pop;
 pub mod provider;
@@ -53,8 +54,9 @@ pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_ke
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
-    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox,
-    NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
+    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_CATEGORIES, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX,
+    MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
+    categories_read_only_text, category_key,
 };
 pub use mailcraft_time as time;
 pub use message::{

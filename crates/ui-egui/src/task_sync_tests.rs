@@ -43,7 +43,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.tasks));
+        log.lock().unwrap().push((req.account, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("tasks-access", "ref-2"))).unwrap();
         rx
@@ -111,7 +111,7 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_tasks() {
     assert!(again && line.contains("waiting for your permission"), "{line}");
     assert!(!app.tasks_tick_at(10.0 * 60_000.0) || jobs.lock().unwrap().len() == 1);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowTasks", Some(owner)));
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
     assert!(ask.text.contains(OWNER) && ask.text.contains("stay on this computer"), "{}", ask.text);
     assert!(sign_ins.lock().unwrap().is_empty(), "no page yet");
     assert_eq!(jobs.lock().unwrap().len(), 1);
@@ -301,7 +301,7 @@ fn a_refusal_that_lasts_after_allowing_asks_the_owner_in_the_end() {
         at += 1_000.0;
     }
     let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("the owner was never asked") };
-    assert_eq!(command, "ui.allowTasks");
+    assert_eq!(command, "ui.allowSync");
 }
 
 /// #520: a sign-in Microsoft no longer takes, for mail either, leaves a way back in File › Info,
@@ -321,16 +321,16 @@ fn a_refused_sign_in_for_tasks_leaves_ask_again() {
     }
     assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
     assert_eq!(jobs.lock().unwrap().len(), 1);
-    // Ask again: the question, then Microsoft's page.
-    app.ask_tasks_again(owner);
-    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Ask again asks") };
-    assert_eq!(command, "ui.allowTasks");
+    // Turn On: the question, then Microsoft's page.
+    app.ask_sync_again(owner);
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Turn On asks") };
+    assert_eq!(command, "ui.allowSync");
     app.dialog = None;
     app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
 }
 
-/// #520: signing in again for mail is a way back too, without Ask again.
+/// #520: signing in again for mail is a way back too, without Turn On.
 #[test]
 fn a_new_sign_in_for_mail_lets_the_tasks_go_on() {
     let (mut app, owner, answers, jobs, _) = window();

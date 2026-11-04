@@ -28,8 +28,10 @@ fn rig() -> (MailApp, Id, Id) {
     s.mailbox.categories.clear();
     for (account, email, extra) in [(a, "a@example.org", "Client X"), (b, "b@example.org", "Other")] {
         let tag = |name: &str| Category { name: name.into(), color: RED };
-        let download = CategoriesDownload { account, email: email.into(), categories: vec![tag("Red"), tag(extra)] };
+        let download = CategoriesDownload { account, email: email.into(), categories: vec![tag("Red"), tag(extra)], complete: true };
         remote::apply_categories(&mut s, &download).unwrap();
+        // Its sign-in lets MailCraft change the list there (#661).
+        s.run("sync.categoryWrites", &json!({"account": account, "allowed": true})).unwrap();
     }
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
@@ -72,7 +74,8 @@ fn dialog(mut app: MailApp, params: serde_json::Value) -> Harness<'static, MailA
     h
 }
 
-const REMARK: &str = "Not in Outlook's list: no colour there";
+/// What a row kept on this computer alone says, on a list kept in step with Outlook (#661).
+const REMARK: &str = "Kept on this computer only";
 
 #[test]
 fn an_account_that_isnt_one_opens_no_list() {
@@ -151,14 +154,30 @@ fn what_the_dialog_does_goes_to_the_list_in_view() {
 
 #[test]
 fn the_dialog_says_whose_list_it_shows_and_only_what_isnt_on_that_server() {
-    let (mut app, a, b) = rig();
-    app.session.run("category.set", &json!({"account": a, "name": "Made here", "color": "#112233"})).unwrap();
+    let (mut app, a, _) = rig();
+    // One an older build kept on A's list and the server never had.
+    let here = Category { name: "Made here".into(), color: RED };
+    app.session.mailbox.account_categories.entry(a).or_default().push(here);
+    app.session.mailbox.local_categories.entry(a).or_default().push("Made here".into());
     let h = dialog(app, json!({"account": a}));
     assert!(h.query_by_label("Account").is_some());
     assert_eq!(h.query_all_by_label(REMARK).count(), 1, "Red and Client X are on A's server, Made here isn't");
+    assert_eq!(h.query_all_by_label("Add to Outlook").count(), 1);
     drop(h);
 
-    let (app, ..) = rig();
+    // Without leave to change the list there, it says so and offers nothing that would change it.
+    let (mut app, a, _) = rig();
+    app.session.mailbox.account_categories.entry(a).or_default().push(Category { name: "Made here".into(), color: RED });
+    app.session.mailbox.local_categories.entry(a).or_default().push("Made here".into());
+    app.services.graph_categories = Some(Box::new(|_| std::sync::mpsc::channel().1));
+    app.stand_in_categories(false);
+    let h = dialog(app, json!({"account": a}));
+    assert!(h.query_by_label_contains("No permission to change them").is_some());
+    assert!(h.query_by_label("Allow").is_some());
+    assert_eq!(h.query_all_by_label("Add to Outlook").count(), 0);
+    drop(h);
+
+    let (app, _, b) = rig();
     let h = dialog(app, json!({"account": b}));
     assert_eq!(h.query_all_by_label(REMARK).count(), 0);
     drop(h);

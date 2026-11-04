@@ -2762,6 +2762,28 @@ impl Session {
         self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
     }
 
+    /// The categories that undoing (`redo`: redoing) would have a job delete on their account's
+    /// server (#661), which nothing had to be deleted there before: known there, and off the list
+    /// here or kept here alone after it. Worked out as the undo would, on a copy, as for
+    /// [`Session::undo_takes_mail`].
+    pub fn undo_deletes_categories(&self, redo: bool) -> Vec<String> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        // What a job is to delete there: known there, not on the list here (or kept here alone).
+        let to_delete = |mb: &Mailbox, owner: Id| -> Vec<String> {
+            let (Some(synced), Some(list)) = (mb.synced_categories.get(&owner), mb.account_categories.get(&owner)) else { return Vec::new() };
+            let here = |name: &str| list.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) && !mb.category_is_local(owner, name);
+            synced.iter().filter(|c| !here(&c.name)).map(|c| c.name.clone()).collect()
+        };
+        let mut names = Vec::new();
+        for owner in back.category_writes.iter().filter(|id| back.synced_categories.contains_key(id)) {
+            let already = to_delete(&self.mailbox, *owner);
+            let is_new = |n: &String| !already.iter().any(|a| mailcraft_model::sync::same_category(a, n));
+            names.extend(to_delete(&back, *owner).into_iter().filter(is_new));
+        }
+        names
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
@@ -2795,7 +2817,8 @@ impl Session {
             || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || category_gone(&now.categories, &to.categories)
-            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
+            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)))
+            || !self.undo_deletes_categories(redo).is_empty();
         if gone || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo) {
             return Some(Class::Delete);
         }

@@ -44,7 +44,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.rules, req.tasks));
+        log.lock().unwrap().push((req.account, req.sync, false));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("rules-access", "ref-2"))).unwrap();
         rx
@@ -110,9 +110,9 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     // The window asks first; no page yet.
     assert!(!app.rules_tick_at(6_000.0));
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowRules", Some(owner)));
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
     assert!(ask.text.contains(OWNER) && ask.text.contains("stay on this computer"), "{}", ask.text);
-    assert_eq!(ask.cancel.as_deref(), Some("Not now"));
+    assert!(ask.cancel.is_none());
     assert!(sign_ins.lock().unwrap().is_empty());
     // Not now: the server's rules are still read, as due, and nothing is sent.
     app.dialog = None;
@@ -124,8 +124,8 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert!(app.rules_tick_at(6.0 * 60_000.0));
     app.poll_rules();
     assert_eq!(jobs.lock().unwrap().last(), Some(&(owner, 0)));
-    // Ask again (File › Info): the question, then Microsoft's page for this alone.
-    app.ask_rules_again(owner);
+    // Turn On (File › Info): the question, then Microsoft's page for all of it.
+    app.ask_sync_again(owner);
     assert!(app.run("ui.allowRules", json!({"account": owner})).is_err());
     assert!(app.run("ui.allowRules", json!({"account": 9_999, "confirmed": true})).is_err());
     app.dialog = None;
@@ -166,7 +166,7 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
     // And back: a yes for the rules is one for the automatic replies.
     app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
-    app.ask_rules_again(owner);
+    app.ask_sync_again(owner);
     app.dialog = None;
     app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
@@ -190,7 +190,7 @@ fn working_offline_the_rules_wait_and_nobody_is_asked() {
     // Back online: the owner is asked.
     app.execute("sync.offline", json!({"value": false})).unwrap();
     app.rules_tick_at(7_000.0);
-    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.allowRules"));
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.allowSync"));
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn changes_held_back_from_the_server_say_the_server_still_has_the_rule_as_it_was
     app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
     app.auto_sync = false;
     let h = shown(app);
-    let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).";
+    let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On).";
     assert!(h.query_by_label(said).is_some());
 }
 

@@ -76,7 +76,8 @@ fn a_sign_in_that_lacks_the_newest_permission_keeps_everything_it_had() {
         wanted.scope.starts_with(&format!("{GRAPH_SCOPES_BEFORE} offline_access")) && GRAPH_SCOPES.starts_with(GRAPH_SCOPES_BEFORE),
         "{wanted:?}"
     );
-    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.consent), GRAPH_SCOPES);
+    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.lesser), GRAPH_SCOPES);
+    assert_eq!(wanted.consent, format!("{} {TASKS_SCOPE} {SETTINGS_WRITE}", wanted.lesser));
 
     // The owner agreed to all of it: one question.
     let server = FakeHttp::answering(ok(granted));
@@ -315,16 +316,20 @@ fn microsoft_endpoints() {
     }
     assert!(Url::parse(&common.authorize).is_ok() && Url::parse(&common.token).is_ok());
 
-    // The page of a sign-in to mail is also asked for what Graph's tokens will be for.
-    assert_eq!(common.consent, GRAPH_SCOPES);
+    // The page of a sign-in to mail is also asked for what Graph's tokens will be for, and for
+    // keeping the to-dos and the mailbox's settings in step (#661); a page that won't have those
+    // is asked again for the rest.
+    assert_eq!(common.lesser, GRAPH_SCOPES);
+    assert_eq!(common.consent, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"));
     assert_eq!(Endpoints::for_resource(&oauth(), Resource::Mail), common);
-    // Graph's own: the same addresses, its own scopes, and the one optional extra for the owner
-    // to agree to on the page (a page that won't have it is asked again without it).
+    // Graph's own: the same addresses, its own scopes, and the optional extras for the owner to
+    // agree to on the page (a page that won't have them all is asked again for the first alone).
     let graph = Endpoints::for_resource(&OAuth { tenant: " consumers ".into(), ..oauth() }, Resource::Graph);
     assert_eq!(graph.authorize, "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize");
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
-    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read");
+    assert_eq!(graph.lesser, "https://graph.microsoft.com/MailboxSettings.Read");
+    assert_eq!(graph.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE}"));
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
@@ -652,7 +657,7 @@ fn the_page_is_asked_for_more_than_the_tokens_are_for() {
     assert_eq!(
         fields(url.split_once('?').unwrap().1)["scope"],
         format!(
-            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES}"
+            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"
         )
     );
 }
@@ -667,10 +672,14 @@ fn graph_can_be_signed_in_to_on_its_own() {
     let (open, visits) = browser_answering(&["GET /?code=graph-code&state={state}"]);
     let tokens = sign_in_to(&endpoints, "ada@example.org", &open).unwrap();
     assert_eq!((tokens.access.as_str(), tokens.refresh.as_str()), ("graph-access", "newer-refresh"));
-    // The tokens are for what Graph was always asked for; the page is asked for one thing more
-    // (the mailbox's settings, for its categories), which the refresh token then covers too.
+    // The tokens are for what Graph was always asked for; the page is asked for more (the
+    // mailbox's settings, for its categories, and changing them and the to-dos, #661), which the
+    // refresh token then covers too.
     let expected = format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email");
-    assert_eq!(visit_asked(&visits, 0)["scope"], format!("{expected} https://graph.microsoft.com/MailboxSettings.Read"));
+    assert_eq!(
+        visit_asked(&visits, 0)["scope"],
+        format!("{expected} https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE}")
+    );
     assert_eq!(visit_asked(&visits, 0)["login_hint"], "ada@example.org");
     let form = form_of(&server, 0);
     assert_eq!((form["code"].as_str(), form["scope"].as_str()), ("graph-code", expected.as_str()));
@@ -808,7 +817,6 @@ fn the_favorites_permissions_are_asked_for_by_themselves_and_never_with_a_sign_i
         let endpoints = Endpoints::for_resource(&oauth(), resource);
         let asked = format!("{} {} {}", endpoints.scope, endpoints.consent, endpoints.lesser);
         assert!(!asked.contains("MailboxConfigItem") && !asked.contains("Mail.ReadBasic"), "{asked}");
-        assert_eq!(endpoints.lesser, "");
     }
     // The owner asks for them on a page of their own: what Graph was asked for before, and
     // these two, in the one request (page and tokens alike), with nothing to fall back to.
@@ -924,6 +932,12 @@ fn a_page_that_will_not_have_everything_is_asked_for_what_was_asked_before() {
         "error=invalid_scope&error_description=AADSTS70011%3A+No+such+scope.",
         "error=access_denied&error_description=AADSTS90094%3A+The+grant+requires+admin+permission.",
         "error=access_denied&error_description=AADSTS65004%3A+User+declined+to+consent+to+access+the+app.",
+        // An administrator has to approve what is asked for beyond it (#661: keeping the to-dos and
+        // the settings in step), in each of Microsoft's words for that: a mail sign-in must not
+        // stop there.
+        "error=access_denied&error_description=AADSTS90093%3A+The+grant+requires+admin+permission.",
+        "error=access_denied&error_description=AADSTS90095%3A+Admin+consent+is+required.",
+        "error=access_denied&error_description=AADSTS900941%3A+Admin+consent+is+required+due+to+risk.",
     ] {
         let (open, visits) = browser_answering(&[&format!("GET /?{refusal}&state={{state}}"), "GET /?code=second-code&state={state}"]);
         let tokens = sign_in_to(&wide(&server), "ada@example.org", &open).unwrap();
@@ -2154,14 +2168,20 @@ fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_m
 const TASKS_SCOPE: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 
 #[test]
-fn tasks_are_never_put_on_a_sign_in_page_so_a_mail_sign_in_never_waits_on_them() {
-    // Asked for by itself, after the window has asked the owner, for new accounts and old alike: a
-    // tenant that makes an administrator approve it must not stop a plain mail sign-in.
+fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for() {
+    // A new sign-in's page asks for them beside the rest (#661); a page that won't have them is
+    // asked again for what it asked before them, so a mail sign-in never hangs on them. The
+    // tokens of a sign-in are never for them: a job for the to-dos asks for its own.
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        assert!(!endpoints.consent.contains("Tasks") && !endpoints.lesser.contains("Tasks"), "{resource:?}: {}", endpoints.consent);
+        assert!(endpoints.consent.split(' ').any(|s| s == TASKS_SCOPE) && !endpoints.lesser.contains("Tasks"), "{resource:?}: {}", endpoints.consent);
+        assert!(endpoints.consent.starts_with(&endpoints.lesser), "{resource:?}");
         assert!(!endpoints.scope.contains("Tasks"), "{resource:?}: {}", endpoints.scope);
     }
+    // An account signed in before asks for them on one page of their own, both together.
+    let sync = sync_scope();
+    assert!(sync.split(' ').any(|s| s == TASKS_SCOPE) && sync.split(' ').any(|s| s == SETTINGS_WRITE), "{sync}");
+    assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
     // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.
     let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
     let server = FakeHttp::answering(ok(granted));
@@ -2245,15 +2265,16 @@ fn a_graph_accounts_no_for_the_tasks_is_checked_against_graph_mail() {
 const SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 
 #[test]
-fn changing_the_settings_is_never_on_a_sign_in_page_and_reading_them_costs_nothing_more() {
-    // A sign-in still asks to read the settings, and never to change them: a tenant that makes an
-    // administrator approve that must not stop a sign-in.
+fn changing_the_settings_is_an_extra_of_a_new_sign_ins_page_and_reading_them_costs_nothing_more() {
+    // A new sign-in's page asks to change them beside the rest (#661), as an extra a page that
+    // won't have it is asked again without; reading them is asked for as before.
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        let all = format!("{} {} {}", endpoints.consent, endpoints.lesser, endpoints.scope);
-        assert!(!all.contains("MailboxSettings.ReadWrite"), "{resource:?}: {all}");
+        assert!(endpoints.consent.split(' ').any(|s| s == SETTINGS_WRITE), "{resource:?}: {}", endpoints.consent);
+        let rest = format!("{} {}", endpoints.lesser, endpoints.scope);
+        assert!(!rest.contains("MailboxSettings.ReadWrite"), "{resource:?}: {rest}");
     }
-    assert!(Endpoints::for_resource(&oauth(), Resource::Mail).consent.split(' ').any(|s| s == "https://graph.microsoft.com/MailboxSettings.Read"));
+    assert!(Endpoints::for_resource(&oauth(), Resource::Mail).lesser.split(' ').any(|s| s == "https://graph.microsoft.com/MailboxSettings.Read"));
     // The administrator's one approval covers it.
     assert!(admin_scope().split(' ').any(|scope| scope == SETTINGS_WRITE));
     // The calendar's (and the replies' reading) refresh asks for what it asked before: once.
@@ -2323,4 +2344,19 @@ fn a_no_for_the_rules_alone_is_a_question_for_the_owner() {
     let server = FakeHttp::answering(response("400 Bad Request", no));
     let error = refresh_graph_rules_at(&endpoints_of(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap_err();
     assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
+}
+
+#[test]
+fn a_change_of_the_categories_needs_the_settings_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"categories-access","refresh_token":"re-fresh-7"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_categories_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), server.asked()), ("categories-access", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == SETTINGS_WRITE) && !scope.contains("Tasks") && !scope.contains("Shared"), "{scope}");
+    // A sign-in from before: the list is read-only until the owner allows it.
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    let error = refresh_graph_categories_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
+    assert!(error.is_consent_needed(), "{error}");
 }
