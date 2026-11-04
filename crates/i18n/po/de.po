@@ -2634,7 +2634,7 @@ msgstr "Ausschneiden"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "DOMAIN\\user or you@example.org; empty for your address"
-msgstr "DOMAIN\\Benutzer oder Sie@beispiel.de; leer lassen, um Ihre eigene Adresse zu verwenden"
+msgstr "DOMAIN\\Benutzer oder you@example.org; leer lassen, um Ihre eigene Adresse zu verwenden"
 
 #. name
 #: crates/ui-egui/src/theme.rs
