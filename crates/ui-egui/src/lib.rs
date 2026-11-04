@@ -2235,11 +2235,7 @@ impl MailApp {
         if let (Ok(_), Some(gone)) = (&r, leaving) {
             let account = gone.id;
             // A late OAuth response must never restore tokens for a removed account.
-            if self.signing_in.as_ref().is_some_and(|pending| pending.account == account)
-                && let Some(pending) = self.signing_in.take()
-            {
-                pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
+            self.cancel_pending_sign_in(account);
             // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
@@ -2254,6 +2250,13 @@ impl MailApp {
             self.ews_certificate.remove(&account);
             self.forget_account_secrets(&gone);
         }
+        // End a request as soon as its credential identity changes, using the same check as
+        // poll_sign_in even when the storage key remains the same.
+        if let (Ok(_), Some(before)) = (&r, &edited)
+            && self.session.mailbox.account(before.id).is_some_and(|after| !Self::same_sign_in_identity(before, after))
+        {
+            self.cancel_pending_sign_in(before.id);
+        }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
         // is asked again.
         if let (Ok(_), Some(before)) = (&r, edited)
@@ -2262,13 +2265,6 @@ impl MailApp {
                 != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            // The OS login might still be in flight with the old hosts or provider.
-            // Stop it now and drop its receiver rather than give its answer to new settings.
-            if self.signing_in.as_ref().is_some_and(|pending| pending.account == before.id)
-                && let Some(pending) = self.signing_in.take()
-            {
-                pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
             self.forget_account_secrets(&before);
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
@@ -2731,6 +2727,16 @@ impl MailApp {
             && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
             && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+    }
+
+    /// Stop only this account's pending sign-in and remove its waiting text.
+    fn cancel_pending_sign_in(&mut self, account: Id) {
+        if self.signing_in.as_ref().is_some_and(|pending| pending.account == account)
+            && let Some(pending) = self.signing_in.take()
+        {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.session.sync_status.clear();
+        }
     }
 
     /// The name secrets were kept under before they were bound to servers.

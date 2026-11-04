@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-03 · **Change:** patch
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-04 · **Change:** patch
 >
 > **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
@@ -189,6 +189,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-11-04 | #232 follow-up: cancel a pending sign-in as soon as the account's credential identity changes or the account is removed, and clear its waiting status. Unrelated preference edits keep sign-in running. Account command help lists Google among the supported OAuth providers. |
 | 2026-11-03 | The owner's order of the accounts ([#702](https://github.com/UCS-Care-Group/mailcraft/issues/702), point 2): an account is dragged by its heading up or down the folder pane, as in classic Outlook, a line showing where it goes and its shared mailboxes going with it. The order is the list's, kept in the mailbox apart from the accounts (`Mailbox::account_order`), so the default account never changes with it; File › Info, the From list, the calendars' groups, Junk E-mail Options, Signatures, Rules and Alerts, Tasks, `account.list`, `folder.list`, `file.account` and `file.info` follow it, and the To Do jobs start in that order; Send/Receive keeps the order the accounts were added in. Move Up and Move Down on an account's right-click menu do the same as a drag, and the pane scrolls while a heading is dragged near its top or bottom. `account.move` does the same from the command line, MCP and agents (safe: nothing leaves the computer, Undo puts it back). |
 | 2026-11-03 | #631: each account's contacts apart. People has a choice under its heading (All accounts, each Microsoft account, On this computer; `view.peopleAccount`, remembered with the other view choices), on the `AccountChoice` and `widgets::account_choice` of #632. The list, the counts, the search and the status bar follow it; with All accounts each row says where the contact is, and the card says so whatever the list shows; a contact the account's server keeps is marked Read-only there, with why in its hover text, before Edit or Delete is tried. A contact that becomes the selected one (made, imported, merged or picked) where the list doesn't show it moves the list to it, and clears a search that would leave it out; undone, a step puts the list back where the contact selected again is. On this computer is forgotten once the last account that keeps contacts goes, so an account added later opens People on All accounts, and an account's empty list says No contacts from this account yet (they may not have come down). Export Contacts, the contact picker and the recipient suggestions stay on every contact, and `list_contacts` too unless `account` names one (`people.list` takes it). A new contact is still kept on this computer |
 | 2026-11-03 | #232 review fixes: validate mail-token destinations for the selected provider so Gmail IMAP and SMTP are accepted without relaxing host restrictions; retain a pending sign-in across unrelated account preference edits while rejecting changed credential identities. Regression coverage uses the actual Gmail hostnames without contacting a real mailbox. |
@@ -423,6 +424,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-04 | #232: record prompt pending-sign-in cancellation, waiting-status cleanup and complete provider help |
 | 2026-11-03 | #702, #631: the progress log: Move Up and Move Down, the pane's scroll while dragging, the To Do jobs' order; a contact shown clears a search that hides it |
 | 2026-11-03 | #631: the progress log: each account's contacts apart |
 | 2026-11-03 | #232: record the provider-specific mail-destination and pending-sign-in review fixes |

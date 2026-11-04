@@ -191,12 +191,121 @@ fn google_security_an_account_edit_cancels_a_pending_refresh_before_it_can_be_re
     assert!(a.signing_in());
     a.execute("account.edit", json!({"id":first,"incoming":{"host":"imap.changed.example","port":993,"security":"tls"}})).unwrap();
     assert!(!a.signing_in());
+    assert!(a.session.sync_status.is_empty());
     assert!(flag.lock().unwrap().as_ref().unwrap().load(Ordering::Relaxed));
     assert!(sender.lock().unwrap().take().unwrap().send(Ok(tokens("one@example.org", "late"))).is_err());
     a.poll_sign_in();
     assert!(!a.tokens.contains_key(&first));
     assert!(store.get(&first_key).is_none());
     assert_eq!(store.get(&second_key).as_deref(), Some("audit-refresh-old-two-unique"));
+}
+
+#[test]
+fn google_security_login_and_security_edits_cancel_without_erasing_kept_credentials() {
+    for (name, mut change) in [
+        ("login", json!({"username":"alias@example.org"})),
+        ("incoming security", json!({"incoming":{"host":"imap.gmail.com","port":993,"security":"starttls"}})),
+        ("outgoing security", json!({"outgoing":{"host":"smtp.gmail.com","port":465,"security":"starttls"}})),
+    ] {
+        let store = Store::default();
+        let mut a = app(&store);
+        let id = add_google(&mut a, "one@example.org");
+        let kept = tokens("one@example.org", "kept-during-edit");
+        a.adopt_tokens(id, kept.clone());
+        let before = a.session.mailbox.account(id).unwrap().clone();
+        let key = MailApp::secret_key("refresh", &before);
+        let requests = record_sync(&mut a);
+        let (tx, cancel) = pending_sign_in(&mut a, id, String::new());
+        assert!(!a.session.sync_status.is_empty());
+
+        change["id"] = json!(id);
+        a.execute("account.edit", change).unwrap();
+
+        // Keep host and port intact: these edits must not exercise the existing key cleanup.
+        let after = a.session.mailbox.account(id).unwrap();
+        assert_eq!(MailApp::secret_key("refresh", after), key, "{name}");
+        assert_eq!(after.oauth, before.oauth, "{name}");
+        assert!(!a.signing_in(), "{name}");
+        assert!(cancel.load(Ordering::Relaxed), "{name}");
+        assert!(a.session.sync_status.is_empty(), "{name}");
+        assert!(tx.send(Ok(tokens("one@example.org", "late-edit"))).is_err(), "{name}");
+        a.poll_sign_in();
+
+        let current = a.tokens.get(&id).unwrap();
+        assert_eq!(current.access, kept.access, "{name}");
+        assert_eq!(current.refresh, kept.refresh, "{name}");
+        assert_eq!(store.get(&key).as_deref(), Some(kept.refresh.as_str()), "{name}");
+        assert_eq!(a.secret_cache.get(&key), Some(&kept.refresh), "{name}");
+        assert!(requests.lock().unwrap().is_empty(), "{name}");
+    }
+}
+
+#[test]
+fn google_security_removal_cancels_pending_sign_in_and_clears_waiting_status() {
+    let store = Store::default();
+    let mut a = app(&store);
+    let first = add_google(&mut a, "one@example.org");
+    let second = add_google(&mut a, "two@example.org");
+    let kept = tokens("one@example.org", "before-removal");
+    let other = tokens("two@example.org", "unrelated-removal");
+    a.adopt_tokens(first, kept.clone());
+    a.adopt_tokens(second, other.clone());
+    let first_key = MailApp::secret_key("refresh", a.session.mailbox.account(first).unwrap());
+    let second_key = MailApp::secret_key("refresh", a.session.mailbox.account(second).unwrap());
+    let requests = record_sync(&mut a);
+    let (tx, cancel) = pending_sign_in(&mut a, first, kept.refresh);
+    assert!(!a.session.sync_status.is_empty());
+    // An answer already queued must disappear with the account too.
+    tx.send(Ok(tokens("", "queued-removal"))).unwrap();
+
+    a.execute("account.remove", json!({"id":first})).unwrap();
+
+    assert!(!a.signing_in());
+    assert!(cancel.load(Ordering::Relaxed));
+    assert!(a.session.sync_status.is_empty());
+    assert!(tx.send(Ok(tokens("", "late-removal"))).is_err());
+    a.poll_sign_in();
+    assert!(!a.tokens.contains_key(&first));
+    assert!(!a.graph_tokens.contains_key(&first));
+    assert!(store.get(&first_key).is_none());
+    assert_eq!(store.get(&second_key).as_deref(), Some(other.refresh.as_str()));
+    assert_eq!(a.tokens.get(&second).map(|t| t.access.as_str()), Some(other.access.as_str()));
+    assert!(requests.lock().unwrap().is_empty());
+}
+
+#[test]
+fn google_security_other_account_edit_and_removal_leave_pending_sign_in_untouched() {
+    let store = Store::default();
+    let mut a = app(&store);
+    let first = add_google(&mut a, "one@example.org");
+    let second = add_google(&mut a, "two@example.org");
+    let kept = tokens("one@example.org", "other-account-kept");
+    a.adopt_tokens(first, kept.clone());
+    a.adopt_tokens(second, tokens("two@example.org", "other-account-removed"));
+    let key = MailApp::secret_key("refresh", a.session.mailbox.account(first).unwrap());
+    let requests = record_sync(&mut a);
+    let (tx, cancel) = pending_sign_in(&mut a, first, String::new());
+    let waiting = a.session.sync_status.clone();
+    assert!(!waiting.is_empty());
+
+    for (command, params) in [("account.edit", json!({"id":second,"username":"alias@example.org"})), ("account.remove", json!({"id":second}))] {
+        a.execute(command, params).unwrap();
+        assert!(a.signing_in(), "{command}");
+        assert!(!cancel.load(Ordering::Relaxed), "{command}");
+        assert_eq!(a.session.sync_status, waiting, "{command}");
+        assert_eq!(a.tokens.get(&first).map(|t| t.access.as_str()), Some(kept.access.as_str()), "{command}");
+        assert_eq!(store.get(&key).as_deref(), Some(kept.refresh.as_str()), "{command}");
+    }
+
+    let given = tokens("one@example.org", "unaffected-completion");
+    tx.send(Ok(given.clone())).unwrap();
+    a.poll_sign_in();
+    assert_eq!(a.tokens.get(&first).map(|t| t.access.as_str()), Some(given.access.as_str()));
+    assert_eq!(store.get(&key).as_deref(), Some(given.refresh.as_str()));
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].account.id, first);
+    assert_eq!(requests[0].access_token, given.access);
 }
 
 #[test]
@@ -208,6 +317,8 @@ fn google_security_unrelated_account_edits_accept_pending_sign_in_and_sync() {
         let id = add_google(&mut a, "one@example.org");
         let requests = record_sync(&mut a);
         let (tx, cancel) = pending_sign_in(&mut a, id, String::new());
+        let waiting = a.session.sync_status.clone();
+        assert!(!waiting.is_empty());
         let changes = json!({
             "id":id,"name":"Personal mail","displayName":"Avery",
             "downloadInFull":"everything","keepOffline":"1m","askBeforeDeletingConversation":false
@@ -224,6 +335,7 @@ fn google_security_unrelated_account_edits_accept_pending_sign_in_and_sync() {
         let edited = account.clone();
         assert!(a.signing_in());
         assert!(!cancel.load(Ordering::Relaxed));
+        assert_eq!(a.session.sync_status, waiting);
 
         let given = tokens("one@example.org", "after-preferences");
         tx.send(Ok(given.clone())).unwrap();
@@ -404,6 +516,11 @@ fn google_security_store_failure_keeps_tokens_only_in_memory_without_diagnostic_
     a.services.secrets = Some(Arc::new(RejectStore));
     let given = tokens("one@example.org", "rejected-secret");
     a.adopt_tokens(id, given.clone());
+    // Copy Diagnostics replaces this status, so check the store failure before that command.
+    if let Some((status, _)) = &a.status_msg {
+        assert!(!status.contains(&given.access));
+        assert!(!status.contains(&given.refresh));
+    }
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some(given.access.as_str()));
     assert_eq!(a.tokens.get(&id).map(|t| t.refresh.as_str()), Some(given.refresh.as_str()));
     let report = a.execute("ui.copyDiagnostics", json!({})).unwrap();
