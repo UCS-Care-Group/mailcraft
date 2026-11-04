@@ -616,3 +616,288 @@ fn a_full_list_refuses_a_new_name_but_still_spells_one_it_has() {
     }
     assert_eq!(s.mailbox.categories_of(a).len(), 200);
 }
+
+// ---- `categories` given to new and edit (#705, after #766) ----
+
+/// The categories the item `id` of `command`'s kind (`calendar`, `people`, `tasks`) carries.
+fn carried_by(s: &Session, command: &str, id: Id) -> Vec<String> {
+    let kind = command.split('.').next().unwrap_or_default();
+    carried(s, &format!("{kind}.categorize"), id)
+}
+
+/// `{kind}.new` with `extra` and `categories`; the id of what it made.
+fn made(s: &mut Session, kind: &str, extra: serde_json::Value, categories: &[&str]) -> Result<Id, crate::CmdError> {
+    let mut v = match kind {
+        "calendar" => json!({"title": "Lunch"}),
+        "people" => json!({"displayName": "Sam"}),
+        _ => json!({"title": "Call back"}),
+    };
+    for (k, x) in extra.as_object().unwrap() {
+        v[k] = x.clone();
+    }
+    v["categories"] = json!(categories);
+    Ok(s.run(&format!("{kind}.new"), &v)?["id"].as_u64().unwrap())
+}
+
+/// What `{kind}.new` is given to make its item in `account`'s keeping (0: this computer).
+fn new_in(s: &mut Session, kind: &str, account: Id) -> serde_json::Value {
+    match kind {
+        "calendar" => json!({"calendar": calendar_of(s, account)}),
+        "tasks" => json!({"account": account}),
+        _ => json!({}),
+    }
+}
+
+/// An item for each `edit`, of `account` where its kind allows: a contact a server keeps can't be
+/// edited here, so the contact is this computer's.
+fn editable(s: &mut Session, account: Id) -> Vec<(&'static str, Id)> {
+    vec![("calendar.edit", event_of(s, account)), ("people.edit", contact_of(s, 0)), ("tasks.edit", task_of(s, account))]
+}
+
+/// The list an item of `command`'s kind uses when made in `account`: a contact is always this
+/// computer's, so the shared list.
+fn list_of(command: &str, account: Id) -> Id {
+    if command.starts_with("people") { 0 } else { account }
+}
+
+/// `account` keeps its to-dos with Microsoft, so `tasks.new` may put one there.
+fn keeps_tasks(s: &mut Session, account: Id) {
+    let a = s.mailbox.accounts.iter_mut().find(|x| x.id == account).unwrap();
+    a.oauth.get_or_insert_with(Default::default).provider = mailcraft_model::OAuthProvider::Microsoft;
+}
+
+const KINDS: [&str; 3] = ["calendar", "people", "tasks"];
+
+/// The lists and the items, for "nothing changed" (a command also puts the mailbox by the zone
+/// of the clock, which is no change of the command's).
+type State = (Vec<Category>, std::collections::BTreeMap<Id, Vec<Category>>, Vec<Event>, Vec<Contact>, Vec<Task>);
+
+fn state(s: &Session) -> State {
+    let (shared, own) = lists(s);
+    let m = &s.mailbox;
+    let events = m.events.values().map(|e| (**e).clone()).collect();
+    (shared, own, events, m.contacts.values().map(|c| (**c).clone()).collect(), m.tasks.values().map(|t| (**t).clone()).collect())
+}
+
+#[test]
+fn new_takes_the_lists_spelling_and_a_new_name_joins_the_items_list() {
+    let (mut s, a, b) = rig();
+    keeps_tasks(&mut s, a);
+    read(&mut s, a, vec![tag("Red", RED)]);
+    read(&mut s, b, vec![]);
+    s.mailbox.set_category(0, "Red", WINE).unwrap();
+    for kind in KINDS {
+        let list = list_of(kind, a);
+        let fresh = format!("Fresh {kind}");
+        let extra = new_in(&mut s, kind, a);
+        let id = made(&mut s, kind, extra, &["red", &fresh]).unwrap();
+        assert_eq!(carried_by(&s, kind, id), ["Red", fresh.as_str()], "{kind}");
+        assert_eq!(s.mailbox.category_of(list, &fresh).map(|c| c.color), Some(GREY_CATEGORY), "{kind}");
+        assert!(s.mailbox.category_of(b, &fresh).is_none(), "{kind}");
+        assert_eq!(s.mailbox.categories_of(list).iter().filter(|c| c.name.eq_ignore_ascii_case("red")).count(), 1, "{kind}");
+    }
+    // Made on this computer, it is the shared list's.
+    for kind in ["calendar", "tasks"] {
+        let fresh = format!("Here {kind}");
+        let extra = new_in(&mut s, kind, 0);
+        let id = made(&mut s, kind, extra, &[&fresh]).unwrap();
+        assert_eq!(carried_by(&s, kind, id), [fresh.as_str()], "{kind}");
+        assert!(s.mailbox.category(&fresh).is_some() && s.mailbox.category_of(a, &fresh).is_none(), "{kind}");
+    }
+}
+
+#[test]
+fn edit_takes_the_lists_spelling_and_a_new_name_joins_the_items_list() {
+    let (mut s, a, b) = rig();
+    read(&mut s, a, vec![tag("Red", RED)]);
+    read(&mut s, b, vec![]);
+    s.mailbox.set_category(0, "Red", WINE).unwrap();
+    for (command, id) in editable(&mut s, a) {
+        let list = list_of(command, a);
+        let fresh = format!("Fresh {command}");
+        s.run(command, &json!({"id": id, "categories": ["RED", fresh]})).unwrap();
+        assert_eq!(carried_by(&s, command, id), ["Red", fresh.as_str()], "{command}");
+        assert_eq!(s.mailbox.category_of(list, &fresh).map(|c| c.color), Some(GREY_CATEGORY), "{command}");
+        assert!(s.mailbox.category_of(b, &fresh).is_none(), "{command}");
+        assert_eq!(s.mailbox.categories_of(list).iter().filter(|c| c.name.eq_ignore_ascii_case("red")).count(), 1, "{command}");
+    }
+}
+
+#[test]
+fn a_name_given_twice_in_other_capitals_is_carried_once() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    for (command, id) in editable(&mut s, a) {
+        s.run(command, &json!({"id": id, "categories": ["Twice", "TWICE", " twice "]})).unwrap();
+        assert_eq!(carried_by(&s, command, id), ["Twice"], "{command}");
+        let list = list_of(command, a);
+        assert_eq!(s.mailbox.categories_of(list).iter().filter(|c| c.name.eq_ignore_ascii_case("twice")).count(), 1, "{command}");
+    }
+}
+
+#[test]
+fn a_full_list_refuses_new_and_edit_with_a_new_name_and_nothing_changes() {
+    let (mut s, a, _) = rig();
+    keeps_tasks(&mut s, a);
+    read(&mut s, a, vec![]);
+    for list in [a, 0] {
+        for i in 0..199 {
+            s.mailbox.set_category(list, &format!("C{i}"), RED).unwrap();
+        }
+    }
+    let items = editable(&mut s, a);
+    let extras: Vec<_> = KINDS.into_iter().map(|kind| (kind, new_in(&mut s, kind, a))).collect();
+    let before = state(&s);
+    // One more would fit; with a second, neither goes on and nothing is made or changed.
+    for (kind, extra) in &extras {
+        assert!(made(&mut s, kind, extra.clone(), &["One", "Two"]).is_err(), "{kind}");
+        assert_eq!(state(&s), before, "{kind}");
+    }
+    for (command, id) in &items {
+        assert!(s.run(command, &json!({"id": id, "categories": ["One", "Two"]})).is_err(), "{command}");
+        assert_eq!(state(&s), before, "{command}");
+    }
+    // A name on the list is still spelled as the list has it.
+    for (command, id) in &items {
+        s.run(command, &json!({"id": id, "categories": ["c7"]})).unwrap();
+        assert_eq!(carried_by(&s, command, *id), ["C7"], "{command}");
+    }
+}
+
+#[test]
+fn a_name_the_item_already_carries_needs_no_room_on_a_full_list() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let items = editable(&mut s, a);
+    let came = vec!["Came with it".to_string()];
+    for (command, id) in &items {
+        match *command {
+            "calendar.edit" => s.mailbox.event_mut(*id).unwrap().categories = came.clone(),
+            "people.edit" => s.mailbox.contact_mut(*id).unwrap().categories = came.clone(),
+            _ => s.mailbox.task_mut(*id).unwrap().categories = came.clone(),
+        }
+    }
+    for list in [a, 0] {
+        for i in 0..200 {
+            s.mailbox.set_category(list, &format!("C{i}"), RED).unwrap();
+        }
+    }
+    for (command, id) in &items {
+        s.run(command, &json!({"id": id, "notes": "Renamed", "categories": ["came with IT", "c1"]})).unwrap();
+        assert_eq!(carried_by(&s, command, *id), ["Came with it", "C1"], "{command}");
+        assert!(s.mailbox.category_of(list_of(command, a), "Came with it").is_none(), "{command}");
+    }
+}
+
+#[test]
+fn edit_without_categories_leaves_them_and_the_list_alone() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    for (command, id) in editable(&mut s, a) {
+        s.run(command, &json!({"id": id, "categories": ["Kept"]})).unwrap();
+        let lists_before = lists(&s);
+        s.run(command, &json!({"id": id, "notes": "Other"})).unwrap();
+        assert_eq!(carried_by(&s, command, id), ["Kept"], "{command}");
+        assert_eq!(lists(&s), lists_before, "{command}");
+    }
+}
+
+#[test]
+fn an_undo_of_new_or_edit_takes_the_added_name_off_the_list_and_a_redo_puts_it_back() {
+    let (mut s, a, _) = rig();
+    keeps_tasks(&mut s, a);
+    read(&mut s, a, vec![]);
+    for kind in KINDS {
+        let list = list_of(kind, a);
+        let name = format!("Undo new {kind}");
+        let extra = new_in(&mut s, kind, a);
+        let id = made(&mut s, kind, extra, &[&name]).unwrap();
+        s.run("edit.undo", &json!({})).unwrap();
+        assert!(s.mailbox.category_of(list, &name).is_none(), "{kind}");
+        s.run("edit.redo", &json!({})).unwrap();
+        assert!(s.mailbox.category_of(list, &name).is_some(), "{kind}");
+        assert_eq!(carried_by(&s, kind, id), [name.as_str()], "{kind}");
+    }
+    for (command, id) in editable(&mut s, a) {
+        let list = list_of(command, a);
+        let name = format!("Undo {command}");
+        s.run(command, &json!({"id": id, "categories": [name]})).unwrap();
+        s.run("edit.undo", &json!({})).unwrap();
+        assert!(s.mailbox.category_of(list, &name).is_none(), "{command}");
+        assert!(carried_by(&s, command, id).is_empty(), "{command}");
+        s.run("edit.redo", &json!({})).unwrap();
+        assert!(s.mailbox.category_of(list, &name).is_some(), "{command}");
+        assert_eq!(carried_by(&s, command, id), [name.as_str()], "{command}");
+    }
+}
+
+#[test]
+fn new_and_edit_in_a_calendar_that_can_only_be_read_are_refused_and_the_list_stays() {
+    let (mut s, a, _) = rig();
+    let event = event_of(&mut s, a);
+    let calendar = s.mailbox.event(event).unwrap().calendar;
+    s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().rights = Rights::Read;
+    let before = state(&s);
+    assert!(s.run("calendar.edit", &json!({"id": event, "categories": ["Nope"]})).is_err());
+    assert!(made(&mut s, "calendar", json!({"calendar": calendar}), &["Nope"]).is_err());
+    assert_eq!(state(&s), before);
+}
+
+#[test]
+fn a_meeting_kept_on_this_computer_puts_a_new_name_on_the_shared_list() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let calendar = calendar_of(&mut s, a);
+    let v = json!({"title": "Sync", "calendar": calendar, "attendees": "pat@example.org", "send": false, "categories": ["Kept here"]});
+    let r = s.run("calendar.new", &v).unwrap();
+    assert_eq!(r["keptHere"], true);
+    assert_eq!(s.mailbox.event(r["id"].as_u64().unwrap()).unwrap().categories, ["Kept here"]);
+    assert!(s.mailbox.category("Kept here").is_some());
+    assert!(s.mailbox.category_of(a, "Kept here").is_none());
+}
+
+#[test]
+fn an_event_moved_to_another_accounts_calendar_takes_its_names_to_that_list() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    s.mailbox.set_category(0, "Red", RED).unwrap();
+    let event = event_of(&mut s, 0);
+    s.mailbox.event_mut(event).unwrap().categories = vec!["Red".into(), "Off every list".into()];
+    let calendar = calendar_of(&mut s, a);
+    s.run("calendar.edit", &json!({"id": event, "calendar": calendar, "categories": ["red", "Off every list"]})).unwrap();
+    assert_eq!(s.mailbox.event(event).unwrap().categories, ["Red", "Off every list"]);
+    // What its old list had joins the new one; what no list had stays off it.
+    assert_eq!(s.mailbox.category_of(a, "Red").map(|c| c.color), Some(GREY_CATEGORY));
+    assert!(s.mailbox.category_of(a, "Off every list").is_none());
+}
+
+#[test]
+fn a_full_list_isnt_what_an_edit_that_fails_anyway_is_told() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    for i in 0..200 {
+        s.mailbox.set_category(a, &format!("C{i}"), RED).unwrap();
+    }
+    let event = event_of(&mut s, a);
+    let e = s.mailbox.event_mut(event).unwrap();
+    e.attendees = vec![mailcraft_model::Attendee { address: mailcraft_model::Address::new("", "pat@example.org"), ..Default::default() }];
+    // The people invited would hear of a new time: that is asked first.
+    let err = s.run("calendar.edit", &json!({"id": event, "start": "2027-01-04T10:00", "categories": ["One more"]})).unwrap_err();
+    assert!(!err.to_string().contains("too many categories"), "{err}");
+    assert!(err.to_string().contains("send"), "{err}");
+}
+
+#[test]
+fn one_day_of_a_series_takes_the_lists_spelling_and_a_new_name_joins_it() {
+    let (mut s, _, _) = rig();
+    s.mailbox.set_category(0, "Red", RED).unwrap();
+    let calendar = calendar_of(&mut s, 0);
+    let v = json!({"title": "Stand-up", "calendar": calendar, "start": "2027-01-04T09:00", "recurrence": {"freq": "daily", "count": 5}});
+    let series = s.run("calendar.new", &v).unwrap()["id"].as_u64().unwrap();
+    let r = s.run("calendar.edit", &json!({"id": series, "occurrence": "2027-01-05", "categories": ["red", "Day only"]})).unwrap();
+    let one = r["id"].as_u64().unwrap();
+    assert_ne!(one, series);
+    assert_eq!(s.mailbox.event(one).unwrap().categories, ["Red", "Day only"]);
+    assert!(s.mailbox.event(series).unwrap().categories.is_empty());
+    assert_eq!(s.mailbox.category("Day only").map(|c| c.color), Some(GREY_CATEGORY));
+}

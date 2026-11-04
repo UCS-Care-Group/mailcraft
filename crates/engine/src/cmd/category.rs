@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Colour categories.
 
-use mailcraft_model::{GREY_CATEGORY, Id, Rgb};
+use mailcraft_model::{GREY_CATEGORY, Id, Rgb, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, done};
@@ -58,6 +58,32 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
         s.mailbox.set_category(account, name, GREY_CATEGORY)?;
     }
     Ok(name.to_string())
+}
+
+/// The categories an item of `account` carries when `given` is what a new or an edit says it
+/// carries, and `had` what it carried before, as an item of `had_account`: each name [`spelled`]
+/// as its list has it, a name given twice in other capitals kept once. A name it didn't carry
+/// joins the list, as putting it on with Categorize does, and so does one that was on the list
+/// of the account it was in (an event moved to another account's calendar). One it carried
+/// already that neither list has stays as the item had it, so that an edit that changes nothing
+/// of its categories needs no room on a full list.
+pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
+    let mut carried: Vec<String> = Vec::new();
+    for name in given.iter().filter_map(|name| clean_name(name)) {
+        if carried.iter().any(|c| c.eq_ignore_ascii_case(&name)) {
+            continue;
+        }
+        let had_as = had.iter().map(|c| c.trim()).find(|c| c.eq_ignore_ascii_case(&name));
+        let listed = |s: &Session, list: Id| s.mailbox.category_of(list, &name).is_some();
+        let spelling = match had_as {
+            Some(c) if !listed(s, account) && !listed(s, had_account) => c.to_string(),
+            // One the list lacks keeps the item's spelling as it joins the list.
+            Some(c) if !listed(s, account) => spelled(s, account, c, true)?,
+            _ => spelled(s, account, &name, true)?,
+        };
+        carried.push(spelling);
+    }
+    Ok(carried)
 }
 
 /// Refuses a new category when the list `account`'s items use is full.
