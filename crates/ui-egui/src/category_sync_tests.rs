@@ -464,3 +464,35 @@ fn a_change_whose_answer_comes_late_waits_from_the_answer() {
     assert!(app.categories_tick_at(at + 76_000.0), "after the wait");
     assert_eq!(jobs.lock().unwrap().len(), 3);
 }
+
+/// An answer read after the window went a long time without a frame waits from when it was
+/// read, not from the last look before the gap (#661).
+#[test]
+fn an_answer_read_after_a_long_gap_waits_from_when_it_was_read() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": OUTLOOK_COLORS[4].hex()})).unwrap();
+    let busy = CategoryOutcome {
+        kind: CategoryChangeKind::Create,
+        name: "Travel".into(),
+        color: OUTLOOK_COLORS[4],
+        result: CategoryResult::Failed,
+        error: "Microsoft Graph is busy".into(),
+        found: false,
+    };
+    let mut answer = covered(owner, &["Red category"]);
+    answer.uploaded = Some(CategoriesUploaded { account: owner, outcomes: vec![busy], ..Default::default() });
+    answers.lock().unwrap().push_back(answer);
+    let at = 60_000.0;
+    assert!(!app.categories_tick_at(at));
+    assert!(app.categories_tick_at(at + 5_000.0));
+    // No frame for 40 seconds; then the answer is read before any look.
+    app.take_in_sync_answers(at + 45_000.0);
+    assert_eq!([app.calendar.clock, app.tasks.clock, app.rules.clock], [at + 45_000.0; 3]);
+    assert!(!app.categories_tick_at(at + 46_000.0), "not at once");
+    assert!(!app.categories_tick_at(at + 74_000.0));
+    assert!(app.categories_tick_at(at + 76_000.0), "after the wait");
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+}

@@ -81,7 +81,7 @@ pub struct CategorySync {
     failures: HashMap<Id, (u32, f64)>,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
-    clock: f64,
+    pub(crate) clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     settling: HashMap<Id, u32>,
     /// How many changes were waiting the last time, and since when.

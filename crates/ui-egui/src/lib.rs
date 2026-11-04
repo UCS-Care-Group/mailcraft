@@ -4137,10 +4137,7 @@ impl MailApp {
         if self.graph_pieces.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
-        self.poll_calendar();
-        self.poll_tasks();
-        self.poll_rules();
-        self.poll_categories();
+        self.take_in_sync_answers(now_ms());
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();

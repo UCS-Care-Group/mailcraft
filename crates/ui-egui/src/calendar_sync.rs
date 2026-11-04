@@ -92,7 +92,7 @@ pub(crate) struct CalendarSync {
     pub(crate) failures: HashMap<Id, (u32, f64)>,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
-    clock: f64,
+    pub(crate) clock: f64,
     /// How many changes of an account were ready to go at the last look, and since when.
     waiting: HashMap<Id, (usize, f64)>,
     /// What an account's server was last told, and when: the very same again right away would

@@ -105,7 +105,7 @@ pub struct TaskSync {
     failures: HashMap<Id, (u32, f64)>,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
-    clock: f64,
+    pub(crate) clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     /// The owner allowed the to-dos on Microsoft's page: how many refusals are still taken for
     /// Microsoft not having taken it in yet, rather than for a no.
