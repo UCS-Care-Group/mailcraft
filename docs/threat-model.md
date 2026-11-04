@@ -74,8 +74,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`internal`); the cross-tenant header, which the sending tenant writes, is not read. A
   connector the organisation set up may call a partner's mail internal, so a failed check in the
   server's own `Authentication-Results` still wins. A colleague on another of the
-  organisation's domains is not vouched for this way. As with `Authentication-Results`, a
-  message the owner puts on the server from a file keeps the headers it carries.
+  organisation's domains is not vouched for this way. A message moved or copied onto the
+  server from another account or from this computer leaves the stamp behind (`forget_stamps`),
+  and the reader keeps room for it past its cap on header fields too.
   Mail the server does not hold
   (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
   headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or

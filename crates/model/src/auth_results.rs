@@ -33,6 +33,13 @@ pub const AUTH_AS: &str = "X-MS-Exchange-Organization-AuthAs";
 /// headers, so that a message padded with others can't push Exchange's own out): one with this
 /// many may have had more.
 pub const MAX_AUTH_AS: usize = 16;
+/// Forget `m`'s [`AUTH_AS`] stamps as it goes onto another account's server: they are the word of
+/// the server it came from, or a sender's own where no Exchange removed them, and the copy there
+/// would be vouched for by them ([`internal`]).
+pub fn forget_stamps(m: &mut Message) {
+    m.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(AUTH_AS));
+}
+
 /// Longest address of a sender that is read, and the longest domain.
 const MAX_SENDER_LEN: usize = 320;
 const MAX_DOMAIN_LEN: usize = 253;

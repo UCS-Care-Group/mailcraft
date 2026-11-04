@@ -752,6 +752,12 @@ fn exchange_stamps_are_kept_past_the_header_cap() {
     assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
     let flood = format!("{AUTH_AS}: Internal\r\n").repeat(MAX_AUTH_AS + 10);
     assert_eq!(stamps(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
-    let long = format!("{AUTH_AS}: {}\r\n\r\n", "x".repeat(10_000));
-    assert_eq!(stamps(&parse(long.as_bytes()))[0].len(), 64);
+    // Past the cap on header fields too.
+    let padded = format!("{AUTH_AS}: Internal\r\n{}{AUTH_AS}: Anonymous\r\n\r\n", "X-Pad: 1\r\n".repeat(2_500));
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // A long value is cut, and never cut down to `Internal`.
+    let long = format!("{AUTH_AS}: Internal{}x\r\n\r\n", " ".repeat(10_000));
+    let cut = stamps(&parse(long.as_bytes()));
+    assert_eq!(cut[0].chars().count(), 65);
+    assert_ne!(cut[0].trim(), "Internal");
 }

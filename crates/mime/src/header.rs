@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Header fields: reading them (unfolding, parameters) and writing them (folding).
 
+use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+
 use crate::charset;
 use crate::words::decode_words;
 
@@ -55,8 +57,10 @@ pub(crate) fn line_at(bytes: &[u8], pos: usize) -> (&[u8], usize) {
 /// line). At the `top` of a message a leading mbox `From ` line is skipped.
 pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
     fn push(fields: &mut Vec<Field>, kept: &mut usize, current: Option<(String, Vec<u8>)>) {
+        // Room past the cap for Exchange's own stamps, so that a sender's padding can't push them out.
+        let room = |name: &str| if name.eq_ignore_ascii_case(AUTH_AS) { MAX_FIELDS + MAX_AUTH_AS } else { MAX_FIELDS };
         if let Some((name, value)) = current
-            && fields.len() < MAX_FIELDS
+            && fields.len() < room(&name)
             && *kept + name.len() + value.len() <= MAX_BLOCK
         {
             *kept += name.len() + value.len();

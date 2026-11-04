@@ -1136,3 +1136,22 @@ fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_o
     let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
     assert!(said.skip_conversation_question);
 }
+
+/// Exchange's stamp that mail came from inside the organisation is its server's word, or a
+/// sender's own where no Exchange removed it: it doesn't go with the mail onto another account's
+/// server, where it would vouch for it (#781).
+#[test]
+fn exchange_stamps_stay_behind_when_mail_goes_to_another_server() {
+    let (mut mb, _, a) = synced_mailbox();
+    mb.accounts[0].kind = AccountKind::Imap;
+    let stamp = || (auth_results::AUTH_AS.to_string(), "Internal".to_string());
+    mb.message_mut(a).unwrap().headers = vec![stamp(), ("X-Other".into(), "1".into())];
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
+    let copy = mb.copy_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(copy).unwrap().headers, [("X-Other".to_string(), "1".to_string())]);
+    assert_eq!(mb.message(a).unwrap().headers.first(), Some(&stamp()));
+    mb.move_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| (m.account, m.headers.len())), Some((other, 1)));
+}
