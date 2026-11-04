@@ -548,7 +548,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Cuenta"
@@ -6419,6 +6419,12 @@ msgstr "Mover cuenta"
 msgid "Move All and Send Invitations"
 msgstr "Mover todo y enviar invitaciones"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Bajar"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -6442,6 +6448,12 @@ msgstr "Mover elemento periódico"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Mover la regla"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Subir"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6957,6 +6969,12 @@ msgstr "Ningún comando coincide."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Aún no hay tareas completadas."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Aún no hay contactos de esta cuenta"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8410,6 +8428,12 @@ msgstr "Volver a leer ahora los Favoritos de Outlook"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Solo lectura"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10091,6 +10115,12 @@ msgstr "Mostrar como"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Mostrar calendario"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Mostrar contactos de"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12162,6 +12192,12 @@ msgstr "Los Favoritos de esta cuenta proceden de Outlook y se cambian allí (en 
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Todavía no se puede consultar el calendario de esta cuenta: Enviar y recibir inicia sesión primero."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "El servidor de esta cuenta guarda este contacto. Los cambios hechos aquí aún no se envían de vuelta, así que aquí no se puede editar ni eliminar. Favorito y categorías se guardan en este equipo."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -17142,6 +17178,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Esta cuenta no tiene contactos"
 
 #, fuzzy
 #~ msgid "Permanently Delete"

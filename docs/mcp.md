@@ -208,7 +208,7 @@ app's Send/Receive) delivers it.
 | `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are |
 | `read_message` | one message in full |
 | `send_message` | write and send a new message |
-| `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people; to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or the id of an account with To Do) |
+| `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people and to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or an account's id: for people, one whose contacts are read from its server; for to-dos, one with To Do; another is refused) |
 | `parity` | feature coverage |
 | `status` | whether the mailbox is open; while the window still opens it at launch, every other tool is answered "the mailbox is still opening" |
 | `screenshot`, `click`, `key`, `ui_inspect` | the window (with `--connect` only) |
@@ -263,3 +263,4 @@ parameters.
 | 2026-10-30 | patch | #451 follow-up: an IMAP account's Outbox holds what is put there, and the question to the owner says so |
 | 2026-11-02 | patch | #632: an undo or redo that would put a to-do in an account's To Do, or change the owner's answer about their local tasks, asks `send` |
 | 2026-11-03 | patch | #632: `tasks.list` and `list_tasks` refuse an account without To Do, an agent's new to-do doesn't change where the owner's next one goes, and the summary of what an undo or redo asks names the to-dos |
+| 2026-11-03 | minor | #631: `view.peopleAccount` chooses whose contacts are listed, `people.list` takes `account`, and `list_contacts` shows every account unless `account` names one (one whose contacts aren't on its server is refused) |

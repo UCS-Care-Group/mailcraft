@@ -257,6 +257,7 @@ const SAFE: &[&str] = &[
     "view.goToDate",
     "view.taskFilter",
     "view.taskAccount",
+    "view.peopleAccount",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -1472,6 +1473,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Send) => {
                     "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
                 }
+                // Accounts and Send above are the stronger effects and say so first; this is
+                // the Delete class, whose cause here is mail the undo takes away (#473).
+                Some(Class::Delete) if s.undo_takes_mail(redo) => {
+                    return format!("{verb} {}, which also takes away messages", quoted(label.unwrap_or("the last change")));
+                }
                 Some(Class::Delete) if s.undo_rules_delete_for_good(redo) => "the rules, with one switched on that deletes mail permanently,",
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
@@ -1913,6 +1919,7 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
         }
     }
     if !allow.contains(&Class::Delete) {
+        // Drafts are left out here: `edit.undo` and `edit.redo` refuse earlier, drafts too (#473).
         let gone = before.messages.iter().any(|(id, m)| !m.draft && !after.messages.contains_key(id));
         if gone {
             return Some(Class::Delete);

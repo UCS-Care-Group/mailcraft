@@ -36,7 +36,19 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// An agent without Delete doesn't undo or redo a step that takes a message away (#473): refused
+/// before anything moves, so the stacks stay as they are.
+fn refuse_taking_mail(s: &Session, id: &str, redo: bool) -> Result<(), CmdError> {
+    match &s.agent {
+        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && s.undo_takes_mail(redo) => {
+            Err(CmdError::Failed(crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "take away messages; nothing was changed")))
+        }
+        _ => Ok(()),
+    }
+}
+
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
+    refuse_taking_mail(s, "edit.undo", false)?;
     let label = s.undo_label();
     s.undo();
     let said = said(s);
@@ -44,6 +56,7 @@ fn undo(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
+    refuse_taking_mail(s, "edit.redo", true)?;
     let label = s.redo_label();
     s.redo();
     let said = said(s);

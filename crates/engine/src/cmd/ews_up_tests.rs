@@ -441,6 +441,34 @@ fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
 }
 
 #[test]
+fn undo_of_a_copy_the_server_made_goes_to_deleted_items_and_is_no_removal() {
+    use crate::agent::{Verdict, check};
+    let (mut s, account, a, _) = setup();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
+    let change = changes(&s, account).into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "F5".into(), id: "A1-copy".into() },
+        there: None,
+    };
+    took(&mut s, account, mailcraft_model::sync::EwsMailResult { messages: vec![done], partial: true, ..piece(account) });
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Run);
+    assert!(!s.undo_takes_mail(false));
+}
+
+#[test]
+fn undo_of_a_copy_the_server_has_not_made_asks_for_delete_failing_closed() {
+    // Pinned: the copy is dropped here and never made there, which counts as a removal although
+    // nothing of the server's goes away.
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, a, _) = setup();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)));
+}
+
+#[test]
 fn a_folder_deleted_for_good_goes_up() {
     let (mut s, account, ..) = setup();
     let projects = s.mailbox.folder_by_server(account, "F5").unwrap();

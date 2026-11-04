@@ -406,7 +406,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         problems: &errors,
         last: !result.partial,
         stopped: result.stopped,
-        timings: None,
+        timings: Some(&result.timings),
     };
     s.sync_progress.take(account, piece);
     let summary = errors.first().cloned().unwrap_or_else(|| "Up to date".to_string());

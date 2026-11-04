@@ -476,7 +476,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "Account"
 msgstr ""
 
@@ -5568,6 +5568,11 @@ msgstr ""
 msgid "Move All and Send Invitations"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Down"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Move Event"
@@ -5586,6 +5591,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/rules.rs
 msgid "Move Rule"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Move Up"
 msgstr ""
 
 #. interface
@@ -6012,6 +6022,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "No completed tasks yet."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "No contacts from this account yet"
 msgstr ""
 
 #. interface
@@ -7283,6 +7298,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Read-only"
 msgstr ""
 
 #. ribbon
@@ -8727,6 +8747,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Show Calendar"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contacts Of"
 msgstr ""
 
 #. interface
@@ -10567,6 +10592,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr ""
 
 #. interface

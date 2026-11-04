@@ -33,15 +33,19 @@
 //!
 //! **Waiting.** A busy server asks the run to wait; the thread sleeps in small steps, so that Cancel
 //! is heard, and gives up only when the run is called off.
+//!
+//! **Timings** (#276, #748). Each piece carries the time since the piece before and the requests
+//! made meanwhile, as the phase of what the piece brings (`phase_of`): Send/Receive Progress and
+//! Help › Copy Diagnostics say how long an Exchange run took, as for a Microsoft account.
 
 use std::future::{Future, ready};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, sync_channel};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mailcraft_ews::{AuthError, Client, HttpExchange, HttpRequest, HttpResponse, NtlmCredentials, Scheme, Secret, TransportError, auth, ntlm};
-use mailcraft_model::sync::{EwsFetchRequest, EwsMailRequest, EwsMailResult, GraphFetchResult};
+use mailcraft_model::sync::{EwsFetchRequest, EwsMailRequest, EwsMailResult, GraphFetchResult, SyncPhase, Timings};
 use mailcraft_net::https::Connection;
 use mailcraft_net::{CertificateProblem, NetError};
 use mailcraft_ui_egui::ews_mail::{EwsFetchJob, EwsJob};
@@ -92,6 +96,8 @@ pub(crate) struct Transport {
     sign_in: Mutex<SignIn>,
     /// Why the sign-in could not be had, when that is what stopped the run.
     auth_problem: Mutex<Option<AuthProblem>>,
+    /// How many EWS requests the run has made, for its timings ([`Transport::requests_asked`]).
+    asked: AtomicU32,
 }
 
 /// The host of an address (`mail.example.org` of `https://mail.example.org:444/EWS/…`), for the
@@ -113,6 +119,7 @@ impl Transport {
             ntlm: None,
             sign_in: Mutex::new(SignIn::default()),
             auth_problem: Mutex::new(None),
+            asked: AtomicU32::new(0),
         }
     }
 
@@ -135,6 +142,19 @@ impl Transport {
             Some(Scheme::Basic) => Some("basic"),
             None => None,
         }
+    }
+
+    /// How many EWS requests the run has made so far, held at `u32::MAX` as Graph's count is. One is
+    /// counted for each request the run asks, not for each HTTP round trip: the legs a sign-in
+    /// takes (Basic's first try without the password, NTLM's two on a new connection) are part of
+    /// the request they sign in, so a run's number is how many things it asked the server.
+    pub(crate) fn requests_asked(&self) -> u32 {
+        self.asked.load(Ordering::Relaxed)
+    }
+
+    /// One more request asked ([`Transport::requests_asked`]).
+    fn count_request(&self) {
+        let _ = self.asked.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_add(1)));
     }
 
     /// Why the sign-in could not be had, when that stopped the run.
@@ -337,6 +357,7 @@ impl Transport {
 impl HttpExchange for Transport {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
         // (The call blocks, on the run's own thread.)
+        self.count_request();
         ready(self.send(request))
     }
 }
@@ -433,6 +454,48 @@ pub(crate) fn run_mail(job: EwsJob, wake: &egui::Context) -> Receiver<EwsMailRes
     rx
 }
 
+/// What the time since the piece before went on, by what `piece` brings, as Send/Receive Progress
+/// names its step: a folder's mail is new mail, the folder list is the folders, what was told to the
+/// server is sending when mail went and the folders' part otherwise. A piece that brings none of
+/// these (the last) ends the phase before it, `before`. The Inbox pass is the Inbox's, all of it.
+fn phase_of(inbox_pass: bool, piece: &EwsMailResult, before: SyncPhase) -> SyncPhase {
+    if inbox_pass {
+        SyncPhase::Inbox
+    } else if !piece.pages.is_empty() || piece.progress.is_some() {
+        SyncPhase::NewMail
+    } else if piece.folders.is_some() {
+        SyncPhase::Folders
+    } else if !piece.sent.is_empty() {
+        SyncPhase::Sending
+    } else if !(piece.changes.is_empty() && piece.messages.is_empty() && piece.drafts.is_empty() && piece.placed.is_empty()) {
+        SyncPhase::Folders
+    } else {
+        before
+    }
+}
+
+/// The time and requests since the last piece was handed on, for the run's timings.
+struct Lap {
+    from: Instant,
+    requests: u32,
+    phase: SyncPhase,
+}
+
+impl Lap {
+    fn start(requests: u32) -> Lap {
+        Lap { from: Instant::now(), requests, phase: SyncPhase::Folders }
+    }
+
+    /// What has gone since the last lap, as `phase`'s time, with `requests` asked in all so far; the
+    /// next lap begins now.
+    fn take(&mut self, phase: SyncPhase, requests: u32) -> Timings {
+        let mut timings = Timings::default();
+        timings.add_time(phase, self.from.elapsed(), requests.saturating_sub(self.requests));
+        *self = Lap { from: Instant::now(), requests, phase };
+        timings
+    }
+}
+
 /// [`run_mail`] on this thread: every piece through `emit`.
 pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &AtomicBool, emit: &mut dyn FnMut(EwsMailResult)) {
     let client = match client(&request.url, &request.username, &request.email, password) {
@@ -441,8 +504,10 @@ pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &A
     };
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
     let mut pause = |ms: u32| wait(cancel, ms);
+    let mut lap = Lap::start(transport.requests_asked());
     crate::block_on::block_on(mailcraft_ews::sync_mail(&client, &transport, request, cancel, &mut pause, &mut |piece| {
         let mut piece = settled(piece, transport.problem().as_ref(), transport.auth_problem());
+        piece.timings = lap.take(phase_of(request.inbox_pass, &piece, lap.phase), transport.requests_asked());
         // How it signed in: File › Info says so.
         if let Some(scheme) = transport.scheme_name() {
             scheme.clone_into(&mut piece.signed_in_with);
