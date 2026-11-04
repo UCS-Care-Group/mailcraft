@@ -126,18 +126,38 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
+/// Why a folder of the server's own (Conversation History and the like, #756) is left as it is.
+const SERVER_OWNED: &str = "the server keeps this folder: it can't be renamed, moved or deleted";
+
+/// Whether the folder in view is one of its server's own ([`mailcraft_model::Folder::server_owned`]).
+fn in_view_server_owned(s: &Session) -> bool {
+    s.mailbox.folder(s.view.folder).is_some_and(|f| f.server_owned())
+}
+
 /// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
+/// Nor one of the server's own folders (#756).
 fn can_rename(s: &Session) -> Option<&'static str> {
+    if in_view_server_owned(s) {
+        return Some(SERVER_OWNED);
+    }
     s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
 
 /// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
+/// Nor one of the server's own folders (#756).
 fn can_move(s: &Session) -> Option<&'static str> {
+    if in_view_server_owned(s) {
+        return Some(SERVER_OWNED);
+    }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
 
 /// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
+/// Nor one of the server's own folders (#756).
 fn can_delete(s: &Session) -> Option<&'static str> {
+    if in_view_server_owned(s) {
+        return Some(SERVER_OWNED);
+    }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
@@ -307,7 +327,9 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Folders deleted into Deleted Items go with it.
     if kind == Some(FolderKind::Deleted) {
-        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id)).map(|f| f.id).collect();
+        // (Not one of the server's own that an earlier version put there, #756: it can't be
+        // deleted, and the next listing puts it back where the server has it.)
+        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect();
         for c in children {
             s.mailbox.delete_folder(c)?;
         }

@@ -169,18 +169,24 @@ fn a_folder_made_before_whose_answer_was_lost_is_found_not_made_twice() {
 fn what_the_server_refuses_or_no_longer_has_is_said() {
     let server = StandIn::start().unwrap();
     let inbox = server.state().well_known("inbox");
+    let kept = server.state().add_folder("Kept", None);
+    // The server won't rename this one of the owner's (a 403).
+    server.state().fail_next.push((format!("PATCH /v1.0/me/mailFolders/{kept}"), 403, "ErrorAccessDenied".into()));
     let ghost = "AQMkAGV4YW1wbGUtb3JnLW1haWxib3gtZm9sZGVycwAuAAADgone-folder-0000AAAA=".to_string();
     let result = run(
         &server,
         vec![
-            // The special folders keep their names.
-            FolderChange::Rename { folder: 41, id: inbox, name: "Mail".into() },
+            // The special folders keep their names: refused here, without asking (#756).
+            FolderChange::Rename { folder: 41, id: inbox.clone(), name: "Mail".into() },
+            FolderChange::Rename { folder: 43, id: kept, name: "Renamed".into() },
             FolderChange::Rename { folder: 42, id: ghost.clone(), name: "Anything".into() },
             FolderChange::Delete { id: ghost },
         ],
     );
-    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("may not")), "{:?}", result.changes);
-    assert_eq!((&result.changes[1].outcome, &result.changes[2].outcome), (&ChangeOutcome::Gone, &ChangeOutcome::Gone));
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("server's own")), "{:?}", result.changes);
+    assert!(!server.state().requests.iter().any(|a| a.method == "PATCH" && a.target.contains(&inbox)), "the Inbox isn't asked");
+    assert!(matches!(&result.changes[1].outcome, ChangeOutcome::Refused { why } if why.contains("may not")), "{:?}", result.changes);
+    assert_eq!((&result.changes[2].outcome, &result.changes[3].outcome), (&ChangeOutcome::Gone, &ChangeOutcome::Gone));
     assert!(result.errors.is_empty() && result.listing.is_some_and(|l| l.complete));
 }
 

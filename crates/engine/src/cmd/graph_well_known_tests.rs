@@ -118,3 +118,67 @@ fn a_deletion_queued_for_a_folder_that_is_the_servers_own_is_dropped() {
         .collect();
     assert_eq!(left, ["pr"], "the owner's own folder still goes");
 }
+
+#[test]
+fn rename_move_and_delete_are_greyed_out_for_the_servers_own_folder() {
+    let (mut s, account) = session();
+    take(&mut s, account, server(true));
+    s.view.folder = s.mailbox.folder_by_server(account, "co").unwrap();
+    for id in ["folder.rename", "folder.move", "folder.delete"] {
+        assert!(!s.enabled(id), "{id}");
+    }
+    s.view.folder = s.mailbox.folder_by_server(account, "pr").unwrap();
+    for id in ["folder.rename", "folder.move", "folder.delete"] {
+        assert!(s.enabled(id), "{id}");
+    }
+}
+
+#[test]
+fn no_new_folder_is_made_in_the_servers_own_folder() {
+    let (mut s, account) = session();
+    take(&mut s, account, server(true));
+    let co = s.mailbox.folder_by_server(account, "co").unwrap();
+    assert!(s.run("folder.new", &json!({"name": "Inside", "parent": co})).is_err());
+    assert!(s.mailbox.children(account, Some(co)).is_empty());
+    // The special folders, which are the server's own too, take new folders.
+    let inbox = s.mailbox.folder_by_server(account, "in").unwrap();
+    s.run("folder.new", &json!({"name": "Inside", "parent": inbox})).unwrap();
+}
+
+#[test]
+fn emptying_deleted_items_leaves_a_servers_own_folder_in_it_and_takes_the_rest() {
+    let (mut s, account) = session();
+    take(&mut s, account, server(false));
+    // An earlier version moved Conversation History into Deleted Items before it was known.
+    let co = s.mailbox.folder_by_server(account, "co").unwrap();
+    let pr = s.mailbox.folder_by_server(account, "pr").unwrap();
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.folder_mut(co).unwrap().parent = Some(deleted);
+    s.mailbox.folder_mut(pr).unwrap().parent = Some(deleted);
+    s.mailbox.folder_mut(co).unwrap().server.as_mut().unwrap().well_known = true;
+    s.run("folder.empty", &json!({"id": deleted})).unwrap();
+    assert!(s.mailbox.folder(co).is_some(), "the server's own stays");
+    assert!(s.mailbox.folder(pr).is_none(), "the owner's goes");
+}
+
+#[test]
+fn an_owners_folder_called_conversation_history_beside_the_real_one_is_still_the_owners() {
+    let (mut s, account) = session();
+    let mut folders = server(true);
+    folders.push(GraphFolder { parent: "in".into(), ..folder("mine", "Conversation History", FolderKind::Custom, false) });
+    take(&mut s, account, folders);
+    assert!(flagged(&s, account, "co"));
+    assert!(!flagged(&s, account, "mine"));
+    let mine = s.mailbox.folder_by_server(account, "mine").unwrap();
+    let co = s.mailbox.folder_by_server(account, "co").unwrap();
+    s.view.folder = mine;
+    assert!(s.enabled("folder.rename") && s.enabled("folder.delete"));
+    s.run("folder.rename", &json!({"id": mine, "name": "Old chats"})).unwrap();
+    let pr = s.mailbox.folder_by_server(account, "pr").unwrap();
+    s.run("folder.move", &json!({"id": mine, "parent": pr})).unwrap();
+    s.run("folder.delete", &json!({"id": mine})).unwrap();
+    // The server's own is left as it is.
+    assert!(s.run("folder.rename", &json!({"id": co, "name": "Old chats"})).is_err());
+    assert!(s.run("folder.delete", &json!({"id": co})).is_err());
+    assert_eq!(s.mailbox.folder(co).map(|f| (f.name.as_str(), f.parent)), Some(("Conversation History", None)));
+}

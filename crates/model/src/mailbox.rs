@@ -1615,6 +1615,11 @@ impl Mailbox {
             if self.depth(p) >= MAX_DEPTH {
                 return Err(invalid("folders are nested too deeply"));
             }
+            // Nor in one of the server's own that has no kind here (Conversation History, say),
+            // as a folder isn't moved into one (#756).
+            if pf.kind == FolderKind::Custom && pf.server_owned() {
+                return Err(invalid(format!("a folder can't be made in {}", pf.name)));
+            }
         }
         if self.name_taken(account, parent, &name, None) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));

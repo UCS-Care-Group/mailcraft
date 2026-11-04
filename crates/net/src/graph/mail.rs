@@ -309,6 +309,17 @@ fn folders_in(graph: &Graph<'_>, request: &GraphMailRequest, gate: &Arc<Gate>, m
     // What was changed here goes up first: the listing then shows the server after it.
     let mut made: HashMap<u64, String> = HashMap::new();
     for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
+        // One of the server's own folders (#756) is never renamed, moved or deleted: the server
+        // would refuse it, and a shared mailbox's 403 would stop the run before the listing that
+        // marks the folder. It is refused here without asking, and put back as any refusal is.
+        if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id } = change
+            && known.own.contains(id)
+        {
+            log::info!("graph folders: a change of one of the server's own folders is refused without asking");
+            let why = "it is one of the server's own folders, which may not be renamed, moved or deleted".to_string();
+            out.changes.push(FolderChangeDone { change: change.clone(), outcome: ChangeOutcome::Refused { why } });
+            continue;
+        }
         match make_change(graph, &known, &made, change) {
             Ok(Some(outcome)) => {
                 if let (FolderChange::Create { folder, .. }, ChangeOutcome::Done { folder: there }) = (change, &outcome) {
@@ -505,7 +516,19 @@ fn ask(graph: &Graph<'_>, span: std::ops::Range<usize>, answers: &mut [Option<Op
         .map(|(n, (name, _))| json!({"id": n.to_string(), "method": "GET", "url": graph.batch_path(&format!("/mailFolders/{name}?{select}")), "headers": {"Prefer": IMMUTABLE_IDS}}))
         .collect();
     let body = json!({"requests": requests}).to_string();
-    let reply = graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)?;
+    // (The names only told apart, #756, are not worth ending the run for when the server can't
+    // be reached for them: none of them is taken as there, and the next run asks again.)
+    let extras = span.start >= SPECIAL;
+    let reply = match graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)
+    {
+        Err(e) if extras && e.is_unreachable() => {
+            for slot in answers.iter_mut().skip(span.start).take(span.len()) {
+                *slot = Some(None);
+            }
+            return Ok(());
+        }
+        reply => reply?,
+    };
     if reply.status == 200 {
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         let said = json.get("responses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
@@ -533,14 +556,30 @@ fn ask(graph: &Graph<'_>, span: std::ops::Range<usize>, answers: &mut [Option<Op
                 _ => None,
             };
         }
+    } else if extras && matches!(reply.status, 403 | 500..=599) {
+        // The names only told apart (#756) are not needed to list the mailbox: a batch of them
+        // the server refuses or is in trouble with is taken as none of them there, without
+        // asking them one by one, and the next run asks again. (The mark of a folder stays once
+        // set.) "Sign in again" and "slow down" end the run below as for any folder; another
+        // answer (a server that won't take a batch) has them asked one at a time.
+        for slot in answers.iter_mut().skip(span.start).take(span.len()) {
+            *slot = Some(None);
+        }
+        return Ok(());
     } else if matches!(reply.status, 401 | 403 | 429 | 503 | 504) {
         return Err(graph.refusal(Doing::Folders, &reply, &body));
     }
     // What the batch didn't settle, one at a time.
     for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(n, (_, slot))| span.contains(n) && slot.is_none()) {
         let url = graph.url(&format!("{}/{name}?{select}", folders(graph)));
-        let reply = graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)?;
         let extra = n >= SPECIAL;
+        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE) {
+            Err(e) if extra && e.is_unreachable() => {
+                *slot = Some(None);
+                continue;
+            }
+            reply => reply?,
+        };
         if graph.shared()
             && !extra
             && let Some(why) = super::shared_refusal(u64::from(reply.status), &serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null))
@@ -557,10 +596,12 @@ fn ask(graph: &Graph<'_>, span: std::ops::Range<usize>, answers: &mut [Option<Op
                 }
             }
             404 => Some(None),
-            // A folder only told apart (#756) is not needed to list the mailbox: what the server
-            // says of it besides "sign in again" (401), "slow down" (429) or its own trouble (5xx),
-            // which end the run as for any folder, is taken as "not there" (a 400 or 403, say).
-            _ if extra && !matches!(reply.status, 401 | 429 | 500..=599) => Some(None),
+            // A folder only told apart (#756) is not needed to list the mailbox: whatever the
+            // server says of it besides "sign in again" (401) or "slow down" (429), which end the
+            // run as for any folder, is taken as "not there" (a 400, a 403, its own trouble), so
+            // that a mailbox that always answers one of them so still lists. The mark of a
+            // folder stays once set, and the next run asks again.
+            _ if extra && !matches!(reply.status, 401 | 429) => Some(None),
             _ => return Err(graph.refusal(Doing::Folders, &reply, "")),
         };
     }

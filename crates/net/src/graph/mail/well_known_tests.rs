@@ -75,7 +75,7 @@ fn what_a_mailbox_wont_say_of_a_folder_only_told_apart_does_not_end_the_listing(
 }
 
 #[test]
-fn a_server_error_for_one_of_them_is_asked_again_and_the_folder_is_still_marked() {
+fn a_server_error_once_for_one_of_them_is_asked_again_and_the_folder_is_still_marked() {
     let server = server();
     server.state().fail_next.push(("GET /v1.0/me/mailFolders/conversationhistory".into(), 500, "ServiceUnavailable".into()));
     let listing = run(&server).listing.unwrap();
@@ -84,8 +84,81 @@ fn a_server_error_for_one_of_them_is_asked_again_and_the_folder_is_still_marked(
 }
 
 #[test]
+fn a_server_error_every_time_for_one_of_them_takes_it_as_not_there() {
+    for status in [500, 502] {
+        let server = server();
+        // However often it is asked.
+        for _ in 0..12 {
+            server.state().fail_next.push(("GET /v1.0/me/mailFolders/conversationhistory".into(), status, "ServiceUnavailable".into()));
+        }
+        let result = run(&server);
+        let listing = result.listing.unwrap();
+        assert!(listing.complete, "{status}: {:?}", result.errors);
+        assert_eq!(mark(&listing, "Conversation History"), Some(false), "{status}: not known this run");
+        assert_eq!(mark(&listing, "Inbox"), Some(true), "{status}");
+    }
+}
+
+#[test]
+fn a_batch_of_them_the_server_fails_takes_them_all_as_not_there() {
+    let server = server();
+    // The special folders' batch, then that of the others: both 500.
+    for _ in 0..2 {
+        server.state().fail_next.push(("POST /v1.0/$batch".into(), 500, "ServiceUnavailable".into()));
+    }
+    let result = run(&server);
+    let listing = result.listing.unwrap();
+    assert!(listing.complete, "{:?}", result.errors);
+    assert_eq!(mark(&listing, "Inbox"), Some(true), "the special folders, one at a time");
+    assert_eq!(mark(&listing, "Conversation History"), Some(false));
+    // Not asked one by one either.
+    let alone = server.state().requests.iter().filter(|a| a.method == "GET" && a.target.contains("mailFolders/conversationhistory")).count();
+    assert_eq!(alone, 0);
+}
+
+#[test]
+fn an_owners_folder_called_conversation_history_is_not_the_servers() {
+    let server = server();
+    let inbox = server.state().well_known("inbox");
+    server.state().add_folder("Conversation History", Some(&inbox));
+    let listing = run(&server).listing.unwrap();
+    assert!(listing.complete);
+    let mut marks: Vec<(bool, bool)> =
+        listing.folders.iter().filter(|f| f.name == "Conversation History").map(|f| (f.parent == inbox, f.well_known)).collect();
+    marks.sort_unstable();
+    assert_eq!(marks, [(false, true), (true, false)], "the server's at the top, the owner's under the Inbox");
+}
+
+#[test]
+fn a_change_of_one_of_them_is_refused_without_asking_and_the_listing_goes_on() {
+    let server = server();
+    let own = server.state().well_known("conversationhistory");
+    let deleted = server.state().well_known("deleteditems");
+    let projects = server.state().folders.iter().find(|f| f.name == "Projects").map(|f| f.id.clone()).unwrap();
+    let changes = vec![
+        FolderChange::Rename { folder: 41, id: own.clone(), name: "Mine".into() },
+        FolderChange::Move { folder: 41, id: own.clone(), parent: deleted.clone() },
+        FolderChange::Delete { id: own.clone() },
+        // The owner's own still goes.
+        FolderChange::Rename { folder: 42, id: projects.clone(), name: "Projects 2026".into() },
+    ];
+    let request = GraphMailRequest { account: 3, email: "owner@example.org".into(), changes, ..Default::default() };
+    let result = sync_folders_with(&server.url(), crate::graph::standin::TOKEN, &request, Arc::new(Gate::new()), QUICK);
+    assert_eq!(result.changes.len(), 4, "{:?}", result.changes);
+    for done in result.changes.iter().take(3) {
+        assert!(matches!(&done.outcome, ChangeOutcome::Refused { why } if why.contains("server's own")), "{done:?}");
+    }
+    assert!(matches!(result.changes[3].outcome, ChangeOutcome::Done { .. }), "{:?}", result.changes[3]);
+    // Nothing was asked of the server's own folder but to tell it apart.
+    let asked = server.state().requests.iter().filter(|a| a.method != "GET" && a.target.contains(&own)).count();
+    assert_eq!(asked, 0);
+    assert!(result.listing.is_some_and(|l| l.complete), "{:?}", result.errors);
+    assert_eq!(server.state().folders.iter().find(|f| f.id == own).map(|f| f.name.clone()).as_deref(), Some("Conversation History"));
+}
+
+#[test]
 fn a_sign_in_or_a_slow_down_for_one_of_them_still_ends_the_listing() {
-    for (status, code) in [(401, "InvalidAuthenticationToken"), (429, "TooManyRequests"), (500, "ServiceUnavailable")] {
+    for (status, code) in [(401, "InvalidAuthenticationToken"), (429, "TooManyRequests")] {
         let server = server();
         // However often it is asked.
         for _ in 0..12 {
