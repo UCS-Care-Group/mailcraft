@@ -1811,13 +1811,15 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let fetch = crate::cmd::graph_down::fetch_queue_passing_over(&s.mailbox, ms, 10, 1_800_000_000, &Default::default());
     assert_eq!(fetch, ["R1"]);
     assert!(sync_request(&s, a).unwrap().places.is_empty());
-    let mime = b"Message-ID: <rota@example.org>\r\nFrom: boss@example.org\r\nSubject: Rota\r\n\r\nThe rota, all of it.\r\n".to_vec();
+    let mime = b"Message-ID: <rota@example.org>\r\nFrom: boss@example.org\r\nSubject: Rota\r\nX-MS-Exchange-Organization-AuthAs: Internal\r\n\r\nThe rota, all of it.\r\n".to_vec();
     let fetched = vec![mailcraft_model::sync::GraphFetched { id: "R1".into(), mime }];
     let result = mailcraft_model::sync::GraphFetchResult { account: ms, email: OWNER.into(), fetched, ..Default::default() };
     crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
     // Whole: Gmail is given it, and once Gmail has it, Microsoft's original goes.
     let asked = sync_request(&s, a).unwrap();
     assert_eq!(asked.places.iter().map(|p| p.message.body.text.as_str()).collect::<Vec<_>>(), ["The rota, all of it."]);
+    // Microsoft's word that it came from inside the organisation stays behind (#781).
+    assert!(asked.places.iter().all(|p| p.message.headers.is_empty()), "{:?}", asked.places[0].message.headers);
     apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, rota, 40, 7)], ..Default::default() }).unwrap();
     assert_eq!(at(&s, rota), (a, gmail, 40));
     let changes = graph_mail_request(&s, ms).unwrap().messages;

@@ -508,6 +508,10 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
     m.headers = read.headers;
+    // Fetched to go on to another account's server: this server's stamps stay behind (#781).
+    if m.account != account {
+        mailcraft_model::auth_results::forget_stamps(m);
+    }
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
     m.unfetched = false;
