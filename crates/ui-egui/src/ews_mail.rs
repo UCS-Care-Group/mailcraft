@@ -14,10 +14,11 @@
 //! **The password** is what the owner types when the first run asks for it. It is kept in memory
 //! until the app closes (`MailApp::passwords`), never in the mailbox file, a log or a command's
 //! params, and goes to the server the account names now: a change of that address forgets it
-//! ([`MailApp::secret_key`]). Remembering it with the operating system comes with the Add Account
-//! page. A password the server turns down (a 401) is forgotten, so that the next Send/Receive asks
-//! again rather than send it once more; a round by itself leaves the account out until the owner
-//! asks for its Send/Receive.
+//! ([`MailApp::secret_key`]). It is remembered with the operating system, when the owner lets it
+//! be, by the Add Account page and by a run as soon as the server has answered it with its
+//! folders or its mail (#802). A password the server turns down (a 401) is forgotten, so that the
+//! next Send/Receive asks again rather than send it once more; a round by itself leaves the
+//! account out until the owner asks for its Send/Receive.
 //!
 //! **A certificate** the system doesn't trust, or one that is not the one trusted for the account,
 //! stops the run at its first request, before the password goes: the account says it needs the
@@ -91,7 +92,7 @@ impl MailApp {
         let request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
         self.services.sync_cancel.store(false, Ordering::Relaxed);
         let pieces = run(EwsJob { request, secret, cancel: self.services.sync_cancel.clone() });
-        self.sync_refused = false;
+        (self.sync_refused, self.sync_password_kept) = (false, false);
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -137,6 +138,10 @@ impl MailApp {
                 self.fetching.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
+            // The server answered with its folders or its mail: it took the password (#802).
+            if piece.server_answered() {
+                self.keep_accepted_password(account);
+            }
             // What File › Info says: how this run signed in, and a certificate that needs a say.
             if !piece.signed_in_with.is_empty() {
                 self.ews_signed_in.insert(account, piece.signed_in_with.clone());
@@ -194,13 +199,9 @@ impl MailApp {
                 // The certificate question comes first (File › Info): no round by itself tries again.
                 self.jmap_refused.insert(account);
             } else if whole {
-                // It went through: that password is worth remembering (when the owner lets it be),
-                // and nothing is left of the last run's problems.
-                if let Some((address, password)) =
-                    self.session.mailbox.account(account).map(|a| a.email.clone()).zip(self.passwords.get(&account).cloned())
-                {
-                    self.remember("password", &address, &password);
-                }
+                // It went through: that password is worth remembering (when the owner lets it be,
+                // and no piece said so before), and nothing is left of the last run's problems.
+                self.keep_accepted_password(account);
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }

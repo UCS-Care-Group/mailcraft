@@ -376,6 +376,14 @@ fn message_content_ok(m: &GraphMessage) -> bool {
 }
 
 impl EwsMailResult {
+    /// Whether the server answered a request of the run's with what it holds (its folders, or a
+    /// page of a folder's messages): it took the password the run went with (#802). Not
+    /// [`signed_in_with`](Self::signed_in_with), which the server's offer sets before it has
+    /// taken anything.
+    pub fn server_answered(&self) -> bool {
+        self.folders.is_some() || !self.pages.is_empty()
+    }
+
     /// Whether this piece of an answer is within what is taken in, or why not. An answer comes
     /// from a host and may say anything: every list, string and id is held to a size here, before
     /// any of it is used. A piece that is refused is taken in by no part, so a cut-short answer

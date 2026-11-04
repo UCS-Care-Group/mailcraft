@@ -122,6 +122,8 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+#[cfg(test)]
+mod password_kept_tests;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
@@ -1537,6 +1539,8 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The run in flight has had its password remembered already: once a run (#802).
+    sync_password_kept: bool,
     /// JMAP accounts whose server turned their credential down this session: no round that starts
     /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
     jmap_refused: std::collections::HashSet<Id>,
@@ -1795,6 +1799,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            sync_password_kept: false,
             jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
@@ -2927,7 +2932,7 @@ impl MailApp {
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
-    /// (it is remembered for later runs once the first one has gone through).
+    /// (it is remembered for later runs once the server has let the first one in).
     pub(crate) fn adopt_password(&mut self, account: Id, password: String) {
         self.jmap_refused.remove(&account);
         self.passwords.insert(account, password);
@@ -3101,6 +3106,7 @@ impl MailApp {
         }
         let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
         self.sync_run = Some((account, None, false, quiet));
+        self.sync_password_kept = false;
         self.sync_rx = Some(MailRun::Imap(start(request)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
@@ -3913,6 +3919,23 @@ impl MailApp {
         self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
     }
 
+    /// The server let `account`'s run in flight in: the password it went with is worth
+    /// remembering (when the owner lets it be), at once, so that a run that has a problem later
+    /// or is cut short by closing MailCraft keeps it all the same (#802). Once a run, not again
+    /// when the system holds it already (a round by itself comes every few minutes), and never
+    /// after a piece of the run said a sign-in was refused: the end of such a run forgets it.
+    pub(crate) fn keep_accepted_password(&mut self, account: Id) {
+        if self.sync_refused || std::mem::replace(&mut self.sync_password_kept, true) {
+            return;
+        }
+        let address = self.session.mailbox.account(account).map(|a| a.email.clone());
+        let Some((address, password)) = address.zip(self.passwords.get(&account).cloned()) else { return };
+        let key = self.account_at(&address).map(|a| Self::secret_key("password", a));
+        if key.and_then(|key| self.secret_cache.get(&key)) != Some(&password) {
+            self.remember("password", &address, &password);
+        }
+    }
+
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
@@ -3939,12 +3962,16 @@ impl MailApp {
             };
             let (account, last) = (piece.account, !piece.partial);
             let downloading = !piece.folders.is_empty();
+            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
             let refused = piece.errors.iter().any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
             });
             self.sync_refused |= refused;
+            if signed_in {
+                self.keep_accepted_password(account);
+            }
             self.note_sync_problems(account, &piece.errors, false);
             match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
@@ -3983,10 +4010,8 @@ impl MailApp {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
-                if let Some(password) = self.passwords.get(&account).cloned() {
-                    // It went through: this password is worth remembering.
-                    self.remember("password", &address, &password);
-                }
+                // It went through: this password is worth remembering, if no piece said so before.
+                self.keep_accepted_password(account);
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);
             }
