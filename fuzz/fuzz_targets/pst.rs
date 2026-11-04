@@ -36,7 +36,8 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
         ..Limits::default()
     };
     let Ok(mut pst) = Pst::open_with(Cursor::new(&data[..]), limits) else { return };
-    let _ = pst.unlock("");
+    // The password of the seed that has one (`write_fuzz_seeds`).
+    let _ = pst.unlock("seed");
     let _ = pst.store();
     let _ = pst.named_properties();
     let mut nodes = 0usize;
