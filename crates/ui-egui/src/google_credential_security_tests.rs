@@ -531,3 +531,159 @@ fn google_security_store_failure_keeps_tokens_only_in_memory_without_diagnostic_
         assert!(!output.contains(&given.refresh));
     }
 }
+
+/// Both Microsoft account forms may ask for Graph's calendar and contacts.
+fn add_microsoft(a: &mut MailApp, graph_mail: bool) -> Id {
+    let mut fields = json!({"email":"microsoft@example.org","auth":"oauth2","provider":"microsoft"});
+    if graph_mail {
+        fields["kind"] = json!("microsoft");
+    } else {
+        fields["incoming"] = json!({"host":"outlook.office365.com","port":993,"security":"tls"});
+    }
+    a.execute("account.add", fields).unwrap()["id"].as_u64().unwrap()
+}
+
+/// The host would open the browser here; these tests only record what it was asked.
+fn record_sign_in(a: &mut MailApp) -> Arc<Mutex<Vec<SignInRequest>>> {
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let recorded = requests.clone();
+    a.services.sign_in = Some(Box::new(move |request| {
+        recorded.lock().unwrap().push(request);
+        mpsc::channel().1
+    }));
+    requests
+}
+
+struct RecordingStore {
+    store: Store,
+    calls: Arc<Mutex<Vec<&'static str>>>,
+}
+
+impl SecretStore for RecordingStore {
+    fn get(&self, key: &str) -> Option<String> {
+        self.calls.lock().unwrap().push("get");
+        self.store.get(key)
+    }
+    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+        self.calls.lock().unwrap().push("set");
+        self.store.set(key, value)
+    }
+    fn delete(&self, key: &str) {
+        self.calls.lock().unwrap().push("delete");
+        self.store.delete(key);
+    }
+    fn take_trouble(&self) -> Option<StoreTrouble> {
+        self.calls.lock().unwrap().push("take_trouble");
+        self.store.take_trouble()
+    }
+}
+
+/// Count even reads, so rejection is proved to precede any credential-store access.
+fn record_store(a: &mut MailApp, store: &Store) -> Arc<Mutex<Vec<&'static str>>> {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    a.services.secrets = Some(Arc::new(RecordingStore { store: store.clone(), calls: calls.clone() }));
+    calls
+}
+
+/// A Google account before Microsoft must not take Microsoft's calendar/contacts command.
+#[test]
+fn google_security_microsoft_command_skips_google_by_default() {
+    let store = Store::default();
+    let mut a = app(&store);
+    let google = add_google(&mut a, "google@example.org");
+    let microsoft = add_microsoft(&mut a, true);
+    assert_eq!(a.session.mailbox.accounts.iter().find(|a| a.oauth.is_some()).map(|a| a.id), Some(google));
+    let requests = record_sign_in(&mut a);
+
+    assert_eq!(a.execute("ui.connectMicrosoft", json!({})).unwrap(), json!({"pending":"signIn","account":microsoft}));
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].account, microsoft);
+    assert_eq!(requests[0].oauth.provider, mailcraft_model::OAuthProvider::Microsoft);
+    assert!(requests[0].graph);
+    assert!(requests[0].google_client_secret.is_empty());
+}
+
+/// Reject Google's explicit id without asking the host or store, even while Google is signing in.
+#[test]
+fn google_security_microsoft_command_rejects_explicit_google_before_side_effects() {
+    for already_waiting in [false, true] {
+        let store = Store::default();
+        let mut a = app(&store);
+        let google = add_google(&mut a, "google@example.org");
+        add_microsoft(&mut a, true);
+        let kept = tokens("google@example.org", "microsoft-command-kept");
+        a.adopt_tokens(google, kept.clone());
+        let owner = a.session.mailbox.account(google).unwrap().clone();
+        let stored = store.0.lock().unwrap().clone();
+        let cache = a.secret_cache.clone();
+        let pending = already_waiting.then(|| pending_sign_in(&mut a, google, String::new()));
+        let waiting = a.session.sync_status.clone();
+        let requests = record_sign_in(&mut a);
+        let store_calls = record_store(&mut a, &store);
+        let sync = record_sync(&mut a);
+
+        assert_eq!(a.execute("ui.connectMicrosoft", json!({"account":google})), Err("This account doesn't sign in with Microsoft".to_string()));
+
+        assert!(requests.lock().unwrap().is_empty(), "the host must not open a provider page");
+        assert!(store_calls.lock().unwrap().is_empty(), "rejection must precede credential-store access");
+        assert!(sync.lock().unwrap().is_empty());
+        assert_eq!(a.session.mailbox.account(google), Some(&owner));
+        assert_eq!(store.0.lock().unwrap().clone(), stored);
+        assert_eq!(a.secret_cache, cache);
+        assert_eq!(a.tokens.get(&google).map(|t| t.access.as_str()), Some(kept.access.as_str()));
+        assert_eq!(a.tokens.get(&google).map(|t| t.refresh.as_str()), Some(kept.refresh.as_str()));
+        assert!(!a.graph_tokens.contains_key(&google));
+        assert_eq!(a.signing_in(), already_waiting);
+        assert_eq!(a.session.sync_status, waiting);
+        if let Some((_, cancel)) = pending {
+            assert!(!cancel.load(Ordering::Relaxed));
+            assert_eq!(a.signing_in.as_ref().unwrap().account, google);
+        }
+    }
+}
+
+/// With only Google available, the default command cannot start any sign-in.
+#[test]
+fn google_security_microsoft_command_rejects_google_only_default() {
+    let store = Store::default();
+    let mut a = app(&store);
+    add_google(&mut a, "google@example.org");
+    let requests = record_sign_in(&mut a);
+    let store_calls = record_store(&mut a, &store);
+    let waiting = a.session.sync_status.clone();
+
+    assert_eq!(a.execute("ui.connectMicrosoft", json!({})), Err("No account signs in with Microsoft".to_string()));
+
+    assert!(requests.lock().unwrap().is_empty());
+    assert!(store_calls.lock().unwrap().is_empty());
+    assert!(!a.signing_in());
+    assert_eq!(a.session.sync_status, waiting);
+}
+
+/// Microsoft OAuth still works for Graph mail and for an IMAP account asking for calendar/contacts.
+#[test]
+fn google_security_microsoft_command_accepts_explicit_microsoft_accounts() {
+    for graph_mail in [false, true] {
+        let store = Store::default();
+        let mut a = app(&store);
+        add_google(&mut a, "google@example.org");
+        let microsoft = add_microsoft(&mut a, graph_mail);
+        let requests = record_sign_in(&mut a);
+
+        assert_eq!(a.execute("ui.connectMicrosoft", json!({"account":microsoft})).unwrap(), json!({"pending":"signIn","account":microsoft}));
+
+        let requests = requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].account, microsoft);
+        assert_eq!(requests[0].oauth.provider, mailcraft_model::OAuthProvider::Microsoft);
+        assert_eq!(requests[0].email, "microsoft@example.org");
+        assert!(requests[0].graph);
+        assert_eq!(requests[0].mail_write, graph_mail);
+        assert!(!requests[0].quiet);
+        assert!(requests[0].refresh.is_empty());
+        assert!(requests[0].google_client_secret.is_empty());
+        assert!(a.signing_in.as_ref().unwrap().browser);
+    }
+}

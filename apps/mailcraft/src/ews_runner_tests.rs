@@ -71,6 +71,17 @@ fn a_failed_exchange_is_told_by_its_kind_and_a_certificate_is_kept_apart() {
 }
 
 #[test]
+fn the_count_of_requests_stops_at_the_most_it_holds() {
+    let transport = Transport::new(" ");
+    transport.count_request();
+    assert_eq!(transport.requests_asked(), 1);
+    transport.asked.store(u32::MAX - 1, Ordering::Relaxed);
+    transport.count_request();
+    transport.count_request();
+    assert_eq!(transport.requests_asked(), u32::MAX, "held there, as Graph's is, never back to nothing");
+}
+
+#[test]
 fn the_credential_is_the_user_name_or_the_address_and_nothing_else_is_accepted() {
     assert!(client("https://mail.example.org/EWS/Exchange.asmx", "", "ada@example.org", "pw").is_ok());
     assert!(client("https://mail.example.org/EWS/Exchange.asmx", "CORP\\ada", "ada@example.org", "pw").is_ok());

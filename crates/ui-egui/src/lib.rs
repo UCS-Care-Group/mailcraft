@@ -2534,10 +2534,19 @@ impl MailApp {
                 let account = p
                     .get("account")
                     .and_then(Value::as_u64)
-                    .or_else(|| self.session.mailbox.accounts.iter().find(|a| a.oauth.is_some()).map(|a| a.id))
+                    .or_else(|| {
+                        self.session
+                            .mailbox
+                            .accounts
+                            .iter()
+                            .find(|a| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft))
+                            .map(|a| a.id)
+                    })
                     .and_then(|id| self.session.mailbox.account(id).cloned());
                 let Some(account) = account else { return Some(Err(tl!("No account signs in with Microsoft").to_string())) };
-                let Some(oauth) = account.oauth.clone() else { return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string())) };
+                let Some(oauth) = account.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
+                    return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string()));
+                };
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
             }
