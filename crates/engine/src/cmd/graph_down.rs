@@ -300,8 +300,9 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let size = if now.size > 0 || changed_there { now.size } else { last.size };
     // The conversation id, as the size: one a listing doesn't say (a JMAP server's marks alone)
     // is the last one known (#795).
-    let (thread, thread_asked) = if now.thread.is_empty() { (last.thread.clone(), last.thread_asked) } else { (now.thread.clone(), false) };
-    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, ..now.clone() });
+    let (thread, thread_asked, thread_tries) =
+        if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
+    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
     *m != before
 }
 

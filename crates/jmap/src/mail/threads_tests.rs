@@ -61,3 +61,18 @@ fn a_window_brings_each_emails_thread_and_mail_from_before_is_asked_for_it() {
     assert_eq!(said("Mgone").as_deref(), Some(""));
     assert!(last.errors.is_empty(), "{:?}", last.errors);
 }
+
+#[test]
+fn the_threads_are_asked_no_more_at_a_time_than_the_server_takes() {
+    let stand_in = StandIn::new();
+    let ids: Vec<String> = stand_in.with(|d| {
+        d.max_get = 2;
+        let inbox = d.mailbox("Inbox", None, Some("inbox"));
+        (0..5).map(|n| d.deliver(&inbox, &mail("Note", &format!("n{n}@one.example"), None), &[], "2026-01-01T00:00:01Z")).collect()
+    });
+    let pieces = run(&stand_in, ids.clone());
+    let last = pieces.last().unwrap();
+    assert!(last.errors.is_empty(), "{:?}", last.errors);
+    assert_eq!(last.threads.len(), 5, "{:?}", last.threads);
+    assert!(last.threads.iter().all(|t| !t.thread.is_empty() && !t.refused));
+}

@@ -173,7 +173,7 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     server.gone = false;
     // (Its thread, as an opaque id or none, #795; it is never asked for by itself.)
     server.thread = mailcraft_model::sync::thread_id(&server.thread);
-    server.thread_asked = false;
+    (server.thread_asked, server.thread_tries) = (false, 0);
     m.message_id = line(&m.message_id, MAX_TEXT);
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);

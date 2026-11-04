@@ -164,7 +164,8 @@ pub(crate) fn sync_mail_renewing_with(
             // Then the conversation ids of mail listed before they were asked for (#795), unless
             // the server asked to be left alone or the owner stopped the run.
             if !request.threads.is_empty() && last.busy_for.is_none() && !last.stopped && !cancel.load(std::sync::atomic::Ordering::Relaxed) {
-                last.threads = threads::conversations(&graph, request, cancel);
+                let (threads, busy_for) = threads::conversations(&graph, request, cancel);
+                (last.threads, last.busy_for) = (threads, busy_for);
             }
             last
         }

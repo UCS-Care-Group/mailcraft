@@ -94,11 +94,11 @@ fn mail_kept_from_before_gets_its_conversation_ids_a_run_at_a_time() {
     assert_eq!(asked, ["AAk-3", "AAk-2", "AAk-1"]);
     // The server says two; of the third it says none: it isn't asked again.
     let threads = vec![
-        ThreadOf { id: "AAk-1".into(), thread: "AAQkconvA".into() },
-        ThreadOf { id: "AAk-2".into(), thread: "AAQkconvB".into() },
-        ThreadOf { id: "AAk-3".into(), thread: String::new() },
+        ThreadOf { id: "AAk-1".into(), thread: "AAQkconvA".into(), ..Default::default() },
+        ThreadOf { id: "AAk-2".into(), thread: "AAQkconvB".into(), ..Default::default() },
+        ThreadOf { id: "AAk-3".into(), thread: String::new(), ..Default::default() },
         // One it wasn't asked about, or that isn't this account's, is nothing.
-        ThreadOf { id: "AAk-9".into(), thread: "AAQkconvA".into() },
+        ThreadOf { id: "AAk-9".into(), thread: "AAQkconvA".into(), ..Default::default() },
     ];
     let result = mailcraft_model::sync::GraphMailResult { account, email: "me@example.org".into(), threads, ..Default::default() };
     crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
@@ -134,11 +134,26 @@ fn a_listing_without_a_conversation_id_keeps_the_one_known() {
 #[test]
 fn hostile_conversation_answers_are_held_to_their_sizes() {
     let (mut s, account, made) = microsoft(&[("AAk-1", "a@one.example")]);
-    let mut threads: Vec<ThreadOf> = (0..5_000).map(|n| ThreadOf { id: format!("junk-{n}"), thread: "x".repeat(10_000) }).collect();
-    threads.push(ThreadOf { id: "AAk-1".into(), thread: "conv\n\u{0}".into() });
+    let mut threads: Vec<ThreadOf> =
+        (0..5_000).map(|n| ThreadOf { id: format!("junk-{n}"), thread: "x".repeat(10_000), ..Default::default() }).collect();
+    threads.push(ThreadOf { id: "AAk-1".into(), thread: "conv\n\u{0}".into(), ..Default::default() });
     let result = mailcraft_model::sync::GraphMailResult { account, email: "me@example.org".into(), threads, ..Default::default() };
     crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
     // Past the most a run asks about, nothing is looked at; an id that is none is none.
     let server = s.mailbox.message(made[0]).unwrap().server.clone().unwrap();
     assert!(server.thread.is_empty());
+}
+
+#[test]
+fn a_server_that_refuses_to_say_is_asked_a_few_runs_and_then_left_alone() {
+    let (mut s, account, made) = microsoft(&[("AAk-1", "a@one.example")]);
+    for run in 1..=mailcraft_model::sync::MAX_THREAD_TRIES {
+        assert_eq!(crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap().threads, ["AAk-1"], "run {run}");
+        let threads = vec![ThreadOf::refused("AAk-1")];
+        let result = mailcraft_model::sync::GraphMailResult { account, email: "me@example.org".into(), threads, ..Default::default() };
+        crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
+    }
+    assert!(crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap().threads.is_empty());
+    let server = s.mailbox.message(made[0]).unwrap().server.clone().unwrap();
+    assert!(server.thread.is_empty() && server.thread_asked);
 }

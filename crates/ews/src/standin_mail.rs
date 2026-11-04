@@ -522,7 +522,9 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
-        if self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag" || e == "item:ConversationId") {
+        if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
+            || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
+        {
             return Ok((
                 200,
                 "ErrorInvalidPropertyRequest".into(),
@@ -618,6 +620,10 @@ impl State {
             Check::empty(one)?;
             let id = Check::attribute(one, "Id")?;
             let code = match self.item(id) {
+                Some(_) if self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId") => {
+                    messages.push_str(&error_message("GetItem", "ErrorInvalidPropertyRequest"));
+                    "ErrorInvalidPropertyRequest"
+                }
                 Some(item) => {
                     let mut xml = self.message_xml(item, &base, &extra);
                     if mime {

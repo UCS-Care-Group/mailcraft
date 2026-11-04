@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The conversation of an Exchange server's message (#795): read with the folder's changes, and
-//! asked for once (`GetItem`, a hundred to a request) of mail listed before it was. Against the
+//! The conversation of an Exchange server's message (#795): asked for by itself (`GetItem`, a
+//! hundred to a request) of mail listed without it, since the folders' changes don't ask for it. Against the
 //! strict stand-in; every message is invented.
 
 use std::sync::atomic::AtomicBool;
 
-use mailcraft_model::sync::{EwsMailRequest, EwsMailResult};
+use mailcraft_model::sync::{EwsMailRequest, EwsMailResult, ThreadOf};
 
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::*;
@@ -22,7 +22,7 @@ fn run(standin: &StandIn, threads: Vec<String>) -> Vec<EwsMailResult> {
 }
 
 #[test]
-fn the_changes_bring_each_messages_conversation() {
+fn the_changes_dont_ask_for_the_conversation_and_the_look_up_brings_it() {
     let standin = StandIn::new();
     let (a, b) = {
         let mut s = standin.state();
@@ -33,10 +33,11 @@ fn the_changes_bring_each_messages_conversation() {
     }
     let pieces = run(&standin, Vec::new());
     let listed: Vec<_> = pieces.iter().flat_map(|p| &p.pages).flat_map(|p| &p.messages).collect();
-    for id in [&a, &b] {
-        assert_eq!(listed.iter().find(|m| m.server.id == *id).unwrap().server.thread, "AAQkconvBudget");
-    }
+    assert!(listed.iter().all(|m| m.server.thread.is_empty()));
     assert!(pieces.iter().all(|p| p.threads.is_empty()));
+    let pieces = run(&standin, vec![a.clone(), b.clone()]);
+    let said = &pieces.last().unwrap().threads;
+    assert!(said.iter().all(|t| t.thread == "AAQkconvBudget" && !t.refused) && said.len() == 2, "{said:?}");
 }
 
 #[test]
@@ -58,13 +59,30 @@ fn mail_listed_before_is_asked_for_its_conversation_once() {
 }
 
 #[test]
-fn a_server_that_doesnt_know_the_conversation_still_lists_its_mail() {
+fn a_server_that_doesnt_know_the_conversation_still_gives_previews_and_flags() {
     let standin = StandIn::new();
     let id = standin.state().deliver("inbox", "Plain", true);
-    standin.state().lacks_preview = true;
+    for item in standin.state().items.iter_mut() {
+        (item.preview, item.flagged, item.flag) = ("Hello there".into(), true, "Flagged".into());
+    }
+    standin.state().lacks_conversation = true;
     let pieces = run(&standin, vec![id.clone()]);
     let listed: Vec<_> = pieces.iter().flat_map(|p| &p.pages).flat_map(|p| &p.messages).collect();
-    // Read in the lean shape, without a conversation; the look-up then asks for it alone.
-    assert!(listed.iter().any(|m| m.server.id == id && m.server.thread.is_empty()));
-    assert!(pieces.last().unwrap().errors.is_empty());
+    let message = listed.iter().find(|m| m.server.id == id).unwrap();
+    assert_eq!(message.preview, "Hello there");
+    assert_eq!(message.server.flag, mailcraft_model::FlagStatus::Flagged, "the flag still comes");
+    let last = pieces.last().unwrap();
+    assert!(last.errors.is_empty() && last.busy_for.is_none(), "{:?}", last.errors);
+    // Refused, said so: the engine asks again only a few runs.
+    assert_eq!(last.threads, vec![ThreadOf::refused(&id)]);
+}
+
+#[test]
+fn a_busy_server_during_the_look_up_is_said() {
+    let standin = StandIn::new();
+    let id = standin.state().deliver("inbox", "Plain", true);
+    standin.state().busy_get_item = true;
+    let pieces = run(&standin, vec![id]);
+    let last = pieces.last().unwrap();
+    assert!(last.busy_for.is_some() && last.threads.is_empty(), "{last:?}");
 }

@@ -336,7 +336,7 @@ pub async fn sync_mail<E: HttpExchange>(
     let threads = if request.threads.is_empty() || out.stopped || out.busy_for.is_some() || out.auth_refused {
         Vec::new()
     } else {
-        run.conversations(&request.threads).await
+        run.conversations(&request.threads, &mut out).await
     };
     if !out.blocked.is_empty() {
         // (Once a run, and no id: the engine names the folders by what the owner calls them.)
@@ -358,22 +358,33 @@ pub async fn sync_mail<E: HttpExchange>(
 
 impl<E: HttpExchange> Run<'_, E> {
     /// The conversation of each of the items `ids` ([`GetItemConversations`]), a hundred to a
-    /// request, at most [`MAX_THREAD_ASKS`]: what the server answered for, until it doesn't.
-    async fn conversations(&mut self, ids: &[String]) -> Vec<ThreadOf> {
+    /// request, at most [`MAX_THREAD_ASKS`]: what the server answered for, until it doesn't. A busy
+    /// server is said in `outcome`; a request it refused is each of its items refused.
+    async fn conversations(&mut self, ids: &[String], outcome: &mut Outcome) -> Vec<ThreadOf> {
         let mut out = Vec::new();
         let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS)).unwrap_or_default();
         for some in ids.chunks(MAX_CONVERSATIONS) {
             let op = GetItemConversations::new(some);
             let said = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(said) => said,
+                Err(Asked::Stop(Stop::Busy(seconds))) => {
+                    outcome.busy_for = Some(seconds.max(1));
+                    break;
+                }
+                Err(Asked::Code(_)) => {
+                    log::info!("ews mail: the server refused to say the conversations; asked again in a later run, a few times");
+                    out.extend(op.ids().iter().map(|id| ThreadOf::refused(id)));
+                    break;
+                }
                 Err(_) => {
                     log::info!("ews mail: conversations not asked for now; a later run goes on");
                     break;
                 }
             };
-            let before = out.len();
-            out.extend(op.ids().iter().zip(said).filter_map(|(id, thread)| Some(ThreadOf { id: id.clone(), thread: thread? })));
-            if out.len() == before {
+            // (Nothing answered, or every one refused: the server isn't saying these now.)
+            let answered = said.iter().any(|t| !t.refused);
+            out.extend(said);
+            if !answered {
                 break;
             }
         }

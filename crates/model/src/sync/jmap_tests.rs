@@ -51,7 +51,7 @@ fn result() -> JmapMailResult {
     };
     JmapMailResult {
         account: 3,
-        threads: vec![crate::sync::ThreadOf { id: "E5".into(), thread: "T5".into() }],
+        threads: vec![crate::sync::ThreadOf { id: "E5".into(), thread: "T5".into(), ..Default::default() }],
         email: ME.into(),
         session: SESSION.into(),
         changes: vec![

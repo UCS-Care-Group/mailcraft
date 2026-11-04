@@ -294,11 +294,20 @@ pub struct ServerMessage {
     /// when the message leaves the account.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub thread: String,
-    /// It was asked for its `thread` once, after the listing that brought it (the one-time look-up
-    /// of a mailbox from before, #795), and the server gave none: it isn't asked again.
+    /// It was asked for its `thread` after the listing that brought it without one (the look-up of
+    /// #795), and the server gave none, or refused [`MAX_THREAD_TRIES`] times: it isn't asked again.
     #[serde(skip_serializing_if = "is_false")]
     pub thread_asked: bool,
+    /// How many runs its server refused to say its `thread` (an error for the message, or the
+    /// whole question refused; never a busy server or a lost connection): at
+    /// [`MAX_THREAD_TRIES`] it is marked [`ServerMessage::thread_asked`], so that a server that
+    /// never will isn't asked at every run.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub thread_tries: u32,
 }
+
+/// Most runs a message's server may refuse to say its conversation before it isn't asked again.
+pub const MAX_THREAD_TRIES: u32 = 3;
 
 /// The longest server conversation id kept ([`ServerMessage::thread`]), in bytes.
 pub const MAX_THREAD_ID: usize = 256;
@@ -316,14 +325,23 @@ pub const MAX_THREAD_ASKS: usize = 1_000;
 
 /// What a server said of the conversation of a message it was asked about ([`MAX_THREAD_ASKS`]):
 /// the message's server id and the conversation id, empty when the server gave none (or no
-/// longer has the message). A message the server didn't answer for isn't here, and is asked
-/// again in a later run.
+/// longer has the message). `refused` when the server refused to say ([`MAX_THREAD_TRIES`]). A
+/// message the server didn't answer for isn't here, and is asked again in a later run.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ThreadOf {
     pub id: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub thread: String,
+    #[serde(skip_serializing_if = "is_false")]
+    pub refused: bool,
+}
+
+impl ThreadOf {
+    /// What a server refused to say of the message `id`.
+    pub fn refused(id: &str) -> ThreadOf {
+        ThreadOf { id: id.to_string(), thread: String::new(), refused: true }
+    }
 }
 
 /// The server's copy of a message that is **being moved** out of a Microsoft account

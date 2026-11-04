@@ -555,6 +555,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         // The conversation it is in (#795), as an opaque id; anything odd is none.
         thread: mailcraft_model::sync::thread_id(text(value, "conversationId")),
         thread_asked: false,
+        thread_tries: 0,
     };
     Some(Entry::Message(Box::new(GraphMessage {
         server,

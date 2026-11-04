@@ -75,10 +75,11 @@ fn a_server_that_wont_answer_ends_the_look_up_and_never_the_run() {
     let inbox = server.state().well_known("inbox");
     let ids = server.state().mailbox.generate(&inbox, 3, NOW);
     server.state().refuse_batches = true;
-    let pieces = run(&server, ids);
+    let pieces = run(&server, ids.clone());
     let last = pieces.last().unwrap();
     assert!(!last.partial && last.errors.is_empty(), "{:?}", last.errors);
-    assert_eq!(last.threads, Vec::<ThreadOf>::new());
+    // Refused (400): said so, and the engine asks again only a few runs.
+    assert_eq!(last.threads, ids.iter().map(|id| ThreadOf::refused(id)).collect::<Vec<_>>());
     // Ids that are none, or more than a run asks, are not sent.
     let server = StandIn::start().unwrap();
     let mut junk: Vec<String> = vec!["../../me/sendMail".into(), String::new(), "x".repeat(5_000)];
@@ -89,4 +90,22 @@ fn a_server_that_wont_answer_ends_the_look_up_and_never_the_run() {
     let state = server.state();
     let asked = state.requests.iter().filter(|r| r.query.iter().any(|(k, v)| k == "$select" && v == "conversationId")).count();
     assert!(asked <= mailcraft_model::sync::MAX_THREAD_ASKS, "{asked}");
+}
+
+#[test]
+fn a_mailbox_that_may_not_be_asked_says_refused_and_a_busy_one_says_busy() {
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 3, NOW);
+    server.state().conversations_answer = Some(403);
+    let pieces = run(&server, ids.clone());
+    let last = pieces.last().unwrap();
+    assert!(last.errors.is_empty() && last.busy_for.is_none(), "{:?}", last.errors);
+    assert_eq!(last.threads, ids.iter().map(|id| ThreadOf::refused(id)).collect::<Vec<_>>());
+    // Busy: nothing said of the messages, and the run says how long to leave the server alone.
+    server.state().conversations_answer = Some(429);
+    let pieces = run(&server, ids);
+    let last = pieces.last().unwrap();
+    assert!(last.threads.is_empty(), "{:?}", last.threads);
+    assert!(last.busy_for.is_some());
 }
