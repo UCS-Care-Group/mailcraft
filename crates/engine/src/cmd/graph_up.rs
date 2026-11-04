@@ -410,8 +410,9 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // (onto this computer, into another account), and then it is theirs where
                     // they put it, and nothing here takes it away or moves it again.
                     let here = matches!(mb.message(*copy), Some(m) if m.account == account);
-                    // Refused: the server has no copy, and neither has this mailbox. A source that
-                    // is gone leaves the copy here, which is all there is of it.
+                    // Refused: the server has no copy, and the copy here (unless the owner moved it
+                    // on) is taken away. A source that is gone leaves the copy here, which is all
+                    // there is of it.
                     if matches!(outcome, MessageOutcome::Refused { .. }) {
                         // Its original deleted for good here meanwhile, by the owner or by a rule
                         // that copies and then deletes: it is still on the server (its delete
@@ -447,18 +448,14 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                             }
                             None => {}
                         }
-                    } else if matches!(outcome, MessageOutcome::Gone)
-                        && here
-                        && mb
-                            .queued
-                            .iter()
-                            .any(|q| matches!(q, Queued::DeleteMessage { account: a, id: d, kept: Some(_) } if *a == account && d == id))
-                    {
-                        // No such message on the server (deleted on a phone, say, or its folder
-                        // there gone) while it is deleted for good here, its delete waiting for
-                        // this answer: the copy, never made there and all there may be of it, is
-                        // kept on this computer, in Imported, as on a refusal (#566). The delete
-                        // goes as the owner asked; the server says whether there was anything left.
+                    } else if matches!(outcome, MessageOutcome::Gone) && take_delete(mb, account, id, true).flatten().is_some() && here {
+                        // No such message on the server while it is deleted for good here, its
+                        // delete waiting for this answer: deleted there meanwhile (on a phone, say),
+                        // or the copy's folder there gone with the message still in place. Nothing
+                        // confirms a copy anywhere, so the delete is called off (should the server
+                        // still have it, it comes down again), and the copy, never made there and
+                        // perhaps all there is of it, is kept on this computer, in Imported, as on
+                        // a refusal (#566). A copy the owner moved on stays where they put it.
                         let _ = super::graph_place::kept_in_imported(mb, *copy);
                     }
                     if let Some(why) = why {

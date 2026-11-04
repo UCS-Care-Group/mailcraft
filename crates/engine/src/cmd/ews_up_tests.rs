@@ -435,12 +435,8 @@ fn a_refused_copy_whose_original_went_on_a_phone_keeps_the_message() {
             (local, Some("Imported"), true),
             "phone first: {phone_first}"
         );
-        // After "no such item" the delete still goes, as the owner asked.
         let left = changes(&s, account);
-        match answer {
-            MessageOutcome::Gone => assert_eq!(left, [MessageChange::Delete { id: "A1".into() }], "phone first: {phone_first}"),
-            _ => assert!(left.is_empty(), "phone first: {phone_first}: {left:?}"),
-        }
+        assert!(left.is_empty(), "phone first: {phone_first}: {left:?}");
     }
 }
 
