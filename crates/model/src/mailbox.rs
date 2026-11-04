@@ -759,13 +759,14 @@ pub enum Queued {
     /// server made of a message gone here) is put back from what the server says of it.
     ///
     /// The copy is whole only while it is whole in memory: one whose text or files were kept on
-    /// disk is kept to be fetched again ([`Message::to_fetch_again`]), as is every copy read back
-    /// from a file (#793), since nothing in the mailbox file names the content of a copy and a
-    /// sweep takes it. The server, having refused the delete, has the message whole.
+    /// disk is kept to be fetched again ([`Message::to_fetch_again`]), and so is every copy
+    /// written to a file and read back from one (#793), since nothing in the mailbox file names
+    /// the content of a copy and a sweep takes it. The server, having refused the delete, has
+    /// the message whole.
     DeleteMessage {
         account: Id,
         id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "kept_read_back")]
+        #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "kept_written", deserialize_with = "kept_read_back")]
         kept: Option<Box<Message>>,
     },
     /// The message `message` was moved or copied here into a folder of `account` from another
@@ -798,6 +799,18 @@ fn kept_read_back<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Box<M
         m.to_fetch_again();
         m
     }))
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: as [`kept_read_back`] would
+/// take it, so that a copy whole in memory isn't written whole into the file at every save only
+/// to be let go of when it is read.
+fn kept_written<S: serde::Serializer>(kept: &Option<Box<Message>>, s: S) -> Result<S::Ok, S::Error> {
+    let written = kept.as_deref().map(|m| {
+        let mut m = m.clone();
+        m.to_fetch_again();
+        m
+    });
+    written.serialize(s)
 }
 
 /// What a message deleted for good keeps of itself while its server is asked to delete it

@@ -474,14 +474,16 @@ impl Message {
 
     /// To be fetched again, whole, from the server that has it (#793): its headers, marks and
     /// server state stay, with the first [`PREVIEW_CHARS`] characters of its text as its preview
-    /// when that text is in memory; its body and files go, and it wears the paperclip when it
-    /// had files. What a message deleted for good keeps of itself, unless it was whole in memory,
+    /// when that text is in memory (its HTML may be on disk); its body and files go, and it
+    /// wears the paperclip when it had files. What a message deleted for good keeps of itself, unless it was whole in memory,
     /// while its server is asked to delete it: the content kept on disk for it is named by
     /// nothing once the mailbox file no longer has the message, and goes with the next sweep.
     pub fn to_fetch_again(&mut self) {
         let had_files = self.has_attachments();
-        let text_here = !self.body_is_kept() && !self.kept.as_deref().is_some_and(|k| k.failed);
-        let preview = if text_here { self.body.text.chars().take(PREVIEW_CHARS).collect() } else { String::new() };
+        // (The text in memory, when there is one: a short text stays in the mailbox file while
+        // its HTML is kept on disk. Not the words that say the text couldn't be read.)
+        let failed = self.kept.as_deref().is_some_and(|k| k.failed);
+        let preview = if failed { String::new() } else { self.body.text.chars().take(PREVIEW_CHARS).collect() };
         self.body = Body { text: preview, html: None };
         self.hidden_text = String::new();
         self.attachments.clear();

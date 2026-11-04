@@ -138,7 +138,10 @@ fn refused_delete_after_a_reopen_puts_the_message_back_to_be_fetched_whole_and_a
     let back = titled(&s, "Invoice 42");
     assert!(!hollow(&s, back), "{:?}", s.mailbox.message(back).unwrap());
     let theirs = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
-    if !whole(&s, back) {
+    // To be fetched again: its text and file are on the server, and nowhere here.
+    let m = s.mailbox.message(back).unwrap();
+    assert!(m.unfetched && m.has_attachments(), "{m:?}");
+    {
         // Until the server has given it whole again, it moves nowhere, and nothing is sent.
         assert!(s.run("mail.move", &json!({"ids": [back], "folder": theirs})).is_err());
         assert!(graph_mail_request(&s, other).unwrap().places.is_empty());
@@ -200,6 +203,28 @@ fn a_kept_copy_read_back_from_a_file_is_fetched_again_rather_than_believed() {
     let q: Queued = serde_json::from_str(json).unwrap();
     let Queued::DeleteMessage { kept: Some(kept), .. } = q else { panic!("{q:?}") };
     assert!(kept.unfetched && kept.attachments.is_empty() && kept.has_attachments(), "{kept:?}");
+    // Written, a copy whole in memory goes as what reading it back would leave: no body or
+    // files written into the file at every save only to be let go of.
+    let mut whole = Message { subject: "Invoice 42".into(), body: Body { text: text(), html: Some("<p>Pay</p>".into()) }, ..Default::default() };
+    whole.attachments.push(Attachment::new("plan.txt", "text/plain", plan()));
+    let q = Queued::DeleteMessage { account: 3, id: "AAkA1".into(), kept: Some(Box::new(whole)) };
+    let written = serde_json::to_value(&q).unwrap();
+    let kept = &written["deleteMessage"]["kept"];
+    assert_eq!((kept["unfetched"].clone(), kept["attachments"].clone()), (json!(true), serde_json::Value::Null), "{kept}");
+    assert_eq!(kept["body"]["text"].as_str().unwrap().chars().count(), mailcraft_model::PREVIEW_CHARS);
+    assert!(kept["body"].get("html").is_none_or(serde_json::Value::is_null), "{kept}");
+    // A short text in memory, its HTML on disk: the text is the preview. One that couldn't be
+    // read gives none (the words saying so aren't its text).
+    let mut m = Message { body: Body { text: "Short.".into(), html: None }, ..Default::default() };
+    let r = mailcraft_model::ContentRef { sha256: [7; 32], len: 4096 };
+    m.kept = Some(Box::new(mailcraft_model::KeptBody { html: Some(r), ..Default::default() }));
+    assert!(m.body_is_kept());
+    m.to_fetch_again();
+    assert_eq!((m.body.text.as_str(), m.unfetched), ("Short.", true));
+    let mut m = Message { body: Body { text: "[unavailable]".into(), html: None }, ..Default::default() };
+    m.kept = Some(Box::new(mailcraft_model::KeptBody { text: Some(r), failed: true, ..Default::default() }));
+    m.to_fetch_again();
+    assert_eq!(m.body.text, "");
     // A queue entry without a copy still reads as one.
     let q: Queued = serde_json::from_str(r#"{"deleteMessage": {"account": 3, "id": "AAkA1"}}"#).unwrap();
     assert_eq!(q, Queued::DeleteMessage { account: 3, id: "AAkA1".into(), kept: None });
