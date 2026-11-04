@@ -364,3 +364,64 @@ fn a_rule_in_words_is_in_the_windows_language() {
         ]
     );
 }
+
+/// The rules for every account, from before a rule was for one account, are listed apart, under
+/// All accounts in "Rules for", and not in an account's list (#566). There they are switched on
+/// or off, moved and deleted; a new rule isn't made there. Once there are none, All accounts goes.
+#[test]
+fn rules_for_every_account_are_listed_apart_under_all_accounts() {
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    app.autosave = false;
+    let rule = json!({"name": "Mine", "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "markRead"}]});
+    app.execute("rules.add", rule).unwrap();
+    let id = app.session.mailbox.alloc_id();
+    let every = |id: Id, name: &str| Rule {
+        id,
+        name: name.into(),
+        enabled: true,
+        conditions: vec![mailcraft_model::Condition::HasAttachment],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    };
+    app.session.mailbox.rules.push(every(id, "Old"));
+    let second = app.session.mailbox.alloc_id();
+    app.session.mailbox.rules.push(every(second, "Older"));
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(6);
+    // The account's list: its own rule, and a word on when those of All accounts run.
+    assert!(h.query_by_label("Mine").is_some());
+    assert!(h.query_by_label("Old").is_none() && h.query_by_label("Older").is_none());
+    assert!(h.query_by_label_contains("those of All accounts first, then these").is_some());
+    h.get_by_role(egui::accesskit::Role::ComboBox).click();
+    h.run_steps(3);
+    h.get_by_label("All accounts").click();
+    h.run_steps(4);
+    assert!(h.query_by_label("Mine").is_none());
+    assert!(h.query_by_label("Old").is_some() && h.query_by_label("Older").is_some());
+    assert!(h.query_by_label_contains("They run on the mail of every account").is_some());
+    // New Rule makes nothing here.
+    h.get_by_label("New Rule").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Add Rule").is_none());
+    // Older goes up past Old, among them alone.
+    let downs = h.get_all_by_label("Move this rule up: it runs earlier").collect::<Vec<_>>().len();
+    assert_eq!(downs, 2);
+    h.get_all_by_label("Move this rule up: it runs earlier").last().unwrap().click();
+    h.run_steps(3);
+    let order: Vec<String> = h.state().session.mailbox.rules.iter().filter(|r| r.account == 0).map(|r| r.name.clone()).collect();
+    assert_eq!(order, ["Older", "Old"]);
+    // None left: All accounts goes, and the account's rules are shown.
+    h.state_mut().execute("rules.remove", json!({"id": id})).unwrap();
+    h.state_mut().execute("rules.remove", json!({"id": second})).unwrap();
+    h.run_steps(4);
+    assert!(h.query_by_label("Mine").is_some());
+    assert!(h.query_by_label("All accounts").is_none());
+}

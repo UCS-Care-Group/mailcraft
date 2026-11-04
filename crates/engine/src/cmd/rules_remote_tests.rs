@@ -246,10 +246,10 @@ fn a_change_made_here_survives_a_download_until_the_server_has_it() {
 }
 
 #[test]
-fn moving_one_accounts_rule_leaves_anothers_in_its_order() {
+fn an_accounts_rule_moves_among_its_own_and_those_for_every_account_run_before_them() {
     let (mut s, account, local, _) = session();
-    // A rule for every account, then one of this computer's account, then one of the Microsoft
-    // account's kept here: the Microsoft account's list is Every, Mine; the other's Every, Theirs.
+    // A rule for every account, then one of this computer's account, then two of the Microsoft
+    // account's kept here.
     s.mailbox.rules.push(Rule {
         id: 900,
         name: "Every".into(),
@@ -260,43 +260,48 @@ fn moving_one_accounts_rule_leaves_anothers_in_its_order() {
     });
     add(&mut s, local, "Theirs", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
     let mine = add(&mut s, account, "Mine", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    let later = add(&mut s, account, "Later", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
     let names = |s: &Session, a: Id| s.mailbox.rules_in_order(a).iter().map(|i| s.mailbox.rules[*i].name.clone()).collect::<Vec<_>>();
-    assert_eq!(
-        (names(&s, account), names(&s, local)),
-        (["Every", "Mine"].map(String::from).to_vec(), ["Every", "Theirs"].map(String::from).to_vec())
-    );
-    assert_eq!(run(&mut s, "rules.move", json!({"id": mine, "direction": "up"}))["moved"], true);
-    assert_eq!(names(&s, account), ["Mine", "Every"]);
+    assert_eq!((names(&s, account), names(&s, local)), (strings(&["Every", "Mine", "Later"]), strings(&["Every", "Theirs"])));
+    // The rule for every account is listed apart (All accounts): the account's first rule is first
+    // of its list, and doesn't go past it.
+    assert_eq!(run(&mut s, "rules.move", json!({"id": mine, "direction": "up"}))["moved"], false);
+    assert_eq!(run(&mut s, "rules.move", json!({"id": later, "direction": "up"}))["moved"], true);
+    assert_eq!(names(&s, account), ["Every", "Later", "Mine"]);
     assert_eq!(names(&s, local), ["Every", "Theirs"], "the other account's rules run as they did");
-    assert_eq!(run(&mut s, "rules.move", json!({"id": mine, "direction": "down"}))["moved"], true);
-    assert_eq!(
-        (names(&s, account), names(&s, local)),
-        (["Every", "Mine"].map(String::from).to_vec(), ["Every", "Theirs"].map(String::from).to_vec())
-    );
+    assert_eq!(run(&mut s, "rules.move", json!({"id": later, "direction": "down"}))["moved"], true);
+    assert_eq!((names(&s, account), names(&s, local)), (strings(&["Every", "Mine", "Later"]), strings(&["Every", "Theirs"])));
 }
 
 #[test]
-fn moving_a_rule_for_every_account_leaves_anothers_in_its_order() {
+fn a_rule_for_every_account_moves_among_those_alone_and_runs_before_an_accounts_own() {
     let (mut s, account, local, _) = session();
-    s.mailbox.rules.push(Rule {
-        id: 900,
-        name: "Every".into(),
+    let every = |id: Id, name: &str| Rule {
+        id,
+        name: name.into(),
         enabled: true,
         conditions: vec![Condition::HasAttachment],
         actions: vec![Action::Flag],
         ..Default::default()
-    });
+    };
+    s.mailbox.rules.push(every(900, "Every"));
     add(&mut s, local, "Theirs", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
     add(&mut s, account, "Mine", json!([{"type": "hasAttachment"}]), json!([{"type": "flag"}]));
+    // One for every account that stands after the accounts' own: it still runs before them.
+    s.mailbox.rules.push(every(901, "Second"));
     let names = |s: &Session, a: Id| s.mailbox.rules_in_order(a).iter().map(|i| s.mailbox.rules[*i].name.clone()).collect::<Vec<_>>();
     let both = |s: &Session| (names(s, account), names(s, local));
-    let list = |a: [&str; 2]| a.map(String::from).to_vec();
-    // Moved down in the Microsoft account's list, below its own rule: the other's stays.
-    assert_eq!(run(&mut s, "rules.move", json!({"id": 900, "account": account, "direction": "down"}))["moved"], true);
-    assert_eq!(both(&s), (list(["Mine", "Every"]), list(["Every", "Theirs"])));
-    // And up again.
-    assert_eq!(run(&mut s, "rules.move", json!({"id": 900, "account": account, "direction": "up"}))["moved"], true);
-    assert_eq!(both(&s), (list(["Every", "Mine"]), list(["Every", "Theirs"])));
+    assert_eq!(both(&s), (strings(&["Every", "Second", "Mine"]), strings(&["Every", "Second", "Theirs"])));
+    // Up past the other rule for every account, whichever account's list it is moved from (the
+    // `account` an older script names is let be).
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 901, "account": account, "direction": "up"}))["moved"], true);
+    assert_eq!(both(&s), (strings(&["Second", "Every", "Mine"]), strings(&["Second", "Every", "Theirs"])));
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 901, "direction": "up"}))["moved"], false);
+    // Down: the last of them, it goes no further, the accounts' own rules being in lists of
+    // their own.
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 900, "direction": "down"}))["moved"], false);
+    assert_eq!(run(&mut s, "rules.move", json!({"id": 901, "direction": "down"}))["moved"], true);
+    assert_eq!(both(&s), (strings(&["Every", "Second", "Mine"]), strings(&["Every", "Second", "Theirs"])));
 }
 
 #[test]
@@ -1153,7 +1158,6 @@ fn a_value_of_the_wrong_kind_is_refused_and_changes_nothing() {
         asked.push(("rules.add", new(json!({"account": account, "server": j}))));
         asked.push(("rules.add", new(json!({"account": account, "stop": j}))));
         asked.push(("rules.keepOnServer", json!({"id": 900, "account": j})));
-        asked.push(("rules.move", json!({"id": 900, "direction": "down", "account": j})));
         asked.push(("rules.fromMessage", json!({"folder": news, "id": m, "server": j})));
         asked.push(("rules.run", json!({"id": j})));
         asked.push(("rules.list", json!({"account": j})));
@@ -1810,4 +1814,8 @@ fn an_agents_undo_or_redo_that_leaves_a_rule_on_that_deletes_for_good_asks_as_a_
     run(&mut s, "rules.remove", json!({"id": purge}));
     assert_eq!(undo(&s, false), delete);
     assert!(describe(&s, "edit.undo", &json!({})).contains("the rules, with one switched on that deletes mail permanently, back"));
+}
+
+fn strings(names: &[&str]) -> Vec<String> {
+    names.iter().map(|n| n.to_string()).collect()
 }

@@ -370,6 +370,12 @@ msgid "A new message to MailCraft's maintainers, from your account: nothing is s
 msgstr "Een nieuw bericht aan de onderhouders van MailCraft, vanuit uw account: er wordt niets verzonden totdat u op Verzenden drukt."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A new rule is for one account: choose it in Rules for"
+msgstr "Een nieuwe regel is voor één account: kies het bij Regels voor"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -452,6 +458,18 @@ msgstr "Een regel vertelt MailCraft wat er met binnenkomende mail moet gebeuren.
 #, fuzzy
 msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then this computer's."
 msgstr "Een regel vertelt MailCraft wat er met binnenkomende mail moet gebeuren. Regels worden van boven naar beneden uitgevoerd: eerst die van de server, dan die van deze computer."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: the server's first, then those of All accounts, then this computer's."
+msgstr "Een regel vertelt MailCraft wat er met binnenkomende mail moet gebeuren. Regels worden van boven naar beneden uitgevoerd: eerst die van de server, dan die van Alle accounts, dan die van deze computer."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
+msgstr "Een regel vertelt MailCraft wat er met binnenkomende mail moet gebeuren. Regels worden van boven naar beneden uitgevoerd: eerst die van Alle accounts, dan deze."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -920,7 +938,7 @@ msgid "All Mailboxes"
 msgstr "Alle postvakken"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "Alle accounts"
@@ -1579,10 +1597,11 @@ msgstr "Hetzelfde bijvoegen als een iCalendar-bestand"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bestand bijgevoegd"
+msgstr[1] "{n} bestanden bijgevoegd"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -5539,8 +5558,8 @@ msgstr "De tekst ervan is vervangen"
 #, fuzzy
 msgid "Its {n} rule goes too; one its server keeps stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Ook de {n} regel ervan verdwijnt; bewaart de server ervan die regel, dan blijft hij daar."
-msgstr[1] "Ook de {n} regels ervan verdwijnen; regels die de server ervan bewaart, blijven daar."
+msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
+msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9591,6 +9610,12 @@ msgstr "Regels en categorieën"
 #, fuzzy
 msgid "Rules for"
 msgstr "Regels voor"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Rules from before a rule was for one account. They run on the mail of every account: after a server's rules, before an account's own on this computer."
+msgstr "Regels van voordat een regel voor één account was. Ze gelden voor de mail van elk account: na de regels van een server, vóór de eigen regels van een account op deze computer."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17543,8 +17568,9 @@ msgstr "{name} heeft deze uitnodiging beantwoord."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} couldn't be read ({why})"
-msgstr ""
+msgstr "{name} kon niet worden gelezen ({why})"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18120,17 +18146,19 @@ msgstr[1] "{n} vragen wachten nog."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{n} more was left out: at most {mb} MB at a time"
 msgid_plural "{n} more were left out: at most {mb} MB at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "nog {n} is weggelaten: hoogstens {mb} MB per keer"
+msgstr[1] "nog {n} zijn weggelaten: hoogstens {mb} MB per keer"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "nog {n} is weggelaten: hoogstens {most} bestanden per keer"
+msgstr[1] "nog {n} zijn weggelaten: hoogstens {most} bestanden per keer"
 
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
@@ -18267,8 +18295,8 @@ msgstr[1] "{n} resultaten in {scope}"
 #, fuzzy
 msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
 msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
-msgstr[0] "{n} hier verwijderde regel staat nog op de server totdat MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
-msgstr[1] "{n} hier verwijderde regels staan nog op de server totdat MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
+msgstr[0] "{n} regel die hier is verwijderd, staat nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
+msgstr[1] "{n} regels die hier zijn verwijderd, staan nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

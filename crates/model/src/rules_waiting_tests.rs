@@ -175,3 +175,24 @@ fn nothing_waits_for_a_message_that_is_here_whole_or_found_or_run_by_hand() {
     mb.run_rules(found, true, &clock());
     assert!(mb.message(found).unwrap().rules_waiting.is_none());
 }
+
+#[test]
+fn a_rule_that_shows_a_desktop_alert_marks_the_message_for_it_once_it_acts_after_the_fetch() {
+    let alert = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], alert: true, ..Default::default() };
+    let (mut mb, inbox, kept) = mailbox(vec![alert]);
+    let arrived = |mb: &mut Mailbox, text: &str, moved: Option<Id>| {
+        let m = listed(mb, inbox);
+        mb.apply_rules(m, &clock());
+        // As it arrives, the rule can't tell: no alert yet.
+        assert!(!mb.message(m).unwrap().rule_alert, "{text}");
+        if let Some(folder) = moved {
+            mb.move_message(m, folder).unwrap();
+        }
+        fetched(mb, m, text);
+        mb.run_waiting_rules(m, &clock());
+        mb.message(m).unwrap().rule_alert
+    };
+    assert!(arrived(&mut mb, "The invoice, in full.", None));
+    assert!(!arrived(&mut mb, "Nothing to pay.", None), "the rule doesn't apply");
+    assert!(!arrived(&mut mb, "The invoice, in full.", Some(kept)), "moved by the owner before it was fetched");
+}

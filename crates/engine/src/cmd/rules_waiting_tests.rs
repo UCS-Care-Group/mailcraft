@@ -163,3 +163,38 @@ fn an_exchange_server_accounts_new_mail_has_the_rules_that_read_its_text_once_it
         ews_mail::apply_ews_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     });
 }
+
+#[test]
+fn a_fetch_names_the_messages_a_waiting_rule_shows_a_desktop_alert_for() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    // An alert and nothing else, for mail whose text says "invoice"; and one for the subject,
+    // which tells as the mail arrives.
+    let text =
+        json!({"name": "Invoices", "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [], "alert": true});
+    s.run("rules.add", &text).unwrap();
+    let subject =
+        json!({"name": "Urgent", "server": false, "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [], "alert": true});
+    s.run("rules.add", &subject).unwrap();
+    let messages = vec![listed("N1", "F-in", "Plan"), listed("N2", "F-in", "Plan"), listed("N3", "F-in", "Urgent")];
+    let page = MessagePage { folder: "F-in".into(), messages, ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    assert!(!here(&s, account, "N1").rule_alert);
+    assert!(here(&s, account, "N3").rule_alert, "told of as it arrived");
+    let fetched = vec![
+        whole("N1", "Plan", "", "The invoice for May."),
+        whole("N2", "Plan", "", "Nothing to pay."),
+        whole("N3", "Urgent", "", "The invoice, urgently."),
+    ];
+    let said = graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    // The one that arrived told of already isn't named again.
+    assert_eq!(said["alerts"], json!([here(&s, account, "N1").id]));
+    assert!(here(&s, account, "N1").rule_alert && !here(&s, account, "N2").rule_alert);
+    // Fetched again, nothing more.
+    let again = vec![whole("N1", "Plan", "", "The invoice for May.")];
+    let said = graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: again, ..Default::default() }).unwrap();
+    assert_eq!(said["alerts"], json!([]));
+}
