@@ -61,7 +61,7 @@ sends.
 | Certificate | Works | Trusted by the system; no fingerprint question |
 | First download | Works | 24,574 messages as headers with a preview in 82.7 s; the whole messages then came down in the background ("Downloading 3052 of 24574" a few seconds later) |
 | Folder counts | Exact | The 7 mail folders the server lists (Inbox, Drafts, Sent Items, Deleted Items, Junk Email, Outbox, Conversation History) each match the server's own `FindFolder` `TotalCount` |
-| Archive | Extra, empty | MailCraft also shows an empty Archive, which the server does not list; this is MailCraft's own Archive folder, kept here until mail is put in it |
+| Archive | Extra, empty | MailCraft also shows an empty Archive, which the server does not list; being looked at |
 | Non-mail folders | Left out | "20 folders that are not mail folders are left out" |
 | A message in full (`mail.get`) | Works | Body, HTML and attachments present |
 | Calendar, contacts | Not there | As this page says (#720) |
