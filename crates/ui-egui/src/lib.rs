@@ -863,7 +863,10 @@ pub struct UiState {
     pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
-    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
+    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]). Settings
+    /// saved without them (an older install's) are read back on the engine's own, not on a new
+    /// install's: an owner who never chose is not moved onto what a new install turns on (#755).
+    #[serde(default = "mailcraft_engine::Prefs::default")]
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
@@ -956,7 +959,7 @@ impl Default for UiState {
             window: None,
             window_places: Default::default(),
             language: i18n::AUTO.into(),
-            options: mailcraft_engine::Prefs::default(),
+            options: fresh_options(),
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
@@ -989,6 +992,14 @@ impl Default for UiState {
             alert_reminders: true,
         }
     }
+}
+
+/// The engine's preferences in the window's settings for a new install: the engine's own, but
+/// for what the window turns on that a session without its settings (`mailcraft-cli run`,
+/// headless `mcp`) leaves off. An answered meeting request goes from the Inbox to Deleted Items,
+/// as in Outlook (#755); a saved choice, on or off, is read back as it was.
+fn fresh_options() -> mailcraft_engine::Prefs {
+    mailcraft_engine::Prefs { delete_answered_requests: true, ..Default::default() }
 }
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
@@ -1891,6 +1902,14 @@ impl MailApp {
     /// about to open in this frame. An empty list: the system places them.
     pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
         self.windows.monitors = Some(monitors);
+    }
+
+    /// Start on the window's settings for a new install, for a run that has none saved (no
+    /// settings file, one set aside, or a run that keeps none): the engine's preferences become
+    /// the ones of [`UiState::default`], which turn on what a session without the window leaves
+    /// off (#755). The hosts call this where they would otherwise [`MailApp::apply_prefs`].
+    pub fn fresh_prefs(&mut self) {
+        self.session.prefs = fresh_options();
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
