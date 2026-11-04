@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! An agent's undo or redo that takes a message away asks for Delete, as `mail.delete` does for
 //! the messages it deletes for good (#473).
+//! A refused undo or redo leaves the undo and redo stacks as they were (#767).
 
 use std::sync::Arc;
 
@@ -232,4 +233,87 @@ fn the_gate_agrees_with_what_the_undo_drops() {
             }
         }
     }
+}
+
+/// The labels and depths of the undo and redo stacks.
+fn stacks(s: &Session) -> (Option<&'static str>, Option<&'static str>, usize, usize) {
+    (s.undo_label(), s.redo_label(), s.history.len(), s.redo.len())
+}
+
+/// A message the owner flags and then puts in its account's Outbox, and the folder it was in.
+fn into_outbox(s: &mut Session) -> (Id, Id) {
+    let (m, _) = message_and_other_folder(s);
+    let message = s.mailbox.message(m).unwrap();
+    let (account, from) = (message.account, message.folder);
+    let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox && f.account == account).unwrap().id;
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": outbox})).unwrap();
+    (m, from)
+}
+
+#[test]
+fn a_refused_undo_leaves_the_stacks_as_they_were() {
+    // The owner makes an appointment and flags a message; undoing the appointment would take it
+    // away while the owner is changing it in a window: refused after the undo ran (#767).
+    let mut s = sample();
+    let made = s.run("calendar.new", &json!({"title": "Retro", "start": "2026-10-16T10:00"})).unwrap()["id"].as_u64().unwrap();
+    let (m, _) = message_and_other_folder(&s);
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    s.undo();
+    let was = stacks(&s);
+    let mailbox = s.mailbox.clone();
+    s.owner_changing = vec![made];
+    s.agent = Some(Class::ALL.to_vec());
+    let refused = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    s.owner_changing = Vec::new();
+    assert!(refused.unwrap_err().to_string().contains("the owner is changing in the window"));
+    assert_eq!(stacks(&s), was);
+    assert!(s.mailbox == mailbox);
+    // The owner's undo undoes the step that was on top, and the redo still redoes the flag last.
+    assert!(s.undo());
+    assert!(s.mailbox.event(made).is_none());
+    assert!(s.redo());
+    assert_eq!(s.redo_label(), was.1);
+    assert!(s.redo() && !s.can_redo());
+}
+
+#[test]
+fn a_refused_redo_leaves_the_stacks_as_they_were() {
+    let mut s = sample();
+    let (m, from) = into_outbox(&mut s);
+    s.undo();
+    let was = stacks(&s);
+    let mailbox = s.mailbox.clone();
+    s.agent = Some(Vec::new());
+    let refused = s.run("edit.redo", &json!({}));
+    s.agent = None;
+    assert!(refused.unwrap_err().to_string().contains("nothing was changed"));
+    assert_eq!(stacks(&s), was);
+    assert!(s.mailbox == mailbox);
+    assert_eq!(s.mailbox.message(m).unwrap().folder, from);
+    assert!(s.redo());
+    assert_ne!(s.mailbox.message(m).unwrap().folder, from);
+    assert!(!s.can_redo());
+}
+
+#[test]
+fn a_redo_refused_for_an_appointment_the_owner_is_changing_leaves_the_stacks() {
+    // The owner deletes an appointment and undoes that; an agent's redo would take it away again
+    // while the owner is changing it in a window, whatever the agent is allowed.
+    let mut s = sample();
+    let event = s.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    s.run("calendar.delete", &json!({"id": event})).unwrap();
+    s.undo();
+    let was = stacks(&s);
+    s.owner_changing = vec![event];
+    s.agent = Some(Class::ALL.to_vec());
+    let refused = s.run("edit.redo", &json!({}));
+    s.agent = None;
+    s.owner_changing = Vec::new();
+    assert!(refused.unwrap_err().to_string().contains("the owner is changing in the window"));
+    assert_eq!(stacks(&s), was);
+    assert!(s.mailbox.event(event).is_some());
+    assert!(s.redo());
+    assert!(s.mailbox.event(event).is_none());
 }
