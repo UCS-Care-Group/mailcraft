@@ -9,7 +9,7 @@ use mailcraft_model::remote::{
 };
 use mailcraft_model::remote_tasks::{TaskOutcome, TaskResult, TasksUploaded};
 use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome, ServerMessage};
-use mailcraft_model::{Calendar, Category, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Task, TaskFields};
+use mailcraft_model::{Calendar, Category, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Rights, Task, TaskFields};
 use serde_json::json;
 
 use crate::Session;
@@ -1705,6 +1705,16 @@ fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it()
     assert_eq!(s.mailbox.event(e).unwrap().categories, ["Red category"]);
     assert!(changes(&mut s, a).is_empty(), "deleted while the event there has it");
     event_answer(&mut s, a);
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
+
+    // An event of a calendar this account may only read keeps the old name there, and nothing
+    // waits for it.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    let calendar = s.mailbox.event(e).unwrap().calendar;
+    s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().rights = Rights::Read;
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    assert!(s.mailbox.event_changes.is_empty());
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
 
     // An event on this computer alone tells nobody.

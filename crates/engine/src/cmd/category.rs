@@ -123,10 +123,14 @@ fn categorized_events(s: &Session) -> Vec<mailcraft_model::Event> {
 
 /// The events whose categories a rename or a deletion changed (`before`: as they were) are told
 /// to their servers as an edit of each would be (#661). Mail and to-dos need nothing of the
-/// kind: what differs from the server's copy goes by itself.
+/// kind: what differs from the server's copy goes by itself. An event of a calendar this account
+/// may only read is not: it keeps the old name there.
 fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(), CmdError> {
     let offset_at = super::remote::offset_of(s);
     for e in before {
+        if super::remote::writable(&s.mailbox, e.calendar).is_err() {
+            continue;
+        }
         if s.mailbox.event(e.id).is_some_and(|now| now.categories != e.categories) {
             super::remote::note_changed(&mut s.mailbox, e, &offset_at)?;
         }
