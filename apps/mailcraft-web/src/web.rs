@@ -61,8 +61,9 @@ pub fn start() {
                         let mut services = services(build_inbox, ctx.clone());
                         crate::jmap::install(&mut services, &ctx, hook.clone());
                         let mut app = MailApp::new(Session::new(arrival.mailbox), services);
-                        if let Some(ui) = prefs {
-                            app.apply_prefs(ui);
+                        match prefs {
+                            Some(ui) => app.apply_prefs(ui),
+                            None => app.fresh_prefs(),
                         }
                         if let Some(hook) = &hook {
                             hook.add_accounts(&mut app);
