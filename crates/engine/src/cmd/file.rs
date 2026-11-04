@@ -146,6 +146,8 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     // Mail of Microsoft accounts kept with characters that couldn't be read is fetched again,
     // once (#185).
     let fetched_again = super::graph_down::refetch_unreadable(&mut s.mailbox);
+    // And so is mail an earlier version put back empty after a refused delete for good (#793).
+    let fetched_again = fetched_again.saturating_add(super::graph_down::refetch_hollow(&mut s.mailbox));
     if fetched_again > 0 {
         s.mailbox_changed();
     }

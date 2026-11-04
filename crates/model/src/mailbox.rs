@@ -757,10 +757,15 @@ pub enum Queued {
     /// server has answered: one the server refuses to delete is put back from it, with all that
     /// was fetched of it (S20). An entry without one (from an earlier version, or for a copy the
     /// server made of a message gone here) is put back from what the server says of it.
+    ///
+    /// The copy is whole only while it is whole in memory: one whose text or files were kept on
+    /// disk is kept to be fetched again ([`Message::to_fetch_again`]), as is every copy read back
+    /// from a file (#793), since nothing in the mailbox file names the content of a copy and a
+    /// sweep takes it. The server, having refused the delete, has the message whole.
     DeleteMessage {
         account: Id,
         id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "kept_read_back")]
         kept: Option<Box<Message>>,
     },
     /// The message `message` was moved or copied here into a folder of `account` from another
@@ -782,6 +787,33 @@ pub enum Queued {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<Id>,
     },
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: to be fetched again, whatever it
+/// holds (#793). A file written by 0.5.0 up to #793 kept the copy without the text and files it
+/// had on disk, which would come back as a message with no text and files of no bytes.
+fn kept_read_back<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Box<Message>>, D::Error> {
+    let kept = Option::<Box<Message>>::deserialize(d)?;
+    Ok(kept.map(|mut m| {
+        m.to_fetch_again();
+        m
+    }))
+}
+
+/// What a message deleted for good keeps of itself while its server is asked to delete it
+/// ([`Queued::DeleteMessage`]): all of it when it is whole in memory (named by nothing on disk:
+/// what is in memory is all it needs), else what [`Message::to_fetch_again`] leaves (#793).
+fn kept_for_put_back(m: &Message) -> Message {
+    let mut copy = m.clone();
+    if copy.is_loaded() && !copy.kept.as_deref().is_some_and(|k| k.failed) {
+        copy.kept = None;
+        for a in &mut copy.attachments {
+            a.kept = None;
+        }
+    } else {
+        copy.to_fetch_again();
+    }
+    copy
 }
 
 impl Queued {
@@ -1037,6 +1069,12 @@ pub struct Mailbox {
     /// for once only, so that a message whose own bytes are broken isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub redecoded: bool,
+    /// The messages of Microsoft and Exchange server accounts that look as one put back with no
+    /// text and files of no bytes after a refused delete for good (#793) were looked for once,
+    /// and marked to be fetched again from the server: once only, so that a message that really
+    /// is empty isn't fetched at every start.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unhollowed: bool,
     next_id: Id,
 }
 
@@ -1072,6 +1110,7 @@ impl Default for Mailbox {
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
+            unhollowed: false,
             next_id: 1,
         }
     }
@@ -2520,10 +2559,10 @@ impl Mailbox {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
         if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
-            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if let Some(out) = &m.moving_out {
-            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if !self.queued.is_empty() {
             self.queued.retain(|q| match q {

@@ -90,6 +90,8 @@ mod picture_tests;
 mod quote_tests;
 #[cfg(test)]
 mod read_receipt_tests;
+#[cfg(test)]
+mod refused_delete_tests;
 pub mod remote;
 #[cfg(test)]
 mod resend_reply_to_tests;
