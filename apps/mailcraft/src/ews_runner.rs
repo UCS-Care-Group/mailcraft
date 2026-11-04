@@ -96,7 +96,7 @@ pub(crate) struct Transport {
     sign_in: Mutex<SignIn>,
     /// Why the sign-in could not be had, when that is what stopped the run.
     auth_problem: Mutex<Option<AuthProblem>>,
-    /// How many requests the run has made, for its timings.
+    /// How many EWS requests the run has made, for its timings ([`Transport::requests_asked`]).
     asked: AtomicU32,
 }
 
@@ -144,9 +144,17 @@ impl Transport {
         }
     }
 
-    /// How many requests the run has made so far (a sign-in's legs are part of its request).
+    /// How many EWS requests the run has made so far, held at `u32::MAX` as Graph's count is. One is
+    /// counted for each request the run asks, not for each HTTP round trip: the legs a sign-in
+    /// takes (Basic's first try without the password, NTLM's two on a new connection) are part of
+    /// the request they sign in, so a run's number is how many things it asked the server.
     pub(crate) fn requests_asked(&self) -> u32 {
         self.asked.load(Ordering::Relaxed)
+    }
+
+    /// One more request asked ([`Transport::requests_asked`]).
+    fn count_request(&self) {
+        let _ = self.asked.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_add(1)));
     }
 
     /// Why the sign-in could not be had, when that stopped the run.
@@ -349,7 +357,7 @@ impl Transport {
 impl HttpExchange for Transport {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
         // (The call blocks, on the run's own thread.)
-        self.asked.fetch_add(1, Ordering::Relaxed);
+        self.count_request();
         ready(self.send(request))
     }
 }
