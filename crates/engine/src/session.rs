@@ -309,6 +309,8 @@ pub struct ViewState {
     pub task_sort: TaskSort,
     /// Whose tasks Tasks shows.
     pub task_account: AccountChoice,
+    /// Whose contacts People shows.
+    pub people_account: AccountChoice,
 }
 
 impl Default for ViewState {
@@ -336,6 +338,7 @@ impl Default for ViewState {
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
+            people_account: AccountChoice::All,
         }
     }
 }
@@ -2629,6 +2632,7 @@ impl Session {
         self.view.open.clear();
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
+        self.view.people_account = AccountChoice::All;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2702,6 +2706,11 @@ impl Session {
             // A step that changed no mail (a task, an appointment) leaves the message list as it
             // is, and what is selected in it (#485).
             self.sel.messages_of(&cur.sel);
+        }
+        // The contact selected again is shown in People's list (#631): a New Contact that moved
+        // the list to this computer, undone, has it back on the account it showed.
+        if let Some(contact) = self.sel.contact {
+            crate::cmd::people::reveal(self, contact);
         }
         self.normalize();
         cur

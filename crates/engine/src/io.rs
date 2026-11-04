@@ -557,6 +557,9 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 ids.push(s.mailbox.add_contact(c));
             }
             s.sel.contact = ids.first().copied();
+            if let Some(first) = s.sel.contact {
+                crate::cmd::people::reveal(s, first);
+            }
             Ok(json!({"format": "vcf", "contacts": ids.len(), "ids": ids}))
         }
     }

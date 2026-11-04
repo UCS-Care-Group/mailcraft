@@ -5,7 +5,7 @@
 //!
 //! The pictures the corpus refers to are drawn here, in code.
 
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, LazyLock, Mutex, mpsc};
 
 use egui::Color32;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -150,7 +150,15 @@ fn html_message(n: usize, from: (&str, &str), subject: &str, html: &str) -> Mess
 }
 
 /// The corpus as mail: the ordinary messages, the plain-text thread, then the hostile ones.
+/// Built once for the whole test binary: it holds messages of a million cells, and building it
+/// for every message a test asks for made one test take five minutes.
 pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
+    CORPUS.clone()
+}
+
+static CORPUS: LazyLock<Vec<(&'static str, Message)>> = LazyLock::new(build_corpus);
+
+fn build_corpus() -> Vec<(&'static str, Message)> {
     let mut out = vec![
         (
             "outlook reply",
@@ -258,7 +266,7 @@ fn lay_out(ctx: &egui::Context, m: &Message, width: f32) -> Laid {
 }
 
 fn corpus_message(name: &str) -> Message {
-    corpus_messages().into_iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("no {name} in the corpus")).1
+    CORPUS.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("no {name} in the corpus")).1.clone()
 }
 
 /// The text of a laid-out piece.

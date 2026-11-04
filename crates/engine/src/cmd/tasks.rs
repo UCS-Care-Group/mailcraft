@@ -155,8 +155,8 @@ fn reveal(s: &mut Session, origin: &Origin) {
     }
 }
 
-/// Where a task lives, as an answer says it.
-fn kept_at(mailbox: &Mailbox, origin: &Origin) -> String {
+/// Where a task or a contact lives, as an answer says it.
+pub(super) fn kept_at(mailbox: &Mailbox, origin: &Origin) -> String {
     mailbox.account(origin.account).map_or_else(|| "this computer".to_string(), |a| a.email.trim().to_string())
 }
 
