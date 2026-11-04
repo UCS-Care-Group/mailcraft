@@ -93,8 +93,8 @@ fn favorites_json(s: &Session) -> Value {
         .collect();
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             let server = favorites_from_server(s, a.id);
             let count = listed.iter().filter(|id| s.mailbox.folder(**id).is_some_and(|f| f.account == a.id)).count();
@@ -229,8 +229,8 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
     let counts = s.folder_counts();
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             let unread = counts.account(a.id).unread;
             let mut entry = json!({

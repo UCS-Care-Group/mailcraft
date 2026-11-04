@@ -49,7 +49,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     DraftDone, DraftUp, FolderChange, FolderChangeDone, GraphFolder, GraphMessage, GraphProgress, MAX_LISTED_FOLDERS, MessageChange,
-    MessageChangeDone, PlaceDone, PlaceUp, ReadState, SendDone, SendUp, is_false,
+    MessageChangeDone, PlaceDone, PlaceUp, ReadState, SendDone, SendUp, Timings, is_false,
 };
 use crate::Id;
 
@@ -335,6 +335,10 @@ pub struct EwsMailResult {
     /// it never got as far as the server's offer.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub signed_in_with: String,
+    /// How long this piece's part of the run took, and how many requests it made (#276, #748):
+    /// measured by the host, which makes the requests.
+    #[serde(skip_serializing_if = "Timings::is_empty")]
+    pub timings: Timings,
 }
 
 /// Whether `id` may be a server id of a folder or an item: not empty, at most [`MAX_EWS_ID`] bytes,
@@ -559,6 +563,7 @@ impl std::fmt::Debug for EwsMailResult {
             .field("auth_refused", &self.auth_refused)
             .field("untrusted", &!self.untrusted.is_empty())
             .field("signed_in_with", &self.signed_in_with)
+            .field("timings", &self.timings)
             .finish()
     }
 }

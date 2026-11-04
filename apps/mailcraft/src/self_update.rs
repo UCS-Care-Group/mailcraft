@@ -527,6 +527,7 @@ impl Handed {
     /// the data folder in the user's own profile allows, which is the user alone.
     fn fresh_dir(within: &Path) -> io::Result<PathBuf> {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = fs::DirBuilder::new();
         #[cfg(unix)]
         std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);

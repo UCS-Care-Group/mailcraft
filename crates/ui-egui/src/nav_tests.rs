@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The folder pane: what it lists, its counts and its chevrons.
 
+use egui_kittest::kittest::Queryable;
 use mailcraft_engine::Session;
 
 use super::*;
@@ -334,4 +335,207 @@ fn a_row_selects_and_its_chevron_folds() {
     assert!(harness.state().hit.rect("folder", child).is_none());
     click(&mut harness, pos2(inbox_row.min.x + CHEVRON_X, inbox_row.center().y));
     assert!(harness.state().hit.rect("folder", child).is_some());
+}
+
+/// Over an account, a dragged account goes in the gap above it in its upper half and below it in
+/// its lower half; above the first (over Favorites) in the first gap, below the last in the last.
+#[test]
+fn an_account_dragged_goes_in_the_nearest_gap() {
+    let block = |account: Id, top: f32| Block { account, top, line: top + 9.5 };
+    let blocks = [block(1, 100.0), block(2, 148.0), block(3, 196.0)];
+    let end = 400.0;
+    for (y, gap) in [(50.0, 0), (110.0, 0), (130.0, 1), (150.0, 1), (190.0, 2), (250.0, 2), (350.0, 3), (900.0, 3)] {
+        assert_eq!(gap_at(&blocks, end, y), gap, "at {y}");
+    }
+    assert_eq!(gap_at(&[], end, 10.0), 0);
+}
+
+/// The pointer pressed at `from` and moved to `to` a step a frame, still held.
+fn press_and_move(harness: &mut egui_kittest::Harness<'static, MailApp>, from: Pos2, to: Pos2) {
+    harness.run_steps(45);
+    harness.event(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.event(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+    harness.step();
+    for k in 1..=6 {
+        harness.event(egui::Event::PointerMoved(from + (to - from) * (k as f32 / 6.0)));
+        harness.step();
+    }
+}
+
+fn let_go(harness: &mut egui_kittest::Harness<'static, MailApp>, at: Pos2) {
+    harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+    harness.run_steps(3);
+}
+
+/// #702: an account is dragged by its heading to another place of the folder pane, and stays
+/// there; Escape, or letting go outside the pane, leaves it where it was; a click on the heading
+/// still folds it; the Favorites' heading doesn't drag (nor does a shared mailbox's, which goes
+/// with its account: `crates/model/src/account_order_tests.rs`).
+#[test]
+fn an_account_is_dragged_up_the_folder_pane() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    let mut add = |email: &str| harness.state_mut().session.run("account.add", &serde_json::json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (work, family) = (add("work@example.org"), add("family@example.org"));
+    for id in [first, work, family] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let order = |h: &egui_kittest::Harness<'static, MailApp>| owners(&h.state().session.mailbox);
+    let heading = |h: &egui_kittest::Harness<'static, MailApp>, id: Id| h.state().hit.rect("folderHeading", id).unwrap();
+    // Family into the upper half of Work's block: the line shows above Work while it is held.
+    let from = heading(&harness, family).center();
+    let to = pos2(from.x, heading(&harness, work).min.y + 6.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("accountGap", 1).is_some(), "the line in the gap above Work");
+    let_go(&mut harness, to);
+    assert_eq!(order(&harness), [first, family, work]);
+    assert_eq!(harness.state().session.mailbox.default_account().map(|a| a.id), Some(first));
+    assert!(harness.state().hit.rect("accountGap", 1).is_none(), "no line once let go");
+
+    // Escape, then letting go: nothing moves.
+    let from = heading(&harness, work).center();
+    let to = pos2(from.x, heading(&harness, first).min.y + 4.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("accountGap", 0).is_some());
+    harness.event(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
+    harness.step();
+    let_go(&mut harness, to);
+    assert_eq!(order(&harness), [first, family, work]);
+    // Let go over the message list: nothing moves either.
+    let outside = pos2(heading(&harness, work).max.x + 200.0, heading(&harness, first).center().y);
+    press_and_move(&mut harness, from, outside);
+    let_go(&mut harness, outside);
+    assert_eq!(order(&harness), [first, family, work]);
+
+    // The Favorites' heading doesn't drag.
+    let favorites = heading(&harness, FAVORITES).center();
+    press_and_move(&mut harness, favorites, to);
+    assert!(egui::DragAndDrop::payload::<AccountDrag>(&harness.ctx).is_none());
+    let_go(&mut harness, to);
+    assert_eq!(order(&harness), [first, family, work]);
+
+    // A click on a heading still unfolds it.
+    let at = heading(&harness, work).center();
+    click(&mut harness, at);
+    assert!(!harness.state().ui.collapsed_folders.contains(&work));
+}
+
+/// With one account of the owner's own there is nothing to put it beside: its heading doesn't drag.
+#[test]
+fn a_lone_account_doesnt_drag() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    let from = harness.state().hit.rect("folderHeading", first).unwrap().center();
+    press_and_move(&mut harness, from, from + vec2(0.0, -60.0));
+    assert!(egui::DragAndDrop::payload::<AccountDrag>(&harness.ctx).is_none());
+    let_go(&mut harness, from + vec2(0.0, -60.0));
+}
+
+/// #702: an agent's question comes up over the window while an account is held: letting go over
+/// it moves nothing, and no line is drawn under it.
+#[test]
+fn an_account_let_go_over_an_agents_question_stays() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    let mut add = |email: &str| harness.state_mut().session.run("account.add", &serde_json::json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (work, family) = (add("work@example.org"), add("family@example.org"));
+    for id in [first, work, family] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let heading = |h: &egui_kittest::Harness<'static, MailApp>, id: Id| h.state().hit.rect("folderHeading", id).unwrap();
+    let from = heading(&harness, family).center();
+    let to = pos2(from.x, heading(&harness, work).min.y + 6.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("accountGap", 1).is_some());
+    // An agent allowed nothing in advance asks to remove an account.
+    let (req, _rx) = crate::control::ControlRequest::new("engine.execute", serde_json::json!({"command": "account.remove", "params": {"id": work}}));
+    let ctx = harness.ctx.clone();
+    let _ = crate::control::handle(harness.state_mut(), &ctx, &req.from_agent(Vec::new()));
+    assert!(!harness.state().asking.is_empty(), "the agent is asking");
+    harness.run_steps(3);
+    assert!(harness.state().hit.rect("accountGap", 1).is_none(), "no line under the question");
+    let_go(&mut harness, to);
+    assert_eq!(owners(&harness.state().session.mailbox), [first, work, family]);
+    crate::agent_gate::answer(harness.state_mut(), false);
+    harness.run_steps(2);
+    assert_eq!(owners(&harness.state().session.mailbox), [first, work, family]);
+}
+
+/// #702: Move Up and Move Down name the account to go before, the end for the last; none at the
+/// ends, and none for an account that isn't the owner's own (a shared mailbox).
+#[test]
+fn move_up_and_down_name_the_place() {
+    let own = [1, 2, 3];
+    assert_eq!(move_before(&own, 2, true), Some(Some(1)));
+    assert_eq!(move_before(&own, 3, true), Some(Some(2)));
+    assert_eq!(move_before(&own, 1, true), None, "the first goes no higher");
+    assert_eq!(move_before(&own, 1, false), Some(Some(3)));
+    assert_eq!(move_before(&own, 2, false), Some(None), "the second of three goes last");
+    assert_eq!(move_before(&own, 3, false), None, "the last goes no lower");
+    assert_eq!(move_before(&own, 99, true), None);
+    assert_eq!(move_before(&[], 1, false), None);
+}
+
+/// #702: a drag near the top of the pane in view scrolls up, near the bottom down, faster at the
+/// edge; in between, and with the pointer well outside, as at the edge at most.
+#[test]
+fn a_drag_near_an_edge_of_the_pane_scrolls_it() {
+    let pane = Rect::from_min_max(pos2(0.0, 100.0), pos2(200.0, 500.0));
+    assert_eq!(edge_scroll(pane, 300.0), 0.0);
+    assert_eq!(edge_scroll(pane, 100.0 + ROW_H), 0.0);
+    assert!(edge_scroll(pane, 102.0) > edge_scroll(pane, 115.0) && edge_scroll(pane, 115.0) > 0.0);
+    assert!(edge_scroll(pane, 498.0) < edge_scroll(pane, 485.0) && edge_scroll(pane, 485.0) < 0.0);
+    assert_eq!(edge_scroll(pane, 50.0), edge_scroll(pane, 100.0));
+    assert_eq!(edge_scroll(pane, 900.0), edge_scroll(pane, 500.0));
+}
+
+fn right_click(harness: &mut egui_kittest::Harness<'static, MailApp>, pos: Pos2) {
+    harness.event(egui::Event::PointerMoved(pos));
+    harness.step();
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE });
+        harness.step();
+    }
+    harness.run_steps(2);
+}
+
+/// #702: an account's right-click menu moves it up or down the pane, as a drag does; at the top
+/// Move Up does nothing. A lone account's menu doesn't offer them.
+#[test]
+fn an_accounts_menu_moves_it_up_and_down() {
+    let mut harness = window();
+    let first = harness.state().session.mailbox.accounts[0].id;
+    // Alone, nothing to move it beside.
+    let at = harness.state().hit.rect("folderHeading", first).unwrap().center();
+    right_click(&mut harness, at);
+    assert!(harness.query_by_label("Move Up").is_none());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+
+    let mut add = |email: &str| harness.state_mut().session.run("account.add", &serde_json::json!({"email": email})).unwrap()["id"].as_u64().unwrap();
+    let (work, family) = (add("work@example.org"), add("family@example.org"));
+    for id in [first, work, family] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let order = |h: &egui_kittest::Harness<'static, MailApp>| owners(&h.state().session.mailbox);
+    let menu = |h: &mut egui_kittest::Harness<'static, MailApp>, id: Id, label: &str| {
+        let at = h.state().hit.rect("folderHeading", id).unwrap().center();
+        right_click(h, at);
+        h.get_by_label(label).click();
+        h.run_steps(3);
+    };
+    menu(&mut harness, family, "Move Up");
+    assert_eq!(order(&harness), [first, family, work]);
+    menu(&mut harness, first, "Move Down");
+    assert_eq!(order(&harness), [family, first, work]);
+    menu(&mut harness, first, "Move Down");
+    assert_eq!(order(&harness), [family, work, first]);
+    // Already at the top: greyed, and nothing moves.
+    menu(&mut harness, family, "Move Up");
+    assert_eq!(order(&harness), [family, work, first]);
+    assert_eq!(harness.state().session.mailbox.default_account().map(|a| a.id), Some(first));
 }
