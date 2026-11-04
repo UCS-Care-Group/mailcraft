@@ -339,7 +339,11 @@ fn a_message_whose_draft_was_taken_away_is_saved_again_before_an_agent_leaves_it
     run(&mut s, "compose.saveDraft", json!({}));
     let draft = s.compose.as_ref().unwrap().draft.unwrap();
     // An agent's undo takes the saved draft away; the message stays open with what was written.
-    as_agent(&mut s, "edit.undo", json!({}));
+    // (Taking a message away needs the owner's yes for Delete, #473.)
+    s.agent = Some(vec![Class::Delete]);
+    let undone = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    undone.unwrap();
     assert!(s.mailbox.message(draft).is_none() && !s.compose.as_ref().unwrap().dirty);
     // The question doesn't say it is in Drafts, and `discard` would throw it away.
     assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));

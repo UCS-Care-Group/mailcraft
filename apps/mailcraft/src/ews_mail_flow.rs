@@ -168,6 +168,10 @@ fn the_window_reads_an_exchange_account_and_fetches_what_is_opened_or_answered_w
     }
     let sent = app.session.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
     assert_eq!(here(&app, account, "Old minutes").map(|(_, folder, _)| folder), Some(sent));
+    // One Outbox, MailCraft's own: the server's, empty, isn't listed beside it (#747).
+    let outboxes: Vec<FolderKind> =
+        app.session.mailbox.folders.iter().filter(|f| f.account == account && f.name == "Outbox").map(|f| f.kind).collect();
+    assert_eq!(outboxes, vec![FolderKind::Outbox]);
     let (kickoff, ..) = here(&app, account, "Kickoff").unwrap();
     assert_eq!(app.session.mailbox.message(kickoff).unwrap().body.text, "Hello about Kickoff.");
     // Send/Receive Progress: the account's row, done, with what came.
