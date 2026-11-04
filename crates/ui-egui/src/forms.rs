@@ -6315,19 +6315,23 @@ pub(crate) mod rules {
         let (when, except) = looks_for(mb, r);
         let mut then = actions_said(mb, r);
         if r.alert {
-            then.push("show a desktop alert".into());
+            then.push(tl!("show a desktop alert").to_string());
         }
         let then = then.join(", ");
-        if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
+        if except.is_empty() {
+            crate::i18n::fmt(tl!("When {conditions}: {actions}"), &[("conditions", &when), ("actions", &then)])
+        } else {
+            crate::i18n::fmt(
+                tl!("When {conditions}, except if {exceptions}: {actions}"),
+                &[("conditions", &when), ("exceptions", &except), ("actions", &then)],
+            )
+        }
     }
 
     /// What a rule looks for, in words: its conditions, all of which must hold, and its
     /// exceptions, any one of which leaves a message alone.
     fn looks_for(mb: &Mailbox, r: &Rule) -> (String, String) {
-        let addresses = mb.rule_reads_addresses(r);
-        let when = r.conditions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" and ");
-        let except = r.exceptions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" or ");
-        (when, except)
+        r.looks_for_in(crate::i18n::current(), mb.rule_reads_addresses(r))
     }
 
     /// The rule as a rule opened in the list shows it: what it looks for, what it leaves alone,
@@ -6338,7 +6342,7 @@ pub(crate) mod rules {
             return vec![("", tl!("Made in another program or on the web, with parts MailCraft can't show").to_string())];
         }
         let (when, except) = looks_for(mb, r);
-        let mut parts = vec![(tl!("When"), when)];
+        let mut parts = vec![(tlc!("rule", "When"), when)];
         if !except.is_empty() {
             parts.push((tl!("Except if"), except));
         }
@@ -6346,7 +6350,7 @@ pub(crate) mod rules {
         if !then.is_empty() {
             parts.push((tl!("Then"), then));
         }
-        let also: Vec<&str> = [(r.stop, "stop processing more rules"), (r.alert, "show a desktop alert")]
+        let also: Vec<&str> = [(r.stop, tl!("stop processing more rules")), (r.alert, tl!("show a desktop alert"))]
             .into_iter()
             .filter_map(|(on, said)| on.then_some(said))
             .collect();
@@ -6358,20 +6362,27 @@ pub(crate) mod rules {
 
     /// What a rule does, each action in words, naming the folder a move or a copy goes to.
     fn actions_said(mb: &Mailbox, r: &Rule) -> Vec<String> {
-        let into = |verb: &str, f: Id| match mb.folder(f) {
-            Some(folder) if folder.account == r.account || r.account == 0 => format!("{verb} it to {}", crate::nav::folder_path(mb, f)),
-            Some(folder) if let Some(other) = mb.account(folder.account) => {
-                let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
-                format!("{verb} it to {} - {who}", crate::nav::folder_path(mb, f))
+        let into = |copy: bool, f: Id| {
+            let (to, to_other, gone) = if copy {
+                (tl!("copy it to {folder}"), tl!("copy it to {folder} - {mailbox}"), tl!("copy it to a folder that is gone"))
+            } else {
+                (tl!("move it to {folder}"), tl!("move it to {folder} - {mailbox}"), tl!("move it to a folder that is gone"))
+            };
+            match mb.folder(f) {
+                Some(folder) if folder.account == r.account || r.account == 0 => crate::i18n::fmt(to, &[("folder", &crate::nav::folder_path(mb, f))]),
+                Some(folder) if let Some(other) = mb.account(folder.account) => {
+                    let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
+                    crate::i18n::fmt(to_other, &[("folder", &crate::nav::folder_path(mb, f)), ("mailbox", who)])
+                }
+                _ => gone.to_string(),
             }
-            _ => format!("{verb} it to a folder that is gone"),
         };
         r.actions
             .iter()
             .map(|a| match a {
-                Action::MoveTo(f) => into("move", *f),
-                Action::CopyTo(f) => into("copy", *f),
-                other => other.describe(),
+                Action::MoveTo(f) => into(false, *f),
+                Action::CopyTo(f) => into(true, *f),
+                other => other.describe_in(crate::i18n::current()),
             })
             .collect()
     }
@@ -7128,7 +7139,7 @@ pub(crate) mod rules {
                 let mut drop_cond = None;
                 let many = conds.len() > 1;
                 for (i, c) in conds.iter_mut().enumerate() {
-                    row(ui, if i == 0 { tl!("When") } else { tl!("and") }, |ui| {
+                    row(ui, if i == 0 { tlc!("rule", "When") } else { tl!("and") }, |ui| {
                         if cond_row(ui, pass, c, ("when", i), on_server, categories, many) {
                             drop_cond = Some(i);
                         }

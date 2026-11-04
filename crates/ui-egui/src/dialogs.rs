@@ -1397,8 +1397,8 @@ pub(crate) fn sane_size(width: f32, height: f32) -> (f32, f32) {
 
 /// The layer of a dialog the owner sizes ([`sized_window`]), where its keys are asked for: it is
 /// a window of its own, not [`crate::keys::dialog_layer`].
-pub(crate) fn sized_layer(salt: &str) -> egui::LayerId {
-    egui::LayerId::new(egui::Order::Middle, egui::Id::unique(("sized_dialog", salt)))
+pub(crate) fn sized_layer(name: &str) -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Middle, egui::Id::unique(("sized_dialog", name)))
 }
 
 /// A dialog the owner moves by its title and makes larger or smaller by its edges and corners
@@ -1409,12 +1409,12 @@ pub(crate) fn sized_layer(salt: &str) -> egui::LayerId {
 pub(crate) fn sized_window(
     ctx: &egui::Context,
     title: &str,
-    salt: &str,
+    name: &str,
     (size, own): (egui::Vec2, egui::Vec2),
     add: impl FnOnce(&mut Ui),
 ) -> (bool, Option<egui::Vec2>) {
     let mut open = true;
-    let layer = sized_layer(salt);
+    let layer = sized_layer(name);
     let id = layer.id;
     ctx.move_to_top(layer);
     let screen = ctx.content_rect();

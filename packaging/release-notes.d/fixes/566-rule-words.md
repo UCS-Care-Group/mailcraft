@@ -1,0 +1,1 @@
+- In the Rules window, what a rule looks for and what it does are said in the window's language, and a rule's "When" is the "if" of a rule; they were in English, and "When" was the "when" of a time ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

@@ -11836,13 +11836,23 @@ msgid "What's new and how to get it:"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reading/invitation.rs
+#: crates/ui-egui/src/reading/invitation.rs
 msgid "When"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "When you switch:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "When {conditions}, except if {exceptions}: {actions}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "When {conditions}: {actions}"
 msgstr ""
 
 #. interface
@@ -12622,6 +12632,11 @@ msgstr[1] ""
 msgid "at most 200 messages can be forwarded together"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "body contains {words}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 msgid "calendar"
@@ -12630,6 +12645,26 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "categorize it as \"{category}\""
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "category is {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "clear its categories"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "clear its flag"
 msgstr ""
 
 #. what a command says
@@ -12642,9 +12677,39 @@ msgstr ""
 msgid "contact"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "copy it to a folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "copy it to a folder that is gone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "copy it to {folder}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "copy it to {folder} - {mailbox}"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 msgid "day"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "delete it"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "delete it permanently"
 msgstr ""
 
 #. interface
@@ -12655,6 +12720,31 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "everybody at @{domain}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "flag it"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "flag it for next week"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "flag it for this week"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "flag it for today"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "flag it for tomorrow"
 msgstr ""
 
 #. folder name
@@ -12715,14 +12805,34 @@ msgstr ""
 msgid "for the mail of {account}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "from contains {words}"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "from {from} to {to}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "from {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "has an attachment"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "header contains {words}"
 msgstr ""
 
 #. interface
@@ -12740,6 +12850,21 @@ msgstr ""
 msgid "icloud.com, me.com and mac.com"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "importance is high"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "importance is low"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "importance is normal"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 msgid "in {time}"
@@ -12753,6 +12878,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is a link: not followed, and nothing in it was removed"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "is a meeting invitation or update"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "is an automatic reply"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "is flagged"
 msgstr ""
 
 #. interface
@@ -12905,6 +13045,11 @@ msgstr ""
 msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "mark it as read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 msgid "minutes"
@@ -12918,6 +13063,46 @@ msgstr ""
 #. name
 #: crates/model/src/calendar.rs
 msgid "month"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "move it to a folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "move it to a folder that is gone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "move it to {folder}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "move it to {folder} - {mailbox}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "my address is in Cc"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "my address is in To"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "my address is in To or Cc"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "my address isn't in To"
 msgstr ""
 
 #. name
@@ -13226,8 +13411,44 @@ msgid "readOnly"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rule.rs
+msgid "received from {from} to {to}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "received on any day"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "received on or after {date}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "received on or before {date}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "recipient contains {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "recipient's address contains {words}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "replies can go to at most {n} addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgctxt "rule"
+msgid "When"
 msgstr ""
 
 #. name
@@ -13270,6 +13491,11 @@ msgstr ""
 msgid "select an appointment first"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sender's address contains {words}"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgctxt "sensitivity"
@@ -13294,6 +13520,51 @@ msgctxt "sensitivity"
 msgid "Private"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sensitivity is confidential"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sensitivity is normal"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sensitivity is personal"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sensitivity is private"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sent only to me"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "sent to {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "set importance to high"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "set importance to low"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "set importance to normal"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
@@ -13305,8 +13576,33 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "show a desktop alert"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "size is {min} KB to {max} KB"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "stop processing more rules"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "subject contains {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "subject or body contains {words}"
 msgstr ""
 
 #. what a command says
@@ -14036,6 +14332,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. See File › Info."
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "{all} and {next}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "{all} or {next}"
 msgstr ""
 
 #. interface
@@ -15050,6 +15356,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{why}. {n} changes made in it here wait on this computer."
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "{words} or {word}"
 msgstr ""
 
 #. what a command says

@@ -16,6 +16,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use mailcraft_i18n::{Lang, fmt};
+
 use crate::time::{Date, DateTime, Timestamp, Zone};
 use crate::{Address, FlagStatus, Id, Importance, Message, ModelError, Sensitivity, contains_ci};
 
@@ -198,36 +200,58 @@ impl Condition {
 
     /// [`Condition::describe`] for a rule that reads addresses alone ([`Matching::addresses_only`]).
     pub fn describe_as(&self, addresses_only: bool) -> String {
-        let words = |w: &[String]| w.iter().map(|t| format!("\"{t}\"")).collect::<Vec<_>>().join(" or ");
+        self.describe_in(Lang::English, addresses_only)
+    }
+
+    /// [`Condition::describe_as`] in `lang`, as the Rules window shows it. The words looked for
+    /// stay as they are, in quotes.
+    pub fn describe_in(&self, lang: Lang, addresses_only: bool) -> String {
+        let words = |w: &[String]| {
+            let mut quoted = w.iter().map(|t| format!("\"{t}\""));
+            let first = quoted.next().unwrap_or_default();
+            quoted.fold(first, |all, next| fmt(lang.t("{words} or {word}"), &[("words", &all), ("word", &next)]))
+        };
+        let with = |template: &str, w: &[String]| fmt(template, &[("words", &words(w))]);
         match self {
-            Condition::FromContains(t) if addresses_only => format!("sender's address contains {}", words(t)),
-            Condition::ToContains(t) if addresses_only => format!("recipient's address contains {}", words(t)),
-            Condition::FromContains(t) => format!("from contains {}", words(t)),
-            Condition::ToContains(t) => format!("recipient contains {}", words(t)),
-            Condition::SubjectContains(t) => format!("subject contains {}", words(t)),
-            Condition::BodyContains(t) => format!("body contains {}", words(t)),
-            Condition::HasAttachment => "has an attachment".into(),
-            Condition::Importance(i) => format!("importance is {}", i.code()),
-            Condition::From(p) => format!("from {}", words(p)),
-            Condition::SentTo(p) => format!("sent to {}", words(p)),
-            Condition::SentOnlyToMe => "sent only to me".into(),
-            Condition::ToMe => "my address is in To".into(),
-            Condition::CcMe => "my address is in Cc".into(),
-            Condition::ToOrCcMe => "my address is in To or Cc".into(),
-            Condition::NotToMe => "my address isn't in To".into(),
-            Condition::SubjectOrBodyContains(t) => format!("subject or body contains {}", words(t)),
-            Condition::HeaderContains(t) => format!("header contains {}", words(t)),
-            Condition::Sensitivity(s) => format!("sensitivity is {}", s.code()),
-            Condition::SizeBetween { min, max } => format!("size is {min} KB to {max} KB"),
-            Condition::MeetingRequest => "is a meeting invitation or update".into(),
-            Condition::AutomaticReply => "is an automatic reply".into(),
-            Condition::Category(c) => format!("category is {}", words(c)),
-            Condition::Flagged => "is flagged".into(),
+            Condition::FromContains(t) if addresses_only => with(lang.t("sender's address contains {words}"), t),
+            Condition::ToContains(t) if addresses_only => with(lang.t("recipient's address contains {words}"), t),
+            Condition::FromContains(t) => with(lang.t("from contains {words}"), t),
+            Condition::ToContains(t) => with(lang.t("recipient contains {words}"), t),
+            Condition::SubjectContains(t) => with(lang.t("subject contains {words}"), t),
+            Condition::BodyContains(t) => with(lang.t("body contains {words}"), t),
+            Condition::HasAttachment => lang.t("has an attachment").into(),
+            Condition::Importance(i) => match i {
+                Importance::Low => lang.t("importance is low").into(),
+                Importance::Normal => lang.t("importance is normal").into(),
+                Importance::High => lang.t("importance is high").into(),
+            },
+            Condition::From(p) => with(lang.t("from {words}"), p),
+            Condition::SentTo(p) => with(lang.t("sent to {words}"), p),
+            Condition::SentOnlyToMe => lang.t("sent only to me").into(),
+            Condition::ToMe => lang.t("my address is in To").into(),
+            Condition::CcMe => lang.t("my address is in Cc").into(),
+            Condition::ToOrCcMe => lang.t("my address is in To or Cc").into(),
+            Condition::NotToMe => lang.t("my address isn't in To").into(),
+            Condition::SubjectOrBodyContains(t) => with(lang.t("subject or body contains {words}"), t),
+            Condition::HeaderContains(t) => with(lang.t("header contains {words}"), t),
+            Condition::Sensitivity(s) => match s {
+                Sensitivity::Normal => lang.t("sensitivity is normal").into(),
+                Sensitivity::Personal => lang.t("sensitivity is personal").into(),
+                Sensitivity::Private => lang.t("sensitivity is private").into(),
+                Sensitivity::Confidential => lang.t("sensitivity is confidential").into(),
+            },
+            Condition::SizeBetween { min, max } => {
+                fmt(lang.t("size is {min} KB to {max} KB"), &[("min", &min.to_string()), ("max", &max.to_string())])
+            }
+            Condition::MeetingRequest => lang.t("is a meeting invitation or update").into(),
+            Condition::AutomaticReply => lang.t("is an automatic reply").into(),
+            Condition::Category(c) => with(lang.t("category is {words}"), c),
+            Condition::Flagged => lang.t("is flagged").into(),
             Condition::ReceivedBetween { from, to } => match (from, to) {
-                (Some(f), Some(t)) => format!("received from {} to {}", f.iso(), t.iso()),
-                (Some(f), None) => format!("received on or after {}", f.iso()),
-                (None, Some(t)) => format!("received on or before {}", t.iso()),
-                (None, None) => "received on any day".into(),
+                (Some(f), Some(t)) => fmt(lang.t("received from {from} to {to}"), &[("from", &f.iso()), ("to", &t.iso())]),
+                (Some(f), None) => fmt(lang.t("received on or after {date}"), &[("date", &f.iso())]),
+                (None, Some(t)) => fmt(lang.t("received on or before {date}"), &[("date", &t.iso())]),
+                (None, None) => lang.t("received on any day").into(),
             },
         }
     }
@@ -391,23 +415,32 @@ pub enum Action {
 
 impl Action {
     pub fn describe(&self) -> String {
+        self.describe_in(Lang::English)
+    }
+
+    /// [`Action::describe`] in `lang`, as the Rules window shows it.
+    pub fn describe_in(&self, lang: Lang) -> String {
         match self {
-            Action::MoveTo(_) => "move it to a folder".into(),
-            Action::Categorize(c) => format!("categorize it as \"{c}\""),
-            Action::Flag => "flag it".into(),
-            Action::MarkRead => "mark it as read".into(),
-            Action::SetImportance(i) => format!("set importance to {}", i.code()),
-            Action::Delete => "delete it".into(),
-            Action::CopyTo(_) => "copy it to a folder".into(),
-            Action::DeleteForGood => "delete it permanently".into(),
-            Action::FlagFor(f) => match f {
-                FollowUp::Today => "flag it for today".into(),
-                FollowUp::Tomorrow => "flag it for tomorrow".into(),
-                FollowUp::ThisWeek => "flag it for this week".into(),
-                FollowUp::NextWeek => "flag it for next week".into(),
+            Action::MoveTo(_) => lang.t("move it to a folder").into(),
+            Action::Categorize(c) => fmt(lang.t("categorize it as \"{category}\""), &[("category", c)]),
+            Action::Flag => lang.t("flag it").into(),
+            Action::MarkRead => lang.t("mark it as read").into(),
+            Action::SetImportance(i) => match i {
+                Importance::Low => lang.t("set importance to low").into(),
+                Importance::Normal => lang.t("set importance to normal").into(),
+                Importance::High => lang.t("set importance to high").into(),
             },
-            Action::ClearFlag => "clear its flag".into(),
-            Action::ClearCategories => "clear its categories".into(),
+            Action::Delete => lang.t("delete it").into(),
+            Action::CopyTo(_) => lang.t("copy it to a folder").into(),
+            Action::DeleteForGood => lang.t("delete it permanently").into(),
+            Action::FlagFor(f) => match f {
+                FollowUp::Today => lang.t("flag it for today").into(),
+                FollowUp::Tomorrow => lang.t("flag it for tomorrow").into(),
+                FollowUp::ThisWeek => lang.t("flag it for this week").into(),
+                FollowUp::NextWeek => lang.t("flag it for next week").into(),
+            },
+            Action::ClearFlag => lang.t("clear its flag").into(),
+            Action::ClearCategories => lang.t("clear its categories").into(),
         }
     }
 
@@ -607,14 +640,24 @@ impl Rule {
 
     /// [`Rule::describe`] for a rule that reads addresses alone.
     pub fn describe_as(&self, addresses_only: bool) -> String {
-        let when = self.conditions.iter().map(|c| c.describe_as(addresses_only)).collect::<Vec<_>>().join(" and ");
-        let except = self.exceptions.iter().map(|c| c.describe_as(addresses_only)).collect::<Vec<_>>().join(" or ");
+        let (when, except) = self.looks_for_in(Lang::English, addresses_only);
         let mut then: Vec<String> = self.actions.iter().map(Action::describe).collect();
         if self.alert {
             then.push("show a desktop alert".into());
         }
         let then = then.join(", ");
         if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
+    }
+
+    /// What it looks for in `lang`: its conditions, all of which must hold (joined by "and"), and
+    /// its exceptions, any one of which leaves a message alone (joined by "or").
+    pub fn looks_for_in(&self, lang: Lang, addresses_only: bool) -> (String, String) {
+        let joined = |list: &[Condition], template: &str| {
+            let mut said = list.iter().map(|c| c.describe_in(lang, addresses_only));
+            let first = said.next().unwrap_or_default();
+            said.fold(first, |all, next| fmt(template, &[("all", &all), ("next", &next)]))
+        };
+        (joined(&self.conditions, lang.t("{all} and {next}")), joined(&self.exceptions, lang.t("{all} or {next}")))
     }
 
     /// Whether it reads the body of a message, which has to be in memory for it.
