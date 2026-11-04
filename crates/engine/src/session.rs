@@ -1088,6 +1088,8 @@ pub struct Session {
     pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
+    /// Counts every change to the steps to undo and redo ([`Session::undo_steps_moved`]).
+    steps_moved: u64,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
     undo_said: Vec<String>,
     rev: u64,
@@ -1230,6 +1232,7 @@ impl Session {
             auto_replies: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
+            steps_moved: 0,
             undo_said: Vec::new(),
             rev: 0,
             list_cache: None,
@@ -2625,6 +2628,7 @@ impl Session {
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         self.sel = Selection::default();
         self.compose = None;
         self.composing.clear();
@@ -2675,6 +2679,13 @@ impl Session {
     pub fn forget_history(&mut self) {
         self.history.clear();
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
+    }
+
+    /// Changes with every step done, undone, redone or forgotten: a question about the next
+    /// undo or redo is about that step only while this stays the same (#473).
+    pub fn undo_steps_moved(&self) -> u64 {
+        self.steps_moved
     }
 
     /// What the last undo or redo couldn't do, in words (empty when it did everything).
@@ -2829,6 +2840,7 @@ impl Session {
 
     pub fn undo(&mut self) -> bool {
         let Some(u) = self.history.pop() else { return false };
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         let cur = self.swap(u);
         self.redo.push(cur);
         true
@@ -2836,6 +2848,7 @@ impl Session {
 
     pub fn redo(&mut self) -> bool {
         let Some(u) = self.redo.pop() else { return false };
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         let cur = self.swap(u);
         self.history.push(cur);
         true
@@ -3025,12 +3038,14 @@ impl Session {
                         self.dirty = true;
                         self.history.clear();
                         self.redo.clear();
+                        self.steps_moved = self.steps_moved.wrapping_add(1);
                     } else if history {
                         self.dirty = true;
                         let mut before = before;
                         before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
                         before.mail = before.mailbox.messages != self.mailbox.messages || before.mailbox.folders != self.mailbox.folders;
                         self.history.push(before);
+                        self.steps_moved = self.steps_moved.wrapping_add(1);
                         if self.history.len() > MAX_HISTORY {
                             self.history.remove(0);
                         }

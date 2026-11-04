@@ -33,8 +33,10 @@ pub struct Asking {
     pub class: Class,
     /// What else it needs, which the question names and a yes covers ([`agent::also`], #473).
     also: Vec<Class>,
-    /// The messages an undo or redo would take away, which the question names (#473).
+    /// The messages an undo or redo would take away, which the question names, and the steps
+    /// as they were when it was asked ([`mailcraft_engine::Session::undo_steps_moved`], #473).
     taken: Vec<u64>,
+    steps: u64,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -112,6 +114,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
             };
             let also = agent::also(&app.session, id, &params, class);
             let taken = undo_taken(app, id);
+            let steps = app.session.undo_steps_moved();
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
@@ -119,6 +122,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 class,
                 also,
                 taken,
+                steps,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
@@ -315,8 +319,12 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
         // What else it needs now, which the yes covers only when the question named it (#473).
         let also = agent::also(&app.session, &a.id, &params, a.class);
-        // Nor does it cover messages other than those the question named.
-        let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c)) || undo_taken(app, &a.id).iter().any(|m| !a.taken.contains(m));
+        // Nor does it cover another step than the one asked about, or other messages, drafts,
+        // contacts and the like than the question named.
+        let undoing = matches!(a.id.as_str(), "edit.undo" | "edit.redo");
+        let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c))
+            || undo_taken(app, &a.id).iter().any(|m| !a.taken.contains(m))
+            || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
         let mut allow = a.allow.clone();
         allow.push(a.class);
         allow.extend(also);

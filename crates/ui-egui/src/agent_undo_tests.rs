@@ -133,3 +133,33 @@ fn a_yes_to_the_accounts_alone_doesnt_cover_messages_the_step_takes_since() {
     assert!(reply["error"].as_str().is_some_and(|e| e.contains("more than the owner was asked about")), "{reply}");
     assert!(a.session.mailbox == before);
 }
+
+#[test]
+fn a_yes_is_about_the_step_asked_about_and_no_other_said_the_same_way() {
+    // Asked about undoing a new contact; meanwhile the owner undoes it and makes another, which
+    // the same question would describe word for word: the yes doesn't reach it.
+    let mut a = app();
+    a.execute("people.new", json!({"first": "Noor", "email": "noor@example.org"})).unwrap();
+    let (now, rx) = agent(&mut a, "edit.undo");
+    assert!(now.is_none(), "asked first");
+    assert_eq!(a.asking.front().unwrap().class, Class::Delete);
+    a.execute("edit.undo", json!({})).unwrap();
+    a.execute("people.new", json!({"first": "Noor", "email": "noor@example.org"})).unwrap();
+    let before = a.session.mailbox.clone();
+    answer(&mut a, true);
+    let reply = rx.try_recv().unwrap();
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(a.session.mailbox == before, "the owner's new contact stays");
+}
+
+#[test]
+fn a_yes_about_the_step_still_there_runs() {
+    let mut a = app();
+    a.execute("people.new", json!({"first": "Noor", "email": "noor@example.org"})).unwrap();
+    let contacts = a.session.mailbox.contacts.len();
+    let (_, rx) = agent(&mut a, "edit.undo");
+    answer(&mut a, true);
+    let reply = rx.try_recv().unwrap();
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(a.session.mailbox.contacts.len(), contacts - 1);
+}

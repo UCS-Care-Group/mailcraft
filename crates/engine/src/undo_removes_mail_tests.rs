@@ -382,3 +382,23 @@ fn a_step_that_removes_a_contact_and_takes_mail_names_both() {
     let d = describe(&s, "edit.undo", &json!({}));
     assert!(d.contains("contacts") && d.contains("takes away 1 message"), "{d}");
 }
+
+#[test]
+fn the_steps_moved_count_changes_with_every_step_and_nothing_else() {
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    let start = s.undo_steps_moved();
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    let flagged = s.undo_steps_moved();
+    assert_ne!(flagged, start);
+    arrive(&mut s);
+    assert_eq!(s.undo_steps_moved(), flagged, "mail coming in is no step");
+    assert!(s.undo());
+    let undone = s.undo_steps_moved();
+    assert_ne!(undone, flagged);
+    assert!(s.redo());
+    let redone = s.undo_steps_moved();
+    assert_ne!(redone, undone);
+    s.forget_history();
+    assert_ne!(s.undo_steps_moved(), redone);
+}
