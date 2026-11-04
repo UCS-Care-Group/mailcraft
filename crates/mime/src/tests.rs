@@ -737,3 +737,21 @@ fn the_message_id_said_to_be_written_is_the_one_written() {
         assert_eq!(written_message_id(raw), field, "{raw:?}");
     }
 }
+
+/// A sender who pads a message with headers can't push Exchange's own stamp of where it came from
+/// out of what is kept, and a flood of stamps is itself capped.
+#[test]
+fn exchange_stamps_are_kept_past_the_header_cap() {
+    use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+    let stamps = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(AUTH_AS)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
+    let padded = format!(
+        "{}{AUTH_AS}: Internal\r\n{}x-ms-exchange-organization-authas: Anonymous\r\n\r\n",
+        "X-Pad: 1\r\n".repeat(150),
+        "X-Pad: 1\r\n".repeat(150)
+    );
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    let flood = format!("{AUTH_AS}: Internal\r\n").repeat(MAX_AUTH_AS + 10);
+    assert_eq!(stamps(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
+    let long = format!("{AUTH_AS}: {}\r\n\r\n", "x".repeat(10_000));
+    assert_eq!(stamps(&parse(long.as_bytes()))[0].len(), 64);
+}

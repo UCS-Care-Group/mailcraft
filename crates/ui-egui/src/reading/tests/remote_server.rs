@@ -5,6 +5,7 @@
 //!
 //! The hosts and addresses are invented.
 
+use mailcraft_model::auth_results::MAX_AUTH_AS;
 use mailcraft_model::{Account, AccountKind, Address, Message, Security, Server};
 
 use crate::reading::remote::vouched;
@@ -352,4 +353,59 @@ fn what_the_server_copied_from_the_sender_is_never_its_verdict() {
     let microsoft = account(AccountKind::Microsoft, "");
     let m = delivered("spf=pass smtp.mailfrom==?us-ascii?q?x=3B_dmarc=3Dpass_header.from=3Dvictim.example_x?=@sender.example");
     assert!(!vouched(Some(&microsoft), &m));
+}
+
+/// Mail between colleagues on Exchange Online gets no DMARC verdict (`dmarc=none`, or no
+/// `Authentication-Results` at all), but Exchange's own stamp that it came from inside the
+/// organisation, which a sender outside can't write, stands for one: for the account's own
+/// domain alone.
+#[test]
+fn exchange_online_vouches_for_mail_from_inside_the_organisation() {
+    let colleague = |stamps: &[&str], results: &[&str]| {
+        let mut m = message(results);
+        m.from = Address::new("Colleague", "anna@lumen.example");
+        m.headers.extend(stamps.iter().map(|v| ("X-MS-Exchange-Organization-AuthAs".to_string(), v.to_string())));
+        m
+    };
+    let none = "dkim=none (message not signed) header.d=none;dmarc=none action=none header.from=lumen.example;";
+    let mut work = account(AccountKind::Microsoft, "");
+    work.email = "owner@lumen.example".into();
+    assert!(vouched(Some(&work), &colleague(&["Internal"], &[none])));
+    assert!(vouched(Some(&work), &colleague(&[" internal "], &[])));
+    let mut office_imap = imap("outlook.office365.com");
+    office_imap.email = work.email.clone();
+    assert!(vouched(Some(&office_imap), &colleague(&["Internal"], &[])));
+    // Mail from outside, a mixed stamp, or none at all.
+    assert!(!vouched(Some(&work), &colleague(&["Anonymous"], &[none])));
+    assert!(!vouched(Some(&work), &colleague(&["Internal", "Anonymous"], &[])));
+    assert!(!vouched(Some(&work), &colleague(&[], &[none])));
+    // As many stamps as the reader keeps may hide one more, which may have been Exchange's.
+    let many = |n: usize| vec!["Internal"; n];
+    assert!(vouched(Some(&work), &colleague(&many(MAX_AUTH_AS - 1), &[])));
+    assert!(!vouched(Some(&work), &colleague(&many(MAX_AUTH_AS), &[])));
+    // The server's own failed check wins over the stamp.
+    let failed = "spf=fail smtp.mailfrom=lumen.example; dmarc=fail action=quarantine header.from=lumen.example;";
+    assert!(!vouched(Some(&work), &colleague(&["Internal"], &[failed])));
+    // Another domain, though Exchange calls it internal (a partner's connector).
+    let mut partner = colleague(&["Internal"], &[]);
+    partner.from = Address::new("Partner", "bo@partner.example");
+    assert!(!vouched(Some(&work), &partner));
+    partner.from = Address::new("Lookalike", "anna@lumen.example.evil.example");
+    assert!(!vouched(Some(&work), &partner));
+    // A name under the organisation's domain is the organisation's.
+    partner.from = Address::new("Colleague", "anna@ee.lumen.example");
+    assert!(vouched(Some(&work), &partner));
+    // Not on Exchange Online, a consumer address (anybody's domain), or mail from a file.
+    let mut lumen = imap("imap.lumen.example");
+    lumen.email = work.email.clone();
+    assert!(!vouched(Some(&lumen), &colleague(&["Internal"], &[])));
+    let mut consumer = account(AccountKind::Microsoft, "");
+    consumer.email = "owner@outlook.com".into();
+    let mut stranger = colleague(&["Internal"], &[]);
+    stranger.from = Address::new("Stranger", "someone@outlook.com");
+    assert!(!vouched(Some(&consumer), &stranger));
+    let mut file = colleague(&["Internal"], &[]);
+    (file.uid, file.server) = (0, None);
+    assert!(!vouched(Some(&work), &file));
+    assert!(!vouched(None, &colleague(&["Internal"], &[])));
 }

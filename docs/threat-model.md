@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -63,7 +63,20 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
   suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
-  is not IMAP or Microsoft is asked about one message at a time. Mail the server does not hold
+  is not IMAP or Microsoft is asked about one message at a time. On Exchange Online, mail from
+  inside the owner's own organisation counts too, though it gets no DMARC verdict (`dmarc=none`, or
+  no `Authentication-Results` at all): every `X-MS-Exchange-Organization-AuthAs` header of it (at
+  least one, and fewer than 16, which the message reader keeps apart from its cap on headers so
+  that padding can't push Exchange's own out) says `Internal`, a header Exchange's header
+  firewall removes from mail arriving from outside and writes itself (as observed on a tenant:
+  Microsoft documents the firewall, not this header's every path), and the sender's domain is
+  the account's own or a name under it, never a consumer domain such as `outlook.com`
+  (`internal`); the cross-tenant header, which the sending tenant writes, is not read. A
+  connector the organisation set up may call a partner's mail internal, so a failed check in the
+  server's own `Authentication-Results` still wins. A colleague on another of the
+  organisation's domains is not vouched for this way. As with `Authentication-Results`, a
+  message the owner puts on the server from a file keeps the headers it carries.
+  Mail the server does not hold
   (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
   headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or
   `compauth`) clause whose own result is `pass` counts, with the `header.from` of that same clause,
@@ -492,6 +505,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
