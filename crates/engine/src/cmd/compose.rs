@@ -399,15 +399,9 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
                 add(&mut to, &[], a);
             }
             if to.is_empty() {
-                // A reply to a message I sent goes to the people I sent it to; else to whoever
-                // Reply-To names (the owner alone), else to the sender.
-                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() {
-                    &m.to
-                } else if m.reply_to.is_empty() {
-                    std::slice::from_ref(&m.from)
-                } else {
-                    &m.reply_to
-                };
+                // A reply to a message I sent goes to the people I sent it to; else to the
+                // sender, also when Reply-To names nobody but the owner.
+                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() { &m.to } else { std::slice::from_ref(&m.from) };
                 for a in fallback {
                     add(&mut to, &[], a);
                 }

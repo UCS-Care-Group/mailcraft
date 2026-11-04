@@ -169,3 +169,13 @@ fn a_reply_to_line_too_long_to_be_true_is_answered_only_in_part() {
     let (to, _) = reply(&mut s, "mail.replyAll", id);
     assert_eq!(to.split("; ").count(), mailcraft_mime::MAX_RECIPIENTS);
 }
+
+#[test]
+fn mail_from_others_whose_reply_to_names_only_the_owner_replies_to_the_sender() {
+    let (mut s, owner) = session();
+    let id = message(&mut s, owner, "sender@example.net", &[OWNER, "alex@example.net"], &["sam@example.net", SHARED], &[OWNER, SHARED]);
+    let (to, cc) = reply(&mut s, "mail.reply", id);
+    assert_eq!((to.as_str(), cc.as_str()), ("sender@example.net", ""));
+    let (to, cc) = reply(&mut s, "mail.replyAll", id);
+    assert_eq!((to.as_str(), cc.as_str()), ("sender@example.net; alex@example.net", "sam@example.net"));
+}
