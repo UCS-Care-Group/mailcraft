@@ -9,7 +9,7 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
-use mailcraft_model::{Action, Condition, Id, Importance, Keep, Mailbox, Rule, RuleGone, clean_name};
+use mailcraft_model::{Action, Condition, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message};
@@ -20,7 +20,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
-            r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer"#,
+            r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer; a rule the server doesn't let be changed moves too, and goes back to its place there if the server won't have it"#,
         ),
         CommandSpec::new("rules.keepOnServer", "Keep Rule on Server", "Home › Move", keep_on_server).params(
             r#"{"id": number, "account"?: number (for a rule for every account: the Microsoft account whose server is to keep it, which it is then for alone)} — a rule kept on this computer goes to its Microsoft account's server at the next look, when the server can do all of it"#,
@@ -41,9 +41,10 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// Why a rule can't be kept on an account's server (#566). Graph's rules know no flag; move mail
-/// only to a folder of the same mailbox, and to one at most; and take several texts of one kind
-/// as "any of them", where MailCraft's conditions all have to hold.
+/// Why a rule can't be kept on an account's server (#566). Graph's rules know no flag, no
+/// clearing of categories, no day mail came on and no desktop alert, and aren't asked to delete
+/// for good; move and copy mail only to a folder of the same mailbox, and to one at most; and
+/// take several texts of one kind as "any of them", where MailCraft's conditions all have to hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotOnServer {
     /// MailCraft keeps no rules on the account's server (an account of this computer, IMAP).
@@ -64,6 +65,22 @@ pub enum NotOnServer {
     /// A Microsoft account kept in step by IMAP: its rules on the server are reached through
     /// Microsoft Graph.
     NotInStep,
+    /// The folder it copies mail to is on this computer, another account's, or not on the server.
+    CopyHere,
+    CopyElsewhere,
+    CopyNotThere,
+    TwoCopies,
+    ClearCategories,
+    /// It looks at the day mail came.
+    Days,
+    /// It shows a desktop alert.
+    Alert,
+    /// Two exceptions of one kind that look for other things (two importances, say): the server
+    /// takes one of each kind.
+    TwoExceptionsOfAKind,
+    /// It deletes mail for good, which MailCraft asks of no server (R3): here, as Shift+Delete
+    /// does, it goes where the server keeps what can still be recovered.
+    DeleteForGood,
 }
 
 impl NotOnServer {
@@ -80,6 +97,15 @@ impl NotOnServer {
             NotOnServer::TwoImportances => "it sets more than one importance",
             NotOnServer::Names => "it looks for a name, and the server looks at addresses only",
             NotOnServer::NotInStep => "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph",
+            NotOnServer::CopyHere => "the folder it copies mail to is on this computer",
+            NotOnServer::CopyElsewhere => "the folder it copies mail to is in another account",
+            NotOnServer::CopyNotThere => "the folder it copies mail to isn't on the server",
+            NotOnServer::TwoCopies => "it copies mail to more than one folder",
+            NotOnServer::ClearCategories => "the server can't clear categories",
+            NotOnServer::Days => "the server can't look at the day mail came",
+            NotOnServer::Alert => "the server can't show a desktop alert",
+            NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
+            NotOnServer::DeleteForGood => "it deletes mail for good, which MailCraft doesn't ask a server to do",
         }
     }
 }
@@ -94,23 +120,48 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     if rule.conditions.iter().enumerate().any(|(i, c)| rule.conditions.iter().skip(i + 1).any(|d| kind(c) == kind(d))) {
         return Some(NotOnServer::TwoOfAKind);
     }
-    if rule.conditions.iter().any(|c| matches!(c, Condition::FromContains(t) | Condition::ToContains(t) if !in_an_address(t))) {
+    // Exceptions of one kind are one list of words or people there; others must be the same.
+    let exceptions = &rule.exceptions;
+    if exceptions.iter().enumerate().any(|(i, c)| exceptions.iter().skip(i + 1).any(|d| kind(c) == kind(d) && c.words().is_none() && c != d)) {
+        return Some(NotOnServer::TwoExceptionsOfAKind);
+    }
+    let parts = || rule.conditions.iter().chain(exceptions);
+    if parts().any(|c| matches!(c, Condition::ReceivedBetween { .. })) {
+        return Some(NotOnServer::Days);
+    }
+    if parts().any(|c| matches!(c, Condition::FromContains(w) | Condition::ToContains(w) if w.iter().any(|t| !in_an_address(t)))) {
         return Some(NotOnServer::Names);
     }
+    if rule.alert {
+        return Some(NotOnServer::Alert);
+    }
     let mut moves = 0usize;
+    let mut copies = 0usize;
     let mut importance: Option<Importance> = None;
     for action in &rule.actions {
         match action {
-            Action::Flag => return Some(NotOnServer::Flag),
-            Action::MoveTo(folder) => {
-                moves += 1;
-                let Some(f) = mb.folder(*folder) else { return Some(NotOnServer::FolderNotThere) };
+            Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Some(NotOnServer::Flag),
+            Action::ClearCategories => return Some(NotOnServer::ClearCategories),
+            Action::MoveTo(folder) | Action::CopyTo(folder) => {
+                let copy = matches!(action, Action::CopyTo(_));
+                if copy {
+                    copies += 1;
+                } else {
+                    moves += 1;
+                }
+                let not_there = if copy { NotOnServer::CopyNotThere } else { NotOnServer::FolderNotThere };
+                let Some(f) = mb.folder(*folder) else { return Some(not_there) };
                 if f.account != account {
                     let local = mb.account(f.account).is_some_and(|a| !a.kind.has_server());
-                    return Some(if local { NotOnServer::FolderHere } else { NotOnServer::FolderElsewhere });
+                    return Some(match (local, copy) {
+                        (true, false) => NotOnServer::FolderHere,
+                        (false, false) => NotOnServer::FolderElsewhere,
+                        (true, true) => NotOnServer::CopyHere,
+                        (false, true) => NotOnServer::CopyElsewhere,
+                    });
                 }
                 if f.server.as_ref().is_none_or(|s| s.id.is_empty()) {
-                    return Some(NotOnServer::FolderNotThere);
+                    return Some(not_there);
                 }
             }
             Action::SetImportance(i) => {
@@ -119,10 +170,15 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
                 }
                 importance = Some(*i);
             }
+            Action::DeleteForGood => return Some(NotOnServer::DeleteForGood),
             Action::Categorize(_) | Action::MarkRead | Action::Delete => {}
         }
     }
-    if moves > 1 { Some(NotOnServer::TwoMoves) } else { None }
+    match (moves > 1, copies > 1) {
+        (true, _) => Some(NotOnServer::TwoMoves),
+        (_, true) => Some(NotOnServer::TwoCopies),
+        _ => None,
+    }
 }
 
 /// Whether `words` can be part of an address: no space, none of the marks that set a name or a
@@ -153,44 +209,131 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
     }
 }
 
-fn text(v: &Value) -> Result<String, CmdError> {
-    let t: String = p::str(v, "value").unwrap_or("").trim().chars().take(200).collect();
-    if t.is_empty() { Err(bad("a condition needs a `value`")) } else { Ok(t) }
+/// The words under `value`: a text, or a list of them, any one of which is enough; at most
+/// [`MAX_WORDS_EACH`] of 200 characters each. `what` says what they are, for an error.
+fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
+    let one = |w: &Value| -> Result<String, CmdError> {
+        let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(200).collect();
+        if t.is_empty() { Err(bad(format!("`value` has {what} that is empty"))) } else { Ok(t) }
+    };
+    let list: Vec<String> = match v.get("value") {
+        Some(Value::Array(items)) if items.len() > MAX_WORDS_EACH => return Err(bad(format!("`value` has more than {MAX_WORDS_EACH} of {what}"))),
+        Some(Value::Array(items)) => items.iter().map(one).collect::<Result<_, _>>()?,
+        Some(w) => vec![one(w)?],
+        None => Vec::new(),
+    };
+    let mut kept: Vec<String> = Vec::new();
+    for w in list {
+        if !kept.iter().any(|k| k.eq_ignore_ascii_case(&w)) {
+            kept.push(w);
+        }
+    }
+    if kept.is_empty() { Err(bad(format!("a condition needs a `value`: {what}"))) } else { Ok(kept) }
+}
+
+/// Whether a sender's `email` is one whole address that a rule can look for as it is (`from`); a
+/// rule for any other has the sender's words looked for instead (`fromContains`).
+pub fn by_address(email: &str) -> bool {
+    email.len() <= 254 && mailcraft_model::search::is_address(email)
+}
+
+/// The people under `value`, by their whole addresses (`name@domain`).
+fn people(v: &Value) -> Result<Vec<String>, CmdError> {
+    let list = words(v, "addresses")?;
+    match list.iter().find(|a| !mailcraft_model::search::is_address(a)) {
+        Some(a) => Err(bad(format!("\"{a}\" isn't an address"))),
+        None => Ok(list),
+    }
+}
+
+/// A size in KB under `key` of `value`, at most what a Microsoft account's server keeps (a
+/// 32-bit number, Graph's `sizeRange`).
+fn kb(v: &Value, key: &str) -> Result<u64, CmdError> {
+    v.get("value")
+        .and_then(|x| p::u64(x, key))
+        .filter(|n| i32::try_from(*n).is_ok())
+        .ok_or_else(|| bad(format!("sizeBetween needs `{key}`: a size in KB")))
 }
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
+    let value = || p::str(v, "value").unwrap_or("");
     Ok(match p::req_str(v, "type")? {
-        "fromContains" => Condition::FromContains(text(v)?),
-        "toContains" => Condition::ToContains(text(v)?),
-        "subjectContains" => Condition::SubjectContains(text(v)?),
-        "bodyContains" => Condition::BodyContains(text(v)?),
+        "fromContains" => Condition::FromContains(words(v, "words")?),
+        "toContains" => Condition::ToContains(words(v, "words")?),
+        "subjectContains" => Condition::SubjectContains(words(v, "words")?),
+        "bodyContains" => Condition::BodyContains(words(v, "words")?),
+        "subjectOrBodyContains" => Condition::SubjectOrBodyContains(words(v, "words")?),
+        "headerContains" => Condition::HeaderContains(words(v, "words")?),
+        "from" => Condition::From(people(v)?),
+        "sentTo" => Condition::SentTo(people(v)?),
+        "category" => {
+            let names: Vec<String> = words(v, "categories")?.iter().filter_map(|c| clean_name(c)).collect();
+            if names.is_empty() {
+                return Err(bad("category needs a category name"));
+            }
+            Condition::Category(names)
+        }
         "hasAttachment" => Condition::HasAttachment,
-        "importance" => {
-            Condition::Importance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
+        "sentOnlyToMe" => Condition::SentOnlyToMe,
+        "toMe" => Condition::ToMe,
+        "ccMe" => Condition::CcMe,
+        "toOrCcMe" => Condition::ToOrCcMe,
+        "notToMe" => Condition::NotToMe,
+        "meetingRequest" => Condition::MeetingRequest,
+        "automaticReply" => Condition::AutomaticReply,
+        "flagged" => Condition::Flagged,
+        "importance" => Condition::Importance(Importance::parse(value()).ok_or_else(|| bad("importance is low, normal or high"))?),
+        "sensitivity" => {
+            Condition::Sensitivity(Sensitivity::parse(value()).ok_or_else(|| bad("sensitivity is normal, personal, private or confidential"))?)
+        }
+        "sizeBetween" => {
+            let (min, max) = (kb(v, "min")?, kb(v, "max")?);
+            if min > max {
+                return Err(bad("sizeBetween's `min` is above its `max`"));
+            }
+            Condition::SizeBetween { min, max }
+        }
+        "receivedBetween" => {
+            let days =
+                v.get("value").filter(|d| d.is_object()).ok_or_else(|| bad("receivedBetween needs `value`: {\"from\"?: date, \"to\"?: date}"))?;
+            let (from, to) = (p::date(days, "from")?, p::date(days, "to")?);
+            match (from, to) {
+                (None, None) => return Err(bad("receivedBetween needs `from`, `to` or both")),
+                (Some(f), Some(t)) if f > t => return Err(bad("receivedBetween's `from` is after its `to`")),
+                _ => Condition::ReceivedBetween { from, to },
+            }
         }
         other => return Err(bad(format!("unknown condition type \"{other}\""))),
     })
 }
 
 fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
+    let folder = || -> Result<Id, CmdError> {
+        let folder = p::req_id(v, "value")?;
+        refuse_send_queue(s, folder)?;
+        s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = folder))
+    };
     Ok(match p::req_str(v, "type")? {
-        "moveTo" => {
-            let folder = p::req_id(v, "value")?;
-            refuse_send_queue(s, folder)?;
-            Action::MoveTo(s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = folder))?)
-        }
+        "moveTo" => Action::MoveTo(folder()?),
+        "copyTo" => Action::CopyTo(folder()?),
         "categorize" => Action::Categorize(clean_name(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("categorize needs a category name"))?),
         "flag" => Action::Flag,
+        "flagFor" => {
+            Action::FlagFor(FollowUp::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("flagFor is today, tomorrow, thisWeek or nextWeek"))?)
+        }
+        "clearFlag" => Action::ClearFlag,
+        "clearCategories" => Action::ClearCategories,
         "markRead" => Action::MarkRead,
         "setImportance" => {
             Action::SetImportance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
         }
         "delete" => Action::Delete,
+        "deleteForGood" => Action::DeleteForGood,
         other => return Err(bad(format!("unknown action type \"{other}\""))),
     })
 }
 
-/// A rule never moves mail into an Outbox: the next Send/Receive would send it.
+/// A rule never moves or copies mail into an Outbox: the next Send/Receive would send it.
 fn refuse_send_queue(s: &Session, folder: Id) -> Result<(), CmdError> {
     if s.mailbox.is_send_queue(folder) { Err(fail("a rule can't move mail to an Outbox: that would send it")) } else { Ok(()) }
 }
@@ -204,11 +347,18 @@ fn own_account(mb: &Mailbox, account: Id) -> Id {
     }
 }
 
-/// The account a new rule is for: the one `v` names, or none (for every account's mail, kept on
-/// this computer, as rules were before they had accounts: what a script that names none asked
-/// for then).
+/// The account a new rule is for: the one `v` names, or else the one in view, as the Rules window
+/// opens on it (a shared mailbox's owner for one of its folders, the first account for none). A
+/// rule belongs to one account; one for every account's mail is only one from before rules had
+/// accounts (#566).
 fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let Some(account) = p::id_strict(v, "account")? else { return Ok(0) };
+    let Some(account) = p::id_strict(v, "account")? else {
+        let mb = &s.mailbox;
+        let in_view = mb.folder(s.view.folder).map(|f| own_account(mb, f.account));
+        let fits = |a: &Id| mb.account(*a).is_some_and(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown);
+        let first = || mb.accounts.iter().find(|a| !a.is_shared() && a.kind != mailcraft_model::AccountKind::Unknown).map(|a| a.id);
+        return Ok(in_view.filter(fits).or_else(first).unwrap_or(0));
+    };
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.is_shared() {
         return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));
@@ -216,31 +366,40 @@ fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
     Ok(account)
 }
 
+/// The most conditions, exceptions or actions a rule has.
+const MOST_PARTS: usize = 20;
+
+/// The conditions under `key` of `v`: a list, required or not.
+fn condition_list(v: &Value, key: &str, required: bool) -> Result<Vec<Condition>, CmdError> {
+    match v.get(key) {
+        None if !required => Ok(Vec::new()),
+        // Not cut short: a rule without one of its conditions acts on more mail than it was to,
+        // and one without an exception lets through mail it was to leave alone.
+        Some(Value::Array(list)) if list.len() > MOST_PARTS => Err(bad(format!("`{key}` has more than {MOST_PARTS}"))),
+        Some(Value::Array(list)) => list.iter().map(condition).collect(),
+        _ => Err(bad(format!("`{key}` (a list) is {}", if required { "required" } else { "a list" }))),
+    }
+}
+
 /// The rule `v` asks for, with no id yet (shared by the command and the agent's question).
 pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError> {
     let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
-    let conditions = v
-        .get("conditions")
-        .and_then(Value::as_array)
-        .ok_or_else(|| bad("`conditions` (a list) is required"))?
-        .iter()
-        .take(20)
-        .map(condition)
-        .collect::<Result<Vec<_>, _>>()?;
-    let actions = v
-        .get("actions")
-        .and_then(Value::as_array)
-        .ok_or_else(|| bad("`actions` (a list) is required"))?
-        .iter()
-        .take(20)
-        .map(|a| action(s, a))
-        .collect::<Result<Vec<_>, _>>()?;
-    if conditions.is_empty() || actions.is_empty() {
+    let conditions = condition_list(v, "conditions", true)?;
+    // Kept as the server keeps them, so that a rule sent there is known again when it is read
+    // back.
+    let exceptions = mailcraft_model::fold_exceptions(condition_list(v, "exceptions", false)?).map_err(|e| bad(e.to_string()))?;
+    let actions = v.get("actions").and_then(Value::as_array).ok_or_else(|| bad("`actions` (a list) is required"))?;
+    if actions.len() > MOST_PARTS {
+        return Err(bad(format!("`actions` has more than {MOST_PARTS}")));
+    }
+    let actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+    let alert = p::opt_bool(v, "alert")?.unwrap_or(false);
+    if conditions.is_empty() || (actions.is_empty() && !alert) {
         return Err(bad("a rule needs at least one condition and one action"));
     }
     let account = rule_account(s, v)?;
-    let mut rule =
-        Rule { id: 0, name, enabled: true, conditions, actions, stop: p::opt_bool(v, "stop")?.unwrap_or(false), account, ..Default::default() };
+    let stop = p::opt_bool(v, "stop")?.unwrap_or(false);
+    let mut rule = Rule { id: 0, name, enabled: true, conditions, exceptions, actions, stop, alert, account, ..Default::default() };
     place(s, &mut rule, v)?;
     Ok(rule)
 }
@@ -265,10 +424,15 @@ fn place(s: &Session, rule: &mut Rule, v: &Value) -> Result<(), CmdError> {
 /// is made. Parts not filled in yet are left out.
 pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
     let account = p::id(v, "account").filter(|a| s.mailbox.account(*a).is_some())?;
-    let parts = |key: &str| v.get(key).and_then(Value::as_array).map(|a| a.iter().take(20).collect::<Vec<_>>()).unwrap_or_default();
+    let parts = |key: &str| v.get(key).and_then(Value::as_array).map(|a| a.iter().take(MOST_PARTS).collect::<Vec<_>>()).unwrap_or_default();
     let conditions = parts("conditions").into_iter().filter_map(|c| condition(c).ok()).collect();
+    // As `rules.add` keeps them; exceptions that can't be (more words of a kind than a rule keeps,
+    // which `rules.add` refuses and the builder says) are looked at as they are.
+    let exceptions: Vec<Condition> = parts("exceptions").into_iter().filter_map(|c| condition(c).ok()).collect();
+    let exceptions = mailcraft_model::fold_exceptions(exceptions.clone()).unwrap_or(exceptions);
     let actions = parts("actions").into_iter().filter_map(|a| action(s, a).ok()).collect();
-    let rule = Rule { conditions, actions, account, ..Default::default() };
+    let alert = p::bool(v, "alert").unwrap_or(false);
+    let rule = Rule { conditions, exceptions, actions, alert, account, ..Default::default() };
     server_cannot(&s.mailbox, &rule, account)
 }
 
@@ -357,19 +521,19 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     let ids: Vec<Id> = s.mailbox.messages_in(folder).map(|m| m.id).collect();
     let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
-    // A rule that reads the body reads it whole: one kept on disk is brought in first (one that
-    // can't be read says so in its place, and is matched as that).
-    let reads_bodies = s.mailbox.rules.iter().any(|r| {
-        r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.conditions.iter().any(|c| matches!(c, Condition::BodyContains(_)))
-    });
+    // A rule that reads the body reads it whole, and a calendar part: one kept on disk is brought
+    // in first (one that can't be read says so in its place, and is matched as that). A calendar
+    // part too large to be shown isn't brought in for a rule either.
+    let reads_bodies = s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.reads_body());
+    let clock = s.rule_clock();
     ids.into_iter()
         .filter(|id| {
             if reads_bodies {
-                let _ = s.load_where(*id, |_| false);
+                let _ = s.load_where(*id, crate::session::is_readable_calendar_part);
             }
             match only {
-                Some(rule) => s.mailbox.run_rule(*id, rule),
-                None => !s.mailbox.run_rules(*id, true).is_empty(),
+                Some(rule) => s.mailbox.run_rule(*id, rule, &clock),
+                None => !s.mailbox.run_rules(*id, true, &clock).is_empty(),
             }
         })
         .count()
@@ -407,10 +571,13 @@ pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), Cm
         return Err(fail("the sender has no address to match"));
     }
     let name = format!("{} to {target}", m.from.display());
+    let email = m.from.email.trim();
+    let from =
+        if by_address(email) { Condition::From(vec![email.to_string()]) } else { Condition::FromContains(vec![email.chars().take(200).collect()]) };
     let mut rule = Rule {
         name: name.chars().take(mailcraft_model::MAX_NAME).collect(),
         enabled: true,
-        conditions: vec![Condition::FromContains(m.from.email.clone())],
+        conditions: vec![from],
         actions: vec![Action::MoveTo(folder)],
         account: m.account,
         ..Default::default()
@@ -445,7 +612,9 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         "down" => false,
         _ => return Err(bad("`direction` is \"up\" or \"down\"")),
     };
-    let i = changeable(s, id)?;
+    // A rule the server doesn't let be changed moves too: the server is told, and says whether it
+    // has it (#566).
+    let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     let account = match rule.account {
         0 => p::id_strict(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
@@ -462,15 +631,14 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         return Ok(json!({"id": id, "moved": false}));
     };
     let other = rules.get(j).ok_or_else(|| failed!("no rule with id {id}", id))?;
-    if other.read_only() {
-        return Err(fail("the server doesn't let the rule next to it be moved"));
-    }
+    let pair = [id, other.id];
     if server && rule.on_server() != other.on_server() {
         return Err(fail("a rule waiting to go to the server goes after those there; it can be moved once it is there"));
     }
     // The one of the two that is in this account's list alone is taken out and put in on the
     // other side of the other, not swapped with it: a rule for every account is in every
     // account's list, and moving one across others would reorder another account's rules.
+    let before = server.then(|| s.mailbox.rules.clone());
     if rule.account == 0 && other.account != 0 {
         let neighbour = s.mailbox.rules.remove(j);
         s.mailbox.rules.insert(i, neighbour);
@@ -478,18 +646,27 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
         let moving = s.mailbox.rules.remove(i);
         s.mailbox.rules.insert(j, moving);
     }
-    if server {
-        renumber(&mut s.mailbox, account);
+    // Another rule the server doesn't let be changed can leave no number free for the order asked
+    // (two rules before it, and it second on the server): the server would put one of them after
+    // it, so the move is refused and nothing changes.
+    if let Some(before) = before
+        && !renumber(&mut s.mailbox, account, pair)
+    {
+        s.mailbox.rules = before;
+        return Err(fail("the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"));
     }
     Ok(json!({"id": id, "moved": true}))
 }
 
-/// Give the rules the server of `account` has the places they now stand in: the same numbers as
-/// before, in their new order (all of them afresh when two had the same). One the server doesn't
-/// let be changed keeps its number, which no other is given: a new one would never be sent.
-pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
+/// Give the rules the server of `account` has the places they now stand in, after the two rules
+/// of `moved` changed places: the same numbers as before, in their new order (all of them afresh
+/// when two had the same). Any other the server doesn't let be changed keeps its number, which no
+/// other is given; one of the two is told its new place like any rule, and the server says
+/// whether it has it. Whether the numbers hold that order, each above the one before it; they
+/// don't when such a rule leaves too few numbers before it (the server's places start at 1).
+pub(crate) fn renumber(mb: &mut Mailbox, account: Id, moved: [Id; 2]) -> bool {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
-    let locked = |i: &&usize| mb.rules.get(**i).is_some_and(Rule::read_only);
+    let locked = |i: &&usize| mb.rules.get(**i).is_some_and(|r| r.read_only() && !moved.contains(&r.id));
     let number = |i: &usize| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence);
     let taken: Vec<i32> = on.iter().filter(locked).filter_map(number).collect();
     let mut numbers: Vec<i32> = on.iter().filter(|i| !locked(i)).filter_map(number).collect();
@@ -522,6 +699,8 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
             server.sequence = number;
         }
     }
+    let places: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i).and_then(|r| r.server.as_ref()).map(|s| s.sequence)).collect();
+    places.windows(2).all(|w| w.first() < w.get(1))
 }
 
 fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {

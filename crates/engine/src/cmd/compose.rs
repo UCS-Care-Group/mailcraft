@@ -1329,7 +1329,8 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
             let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
-            s.mailbox.apply_rules(cid);
+            let clock = s.rule_clock();
+            s.mailbox.apply_rules(cid, &clock);
             delivered += 1;
         }
     }

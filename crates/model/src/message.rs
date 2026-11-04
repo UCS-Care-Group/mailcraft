@@ -38,6 +38,42 @@ impl Importance {
     }
 }
 
+/// How private a message is, as its sender marked it (the `Sensitivity` header of RFC 2156,
+/// which Outlook writes): no header is normal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Sensitivity {
+    #[default]
+    Normal,
+    Personal,
+    Private,
+    Confidential,
+}
+
+impl Sensitivity {
+    pub const ALL: [Sensitivity; 4] = [Sensitivity::Normal, Sensitivity::Personal, Sensitivity::Private, Sensitivity::Confidential];
+
+    /// By its code, or by the header's word (`Company-Confidential`).
+    pub fn parse(s: &str) -> Option<Sensitivity> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "normal" => Some(Sensitivity::Normal),
+            "personal" => Some(Sensitivity::Personal),
+            "private" => Some(Sensitivity::Private),
+            "confidential" | "company-confidential" => Some(Sensitivity::Confidential),
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Sensitivity::Normal => "normal",
+            Sensitivity::Personal => "personal",
+            Sensitivity::Private => "private",
+            Sensitivity::Confidential => "confidential",
+        }
+    }
+}
+
 /// Follow-up flag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +128,12 @@ pub struct Attachment {
 impl Attachment {
     pub fn new(name: impl Into<String>, mime: impl Into<String>, data: Vec<u8>) -> Attachment {
         Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data), kept: None }
+    }
+
+    /// Whether it is a calendar part (an invitation, an answer to one).
+    pub fn is_calendar(&self) -> bool {
+        let kind = self.mime.trim().to_ascii_lowercase();
+        kind.starts_with("text/calendar") || kind.starts_with("application/ics") || self.name.to_ascii_lowercase().ends_with(".ics")
     }
 
     /// How many bytes the file is, in memory or where it is kept.
@@ -278,7 +320,8 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
-    /// Put back as its server's message when a copy of it in another account was refused (#451):
+    /// Put back as its server's message when a copy of it in another account was refused (#451),
+    /// or a copy in another folder of its own while it was deleted for good here (#566):
     /// how many more times that server is to list its folder with it still there before it is
     /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
     /// may have been asked for before it was put back). Should the server say meanwhile that it
@@ -294,6 +337,10 @@ pub struct Message {
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
     pub incomplete: bool,
+    /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
+    /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub rules_waiting: Option<Box<crate::RulesWaiting>>,
     /// For a draft of a Microsoft account: its marker on the server, what the server last had
     /// of it, and whether it waits to go up (R3.4.1). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
@@ -311,6 +358,10 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
+    /// A rule that shows a desktop alert acted on it as it arrived ([`crate::Rule::alert`]): the
+    /// window shows one for it once the run is over, wherever the rule put it. Not written.
+    #[serde(skip)]
+    pub rule_alert: bool,
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).
@@ -395,6 +446,22 @@ impl Message {
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
+    }
+
+    /// The message without its content (its text, HTML, the words its sender hid and its files,
+    /// in memory or kept on disk): where and how it lies, for a copy that gives it its content
+    /// back (#566).
+    pub fn without_content(&self) -> Message {
+        Message { body: Body::default(), hidden_text: String::new(), attachments: Vec::new(), kept: None, ..self.clone() }
+    }
+
+    /// The content of `other` (its text, HTML, the words its sender hid and its files, in memory
+    /// or as `other` names them on disk) in place of this one's.
+    pub fn take_content_of(&mut self, other: &Message) {
+        self.body = other.body.clone();
+        self.hidden_text = other.hidden_text.clone();
+        self.attachments = other.attachments.clone();
+        self.kept = other.kept.clone();
     }
 
     /// Every recipient: To, Cc, Bcc.
@@ -487,6 +554,76 @@ impl Message {
 
     pub fn has_category(&self, name: &str) -> bool {
         self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+    }
+
+    /// The value of a header MailCraft doesn't model ([`Message::headers`]), the first of its
+    /// name.
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+    }
+
+    /// How private its sender marked it.
+    pub fn sensitivity(&self) -> Sensitivity {
+        self.header("Sensitivity").and_then(Sensitivity::parse).unwrap_or_default()
+    }
+
+    /// Whether only part of it is here: what a server lists of it, its headers, or a text that
+    /// couldn't be read.
+    pub fn partly_here(&self) -> bool {
+        self.unfetched || self.incomplete || self.not_downloaded > 0 || self.kept.as_deref().is_some_and(|k| k.failed)
+    }
+
+    /// Whether how big it is can be told: a list of new mail needn't say, and what is here of it
+    /// is no measure; nor is a header that says it is too large to download, which a sender can
+    /// write ([`Message::list_size`]).
+    pub fn size_known(&self) -> bool {
+        (self.not_downloaded > 0 || !(self.unfetched || self.incomplete) || self.server.as_ref().is_some_and(|s| s.size > 0))
+            && self.list_size().is_some()
+    }
+
+    /// Whether it is an automatic reply, an out-of-office one say, as its sender's program marked
+    /// it (`Auto-Submitted: auto-replied`, RFC 3834).
+    pub fn is_automatic_reply(&self) -> bool {
+        self.header("Auto-Submitted").is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("auto-replied"))
+    }
+
+    /// Whether it is a meeting invitation or an update of one: a calendar part in memory that
+    /// asks (`METHOD:REQUEST`, RFC 5546), not one that answers or calls off.
+    pub fn is_meeting_request(&self) -> bool {
+        self.attachments.iter().filter(|a| a.is_calendar() && a.is_loaded()).any(|a| {
+            let head = a.data.get(..a.data.len().min(64 * 1024)).unwrap_or_default();
+            String::from_utf8_lossy(head).lines().any(|line| {
+                let line = line.trim_end_matches('\r');
+                line.len() >= 7
+                    && line.get(..7).is_some_and(|k| k.eq_ignore_ascii_case("METHOD:"))
+                    && line.get(7..).is_some_and(|m| m.trim().eq_ignore_ascii_case("REQUEST"))
+            })
+        })
+    }
+
+    /// Whether a line of its header holds `word`, whatever the letters' case: those MailCraft
+    /// models, written as a message has them, and those it keeps as they came.
+    pub fn header_contains(&self, word: &str) -> bool {
+        let word = word.to_lowercase();
+        self.header_lines_lowered().iter().any(|line| line.contains(&word))
+    }
+
+    /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
+    /// all the words looked for.
+    pub fn header_lines_lowered(&self) -> Vec<String> {
+        let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
+        let modelled = [
+            ("From", self.from.full()),
+            ("To", people(&self.to)),
+            ("Cc", people(&self.cc)),
+            ("Reply-To", people(&self.reply_to)),
+            ("Subject", self.subject.clone()),
+            ("Message-ID", self.message_id.clone()),
+            ("In-Reply-To", self.in_reply_to.clone()),
+        ];
+        let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
+        let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
+        modelled.chain(self.headers.iter().map(|(name, value)| line(name, value))).collect()
     }
 }
 

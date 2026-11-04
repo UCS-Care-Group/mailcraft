@@ -877,6 +877,9 @@ pub struct UiState {
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
     pub sync_panel_height: f32,
+    /// The Rules dialog's size, as the owner dragged its edges (#566); 0 for its own.
+    pub rules_width: f32,
+    pub rules_height: f32,
     /// Folders shown collapsed in the folder pane.
     pub collapsed_folders: Vec<Id>,
     /// Mailbox files opened lately, most recent first.
@@ -962,6 +965,8 @@ impl Default for UiState {
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
+            rules_width: 0.0,
+            rules_height: 0.0,
             collapsed_folders: Vec::new(),
             recent: Vec::new(),
             microsoft_client_id: String::new(),
@@ -1902,6 +1907,7 @@ impl MailApp {
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
+        (self.ui.rules_width, self.ui.rules_height) = dialogs::sane_size(self.ui.rules_width, self.ui.rules_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);

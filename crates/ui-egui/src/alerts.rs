@@ -8,7 +8,8 @@
 //! - New mail is told of only while the window is not in front, once a Send/Receive is over: what
 //!   arrived is the engine's answer ([`mailcraft_engine::arrivals`]: never an account's first
 //!   download, mail a rule moved away, Junk E-mail or other folders, a shared mailbox, mail
-//!   already read).
+//!   already read). A rule that shows a desktop alert has one for the mail it acted on, wherever
+//!   it put it, even with the switch for new mail off (#566).
 //! - Up to [`AT_ONCE`] at a time get an alert each; more get one that counts them.
 //! - What an alert says is the message's own text, and so hostile: the sender's name and the
 //!   subject only (never the body), as plain text, without control or format characters
@@ -187,10 +188,12 @@ pub struct Planned {
     pub opens: Opens,
 }
 
-/// The alerts for new mail that arrived in a run: none while the window is in front or the
-/// switch is off; one each for up to [`AT_ONCE`] messages, else one that counts them.
+/// The alerts for new mail that arrived in a run: none while the window is in front, and with
+/// the switch off only those a rule asked for (#566); one each for up to [`AT_ONCE`] messages,
+/// else one that counts them.
 pub fn plan_mail(found: &[Arrival], on: bool, focused: bool) -> Vec<Planned> {
-    if !on || focused || found.is_empty() {
+    let found: Vec<&Arrival> = found.iter().filter(|a| on || a.rule).collect();
+    if focused || found.is_empty() {
         return Vec::new();
     }
     if found.len() > AT_ONCE {

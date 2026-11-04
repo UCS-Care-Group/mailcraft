@@ -290,8 +290,7 @@ fn a_rule_that_files_new_gmail_mail_into_another_account_puts_it_there_before_gm
         let (other, work) = r.other_account(uidplus);
         let to = if into_microsoft { r.ms } else { work };
         let theirs = r.inbox(to);
-        let rule =
-            json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": theirs}]});
+        let rule = json!({"name": "Rota", "account": r.gmail, "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": theirs}]});
         r.s.run("rules.add", &rule).unwrap();
         // New mail comes to Gmail, and the rule files it into the other account at once.
         for raw in ["INBOX", "[Gmail]/All Mail"] {

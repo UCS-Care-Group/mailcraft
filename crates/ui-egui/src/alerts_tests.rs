@@ -33,7 +33,7 @@ impl AlertHost for Recorder {
 }
 
 fn arrival(message: Id, sender: &str, subject: &str) -> Arrival {
-    Arrival { message, account: 1, folder: 2, sender: sender.into(), subject: subject.into() }
+    Arrival { message, account: 1, folder: 2, sender: sender.into(), subject: subject.into(), rule: false }
 }
 
 // ---- the text ----
@@ -87,6 +87,19 @@ fn new_mail_is_told_of_only_while_the_window_is_not_in_front_and_the_switch_is_o
     // No name and no subject still say something.
     let bare = plan_mail(&[arrival(11, "\u{200b}", "")], true, false);
     assert_eq!((bare[0].title.as_str(), bare[0].body.as_str()), ("New message", "(no subject)"));
+}
+
+#[test]
+fn a_rules_alert_is_told_of_with_the_switch_off_but_not_while_the_window_is_in_front() {
+    // Outlook's way: alerts off for new mail, and a rule that shows one for some mail alone.
+    let mut boss = arrival(12, "Boss", "Budget");
+    boss.rule = true;
+    let found = [arrival(10, "Rowan Pike", "Lunch?"), boss];
+    let shown = plan_mail(&found, false, false);
+    assert_eq!(shown.len(), 1);
+    assert_eq!((shown[0].title.as_str(), shown[0].body.as_str()), ("Boss", "Budget"));
+    assert_eq!(plan_mail(&found, true, false).len(), 2, "with the switch on, both");
+    assert!(plan_mail(&found, false, true).is_empty(), "the window is in front");
 }
 
 #[test]

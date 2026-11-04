@@ -540,10 +540,12 @@ fn message() -> impl Strategy<Value = Message> {
             returned: 0,
             placed: String::new(),
             incomplete: false,
+            rules_waiting: None,
             server_draft: None,
             held: String::new(),
             answers: None,
             kept: None,
+            rule_alert: false,
         },
     )
 }
