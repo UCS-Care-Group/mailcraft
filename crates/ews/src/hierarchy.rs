@@ -21,7 +21,7 @@ use crate::xml::Node;
 /// Most folders one answer is read for.
 pub const MAX_FOLDERS: usize = 20_000;
 /// The longest folder name kept, in characters.
-const MAX_NAME: usize = 255;
+pub(crate) const MAX_NAME: usize = 255;
 
 /// The request `SyncFolderHierarchy` of the mail folders, from `state` (empty: from the start).
 #[derive(Clone, PartialEq, Eq)]
