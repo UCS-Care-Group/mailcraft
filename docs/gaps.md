@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-03 · **Change:** patch
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-04 · **Change:** patch
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -59,7 +59,7 @@ this code base.
 - Mail to keep offline (#143): a Microsoft account keeps in full only the mail within its window (a slider in File › Info and Account Settings, 3 days to All; 12 months for a new account, All for one from before), and older mail as its headers and a preview, fetched when opened. Measured at 200,000 messages with a 1-month window: 4.9 GB on disk became 184 MB. IMAP accounts still keep "Messages to download per folder" (File › Options) and fetch each of those whole; the window, and headers of all their mail, come with slice 2. A message opened outside the window is kept until the next start, not by the hour. Until then a large IMAP account (Gmail with its labels, 3.3 GB, #649) keeps every message's headers, trace lines and all, in the mailbox file itself (several KB each; a Microsoft account's older mail keeps none), so its mailbox file grows far beyond a Microsoft account's of the same size. A mailbox file of the older one-file form of any size opens: past what fits in memory it is read as a stream, one item at a time, with each message's bodies and attachments going to the content folder as they are read (#649); the log form opens up to 16 GB, and a save that would come to more than that is refused rather than written.
 - File › Options is one long page, and it grows with each feature (pictures, sign-ins, search, shared mailboxes). It will need grouping into sections, as Outlook's Options has, before it gets hard to find things in.
 - The opening screen (#519) shows in the browser build only for a mailbox kept in the browser that can't be read: the page has one thread, so reading the stored mailbox holds the window until it is done, and a large one is a blank moment rather than "Opening…". Reading it in steps would fix that.
-- Conversations are grouped by subject, so two unrelated threads with the same subject merge.
+- Conversations are threads (#795): messages with one subject are one conversation only when their headers link them (`Message-ID`, `In-Reply-To`, the last 32 of `References`) or their server puts them in one (Microsoft Graph's `conversationId`, an Exchange server's `ConversationId`, JMAP's `threadId`). Mail with no server id and no header linking it (kept from before; for a Microsoft account, also mail of a folder whose delta link predates this, since a link keeps what it was made to list; for an Exchange server, every new message, whose listing doesn't ask for it) is grouped by subject among itself only, and only while nothing else links it, until its server's id comes: each Send/Receive asks a Microsoft, Exchange server or JMAP account's own server for at most 1,000 of them, newest first, and a message the server refuses to say for is asked at most three times; once asked, a message its server gave no id for is linked by its headers alone, as IMAP mail is. IMAP servers' thread ids (Gmail's `X-GM-THRID`) are not read; IMAP mail threads by its headers alone.
 - `vcard` drops name prefixes/suffixes, photos and anniversaries; `ical` ignores `RDATE`, `BYMONTHDAY` lists and recurring to-dos.
 - Undo in the window covers the mailbox; the message being written has its own (Ctrl+Z while its body has the keyboard).
 - A calendar change the server says it took is checked against what comes down next, and put back with a word when the server doesn't show it; whether the real Microsoft 365 service takes every kind of change as it is sent is known only for what the owner's Check Calendar Connection (File › Info) exercises: an appointment's time, as an instant and said in a time zone.
@@ -71,6 +71,7 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | patch | #795: conversations are threads, not subjects; legacy mail fills its server's thread id a run at a time |
 | 2026-11-03 | patch | #488: the update switches are in File › About, not File › Options |
 | 2026-11-02 | patch | Correct punctuation in the DAV foundation note |
 | 2026-11-01 | minor | #376: DAV model/document foundation; server discovery and sync remain unavailable |

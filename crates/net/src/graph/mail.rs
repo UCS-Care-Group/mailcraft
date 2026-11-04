@@ -159,7 +159,16 @@ pub(crate) fn sync_mail_renewing_with(
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
     let mut last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
-        Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
+        Ok(graph) => {
+            let mut last = down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit);
+            // Then the conversation ids of mail listed before they were asked for (#795), unless
+            // the server asked to be left alone or the owner stopped the run.
+            if !request.threads.is_empty() && last.busy_for.is_none() && !last.stopped && !cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                let (threads, busy_for) = threads::conversations(&graph, request, cancel);
+                (last.threads, last.busy_for) = (threads, busy_for);
+            }
+            last
+        }
         Err(e) => GraphMailResult {
             account: request.account,
             email: request.email.clone(),
@@ -978,6 +987,7 @@ mod fetch;
 mod place;
 mod search;
 mod send;
+mod threads;
 mod up;
 
 pub use fetch::fetch_messages;
@@ -1001,5 +1011,7 @@ mod shared_tests;
 mod skip_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threads_tests;
 #[cfg(test)]
 mod well_known_tests;

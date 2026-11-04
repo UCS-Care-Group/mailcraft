@@ -35,6 +35,7 @@ pub mod sender_warnings;
 pub mod signature;
 pub mod sync;
 mod task;
+pub mod thread_index;
 pub mod update;
 pub mod words;
 pub mod zoned;
@@ -67,6 +68,7 @@ pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
+pub use thread_index::{ThreadIndex, ThreadKey};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;
