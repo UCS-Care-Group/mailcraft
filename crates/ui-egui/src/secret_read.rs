@@ -54,7 +54,12 @@ fn read(store: &dyn SecretStore, asks: Vec<Ask>, migrated: bool) -> SecretRead {
                     store.delete(&old);
                     moved.push(key.clone());
                 }
-                Err(e) => log::warn!("couldn't move a remembered sign-in: {e}"),
+                Err(_) => {
+                    // The store may echo the credential in its error. Keep the old entry and
+                    // do not expose or adopt a partially written replacement.
+                    log::warn!("couldn't move a remembered sign-in to the operating system's credential store");
+                    continue;
+                }
             }
         }
         let secret = store.get(&key).filter(|s| !s.is_empty());

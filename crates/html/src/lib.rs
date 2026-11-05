@@ -428,6 +428,13 @@ pub struct Table {
     /// A box on a line: the room its margins keep free left and right of it, in pixels.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub box_margin: [u8; 2],
+    /// A box on a line that the source floats to a side: a table with `align="left"` or
+    /// `"right"` among two or more such tables that are all its holder holds. Its block's `align`
+    /// is the side. The boxes that float left stand from the left edge of the line in their order,
+    /// those that float right from the right edge, the first of them outermost; a box that has no
+    /// room left goes on in a line below. No white space parts them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub float: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -562,7 +569,11 @@ pub(crate) fn is_blank(c: char) -> bool {
 #[cfg(test)]
 mod data_tests;
 #[cfg(test)]
+mod float_tests;
+#[cfg(test)]
 mod inline_tests;
+#[cfg(test)]
+mod nested_align_tests;
 #[cfg(test)]
 mod text_link_tests;
 
