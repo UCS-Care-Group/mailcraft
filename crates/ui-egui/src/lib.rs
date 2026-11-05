@@ -49,6 +49,8 @@ mod agent_names_tests;
 mod agent_undo_tests;
 pub mod alerts;
 pub mod approval;
+#[cfg(test)]
+mod attachment_menu_tests;
 mod attachment_open;
 pub mod auto_replies;
 #[cfg(test)]
