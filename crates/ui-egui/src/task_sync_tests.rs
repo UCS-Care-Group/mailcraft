@@ -93,10 +93,13 @@ fn a_change_made_here_goes_after_a_quiet_moment() {
     app.poll_tasks();
     app.execute("tasks.sendLocal", json!({"account": owner})).unwrap();
     app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    assert!(app.session.can_undo());
     assert!(!app.tasks_tick_at(1_000.0));
     assert!(app.tasks_tick_at(10_000.0));
     let sent = jobs.lock().unwrap().last().cloned().unwrap();
     assert_eq!((sent.0, sent.2 >= 1), (owner, true));
+    // #706: only a delete that goes out forgets the undo; a create keeps it.
+    assert!(app.session.can_undo(), "a create that goes out keeps its undo step");
 }
 
 #[test]
@@ -372,4 +375,69 @@ fn a_refusal_from_before_the_owner_allowed_them_is_not_taken() {
     app.poll_sign_in();
     app.poll_tasks();
     assert_eq!(app.tasks.perm.get(&owner), None);
+}
+
+/// A synced to-do deleted in a window that has taken its first look.
+fn deleted_in_window() -> (MailApp, Jobs) {
+    let (mut app, owner, answers, jobs, _) = window();
+    let download = TasksDownload {
+        account: owner,
+        email: OWNER.into(),
+        complete: true,
+        lists: vec![RemoteTaskList { id: "L1".into(), complete: true, shared: false }],
+        tasks: vec![remote("t1", "Call Bo")],
+    };
+    answers.lock().unwrap().push_back(TasksResult { account: owner, download: Some(download), ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    let id = app.session.mailbox.tasks.values().find(|t| t.title == "Call Bo").map(|t| t.id).unwrap();
+    app.execute("tasks.delete", json!({"id": id})).unwrap();
+    assert!(app.session.can_undo());
+    (app, jobs)
+}
+
+#[test]
+fn undo_is_forgotten_when_the_job_carrying_a_delete_starts() {
+    let (mut app, jobs) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    assert!(app.tasks_tick_at(10_000.0));
+    assert_eq!(jobs.lock().unwrap().last().map(|j| j.2), Some(1));
+    assert!(!app.session.can_undo() && !app.session.undo());
+}
+
+#[test]
+fn undo_stays_while_no_job_can_start() {
+    // Offline: the delete waits here, and can still be undone.
+    let (mut app, jobs) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    app.session.prefs.offline = true;
+    let before = jobs.lock().unwrap().len();
+    assert!(!app.tasks_tick_at(10_000.0));
+    assert_eq!(jobs.lock().unwrap().len(), before);
+    assert!(app.session.can_undo());
+    // No host service: the same.
+    let (mut app, _) = deleted_in_window();
+    assert!(!app.tasks_tick_at(1_000.0));
+    app.services.graph_tasks = None;
+    assert!(!app.tasks_tick_at(10_000.0));
+    assert!(app.session.can_undo());
+}
+
+/// #702: with two accounts whose To Do works, the question lists them in the order the owner put
+/// them in, but offers first the account added first, wherever the owner moved it; so does
+/// File › Info.
+#[test]
+fn the_question_offers_the_first_account_added_first() {
+    let (mut app, owner, _, _, _) = window();
+    let zoe = app.execute("account.add", json!({"email": "zoe@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    app.stand_in_tasks_work();
+    app.execute("account.move", json!({"id": zoe, "before": owner})).unwrap();
+    let mb = &app.session.mailbox;
+    assert_eq!(mailcraft_engine::cmd::tasks_remote::task_accounts(mb), [zoe, owner], "listed in the owner's order");
+    assert_eq!(app.tasks_working_first(), Some(owner));
+    assert!(app.offer_local_tasks());
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("the owner is asked") };
+    assert_eq!(ask.with, json!({"account": owner}));
+    assert_eq!(ask.more.iter().map(|(_, with)| with.clone()).collect::<Vec<_>>(), [json!({"account": zoe})]);
 }

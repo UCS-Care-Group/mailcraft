@@ -93,8 +93,8 @@ fn favorites_json(s: &Session) -> Value {
         .collect();
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             let server = favorites_from_server(s, a.id);
             let count = listed.iter().filter(|id| s.mailbox.folder(**id).is_some_and(|f| f.account == a.id)).count();
@@ -126,18 +126,40 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
+/// Why the folder in view is left as it is, when it is one of its server's own (Conversation
+/// History and the like, #756; [`mailcraft_model::Folder::server_owned`]). The reason is written
+/// out here, in a `fn …(s: &Session) -> Option<&'static str>`, so `cargo xtask i18n` finds it.
+fn server_owned(s: &Session) -> Option<&'static str> {
+    if s.mailbox.folder(s.view.folder).is_some_and(|f| f.server_owned()) {
+        return Some("the server keeps this folder: it can't be renamed, moved or deleted");
+    }
+    None
+}
+
 /// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
+/// Nor one of the server's own folders (#756).
 fn can_rename(s: &Session) -> Option<&'static str> {
+    if let r @ Some(_) = server_owned(s) {
+        return r;
+    }
     s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
 
 /// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
+/// Nor one of the server's own folders (#756).
 fn can_move(s: &Session) -> Option<&'static str> {
+    if let r @ Some(_) = server_owned(s) {
+        return r;
+    }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
 
 /// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
+/// Nor one of the server's own folders (#756).
 fn can_delete(s: &Session) -> Option<&'static str> {
+    if let r @ Some(_) = server_owned(s) {
+        return r;
+    }
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
@@ -209,8 +231,8 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
     let counts = s.folder_counts();
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             let unread = counts.account(a.id).unread;
             let mut entry = json!({
@@ -307,7 +329,9 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Folders deleted into Deleted Items go with it.
     if kind == Some(FolderKind::Deleted) {
-        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id)).map(|f| f.id).collect();
+        // (Not one of the server's own that an earlier version put there, #756: it can't be
+        // deleted, and the next listing puts it back where the server has it.)
+        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect();
         for c in children {
             s.mailbox.delete_folder(c)?;
         }

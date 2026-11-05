@@ -7,6 +7,7 @@ use mailcraft_model::search::Suggestion;
 use mailcraft_model::{AccountChoice, Address};
 use serde_json::{Value, json};
 
+use super::people;
 use super::tasks_remote::keeps_tasks;
 use super::{bad, done, mac_or};
 use crate::session::{enum_code, parse_enum};
@@ -61,6 +62,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.taskAccount", "Show Tasks Of", "Tasks", task_account)
             .reads()
             .params(r#"{"value": "all" | "here" | number} — every account's tasks, those kept on this computer (0 is the same), or one account's"#),
+        CommandSpec::new("view.peopleAccount", "Show Contacts Of", "People", people_account)
+            .reads()
+            .params(r#"{"value": "all" | "here" | number} — every account's contacts, those kept on this computer (0 is the same), or one account's"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
     ];
@@ -311,6 +315,18 @@ fn task_account(s: &mut Session, v: &Value) -> CmdResult {
     s.view.task_account = value;
     // The selected task stays selected only where it is listed.
     s.sel.task = s.sel.task.filter(|id| s.mailbox.task(*id).is_some_and(|t| value.shows(&t.origin)));
+    Ok(json!({"value": value.code()}))
+}
+
+fn people_account(s: &mut Session, v: &Value) -> CmdResult {
+    let value = v.get("value").and_then(AccountChoice::parse).ok_or_else(|| bad("`value` is all, here or an account's id"))?;
+    if matches!(value, AccountChoice::Account(account) if !people::keeps_contacts(&s.mailbox, account)) {
+        return Err(bad("that account's contacts aren't read from its server"));
+    }
+    s.view.people_account = value;
+    // The selected contact stays selected only where it is listed.
+    let shown = people::shown_account(s);
+    s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
     Ok(json!({"value": value.code()}))
 }
 

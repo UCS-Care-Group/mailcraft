@@ -127,8 +127,10 @@ pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> Gra
         .and_then(Value::as_str)
         .filter(|date| date.len() <= MAX_DATE)
         .and_then(|date| mailcraft_time::iso_to_timestamp(date, 0));
+    // The thread it is in (RFC 8621 §4.1.1, #795): an id as opaque as the email's; anything odd is none.
+    let thread = mailcraft_model::sync::thread_id(entry.get("threadId").and_then(Value::as_str).unwrap_or_default());
     GraphMessage {
-        server: server(id, mailbox, marks, entry.get("size").and_then(Value::as_u64).unwrap_or(0)),
+        server: ServerMessage { thread, ..server(id, mailbox, marks, entry.get("size").and_then(Value::as_u64).unwrap_or(0)) },
         message_id: fields.message_id,
         subject: fields.subject,
         from: fields.from,

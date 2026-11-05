@@ -67,7 +67,7 @@ use crate::NetError;
 use crate::http::{self, Url};
 
 /// What is asked for of each message: what the message list needs (R3 spec S9).
-pub(super) const FIELDS: &str = "receivedDateTime,sentDateTime,subject,from,toRecipients,ccRecipients,bodyPreview,isRead,flag,categories,importance,parentFolderId,internetMessageId,hasAttachments,isDraft,changeKey";
+pub(super) const FIELDS: &str = "receivedDateTime,sentDateTime,subject,from,toRecipients,ccRecipients,bodyPreview,isRead,flag,categories,importance,parentFolderId,internetMessageId,hasAttachments,isDraft,changeKey,conversationId";
 /// A message's size on the server (`PidTagMessageSize`), which Graph gives only as an extended
 /// property: what "Download messages in full" is held against. Asked for of a message by its id,
 /// never of a delta, which refuses it.
@@ -552,6 +552,10 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
             .filter(|key| key.len() <= 512 && key.bytes().all(|b| b.is_ascii_graphic()))
             .map(str::to_string)
             .unwrap_or_default(),
+        // The conversation it is in (#795), as an opaque id; anything odd is none.
+        thread: mailcraft_model::sync::thread_id(text(value, "conversationId")),
+        thread_asked: false,
+        thread_tries: 0,
     };
     Some(Entry::Message(Box::new(GraphMessage {
         server,

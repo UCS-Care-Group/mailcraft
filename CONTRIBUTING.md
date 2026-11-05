@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -12,11 +12,13 @@ much as the work.
 2. **Read the plan.** Work to beta follows the roadmap reset, tracked in
    [#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Work that goes against an accepted
    decision won't be merged, however good it is; propose a change to the decision first.
-3. **Claim an issue.** Every task in the plan is an issue labelled with its step (`R3`, `R4`, …).
-   Comment "I'd like to take this" on one that has no assignee. A maintainer assigns it to you and
-   adds `claimed`; only then start. If nothing has moved on a claimed issue for 14 days, it may be
-   given to someone else. A new feature or change that isn't in the issues: open one and wait for
-   a yes before building it.
+3. **Claim an issue by commenting on it.** Comment "I'm taking this" on an open issue that nobody
+   has claimed in its comments, and start: you don't wait for anyone to assign it to you (a maintainer may add the `claimed`
+   label later, so claims are easy to see; it is a marker, not a permission). Read the
+   comments first, as the first claim stands; if you want to share the work, say so to the person
+   who claimed it in the issue. A claim lapses when its author has posted no comment, pull request
+   or draft for 14 days, and anyone may then claim it with a new comment. A new feature or change
+   that isn't in the issues: open one and wait for a yes before building it.
 4. **Found a bug and have the fix? Send both at once.** Open the
    [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
@@ -46,6 +48,12 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   waiting for you.
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
   spdx, test-files, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+- **Rows of the documents' tables and lines of the release notes are files of their own.** A row
+  of a document's revision history goes in `docs/log.d/<document without .md>/revisions/<issue>.md`,
+  a row of `ROADMAP.md`'s progress log in `docs/log.d/ROADMAP/progress/<issue>.md`
+  ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
+  `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
+  table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
   brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
@@ -95,11 +103,12 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | Claim an issue by commenting on it: no waiting for an assignee; `claimed` stays as a maintainer's marker; the first claim stands and lapses after 14 quiet days |
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
-| 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
-| 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |
-| 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
-| 2026-10-19 | minor | The Contributor Licence Agreement ([CLA.md](CLA.md)), signed once by a comment on a pull request |
 | 2026-10-21 | minor | Tests go in files of their own (`tests.rs`, `*_tests.rs`, `tests/`), which code scanning skips |
+| 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
+| 2026-10-19 | minor | The Contributor Licence Agreement ([CLA.md](CLA.md)), signed once by a comment on a pull request |
+| 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
+| 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |

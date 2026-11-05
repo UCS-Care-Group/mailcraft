@@ -69,13 +69,18 @@ mod folders;
 mod message;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threads_tests;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
-use mailcraft_model::sync::{FolderListing, GraphMessage, GraphProgress, JmapMailRequest, JmapMailResult, JmapScope, MAX_JMAP_WINDOW, MessagePage};
+use mailcraft_model::sync::{
+    FolderListing, GraphMessage, GraphProgress, JmapMailRequest, JmapMailResult, JmapScope, MAX_JMAP_WINDOW, MAX_THREAD_ASKS, MessagePage, ThreadOf,
+    thread_id,
+};
 use serde_json::{Map, Value, json};
 
 use self::message::{Marks, claims};
@@ -115,7 +120,11 @@ const DETAILS_BYTES: usize = 8 << 20;
 /// What the mailboxes' list asks for, and what an email is read for in the window and for a message list.
 const MAILBOX_PROPERTIES: [&str; 6] = ["id", "name", "parentId", "role", "totalEmails", "unreadEmails"];
 const WINDOW_PROPERTIES: [&str; 3] = ["id", "keywords", "mailboxIds"];
-const EMAIL_PROPERTIES: [&str; 9] = ["id", "blobId", "keywords", "mailboxIds", "size", "receivedAt", "hasAttachment", "preview", "headers"];
+const EMAIL_PROPERTIES: [&str; 10] =
+    ["id", "blobId", "keywords", "mailboxIds", "size", "receivedAt", "hasAttachment", "preview", "headers", "threadId"];
+/// Most emails one call asks the thread of (#795), and never more than the server's
+/// `maxObjectsInGet`.
+const THREADS_AT_ONCE: usize = 100;
 /// The special mailboxes after the Inbox, in the order the folder pane lists them.
 const SPECIAL: [FolderKind; 5] = [FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted, FolderKind::Archive, FolderKind::Junk];
 
@@ -144,8 +153,20 @@ pub async fn sync_mail<H: HttpExchange>(
             Stop::Down(error) | Stop::Failed(error) => out.halted = Some(run.said(&error)),
         }
     }
+    // Then the threads of mail listed before they were asked for (#795), unless the run was stopped or
+    // the server asked to be left alone. Never worth failing the run for.
+    let threads = if request.threads.is_empty() || out.stopped || out.auth_refused || out.busy_for.is_some() {
+        Vec::new()
+    } else {
+        let (threads, busy) = run.threads().await;
+        if let Some((seconds, why)) = busy {
+            (out.busy_for, out.halted) = (Some(seconds), Some(why));
+        }
+        threads
+    };
     log::debug!("jmap mail: the run is over (clean: {}, stopped: {}, busy: {})", out.clean(), out.stopped, out.busy_for.is_some());
     emit(run.piece(JmapMailResult {
+        threads,
         errors: out.lines(),
         busy_for: out.busy_for,
         whole: out.clean(),
@@ -717,6 +738,58 @@ impl<'a, H: HttpExchange> Run<'a, H> {
         let all_named = total.is_some_and(|total| usize::try_from(total).is_ok_and(|total| total == named.len()));
         let complete = accounted && from_the_start && listed.len() <= self.window && all_named;
         Ok(Newest { slots, total: total.map(|total| u32::try_from(total).unwrap_or(u32::MAX)), complete })
+    }
+
+    /// The threads of the emails the request names (`threadId`, RFC 8621 §4.1.1; #795), at most
+    /// [`MAX_THREAD_ASKS`], [`THREADS_AT_ONCE`] to a call: what the server answered for, until it doesn't.
+    async fn threads(&self) -> (Vec<ThreadOf>, Option<(u32, String)>) {
+        let ids: Vec<&str> = self.request.threads.iter().take(MAX_THREAD_ASKS).map(String::as_str).filter(|id| Id::new(id).is_ok()).collect();
+        let at_once = usize::try_from(self.connection.client().limits().max_objects_in_get()).unwrap_or(usize::MAX).clamp(1, THREADS_AT_ONCE);
+        let mut out = Vec::new();
+        let mut busy = None;
+        for some in ids.chunks(at_once) {
+            if self.check().is_err() {
+                break;
+            }
+            let args = json!({"accountId": self.account(), "ids": some, "properties": ["id", "threadId"]});
+            let got = match self.one_call("Email/get", args, WINDOW_BYTES).await {
+                Ok(got) => got,
+                Err(Stop::Busy(seconds, why)) => {
+                    busy = Some((seconds, why));
+                    break;
+                }
+                // The server answered and refused: asked again in a later run, a few times.
+                Err(Stop::Failed(_)) => {
+                    log::info!("jmap mail: the server refused to say the threads; asked again in a later run, a few times");
+                    out.extend(some.iter().map(|id| ThreadOf::refused(id)));
+                    break;
+                }
+                Err(_) => {
+                    log::info!("jmap mail: threads not asked for now; a later run goes on");
+                    break;
+                }
+            };
+            let asked: HashSet<&str> = some.iter().copied().collect();
+            let before = out.len();
+            let list = got.get("list").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+            for email in list.iter().take(some.len()) {
+                let Some(id) = email.get("id").and_then(Value::as_str).filter(|id| asked.contains(id)) else { continue };
+                let thread = thread_id(email.get("threadId").and_then(Value::as_str).unwrap_or_default());
+                out.push(ThreadOf { id: id.to_string(), thread, refused: false });
+            }
+            // Gone from the server: none, and not asked again.
+            let gone = got.get("notFound").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+            for id in gone.iter().take(some.len()).filter_map(Value::as_str).filter(|id| asked.contains(id)) {
+                out.push(ThreadOf { id: id.to_string(), ..ThreadOf::default() });
+            }
+            if out.len() == before {
+                break;
+            }
+        }
+        out.sort_by(|a, b| a.id.cmp(&b.id));
+        out.dedup_by(|a, b| a.id == b.id);
+        log::info!("jmap mail: the threads of {} of {} emails asked for", out.len(), self.request.threads.len());
+        (out, busy)
     }
 
     /// `Email/get` of the emails `ids`, for what a message list shows of them.
