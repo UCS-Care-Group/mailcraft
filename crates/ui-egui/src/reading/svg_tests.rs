@@ -461,14 +461,42 @@ fn review_7_the_segments_of_a_path_are_counted() {
 fn review_8_a_curve_counts_as_the_lines_it_is_drawn_with() {
     let cubics = |n: usize| format!("M0 0{}", "c1 2 3 4 5 6".repeat(n));
     let quads = |n: usize| format!("M0 0{}", "q1 2 3 4".repeat(n));
-    // A thousand curves are a logo's; seven thousand are refused, filled, and fifteen hundred,
+    // A thousand curves are a logo's; eleven thousand are refused, filled, and fifteen hundred,
     // stroked.
     assert!(images::probe(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", cubics(1_000)))).is_some());
-    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", cubics(7_000)))));
-    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", quads(7_000)))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", cubics(11_000)))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", quads(16_000)))));
     assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='none' stroke='#000'/>", cubics(1_500)))));
     // An arc is made curves, and counts as them.
-    assert!(refused(&drawing(40, 40, &format!("<path d='M0 0{}' fill='#2e8b57'/>", "a5 5 0 1 1 1 1".repeat(7_000)))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='M0 0{}' fill='#2e8b57'/>", "a5 5 0 1 1 1 1".repeat(12_000)))));
+}
+
+/// The last review: XML's attributes, which usvg reads by their own names, dashes however they
+/// are given, strokes that usvg strokes as it reads the drawing, and editors' harmless attributes.
+#[test]
+fn review_9_xml_attributes_dashes_and_strokes_read() {
+    let svg = |body: &str| format!("<svg {NS} width='10' height='10'>{body}</svg>").into_bytes();
+    // `xml:href`, an `href` to usvg: a ring of gradients it would follow for ever.
+    assert!(refused(&svg(
+        "<linearGradient id='a' xml:href='#b'/><linearGradient id='b' xml:href='#c'/><linearGradient id='c' xml:href='#b'/><rect width='10' height='10' fill='url(#a)'/>"
+    )));
+    for attribute in ["xml:stroke-dasharray='1 1'", "xml:filter='blur(4px)'", "xml:stroke='#000'", "xml:transform='scale(9)'"] {
+        assert!(refused(&svg(&format!("<rect width='10' height='10' {attribute}/>"))), "{attribute}");
+    }
+    assert!(images::probe(&svg("<rect width='10' height='10' xml:space='preserve' xml:lang='en'/>")).is_some());
+    // A stroked path so long that only stroking it for its bounds would take a while: refused
+    // before usvg reads it, at once.
+    let d = format!("M0 0{}", "h1v1".repeat(30_000));
+    let start = Instant::now();
+    assert!(refused(&svg(&format!("<path d='{d}' fill='none' stroke='#000' stroke-width='1e4' style='stroke-linejoin:round'/>"))));
+    assert!(refused(&svg(&format!("<g stroke='#000' stroke-linejoin='round'><path d='{d}'/></g>"))));
+    assert!(start.elapsed() < Duration::from_secs(2), "took {:?}", start.elapsed());
+    // An icon drawn with round strokes, as icon sets draw theirs, and editors' harmless attributes.
+    let icon = "<path d='M3 12h18M12 3c4 4 4 14 0 18M12 3c-4 4-4 14 0 18' fill='none' stroke='#2e8b57' stroke-width='2' \
+                stroke-linecap='round' stroke-linejoin='round' clip-rule='evenodd' fill-rule='evenodd'/>\
+                <circle cx='12' cy='12' r='9' fill='none' stroke='#2e8b57'/>";
+    let icon = format!("<svg {NS} viewBox='0 0 24 24' role='img' focusable='false' overflow='visible'>{icon}</svg>");
+    assert!(images::decode(icon.as_bytes(), 2048, 48).is_some());
 }
 
 #[test]

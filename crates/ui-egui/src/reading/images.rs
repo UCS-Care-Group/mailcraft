@@ -313,7 +313,13 @@ pub struct Pictures {
 struct Drawn {
     data: Arc<Vec<u8>>,
     answer: std::sync::mpsc::Receiver<Option<egui::ColorImage>>,
+    /// When it was begun (egui's time, in seconds).
+    since: f64,
 }
+
+/// Seconds a drawing may take on its thread before it is given up as a broken picture, so that
+/// the next one is drawn (the thread finishes by itself, and what it brings is let go).
+const DRAWING_PATIENCE: f64 = 10.0;
 
 impl Pictures {
     /// The window's pictures.
@@ -485,6 +491,8 @@ impl Pictures {
     fn draw_apart(&mut self, ctx: &egui::Context, index: usize, max_side: u32, wanted: u32, have: Option<egui::TextureHandle>) -> Picture {
         let waiting = have.map_or(Picture::Pending, Picture::Ready);
         if self.drawing.is_some() {
+            // Looked at again in a while, whether it comes or not.
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
             return waiting;
         }
         let Some(entry) = self.entries.get_mut(index) else { return Picture::Failed };
@@ -500,7 +508,7 @@ impl Pictures {
             entry.texture = None;
             return Picture::Failed;
         }
-        self.drawing = Some(Drawn { data: entry.data.clone(), answer });
+        self.drawing = Some(Drawn { data: entry.data.clone(), answer, since: ctx.input(|i| i.time) });
         #[cfg(test)]
         {
             self.decodes += 1;
@@ -509,13 +517,14 @@ impl Pictures {
     }
 
     /// Take in the drawing drawn apart, once it is: its texture for its entry (still there by
-    /// those bytes, or the same bytes anew), or that it can't be drawn.
+    /// those bytes, or the same bytes anew), or that it can't be drawn; and give it up as one that
+    /// can't once it has taken [`DRAWING_PATIENCE`].
     fn settle(&mut self, ctx: &egui::Context) {
         let Some(drawn) = &self.drawing else { return };
         let image = match drawn.answer.try_recv() {
             Ok(image) => image,
-            Err(std::sync::mpsc::TryRecvError::Empty) => return,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
+            Err(std::sync::mpsc::TryRecvError::Empty) if ctx.input(|i| i.time) - drawn.since <= DRAWING_PATIENCE => return,
+            Err(_) => None,
         };
         let data = drawn.data.clone();
         self.drawing = None;
@@ -539,6 +548,8 @@ impl Pictures {
     /// away from a picture and back does not decode it again. Nothing repaints an idle window, so
     /// one is asked for when the time is up.
     pub fn release_unseen(&mut self, ctx: &egui::Context) {
+        // A drawing that has come is taken in (or let go) even when no picture is asked for.
+        self.settle(ctx);
         let now = ctx.input(|i| i.time);
         if self.release_at(now) {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(IDLE_SECONDS + 1.0));

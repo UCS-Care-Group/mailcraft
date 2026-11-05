@@ -19,7 +19,7 @@
 //!   document type, an `<svg>` root in SVG's namespace.
 //! - **Only what is allowed ([`plain`]):** the elements of [`ELEMENTS`] (and elements of other
 //!   namespaces, which the renderer skips), the attributes of [`ATTRIBUTES`] (and `data-…`,
-//!   `aria-…` and other namespaces' but XLink's, which it ignores), a `style` of those properties
+//!   `aria-…`, `xml:space`, `xml:lang` and editors' own namespaces', which it ignores), a `style` of those properties
 //!   alone with nothing quoted, escaped or commented, and `opacity` on a shape alone, so that no
 //!   layer is drawn inside another. So there is no `<use>`, style sheet, `href` (gradients don't
 //!   refer to each other), clip, mask, marker, pattern, filter, dash, blend mode or picture, and
@@ -143,6 +143,12 @@ pub const ATTRIBUTES: &[&str] = &[
     "display",
     "visibility",
     "shape-rendering",
+    // Said of the shape, and nothing that is drawn here: the rule of a clip (there is none),
+    // whether it overflows (only a nested drawing could), and for screen readers.
+    "clip-rule",
+    "overflow",
+    "role",
+    "focusable",
     "style",
 ];
 
@@ -265,6 +271,9 @@ fn plain_style(style: &str, shape: bool) -> bool {
 /// styles above, and within the caps of shapes and gradient copies.
 fn plain(document: &roxmltree::Document) -> Option<u64> {
     let (mut elements, mut shapes, mut stops) = (0u64, 0u64, 0u64);
+    // For a drawing with strokes, which usvg strokes as it reads (for their bounds): the most
+    // lines its paths could be, from their text, and whether a stroke or a round one is anywhere.
+    let (mut path_text, mut stroked, mut round) = (0u64, false, false);
     for node in document.descendants().filter(roxmltree::Node::is_element) {
         // An element of another namespace (an editor's own) is skipped by the renderer, all in it.
         if node.tag_name().namespace() != Some(SVG) {
@@ -283,22 +292,66 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
                 None | Some(SVG) => {
                     ATTRIBUTES.contains(&local) && (shape || local != "opacity") || local.starts_with("data-") || local.starts_with("aria-")
                 }
+                // usvg reads XLink's and XML's attributes by their own names (`xml:href` is an
+                // `href`): only `xml:space` and `xml:lang`, which say nothing that is drawn.
                 Some(XLINK) => false,
-                // `xml:space` and `xml:lang` say nothing that is drawn; `xml:id` would be an id.
-                Some("http://www.w3.org/XML/1998/namespace") => local != "id",
-                // Another namespace's (an editor's own): ignored by the renderer.
+                Some("http://www.w3.org/XML/1998/namespace") => matches!(local, "space" | "lang"),
+                // Another namespace's (an editor's own): never read by the renderer.
                 Some(_) => true,
             };
-            if !allowed || (local == "style" && !plain_style(attribute.value(), shape)) {
+            let value = attribute.value();
+            if !allowed || (local == "style" && !plain_style(value, shape)) {
                 return None;
+            }
+            if matches!(attribute.namespace(), None | Some(SVG)) {
+                let lower = value.to_ascii_lowercase();
+                match local {
+                    "d" | "points" => path_text = path_text.saturating_add(text_lines(value)),
+                    "stroke" => stroked |= lower.trim() != "none",
+                    "stroke-linejoin" | "stroke-linecap" => round |= lower.contains("round"),
+                    "style" => {
+                        stroked |= lower.split(';').any(|d| d.split_once(':').is_some_and(|(p, v)| p.trim() == "stroke" && v.trim() != "none"));
+                        round |= lower.contains("round");
+                    }
+                    _ => {}
+                }
             }
         }
         elements += 1;
         shapes += u64::from(shape);
         stops += u64::from(matches!(name, "stop" | "linearGradient" | "radialGradient"));
     }
-    (shapes <= MAX_SHAPES && elements.saturating_mul(stops) <= MAX_GRADIENT_COPIES).then_some(shapes)
+    // usvg strokes every stroked path as it reads it, on the window's thread, for its bounds: a
+    // stroked drawing's segments (a shape that isn't a path is a few), each weighted for what the
+    // stroker makes of it, are bounded before usvg sees it.
+    let segments = path_text.saturating_add(shapes.saturating_mul(8));
+    let weight = if round {
+        1 + READ_ROUND_WEIGHT
+    } else if stroked {
+        1 + READ_STROKE_WEIGHT
+    } else {
+        0
+    };
+    let strokes_fit = segments.saturating_mul(weight) <= MAX_READ_STROKES;
+    (shapes <= MAX_SHAPES && elements.saturating_mul(stops) <= MAX_GRADIENT_COPIES && strokes_fit).then_some(shapes)
 }
+
+/// The most segments path text (`d`, `points`) could be: every number has a digit and two
+/// numbers' digits never touch, so each run of digits and each command letter is at most one.
+fn text_lines(text: &str) -> u64 {
+    let bytes = text.as_bytes();
+    let runs = bytes.iter().enumerate().filter(|&(i, b)| b.is_ascii_digit() && !(i > 0 && bytes.get(i - 1).is_some_and(u8::is_ascii_digit))).count();
+    let letters = bytes.iter().filter(|b| b.is_ascii_alphabetic()).count();
+    (runs + letters) as u64
+}
+
+/// What stroking a segment takes, for its bounds as usvg reads the drawing: a few curves for its
+/// sides (8), and with round joins or caps up to three conics of 16 curves each (48 more), at
+/// most [`MAX_READ_STROKES`] for a drawing, so that reading one is a bounded amount of work on
+/// the window's thread.
+const READ_STROKE_WEIGHT: u64 = 8;
+const READ_ROUND_WEIGHT: u64 = 48;
+const MAX_READ_STROKES: u64 = 2_000_000;
 
 /// The passes drawing the tree usvg made takes besides one a shape: a layer for each shape drawn
 /// apart for its opacity, and one for every [`SEGMENTS_A_PASS`] lines of its paths (filled
@@ -311,7 +364,8 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
     let mut groups = vec![(tree.root(), false)];
     while let Some((group, in_layer)) = groups.pop() {
         nodes += 1;
-        if group.clip_path().is_some() || group.mask().is_some() || !group.filters().is_empty() {
+        let dashed = group.children().iter().any(|c| matches!(c, usvg::Node::Path(p) if p.stroke().is_some_and(|s| s.dasharray().is_some())));
+        if group.clip_path().is_some() || group.mask().is_some() || !group.filters().is_empty() || dashed {
             return None;
         }
         let layer = group.should_isolate();
@@ -353,15 +407,18 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
 
 /// Most lines a drawing's paths may come to, each curve counted as the lines it is drawn with and
 /// each line weighted for what stroking it takes. Drawing a path costs its lines and the pixels it
-/// covers, so at worst a drawing is 400,000 lines and its passes over at most `max_pixels`.
-const MAX_SEGMENTS: u64 = 400_000;
-/// The lines tiny-skia draws a quadratic and a cubic curve with, at most: its edge builder splits
-/// a curve in up to 2^`MAX_COEFF_SHIFT` (6) lines.
-const QUAD_LINES: u64 = 64;
-const CUBIC_LINES: u64 = 64;
-/// How many times more a stroke's segments weigh than a fill's, and a round stroke's.
-const STROKE_WEIGHT: u64 = 4;
-const ROUND_WEIGHT: u64 = 16;
+/// covers, so at worst a drawing is 2,000,000 lines and its passes over at most `max_pixels`,
+/// drawn on a thread of its own. The counts are close to the most tiny-skia draws, not exact.
+const MAX_SEGMENTS: u64 = 2_000_000;
+/// The lines tiny-skia draws a quadratic and a cubic curve with, at most: it cuts a quad at its
+/// extremes into up to 2 pieces and a cubic into up to 3, and each piece into up to
+/// 2^`MAX_COEFF_SHIFT` (6) lines.
+const QUAD_LINES: u64 = 128;
+const CUBIC_LINES: u64 = 192;
+/// How many times more a stroke's lines weigh than a fill's, and a round stroke's (its joins and
+/// caps up to three conics of 16 curves each).
+const STROKE_WEIGHT: u64 = 8;
+const ROUND_WEIGHT: u64 = 64;
 /// The weighted segments that cost drawing as much as a pass over the pixels.
 const SEGMENTS_A_PASS: u64 = 256;
 
