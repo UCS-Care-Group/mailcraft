@@ -116,6 +116,17 @@ fn one_too_large_to_take_is_refused_and_the_rest_comes() {
 }
 
 #[test]
+fn one_whose_size_the_server_doesnt_say_is_refused_unasked() {
+    // A size not known is no size under the bounds: nothing is downloaded whole on trust.
+    let imap = server();
+    imap.world().refuse = vec!["RFC822.SIZE".into()];
+    let result = fetch(&imap, vec![key("INBOX", 11, 4), key("INBOX", 11, 1)]);
+    assert_eq!(result.failed, vec![key("INBOX", 11, 4), key("INBOX", 11, 1)]);
+    assert!(result.fetched.is_empty() && !result.offline);
+    assert!(!imap.world().log.iter().any(|line| line.contains("BODY.PEEK[]")));
+}
+
+#[test]
 fn a_server_that_is_not_there_is_offline_and_a_wrong_password_is_said_without_it() {
     let imap = server();
     let mut lost = account(&imap);

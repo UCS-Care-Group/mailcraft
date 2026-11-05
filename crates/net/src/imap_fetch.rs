@@ -10,9 +10,9 @@
 //!   copy of a message under each of its labels. A mailbox numbered anew since is not asked for
 //!   its UIDs, which are other messages' now: they are said to be refused, and the next
 //!   Send/Receive reads the mailbox afresh.
-//! - **Bounded**: a message larger than a synchronisation takes whole is refused (it stays as it
-//!   is here), and one request brings at most so many bytes; what it didn't get to is asked for
-//!   again.
+//! - **Bounded**: a message larger than a synchronisation takes whole, or one whose size the
+//!   server doesn't say, is refused (it stays as it is here), and one request brings at most so
+//!   many bytes; what it didn't get to is asked for again.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -103,7 +103,20 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
             if cancel.load(Ordering::Relaxed) {
                 break 'mailboxes;
             }
-            let size = sizes.get(&key.uid).copied().unwrap_or(0);
+            let size = match sizes.get(&key.uid) {
+                Some(Some(size)) => *size,
+                // Asked, and not there: the server says the size of every message it has.
+                Some(None) => {
+                    out.missing.push(key.write());
+                    continue;
+                }
+                // A size the server wouldn't say is no size within the bounds: refused, as one
+                // too large is, and asked for again when it is next opened.
+                None => {
+                    out.failed.push(key.write());
+                    continue;
+                }
+            };
             if size > MAX_MESSAGE {
                 out.failed.push(key.write());
                 continue;
@@ -139,12 +152,14 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
 #[path = "imap_fetch_tests.rs"]
 mod tests;
 
-/// The sizes of `uids` in the open mailbox, as the server says them; none when it won't.
-fn sizes(imap: &mut mailcraft_proto::imap::Imap<crate::transport::Stream<'_>>, uids: &[u32]) -> BTreeMap<u32, u64> {
+/// The sizes of `uids` in the open mailbox, as the server says them: `Some(None)` for one it was
+/// asked for and has not (gone), and nothing for one it wouldn't answer for.
+fn sizes(imap: &mut mailcraft_proto::imap::Imap<crate::transport::Stream<'_>>, uids: &[u32]) -> BTreeMap<u32, Option<u64>> {
     let mut out = BTreeMap::new();
-    for (set, _) in uid_sets(uids) {
+    for (set, named) in uid_sets(uids) {
         if let Ok(sizes) = imap.uid_fetch_sizes(&set) {
-            out.extend(sizes);
+            out.extend(named.into_iter().map(|uid| (uid, None)));
+            out.extend(sizes.into_iter().map(|(uid, size)| (uid, Some(size))));
         }
     }
     out
