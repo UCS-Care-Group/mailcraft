@@ -90,6 +90,11 @@ pub mod forms;
 mod forms_date_tests;
 #[cfg(test)]
 mod frame_bench_tests;
+#[cfg(test)]
+#[path = "google_credential_security_tests.rs"]
+mod google_credential_security_tests;
+#[cfg(test)]
+mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
@@ -175,6 +180,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 pub mod unconfirmed;
+#[cfg(test)]
+mod update_switches_tests;
 pub mod updates;
 mod view_source;
 #[cfg(test)]
@@ -314,6 +321,11 @@ pub struct Services {
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
+    /// MailCraft's own Google Desktop OAuth registration, not an account credential.
+    pub google_client_id: String,
+    /// Desktop registration supplied by the host's build or process environment. Kept in
+    /// memory, never in UI preferences; not an owner access or refresh token.
+    pub google_client_secret: String,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -607,6 +619,9 @@ pub struct SignInRequest {
     pub email: String,
     /// A refresh token from earlier in this session to try first; empty when there is none.
     pub refresh: String,
+    /// Google Desktop registration's installed-app secret for this one sign-in. Never stored
+    /// in a mailbox or passed to an IMAP/SMTP server; not an owner credential.
+    pub google_client_secret: String,
     /// Set when the owner gives up waiting, for the host to stop too.
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Nobody asked for this (a Send/Receive that started by itself): renew with the refresh
@@ -806,6 +821,9 @@ struct SigningIn {
     /// Nobody asked for it (a Send/Receive that started by itself).
     quiet: bool,
     account: Id,
+    /// The saved account at the start of the request. Its credential identity must still match
+    /// when the answer arrives; unrelated account preferences may have changed meanwhile.
+    snapshot: Option<mailcraft_model::Account>,
     /// For reading this shared mailbox, which is read once it is had (#70).
     shared: Option<Id>,
     /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
@@ -861,7 +879,10 @@ pub struct UiState {
     pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
-    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
+    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]). Settings
+    /// saved without them (an older install's) are read back on the engine's own, not on a new
+    /// install's: an owner who never chose is not moved onto what a new install turns on (#755).
+    #[serde(default = "mailcraft_engine::Prefs::default")]
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
@@ -884,6 +905,8 @@ pub struct UiState {
     /// The application (client) id Microsoft knows this installation by, for accounts that sign
     /// in on Microsoft's page and name none of their own. An identifier, not a secret.
     pub microsoft_client_id: String,
+    /// Override MailCraft's Google Desktop client ID from File > Options; empty uses build's.
+    pub google_client_id: String,
     /// Keep passwords and sign-ins in the operating system's credential store between runs.
     pub remember_sign_in: bool,
     /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
@@ -954,7 +977,7 @@ impl Default for UiState {
             window: None,
             window_places: Default::default(),
             language: i18n::AUTO.into(),
-            options: mailcraft_engine::Prefs::default(),
+            options: fresh_options(),
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
@@ -965,6 +988,7 @@ impl Default for UiState {
             collapsed_folders: Vec::new(),
             recent: Vec::new(),
             microsoft_client_id: String::new(),
+            google_client_id: String::new(),
             remember_sign_in: true,
             sign_ins_bound: false,
             remembered_keys: Vec::new(),
@@ -987,6 +1011,14 @@ impl Default for UiState {
             alert_reminders: true,
         }
     }
+}
+
+/// The engine's preferences in the window's settings for a new install: the engine's own, but
+/// for what the window turns on that a session without its settings (`mailcraft-cli run`,
+/// headless `mcp`) leaves off. An answered meeting request goes from the Inbox to Deleted Items,
+/// as in Outlook (#755); a saved choice, on or off, is read back as it was.
+fn fresh_options() -> mailcraft_engine::Prefs {
+    mailcraft_engine::Prefs { delete_answered_requests: true, ..Default::default() }
 }
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
@@ -1195,6 +1227,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"minutes": 1-10080, "event"?: number, "occurrence"?: string (default: all that are showing)}"#,
     ),
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
+    ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.desktopAlerts",
@@ -1301,13 +1334,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "ui.updateCheck",
         "Check for New Versions",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "downloaded": version|null}}"#,
     ),
     (
         "ui.updateInstall",
         "Install Updates Automatically",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether a copy that updates itself (the Windows .msi, the macOS app, a Linux AppImage) downloads a newer release by itself while the daily check is on, and checks it by the release's own signature (on unless the owner turns it off). Refused when the organisation has turned it off ("Turned off by your organisation") and for a copy that doesn't update itself. Agents and scripts can't start a download. Answers what `ui.updateCheck` answers"#,
     ),
     (
@@ -1891,6 +1924,14 @@ impl MailApp {
         self.windows.monitors = Some(monitors);
     }
 
+    /// Start on the window's settings for a new install, for a run that has none saved (no
+    /// settings file, one set aside, or a run that keeps none): the engine's preferences become
+    /// the ones of [`UiState::default`], which turn on what a session without the window leaves
+    /// off (#755). The hosts call this where they would otherwise [`MailApp::apply_prefs`].
+    pub fn fresh_prefs(&mut self) {
+        self.session.prefs = fresh_options();
+    }
+
     /// Restore preferences saved by [`MailApp::prefs`].
     pub fn apply_prefs(&mut self, ui: UiState) {
         self.ui = ui;
@@ -2207,6 +2248,8 @@ impl MailApp {
         }
         if let (Ok(_), Some(gone)) = (&r, leaving) {
             let account = gone.id;
+            // A late OAuth response must never restore tokens for a removed account.
+            self.cancel_pending_sign_in(account);
             // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
@@ -2221,11 +2264,20 @@ impl MailApp {
             self.ews_certificate.remove(&account);
             self.forget_account_secrets(&gone);
         }
+        // End a request as soon as its credential identity changes, using the same check as
+        // poll_sign_in even when the storage key remains the same.
+        if let (Ok(_), Some(before)) = (&r, &edited)
+            && self.session.mailbox.account(before.id).is_some_and(|after| !Self::same_sign_in_identity(before, after))
+        {
+            self.cancel_pending_sign_in(before.id);
+        }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
         // is asked again.
         if let (Ok(_), Some(before)) = (&r, edited)
             && let Some(after) = self.session.mailbox.account(before.id).cloned()
-            && ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after))
+            && (before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
             self.forget_account_secrets(&before);
             self.passwords.remove(&before.id);
@@ -2431,6 +2483,14 @@ impl MailApp {
                 self.ui.microsoft_client_id = id.to_string();
                 Ok(json!({"value": id}))
             }
+            "ui.googleClientId" => {
+                let id = s("value").unwrap_or_default().trim();
+                if id.len() > 200 || !id.chars().all(|c| c.is_ascii_alphanumeric() || "-._".contains(c)) {
+                    return Some(Err(tl!("An application ID is letters, digits and dashes").to_string()));
+                }
+                self.ui.google_client_id = id.to_string();
+                Ok(json!({"configured": !id.is_empty()}))
+            }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
                 self.ui.remember_sign_in = on;
@@ -2479,10 +2539,19 @@ impl MailApp {
                 let account = p
                     .get("account")
                     .and_then(Value::as_u64)
-                    .or_else(|| self.session.mailbox.accounts.iter().find(|a| a.oauth.is_some()).map(|a| a.id))
+                    .or_else(|| {
+                        self.session
+                            .mailbox
+                            .accounts
+                            .iter()
+                            .find(|a| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft))
+                            .map(|a| a.id)
+                    })
                     .and_then(|id| self.session.mailbox.account(id).cloned());
                 let Some(account) = account else { return Some(Err(tl!("No account signs in with Microsoft").to_string())) };
-                let Some(oauth) = account.oauth.clone() else { return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string())) };
+                let Some(oauth) = account.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
+                    return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string()));
+                };
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
             }
@@ -2659,6 +2728,31 @@ impl MailApp {
         }
     }
 
+    /// Whether a pending sign-in still belongs to the saved account. The storage key binds
+    /// its address and endpoints; login, transport security, ownership and OAuth registration
+    /// also belong to its credential identity. Names, signatures and download preferences do not.
+    fn same_sign_in_identity(before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        before.id == after.id
+            && before.kind == after.kind
+            && before.shared_of == after.shared_of
+            && before.login() == after.login()
+            && Self::secret_key("refresh", before) == Self::secret_key("refresh", after)
+            && before.incoming.as_ref().map(|s| s.security) == after.incoming.as_ref().map(|s| s.security)
+            && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
+            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+    }
+
+    /// Stop only this account's pending sign-in and remove its waiting text.
+    fn cancel_pending_sign_in(&mut self, account: Id) {
+        if self.signing_in.as_ref().is_some_and(|pending| pending.account == account)
+            && let Some(pending) = self.signing_in.take()
+        {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.session.sync_status.clear();
+        }
+    }
+
     /// The name secrets were kept under before they were bound to servers.
     pub(crate) fn legacy_secret_key(kind: &str, address: &str) -> String {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
@@ -2673,7 +2767,7 @@ impl MailApp {
     /// What the owner had the operating system remember for `address` (`password` or `refresh`),
     /// for the account of that address with the servers it has now.
     fn remembered(&self, kind: &str, address: &str) -> Option<String> {
-        if !self.ui.remember_sign_in {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in {
             return None;
         }
         // (What the background read brought, never the store itself: it may be locked, and then
@@ -2683,7 +2777,7 @@ impl MailApp {
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
     fn remember(&mut self, kind: &str, address: &str, secret: &str) {
-        if !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
             return;
         }
         let Some(account) = self.account_at(address) else { return };
@@ -2694,7 +2788,13 @@ impl MailApp {
                 self.secret_cache.insert(key.clone(), secret.to_string());
                 self.index_secret_key(key);
             }
-            Err(e) => log::warn!("couldn't keep the sign-in for next time: {e}"),
+            Err(_) => {
+                // A store error can echo its input; never put it in diagnostics. A partial
+                // store write must not leave a credential that appears successfully saved.
+                log::warn!("couldn't keep a sign-in in the operating system's credential store");
+                store.delete(&key);
+                self.secret_cache.remove(&key);
+            }
         }
     }
 
@@ -2773,14 +2873,66 @@ impl MailApp {
         }
     }
 
+    /// Forget only this account's rejected refresh grant, including the in-memory cache.
+    fn forget_account_refresh(&mut self, account: &mailcraft_model::Account) {
+        let keys = [Self::secret_key("refresh", account), Self::legacy_secret_key("refresh", &account.email)];
+        for key in &keys {
+            self.secret_cache.remove(key);
+        }
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for key in keys {
+            store.delete(&key);
+            if store.get(&key).is_none() {
+                gone.push(key);
+            }
+        }
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
+        }
+    }
+
     /// The sign-in settings as the host should use them: an account that names no application id
     /// of its own takes this installation's.
     pub(crate) fn effective_oauth(&self, mut oauth: mailcraft_model::OAuth) -> mailcraft_model::OAuth {
-        if oauth.client_id.is_empty() && oauth.provider == mailcraft_model::OAuthProvider::Microsoft {
-            let own = &self.ui.microsoft_client_id;
-            oauth.client_id = if own.is_empty() { self.services.microsoft_client_id.clone() } else { own.clone() };
+        if oauth.client_id.is_empty() {
+            let own = match oauth.provider {
+                mailcraft_model::OAuthProvider::Microsoft => {
+                    if self.ui.microsoft_client_id.is_empty() {
+                        &self.services.microsoft_client_id
+                    } else {
+                        &self.ui.microsoft_client_id
+                    }
+                }
+                mailcraft_model::OAuthProvider::Google => {
+                    if self.ui.google_client_id.is_empty() {
+                        &self.services.google_client_id
+                    } else {
+                        &self.ui.google_client_id
+                    }
+                }
+            };
+            oauth.client_id.clone_from(own);
         }
         oauth
+    }
+
+    /// The host's Desktop registration value. UI preferences never supply or retain it.
+    pub(crate) fn google_client_secret(&self) -> &str {
+        &self.services.google_client_secret
+    }
+
+    pub(crate) fn google_registration_ready(&self) -> bool {
+        let oauth = self.effective_oauth(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
+        let (id, secret) = (oauth.client_id.as_str(), self.google_client_secret());
+        !id.is_empty()
+            && id.len() <= 200
+            && id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+            && !secret.is_empty()
+            && secret.len() <= 512
+            && secret.bytes().all(|b| b.is_ascii_graphic())
+            && self.services.sign_in.is_some()
     }
 
     /// Hand a sign-in to the host. `account` is 0 while an account is being set up.
@@ -2814,11 +2966,14 @@ impl MailApp {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let browser = refresh.is_empty();
         let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
+        let google_client_secret =
+            if oauth.provider == mailcraft_model::OAuthProvider::Google { self.google_client_secret().to_string() } else { String::new() };
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
             email: email.to_string(),
             refresh,
+            google_client_secret,
             cancel: cancel.clone(),
             quiet,
             graph,
@@ -2834,6 +2989,7 @@ impl MailApp {
             rules,
             replies,
         };
+        let snapshot = self.session.mailbox.account(account).cloned();
         let rx = sign_in(request);
         let opening = self.session.openings();
         self.signing_in = Some(SigningIn {
@@ -2841,6 +2997,7 @@ impl MailApp {
             favorites,
             quiet,
             account,
+            snapshot,
             shared,
             shared_send,
             shared_calendars,
@@ -2875,6 +3032,12 @@ impl MailApp {
 
     /// Account setup: the account exists now; keep what signing in brought back for it.
     pub(crate) fn adopt_tokens(&mut self, account: Id, tokens: Tokens) {
+        let Some(saved) = self.session.mailbox.account(account) else { return };
+        // A newly authorized Google account must identify its owner. A refresh grant which
+        // legitimately omits identity is handled by poll_sign_in, not by account setup.
+        if saved.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google) && tokens.email.trim().is_empty() {
+            return;
+        }
         if self.signed_in_as_other(account, &tokens) {
             return;
         }
@@ -2891,7 +3054,14 @@ impl MailApp {
     /// who to sign in as. Tokens that name nobody are the account's, as they always were.
     pub(crate) fn signed_in_as_other(&mut self, account: Id, tokens: &Tokens) -> bool {
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        if !tokens.someone_else(&a.email, &a.username) {
+        // A Google identity must match the account's address, not an alternate IMAP user
+        // name: that name is plain editable mailbox data and cannot authorize another owner.
+        let wrong = if a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google) && !tokens.email.trim().is_empty() {
+            !tokens.email.trim().eq_ignore_ascii_case(a.email.trim())
+        } else {
+            tokens.someone_else(&a.email, &a.username)
+        };
+        if !wrong {
             return false;
         }
         let who = tokens.email.trim();
@@ -3642,6 +3812,7 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("Signing in stopped unexpectedly").to_string()),
         };
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
+        let snapshot = waiting.snapshot.clone();
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
@@ -3669,6 +3840,14 @@ impl MailApp {
             // For an account that is being set up: its dialog takes it from here.
             self.session.sync_status.clear();
             self.setup_sign_in = Some(answer);
+            return;
+        }
+        // A removed or changed credential identity cannot take a late response, even if an ID
+        // was reused or the host ignored cancellation. Ordinary account preferences can change.
+        let same_identity =
+            snapshot.as_ref().zip(self.session.mailbox.account(account)).is_some_and(|(before, after)| Self::same_sign_in_identity(before, after));
+        if !same_identity {
+            self.session.sync_status.clear();
             return;
         }
         // Signed in on the page: what it now covers may let the automatic replies be read.
@@ -3770,9 +3949,18 @@ impl MailApp {
                 }
             }
             Err(e) => {
-                // What was kept stays: the host only gives up on it when the provider refuses it,
-                // and a sign-in that works replaces it. The access token is spent either way.
-                if let Some(tokens) = self.tokens.get_mut(&account) {
+                // A confirmed revoked Google refresh grant is different from a closed browser,
+                // denied consent or transient network failure. Delete only this account's
+                // old key and in-memory tokens; a later owner-initiated sync opens the browser.
+                if e == approval::GOOGLE_REAUTH_REQUIRED
+                    && let Some(saved) = self.session.mailbox.account(account).cloned()
+                    && saved.oauth.as_ref().is_some_and(|oauth| oauth.provider == mailcraft_model::OAuthProvider::Google)
+                {
+                    self.forget_account_refresh(&saved);
+                    self.tokens.remove(&account);
+                } else if let Some(tokens) = self.tokens.get_mut(&account) {
+                    // A retry may renew the otherwise usable refresh grant. Never erase it
+                    // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
                 }
                 self.session.sync_status.clear();
@@ -4817,6 +5005,35 @@ fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::
 /// What the owner is told when part of the mailbox file was damaged and left out as it opened.
 pub fn damaged_mailbox_notice() -> String {
     tl!("Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved.").to_string()
+}
+
+/// What the owner is told of the messages a mailbox just opened marked to be fetched again
+/// (`mailcraft_engine::cmd::file::after_opening`): those kept with characters that couldn't be
+/// read (#185, #650), and those an earlier version put back empty after a refused delete for
+/// good (#793). Nothing for none.
+pub fn fetched_again_notices(unreadable: usize, hollow: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    if unreadable > 0 {
+        out.push(
+            tln!(
+                unreadable,
+                "{n} message with characters that couldn't be read is being downloaded again.",
+                "{n} messages with characters that couldn't be read are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    if hollow > 0 {
+        out.push(
+            tln!(
+                hollow,
+                "{n} message that came back empty after a refused delete is being downloaded again.",
+                "{n} messages that came back empty after a refused delete are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    out
 }
 
 /// What the status bar says after a command the user ran, when it is worth saying.

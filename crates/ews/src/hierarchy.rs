@@ -146,5 +146,6 @@ fn read_folder(change: &Node) -> Option<GraphFolder> {
         total: total.unwrap_or(0),
         unread: unread.unwrap_or(0),
         counted: total.is_some() && unread.is_some(),
+        well_known: false,
     })
 }

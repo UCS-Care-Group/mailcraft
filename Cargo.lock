@@ -2488,6 +2488,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-pst"
+version = "0.10.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "mailcraft-time"
 version = "0.10.0"
 dependencies = [

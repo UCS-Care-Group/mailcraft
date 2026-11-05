@@ -175,3 +175,48 @@ fn a_busy_server_pauses_and_the_run_resumes() {
     // Every request asked for immutable ids.
     assert!(rig.server.state().requests.iter().all(|asked| asked.header("prefer").contains("IdType=\"ImmutableId\"")));
 }
+
+#[test]
+fn a_folder_marked_as_the_servers_own_is_left_alone_in_a_run_whose_extra_names_fail() {
+    let mut rig = Rig::new("own-kept@example.org");
+    let own = {
+        let mut state = rig.server.state();
+        let own = state.well_known("conversationhistory");
+        // (Most of the server's own are hidden; this one is shown, as Exchange shows it.)
+        if let Some(folder) = state.folders.iter_mut().find(|f| f.id == own) {
+            folder.hidden = false;
+        }
+        own
+    };
+    // An earlier run marked it (#756).
+    let first = rig.run();
+    assert_eq!(first["errors"], json!([]), "{first}");
+    let co = rig.here("Conversation History").id;
+    assert!(rig.s.mailbox.folder(co).unwrap().server_owned());
+    // A rename and a move left behind (an earlier version's, say: the commands refuse them now).
+    let deleted = rig.s.mailbox.folder_of_kind(rig.account, FolderKind::Deleted);
+    let folder = rig.s.mailbox.folder_mut(co).unwrap();
+    folder.name = "Mine".into();
+    folder.parent = deleted;
+    assert!(rig.s.run("folder.rename", &json!({"id": co, "name": "Mine too"})).is_err());
+    assert!(rig.s.run("folder.delete", &json!({"id": co})).is_err());
+    // This run the server fails the question of which folders are its own, past the special ones:
+    // the special folders' batch (asked again one at a time) and that of the others.
+    for _ in 0..2 {
+        rig.server.state().fail_next.push(("POST /v1.0/$batch".into(), 500, "ServiceUnavailable".into()));
+    }
+    let from = rig.server.state().requests.len();
+    let answer = rig.run();
+    assert_eq!(answer["errors"], json!([]), "{answer}");
+    // Nothing but reads went to the server about it, and it is as the server has it.
+    let state = rig.server.state();
+    let asked = state.requests[from..].iter().filter(|a| a.method != "GET" && a.target.contains(&own)).count();
+    assert_eq!(asked, 0, "no rename, move or delete was sent");
+    let there = state.folders.iter().find(|f| f.id == own).cloned().unwrap();
+    assert_eq!((there.name.as_str(), there.parent.as_str()), ("Conversation History", state.well_known("msgfolderroot").as_str()));
+    drop(state);
+    let here = rig.s.mailbox.folder(co).unwrap();
+    assert!(here.server_owned(), "one run that couldn't tell doesn't clear the mark");
+    assert_eq!((here.name.as_str(), here.parent), ("Conversation History", None), "the listing put it back");
+    assert_eq!(unpushed(&rig.s, rig.account), 0);
+}

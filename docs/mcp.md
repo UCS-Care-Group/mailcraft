@@ -227,8 +227,6 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-03 | patch | #566 follow-up: a change to the rules asked as `delete` because a rule on this computer that deletes mail for good is switched on names that rule in its question |
-| 2026-11-03 | minor | #566: `delete` also covers making, switching on or running a rule that deletes mail for good (with `send` too when it also files mail onto another account's server), and, while one on this computer is switched on, every change to the rules for the same mail except switching that one off or deleting it, and an `edit.undo` or `edit.redo` that changes the rules and leaves such a rule switched on |
 | 2026-11-03 | patch | #566 follow-up: `rules.move` of a rule its server has that deletes mail (or moves it to Deleted Items, or has parts MailCraft doesn't know) is `delete`, as `rules.enable` is |
 | 2026-11-02 | minor | #566: `delete` also covers deleting a rule its server has or may have, a rule that deletes mail or moves it to Deleted Items or a folder under it going to its server or switched on there, and a server's rule with parts MailCraft doesn't know switched on |
 | 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard, never takes the reading pane and at the bound is refused; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |

@@ -44,20 +44,19 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 | Date | Change | Summary |
 |---|---|---|
 | 2026-11-03 | minor | #702: the order the owner put their accounts in (`accountOrder`), and what an older build does with it |
+| 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |
 | 2026-10-26 | minor | #501: TLS certificates are checked by the operating system's verifier, not a built-in Mozilla root set |
+| 2026-10-25 | patch | #402: POP3 is "not yet" (#437), not "no"; Add Account names a POP server before connecting |
+| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once, found by their bytes, into one new local folder |
 | 2026-10-24 | minor | Password IMAP authentication prefers advertised PLAIN; current capabilities are queried only when unknown (#375) |
-| 2026-10-11 | major | First version |
-| 2026-10-12 | minor | Time zones (M3.5): the mailbox file's `zone` and an event's own zones; `VTIMEZONE` read and written |
-| 2026-10-15 | minor | The mailbox file in format 3, a log of records a save appends to (R6); formats 1 and 2 migrated with the old file kept; damage stops the reading at its save, or costs one item of the first; older builds and newer forms |
-| 2026-10-17 | patch | Files kept aside are never removed; 0.4.3 and earlier read the kept file |
+| 2026-10-23 | minor | #300: `notDownloaded`, the size on the server of a message too large to download; a file from before opens as it is, one with something other than a size there reads as none, and an older build drops the field from a message it writes again |
+| 2026-10-20 | minor | Protocols brought up to date with the code: IMAP two-way (UID STORE, MOVE, UIDPLUS, APPEND), XOAUTH2 for IMAP and SMTP, Microsoft Graph as the protocol of Microsoft accounts (mail, calendars, contacts, search, Favorites), Exchange Web Services gone, POP not planned |
+| 2026-10-20 | minor | Microsoft Graph: shared mailboxes out of testing; mail moved or copied between a shared mailbox and its owner's mailbox is made at the destination's own address (#70) |
 | 2026-10-18 | minor | The word index beside the mailbox file (`<file>.words`), R6.2 |
 | 2026-10-18 | minor | Mail in every character set of the WHATWG Encoding Standard (Windows-1250, ISO-8859-2, KOI8-R, Shift_JIS…), #178 |
 | 2026-10-18 | minor | vCard files in every character set of the WHATWG Encoding Standard, through mail's decoder, #180 |
 | 2026-10-18 | minor | vCard 2.1's raw 8-bit values read in their own `CHARSET`, #185 |
-| 2026-10-20 | minor | Protocols brought up to date with the code: IMAP two-way (UID STORE, MOVE, UIDPLUS, APPEND), XOAUTH2 for IMAP and SMTP, Microsoft Graph as the protocol of Microsoft accounts (mail, calendars, contacts, search, Favorites), Exchange Web Services gone, POP not planned |
-| 2026-10-20 | minor | Microsoft Graph: shared mailboxes out of testing; mail moved or copied between a shared mailbox and its owner's mailbox is made at the destination's own address (#70) |
-| 2026-10-23 | minor | #300: `notDownloaded`, the size on the server of a message too large to download; a file from before opens as it is, one with something other than a size there reads as none, and an older build drops the field from a message it writes again |
-| 2026-10-25 | patch | #402: POP3 is "not yet" (#437), not "no"; Add Account names a POP server before connecting |
-| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once, found by their bytes, into one new local folder |
-| 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |
-| 2026-11-03 | minor | #566: an older build can't open a mailbox holding a rule with one of the new conditions or actions, and reads a rule's exceptions as none; a read of a Microsoft account's rules can write such rules by itself; `rulesWaiting`, the rules new mail waits for until it is fetched whole |
+| 2026-10-17 | patch | Files kept aside are never removed; 0.4.3 and earlier read the kept file |
+| 2026-10-15 | minor | The mailbox file in format 3, a log of records a save appends to (R6); formats 1 and 2 migrated with the old file kept; damage stops the reading at its save, or costs one item of the first; older builds and newer forms |
+| 2026-10-12 | minor | Time zones (M3.5): the mailbox file's `zone` and an event's own zones; `VTIMEZONE` read and written |
+| 2026-10-11 | major | First version |

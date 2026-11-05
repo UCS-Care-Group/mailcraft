@@ -155,6 +155,10 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
         .take(MAX_EWS_STATES)
         .map(|server| EwsFolderState { folder: server.id.clone(), state: server.sync_state.clone() })
         .collect();
+    // The conversation ids of mail listed before they were asked for, in a run of every folder (#795).
+    if !light {
+        request.threads = super::thread_ids::to_ask(mb, account);
+    }
     Ok(request)
 }
 
@@ -363,7 +367,9 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     if result.whole && !result.partial && !run_cut {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
     }
-    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() {
+    // The conversations of mail listed before they were asked for (#795).
+    let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
