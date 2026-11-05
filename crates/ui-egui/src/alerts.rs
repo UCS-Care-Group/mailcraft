@@ -321,7 +321,9 @@ pub fn open(app: &mut MailApp, ctx: &egui::Context, opens: Opens) {
             app.ui.backstage = false;
             if app.session.mailbox.message(message).is_some_and(|m| m.folder == folder) {
                 let _ = app.execute("folder.select", json!({"id": folder}));
-                let _ = app.execute("mail.select", json!({"id": message, "elsewhere": true}));
+                // As the owner's click: the message being written in the reading pane goes to
+                // Drafts, and the message is shown (#727).
+                let _ = app.run("mail.select", json!({"id": message, "elsewhere": true}));
                 app.reveal_selection = true;
             } else if app.session.mailbox.folder(folder).is_some() {
                 // Moved or gone since: its folder, at least.

@@ -69,6 +69,63 @@ pub(crate) fn settle_pane(app: &mut MailApp) {
     app.windows.pane = now;
 }
 
+/// Before the owner moves the selection in the message list (a click on a row, Next Message,
+/// Select All…): the messages being written in the reading pane are let go of, so that what is
+/// selected is what the reading pane shows, and what acts on the selection (Delete, Reply) acts on
+/// what is in view (#727). Each is saved to Drafts as Save Draft saves it when it has changes (or
+/// its draft is gone), a draft with none is not saved again, and then it is closed; one put aside
+/// for another in the reading pane goes too, as it would come back there. One in a window of its
+/// own stays where it is, and so does the reading pane's when the selection asked for is its own
+/// draft alone (a click on its row). Every one is saved before any is closed: a draft that can't
+/// be saved leaves them all open, the selection as it was, and the error says why.
+pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -> Result<(), String> {
+    let moving = crate::keys::MOVES_IN_LIST.contains(&id) || id == "mail.selectAll";
+    // (A move that can't be made moves nothing.)
+    if !(id == "mail.select" || moving && app.enabled(id)) {
+        return Ok(());
+    }
+    settle_pane(app);
+    let Some(shown) = pane_compose(app) else { return Ok(()) };
+    if keeps(app, id, params, shown) {
+        return Ok(());
+    }
+    let s = &app.session;
+    let unsaved: Vec<u64> = s
+        .all_composing()
+        .filter(|c| app.windows.of_compose(c.id).is_none() && (c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)))
+        .map(|c| c.id)
+        .collect();
+    for c in unsaved {
+        app.execute("compose.saveDraft", json!({"compose": c}))?;
+    }
+    for _ in 0..mailcraft_engine::composing::MAX_COMPOSING {
+        settle_pane(app);
+        let Some(c) = pane_compose(app) else { return Ok(()) };
+        if keeps(app, id, params, c) {
+            return Ok(());
+        }
+        app.execute("compose.close", json!({"compose": c}))?;
+    }
+    settle_pane(app);
+    Ok(())
+}
+
+/// Whether the reading pane keeps the message being written `c` through `id` with `params`: a
+/// click that selects its own draft and nothing else.
+fn keeps(app: &MailApp, id: &str, params: &Value, c: u64) -> bool {
+    id == "mail.select" && app.session.composing_by_id(c).and_then(|c| c.draft).is_some_and(|d| selects_only(params, d))
+}
+
+/// Whether `mail.select` with `params` selects the message `id` and nothing else.
+fn selects_only(params: &Value, id: mailcraft_model::Id) -> bool {
+    let more = ["extend", "range"].iter().any(|k| params.get(*k).and_then(Value::as_bool) == Some(true));
+    let named = match params.get("ids") {
+        Some(ids) => ids.as_array().is_some_and(|ids| ids.len() == 1 && ids.first().and_then(Value::as_u64) == Some(id)),
+        None => params.get("id").and_then(Value::as_u64) == Some(id),
+    };
+    named && !more
+}
+
 /// Where a command the owner runs opens a message being written, unless the caller said
 /// ([`Opens`]): New Email, a reply or a forward in a window of its own when File › Options says so
 /// ("Open new messages, replies and forwards in a new window"); else the reading pane.
