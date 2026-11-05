@@ -350,7 +350,7 @@ fn references_that_multiply_are_refused() {
         );
     }
     assert!(refused(&drawing(8, 8, &format!("<defs>{masks}</defs><rect width='8' height='8' mask='url(#m10)'/>"))));
-    assert!(refused(&drawing(8, 8, &format!("<style>* {{ clip-path: url(#c) }}</style><clipPath id='c'><rect width='1' height='1'/></clipPath>"))));
+    assert!(refused(&drawing(8, 8, "<style>* { clip-path: url(#c) }</style><clipPath id='c'><rect width='1' height='1'/></clipPath>")));
     let points: String = (0..20_000).map(|i| format!(" {} {}", i % 8, i % 7)).collect();
     let marker = format!("<marker id='mk'>{}</marker>", "<rect width='1' height='1'/>".repeat(100));
     assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><polyline points='{points}' marker-mid='url(#mk)'/>"))));
