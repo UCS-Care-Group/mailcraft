@@ -8014,7 +8014,7 @@ msgstr "Einfügen"
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste Picture"
-msgstr "Bild einfügen"
+msgstr "Bild aus Zwischenablage einfügen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
