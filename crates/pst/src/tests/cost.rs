@@ -60,7 +60,7 @@ fn named_property_names_are_capped_one_by_one_and_in_all() {
     let bytes = raw(&spec.layout, &all);
     let mut pst = open(&bytes, Limits::default());
     let named = pst.named_properties().unwrap();
-    assert_eq!(named.left_out()[0], (0x8000, Error::Cap(Cap::NamedProperties)), "a name over 1 KB is left out");
+    assert_eq!(named.left_out()[0], (Some(0x8000), Error::Cap(Cap::NamedProperties)), "a name over 1 KB is left out");
     assert!(named.left_out().iter().all(|(_, e)| *e == Error::Cap(Cap::NamedProperties)));
     assert_eq!(named.len() + named.left_out().len(), 5001, "every entry is read or named as left out");
     let kept: usize = named.iter().map(|p| if let PropName::Name(n) = &p.name { n.len() * 2 } else { 0 }).sum();
@@ -517,8 +517,15 @@ fn a_list_value_holds_no_more_than_its_cap() {
     }
     let numbers: Vec<u8> = (0..count).flat_map(|i| (i as u16).to_le_bytes()).collect();
     let (binaries, int16s) = (crate::prop::types::BINARY | 0x1000, crate::prop::types::INT16 | 0x1000);
-    let props =
-        vec![(0x6900u16, writer::Value { ty: binaries, bytes: empties.clone() }), (0x6901, writer::Value { ty: int16s, bytes: numbers.clone() })];
+    // A list of booleans (whose items aren't read), with the same table, and with a count
+    // that no table could hold.
+    let booleans = crate::prop::types::BOOLEAN | 0x1000;
+    let props = vec![
+        (0x6900u16, writer::Value { ty: binaries, bytes: empties.clone() }),
+        (0x6901, writer::Value { ty: int16s, bytes: numbers.clone() }),
+        (0x6902, writer::Value { ty: booleans, bytes: empties.clone() }),
+        (0x6903, writer::Value { ty: booleans, bytes: vec![0xFF; 8] }),
+    ];
     let spec = sample(unicode_layout(), None);
     let mut all = nodes(&spec);
     let mut spill = Spill::new();
@@ -540,7 +547,13 @@ fn a_list_value_holds_no_more_than_its_cap() {
     assert_eq!(crate::prop::building_cost(int16s, &numbers), 0);
     // The numbers fit a cap of exactly their bytes.
     let Some(PropValue::MultiInt16(n)) = pst.read_property(&item, 0x6901, numbers.len() as u64).unwrap() else { panic!() };
-    assert_eq!((n.len(), n[7]), (count as usize, 7));
+    assert_eq!((n.len(), n.capacity(), n[7]), (count as usize, count as usize, 7), "no spare room past what is charged");
+    // Lists of other types are kept as their bytes, within a cap of exactly those, and
+    // whatever their bytes say.
+    let max = empties.len() as u64;
+    assert_eq!(pst.read_property(&item, 0x6902, max).unwrap(), Some(PropValue::Unknown { ty: booleans, data: empties.clone() }));
+    assert_eq!(pst.read_property(&item, 0x6903, max).unwrap(), Some(PropValue::Unknown { ty: booleans, data: vec![0xFF; 8] }));
+    assert_eq!(crate::prop::building_cost(booleans, &empties), 0);
     // And in a message the list is refused within the item's cap, not made.
     let mut pst = open(&bytes, Limits { max_item_bytes: 1 << 20, max_inline_value: 1 << 20, ..Default::default() });
     let m = pst.message(&item);
@@ -568,5 +581,5 @@ fn a_named_entry_that_names_no_id_is_left_out_alone() {
     let named = pst.named_properties().unwrap();
     assert_eq!(named.len(), 2);
     assert_eq!(named.get(0x8001).unwrap().name, PropName::Id(0x12));
-    assert_eq!(named.left_out(), &[(0x8000, Error::Corrupt("a named property's index"))]);
+    assert_eq!(named.left_out(), &[(None, Error::Corrupt("a named property's index"))]);
 }

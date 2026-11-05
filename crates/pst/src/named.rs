@@ -46,7 +46,7 @@ pub struct NamedProperty {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedMap {
     map: BTreeMap<u16, NamedProperty>,
-    left_out: Vec<(u16, Error)>,
+    left_out: Vec<(Option<u16>, Error)>,
 }
 
 impl NamedMap {
@@ -71,9 +71,9 @@ impl NamedMap {
         self.map.is_empty()
     }
 
-    /// The ids whose names were left out (damaged, or past a cap), and why. An entry whose
-    /// index names no id (0x8000 or more) is given as that index.
-    pub fn left_out(&self) -> &[(u16, Error)] {
+    /// The ids whose names were left out (damaged, or past a cap), and why; `None` for an
+    /// entry whose index names no id (0x8000 or more).
+    pub fn left_out(&self) -> &[(Option<u16>, Error)] {
         &self.left_out
     }
 }
@@ -109,7 +109,7 @@ pub(crate) fn read<R: Read + Seek>(ndb: &mut Ndb<R>, node: &NodeData) -> Result<
         let flags = u16_at(e, 4)?;
         let index = u16_at(e, 6)?;
         let Some(id) = 0x8000u16.checked_add(index) else {
-            left_out.push((index, Error::Corrupt("a named property's index")));
+            left_out.push((None, Error::Corrupt("a named property's index")));
             continue;
         };
         let is_string = flags & 1 != 0;
@@ -137,7 +137,7 @@ pub(crate) fn read<R: Read + Seek>(ndb: &mut Ndb<R>, node: &NodeData) -> Result<
                 names = names.saturating_add(stored);
                 map.entry(id).or_insert(p);
             }
-            Err(reason) => left_out.push((id, reason)),
+            Err(reason) => left_out.push((Some(id), reason)),
         }
     }
     Ok(NamedMap { map, left_out })

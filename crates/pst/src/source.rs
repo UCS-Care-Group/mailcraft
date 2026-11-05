@@ -46,9 +46,12 @@ impl<R: Read + Seek> Source<R> {
         if end > self.size {
             return Err(Error::OutOfBounds);
         }
-        self.inner.seek(SeekFrom::Start(offset))?;
+        // Within the file's size, so a short read is the reader failing (the file cut short or
+        // changed under the import), not damage to the file.
+        let io = |e: std::io::Error| Error::Io(e.kind());
+        self.inner.seek(SeekFrom::Start(offset)).map_err(io)?;
         let mut buf = vec![0u8; len];
-        self.inner.read_exact(&mut buf)?;
+        self.inner.read_exact(&mut buf).map_err(io)?;
         Ok(buf)
     }
 }

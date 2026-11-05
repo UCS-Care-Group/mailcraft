@@ -293,19 +293,26 @@ fn multi(base: u16, b: &[u8]) -> Result<PropValue> {
             _ => PropValue::Unknown { ty: base | MULTIPLE, data: b.to_vec() },
         });
     }
+    // Only the lists of strings and binaries have their items read; any other is kept as bytes.
+    if !matches!(base, STRING | STRING8 | BINARY) {
+        return Ok(PropValue::Unknown { ty: base | MULTIPLE, data: b.to_vec() });
+    }
     let items = variable_items(b)?;
     Ok(match base {
         STRING => PropValue::MultiString(items.into_iter().map(utf16).collect()),
         STRING8 => PropValue::MultiString8(items.into_iter().map(|i| trim_nul(i).to_vec()).collect()),
-        BINARY => PropValue::MultiBinary(items.into_iter().map(<[u8]>::to_vec).collect()),
-        _ => PropValue::Unknown { ty: base | MULTIPLE, data: b.to_vec() },
+        _ => PropValue::MultiBinary(items.into_iter().map(<[u8]>::to_vec).collect()),
     })
 }
 
 /// The items of a multi-valued property of a variable-size type (2.3.3.4.2).
 /// Each `size` bytes of `b` straight into a value of its own type: none is held twice.
 fn values<T>(b: &[u8], size: usize, f: impl Fn(&[u8]) -> Result<T>) -> Result<Vec<T>> {
-    b.chunks_exact(size).map(f).collect()
+    let mut out = Vec::with_capacity(b.len().checked_div(size).unwrap_or(0));
+    for c in b.chunks_exact(size) {
+        out.push(f(c)?);
+    }
+    Ok(out)
 }
 
 fn variable_items(b: &[u8]) -> Result<Vec<&[u8]>> {

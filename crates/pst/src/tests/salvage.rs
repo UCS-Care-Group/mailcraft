@@ -188,18 +188,20 @@ fn a_walk_of_the_nodes_that_reaches_a_cap_says_so() {
     assert!(capped > 0);
 }
 
-/// A file whose reader fails once, on its `fail`th read.
+/// A file whose reader fails once, on its `fail`th read: with an error, or (`short`) by
+/// giving nothing, as a file cut short under the import does.
 struct Flaky<'a> {
     inner: Cursor<&'a [u8]>,
     reads: usize,
     fail: usize,
+    short: bool,
 }
 
 impl std::io::Read for Flaky<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.reads += 1;
         if self.reads == self.fail {
-            return Err(std::io::Error::other("the disk"));
+            return if self.short { Ok(0) } else { Err(std::io::Error::other("the disk")) };
         }
         self.inner.read(buf)
     }
@@ -234,7 +236,7 @@ fn a_reader_that_fails_or_runs_out_ends_the_call() {
     assert!(items.len() >= 3);
     let whole = answers(&mut pst, &folders, &items);
     assert!(whole.iter().all(Result::is_ok));
-    let mut flaky = Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail: 0 };
+    let mut flaky = Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail: 0, short: false };
     let mut fresh = Pst::open(&mut flaky).unwrap();
     answers(&mut fresh, &folders, &items);
     drop(fresh);
@@ -248,12 +250,12 @@ fn a_reader_that_fails_or_runs_out_ends_the_call() {
         }
     };
     let mut failed = 0;
-    for fail in 1..=reads {
-        let Ok(mut pst) = Pst::open(Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail }) else { continue };
+    for (fail, short) in (1..=reads).flat_map(|n| [(n, false), (n, true)]) {
+        let Ok(mut pst) = Pst::open(Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail, short }) else { continue };
         let got = answers(&mut pst, &folders, &items);
         failed += got.iter().filter(|r| r.is_err()).count();
-        check(got, |e| matches!(e, Error::Io(_)), &format!("failing read {fail}"));
-        assert!(pst.damage().is_empty());
+        check(got, |e| matches!(e, Error::Io(_)), &format!("failing read {fail}, short {short}"));
+        assert!(pst.damage().is_empty(), "failing read {fail}, short {short}");
     }
     assert!(failed > 0);
     let mut capped = 0;
