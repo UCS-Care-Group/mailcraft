@@ -5140,13 +5140,13 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#: crates/ui-egui/src/approval.rs
+msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/approval.rs
-msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
+#: crates/ui-egui/src/account_setup.rs
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
 msgstr ""
 
 #. what a command says
@@ -6909,6 +6909,11 @@ msgstr ""
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Options"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Or is it one of these?"
 msgstr ""
 
 #. interface
@@ -13427,6 +13432,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "sign-in failed: the server doesn't take a password on this connection"
 msgstr ""
 
 #. interface

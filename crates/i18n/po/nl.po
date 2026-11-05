@@ -6186,16 +6186,16 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr "MailCraft kan zich nog niet op deze manier aanmelden bij deze server (de server wil Kerberos). Vraag uw beheerder of de server een gebruikersnaam en wachtwoord over een versleutelde verbinding accepteert."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
-msgstr "MailCraft kon de instellingen voor dit adres niet vinden. Controleer de servers hieronder voordat u verbinding maakt."
-
-#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Microsoft. Kopieer in plaats daarvan het bericht: de koppeling erin opent dezelfde pagina."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft kent de instellingen voor dit adres niet. De servers hieronder zijn alleen een gok op basis van het domein: controleer ze bij uw provider of beheerder voordat u verbinding maakt."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -8329,6 +8329,12 @@ msgstr "Optioneel"
 #, fuzzy
 msgid "Options"
 msgstr "Opties"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Or is it one of these?"
+msgstr "Of is het een van deze?"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13268,7 +13274,7 @@ msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noem
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u in Bestand › Info op Controleren op updates drukt."
+msgstr "Dit is een ontwikkelbuild: er wordt alleen gecontroleerd wanneer u op Controleren op updates drukt."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16190,6 +16196,12 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "sign-in failed: the server doesn't take a password on this connection"
+msgstr "aanmelden mislukt: de server accepteert geen wachtwoord op deze verbinding"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
@@ -18296,6 +18308,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#~ msgstr "MailCraft kon de instellingen voor dit adres niet vinden. Controleer de servers hieronder voordat u verbinding maakt."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
