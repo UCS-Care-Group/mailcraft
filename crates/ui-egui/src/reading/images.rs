@@ -10,7 +10,8 @@
 //! large a picture is decoded, how much memory decoding may take, how large a texture is made,
 //! how many are kept. A picture that is too large, damaged or of a kind that isn't decoded (PNG,
 //! JPEG, GIF and WebP are; one that moves shows its first frame; an SVG drawing is drawn, by
-//! [`super::svg`], with nothing it refers to loaded) is a placeholder, not an error.
+//! [`super::svg`], with nothing it refers to loaded, on a thread of its own) is a placeholder,
+//! not an error.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -302,6 +303,16 @@ pub struct Pictures {
     decodes: usize,
     /// Pictures from the web, by their address as the message wrote it.
     remote: HashMap<Arc<str>, RemoteEntry>,
+    /// The SVG drawing being drawn on a thread of its own, if any: one at a time, never on the
+    /// window's thread.
+    drawing: Option<Drawn>,
+}
+
+/// A drawing being drawn apart: whose bytes, and where its picture (or `None`, it can't be
+/// drawn) comes.
+struct Drawn {
+    data: Arc<Vec<u8>>,
+    answer: std::sync::mpsc::Receiver<Option<egui::ColorImage>>,
 }
 
 impl Pictures {
@@ -401,6 +412,7 @@ impl Pictures {
     pub fn texture(&mut self, ctx: &egui::Context, data: &Arc<Vec<u8>>, shown: egui::Vec2) -> Picture {
         let frame = frame(ctx);
         self.asked_at = Some(ctx.input(|i| i.time));
+        self.settle(ctx);
         let busy = self.decoded_in == Some(frame);
         if self.entry(data, frame).is_none() {
             return Picture::Failed;
@@ -438,6 +450,9 @@ impl Pictures {
         if bytes.saturating_add(cost) > CACHE_BYTES || (have.is_none() && textures >= CACHE_PICTURES) {
             return ready(have);
         }
+        if drawing.is_some() {
+            return self.draw_apart(ctx, index, max_side, wanted, have);
+        }
         if busy {
             return have.map_or(Picture::Pending, Picture::Ready);
         }
@@ -460,6 +475,62 @@ impl Pictures {
             self.decodes += 1;
         }
         picture
+    }
+
+    /// Draw the SVG drawing of entry `index` on a thread of its own, unless one is being drawn
+    /// already (this one or another: one at a time); meanwhile the picture is what it has, or
+    /// pending. A drawing is never drawn on the window's thread, so one that takes long holds up
+    /// the other drawings, never the window. Where there are no threads (the browser) it can't be
+    /// drawn.
+    fn draw_apart(&mut self, ctx: &egui::Context, index: usize, max_side: u32, wanted: u32, have: Option<egui::TextureHandle>) -> Picture {
+        let waiting = have.map_or(Picture::Pending, Picture::Ready);
+        if self.drawing.is_some() {
+            return waiting;
+        }
+        let Some(entry) = self.entries.get_mut(index) else { return Picture::Failed };
+        let (sender, answer) = std::sync::mpsc::channel();
+        let (bytes, repaint) = (entry.data.clone(), ctx.clone());
+        let drawn = std::thread::Builder::new().name("mailcraft-svg".into()).stack_size(8 * 1024 * 1024).spawn(move || {
+            // The window may be gone, and nobody waiting: nothing to do about it.
+            let _ = sender.send(svg::decode(&bytes, max_side, wanted));
+            repaint.request_repaint();
+        });
+        if drawn.is_err() {
+            entry.failed = true;
+            entry.texture = None;
+            return Picture::Failed;
+        }
+        self.drawing = Some(Drawn { data: entry.data.clone(), answer });
+        #[cfg(test)]
+        {
+            self.decodes += 1;
+        }
+        waiting
+    }
+
+    /// Take in the drawing drawn apart, once it is: its texture for its entry (still there by
+    /// those bytes, or the same bytes anew), or that it can't be drawn.
+    fn settle(&mut self, ctx: &egui::Context) {
+        let Some(drawn) = &self.drawing else { return };
+        let image = match drawn.answer.try_recv() {
+            Ok(image) => image,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
+        };
+        let data = drawn.data.clone();
+        self.drawing = None;
+        let entry = match self.entries.iter().position(|e| Arc::ptr_eq(&e.data, &data)) {
+            Some(index) => self.entries.get_mut(index),
+            None => self.entries.iter_mut().find(|e| e.data.len() == data.len() && e.data == data),
+        };
+        let Some(entry) = entry else { return };
+        match image {
+            Some(image) => entry.texture = Some(ctx.load_texture("mailcraft-inline-picture", image, egui::TextureOptions::LINEAR)),
+            None => {
+                entry.failed = true;
+                entry.texture = None;
+            }
+        }
     }
 
     /// At the end of a frame: once no picture has been asked for for [`IDLE_SECONDS`] (no message

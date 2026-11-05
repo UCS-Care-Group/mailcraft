@@ -452,8 +452,23 @@ fn review_7_the_segments_of_a_path_are_counted() {
     // Stroked wide, with round joins and caps, or many times over: refused, at once.
     assert!(refused(&drawing(40, 40, &format!("<path d='{d}' fill='none' stroke='#000' stroke-width='1e4' stroke-linejoin='round'/>"))));
     assert!(refused(&drawing(40, 40, &format!("<path d='{d}' style='fill:none;stroke:#000;stroke-linecap:round'/>"))));
-    let short = format!("M0 0{}", "h1v1".repeat(3_000));
-    assert!(refused(&drawing(40, 40, &format!("<path d='{short}' stroke='#000'/>").repeat(10))));
+    let short = format!("M0 0{}", "h1v1".repeat(4_000));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{short}' stroke='#000'/>").repeat(14))));
+}
+
+/// Review finding 8: a curve counted as one segment, though it is drawn as up to 64 lines.
+#[test]
+fn review_8_a_curve_counts_as_the_lines_it_is_drawn_with() {
+    let cubics = |n: usize| format!("M0 0{}", "c1 2 3 4 5 6".repeat(n));
+    let quads = |n: usize| format!("M0 0{}", "q1 2 3 4".repeat(n));
+    // A thousand curves are a logo's; seven thousand are refused, filled, and fifteen hundred,
+    // stroked.
+    assert!(images::probe(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", cubics(1_000)))).is_some());
+    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", cubics(7_000)))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='#2e8b57'/>", quads(7_000)))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{}' fill='none' stroke='#000'/>", cubics(1_500)))));
+    // An arc is made curves, and counts as them.
+    assert!(refused(&drawing(40, 40, &format!("<path d='M0 0{}' fill='#2e8b57'/>", "a5 5 0 1 1 1 1".repeat(7_000)))));
 }
 
 #[test]
@@ -562,10 +577,48 @@ fn shown(m: Message) -> (usize, usize) {
         );
     harness.run_steps(3);
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
-    harness.run_steps(20);
+    // A drawing is drawn on a thread of its own: frames go on until it has come, or for a while.
+    for _ in 0..200 {
+        harness.run_steps(1);
+        if Pictures::of(&harness.ctx).lock().unwrap().counts().1 > 0 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    harness.run_steps(2);
     let pictures = Pictures::of(&harness.ctx);
     let pictures = pictures.lock().unwrap();
     pictures.counts()
+}
+
+#[test]
+fn a_drawing_is_never_drawn_on_the_windows_thread() {
+    let ctx = egui::Context::default();
+    let mut pictures = Pictures::default();
+    let data = std::sync::Arc::new(drawing(40, 20, ""));
+    let shown = egui::vec2(40.0, 20.0);
+    // Asked for, it is pending: it is being drawn elsewhere, and the window goes on.
+    assert!(matches!(pictures.texture(&ctx, &data, shown), images::Picture::Pending));
+    // A raster picture asked for meanwhile is decoded as before.
+    let png = std::sync::Arc::new(super::tests::png(8, 8));
+    assert!(matches!(pictures.texture(&ctx, &png, egui::vec2(8.0, 8.0)), images::Picture::Ready(_)));
+    let start = Instant::now();
+    let texture = loop {
+        if let images::Picture::Ready(texture) = pictures.texture(&ctx, &data, shown) {
+            break texture;
+        }
+        assert!(start.elapsed() < Duration::from_secs(5), "never drawn");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    // Drawn for the width it is shown at (in steps of 64 pixels), its shape kept.
+    assert!(texture.size()[0] >= 40 && texture.size()[0] == 2 * texture.size()[1], "{:?}", texture.size());
+    // One that can't be drawn comes back as a stand-in, the same way.
+    let broken = std::sync::Arc::new(b"<svg xmlns='http://www.w3.org/2000/svg'><rect></svg>".to_vec());
+    let start = Instant::now();
+    while !matches!(pictures.texture(&ctx, &broken, shown), images::Picture::Failed) {
+        assert!(start.elapsed() < Duration::from_secs(5), "never settled");
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 #[test]

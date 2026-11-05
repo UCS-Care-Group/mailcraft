@@ -23,6 +23,14 @@ fn an_svg_on_the_web_is_shown_once_asked_for_and_nothing_it_names_is() {
     select(&mut harness, id);
     harness.state_mut().execute("ui.downloadPictures", json!({})).unwrap();
     harness.run_steps(12);
+    // The drawing is drawn on a thread of its own: frames go on until it has come.
+    for _ in 0..200 {
+        if shown(&harness, id) == (2, 1, 1) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.run_steps(1);
+    }
     // The drawing and the PNG are shown; only the message's own three addresses were asked for.
     assert_eq!((host.asked(), shown(&harness, id)), (pictures.clone(), (2, 1, 1)));
     harness.run_steps(20);

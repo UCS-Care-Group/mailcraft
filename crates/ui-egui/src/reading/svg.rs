@@ -4,8 +4,8 @@
 //! (`cid:`), written into it (`data:`) or, when the owner asked for its pictures, on the web.
 //! An `<svg>` element in the message itself is not drawn.
 //!
-//! A drawing is a stranger's program for a renderer that was not made for strangers, drawn on
-//! the window's own thread. So only the plainest drawings are shown, the kind flat logos and
+//! A drawing is a stranger's program for a renderer that was not made for strangers. So only the
+//! plainest drawings are shown, the kind flat logos and
 //! icons are, by an allowlist: what is not on it makes the drawing a broken picture, as a damaged
 //! PNG is.
 //!
@@ -30,7 +30,9 @@
 //!   more, a round one most).
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
 //!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes, layers and segments it
-//!   has, so that drawing it is a bounded amount of work.
+//!   has, so that drawing it is a bounded amount of work; and it is drawn on a thread of its own,
+//!   one drawing at a time, never on the window's (`Pictures::draw_apart`; the browser build,
+//!   which has no threads, shows none).
 //!
 //! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
 //! broken picture too.
@@ -299,12 +301,11 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
 }
 
 /// The passes drawing the tree usvg made takes besides one a shape: a layer for each shape drawn
-/// apart for its opacity, and one for every [`SEGMENTS_A_PASS`] segments of its paths (filled
+/// apart for its opacity, and one for every [`SEGMENTS_A_PASS`] lines of its paths (filled
 /// once; stroked [`STROKE_WEIGHT`] times more, [`ROUND_WEIGHT`] with round joins or caps, which
 /// the stroker draws as many small segments). `None` when it has what is refused: a clip, mask or
 /// filter, a layer in a layer, more than `MAX_SVG_COST` nodes or [`MAX_SEGMENTS`] weighted
-/// segments. (The bytes bound them first: 256 KB of path data is at most 128,000 segments, `h1`
-/// being two bytes, so a drawing that is filled can't pass the cap, only one stroked.)
+/// lines, each curve counted as the lines it is drawn with ([`QUAD_LINES`], [`CUBIC_LINES`]).
 fn counted(tree: &usvg::Tree) -> Option<u64> {
     let (mut nodes, mut layers, mut segments) = (0u64, 0u64, 0u64);
     let mut groups = vec![(tree.root(), false)];
@@ -328,7 +329,17 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
                         Some(stroke) if stroke.linejoin() == usvg::LineJoin::Round || stroke.linecap() == usvg::LineCap::Round => 1 + ROUND_WEIGHT,
                         Some(_) => 1 + STROKE_WEIGHT,
                     };
-                    segments = segments.saturating_add((path.data().verbs().len() as u64).saturating_mul(weight));
+                    // Each curve as the lines it is drawn with (usvg has made every arc curves).
+                    let lines: u64 = path
+                        .data()
+                        .segments()
+                        .map(|segment| match segment {
+                            tiny_skia::PathSegment::QuadTo(..) => QUAD_LINES,
+                            tiny_skia::PathSegment::CubicTo(..) => CUBIC_LINES,
+                            _ => 1,
+                        })
+                        .fold(0, u64::saturating_add);
+                    segments = segments.saturating_add(lines.saturating_mul(weight));
                 }
                 _ => {}
             }
@@ -340,8 +351,14 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
     Some(layers.saturating_add(segments / SEGMENTS_A_PASS))
 }
 
-/// Most segments a drawing's paths may come to, weighted for what stroking them takes.
-const MAX_SEGMENTS: u64 = 200_000;
+/// Most lines a drawing's paths may come to, each curve counted as the lines it is drawn with and
+/// each line weighted for what stroking it takes. Drawing a path costs its lines and the pixels it
+/// covers, so at worst a drawing is 400,000 lines and its passes over at most `max_pixels`.
+const MAX_SEGMENTS: u64 = 400_000;
+/// The lines tiny-skia draws a quadratic and a cubic curve with, at most: its edge builder splits
+/// a curve in up to 2^`MAX_COEFF_SHIFT` (6) lines.
+const QUAD_LINES: u64 = 64;
+const CUBIC_LINES: u64 = 64;
 /// How many times more a stroke's segments weigh than a fill's, and a round stroke's.
 const STROKE_WEIGHT: u64 = 4;
 const ROUND_WEIGHT: u64 = 16;
