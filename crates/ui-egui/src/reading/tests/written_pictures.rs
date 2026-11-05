@@ -224,3 +224,38 @@ fn each_message_being_written_has_its_own_quoted_original() {
     app.session.compose.as_mut().unwrap().attachments = vec![picture("chart.png", 40)];
     assert_eq!(bytes(&carried(&app)), vec![std::sync::Arc::new(png(40, 40))]);
 }
+
+/// The quoted original kept for a message being written goes once that message is closed, even
+/// when no other message is being written.
+#[test]
+fn a_closed_message_lets_go_of_its_quoted_original() {
+    use super::{MailApp, NOW, Services};
+    let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    app.autosave = false;
+    let (account, inbox) = (app.session.mailbox.accounts[0].id, app.session.mailbox.inbox().unwrap());
+    let m = mailcraft_model::Message {
+        account,
+        folder: inbox,
+        message_id: "plan@example.org".into(),
+        from: mailcraft_model::Address::new("Rowan Ash", "rowan@example.org"),
+        subject: "The plan".into(),
+        body: mailcraft_model::Body { text: "The plan.".into(), html: Some("<p>The plan:</p><img src=\"cid:plan@example.org\">".into()) },
+        attachments: vec![mailcraft_model::Attachment {
+            content_id: "plan@example.org".into(),
+            inline: true,
+            ..mailcraft_model::Attachment::new("plan.png", "image/png", png(20, 20))
+        }],
+        ..Default::default()
+    };
+    let id = app.session.mailbox.add_message(m).unwrap();
+    app.execute("mail.select", serde_json::json!({"id": id})).unwrap();
+    app.execute("mail.forward", serde_json::json!({"id": id})).unwrap();
+    let ctx = egui::Context::default();
+    let carried = crate::reading::quote_message(&app, &ctx).unwrap();
+    crate::reading::tick(&mut app, &ctx);
+    assert!(std::sync::Arc::strong_count(&carried) > 1, "kept while it is being written");
+    app.execute("compose.close", serde_json::json!({"discard": true})).unwrap();
+    assert_eq!(app.session.all_composing().count(), 0);
+    crate::reading::tick(&mut app, &ctx);
+    assert_eq!(std::sync::Arc::strong_count(&carried), 1, "the closed message's original is let go of");
+}

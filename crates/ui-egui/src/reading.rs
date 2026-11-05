@@ -328,7 +328,7 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
 fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let c = app.session.compose.as_ref()?;
     let quote = c.quote.as_ref()?;
-    let key = egui::Id::unique("mailcraft-compose-quote");
+    let key = quotes_key();
     let mut kept: Vec<(u64, Arc<Message>)> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
     // The quote's own pictures (those the original showed, for an answer; those written into it,
@@ -356,11 +356,32 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     // Its body is the quote's, whole: nothing of it waits on disk.
     m.kept = None;
     let m = Arc::new(m);
-    // What is kept for a message no longer being written goes, and so does this one's old quote.
-    kept.retain(|(id, _)| *id != c.id && app.session.all_composing().any(|open| open.id == *id));
+    // This one's old quote goes (what is kept for a message no longer being written went at the
+    // start of the frame, [`let_go_of_quotes`]).
+    kept.retain(|(id, _)| *id != c.id);
     kept.push((c.id, m.clone()));
     ctx.data_mut(|d| d.insert_temp(key, kept));
     Some(m)
+}
+
+/// Where the carried originals are kept, in the context the windows share.
+fn quotes_key() -> egui::Id {
+    egui::Id::unique("mailcraft-compose-quote")
+}
+
+/// The carried originals of messages no longer being written go, with their pictures' bytes:
+/// once a frame, so a window that closes lets go of its own even when no other is open.
+fn let_go_of_quotes(app: &MailApp, ctx: &egui::Context) {
+    let key = quotes_key();
+    ctx.data_mut(|d| {
+        let Some(kept) = d.get_temp::<Vec<(u64, Arc<Message>)>>(key) else { return };
+        let left: Vec<(u64, Arc<Message>)> = kept.into_iter().filter(|(id, _)| app.session.all_composing().any(|open| open.id == *id)).collect();
+        if left.is_empty() {
+            d.remove::<Vec<(u64, Arc<Message>)>>(key);
+        } else {
+            d.insert_temp(key, left);
+        }
+    });
 }
 
 /// `m` shown read-only through the display blocks, as at `place` ([`Place::Preview`]): its own
@@ -369,8 +390,10 @@ pub(crate) fn show_plain_view(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, 
     view::show(app, ui, m, place, Access::Blocked);
 }
 
-/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]).
+/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]), and the
+/// quoted originals of messages no longer being written are let go of.
 pub(crate) fn tick(app: &mut MailApp, ctx: &egui::Context) {
+    let_go_of_quotes(app, ctx);
     remote::tick(app, ctx);
 }
 
