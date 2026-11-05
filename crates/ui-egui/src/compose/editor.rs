@@ -833,7 +833,16 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // Changed since the last frame, by a command from elsewhere (an agent's or a script's
     // `compose.select`, the ribbon's): not selected by the owner here.
     own(app, which, &mut st, None);
-    if editable && (take_focus || (which == Which::Message && app.take_body_focus())) {
+    // What was done to the text gives the keyboard back to the text the commands act on: the open
+    // signature's while there is one (a click on File › Signatures' bar), else the message's.
+    // (Asked only of an editor that can take it, so that a message behind an open signature keeps
+    // its request for when the signature closes.)
+    let wanted = editable
+        && match which {
+            Which::Message => app.take_body_focus(),
+            Which::Signature => std::mem::take(&mut app.signature_focus_wanted),
+        };
+    if editable && (take_focus || wanted) {
         resp.request_focus();
     }
     let mut reveal = false;

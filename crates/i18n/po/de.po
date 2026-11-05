@@ -5273,6 +5273,11 @@ msgstr "Wichtigkeit: hoch"
 msgid "High on top"
 msgstr "Hoch oben"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
