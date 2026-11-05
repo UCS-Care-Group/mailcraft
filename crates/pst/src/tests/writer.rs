@@ -791,6 +791,11 @@ pub enum AttachSpec {
     Message(Box<MessageSpec>),
     /// An attached message (method 5) whose object is this subnode, as it is.
     Object(SubNode),
+    /// An attachment with exactly these properties (a linked file, an inline picture with its
+    /// content id, a hidden one).
+    Props(Vec<(u16, Value)>),
+    /// An OLE object (method 6): these bytes in a subnode of its own.
+    Ole(Vec<u8>),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -871,6 +876,8 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
         (0x0E06, time(m.delivered)),
         (0x0017, int32(1)),
     ];
+    // A property in `extra` takes the place of the one given above.
+    props.retain(|(id, _)| !m.extra.iter().any(|(e, _)| e == id));
     props.extend(m.extra.iter().cloned());
     let mut spill = Spill::new();
     let pc_blocks = pc(l, &props, &mut spill);
@@ -941,6 +948,17 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
                     let props = vec![(0x3705, int32(5)), (0x3704, text(l, "object")), (0x3701, Value { ty: OBJECT, bytes: obj })];
                     (props, 0, 5)
                 }
+                AttachSpec::Props(props) => {
+                    let method = props.iter().find(|(id, _)| *id == 0x3705).map_or(1, |(_, v)| i32::from_le_bytes(v.bytes[..4].try_into().unwrap()));
+                    (props.clone(), 0, method)
+                }
+                AttachSpec::Ole(data) => {
+                    let onid = aspill.put(0x01, data.clone());
+                    let mut obj = onid.to_le_bytes().to_vec();
+                    obj.extend_from_slice(&(data.len() as u32).to_le_bytes());
+                    let props = vec![(0x3705, int32(6)), (0x3704, text(l, "Picture (Metafile)")), (0x3701, Value { ty: OBJECT, bytes: obj })];
+                    (props, data.len(), 6)
+                }
             };
             let ablocks = pc(l, &aprops, &mut aspill);
             subs.push(SubNode { nid, data: Data::Blocks(ablocks), subnodes: aspill.subnodes });
@@ -948,6 +966,8 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
                 AttachSpec::File { name, .. } => name.clone(),
                 AttachSpec::Message(inner) => inner.subject.clone(),
                 AttachSpec::Object(_) => "object".into(),
+                AttachSpec::Props(_) => "attachment".into(),
+                AttachSpec::Ole(_) => "Picture (Metafile)".into(),
             };
             arows.push((
                 nid,

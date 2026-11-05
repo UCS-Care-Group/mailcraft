@@ -102,6 +102,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
@@ -130,6 +131,8 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+#[cfg(test)]
+mod password_kept_tests;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
@@ -351,6 +354,11 @@ pub struct Services {
     /// import holds the window up (#420). The job carries the folder and a shared progress the
     /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
     pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
+    /// Desktop: read a .pst file on a background thread (`mailcraft_engine::import_pst::read_path`,
+    /// #815), sending its mail a batch at a time and then the outcome; the window puts each batch
+    /// in as it comes and shows and cancels through the job's progress. Without one (tests,
+    /// scripts) the window reads the file in place.
+    pub import_pst: Option<Box<dyn Fn(import_pst::PstJob) -> Receiver<mailcraft_engine::import_pst::Event>>>,
     /// Desktop: read a mailbox file on a background thread ahead of its taking the place of the
     /// one open (File › Open, a mailbox file dropped or handed over; [`opening`]), counting what
     /// it reads in the progress it is given and stopping when that is cancelled
@@ -1567,6 +1575,9 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The password the run in flight went with, until the system is asked to remember it: once
+    /// a run (#802).
+    sync_password: Option<String>,
     /// JMAP accounts whose server turned their credential down this session: no round that starts
     /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
     jmap_refused: std::collections::HashSet<Id>,
@@ -1826,6 +1837,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
@@ -3055,7 +3067,7 @@ impl MailApp {
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
-    /// (it is remembered for later runs once the first one has gone through).
+    /// (it is remembered for later runs once the server has let the first one in).
     pub(crate) fn adopt_password(&mut self, account: Id, password: String) {
         self.jmap_refused.remove(&account);
         self.passwords.insert(account, password);
@@ -3229,6 +3241,9 @@ impl MailApp {
         }
         let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
         self.sync_run = Some((account, None, false, quiet));
+        // (A refusal said by a run whose thread ended before its last piece is not this run's.)
+        self.sync_refused = false;
+        self.sync_password = Some(request.password.clone()).filter(|password| !password.is_empty());
         self.sync_rx = Some(MailRun::Imap(start(request)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
@@ -3359,6 +3374,7 @@ impl MailApp {
             // The automatic replies' jobs and what waits to go up are the old mailbox's too.
             self.auto_replies_forget_if_replaced();
             self.passwords.clear();
+            self.sync_password = None;
             self.secret_cache.clear();
             self.secret_read = None;
             self.secrets_asked = None;
@@ -4055,6 +4071,30 @@ impl MailApp {
         self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
     }
 
+    /// The server let `account`'s run in flight in: the password it went with is worth
+    /// remembering (when the owner lets it be), at once, so that a run that has a problem later
+    /// or is cut short by closing MailCraft keeps it all the same (#802). The system is asked
+    /// once a run at most (a store that can't keep it is asked again by the next run, as it was
+    /// by the end of one), not when it holds that password already (a round by itself comes
+    /// every few minutes), and never after a piece of the run said a sign-in was refused: the
+    /// end of such a run forgets it. Remembering switched on during the run counts from its
+    /// next piece. Only the password the run went with, while it is still the one in memory: one
+    /// typed since (in Account Settings, say) has not been tried, and the next run tries it.
+    pub(crate) fn keep_accepted_password(&mut self, account: Id) {
+        if self.sync_refused || !self.ui.remember_sign_in {
+            return;
+        }
+        let Some(sent) = self.sync_password.take() else { return };
+        if self.passwords.get(&account) != Some(&sent) {
+            return;
+        }
+        let Some(address) = self.session.mailbox.account(account).map(|a| a.email.clone()) else { return };
+        let key = self.account_at(&address).map(|a| Self::secret_key("password", a));
+        if key.and_then(|key| self.secret_cache.get(&key)) != Some(&sent) {
+            self.remember("password", &address, &sent);
+        }
+    }
+
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
@@ -4074,19 +4114,23 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
-                    self.sync_rx = None;
+                    (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
             };
             let (account, last) = (piece.account, !piece.partial);
             let downloading = !piece.folders.is_empty();
+            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
             let refused = piece.errors.iter().any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
             });
             self.sync_refused |= refused;
+            if signed_in {
+                self.keep_accepted_password(account);
+            }
             self.note_sync_problems(account, &piece.errors, false);
             match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
@@ -4125,13 +4169,15 @@ impl MailApp {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
-                if let Some(password) = self.passwords.get(&account).cloned() {
-                    // It went through: this password is worth remembering.
-                    self.remember("password", &address, &password);
+                // It went through: this password is worth remembering, if no piece said so before
+                // (a run called off may have been before it signed in, and proves nothing).
+                if !totals.stopped {
+                    self.keep_accepted_password(account);
                 }
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);
             }
+            self.sync_password = None;
             self.status(totals.summary_in(i18n::current()));
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
@@ -4242,6 +4288,11 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // A .pst import whose window went while it read (closed, or another dialog put in its
+        // place) has stopped: what came in is one step to undo, and Undo is free again.
+        if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
+            mailcraft_engine::import_pst::end_staged(&mut self.session);
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
@@ -5078,6 +5129,15 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
         }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
+        // (A batch handed over by the import's window, `staged`, says nothing: the window does.)
+        "file.importPst" if v.get("staged").is_none() => {
+            let what = tln!(n("added")?, "{n} message", "{n} messages");
+            Some(if v.get("dryRun").and_then(Value::as_bool) == Some(true) {
+                i18n::fmt(tl!("The .pst file has {what} to import; nothing was imported"), &[("what", &what)])
+            } else {
+                i18n::fmt(tl!("Imported {what} from the .pst file"), &[("what", &what)])
+            })
+        }
         "file.importFolderTree" => {
             let messages = n("messages")?;
             let what = tln!(messages, "{n} message", "{n} messages");

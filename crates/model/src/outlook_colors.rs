@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The colours a Microsoft account's categories can have (#661): Graph names 25 of them,
-//! `preset0` to `preset24` (red, orange, brown, yellow, green, teal, olive, blue, purple,
-//! cranberry, steel, dark steel, gray, dark gray, black, then the dark ones of the first ten), and
-//! leaves the shade to the program that shows them. These are our own shades for them.
+//! The colours a Microsoft account's categories can have (#661): Outlook numbers 25 of them, 0 to
+//! 24 (red, orange, brown, yellow, green, teal, olive, blue, purple, cranberry, steel, dark steel,
+//! gray, dark gray, black, then the dark ones of the first ten), as Graph names them (`preset0` to
+//! `preset24`) and a .pst file's list of categories numbers them, and leaves the shade to the
+//! program that shows them. These are our own shades for them, the one table of them.
 
 use crate::Rgb;
 
@@ -36,10 +37,15 @@ pub const OUTLOOK_COLORS: [Rgb; 25] = [
     Rgb(0x78, 0x1B, 0x47),
 ];
 
+/// The colour Outlook numbers `n` (0 to 24); `None` for any other.
+pub fn preset_category_color(n: i64) -> Option<Rgb> {
+    usize::try_from(n).ok().and_then(|n| OUTLOOK_COLORS.get(n).copied())
+}
+
 /// The colour a server gives as `name` (`preset7`, any case); grey for `none` or anything else.
 pub fn outlook_color(name: &str) -> Rgb {
-    let number = name.trim().to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<usize>().ok());
-    number.and_then(|n| OUTLOOK_COLORS.get(n).copied()).unwrap_or(crate::GREY_CATEGORY)
+    let number = name.trim().to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
+    number.and_then(preset_category_color).unwrap_or(crate::GREY_CATEGORY)
 }
 
 /// Which of the 25 `color` is (`Some(7)` for `preset7`), when it is one.
