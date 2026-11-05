@@ -114,18 +114,18 @@ fn hostile_names_stay_on_one_line() {
     assert_eq!(avatar_address(&empty).initials(), "");
     let odd = Contact { display_name: "Line\none\ttwo\u{0}".into(), company: "A\r\nB".into(), ..Default::default() };
     assert_eq!(shown_name(&odd), "Line one two");
-    assert_eq!(subtitle(&odd), "A  B");
+    assert_eq!(subtitle(&odd), "A B");
     assert_eq!(clip_chars("héllo wörld", 5), "héllo…");
     assert_eq!(clip_chars("héllo", 5), "héllo");
     assert_eq!(clip_chars("", 0), "");
     assert_eq!(clip_chars("abc", 0), "…");
     assert_eq!(clip_chars(&"é".repeat(100_000), 3), "ééé…");
     // However long the text in a file is, a line of the list lays out a bounded piece of it.
-    assert_eq!(one_line(&"x".repeat(1_000_000), 10), format!("{}…", "x".repeat(10)));
-    assert_eq!(one_line("  a\r\nb\u{7}  ", 100), "a  b");
+    assert_eq!(one_line(&"x".repeat(1_000_000), 10), format!("{}…", "x".repeat(9)));
+    assert_eq!(one_line("  a\r\nb\u{7}  ", 100), "a b");
     assert_eq!(one_line("\n\n", 100), "");
     let long = Contact { display_name: "n".repeat(100_000), company: "c".repeat(100_000), title: "t".repeat(100_000), ..Default::default() };
-    assert!(shown_name(&long).chars().count() <= 201 && subtitle(&long).chars().count() <= 301 && role_line(&long).chars().count() <= 401);
+    assert!(shown_name(&long).chars().count() <= 200 && subtitle(&long).chars().count() <= 300 && role_line(&long).chars().count() <= 400);
 }
 
 #[test]
@@ -368,4 +368,53 @@ fn a_very_long_list_paints_only_what_shows() {
     // And back, a row at a time from the keyboard.
     testing::key(&mut w, egui::Key::ArrowUp);
     assert_eq!(w.state().session.sel.contact, Some(ids[49_998]));
+}
+
+// ---- a name as it is shown (#454): what shows nothing is gone, what is part of a word or an
+// emoji stays, each line cut at its own length ----
+
+fn named(name: &str) -> Contact {
+    Contact { display_name: name.into(), ..Default::default() }
+}
+
+#[test]
+fn a_contacts_name_loses_what_shows_nothing() {
+    // A right-to-left override, a zero-width space, a Hangul filler and tags.
+    assert_eq!(shown_name(&named("Maya\u{202e} \u{3164}Chen\u{200b}\u{e0041}\u{e0042}")), "Maya Chen");
+    // Spaces, tabs and line breaks run together into one space.
+    assert_eq!(shown_name(&named("  Maya \t\r\n  Chen  ")), "Maya Chen");
+    // An emoji made with a joiner, and one variation selector after a heart, stay.
+    assert_eq!(shown_name(&named("Ada 👩\u{200d}💻")), "Ada 👩\u{200d}💻");
+    assert_eq!(shown_name(&named("Ada ❤\u{fe0f}\u{fe0f}\u{fe0f}")), "Ada ❤\u{fe0f}");
+    // A joiner that joins nothing goes.
+    assert_eq!(shown_name(&named("\u{200d}Ada\u{200d} Chen")), "Ada Chen");
+}
+
+#[test]
+fn a_name_of_nothing_that_shows_is_no_name() {
+    for name in ["\u{3164}\u{200b}\u{2066}", "\u{2800}\u{feff}\u{e0041}", "\u{fe0f}\u{200d}"] {
+        assert_eq!(shown_name(&named(name)), "(no name)", "{name:?}");
+    }
+}
+
+#[test]
+fn each_line_is_cut_at_its_own_length_with_the_ellipsis_inside() {
+    assert_eq!(shown_name(&named(&"n".repeat(500))), format!("{}…", "n".repeat(199)));
+    assert_eq!(shown_name(&named(&"n".repeat(200))), "n".repeat(200));
+    let long = Contact { company: "c".repeat(500), title: "t".repeat(500), ..named("Ada") };
+    assert_eq!(subtitle(&long), format!("{}…", "c".repeat(299)));
+    assert_eq!(role_line(&long).chars().count(), 400);
+    assert!(role_line(&long).ends_with('…'));
+}
+
+#[test]
+fn the_lines_under_the_name_are_cleaned_too() {
+    let c = Contact {
+        company: "Harbor\u{200b} Books\u{202e}".into(),
+        title: "Buyer\u{e0041}".into(),
+        emails: vec![Labeled::new("work", "orders@harborbooks.example\u{feff}")],
+        ..named("Maya Chen")
+    };
+    assert_eq!(subtitle(&c), "Harbor Books · orders@harborbooks.example");
+    assert_eq!(role_line(&c), "Buyer · Harbor Books");
 }

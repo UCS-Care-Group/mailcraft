@@ -372,14 +372,11 @@ pub(crate) fn shown_total(app: &MailApp, ctx: &egui::Context) -> usize {
 
 // ---- small pure pieces ----
 
-/// Text for one line of a list or a card: trimmed, cut to `max` characters with an ellipsis, and
-/// with line breaks and other control characters as spaces. Whatever a file holds, a line costs
-/// no more than `max` characters to lay out.
-pub(crate) fn one_line(s: &str, max: usize) -> String {
-    let cut = clip_chars(s.trim(), max);
-    let flat: String = cut.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
-    flat.trim().to_string()
-}
+/// Text for one line of a list or a card, as a name is shown (#454): one line, without control
+/// characters or characters that show nothing, spaces run together, at most `max` characters,
+/// the last an ellipsis where it was cut. Whatever a file holds, a line costs no more than `max`
+/// characters to lay out.
+pub(crate) use mailcraft_names::shown as one_line;
 
 /// `s` cut to `max` characters, with an ellipsis when something was cut.
 pub(crate) fn clip_chars(s: &str, max: usize) -> String {
