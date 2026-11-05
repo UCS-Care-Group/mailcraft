@@ -147,6 +147,20 @@ fn a_sites_icon_is_kept_for_a_sender_and_never_for_a_message() {
 }
 
 #[test]
+fn a_drawing_is_kept_for_a_message_and_never_for_a_sender() {
+    // #565: a message's pictures may be SVG drawings; a sender's picture never is.
+    let drawing = b"<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'/>".to_vec();
+    assert!(!looks_like_a_picture(&drawing));
+    let dir = std::env::temp_dir().join(format!("mailcraft-sender-svg-{}", std::process::id()));
+    let cache = Cache::at(dir.clone());
+    let icon = addresses("ada@example.org").remove(1);
+    assert!(!cache.put_as(&icon, &drawing, looks_like_a_picture));
+    assert!(cache.put(&icon, &drawing));
+    assert_eq!(cache.get_as(&icon, looks_like_a_picture), None);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn turning_it_off_stops_before_the_next_request() {
     let dir = std::env::temp_dir().join(format!("mailcraft-sender-stop-{}", std::process::id()));
     let cache = Cache::at(dir.clone());

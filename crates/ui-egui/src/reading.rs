@@ -38,6 +38,9 @@ mod select;
 mod sharing;
 #[cfg(test)]
 mod sharing_tests;
+pub(crate) mod svg;
+#[cfg(test)]
+mod svg_tests;
 #[cfg(test)]
 mod tests;
 mod view;

@@ -1144,8 +1144,9 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
     files.extend(std::fs::read_dir(src.join("reading")).unwrap().map(|e| e.unwrap().path()));
     let mut checked = 0;
     for path in files {
-        // This file names what it forbids (and its own parts are tests like it).
-        if path.ends_with("reading/tests.rs") || path.is_dir() {
+        // This file names what it forbids (and its own parts are tests like it); the SVG tests
+        // open a socket and write a file to prove that a drawing reaches neither (#565).
+        if path.ends_with("reading/tests.rs") || path.ends_with("reading/svg_tests.rs") || path.is_dir() {
             continue;
         }
         let code = std::fs::read_to_string(&path).unwrap();
@@ -1177,8 +1178,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 16,
-        "reading.rs, colors (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 17,
+        "reading.rs, colors (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), svg, view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -4000,6 +4001,7 @@ mod invitation;
 mod primary;
 mod remote_server;
 mod responsive;
+mod web_svg;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its

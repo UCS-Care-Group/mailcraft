@@ -25,6 +25,8 @@ mailcraft-link = { workspace = true }
 mailcraft-names = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
+# A message's SVG pictures (#565, `reading/svg.rs`): drawn with nothing loaded from outside them.
+resvg = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # A system font is opened as egui will open it before egui is given it (`theme::is_font`).

@@ -20,8 +20,9 @@
 //!   Not the address (only its hash: the folder doesn't list what was read), not the message,
 //!   not who sent it, nothing a server said besides the bytes. The same picture at two addresses
 //!   is one file.
-//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF or a WebP does
-//!   (or an ICO, a web site's icon, for a sender's picture: [`Cache::get_as`]) and are no
+//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF, a WebP or an SVG
+//!   drawing does (#565; or an ICO, a web site's icon, for a sender's picture, which is never a
+//!   drawing: [`Cache::get_as`]) and are no
 //!   larger than a download may be; the window, which decodes them, takes back what turns
 //!   out to be none ([`Cache::forget`]). Nothing here is ever run, opened by another program on
 //!   our say-so, or served to anyone: a file is read back as bytes, and only when it is a plain
@@ -123,8 +124,15 @@ fn clock() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs())
 }
 
-/// Whether bytes begin the way a picture that is shown begins: PNG, JPEG, GIF or WebP.
+/// Whether bytes begin the way a picture of a message that is shown begins: PNG, JPEG, GIF, WebP
+/// or an SVG drawing (#565).
 pub fn looks_like_a_picture(bytes: &[u8]) -> bool {
+    looks_like_a_raster(bytes) || mailcraft_ui_egui::looks_like_svg(bytes)
+}
+
+/// Whether bytes begin the way a PNG, JPEG, GIF or WebP does: a picture of pixels, as a sender's
+/// picture is ([`crate::sender_images`]).
+pub fn looks_like_a_raster(bytes: &[u8]) -> bool {
     bytes.starts_with(b"\x89PNG\r\n\x1a\n")
         || bytes.starts_with(b"\xff\xd8\xff")
         || bytes.starts_with(b"GIF87a")
@@ -760,16 +768,24 @@ mod tests {
             bytes.extend([7u8; 60]);
             bytes
         };
-        for (name, bytes) in
-            [("png", png(2, 64)), ("jpeg", b"\xff\xd8\xff\xe0\0\x10JFIF\0rest".to_vec()), ("gif", b"GIF89a\x01\0\x01\0rest".to_vec()), ("webp", webp)]
-        {
+        for (name, bytes) in [
+            ("png", png(2, 64)),
+            ("jpeg", b"\xff\xd8\xff\xe0\0\x10JFIF\0rest".to_vec()),
+            ("gif", b"GIF89a\x01\0\x01\0rest".to_vec()),
+            ("webp", webp),
+            // A drawing (#565), which the window draws with what it says runs left out.
+            ("svg", b"<?xml version='1.0'?>\n<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>".to_vec()),
+        ] {
             assert!(looks_like_a_picture(&bytes) && cache.put(&format!("https://img.example/{name}"), &bytes), "{name}");
+            assert_eq!(cache.get(&format!("https://img.example/{name}")).as_deref(), Some(&bytes[..]), "{name}");
         }
+        // A drawing is no sender's picture.
+        assert!(!looks_like_a_raster(b"<svg xmlns='http://www.w3.org/2000/svg'/>"));
         let too_large = png(3, MAX_PICTURE + 1);
         for (what, bytes) in [
             ("nothing", &b""[..]),
             ("a web page", b"<!DOCTYPE html><html><script>alert(1)</script></html>"),
-            ("a drawing with a script", b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"),
+            ("a web page with a drawing in it", b"<html><svg xmlns='http://www.w3.org/2000/svg'/></html>"),
             ("a program", b"MZ\x90\0\x03\0\0\0\x04\0\0\0\xff\xff\0\0"),
             ("a script", b"#!/bin/sh\nrm -rf ~\n"),
             ("a shortcut", b"[InternetShortcut]\r\nURL=file:///C:/Windows/System32/calc.exe\r\n"),
@@ -783,7 +799,7 @@ mod tests {
         }
         assert_eq!(cache.get("https://img.example/other"), None);
         assert!(!cache.put("", &png(4, 64)) && !cache.put(&"a".repeat(MAX_ADDRESS + 1), &png(4, 64)));
-        assert_eq!(cache.usage().0, 4);
+        assert_eq!(cache.usage().0, 5);
         // Every file kept has a name of 64 hex digits and nothing after it: nothing to run.
         for file in temp.files().iter().filter(|file| *file != "index") {
             let name = file.rsplit('/').next().unwrap();

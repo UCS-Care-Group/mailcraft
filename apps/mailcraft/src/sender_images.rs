@@ -62,11 +62,12 @@ fn site(domain: &str) -> &str {
     if provider::is_public_suffix(last(2)) { last(3) } else { last(2) }
 }
 
-/// Whether bytes begin as a sender's picture does: as a message's pictures do
-/// ([`picture_cache::looks_like_a_picture`]), or as an ICO holding a picture or more, a web
-/// site's icon, which only a sender's picture may be.
+/// Whether bytes begin as a sender's picture does: as a message's pictures of pixels do
+/// ([`picture_cache::looks_like_a_raster`]; never an SVG drawing, which a message's picture may
+/// be), or as an ICO holding a picture or more, a web site's icon, which only a sender's picture
+/// may be.
 fn looks_like_a_picture(bytes: &[u8]) -> bool {
-    picture_cache::looks_like_a_picture(bytes) || (bytes.starts_with(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0"))
+    picture_cache::looks_like_a_raster(bytes) || (bytes.starts_with(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0"))
 }
 
 /// The picture of `address`: from the first of [`addresses`] that has one, downloaded with

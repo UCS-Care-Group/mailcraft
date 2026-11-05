@@ -12757,7 +12757,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-msgid "it is a drawing of a kind that isn't shown (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
 msgstr ""
 
 #. interface
