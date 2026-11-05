@@ -33,13 +33,32 @@ pub struct State {
     pub(crate) asked_for: bool,
 }
 
-/// What a reminder is known by: its event and the occurrence it is for.
-pub(crate) fn key(event: u64, occurrence: &str) -> String {
-    format!("{event}@{occurrence}")
+/// What a reminder is known by: its event and the occurrence it is for. An event a server keeps
+/// is known by what the server calls it (or its UID), so that a read that gives it a new id here
+/// does not bring a dismissed reminder back.
+pub(crate) fn key(app: &MailApp, event: u64, occurrence: &str) -> String {
+    let identity = app.session.mailbox.event(event).map_or_else(
+        || format!("id:{event}"),
+        |e| {
+            if !e.uid.trim().is_empty() {
+                format!("uid:{}:{}:{}", e.origin.account, e.calendar, e.uid)
+            } else if !e.origin.id.trim().is_empty() {
+                format!("remote:{}:{}", e.origin.account, e.origin.id)
+            } else {
+                format!("id:{event}")
+            }
+        },
+    );
+    format!("{identity}@{occurrence}")
 }
 
-fn key_of(r: &Reminder) -> String {
-    key(r.event, &r.start.iso())
+fn key_of(app: &MailApp, r: &Reminder) -> String {
+    key(app, r.event, &r.start.iso())
+}
+
+/// The key reminders had before they were known by their server identity.
+fn old_key(r: &Reminder) -> String {
+    format!("{}@{}", r.event, r.start.iso())
 }
 
 /// `in 10 minutes`, `now`, `25 minutes ago`, `in 2 hours`, `3 days ago`.
@@ -66,7 +85,7 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     refresh(app);
     let mut fresh = Vec::new();
     for r in &app.reminders.showing {
-        if app.reminders.announced.insert(key_of(r)) {
+        if app.reminders.announced.insert(key_of(app, r)) {
             fresh.push(r.clone());
         }
     }
@@ -85,15 +104,24 @@ fn refresh(app: &mut MailApp) {
     let now = now_ms();
     app.reminders.snoozed.retain(|_, until| *until > now);
     let due = due_reminders(&app.session, app.session.local_now());
-    app.reminders.showing =
-        due.into_iter().filter(|r| !app.ui.dismissed_reminders.contains(&key_of(r)) && !app.reminders.snoozed.contains_key(&key_of(r))).collect();
+    app.reminders.showing = due
+        .into_iter()
+        .filter(|r| {
+            let key = key_of(app, r);
+            let old = old_key(r);
+            !app.ui.dismissed_reminders.contains(&key)
+                && !app.ui.dismissed_reminders.contains(&old)
+                && !app.reminders.snoozed.contains_key(&key)
+                && !app.reminders.snoozed.contains_key(&old)
+        })
+        .collect();
 }
 
 /// Dismiss one reminder (`event` and `occurrence`), or all that are showing.
 pub fn dismiss(app: &mut MailApp, one: Option<(u64, &str)>) -> usize {
     let keys: Vec<String> = match one {
-        Some((event, occurrence)) => vec![key(event, occurrence)],
-        None => app.reminders.showing.iter().map(key_of).collect(),
+        Some((event, occurrence)) => vec![key(app, event, occurrence)],
+        None => app.reminders.showing.iter().map(|r| key_of(app, r)).collect(),
     };
     let n = keys.len();
     for k in keys {
@@ -114,8 +142,8 @@ pub fn dismiss(app: &mut MailApp, one: Option<(u64, &str)>) -> usize {
 pub fn snooze(app: &mut MailApp, one: Option<(u64, &str)>, minutes: u64) -> usize {
     let until = now_ms() + minutes.clamp(1, 10_080) as f64 * 60_000.0;
     let keys: Vec<String> = match one {
-        Some((event, occurrence)) => vec![key(event, occurrence)],
-        None => app.reminders.showing.iter().map(key_of).collect(),
+        Some((event, occurrence)) => vec![key(app, event, occurrence)],
+        None => app.reminders.showing.iter().map(|r| key_of(app, r)).collect(),
     };
     let n = keys.len();
     for k in keys {
@@ -410,5 +438,42 @@ mod tests {
         open(&mut app, 999_999, at(day(14), 16, 20));
         assert!(app.dialog.is_none() && app.windows.of_event(999_999).is_none());
         open(&mut app, daily, at(Date::new(9999, 12, 31).unwrap(), 23, 59));
+    }
+
+    #[test]
+    fn a_dismissed_server_reminder_stays_dismissed_when_a_read_gives_it_a_new_id_here() {
+        use mailcraft_engine::Session;
+        use mailcraft_model::{Event, Origin};
+        use mailcraft_time::DateTime;
+        const NOW: i64 = 1_791_993_600;
+        let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+        let start = DateTime::from_timestamp(NOW, 0);
+        let event = Event {
+            title: "Exchange reminder".into(),
+            start,
+            end: start.add_minutes(30),
+            reminder_minutes: Some(15),
+            uid: "server-uid".into(),
+            origin: Origin { account: 1, id: "remote-1".into(), ..Default::default() },
+            ..Default::default()
+        };
+        let mut app = MailApp::new(s, crate::Services::default());
+        app.autosave = false;
+        let old: Vec<u64> = app.session.mailbox.events.keys().copied().collect();
+        for id in old {
+            app.session.mailbox.remove_event(id).unwrap();
+        }
+        let id = app.session.mailbox.add_event(event.clone()).unwrap();
+        refresh(&mut app);
+        assert!(app.reminders.showing.iter().any(|r| r.event == id));
+        assert_eq!(dismiss(&mut app, Some((id, &start.iso()))), 1);
+        assert!(app.reminders.showing.is_empty());
+
+        // The same Exchange item read again, now with another local id.
+        app.session.mailbox.remove_event(id).unwrap();
+        let again = app.session.mailbox.add_event(event).unwrap();
+        assert_ne!(again, id);
+        refresh(&mut app);
+        assert!(app.reminders.showing.is_empty(), "the dismissal follows the server's item, not the local id");
     }
 }
