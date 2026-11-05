@@ -895,7 +895,7 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
         Some(r) if r.identity == batch.identity => r,
         Some(r) => {
             s.pst_running = Some(r);
-            return Err(fail(BUSY));
+            return Err(fail(PST_BUSY));
         }
         None => Running::start(s, place, &batch.identity)?,
     };
@@ -981,7 +981,7 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
 }
 
 /// Why another import waits.
-const BUSY: &str = "A .pst file is being imported: try again when it is done";
+const PST_BUSY: &str = "A .pst file is being imported: try again when it is done";
 
 /// The label of an import's step to undo (the command's own).
 pub const IMPORT_LABEL: &str = "Import a .pst File";
@@ -1054,7 +1054,7 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
     }
     // Not while the window's import runs: that one is still putting its mail in.
     if s.pst_running.is_some() {
-        return Err(fail(BUSY));
+        return Err(fail(PST_BUSY));
     }
     #[cfg(target_arch = "wasm32")]
     {

@@ -227,6 +227,11 @@ msgstr "@{login}, testet seit {since}"
 msgid "@{login}: {prs} merged PRs, {commits} commits, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}"
 msgstr "@{login}: {prs} zusammengeführte PRs, {commits} Commits, +{added} / −{deleted} Zeilen (Δ {delta}), +{binAdded} / −{binDeleted} Binärdateien, {first} – {last}"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "A .pst file is being imported: try again when it is done"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -15503,11 +15508,6 @@ msgstr "das Postfach hat keinen Kalender"
 #, fuzzy
 msgid "the mailbox has no folders"
 msgstr "das Postfach hat keine Ordner"
-
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the mailbox is still being saved; try again when that is done (the status bar shows how far it has got)"
-msgstr ""
 
 #. what a command says
 #: crates/engine/src/session.rs

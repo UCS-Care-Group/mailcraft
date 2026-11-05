@@ -193,6 +193,11 @@ msgstr ""
 msgid "@{login}: {prs} merged PRs, {commits} commits, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "A .pst file is being imported: try again when it is done"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
@@ -13553,11 +13558,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/io.rs
 msgid "the mailbox has no folders"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the mailbox is still being saved; try again when that is done (the status bar shows how far it has got)"
 msgstr ""
 
 #. what a command says
