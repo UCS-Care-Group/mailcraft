@@ -21,7 +21,10 @@
 //! bound of windows ([`super::MAX_WINDOWS`]) New Email, a reply or a forward stays in the reading
 //! pane, and anything else is refused with a line in the status bar.
 
+use std::collections::HashSet;
+
 use egui::{Key, Ui};
+use mailcraft_model::Id;
 use serde_json::{Value, json};
 
 use super::{Open, Opens, What, embedded_layer, viewport_of};
@@ -80,8 +83,8 @@ pub(crate) fn settle_pane(app: &mut MailApp) {
 /// be saved leaves them all open, the selection as it was, and the error says why.
 pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -> Result<(), String> {
     let moving = crate::keys::MOVES_IN_LIST.contains(&id) || id == "mail.selectAll";
-    // (A move that can't be made moves nothing.)
-    if !(id == "mail.select" || moving && app.enabled(id)) {
+    // (A move that can't be made, or that goes nowhere, moves nothing.)
+    if !(id == "mail.select" || moving && app.enabled(id) && !goes_nowhere(app, id, params)) {
         return Ok(());
     }
     settle_pane(app);
@@ -110,10 +113,41 @@ pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -
     Ok(())
 }
 
+/// Whether the list move `id` leaves the selection as it is, as the engine moves it: Next Message
+/// or Page Down on the last row, Previous Message, Page Up or First Message on the first, Last
+/// Message on the last, each from a selection of the focused row alone; Select All with every row
+/// selected already. (A move with Shift, which the menus don't give, is taken as going somewhere.)
+fn goes_nowhere(app: &mut MailApp, id: &str, params: &Value) -> bool {
+    let s = &mut app.session;
+    let rows = s.rows();
+    if id == "mail.selectAll" {
+        let all: HashSet<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).collect();
+        let whole: HashSet<Id> = rows.iter().filter(|r| r.conversation() && all.contains(&r.id)).map(|r| r.id).collect();
+        return s.sel.messages.iter().copied().collect::<HashSet<Id>>() == all && s.sel.whole.iter().copied().collect::<HashSet<Id>>() == whole;
+    }
+    if params.get("extend").and_then(Value::as_bool) == Some(true) {
+        return false;
+    }
+    let (Some(at), Some(end)) = (s.sel.focus_in(&rows), rows.len().checked_sub(1)) else { return false };
+    let edge = match id {
+        "mail.next" | "mail.pageDown" | "mail.last" => end,
+        "mail.previous" | "mail.pageUp" | "mail.first" => 0,
+        _ => return false,
+    };
+    let Some(row) = rows.get(at) else { return false };
+    at == edge && s.sel.messages == [row.id] && s.sel.whole == if row.conversation() { vec![row.id] } else { Vec::new() }
+}
+
 /// Whether the reading pane keeps the message being written `c` through `id` with `params`: a
-/// click that selects its own draft and nothing else.
-fn keeps(app: &MailApp, id: &str, params: &Value, c: u64) -> bool {
-    id == "mail.select" && app.session.composing_by_id(c).and_then(|c| c.draft).is_some_and(|d| selects_only(params, d))
+/// click that selects its own draft and nothing else, on a row of the draft alone (a conversation's
+/// row it heads stands for all of the conversation, #503).
+fn keeps(app: &mut MailApp, id: &str, params: &Value, c: u64) -> bool {
+    if id != "mail.select" {
+        return false;
+    }
+    let Some(d) = app.session.composing_by_id(c).and_then(|c| c.draft).filter(|d| selects_only(params, *d)) else { return false };
+    let copy = params.get("copy").and_then(Value::as_u64).unwrap_or(0);
+    !app.session.rows().iter().any(|r| r.id == d && u64::from(r.copy) == copy && r.conversation())
 }
 
 /// Whether `mail.select` with `params` selects the message `id` and nothing else.

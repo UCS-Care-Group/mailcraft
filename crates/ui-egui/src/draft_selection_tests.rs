@@ -117,6 +117,26 @@ fn clicking_another_message_saves_and_shows_it_for_a_new_message_too() {
     }
 }
 
+/// A third draft beside [`two_drafts`], and the one on the second row of the list opened in the
+/// reading pane, as Continue editing opens it, and written in: every move in the list goes
+/// somewhere from it. Its subject is returned.
+fn continued_in_the_middle() -> (MailApp, String) {
+    let (mut a, _, _) = two_drafts();
+    a.execute("mail.new", json!({})).unwrap();
+    a.execute("compose.set", json!({"to": "ada@example.org", "subject": "Third draft", "body": "Kept as it was"})).unwrap();
+    a.execute("compose.saveDraft", json!({})).unwrap();
+    a.execute("compose.close", json!({})).unwrap();
+    let rows = a.session.rows();
+    assert!(rows.len() >= 3, "the three drafts, and the sample's");
+    let middle = rows[1].id;
+    let subject = a.session.mailbox.message(middle).unwrap().subject.clone();
+    a.run("mail.select", json!({"id": middle})).unwrap();
+    a.run("mail.editDraft", json!({})).unwrap();
+    assert!(pane(&a).is_some());
+    typed(&mut a);
+    (a, subject)
+}
+
 #[test]
 fn moving_in_the_list_from_the_menus_leaves_the_message_too() {
     // Next Message and the rest, from the menu bar or Search commands.
@@ -129,13 +149,93 @@ fn moving_in_the_list_from_the_menus_leaves_the_message_too() {
         ("mail.pageUp", json!({"rows": 5})),
         ("mail.selectAll", json!({})),
     ] {
-        let (mut a, _, _) = continued();
-        typed(&mut a);
+        let (mut a, subject) = continued_in_the_middle();
         let r = a.run(id, params);
         assert!(r.is_ok(), "{id}: {r:?}");
         assert!(pane(&a).is_none(), "{id}: the reading pane shows what is selected");
-        let first = draft(&a, "First draft").unwrap();
-        assert!(body(&a, first).contains("Words not saved yet"), "{id}: saved to Drafts first");
+        let written = draft(&a, &subject).unwrap();
+        assert!(body(&a, written).contains("Words not saved yet"), "{id}: saved to Drafts first");
+    }
+}
+
+#[test]
+fn a_move_in_the_list_that_goes_nowhere_leaves_the_message_being_written_alone() {
+    // The draft alone in the list: Next Message on the last row, First Message on the first,
+    // Select All with it all selected, select what is selected already.
+    for id in ["mail.next", "mail.previous", "mail.first", "mail.last", "mail.pageDown", "mail.pageUp", "mail.selectAll"] {
+        let (mut a, first, _) = continued();
+        let others: Vec<Id> = a.session.rows().iter().map(|r| r.id).filter(|id| *id != first).collect();
+        a.run("mail.select", json!({"ids": others})).unwrap();
+        a.run("mail.delete", json!({})).unwrap();
+        a.run("mail.select", json!({"id": first})).unwrap();
+        a.run("mail.editDraft", json!({})).unwrap();
+        assert_eq!(a.session.rows().len(), 1, "{id}: the draft alone");
+        typed(&mut a);
+        let compose = a.session.compose.clone();
+        let r = a.run(id, json!({}));
+        assert!(r.is_ok(), "{id}: {r:?}");
+        assert_eq!(a.session.sel.messages, vec![first], "{id}");
+        assert!(pane(&a).is_some(), "{id}: still in the reading pane");
+        assert_eq!(a.session.compose, compose, "{id}: and nothing was done to it");
+    }
+}
+
+#[test]
+fn clicking_the_conversation_row_of_the_draft_being_written_leaves_it_for_the_conversation() {
+    // The draft heads a conversation in the list: its row stands for all of the conversation,
+    // which Delete takes, so the reading pane shows the conversation, not the draft alone.
+    let mut a = app();
+    for subject in ["Plans", "Re: Plans"] {
+        a.execute("mail.new", json!({})).unwrap();
+        a.execute("compose.set", json!({"to": "ada@example.org", "subject": subject, "body": "Kept as it was"})).unwrap();
+        a.execute("compose.saveDraft", json!({})).unwrap();
+        a.execute("compose.close", json!({})).unwrap();
+    }
+    a.execute("view.conversations", json!({"value": true})).unwrap();
+    a.run("folder.select", json!({"kind": "drafts"})).unwrap();
+    let head = a.session.rows().iter().find(|r| r.conversation()).map(|r| r.id).expect("the two drafts are one conversation");
+    a.run("mail.select", json!({"id": head})).unwrap();
+    a.run("mail.editDraft", json!({})).unwrap();
+    assert!(pane(&a).is_some());
+    typed(&mut a);
+    a.run("mail.select", json!({"id": head})).unwrap();
+    assert!(a.session.sel.whole.contains(&head), "the conversation is selected");
+    assert!(pane(&a).is_none(), "and the reading pane shows it");
+    assert!(body(&a, head).contains("Words not saved yet"), "what was written is saved to Drafts first");
+}
+
+#[test]
+fn an_alert_clicked_while_the_draft_cant_be_saved_changes_nothing() {
+    let (mut a, first, _) = continued();
+    typed(&mut a);
+    let inbox = folder(&a, FolderKind::Inbox);
+    let other = a.session.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft).unwrap().id;
+    let (shown, compose) = (a.session.view.folder, a.session.compose.clone());
+    let d = folder(&a, FolderKind::Drafts);
+    a.session.mailbox.folders.iter_mut().find(|f| f.id == d).unwrap().kind = FolderKind::Custom;
+    crate::alerts::open(&mut a, &egui::Context::default(), crate::alerts::Opens::Message { message: other, folder: inbox });
+    assert_eq!(a.session.view.folder, shown, "the folder in view stays");
+    assert_eq!(a.session.sel.messages, vec![first], "and so does the selection");
+    assert_eq!(a.session.compose, compose);
+    assert!(pane(&a).is_some());
+}
+
+#[test]
+fn an_alert_clicked_leaves_the_message_being_written_and_shows_its_message() {
+    for calendar in [false, true] {
+        let (mut a, _, _) = continued();
+        typed(&mut a);
+        let inbox = folder(&a, FolderKind::Inbox);
+        let other = a.session.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft).unwrap().id;
+        if calendar {
+            a.run("view.calendar", json!({})).unwrap();
+        }
+        crate::alerts::open(&mut a, &egui::Context::default(), crate::alerts::Opens::Message { message: other, folder: inbox });
+        assert_eq!(a.session.view.module, mailcraft_engine::Module::Mail, "calendar: {calendar}");
+        assert_eq!(a.session.view.folder, inbox, "calendar: {calendar}");
+        assert_eq!(a.session.sel.messages, vec![other], "calendar: {calendar}");
+        assert!(pane(&a).is_none(), "calendar: {calendar}");
+        assert!(draft(&a, "First draft").is_some_and(|d| body(&a, d).contains("Words not saved yet")), "calendar: {calendar}");
     }
 }
 

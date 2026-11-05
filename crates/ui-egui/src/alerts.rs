@@ -320,11 +320,14 @@ pub fn open(app: &mut MailApp, ctx: &egui::Context, opens: Opens) {
         Opens::Message { message, folder } => {
             app.ui.backstage = false;
             if app.session.mailbox.message(message).is_some_and(|m| m.folder == folder) {
-                let _ = app.execute("folder.select", json!({"id": folder}));
                 // As the owner's click: the message being written in the reading pane goes to
-                // Drafts, and the message is shown (#727).
-                let _ = app.run("mail.select", json!({"id": message, "elsewhere": true}));
-                app.reveal_selection = true;
+                // Drafts, and the message is shown in its folder (#727). Selected before anything
+                // else changes, so that a draft that can't be saved leaves the folder and the
+                // selection as they were; then the mail, from wherever the window was.
+                if app.run("mail.select", json!({"id": message, "elsewhere": true})).is_ok() {
+                    let _ = app.execute("view.mail", json!({}));
+                    app.reveal_selection = true;
+                }
             } else if app.session.mailbox.folder(folder).is_some() {
                 // Moved or gone since: its folder, at least.
                 let _ = app.execute("folder.select", json!({"id": folder}));
