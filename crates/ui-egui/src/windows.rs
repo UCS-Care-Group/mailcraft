@@ -1279,7 +1279,8 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
     row.push(("flag", if flagged { "Clear Flag" } else { "Flag" }, "mail.toggleFlag", Action::Flag, "windowFlag"));
-    let (icon, label, command) = if m.read { ("markUnread", "Mark as unread", "mail.markUnread") } else { ("markRead", "Mark as read", "mail.markRead") };
+    let (icon, label, command) =
+        if m.read { ("markUnread", "Mark as unread", "mail.markUnread") } else { ("markRead", "Mark as read", "mail.markRead") };
     row.push((icon, label, command, Action::Read, "windowUnread"));
     let mut asked = None;
     // The keys the main window has for these, when this window has the keyboard to itself.
