@@ -5566,6 +5566,11 @@ msgstr "Hoog belang"
 msgid "High on top"
 msgstr "Hoog bovenaan"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
