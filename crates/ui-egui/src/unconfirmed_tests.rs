@@ -8,6 +8,7 @@ use std::sync::{Arc, mpsc};
 
 use mailcraft_engine::Session;
 use mailcraft_model::sync::{SyncRequest, SyncResult};
+use mailcraft_model::{Account, AccountKind, DavServer, Server};
 use serde_json::json;
 
 use super::*;
@@ -174,6 +175,49 @@ fn the_fingerprint_follows_a_jmap_accounts_server() {
         jmap("https://jmap.example.org:8443/jmap/session", true),
         jmap("https://jmap.example.org/elsewhere", true),
         jmap("https://jmap.example.org/jmap/session", false),
+    ] {
+        assert_ne!(first, other);
+    }
+}
+
+/// Work Offline stops the browser approval before it is asked for.
+#[test]
+fn a_linchange_approval_does_not_start_offline() {
+    let mut a = app(&Arc::new(AtomicUsize::new(0)));
+    a.session.prefs.offline = true;
+    let called = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen = called.clone();
+    a.services.linchange_sign_in = Some(Box::new(move |_| {
+        seen.store(true, Ordering::Relaxed);
+        let (_tx, rx) = mpsc::channel();
+        rx
+    }));
+    let why = a.begin_linchange_sign_in("https://mail.example.org".into(), "MailCraft on the laptop".into()).unwrap_err();
+    assert!(why.contains("offline"), "{why}");
+    assert!(!called.load(Ordering::Relaxed), "nothing reached the host");
+}
+
+/// A Linchange account's password reaches its CalDAV and CardDAV services too: a file confirmed
+/// once can't be pointed at other ones without asking again.
+#[test]
+fn the_fingerprint_follows_a_linchange_accounts_dav_servers() {
+    let dav = |caldav: &str, carddav: &str| {
+        let mut s = Session::empty();
+        s.mailbox.add_account(Account {
+            email: "ada@example.org".into(),
+            kind: AccountKind::Imap,
+            incoming: Some(Server { host: "mail.example.org".into(), port: 993, ..Default::default() }),
+            dav: Some(DavServer { caldav: caldav.into(), carddav: carddav.into() }),
+            ..Default::default()
+        });
+        fingerprint(&s.mailbox)
+    };
+    let first = dav("https://mail.example.org/caldav/", "https://mail.example.org/carddav/");
+    assert_eq!(first, dav("https://mail.example.org/caldav/", "https://mail.example.org/carddav/"));
+    for other in [
+        dav("https://mail.attacker.example/caldav/", "https://mail.example.org/carddav/"),
+        dav("https://mail.example.org/caldav/", "https://mail.attacker.example/carddav/"),
+        dav("https://mail.example.org/caldav/elsewhere/", "https://mail.example.org/carddav/"),
     ] {
         assert_ne!(first, other);
     }

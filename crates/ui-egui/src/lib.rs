@@ -68,6 +68,7 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+pub mod dav_sync;
 #[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
@@ -314,6 +315,20 @@ pub struct Services {
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
     pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: ask a domain's mail exchangers, in turn, whether the server is a Linchange one
+    /// (it answers its CalDAV and CardDAV services in its own realm). Nothing of the owner's is
+    /// sent: only the exchanger names are given. The service roots are answered when one is.
+    pub probe_linchange: Option<Box<dyn Fn(Vec<String>) -> Receiver<Result<Option<mailcraft_model::DavServer>, String>>>>,
+    /// Desktop: read a Linchange account's calendars and address books over CalDAV and CardDAV
+    /// on a background thread ([`dav_sync`]): the calendars it may read (shared ones too), their
+    /// events in the stretch asked for, and every card of every address book it may read. The
+    /// password is the account's, in memory for this session only.
+    pub dav: Option<Box<dyn Fn(dav_sync::DavJob) -> Receiver<dav_sync::DavResult>>>,
+    /// Desktop: obtain a Linchange application password through the server's own browser page.
+    /// The account password and second factor are typed there, never here; the host opens the
+    /// page and waits for the person to allow it. The result is the password a Linchange account
+    /// uses for IMAP, SMTP, CalDAV and CardDAV, named for this computer.
+    pub linchange_sign_in: Option<Box<dyn Fn(LinchangeSignInRequest) -> Receiver<Result<String, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -613,6 +628,16 @@ pub trait PictureCache {
     fn forget(&self, url: &str);
     /// Forget them all.
     fn clear(&self) -> Result<(), String>;
+}
+
+/// What the host needs to obtain a Linchange application password ([`Services::linchange_sign_in`]).
+pub struct LinchangeSignInRequest {
+    /// The Linchange web origin (`https://mail.example.org`).
+    pub server: String,
+    /// What the account page shows for this credential (`MailCraft on the laptop`).
+    pub description: String,
+    /// Set when the owner gives up waiting, for the host to stop polling.
+    pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the
@@ -1504,6 +1529,8 @@ pub struct MailApp {
     graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
+    /// Calendars and address books of Linchange accounts, over CalDAV and CardDAV ([`dav_sync`]).
+    dav: dav_sync::DavSync,
     /// Keeping the Favorites of the folder pane the ones Outlook shows ([`favorites_sync`]).
     favorites: favorites_sync::FavoritesSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
@@ -1555,6 +1582,10 @@ pub struct MailApp {
     signing_in: Option<SigningIn>,
     /// What a sign-in for an account that is being set up came to, until its dialog takes it.
     setup_sign_in: Option<Result<Tokens, String>>,
+    /// Account setup on a Linchange server: the application password the browser approval
+    /// brought, and the flag that stops the wait.
+    setup_linchange_sign_in: Option<Receiver<Result<String, String>>>,
+    setup_linchange_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// An administrator's approval the host is waiting on, and what the last came to ([`approval`]).
     approvals: approval::Approvals,
     /// A synchronisation in flight: an IMAP run, or a JMAP account's ([`MailRun`]).
@@ -1801,6 +1832,7 @@ impl MailApp {
             graph_checked: Default::default(),
             graph_consent_needed: Default::default(),
             calendar: Default::default(),
+            dav: Default::default(),
             favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
@@ -1823,6 +1855,8 @@ impl MailApp {
             mail_only_next: false,
             signing_in: None,
             setup_sign_in: None,
+            setup_linchange_sign_in: None,
+            setup_linchange_cancel: None,
             approvals: Default::default(),
             sync_rx: None,
             sync_totals: Default::default(),
@@ -2230,6 +2264,36 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
+        // An event made or changed in a Linchange account's calendar: written to its server now,
+        // not only at the next Send/Receive.
+        if r.is_ok() && id.starts_with("calendar.") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_linchange()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
+        // A contact made, changed or deleted in a Linchange address book: written there at
+        // once, not only at the next Send/Receive.
+        if r.is_ok() && matches!(id, "people.new" | "people.edit" | "people.delete" | "people.fromMessage") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_linchange()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::contact_upload(&self.session, account).is_some() {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
+        // An event made or changed in a Linchange account's calendar: written to its server now,
+        // not only at the next Send/Receive.
+        if r.is_ok() && id.starts_with("calendar.") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_linchange()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -2293,7 +2357,11 @@ impl MailApp {
                 != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            self.forget_account_secrets(&before);
+            // Adding DAV to an account keeps the same mail password; move it to the new bound
+            // name instead of forgetting it. Any other endpoint change still forgets.
+            if !self.migrate_dav_secret(&before, &after) {
+                self.forget_account_secrets(&before);
+            }
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
@@ -2737,6 +2805,16 @@ impl MailApp {
             let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
             let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
             format!("{kind}:{address}|ews={url}|user={user}")
+        } else if let Some(dav) = &a.dav {
+            // (A Linchange account's password reaches the CalDAV and CardDAV services too: another
+            // service root, on the same server or not, is another server.)
+            format!(
+                "{kind}:{address}|imap={}|smtp={}|caldav={}|carddav={}",
+                server(&a.incoming),
+                server(&a.outgoing),
+                dav.caldav.trim(),
+                dav.carddav.trim()
+            )
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -2818,6 +2896,43 @@ impl MailApp {
         if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&key) {
             self.ui.remembered_keys.push(key);
         }
+    }
+
+    /// When DAV is added to an existing account, its password was kept under the old name
+    /// without the DAV endpoints. Move it to the new name instead of dropping it; the mail
+    /// servers, account kind and address must be unchanged.
+    fn migrate_dav_secret(&mut self, before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        if before.dav.is_some()
+            || after.dav.is_none()
+            || before.kind != after.kind
+            || !before.email.eq_ignore_ascii_case(&after.email)
+            || before.incoming != after.incoming
+            || before.outgoing != after.outgoing
+        {
+            return false;
+        }
+        let Some(store) = &self.services.secrets else { return false };
+        let mut moved = false;
+        for kind in ["password", "refresh"] {
+            let old = Self::secret_key(kind, before);
+            let new = Self::secret_key(kind, after);
+            if old == new {
+                continue;
+            }
+            let Some(secret) = store.get(&old) else { continue };
+            if store.set(&new, &secret).is_err() {
+                continue;
+            }
+            store.delete(&old);
+            self.secret_cache.remove(&old);
+            self.secret_cache.insert(new.clone(), secret);
+            if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&new) {
+                self.ui.remembered_keys.push(new);
+            }
+            self.ui.remembered_keys.retain(|key| key != &old);
+            moved = true;
+        }
+        moved
     }
 
     /// Delete every entry MailCraft put in the credential store: those noted in `remembered_keys`
@@ -3042,6 +3157,48 @@ impl MailApp {
     /// Account setup: what the sign-in started with `begin_setup_sign_in` came to, once it has.
     pub(crate) fn take_setup_sign_in(&mut self) -> Option<Result<Tokens, String>> {
         self.setup_sign_in.take()
+    }
+
+    /// Account setup on a Linchange server: ask the host to obtain an application password
+    /// through the server's browser page. The account password and second factor stay there.
+    pub(crate) fn begin_linchange_sign_in(
+        &mut self,
+        server: String,
+        description: String,
+    ) -> Result<std::sync::Arc<std::sync::atomic::AtomicBool>, String> {
+        self.setup_linchange_sign_in = None;
+        // Work Offline: the approval would reach a server and open the browser for it.
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
+        let Some(sign_in) = self.services.linchange_sign_in.as_ref() else {
+            return Err(tl!("This build can't sign in to Linchange").to_string());
+        };
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let request = LinchangeSignInRequest { server, description, cancel: cancel.clone() };
+        self.setup_linchange_cancel = Some(cancel.clone());
+        self.setup_linchange_sign_in = Some(sign_in(request));
+        Ok(cancel)
+    }
+
+    /// Account setup: whether the Linchange browser approval has answered, without taking the
+    /// answer out until there is one.
+    pub(crate) fn poll_linchange_sign_in(&mut self) -> Option<Result<String, String>> {
+        let answer = match self.setup_linchange_sign_in.as_ref()?.try_recv() {
+            Ok(answer) => answer,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("The Linchange sign-in stopped unexpectedly").to_string()),
+        };
+        self.setup_linchange_sign_in = None;
+        Some(answer)
+    }
+
+    /// Give up the Linchange approval this wizard is waiting for, if it is.
+    pub(crate) fn cancel_linchange_sign_in(&mut self) {
+        if let Some(cancel) = self.setup_linchange_cancel.take() {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.setup_linchange_sign_in = None;
     }
 
     /// Account setup: the account exists now; keep what signing in brought back for it.
@@ -4382,6 +4539,7 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
+        self.poll_dav();
         self.poll_tasks();
         self.poll_rules();
         self.poll_auto_replies();
@@ -4404,6 +4562,8 @@ impl MailApp {
             self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // Calendars and address books of Linchange accounts ([`dav_sync`]).
+            self.dav_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).

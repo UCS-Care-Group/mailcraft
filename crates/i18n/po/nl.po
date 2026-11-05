@@ -822,6 +822,16 @@ msgid "Address"
 msgstr "Adres"
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Address book unavailable"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
@@ -928,6 +938,11 @@ msgstr "Regels op de server bewaren toestaan"
 #, fuzzy
 msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr "Taken bijhouden met Microsoft To Do toestaan"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Allow MailCraft on your Linchange account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -5849,6 +5864,16 @@ msgstr "Licht"
 msgid "Limited details: and the titles"
 msgstr "Beperkte details: en de titels"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Linchange"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Linchange's sign-in page is open in your browser"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5872,6 +5897,11 @@ msgstr "Koppelingen"
 #, fuzzy
 msgid "List Accounts"
 msgstr "Accounts opsommen"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -6112,6 +6142,11 @@ msgstr "E-mail, agenda, personen en taken, van de grond af geschreven in Rust."
 msgid "Mail, calendar, people and tasks, written from scratch in Rust. It runs natively on macOS, Windows, Linux and BSD, and in the browser."
 msgstr "E-mail, agenda, personen en taken, van de grond af geschreven in Rust. Het draait systeemeigen op macOS, Windows, Linux en BSD, en in de browser."
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mail, calendars and address books"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
@@ -6212,6 +6247,11 @@ msgstr ""
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr "MailCraft installeert updates nu zelf. Schakel dit uit in Bestand › Info."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "MailCraft on {computer}"
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -10978,6 +11018,11 @@ msgid "Sign in securely with Google in your browser. Your Google password is nev
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Sign in there and allow MailCraft on {computer}. This window carries on by itself once you have."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in there as {address}. This window carries on by itself once you have."
@@ -11818,6 +11863,21 @@ msgstr "De hele reeks"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The Linchange address isn't a server address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The Linchange approval didn't finish"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The Linchange sign-in stopped unexpectedly"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
 msgstr ""
 
@@ -11893,6 +11953,26 @@ msgstr "De server van het account heeft deze vergadering nog geen koppeling gege
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "De server van het account maakt deze aan wanneer de vergadering wordt verzonden; de koppeling om deel te nemen komt daarbij terug."
 
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The address book chosen is no longer available. Send/Receive may bring it back, and the contact can be saved then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
@@ -11918,7 +11998,12 @@ msgid "The calendar \"{name}\" only shows when its owner is busy: this account c
 msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/account_setup.rs
+msgid "The calendar and address-book address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "De agendawijzigingen konden niet worden opgehaald: {error}"
@@ -11958,6 +12043,11 @@ msgstr "De agendaverbinding werkt: wat is verzonden, is aangekomen, en de server
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "De agenda kon niet worden opgehaald: {error}"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendar events couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -12026,6 +12116,11 @@ msgstr ""
 "De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
 
 #. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars couldn't be taken in: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
 msgid "The calendars of the shared mailbox wait: {error}"
@@ -12074,7 +12169,12 @@ msgid "The contact {id} is named twice."
 msgstr "De contactpersoon {id} is twee keer genoemd."
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The contacts couldn't be saved: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "De contactpersonen konden niet worden opgehaald: {error}"
@@ -12345,6 +12445,11 @@ msgstr "De uitgaande e-mailserver is geen hostnaam (letters, cijfers, punten en 
 #, fuzzy
 msgid "The owner hasn't allowed update checks."
 msgstr "De eigenaar heeft het controleren op updates niet toegestaan."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The password you type there is never given to MailCraft; the page creates a separate application password for this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13012,6 +13117,11 @@ msgstr "Deze build kan de server van het account niet bereiken."
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "Deze build kan de server niet bereiken om automatische antwoorden te wijzigen. Gebruik de desktop-app."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't sign in to Linchange"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13852,10 +13962,15 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Try again to open the page, or cancel and check the server's address."
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -13922,6 +14037,11 @@ msgstr "Typ uw adres. MailCraft zoekt uw e-mailservers en hoe u zich aanmeldt."
 #, fuzzy
 msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only"
 msgstr "Typ uw e-mailadres en MailCraft zoekt de rest: Microsoft 365, Outlook.com, Google en andere providers, of een postvak alleen op dit apparaat"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -16668,6 +16788,11 @@ msgstr "dit account heeft geen map {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "dit account mag het niet opslaan"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "this computer"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

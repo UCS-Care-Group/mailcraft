@@ -395,6 +395,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// For an account on a Linchange server: where its calendars and address books are, kept in
+    /// step over CalDAV and CardDAV while its mail goes over IMAP and SMTP as any other account's
+    /// does. Plain settings: the password is never kept here. `None` for every other account, and
+    /// in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub dav: Option<crate::DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -665,6 +671,12 @@ impl Account {
     /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).
     pub fn keeps_contacts(&self) -> bool {
         self.keeps_tasks()
+    }
+
+    /// Whether the account is on a Linchange server: its mail goes over IMAP and SMTP, and its
+    /// calendars and address books over CalDAV and CardDAV ([`Account::dav`]).
+    pub fn is_linchange(&self) -> bool {
+        self.kind == AccountKind::Imap && self.dav.is_some()
     }
 
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
@@ -1034,6 +1046,15 @@ pub struct Mailbox {
     pub messages: BTreeMap<Id, Arc<Message>>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// The address books the accounts' servers list, each with the URL a contact is sent to
+    /// ([`crate::ContactBook`]). Empty for accounts whose contacts are one list and for a
+    /// mailbox from before there were any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_books: Vec<crate::ContactBook>,
+    /// Changes to contacts that an account's CardDAV server is yet to receive, oldest first
+    /// ([`crate::remote::ContactChange`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_changes: Vec<crate::remote::ContactChange>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1143,6 +1164,8 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: BTreeMap::new(),
             contacts: BTreeMap::new(),
+            contact_books: Vec::new(),
+            contact_changes: Vec::new(),
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),

@@ -4,7 +4,7 @@
 //! Send/Receive of a window whose host doesn't run Exchange Web Services takes it in.
 
 use mailcraft_engine::Session;
-use mailcraft_model::{Account, AccountKind, EwsServer, Id};
+use mailcraft_model::{Account, AccountKind, DavServer, EwsServer, Id, Server};
 use serde_json::json;
 
 use crate::{MailApp, Services};
@@ -61,6 +61,31 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     assert!(!MailApp::secret_key("password", a.session.mailbox.account(imap).unwrap()).contains("ews="));
     // One that has no server settings gets a key that no server's is.
     assert_eq!(other(&|x| x.ews = None), "password:ada@exchange.example|ews=none|user=");
+}
+
+/// A Linchange account's password reaches its CalDAV and CardDAV services too, so the name it is
+/// kept under names both; another service root is another key.
+#[test]
+fn a_linchange_accounts_secret_is_kept_under_its_dav_servers_too() {
+    let account = Account {
+        email: "ada@example.org".into(),
+        kind: AccountKind::Imap,
+        incoming: Some(Server { host: "mail.example.org".into(), port: 993, ..Default::default() }),
+        outgoing: Some(Server { host: "mail.example.org".into(), port: 587, ..Default::default() }),
+        dav: Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() }),
+        ..Default::default()
+    };
+    let key = MailApp::secret_key("password", &account);
+    assert!(key.contains("caldav=https://mail.example.org/caldav/"), "{key}");
+    assert!(key.contains("carddav=https://mail.example.org/carddav/"), "{key}");
+    let other = |change: &dyn Fn(&mut Account)| {
+        let mut account = account.clone();
+        change(&mut account);
+        MailApp::secret_key("password", &account)
+    };
+    assert_ne!(other(&|a| a.dav.as_mut().unwrap().caldav = "https://mail.attacker.example/caldav/".into()), key);
+    assert_ne!(other(&|a| a.dav.as_mut().unwrap().carddav = "https://mail.attacker.example/carddav/".into()), key);
+    assert_ne!(other(&|a| a.dav = None), key);
 }
 
 #[test]

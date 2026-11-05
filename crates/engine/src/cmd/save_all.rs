@@ -12,8 +12,10 @@
 use mailcraft_model::Id;
 use serde_json::{Value, json};
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::CmdError;
 use crate::cmd::{bad, fail};
-use crate::{CmdError, CmdResult, Part, Session, p};
+use crate::{CmdResult, Part, Session, p};
 
 /// Most bytes handed back as `data` together (the files are base64 in one answer).
 const MAX_DATA: usize = 64 << 20;

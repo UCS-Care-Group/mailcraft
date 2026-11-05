@@ -26,7 +26,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
+use mailcraft_model::{Account, AccountKind, DavServer, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -65,6 +65,8 @@ pub enum Page {
     ApplicationId,
     /// The owner is on the provider's page in the browser, or that came to nothing.
     SignIn,
+    /// A Linchange account's application password is being approved on the server's page.
+    AppPassword,
     /// The organisation has to approve MailCraft before its people can sign in: why, and what
     /// to do next. Also the whole dialog for an account that exists and was refused for it.
     Approval,
@@ -99,6 +101,9 @@ pub enum Kind {
     Google,
     Yahoo,
     ICloud,
+    /// A Linchange server: mail over IMAP and SMTP, calendars and address books over CalDAV and
+    /// CardDAV.
+    Linchange,
     /// Any other mail server.
     Other,
     /// A mailbox on this device, with no server.
@@ -109,7 +114,7 @@ pub enum Kind {
 
 impl Kind {
     /// The kinds that have servers, in the order of their tiles.
-    const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
+    const HOSTED: [Kind; 7] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Linchange, Kind::Other];
 
     /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
     /// choice: nothing detects it).
@@ -127,6 +132,7 @@ impl Kind {
             Kind::Google => Some("google"),
             Kind::Yahoo => Some("yahoo"),
             Kind::ICloud => Some("icloud"),
+            Kind::Linchange => Some("linchange"),
             Kind::Other | Kind::Local | Kind::Exchange => None,
         }
     }
@@ -138,6 +144,7 @@ impl Kind {
             Kind::Google => "Google",
             Kind::Yahoo => "Yahoo",
             Kind::ICloud => "iCloud",
+            Kind::Linchange => "Linchange",
             Kind::Other => "Other (IMAP)",
             Kind::Local => "This device only",
             Kind::Exchange => "Exchange server (your organisation's own)",
@@ -151,6 +158,7 @@ impl Kind {
             Kind::Google => "Gmail and Google Workspace",
             Kind::Yahoo => "Yahoo Mail",
             Kind::ICloud => "icloud.com, me.com and mac.com",
+            Kind::Linchange => "Mail, calendars and address books",
             Kind::Other => "Any other mail server",
             Kind::Local => "A mailbox kept here, with no mail server",
             Kind::Exchange => "A mail server your organisation runs itself",
@@ -162,6 +170,7 @@ impl Kind {
         match self {
             Kind::Microsoft365 => "work",
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
+            Kind::Linchange => "linchange",
             Kind::Other | Kind::Exchange => "server",
             Kind::Local => "device",
         }
@@ -284,6 +293,21 @@ fn in_own_words(error: &str) -> String {
     }
 }
 
+/// The name of this computer, for naming an application password (`MailCraft on the laptop`).
+fn this_computer() -> String {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let named = std::env::var("HOSTNAME")
+            .ok()
+            .or_else(|| std::env::var("COMPUTERNAME").ok())
+            .or_else(|| std::fs::read_to_string("/proc/sys/kernel/hostname").ok());
+        if let Some(name) = named.map(|name| name.trim().to_string()).filter(|name| !name.is_empty()) {
+            return name;
+        }
+    }
+    tl!("this computer").to_string()
+}
+
 /// Whether `id` can be an application (client) ID: letters, digits, dots and dashes.
 fn is_identifier(id: &str, max: usize) -> bool {
     id.len() <= max && id.chars().all(|c| c.is_ascii_alphanumeric() || "-._".contains(c))
@@ -365,6 +389,8 @@ pub struct Preset {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// Linchange's CalDAV and CardDAV roots, when the provider has them.
+    dav: Option<DavServer>,
     /// Something the owner should know before connecting; may be empty.
     note: String,
 }
@@ -375,6 +401,11 @@ impl Preset {
         let text = |k: &str, max: usize| line(v.get(k).and_then(Value::as_str).unwrap_or_default(), max);
         let oauth = (v.get("auth").and_then(Value::as_str) == Some("oauth2"))
             .then(|| v.get("provider").and_then(Value::as_str).and_then(OAuthProvider::parse).unwrap_or_default());
+        let dav = v.get("dav").and_then(Value::as_object).and_then(|dav| {
+            let caldav = line(dav.get("caldav").and_then(Value::as_str).unwrap_or_default(), 2048);
+            let carddav = line(dav.get("carddav").and_then(Value::as_str).unwrap_or_default(), 2048);
+            (DavServer::check_url(&caldav).is_ok() && DavServer::check_url(&carddav).is_ok()).then_some(DavServer { caldav, carddav })
+        });
         Preset {
             known: v.get("known").and_then(Value::as_bool).unwrap_or(false),
             service: text("service", 60),
@@ -382,6 +413,7 @@ impl Preset {
             username: text("username", LINE),
             incoming: ServerFields::read(v.get("incoming")),
             outgoing: ServerFields::read(v.get("outgoing")),
+            dav,
             note: text("note", 300),
         }
     }
@@ -419,6 +451,8 @@ pub struct AccountSetup {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// CalDAV and CardDAV, for a Linchange account.
+    dav: Option<DavServer>,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
@@ -434,6 +468,12 @@ pub struct AccountSetup {
     focus: bool,
     /// The domain's mail exchangers, once the host has them.
     lookup: Option<Receiver<Result<Vec<String>, String>>>,
+    /// The mail exchanger asked whether it is a Linchange server, once the host knows.
+    probe: Option<Receiver<Result<Option<DavServer>, String>>>,
+    /// The exchangers the probe is about.
+    probing: Vec<String>,
+    /// The flag that stops the Linchange approval when the dialog goes.
+    linchange_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), String>>>,
     /// The owner is in the browser, signing in for this wizard.
@@ -491,6 +531,9 @@ impl Drop for AccountSetup {
     /// the window's memory keeps nothing of the password, and a sign-in nobody waits for any more
     /// is noted for the next wizard to give up.
     fn drop(&mut self) {
+        if let Some(cancel) = self.linchange_cancel.take() {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         let Some(ctx) = self.ctx.take() else { return };
         forget_field(&ctx);
         if self.waiting && self.existing == 0 {
@@ -550,6 +593,7 @@ impl AccountSetup {
             username: String::new(),
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
+            dav: None,
             settings_open: false,
             guessed: false,
             password: Secret::default(),
@@ -558,6 +602,9 @@ impl AccountSetup {
             error: String::new(),
             focus: true,
             lookup: None,
+            probe: None,
+            probing: Vec::new(),
+            linchange_cancel: None,
             check: None,
             waiting: false,
             reconnecting_google: false,
@@ -626,6 +673,7 @@ impl AccountSetup {
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
+        w.dav = a.dav.clone();
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -692,6 +740,9 @@ impl AccountSetup {
                 m.insert(key.into(), v);
             }
         }
+        if let Some(dav) = &self.dav {
+            m.insert("dav".into(), json!({"caldav": dav.caldav, "carddav": dav.carddav}));
+        }
         match &self.oauth {
             Some(oauth) => {
                 m.insert("auth".into(), json!("oauth2"));
@@ -750,6 +801,7 @@ impl AccountSetup {
             outgoing: self.outgoing.server(),
             username: self.login(email),
             oauth: self.oauth.clone(),
+            dav: self.dav.clone(),
             ..Default::default()
         })
     }
@@ -773,6 +825,9 @@ impl AccountSetup {
         if self.oauth.is_some() {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
+        }
+        if self.dav.is_some() {
+            m.insert("dav".into(), json!(self.dav.as_ref().map(|dav| json!({"caldav": dav.caldav, "carddav": dav.carddav}))));
         }
         m
     }
@@ -812,6 +867,11 @@ impl AccountSetup {
                 _ => {}
             }
         }
+        if let Some(dav) = &self.dav
+            && let Some(why) = dav.problem()
+        {
+            return Some(fmt(tl!("The calendar and address-book address {why}"), &[("why", why)]));
+        }
         None
     }
 
@@ -840,6 +900,7 @@ impl AccountSetup {
         self.username = preset.username;
         self.incoming = preset.incoming;
         self.outgoing = preset.outgoing;
+        self.dav = preset.dav;
         self.settings_open = false;
         self.guessed = false;
     }
@@ -858,6 +919,7 @@ impl AccountSetup {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
                 self.lookup = None;
+                self.probe = None;
                 self.go(Page::Address);
             }
             (Page::Choose, Action::Pick(kind)) => self.pick(app, kind),
@@ -883,6 +945,14 @@ impl AccountSetup {
                 } else {
                     self.go(Page::Address);
                 }
+            }
+            (Page::AppPassword, Action::Go) => {
+                self.stop_linchange_sign_in(app);
+                self.start_linchange_sign_in(app);
+            }
+            (Page::AppPassword, Action::Back) => {
+                self.stop_linchange_sign_in(app);
+                self.go(self.origin());
             }
             // The sign-in that is waiting goes on waiting: the owner may yet come back from it.
             (Page::SignIn, Action::Approval) => self.open_approval(false),
@@ -1060,6 +1130,12 @@ impl AccountSetup {
 
     /// The servers are settled: on to signing in, the way the account does it.
     fn proceed(&mut self, app: &mut MailApp) {
+        // A Linchange account has no account password in a mail client: it gets an application
+        // password through its own server's page in the browser.
+        if self.dav.is_some() {
+            self.start_linchange_sign_in(app);
+            return;
+        }
         let Some(oauth) = self.oauth.clone() else {
             self.go(Page::Password);
             return;
@@ -1117,6 +1193,17 @@ impl AccountSetup {
             (preset.oauth, preset.service, preset.note) = (None, String::new(), String::new());
         }
         self.take(preset);
+        // Picked by hand, a Linchange server's address is still the domain's mail exchanger's:
+        // ask the DNS rather than trusting `mail.<domain>`, when there is someone to ask.
+        if kind == Kind::Linchange
+            && app.services.probe_linchange.is_some()
+            && let Some((_, domain)) = address(&self.email)
+            && let Some(lookup) = app.services.lookup_mx.as_ref().filter(|_| !app.offline())
+        {
+            self.lookup = Some(lookup(domain.to_ascii_lowercase()));
+            self.go(Page::Detecting);
+            return;
+        }
         self.settings_open = kind == Kind::Other;
         self.proceed(app);
     }
@@ -1181,6 +1268,58 @@ impl AccountSetup {
             self.oauth = Some(oauth);
             self.reconnecting_google = true;
             self.start_sign_in(app);
+        }
+    }
+
+    /// Ask Linchange's own page for an application password, in the system browser. The account
+    /// password and its second factor are typed there, never here.
+    fn start_linchange_sign_in(&mut self, app: &mut MailApp) {
+        let Some(dav) = self.dav.clone() else { return };
+        let mut server = dav.caldav.trim_end_matches('/');
+        if let Some(base) = server.strip_suffix("/caldav") {
+            server = base;
+        }
+        if !server.starts_with("https://") && !server.starts_with("http://") {
+            self.go(Page::AppPassword);
+            self.error = tl!("The Linchange address isn't a server address").to_string();
+            return;
+        }
+        let server = server.to_string();
+        let description = fmt(tl!("MailCraft on {computer}"), &[("computer", &this_computer())]);
+        let started = app.begin_linchange_sign_in(server, description);
+        self.go(Page::AppPassword);
+        match started {
+            Ok(cancel) => {
+                self.linchange_cancel = Some(cancel);
+                self.waiting = true;
+            }
+            Err(e) => {
+                self.waiting = false;
+                self.error = e;
+            }
+        }
+    }
+
+    /// Give up the Linchange approval, if one is waiting.
+    fn stop_linchange_sign_in(&mut self, app: &mut MailApp) {
+        if std::mem::take(&mut self.waiting) {
+            app.cancel_linchange_sign_in();
+        }
+        if let Some(cancel) = self.linchange_cancel.take() {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Take in what Linchange's page answered.
+    fn poll_linchange(&mut self, app: &mut MailApp) {
+        let Some(answer) = app.poll_linchange_sign_in() else { return };
+        self.waiting = false;
+        match answer {
+            Ok(password) => {
+                self.password.0.clone_from(&password);
+                self.add_with_password(app);
+            }
+            Err(e) => self.error = e,
         }
     }
 
@@ -1388,6 +1527,8 @@ impl AccountSetup {
             Err(_) if app.services.sync.is_none() => Outcome::Offline,
             Err(_) => Outcome::Later,
         };
+        // A Linchange account's calendars and address books come right after its first mail.
+        app.dav_sync_soon(id);
         self.go(Page::Done);
     }
 
@@ -1429,8 +1570,14 @@ impl AccountSetup {
     /// Take in what came back since the last frame.
     fn poll(&mut self, app: &mut MailApp) {
         match self.page {
-            Page::Detecting => self.poll_lookup(app),
+            Page::Detecting => {
+                self.poll_lookup(app);
+                if self.page == Page::Detecting && self.probe.is_some() {
+                    self.poll_probe(app);
+                }
+            }
             Page::SignIn if self.waiting => self.poll_sign_in(app),
+            Page::AppPassword => self.poll_linchange(app),
             // (A sign-in may still be waiting behind the approval page: the owner may sign in
             // with an administrator's account on Microsoft's page after all.)
             Page::Approval => {
@@ -1455,19 +1602,57 @@ impl AccountSetup {
             Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
         };
         self.lookup = None;
-        let found = answer
-            .ok()
-            .and_then(|mx| self.preset_command(Some(&mx), None))
+        let mx = answer.unwrap_or_default();
+        let found = self
+            .preset_command(Some(&mx), None)
             .and_then(|(command, params)| app.execute(command, params).ok())
             .map(|v| Preset::read(&v))
             .filter(|preset| preset.known);
-        match found {
-            Some(preset) => {
-                self.take(preset);
-                self.proceed(app);
-            }
-            // The guess made from the domain stays, for the owner to check.
-            None => self.go(Page::Password),
+        if let Some(preset) = found {
+            self.take(preset);
+            self.proceed(app);
+            return;
+        }
+        // No provider MailCraft knows takes the domain's mail: ask the exchanger whether it is a
+        // Linchange server, which keeps its calendars and address books as well as its mail.
+        if !mx.is_empty()
+            && let Some(probe) = app.services.probe_linchange.as_ref().filter(|_| !app.offline())
+        {
+            self.probing = mx;
+            self.probe = Some(probe(self.probing.clone()));
+            return;
+        }
+        // The guess made from the domain stays, for the owner to check.
+        self.go(Page::Password);
+    }
+
+    fn poll_probe(&mut self, app: &mut MailApp) {
+        let answer = match self.probe.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) => return,
+            Some(Ok(answer)) => answer,
+            Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
+        };
+        self.probe = None;
+        let endpoints = answer.ok().flatten();
+        let Some(endpoints) = endpoints else {
+            self.go(Page::Password);
+            return;
+        };
+        // The exchanger that answered names the server the rest of the settings come from.
+        let host = DavServer::host(&endpoints.caldav).map(str::to_string);
+        let found = host
+            .as_ref()
+            .and_then(|host| self.preset_command(Some(std::slice::from_ref(host)), Some("linchange")))
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v))
+            .filter(|preset| preset.known);
+        if let Some(mut preset) = found {
+            // Whatever path the service answered on is the one that is used.
+            preset.dav = Some(DavServer { caldav: endpoints.caldav.clone(), carddav: endpoints.carddav.clone() });
+            self.take(preset);
+            self.proceed(app);
+        } else {
+            self.go(Page::Password);
         }
     }
 
@@ -1609,6 +1794,7 @@ impl AccountSetup {
             Page::ApplicationId => self.application_id_page(ui, &mut pass),
             Page::SignIn if self.waiting => self.signing_in_page(app, ui, &pass),
             Page::SignIn => self.sign_in_ended_page(app, ui, &pass),
+            Page::AppPassword => self.app_password_page(app, ui, &pass),
             Page::Approval => self.approval_page(app, ui, &pass),
             Page::SomeoneElse => self.someone_else_page(ui, &pass),
             Page::Password => self.password_page(app, ui, &mut pass),
@@ -1625,6 +1811,49 @@ impl AccountSetup {
             Page::ExchangeOnline => self.exchange_online(ui, &pass),
         };
         action.is_some_and(|action| self.act(app, action))
+    }
+
+    /// The Linchange page is open in the browser, or that came to nothing. The account password
+    /// and its second factor are typed there; this window only waits for the application
+    /// password the page hands back.
+    fn app_password_page(&mut self, _app: &mut MailApp, ui: &mut Ui, pass: &Pass) -> Option<Action> {
+        let t = pass.t;
+        let email = shown(self.email.trim(), 120);
+        let computer = this_computer();
+        page(ui, &t, |ui| {
+            heading(ui, tl!("Allow MailCraft on your Linchange account"), &t);
+            note(ui, &email, t.text_dim);
+            ui.add_space(8.0);
+            ui.vertical_centered(|ui| {
+                if self.waiting {
+                    ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+                    ui.add_space(8.0);
+                    ui.label(RichText::new(tl!("Linchange's sign-in page is open in your browser")).font(medium(13.5)).color(t.text));
+                    let then = fmt(
+                        tl!("Sign in there and allow MailCraft on {computer}. This window carries on by itself once you have."),
+                        &[("computer", &computer)],
+                    );
+                    ui.label(RichText::new(then).color(t.text_dim));
+                    ui.label(RichText::new(tl!("The password you type there is never given to MailCraft; the page creates a separate application password for this computer.")).color(t.text_dim));
+                } else {
+                    ui.label(RichText::new(tl!("The Linchange approval didn't finish")).font(medium(13.5)).color(t.text));
+                    ui.label(RichText::new(tl!("Try again to open the page, or cancel and check the server's address.")).color(t.text_dim));
+                }
+            });
+            error(ui, &self.error);
+        });
+        let (mut cancel, mut again) = (false, false);
+        strip(ui, self.page, |ui| {
+            cancel = button(ui, tl!("Cancel"), false, true).clicked();
+            again = button(ui, tl!("Try again"), false, true).clicked();
+        });
+        if cancel {
+            Some(Action::Back)
+        } else if again {
+            Some(Action::Go)
+        } else {
+            None
+        }
     }
 
     fn address_page(&mut self, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
@@ -2353,7 +2582,7 @@ mod tests {
     use super::*;
     use crate::dialogs::Dialog;
     use crate::forms::Form;
-    use crate::{Services, SignInRequest};
+    use crate::{LinchangeSignInRequest, Services, SignInRequest};
     use egui::Key;
 
     /// Google-specific keyboard, accessibility and compact-window behavior in both themes.
@@ -2408,6 +2637,75 @@ mod tests {
             rx
         }));
         asked
+    }
+
+    /// What a host that asks whether a mail exchanger is Linchange was asked, and what it answers.
+    fn probes(app: &mut MailApp, answer: Option<Result<Option<DavServer>, &str>>) -> Log<Vec<String>> {
+        let asked: Log<Vec<String>> = Default::default();
+        let log = asked.clone();
+        let answer = answer.map(|a| a.map_err(str::to_string));
+        let silent: Log<mpsc::Sender<Result<Option<DavServer>, String>>> = Default::default();
+        app.services.probe_linchange = Some(Box::new(move |hosts: Vec<String>| {
+            log.lock().unwrap().push(hosts);
+            let (tx, rx) = mpsc::channel();
+            match &answer {
+                Some(answer) => tx.send(answer.clone()).unwrap(),
+                None => silent.lock().unwrap().push(tx),
+            }
+            rx
+        }));
+        asked
+    }
+
+    type LinchangeSignIns = Log<(String, String, Arc<AtomicBool>, mpsc::Sender<Result<String, String>>)>;
+
+    /// A host that obtains Linchange application passwords: it answers `answer` at once, or
+    /// leaves the owner in the browser until the test sends one.
+    fn linchange_sign_ins(app: &mut MailApp, answer: Option<Result<&str, &str>>) -> LinchangeSignIns {
+        let asked: LinchangeSignIns = Default::default();
+        let log = asked.clone();
+        let answer = answer.map(|a| a.map(str::to_string).map_err(str::to_string));
+        app.services.linchange_sign_in = Some(Box::new(move |request: LinchangeSignInRequest| {
+            let (tx, rx) = mpsc::channel();
+            log.lock().unwrap().push((request.server, request.description, request.cancel, tx.clone()));
+            if let Some(answer) = &answer {
+                tx.send(answer.clone()).unwrap();
+            }
+            rx
+        }));
+        asked
+    }
+
+    /// A domain whose mail exchanger is a Linchange server: it is added with IMAP and SMTP
+    /// for mail and CalDAV and CardDAV for the calendar and address books, and its application
+    /// password comes from the server's page in the browser.
+    #[test]
+    fn a_linchange_server_at_the_mail_exchanger_is_found() {
+        let dav = DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() };
+        let mut a = app(false);
+        lookups(&mut a, Some(Ok(vec!["mail.example.org"])));
+        let asked = probes(&mut a, Some(Ok(Some(dav.clone()))));
+        let sign_ins = linchange_sign_ins(&mut a, None);
+        let mut h = open(a, json!({}));
+        connect(&mut h, "noor@example.org");
+        assert_eq!(page(&h), Some(Page::AppPassword));
+        assert_eq!(asked.lock().unwrap().as_slice(), [vec!["mail.example.org".to_string()]]);
+        let w = wizard(&h).unwrap();
+        assert_eq!((w.service.as_str(), w.incoming.host.as_str(), w.outgoing.host.as_str()), ("Linchange", "mail.example.org", "mail.example.org"));
+        assert_eq!(w.dav, Some(dav));
+        assert!(w.waiting && says(&h, "Linchange's sign-in page is open in your browser"));
+        let asked = sign_ins.lock().unwrap();
+        assert_eq!(asked.len(), 1);
+        assert_eq!((asked[0].0.as_str(), asked[0].1.starts_with("MailCraft on ")), ("https://mail.example.org", true));
+        let (command, params) = w.add_command("").unwrap();
+        assert_eq!((command, params["dav"]["caldav"].as_str()), ("account.add", Some("https://mail.example.org/caldav/")));
+        // The page allows it: the application password is the account's password for its
+        // protocols, and the account is added.
+        asked[0].3.send(Ok("lcapp_prefix_secret".into())).unwrap();
+        drop(asked);
+        h.run_steps(8);
+        assert_eq!(page(&h), Some(Page::Done));
+        assert!(h.state().session.mailbox.accounts.iter().any(|a| a.is_linchange() && a.email == "noor@example.org"));
     }
 
     /// What a sign-in was asked for: the address, the application ID, and the flag that stops it.
