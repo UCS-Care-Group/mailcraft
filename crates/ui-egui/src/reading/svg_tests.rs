@@ -239,6 +239,87 @@ fn an_svg_at_the_deepest_allowed_is_drawn_on_a_small_stack() {
 }
 
 #[test]
+fn references_inherited_from_a_group_are_counted_for_each_shape() {
+    // Patterns whose content takes its fill from a group: each shape copies the pattern below.
+    let mut patterns = String::from("<pattern id='p0' width='1' height='1'><rect width='1' height='1'/></pattern>");
+    for k in 1..=10 {
+        patterns += &format!(
+            "<pattern id='p{k}' width='1' height='1'><g fill='url(#p{})'>{}</g></pattern>",
+            k - 1,
+            "<rect width='1' height='1'/>".repeat(10)
+        );
+    }
+    assert!(refused(&drawing(8, 8, &format!("<defs>{patterns}</defs><rect width='8' height='8' fill='url(#p10)'/>"))));
+    // A marker given to a group, drawn at every point of the shapes in it.
+    let points: String = (0..10_000).map(|i| format!(" {},{}", i % 8, i % 7)).collect();
+    let marker = format!("<marker id='m'>{}</marker>", "<rect width='1' height='1'/>".repeat(500));
+    assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><g marker-mid='url(#m)'><polyline points='{points}'/></g>"))));
+    // A mask a shape takes from its group with `inherit`.
+    let mask = format!("<mask id='m'>{}</mask>", "<rect width='1' height='1'/>".repeat(5_000));
+    let shapes = "<rect width='1' height='1' mask='inherit'/>".repeat(5_000);
+    assert!(refused(&drawing(8, 8, &format!("<defs>{mask}</defs><g mask='url(#m)'>{shapes}</g>"))));
+    let shapes = "<rect width='1' height='1' style='clip-path: inherit'/>".repeat(5_000);
+    let clip = mask.replace("mask", "clipPath");
+    assert!(refused(&drawing(8, 8, &format!("<defs>{clip}</defs><g clip-path='url(#m)'>{shapes}</g>"))));
+}
+
+#[test]
+fn a_target_named_any_way_the_renderer_finds_it_is_counted() {
+    // An id in the XML or the SVG namespace is an id to the renderer.
+    let mut patterns = String::from("<pattern xml:id='p0' width='1' height='1'><rect width='1' height='1'/></pattern>");
+    for k in 1..=10 {
+        patterns += &format!(
+            "<pattern xml:id='p{k}' width='1' height='1'>{}</pattern>",
+            format!("<rect width='1' height='1' fill='url(#p{})'/>", k - 1).repeat(10)
+        );
+    }
+    assert!(refused(&drawing(8, 8, &format!("<defs>{patterns}</defs><rect width='8' height='8' fill='url(#p10)'/>"))));
+    let svg_ns = patterns.replace("xml:id=", "svg:id=").replace("<defs>", "");
+    assert!(refused(
+        format!("<svg {NS} xmlns:svg='http://www.w3.org/2000/svg' width='8' height='8'><defs>{svg_ns}</defs><rect width='8' height='8' fill='url(#p10)'/></svg>").as_bytes()
+    ));
+    // A rule a quoted brace or semicolon would hide from a careless reader.
+    let mut quoted = String::from("<pattern id='q0' width='1' height='1'><rect width='1' height='1'/></pattern>");
+    let mut sheet = String::new();
+    for k in 1..=10 {
+        quoted +=
+            &format!("<pattern id='q{k}' width='1' height='1'>{}</pattern>", format!("<rect width='1' height='1' class='c{}'/>", k - 1).repeat(10));
+        sheet += &format!(".c{} {{ font-family: \"}};{{\"; fill: url(#q{}) }} ", k - 1, k - 1);
+    }
+    assert!(refused(&drawing(8, 8, &format!("<style>{sheet}</style><defs>{quoted}</defs><rect width='8' height='8' class='c9'/>"))));
+    // A style that escapes what it says is not read for what it might mean: it is refused.
+    assert!(refused(&drawing(8, 8, "<style>.a { fill: \\75 rl(#g) }</style><rect class='a' width='8' height='8'/>")));
+    assert!(refused(&drawing(8, 8, "<rect style='fill: \\75 rl(#g)' width='8' height='8'/>")));
+    // An internal subset of the document type, which nothing needs.
+    assert!(refused(format!("<!DOCTYPE svg [<!ATTLIST svg x CDATA ']>'>]><svg {NS} width='8' height='8'/>").as_bytes()));
+}
+
+#[test]
+fn the_points_of_a_shape_are_never_counted_short() {
+    // Numbers run together as the path grammar allows, and commands with no number at all.
+    let marker = format!("<marker id='m'>{}</marker>", "<rect width='1' height='1'/>".repeat(100));
+    for d in [
+        format!("M0 0L{}", "1.2.3.4.5.6.7.8.9".repeat(1_500)),
+        format!("M0 0L{}", "-1-2-3-4-5-6-7-8".repeat(1_500)),
+        format!("M0 0{}", "z".repeat(20_000)),
+    ] {
+        assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><path d='{d}' marker-mid='url(#m)'/>"))), "{}", &d[..20]);
+    }
+}
+
+#[test]
+fn a_style_sheet_of_many_rules_and_classes_is_weighed_quickly() {
+    // Many rules and many elements, each of many classes: weighed (or refused) at once.
+    let sheet: String = (0..2_000).map(|i| format!(".c{i}{{opacity:0.5}}")).collect();
+    let classes: String = (0..60).map(|i| format!("c{i} ")).collect();
+    let shapes = format!("<rect class='{classes}' width='1' height='1'/>").repeat(2_000);
+    let _ = refused(&drawing(8, 8, &format!("<style>{sheet}</style>{shapes}")));
+    // An element of more classes than any drawing has is refused.
+    let classes: String = (0..200).map(|i| format!("c{i} ")).collect();
+    assert!(refused(&drawing(8, 8, &format!("<rect class='{classes}' width='1' height='1'/>"))));
+}
+
+#[test]
 fn references_that_multiply_are_refused() {
     // Ten deep, each ten times the one before: 10^10 copies.
     let mut uses = String::from("<rect id='l0' width='1' height='1'/>");

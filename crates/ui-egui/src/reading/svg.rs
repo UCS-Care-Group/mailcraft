@@ -20,10 +20,15 @@
 //!   bomb is refused unread).
 //! - **What it would come to is weighed first ([`Weigh`]).** A reference copies or draws again
 //!   what it refers to: `<use>`, and a pattern, clip, mask, marker or filter for each element
-//!   that names it (by an attribute, its `style` or a rule of the drawing's style sheet, which
-//!   is taken to name it for any element it might match). The elements drawn, each reference
-//!   counted with all it brings, may come to at most `MAX_SVG_COST`, nesting and references
-//!   [`MAX_SVG_DEPTH`] deep (the window's thread has a small stack). A reference to itself is
+//!   that names it, by an attribute, its `style`, a rule of the drawing's style sheet (taken to
+//!   name it for any element it might match) or by inheriting it: paint and markers from any
+//!   ancestor, a clip, mask or filter from the parent with `inherit`. References are read as the
+//!   renderer reads them (an id in any namespace, `url()` as `svgtypes` parses it), and a style
+//!   with an escape, an unclosed comment or quote, or more selectors or classes than any drawing
+//!   has is refused. The weighing goes the way the renderer would, every reference followed as
+//!   often as it is copied, within a count of steps: the elements drawn may come to at most
+//!   `MAX_SVG_COST`, nesting and references [`MAX_SVG_DEPTH`] deep (the window's thread has a
+//!   small stack), a marker counted at each point a shape may have. A reference to itself is
 //!   refused. The filters whose cost has no bound (`feMorphology`, `feTurbulence` of many
 //!   octaves, `feConvolveMatrix` of a large kernel) are refused.
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
@@ -34,7 +39,8 @@
 //! PNG is. Parsing and drawing are somebody else's code reading hostile bytes: a panic in them
 //! is a broken picture too.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use resvg::{tiny_skia, usvg, usvg::roxmltree};
 
@@ -62,9 +68,8 @@ const MIN_SVG_PIXELS: u64 = 256 * 256;
 /// opacities, clips, masks, patterns and filter steps over the pixels it is drawn with.
 const LAYER_WORK: u64 = 400_000_000;
 
-/// Most text of a drawing's style sheets, and most rules in them.
+/// Most text of a drawing's style sheets.
 const MAX_SHEET_BYTES: usize = 64 * 1024;
-const MAX_RULES: usize = 2_000;
 
 /// The largest `numOctaves` of `feTurbulence`, and kernel of `feConvolveMatrix`, that is drawn.
 const MAX_OCTAVES: f32 = 8.0;
@@ -160,7 +165,7 @@ fn read(data: &[u8]) -> Option<(usvg::Tree, u64)> {
     if root.tag_name().name() != "svg" || root.tag_name().namespace() != Some("http://www.w3.org/2000/svg") {
         return None;
     }
-    let layers = Weigh::new(&document)?.of(root, 0)?.layers;
+    let layers = Weigh::new(&document)?.of(root, 0, Vec::new())?.layers;
     let tree = usvg::Tree::from_xmltree(&document, &options()).ok()?;
     Some((tree, layers))
 }
@@ -182,9 +187,13 @@ fn nesting(text: &str) -> Option<usize> {
         } else if rest.starts_with(b"<?") {
             find(at + 2, b"?>")?
         } else if rest.starts_with(b"<!") {
-            // A document type, its internal subset (in brackets) and all.
+            // A document type. One with an internal subset (in brackets), which no drawing needs
+            // and which could say things about the rest, is refused.
             let open = rest.iter().position(|&b| b == b'[' || b == b'>')?;
-            if rest.get(open) == Some(&b'[') { find(find(at + open, b"]")?, b">")? } else { at + open + 1 }
+            if rest.get(open) == Some(&b'[') {
+                return None;
+            }
+            at + open + 1
         } else {
             // A tag: to its `>`, past what is quoted.
             let (mut j, mut quote) = (at + 1, None);
@@ -230,38 +239,42 @@ impl Cost {
     }
 }
 
-#[derive(Clone, Copy)]
-enum State {
-    New,
-    /// Being weighed: met again, it refers to itself.
-    Busy,
-    Done(Cost),
-}
-
-/// What an element names: the ids it refers to (and whether as a marker, drawn at each of its
-/// points), and whether it is drawn as a layer of its own.
+/// What an element (or a rule of the style sheet) names, by the way the renderer uses it: paint
+/// (`fill`, `stroke`) and markers, which the element's descendants inherit; the rest (`clip-path`,
+/// `mask`, `filter` and anything else with a `url(#…)`), which a descendant takes only by saying
+/// `inherit`; and `href` links. Whether it is drawn as a layer of its own, and whether it says
+/// `inherit` for one of the rest.
 #[derive(Default)]
 struct Effect {
-    refs: Vec<(String, bool)>,
+    paint: Vec<String>,
+    marker: Vec<String>,
+    other: Vec<String>,
+    link: Vec<String>,
     layer: bool,
+    inherit: bool,
 }
 
 impl Effect {
     fn is_empty(&self) -> bool {
-        self.refs.is_empty() && !self.layer
+        self.paint.is_empty() && self.marker.is_empty() && self.other.is_empty() && !self.layer && !self.inherit
     }
 
     /// What a `property: value` names.
     fn declare(&mut self, property: &str, value: &str) {
         let property = property.trim().to_ascii_lowercase();
-        let marker = property.starts_with("marker");
-        self.refs.extend(local_urls(value).map(|id| (id.to_string(), marker)));
+        let ids = func_iris(value);
+        match property.as_str() {
+            "fill" | "stroke" => self.paint.extend(ids),
+            p if p.starts_with("marker") => self.marker.extend(ids),
+            _ => self.other.extend(ids),
+        }
         self.layer |= LAYER_PROPERTIES.contains(&property.as_str());
+        self.inherit |= matches!(property.as_str(), "clip-path" | "mask" | "filter") && value.trim().eq_ignore_ascii_case("inherit");
     }
 
-    /// What a list of declarations (a `style`, a rule's body) names.
+    /// What a list of declarations (a `style`, a rule's body; comments taken out) names.
     fn declarations(&mut self, text: &str) {
-        for declaration in text.split(';') {
+        for declaration in split_outside_quotes(text, b';') {
             if let Some((property, value)) = declaration.split_once(':') {
                 self.declare(property, value);
             }
@@ -275,98 +288,231 @@ const LAYER_PROPERTIES: &[&str] = &["opacity", "filter", "mask", "clip-path", "m
 /// The elements a reference to which draws a layer of its own.
 const LAYER_ELEMENTS: &[&str] = &["pattern", "mask", "clipPath", "filter"];
 
-/// The ids a value refers to with `url(#id)`, in any letter case, quoted or not.
-fn local_urls(value: &str) -> impl Iterator<Item = &str> {
+/// The elements that are painted, and so take the paint and markers they inherit.
+const SHAPES: &[&str] = &["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "textPath", "tref"];
+
+/// Most selectors in a drawing's style sheets, and most classes an element may have.
+const MAX_SELECTORS: usize = 4_000;
+const MAX_CLASSES: usize = 64;
+
+/// Most steps weighing a drawing may take: each element looked at, each reference followed and
+/// each rule of the style sheet applied to an element is one.
+const MAX_STEPS: u64 = 1_000_000;
+
+fn is_space(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'\r')
+}
+
+/// The ids a value refers to with `url(#id)`, read as the renderer reads one (`svgtypes`'
+/// `FuncIRI`: spaces skipped, a quote or none, `#`, then to the quote, or to a space or `)`),
+/// wherever in the value one begins, in any letter case: never fewer than the renderer finds.
+fn func_iris(value: &str) -> Vec<String> {
+    let bytes = value.as_bytes();
     let lower = value.to_ascii_lowercase();
-    let starts: Vec<usize> = lower.match_indices("url(").map(|(at, _)| at + 4).collect();
-    starts.into_iter().filter_map(move |at| {
-        let rest = value.get(at..)?.trim_start();
-        let rest = rest.strip_prefix(['\'', '"']).unwrap_or(rest).strip_prefix('#')?;
-        let end = rest.find(|c: char| matches!(c, '\'' | '"' | ')') || c.is_whitespace()).unwrap_or(rest.len());
-        rest.get(..end).filter(|id| !id.is_empty())
-    })
-}
-
-/// A rule of a drawing's style sheet that names something, and the elements it might match:
-/// any, or those with one of its classes or ids (taken from the last part of each selector; a
-/// part with a pseudo-class, an attribute or no class or id is taken to match any element).
-struct Rule {
-    any: bool,
-    classes: Vec<String>,
-    ids: Vec<String>,
-    effect: Effect,
-}
-
-impl Rule {
-    fn matches(&self, classes: &[&str], id: Option<&str>) -> bool {
-        self.any || self.classes.iter().any(|c| classes.contains(&c.as_str())) || id.is_some_and(|id| self.ids.iter().any(|i| i == id))
-    }
-}
-
-/// The rules of a style sheet that name something; `None` for one with too many rules.
-fn rules(sheet: &str) -> Option<Vec<Rule>> {
-    let mut text = String::with_capacity(sheet.len());
-    let mut rest = sheet;
-    while let Some(at) = rest.find("/*") {
-        text.push_str(rest.get(..at).unwrap_or_default());
-        rest = rest.get(at + 2..).and_then(|after| after.find("*/").and_then(|end| after.get(end + 2..))).unwrap_or_default();
-    }
-    text.push_str(rest);
-    let mut rules = Vec::new();
-    for chunk in text.split('}') {
-        let Some((selectors, body)) = chunk.rsplit_once('{') else { continue };
-        let mut effect = Effect::default();
-        effect.declarations(body);
-        if effect.is_empty() {
+    let mut ids = Vec::new();
+    for (at, _) in lower.match_indices("url(") {
+        let mut j = at + 4;
+        while bytes.get(j).copied().is_some_and(is_space) {
+            j += 1;
+        }
+        let quote = bytes.get(j).copied().filter(|b| *b == b'\'' || *b == b'"');
+        if quote.is_some() {
+            j += 1;
+            while bytes.get(j).copied().is_some_and(is_space) {
+                j += 1;
+            }
+        }
+        if bytes.get(j) != Some(&b'#') {
             continue;
         }
-        // What comes before the selectors (`@media … {`) is not part of them.
-        let selectors = selectors.rsplit('{').next().unwrap_or_default();
-        let mut rule = Rule { any: false, classes: Vec::new(), ids: Vec::new(), effect };
-        for selector in selectors.split(',') {
-            let last = selector.trim().rsplit(|c: char| c.is_whitespace() || matches!(c, '>' | '+' | '~')).next().unwrap_or_default();
-            if last.is_empty() || last.contains([':', '[', '*', '\\']) || !last.contains(['.', '#']) {
-                rule.any = true;
-                continue;
-            }
-            for (at, sign) in last.match_indices(['.', '#']) {
-                let name = last.get(at + 1..).unwrap_or_default();
-                let name = name.split(['.', '#']).next().unwrap_or_default();
-                if !name.is_empty() {
-                    if sign == "." { rule.classes.push(name.to_string()) } else { rule.ids.push(name.to_string()) }
-                }
-            }
+        j += 1;
+        let rest = bytes.get(j..).unwrap_or_default();
+        let end = match quote {
+            Some(q) => rest.iter().position(|b| *b == q),
+            None => rest.iter().position(|b| *b == b' ' || *b == b')'),
         }
-        rules.push(rule);
-        if rules.len() > MAX_RULES {
-            return None;
+        .map_or(bytes.len(), |n| j + n);
+        let id = value.get(j..end).unwrap_or_default();
+        let id = if quote.is_some() { id.trim_end() } else { id };
+        if !id.is_empty() {
+            ids.push(id.to_string());
         }
     }
-    Some(rules)
+    ids
 }
 
-/// How many points a shape has, at most (each takes two numbers): what a marker is drawn at.
+/// The id an `href` refers to, read as the renderer reads one (`svgtypes`' IRI: spaces
+/// skipped, `#`, then to a space).
+fn iri(value: &str) -> Option<String> {
+    let rest = value.trim_start_matches([' ', '\t', '\n', '\r']).strip_prefix('#')?;
+    let id = rest.split(' ').next().unwrap_or_default();
+    (!id.is_empty()).then(|| id.to_string())
+}
+
+/// `text` cut at each `separator` that is not inside quotes.
+fn split_outside_quotes(text: &str, separator: u8) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let (mut start, mut quote) = (0, None);
+    for (i, b) in text.bytes().enumerate() {
+        match quote {
+            Some(q) if b == q => quote = None,
+            Some(_) => {}
+            None if b == b'"' || b == b'\'' => quote = Some(b),
+            None if b == separator => {
+                parts.push(text.get(start..i).unwrap_or_default());
+                start = i + 1;
+            }
+            None => {}
+        }
+    }
+    parts.push(text.get(start..).unwrap_or_default());
+    parts
+}
+
+/// CSS with its comments made spaces, as the style sheet reader takes them. `None` for a
+/// comment or a quote that is never closed, or an escape (`\`), which could make a reference of
+/// what doesn't read as one: no drawing needs them.
+fn uncommented(text: &str) -> Option<String> {
+    if text.contains('\\') {
+        return None;
+    }
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let (mut i, mut start, mut quote) = (0, 0, None);
+    while let Some(&b) = bytes.get(i) {
+        match quote {
+            Some(q) if b == q => quote = None,
+            Some(_) => {}
+            None if b == b'"' || b == b'\'' => quote = Some(b),
+            None if b == b'/' && bytes.get(i + 1) == Some(&b'*') => {
+                out.push_str(text.get(start..i)?);
+                out.push(' ');
+                let end = bytes.get(i + 2..)?.windows(2).position(|w| w == b"*/")?;
+                i += 2 + end + 2;
+                start = i;
+                continue;
+            }
+            None => {}
+        }
+        i += 1;
+    }
+    if quote.is_some() {
+        return None;
+    }
+    out.push_str(text.get(start..)?);
+    Some(out)
+}
+
+/// The rules of a drawing's style sheets that name something, by the elements they might match:
+/// any element, or those of a class or an id (taken from the last part of each selector; a part
+/// with a pseudo-class, an attribute or no class or id is taken to match any element).
+#[derive(Default)]
+struct Css {
+    rules: Vec<Effect>,
+    any: Vec<usize>,
+    by_class: HashMap<String, Vec<usize>>,
+    by_id: HashMap<String, Vec<usize>>,
+}
+
+impl Css {
+    /// The style sheet read; `None` for one that is refused ([`uncommented`]), is not closed or
+    /// has too many selectors.
+    fn read(sheet: &str) -> Option<Css> {
+        let text = uncommented(sheet)?;
+        let bytes = text.as_bytes();
+        let mut css = Css::default();
+        let mut selectors = 0usize;
+        let mut open: Vec<&str> = Vec::new();
+        let (mut start, mut quote) = (0, None);
+        for (i, &b) in bytes.iter().enumerate() {
+            match quote {
+                Some(q) if b == q => quote = None,
+                Some(_) => {}
+                None if b == b'"' || b == b'\'' => quote = Some(b),
+                None if b == b'{' => {
+                    open.push(text.get(start..i)?);
+                    start = i + 1;
+                }
+                None if b == b'}' => {
+                    let prelude = open.pop()?;
+                    let body = text.get(start..i)?;
+                    start = i + 1;
+                    if prelude.trim_start().starts_with('@') {
+                        continue;
+                    }
+                    let parts = split_outside_quotes(prelude, b',');
+                    selectors = selectors.saturating_add(parts.len());
+                    if selectors > MAX_SELECTORS {
+                        return None;
+                    }
+                    let mut effect = Effect::default();
+                    effect.declarations(body);
+                    if effect.is_empty() {
+                        continue;
+                    }
+                    let index = css.rules.len();
+                    css.rules.push(effect);
+                    for selector in parts {
+                        let last = selector.trim().rsplit(|c: char| c.is_whitespace() || matches!(c, '>' | '+' | '~')).next().unwrap_or_default();
+                        if last.is_empty() || last.contains([':', '[', '*', '"', '\'']) || !last.contains(['.', '#']) {
+                            css.any.push(index);
+                            continue;
+                        }
+                        for (at, sign) in last.match_indices(['.', '#']) {
+                            let name = last.get(at + 1..).unwrap_or_default().split(['.', '#']).next().unwrap_or_default();
+                            if !name.is_empty() {
+                                let map = if sign == "." { &mut css.by_class } else { &mut css.by_id };
+                                map.entry(name.to_string()).or_default().push(index);
+                            }
+                        }
+                    }
+                }
+                // A statement at the top (`@import …;`) is not part of the selectors after it.
+                None if b == b';' && open.last().is_none_or(|p| p.trim_start().starts_with('@')) => start = i + 1,
+                None => {}
+            }
+        }
+        (quote.is_none() && open.is_empty()).then_some(css)
+    }
+}
+
+/// How many points a shape has, at most: what a marker is drawn at. Every number has a digit,
+/// and two numbers' digits are never side by side, so each run of digits, and each command
+/// letter (one may stand alone, as `z` does), counts as one: never fewer than there are.
 fn points(node: roxmltree::Node) -> u64 {
-    let numbers = |name: &str| {
+    let count = |name: &str| {
         let value = node.attribute(name).unwrap_or_default().as_bytes();
-        value
-            .iter()
-            .enumerate()
-            .filter(|&(i, b)| b.is_ascii_digit() && (i == 0 || !value.get(i - 1).is_some_and(|p| p.is_ascii_digit() || *p == b'.')))
-            .count()
+        let runs =
+            value.iter().enumerate().filter(|&(i, b)| b.is_ascii_digit() && !(i > 0 && value.get(i - 1).is_some_and(u8::is_ascii_digit))).count();
+        runs + value.iter().filter(|b| b.is_ascii_alphabetic()).count()
     };
-    (numbers("d") + numbers("points")).max(2) as u64
+    (count("d") + count("points")).max(2) as u64
 }
 
-/// The weighing of a drawing, element by element, each once.
+/// An element as it is weighed: what it names itself, the rules of the style sheet it might
+/// match, and the elements it inherits from (its parent; for what a `<use>` draws, the `<use>`
+/// and the parent where it is written).
+struct Frame {
+    own: Effect,
+    css: Vec<usize>,
+    parents: Vec<Rc<Frame>>,
+}
+
+/// The weighing of a drawing: every element and every reference followed, as often as the
+/// renderer would copy or draw it (nothing is taken as known from before: the steps are capped
+/// instead, [`MAX_STEPS`]).
 struct Weigh<'a, 'input> {
     ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>>,
-    rules: Vec<Rule>,
-    states: Vec<State>,
+    css: Css,
+    steps: u64,
+    /// The elements being weighed, from the root down: met again, one refers to itself.
+    on_path: Vec<bool>,
+    /// The frame of each element as written in the document, once worked out.
+    written: HashMap<usize, Rc<Frame>>,
 }
 
 impl<'a, 'input> Weigh<'a, 'input> {
-    /// Ready to weigh `document`; `None` when it has a filter that is refused, or too much style.
+    /// Ready to weigh `document`; `None` when it has a filter that is refused, or a style sheet.
     fn new(document: &'a roxmltree::Document<'input>) -> Option<Self> {
         let mut ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>> = HashMap::new();
         let mut sheet = String::new();
@@ -384,7 +530,10 @@ impl<'a, 'input> Weigh<'a, 'input> {
                 "feTurbulence" => number("numOctaves").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_OCTAVES)),
                 "feConvolveMatrix" => number("order").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_KERNEL_ORDER)),
                 "style" => {
-                    sheet.extend(node.children().filter_map(|t| t.text()));
+                    for text in node.children().filter_map(|t| t.text()) {
+                        sheet.push_str(text);
+                        sheet.push('\n');
+                    }
                     sheet.len() > MAX_SHEET_BYTES
                 }
                 _ => false,
@@ -392,67 +541,194 @@ impl<'a, 'input> Weigh<'a, 'input> {
             if refused {
                 return None;
             }
-            if let Some(id) = node.attribute("id") {
-                ids.entry(id).or_default().push(node);
+            // An id in any namespace: the renderer takes one in SVG's, XLink's or XML's too.
+            for attribute in node.attributes().filter(|a| a.name() == "id") {
+                ids.entry(attribute.value()).or_default().push(node);
             }
         }
-        Some(Weigh { ids, rules: rules(&sheet)?, states: vec![State::New; last + 1] })
+        Some(Weigh { ids, css: Css::read(&sheet)?, steps: 0, on_path: vec![false; last + 1], written: HashMap::new() })
     }
 
-    /// What `node` names, by its attributes, its `style` and the style sheet.
-    fn effect(&self, node: roxmltree::Node) -> Effect {
-        let mut effect = Effect::default();
+    fn step(&mut self, by: usize) -> Option<()> {
+        self.steps = self.steps.saturating_add(by as u64);
+        (self.steps <= MAX_STEPS).then_some(())
+    }
+
+    /// The frame of `node` inheriting from `parents`.
+    fn frame(&mut self, node: roxmltree::Node, parents: Vec<Rc<Frame>>) -> Option<Rc<Frame>> {
         let name = node.tag_name().name();
+        let mut own = Effect::default();
+        let mut css = Vec::new();
+        let mut classes = 0;
         for attribute in node.attributes() {
+            self.step(1)?;
             let value = attribute.value();
             match attribute.name() {
                 // `<a href>` is a link, never drawn.
-                "href" if name != "a" => {
-                    if let Some(id) = value.trim().strip_prefix('#').filter(|id| !id.is_empty()) {
-                        effect.refs.push((id.to_string(), false));
+                "href" => {
+                    if name != "a" {
+                        own.link.extend(iri(value));
                     }
                 }
-                "style" => effect.declarations(value),
-                property => effect.declare(property, value),
+                "style" => own.declarations(&uncommented(value)?),
+                "id" => css.extend(self.css.by_id.get(value).into_iter().flatten()),
+                "class" => {
+                    for class in value.split_whitespace() {
+                        classes += 1;
+                        if classes > MAX_CLASSES {
+                            return None;
+                        }
+                        css.extend(self.css.by_class.get(class).into_iter().flatten());
+                    }
+                }
+                property => own.declare(property, value),
             }
         }
-        let classes: Vec<&str> = node.attribute("class").unwrap_or_default().split_whitespace().collect();
-        for rule in self.rules.iter().filter(|r| r.matches(&classes, node.attribute("id"))) {
-            effect.refs.extend(rule.effect.refs.iter().cloned());
-            effect.layer |= rule.effect.layer;
-        }
-        effect.layer |= name.starts_with("fe");
-        effect
+        css.extend(&self.css.any);
+        self.step(css.len())?;
+        own.layer |= name.starts_with("fe");
+        Some(Rc::new(Frame { own, css, parents }))
     }
 
-    /// What `node` comes to, with its children and what it refers to; `None` past a cap.
-    fn of(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize) -> Option<Cost> {
+    /// The frame `node`'s children inherit from where it is written: its own, inheriting from its
+    /// ancestors. `None` inside when `node` is no element (the document).
+    fn written(&mut self, node: roxmltree::Node) -> Option<Option<Rc<Frame>>> {
+        if !node.is_element() {
+            return Some(None);
+        }
+        let index = node.id().get_usize();
+        if let Some(frame) = self.written.get(&index) {
+            return Some(Some(frame.clone()));
+        }
+        let parents = match node.parent() {
+            Some(parent) => self.written(parent)?.into_iter().collect(),
+            None => Vec::new(),
+        };
+        let frame = self.frame(node, parents)?;
+        self.written.insert(index, frame.clone());
+        Some(Some(frame))
+    }
+
+    /// The ids `pick` gives of `frame` and its rules, and of every frame it inherits from too
+    /// when `inherited`; each a step.
+    fn gather(&mut self, frame: &Rc<Frame>, pick: fn(&Effect) -> &Vec<String>, inherited: bool) -> Option<Vec<String>> {
+        let mut ids = Vec::new();
+        let mut seen: HashSet<*const Frame> = HashSet::new();
+        let mut todo = vec![frame.clone()];
+        while let Some(f) = todo.pop() {
+            if !seen.insert(Rc::as_ptr(&f)) {
+                continue;
+            }
+            ids.extend(pick(&f.own).iter().cloned());
+            for &rule in &f.css {
+                ids.extend(self.css.rules.get(rule).map(pick).into_iter().flatten().cloned());
+            }
+            if inherited {
+                todo.extend(f.parents.iter().cloned());
+            }
+        }
+        self.step(ids.len() + seen.len())?;
+        Some(ids)
+    }
+
+    /// Whether a frame says `inherit` for a clip, a mask or a filter, itself or by a rule.
+    fn inherits(&self, frame: &Frame) -> bool {
+        frame.own.inherit || frame.css.iter().any(|&rule| self.css.rules.get(rule).is_some_and(|e| e.inherit))
+    }
+
+    /// Whether a frame is drawn as a layer of its own.
+    fn layer(&self, frame: &Frame) -> bool {
+        frame.own.layer || frame.css.iter().any(|&rule| self.css.rules.get(rule).is_some_and(|e| e.layer))
+    }
+
+    /// The clips, masks, filters and the like `frame` draws with: its own, and its parent's
+    /// when it says `inherit` (and theirs when they do).
+    fn others(&mut self, frame: &Rc<Frame>) -> Option<Vec<String>> {
+        let mut ids = self.gather(frame, |e| &e.other, false)?;
+        let mut todo: Vec<Rc<Frame>> = if self.inherits(frame) { frame.parents.clone() } else { Vec::new() };
+        let mut seen: HashSet<*const Frame> = HashSet::new();
+        while let Some(parent) = todo.pop() {
+            if !seen.insert(Rc::as_ptr(&parent)) {
+                continue;
+            }
+            ids.extend(self.gather(&parent, |e| &e.other, false)?);
+            if self.inherits(&parent) {
+                todo.extend(parent.parents.iter().cloned());
+            }
+        }
+        Some(ids)
+    }
+
+    fn targets(&self, id: &str) -> Vec<roxmltree::Node<'a, 'input>> {
+        self.ids.get(id).cloned().unwrap_or_default()
+    }
+
+    /// `cost` with what each element of id `id` brings, `times` over, weighed where it is written.
+    fn charge(&mut self, mut cost: Cost, id: &str, depth: usize, times: u64) -> Option<Cost> {
+        for target in self.targets(id) {
+            let parents = match target.parent() {
+                Some(parent) => self.written(parent)?.into_iter().collect(),
+                None => Vec::new(),
+            };
+            let mut brought = self.of(target, depth + 1, parents)?;
+            brought.layers = brought.layers.saturating_add(u64::from(LAYER_ELEMENTS.contains(&target.tag_name().name())));
+            cost = cost.and(brought, times)?;
+        }
+        Some(cost)
+    }
+
+    /// What `node` comes to, inheriting from `parents`, with its children and what it refers to;
+    /// `None` past a cap, or for an element that refers to itself.
+    fn of(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize, parents: Vec<Rc<Frame>>) -> Option<Cost> {
         if depth > MAX_SVG_DEPTH {
             return None;
         }
         let index = node.id().get_usize();
-        match *self.states.get(index)? {
-            // Weighed already, from elsewhere: as deep below here as it was below there.
-            State::Done(cost) => return (depth.saturating_add(cost.height) <= MAX_SVG_DEPTH).then_some(cost),
-            State::Busy => return None,
-            State::New => {}
+        if *self.on_path.get(index)? {
+            return None;
         }
-        *self.states.get_mut(index)? = State::Busy;
-        let effect = self.effect(node);
-        let mut cost = Cost { elements: 1, layers: u64::from(effect.layer), height: 0 };
-        for child in node.children().filter(roxmltree::Node::is_element) {
-            cost = cost.and(self.of(child, depth + 1)?, 1)?;
+        *self.on_path.get_mut(index)? = true;
+        let cost = self.weigh(node, depth, parents);
+        if let Some(on) = self.on_path.get_mut(index) {
+            *on = false;
         }
-        let points = points(node);
-        for (id, marker) in effect.refs {
-            let targets = self.ids.get(id.as_str()).cloned().unwrap_or_default();
-            for target in targets {
-                let mut brought = self.of(target, depth + 1)?;
-                brought.layers = brought.layers.saturating_add(u64::from(LAYER_ELEMENTS.contains(&target.tag_name().name())));
-                cost = cost.and(brought, if marker { points } else { 1 })?;
+        cost
+    }
+
+    fn weigh(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize, parents: Vec<Rc<Frame>>) -> Option<Cost> {
+        self.step(1)?;
+        let frame = self.frame(node, parents)?;
+        let name = node.tag_name().name();
+        let mut cost = Cost { elements: 1, layers: u64::from(self.layer(&frame)), height: 0 };
+        if SHAPES.contains(&name) {
+            let points = points(node);
+            for id in self.gather(&frame, |e| &e.paint, true)? {
+                cost = self.charge(cost, &id, depth, 1)?;
+            }
+            for id in self.gather(&frame, |e| &e.marker, true)? {
+                cost = self.charge(cost, &id, depth, points)?;
             }
         }
-        *self.states.get_mut(index)? = State::Done(cost);
+        for id in self.others(&frame)? {
+            cost = self.charge(cost, &id, depth, 1)?;
+        }
+        for id in frame.own.link.clone() {
+            if name != "use" {
+                cost = self.charge(cost, &id, depth, 1)?;
+                continue;
+            }
+            // What a `<use>` draws inherits from it, and (to be sure) from where it is written.
+            for target in self.targets(&id) {
+                let mut parents = vec![frame.clone()];
+                if let Some(parent) = target.parent() {
+                    parents.extend(self.written(parent)?);
+                }
+                cost = cost.and(self.of(target, depth + 1, parents)?, 1)?;
+            }
+        }
+        for child in node.children().filter(roxmltree::Node::is_element) {
+            cost = cost.and(self.of(child, depth + 1, vec![frame.clone()])?, 1)?;
+        }
         Some(cost)
     }
 }
