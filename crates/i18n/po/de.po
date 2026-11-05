@@ -1483,6 +1483,18 @@ msgstr[1] ""
 msgid "Attachment keywords"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Attachment options"
+msgstr "Anlagenoptionen"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Attachment options for {name}"
+msgstr "Anlagenoptionen für {name}"
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
 #, fuzzy
