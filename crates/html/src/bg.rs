@@ -129,15 +129,18 @@ impl BgCss {
                 let layer = first_layer(raw);
                 let (url, rest) = url_in(layer);
                 let rest = rest.to_ascii_lowercase();
-                let (place, size) = rest.split_once('/').map_or((rest.as_str(), ""), |(a, b)| (a, b));
-                let words: Vec<&str> = place.split_ascii_whitespace().collect();
+                // (A colour function is one word, and its own `/` is not the one before the size.)
+                let all = words(&rest);
+                let (place, size) = match all.iter().position(|w| *w == "/") {
+                    Some(at) => (all.get(..at).unwrap_or_default(), all.get(at + 1..).unwrap_or_default()),
+                    None => (&all[..], &[][..]),
+                };
                 self.image = Some(url);
                 // (The repeating may come anywhere, after the size too.)
-                let all: Vec<&str> = rest.split(|c: char| c.is_ascii_whitespace() || c == '/').collect();
                 self.repeat = Some(repeat(&all).unwrap_or_default());
-                self.position = Some(position(&words).unwrap_or_default());
+                self.position = Some(position(place).unwrap_or_default());
                 // (The size is what follows the `/`, up to the next keyword that isn't one of its own.)
-                let size_words: Vec<&str> = size.split_ascii_whitespace().take_while(|w| is_size_word(w)).take(2).collect();
+                let size_words: Vec<&str> = size.iter().copied().take_while(|w| is_size_word(w)).take(2).collect();
                 self.size = Some(sizes(&size_words).unwrap_or_default());
             }
             "background-image" => self.image = Some(url_in(first_layer(raw)).0),
@@ -164,6 +167,41 @@ impl BgCss {
 /// Whether a property is one of those read here.
 pub(crate) fn is_bg_property(property: &str) -> bool {
     matches!(property, "background" | "background-image" | "background-repeat" | "background-position" | "background-size")
+}
+
+/// The words of a shorthand: separated by white space and around a `/`, outside parentheses
+/// and quotes, a word with parentheses in it (a colour function, a gradient) left out whole.
+fn words<'a>(value: &'a str) -> Vec<&'a str> {
+    let mut out = Vec::new();
+    let (mut depth, mut quote, mut start, mut paren) = (0u32, 0u8, 0usize, false);
+    let end_word = |out: &mut Vec<&'a str>, from: usize, to: usize, paren: bool| {
+        if let Some(word) = value.get(from..to).filter(|w| !w.is_empty() && !paren) {
+            out.push(word);
+        }
+    };
+    for (i, b) in value.bytes().enumerate() {
+        match b {
+            b'"' | b'\'' if quote == 0 => quote = b,
+            b if b == quote => quote = 0,
+            b'(' if quote == 0 => {
+                depth = depth.saturating_add(1);
+                paren = true;
+            }
+            b')' if quote == 0 => depth = depth.saturating_sub(1),
+            b'/' if quote == 0 && depth == 0 => {
+                end_word(&mut out, start, i, paren);
+                out.push("/");
+                (start, paren) = (i + 1, false);
+            }
+            b if b.is_ascii_whitespace() && quote == 0 && depth == 0 => {
+                end_word(&mut out, start, i, paren);
+                (start, paren) = (i + 1, false);
+            }
+            _ => {}
+        }
+    }
+    end_word(&mut out, start, value.len(), paren);
+    out
 }
 
 /// The first layer of a value of several (`url(a), url(b)`): up to the first comma outside

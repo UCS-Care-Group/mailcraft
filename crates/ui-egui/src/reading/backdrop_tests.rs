@@ -12,7 +12,7 @@ use super::layout::BackdropItem;
 use crate::theme::{Accent, Tokens};
 
 fn item(tile: egui::Vec2, offset: egui::Vec2, repeat: [bool; 2]) -> BackdropItem {
-    BackdropItem { data: Arc::new(Vec::new()), tile, offset, repeat, tint: Color32::WHITE }
+    BackdropItem { data: Arc::new(Vec::new()), tile, offset, repeat, tint: Color32::WHITE, veil: None }
 }
 
 #[test]
@@ -48,34 +48,40 @@ fn copies_fill_the_box_on_the_sides_it_repeats_and_only_what_is_in_view() {
     let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(100.0, 60.0));
     // Once.
     assert_eq!(
-        tiles(&item(vec2(40.0, 30.0), vec2(30.0, 15.0), [false, false]), rect, rect),
+        tiles(&item(vec2(40.0, 30.0), vec2(30.0, 15.0), [false, false]), rect, rect, MAX_TILES),
         [Rect::from_min_size(pos2(40.0, 35.0), vec2(40.0, 30.0))]
     );
     // Across and down: from before the box's edge where it starts inside it.
-    let all = tiles(&item(vec2(40.0, 30.0), vec2(30.0, 15.0), [true, true]), rect, rect);
+    let all = tiles(&item(vec2(40.0, 30.0), vec2(30.0, 15.0), [true, true]), rect, rect, MAX_TILES);
     assert_eq!(all.len(), 3 * 3);
     assert!(all.iter().all(|t| t.intersects(rect)));
     let covered = all.iter().fold(Rect::NOTHING, |a, t| a.union(*t));
     assert!(covered.contains_rect(rect), "{covered:?}");
     // Across only: one row.
-    let row = tiles(&item(vec2(40.0, 30.0), vec2(0.0, 0.0), [true, false]), rect, rect);
+    let row = tiles(&item(vec2(40.0, 30.0), vec2(0.0, 0.0), [true, false]), rect, rect, MAX_TILES);
     assert!(row.len() == 3 && row.iter().all(|t| t.min.y == 20.0));
     // Only what is in view.
     let view = Rect::from_min_size(pos2(10.0, 20.0), vec2(20.0, 20.0));
-    assert_eq!(tiles(&item(vec2(10.0, 10.0), vec2(0.0, 0.0), [true, true]), rect, view).len(), 4);
+    assert_eq!(tiles(&item(vec2(10.0, 10.0), vec2(0.0, 0.0), [true, true]), rect, view, MAX_TILES).len(), 4);
     // Out of view, or out of the box: nothing.
-    assert!(tiles(&item(vec2(10.0, 10.0), vec2(0.0, 0.0), [true, true]), rect, Rect::from_min_size(pos2(500.0, 0.0), vec2(9.0, 9.0))).is_empty());
-    assert!(tiles(&item(vec2(10.0, 10.0), vec2(200.0, 0.0), [false, false]), rect, rect).is_empty());
+    assert!(
+        tiles(&item(vec2(10.0, 10.0), vec2(0.0, 0.0), [true, true]), rect, Rect::from_min_size(pos2(500.0, 0.0), vec2(9.0, 9.0)), MAX_TILES)
+            .is_empty()
+    );
+    assert!(tiles(&item(vec2(10.0, 10.0), vec2(200.0, 0.0), [false, false]), rect, rect, MAX_TILES).is_empty());
 }
 
 #[test]
 fn a_tiny_picture_over_a_large_box_is_drawn_in_few_copies() {
     let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 20_000.0));
-    for tile in [vec2(1.0, 1.0), vec2(1.0, 600.0), vec2(4.0, 4.0)] {
-        let copies = tiles(&item(tile, vec2(0.0, 0.0), [true, true]), rect, rect);
-        assert!(!copies.is_empty() && copies.len() <= MAX_TILES, "{tile:?}: {}", copies.len());
-        let covered = copies.iter().fold(Rect::NOTHING, |a, t| a.union(*t));
-        assert!(covered.contains_rect(rect), "{tile:?}: {covered:?}");
+    // (And fewer still where the frame has little left: the boxes in view share what it may paint.)
+    for max in [MAX_TILES, 64, 1] {
+        for tile in [vec2(1.0, 1.0), vec2(1.0, 600.0), vec2(4.0, 4.0)] {
+            let copies = tiles(&item(tile, vec2(0.0, 0.0), [true, true]), rect, rect, max);
+            assert!(!copies.is_empty() && copies.len() <= max, "{tile:?}: {}", copies.len());
+            let covered = copies.iter().fold(Rect::NOTHING, |a, t| a.union(*t));
+            assert!(covered.contains_rect(rect), "{tile:?}: {covered:?}");
+        }
     }
 }
 

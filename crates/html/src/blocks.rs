@@ -998,27 +998,39 @@ impl Builder {
         self.emit(block, false);
     }
 
-    /// The picture behind an element (#601): what its style says, else its `background`
-    /// attribute where `attribute` (a table, a cell, the body). One attached to the message
-    /// (`cid:`) or on the web (`http`, `https`) is kept by its address, under the same rules as an
-    /// `<img>`'s; one written into it (`data:`) is decoded within the caps the message's pictures
-    /// share, and is no picture when it can't be.
-    fn bg_picture(&mut self, tag: &Tag<'_>, css: &Css, attribute: bool) -> Option<Box<BgPicture>> {
+    /// The picture behind an element (#601), when it may have one: what its style says, else its
+    /// `background` attribute where `attribute` (a table, a cell, the body), as written for one
+    /// written into the message (`data:`), else a safe `http`, `https` or `cid:` address. None for
+    /// an element that is hidden or inside one that is (what is not shown is never asked for),
+    /// and none for one that says it is 2 pixels or less across or high: a tracking pixel, as
+    /// such an `<img>` is. Nothing is decoded here ([`Builder::bg_picture`]).
+    fn bg_source(&self, tag: &Tag<'_>, css: &Css, attribute: bool) -> Option<String> {
+        if self.hidden > 0 || css.hidden || tag.has("hidden") {
+            return None;
+        }
+        let tiny = |attr: &str, style: Option<f32>| tag.attr(attr).and_then(|v| style::attr_px(&v)).or(style).is_some_and(|px| px <= 2.0);
+        if tiny("width", css.width) || tiny("height", css.height) {
+            return None;
+        }
         let raw = match &css.bg.image {
             Some(image) => image.clone(),
             None if attribute => tag.attr("background"),
             None => None,
         }?;
-        let (src, data) = if data::is_data(&raw) {
-            let (src, data) = data::picture(&raw, self.decode, &mut self.budget);
+        if data::is_data(&raw) { Some(raw) } else { bg_url(raw) }
+    }
+
+    /// The picture behind a box that is shown, from what [`Builder::bg_source`] gave: one attached
+    /// to the message or on the web kept by its address, under the same rules as an `<img>`'s;
+    /// one written into it decoded within the caps the message's pictures share, and no picture
+    /// when it can't be.
+    fn bg_picture(&mut self, source: Option<String>, css: &Css) -> Option<Box<BgPicture>> {
+        let source = source?;
+        let (src, data) = if data::is_data(&source) {
+            let (src, data) = data::picture(&source, self.decode, &mut self.budget);
             (src, Some(data?))
         } else {
-            let src = picture_url(Some(raw))?;
-            let scheme = src.split_once(':').map_or("", |(scheme, _)| scheme);
-            if !["http", "https", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s)) {
-                return None;
-            }
-            (src, None)
+            (source, None)
         };
         let bg = &css.bg;
         Some(Box::new(BgPicture {
@@ -1614,7 +1626,8 @@ impl Builder {
         let border = tag.attr("border").is_some_and(|b| style::attr_px(&b).map_or(b.trim().is_empty(), |px| px > 0.0));
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
         let inline = self.can_box(tag, &css).is_some();
-        let bg_picture = self.bg_picture(tag, &css, true);
+        let source = if self.frames.len() < MAX_TABLE_DEPTH { self.bg_source(tag, &css, true) } else { None };
+        let bg_picture = self.bg_picture(source, &css);
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
@@ -1728,7 +1741,8 @@ impl Builder {
         }
         self.flush();
         let css = css_of(tag);
-        let bg_picture = self.bg_picture(tag, &css, true);
+        let source = self.bg_source(tag, &css, true);
+        let bg_picture = self.bg_picture(source, &css);
         let span = |name: &str, max: u16| tag.attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
         let build = CellBuild {
             header,
@@ -1865,7 +1879,10 @@ impl Builder {
                 margin: [margins.left, margins.right],
                 inline: true,
                 parent,
-                bg_picture: self.bg_picture(tag, &css, false),
+                bg_picture: {
+                    let source = self.bg_source(tag, &css, false);
+                    self.bg_picture(source, &css)
+                },
             };
             delta.background = None;
             if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
@@ -1977,8 +1994,8 @@ impl Builder {
         let paragraph = name == "p" && !outlook;
         // A box on a line (`display: inline-block`) that has something to show of its own: padding,
         // a background, a frame or a width. Without them it is a block as any other.
-        let bg_picture = self.bg_picture(tag, &css, name == "body");
-        let asks = background.is_some() || bg_picture.is_some() || has_box_look(&css);
+        let source = self.bg_source(tag, &css, name == "body");
+        let asks = background.is_some() || source.is_some() || has_box_look(&css);
         let parent = if asks && name != "body" { self.can_box(tag, &css) } else { None };
         let inline = parent.is_some();
         let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
@@ -1989,7 +2006,9 @@ impl Builder {
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
-        let boxed = (background.is_some() || bg_picture.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
+        let boxed = (background.is_some() || source.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
+        // (Decoded only for a box that is made.)
+        let bg_picture = if boxed { self.bg_picture(source, &css) } else { None };
         let padding = css.padding_insets().unwrap_or_default();
         // (A box on a line takes no margins above and below: the lines of boxes have their own gap.)
         let margins = if inline { Insets { top: 0, bottom: 0, ..css.margin_insets() } } else { css.margin_insets() };
@@ -2293,7 +2312,7 @@ fn box_width(css: &Css) -> Option<Length> {
 /// padding that is more than none, or a width.
 pub(crate) fn has_box_look(css: &Css) -> bool {
     css.background.is_some()
-        || matches!(css.bg.image, Some(Some(_)))
+        || css.bg.image.as_ref().and_then(Option::as_ref).is_some_and(|url| data::is_data(url) || bg_url(url.clone()).is_some())
         || css.framed()
         || css.padding_insets().is_some_and(Insets::any)
         || box_width(css).is_some()
@@ -2360,6 +2379,14 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     let schemeless = url.strip_prefix("//").is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let url = if schemeless { format!("https:{url}") } else { url.to_string() };
     is_safe_url(&url).then_some(url)
+}
+
+/// The address of a picture behind a box on the web or attached to the message, when it may be
+/// used: [`picture_url`], and `http`, `https` or `cid:` alone.
+fn bg_url(raw: String) -> Option<String> {
+    let src = picture_url(Some(raw))?;
+    let scheme = src.split_once(':').map_or("", |(scheme, _)| scheme);
+    ["http", "https", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s)).then_some(src)
 }
 
 /// Whether the rows read like a grid of short texts: at least two rows with something in two

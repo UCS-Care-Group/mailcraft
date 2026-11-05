@@ -172,3 +172,55 @@ fn a_reply_carries_no_picture_behind_a_box() {
         quotable("<table background=\"https://t.example/a.png\"><tr><td style=\"background-image:url(https://t.example/b.png)\">x</td></tr></table>");
     assert!(!quoted.contains("t.example"), "{quoted}");
 }
+
+#[test]
+fn what_is_hidden_has_no_picture_behind_it_and_asks_for_none() {
+    for html in [
+        "<div style=\"display:none\"><table background=\"https://t.example/h1.png\"><tr><td background=\"https://t.example/h2.png\">a</td><td>b</td></tr></table></div>",
+        "<table><tr><td style=\"display:none\" background=\"https://t.example/hc.png\">a</td><td>b</td></tr></table>",
+        "<table><tr style=\"display:none\"><td background=\"https://t.example/hr.png\">a</td><td>b</td></tr></table>",
+        "<table hidden background=\"https://t.example/ht.png\"><tr><td>a</td><td>b</td></tr></table>",
+        "<div style=\"visibility:hidden;background-image:url(https://t.example/hd.png)\">a</div>",
+        "<style>.m{display:none}</style><table class=\"m\"><tr><td style=\"background:url(https://t.example/hs.png)\">a</td><td>b</td></tr></table>",
+    ] {
+        assert!(srcs(html).is_empty(), "{html}");
+    }
+    // Nor does it use up what the message's written pictures may take: hidden copies are not decoded.
+    let hidden = format!("<td background=\"{}\" style=\"display:none\">x</td>", png()).repeat(MAX_DATA_PICTURES);
+    let html =
+        format!("<table><tr>{hidden}<td>y</td></tr></table><img src=\"{0}\"><table><tr><td background=\"{0}\">z</td><td>w</td></tr></table>", png());
+    let blocks = parse(&html);
+    assert!(crate::images(&blocks).iter().all(|b| matches!(b.kind, BlockKind::Image { data: Some(_), .. })));
+    assert_eq!(bg_pictures(&blocks).len(), 1);
+}
+
+#[test]
+fn a_box_two_pixels_or_less_across_has_no_picture_behind_it() {
+    for tiny in [
+        "<table><tr><td background=\"https://t.example/px.gif\" width=1 height=1></td><td>x</td></tr></table>",
+        "<table background=\"https://t.example/px.gif\" height=\"2\"><tr><td>x</td><td>y</td></tr></table>",
+        "<div style=\"width:1px;background-image:url(https://t.example/px.gif)\">x</div>",
+    ] {
+        assert!(srcs(tiny).is_empty(), "{tiny}");
+    }
+    assert_eq!(srcs("<table><tr><td background=\"cid:a\" width=3>x</td><td>y</td></tr></table>"), ["cid:a"]);
+}
+
+#[test]
+fn a_slash_inside_a_colour_is_not_the_one_before_the_size() {
+    let all = bg("background:rgb(0 0 0 / 50%) url(x.png) center / contain no-repeat");
+    assert_eq!((all.position, all.size, all.repeat), (Some([BgOffset::Percent(50); 2]), Some(BgSize::Contain), Some(BgRepeat::None)));
+    let all = bg("background:url(x.png) hsl(120 50% 50% / .5) right");
+    assert_eq!(all.position, Some([BgOffset::Percent(100), BgOffset::Percent(50)]));
+}
+
+#[test]
+fn a_picture_that_may_not_be_shown_makes_no_box_on_a_line() {
+    for bad in ["x.png", "javascript:alert(1)"] {
+        let html = format!(
+            "<div><span style=\"display:inline-block;background-image:url({bad})\">A</span> <span style=\"display:inline-block\">B</span></div>"
+        );
+        let blocks = parse(&html);
+        assert!(!blocks.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)), "{bad}: {blocks:?}");
+    }
+}

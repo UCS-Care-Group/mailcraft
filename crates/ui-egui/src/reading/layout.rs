@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
-use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table, VAlign};
+use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Rgb, Sides, Span, Table, VAlign};
 use mailcraft_model::Message;
 
 use super::colors::Paper;
@@ -185,6 +185,9 @@ pub struct BackdropItem {
     pub repeat: [bool; 2],
     /// What it is multiplied by: white, or darker in the dark theme.
     pub tint: Color32,
+    /// What is painted over it, for a box with no colour of its own: the paper round it, a
+    /// little see-through.
+    pub veil: Option<Color32>,
 }
 
 /// A piece of text: a paragraph, or part of a very long one.
@@ -474,13 +477,20 @@ impl Cx<'_> {
         Some(Behind { slot: self.slot(), data, size })
     }
 
-    /// Put the picture behind a box at `rect` into the place kept for it.
-    fn fill_behind(&mut self, behind: Option<Behind>, rect: Rect, picture: Option<&BgPicture>) {
+    /// Put the picture behind a box at `rect` into the place kept for it. `asked`: the box's own
+    /// colour; `paper`: what its text is read against.
+    fn fill_behind(&mut self, behind: Option<Behind>, rect: Rect, picture: Option<&BgPicture>, asked: Option<Rgb>, paper: Paper) {
         let (Some(Behind { slot, data, size: [w, h] }), Some(picture)) = (behind, picture) else { return };
-        let tint = super::backdrop::tint(&self.t).unwrap_or(Color32::WHITE);
+        // Dimmed in the dark theme with a colour it turned dark, or none; veiled where there is none.
+        let veil = asked.is_none().then(|| paper.fill.gamma_multiply(super::backdrop::VEIL));
+        let turned = asked.is_some_and(|c| Paper::of(c, &self.t).fill != super::colors::c32(c));
+        let tint = match super::backdrop::tint(&self.t) {
+            Some(tint) if turned || veil.is_some() => tint,
+            _ => Color32::WHITE,
+        };
         let tile = super::backdrop::tile_size(picture.size, vec2(w as f32, h as f32), rect.size());
         let offset = super::backdrop::offset(picture.position, tile, rect.size());
-        let item = BackdropItem { data, tile, offset, repeat: picture.repeat.axes(), tint };
+        let item = BackdropItem { data, tile, offset, repeat: picture.repeat.axes(), tint, veil };
         self.right = self.right.max(rect.max.x);
         if let Some(kept) = self.items.get_mut(slot) {
             *kept = Item { rect, kind: ItemKind::Backdrop(item), seg: NO_SEG };
@@ -1975,7 +1985,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             };
             cx.fill_slot(slot, rect, inside.fill, radius);
         }
-        cx.fill_behind(behind, rect, placed.cell.bg_picture.as_deref());
+        cx.fill_behind(behind, rect, placed.cell.bg_picture.as_deref(), placed.cell.background, inside);
         let sides = if table.border { Sides::ALL } else { placed.cell.border };
         let look = edges_of(&cx.t, &placed.cell.lines, sides, around);
         let outer = Sides {
@@ -1990,7 +2000,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
-    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref());
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     // A table with lines round every cell has its outline from them.
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
@@ -2055,7 +2065,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             if let Some(slot) = slot {
                 cx.fill_slot(slot, rect, inside.fill, f32::from(cell.radius));
             }
-            cx.fill_behind(behind, rect, cell.bg_picture.as_deref());
+            cx.fill_behind(behind, rect, cell.bg_picture.as_deref(), cell.background, inside);
             let look = edges_of(&cx.t, &cell.lines, if table.border { Sides::ALL } else { cell.border }, around);
             cell_lines(cx, rect, look, Sides::ALL, f32::from(cell.radius));
             at = bottom;
@@ -2066,7 +2076,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
-    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref());
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
         cell_lines(cx, whole, look, Sides::ALL, f32::from(table.radius));

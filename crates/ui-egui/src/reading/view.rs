@@ -705,6 +705,8 @@ pub fn paint(
     let mut hover = None;
     let mut on_picture = false;
     let mut pictures = None;
+    // What is left of the copies of pictures behind boxes this frame may paint.
+    let mut copies_left = super::backdrop::MAX_FRAME_TILES;
     for item in &laid.items {
         let rect = item.rect.translate(origin);
         if !clip.intersects(rect) {
@@ -772,7 +774,10 @@ pub fn paint(
                 let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
                 let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &behind.data, behind.tile);
                 match state {
-                    Picture::Ready(texture) => super::backdrop::paint(&painter, rect, clip, behind, texture.id()),
+                    Picture::Ready(texture) => {
+                        let painted = super::backdrop::paint(&painter, rect, clip, behind, texture.id(), copies_left.max(16));
+                        copies_left = copies_left.saturating_sub(painted);
+                    }
                     Picture::Pending => ctx.request_repaint(),
                     Picture::Failed => {}
                 }

@@ -53,7 +53,7 @@ fn hero(html_cell: &str) -> mailcraft_model::Message {
 
 #[test]
 fn an_attached_picture_is_behind_its_cell_under_the_text() {
-    let mut m = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#203040\" style=\"background-repeat:no-repeat\">");
+    let mut m = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#f4efe6\" style=\"background-repeat:no-repeat\">");
     m.attachments =
         vec![Attachment { content_id: "hero@example.org".into(), inline: true, ..Attachment::new("hero.png", "image/png", png(300, 100)) }];
     for dark in [false, true] {
@@ -68,8 +68,36 @@ fn an_attached_picture_is_behind_its_cell_under_the_text() {
             let at = laid.items.iter().position(|i| matches!(i.kind, ItemKind::Backdrop(_))).unwrap();
             assert!(at < text_at(&laid, "Autumn sale"));
             assert_eq!((item.tile, item.repeat), (egui::vec2(300.0, 100.0), [false, false]));
-            // In the dark theme the picture is dimmed, as the colour under it is turned dark.
+            // In the dark theme the picture is dimmed, as the light colour under it is turned dark.
+            assert_eq!((item.tint, item.veil), (if dark { DARK_TINT } else { Color32::WHITE }, None));
+        });
+    }
+}
+
+#[test]
+fn a_dark_colour_leaves_its_picture_as_it_is_and_no_colour_veils_it() {
+    let attach = |m: &mut mailcraft_model::Message| {
+        m.attachments =
+            vec![Attachment { content_id: "hero@example.org".into(), inline: true, ..Attachment::new("hero.png", "image/png", png(300, 100)) }];
+    };
+    let mut dark_cell = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#203040\">");
+    attach(&mut dark_cell);
+    // White text on a photograph with no colour given: what the text is read against is the
+    // paper round it, so the picture is veiled with that paper and the text stays readable.
+    let mut bare = hero("<td background=\"cid:hero@example.org\">");
+    attach(&mut bare);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid_dark = laid(ctx, &dark_cell, false);
+            assert_eq!((behind(&laid_dark)[0].1.tint, behind(&laid_dark)[0].1.veil), (Color32::WHITE, None));
+            let laid_bare = laid(ctx, &bare, false);
+            let item = behind(&laid_bare)[0].1.clone();
+            let ItemKind::Text(text) = &laid_bare.items[text_at(&laid_bare, "Autumn sale")].kind else { panic!("no text") };
             assert_eq!(item.tint, if dark { DARK_TINT } else { Color32::WHITE });
+            let veil = item.veil.unwrap();
+            assert!(veil.a() >= 170 && veil.a() < 255, "{veil:?}");
+            // The veil is the paper the text was made readable on.
+            assert_eq!(veil, text.paper.gamma_multiply(crate::reading::backdrop::VEIL));
         });
     }
 }
