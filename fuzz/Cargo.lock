@@ -332,6 +332,7 @@ dependencies = [
  "mailcraft-link",
  "mailcraft-mime",
  "mailcraft-proto",
+ "mailcraft-pst",
  "mailcraft-vcard",
 ]
 
@@ -410,6 +411,10 @@ dependencies = [
  "mailcraft-charset",
  "thiserror",
 ]
+
+[[package]]
+name = "mailcraft-pst"
+version = "0.10.0"
 
 [[package]]
 name = "mailcraft-time"

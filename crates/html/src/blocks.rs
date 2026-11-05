@@ -167,7 +167,18 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
 fn box_holder(builder: &Builder, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<usize> {
     let asks = tag.sheet.as_ref().is_some_and(|a| a.css.inline_block)
         || tag.raw_attr("style").is_some_and(|s| s.as_bytes().windows(12).any(|w| w.eq_ignore_ascii_case(b"inline-block")));
-    if !asks || builder.hidden > 0 || builder.inline_boxes >= MAX_INLINE_BOXES || !is_box(tag, &css_of(tag)) {
+    // A table floated to a side stands beside the others its holder holds (and nothing else).
+    let floats = !asks && tag.name == "table" && tag.raw_attr("align").is_some();
+    if !(asks || floats) || builder.hidden > 0 || builder.inline_boxes >= MAX_INLINE_BOXES {
+        return None;
+    }
+    let css = css_of(tag);
+    if floats {
+        floated(tag, &css)?;
+        let holder = builder.holder(&tag.name)?;
+        return look.only_floats(&holder).then_some(holder.id);
+    }
+    if !is_box(tag, &css) {
         return None;
     }
     let holder = builder.holder(&tag.name)?;
@@ -187,6 +198,13 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    /// The alignment in force comes from the `align` of a cell, a row, a `<div>` or a `<p>`, or
+    /// from a `<center>`, not from a style: a table inside starts again at the left, as in a
+    /// browser (its `-webkit-` alignments).
+    align_attr: bool,
+    /// The alignment in force is the left a table started again from: a `<th>` in it is
+    /// centred, as in a browser.
+    align_reset: bool,
     line_height: Option<LineHeight>,
     link: Option<Rc<str>>,
     /// The font size in force is too small to be meant to be read (2 pixels or less): text
@@ -245,6 +263,11 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
+    align_attr: bool,
+    /// A table: the `align` of a cell, a row, a `<div>` or a `<p>`, or a `<center>`, outside does
+    /// not reach its text (a style's does).
+    table: bool,
     /// `Some(None)`: `normal`.
     line_height: Option<Option<LineHeight>>,
     link: Option<Option<Rc<str>>>,
@@ -276,6 +299,15 @@ impl Delta {
         }
     }
 
+    /// The alignment the `align` of a cell, a row, a `<div>` or a `<p>` (or a `<center>`) asks
+    /// for, unless a style asks for one.
+    fn or_attr_align(&mut self, align: Option<Align>) {
+        if self.align.is_none() && align.is_some() {
+            self.align = align;
+            self.align_attr = true;
+        }
+    }
+
     /// The style inside the element.
     fn apply(&self, parent: &Style) -> Style {
         let mut style = parent.clone();
@@ -302,8 +334,15 @@ impl Delta {
         if self.background.is_some() {
             style.background = self.background;
         }
+        if self.table && style.align_attr {
+            style.align = Align::Left;
+            style.align_attr = false;
+            style.align_reset = true;
+        }
         if let Some(align) = self.align {
             style.align = align;
+            style.align_attr = self.align_attr;
+            style.align_reset = false;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -386,6 +425,12 @@ struct TableBuild {
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
+    /// The alignment round it that its text does not take ([`Style::align_attr`]: the `align` of
+    /// a cell, a row, a `<div>` or a `<p>`, or a `<center>`), when it is not the left. A browser
+    /// makes a table with no width of its own as wide as what is in it, up to the line, and
+    /// stands it there; so when such a table is unwrapped into its blocks, what is at the left in
+    /// it stands there instead (exact for a line; longer text is aligned line by line).
+    outer_align: Option<Align>,
     /// `border="1"`.
     border: bool,
     /// A border on the table itself.
@@ -409,6 +454,10 @@ struct TableBuild {
     last_row: bool,
     spacing: Option<u8>,
     inline: bool,
+    /// A box on a line floated to the side `align` says ([`Table::float`]).
+    float: bool,
+    /// What holds it, when it is a box on a line ([`BoxBuild::parent`]).
+    parent: usize,
 }
 
 #[derive(Debug)]
@@ -674,6 +723,27 @@ impl Builder {
         }
     }
 
+    /// The alignment of text or a picture that starts here. One written in a table or a row
+    /// outside its cells (bare, or in an element there that doesn't align it) stands before the
+    /// table, as in a browser, aligned as what is round the table is (a table starts again at
+    /// the left from some alignments: [`Style::align_attr`]).
+    fn loose_align(&self) -> Align {
+        for (i, node) in self.nodes.iter().enumerate().rev() {
+            match node.kind {
+                // (A table too deep to be laid out holds its cells' content itself.)
+                Kind::Cell(_) => break,
+                Kind::Table(ref t) if t.flat => break,
+                Kind::Table(_) | Kind::Row(_) => {
+                    let table = self.nodes.get(..=i).and_then(|below| below.iter().rposition(|n| matches!(n.kind, Kind::Table(_))));
+                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align;
+                }
+                _ if node.delta.align.is_some() => break,
+                _ => {}
+            }
+        }
+        self.style().align
+    }
+
     // ---- text ----
 
     /// An element that is not inline ends the word before it: what is hidden on both sides of it
@@ -787,7 +857,7 @@ impl Builder {
             } else {
                 BlockKind::Paragraph
             };
-            self.align = self.style().align;
+            self.align = self.loose_align();
             self.line_height = self.style().line_height;
             self.fresh = true;
         }
@@ -1019,7 +1089,7 @@ impl Builder {
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
                 let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string), data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: style.align, beside, ..Block::new(kind, spans) };
+                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -1183,8 +1253,8 @@ impl Builder {
         }
     }
 
-    /// Whether an element with this style may be a box on a line (`display: inline-block`): the
-    /// message has not had too many, and there is room to nest one. Only a box that was made
+    /// Whether an element with this style may be a box on a line (`display: inline-block`, or a
+    /// table floated to a side): the message has not had too many, and there is room to nest one. Only a box that was made
     /// counts ([`Builder::made_box`]).
     /// It gives the id of what holds the box.
     fn can_box(&self, tag: &Tag<'_>, css: &Css) -> Option<usize> {
@@ -1192,7 +1262,8 @@ impl Builder {
         let room = self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
         // (A list item's marker, a heading and preformatted text are kept as they are.)
         let plain = self.item.is_none() && self.heading.is_none() && self.pre == 0;
-        (css.inline_block && !left_out(tag, css) && room && plain && self.line_is_blank()).then_some(parent)
+        let asks = css.inline_block || floated(tag, css).is_some();
+        (asks && !left_out(tag, css) && room && plain && self.line_is_blank()).then_some(parent)
     }
 
     /// What holds the element about to open, if a box may stand in it: the nearest element that
@@ -1451,18 +1522,28 @@ impl Builder {
             nested || !looks_like_data(&rows)
         };
         if layout {
-            let width = rows.first().map_or(0, |r| r.cells.len());
-            let grid = rows.iter().all(|r| r.cells.len() == width && r.cells.iter().all(|c| c.colspan == 1 && c.rowspan == 1));
-            if grid {
-                let mut used = vec![false; width];
-                for row in &rows {
-                    for (slot, cell) in used.iter_mut().zip(&row.cells) {
-                        *slot |= !empty(cell);
+            // A column that only makes room in every row makes none: an empty cell loses the
+            // columns of its span that nothing else fills, and goes with the last of them. (A cell
+            // that spans columns fills them all, so the empty cells beside it keep their place.)
+            if let Some(places) = places(&rows) {
+                let mut used = [false; MAX_TABLE_COLUMNS];
+                for (row, places) in rows.iter().zip(&places) {
+                    for (cell, &(col, cols)) in row.cells.iter().zip(places) {
+                        if !empty(cell) {
+                            used.iter_mut().skip(col).take(cols).for_each(|slot| *slot = true);
+                        }
                     }
                 }
-                for row in &mut rows {
-                    let mut column = used.iter();
-                    row.cells.retain(|_| column.next().copied().unwrap_or(true));
+                for (row, places) in rows.iter_mut().zip(&places) {
+                    let mut place = places.iter();
+                    row.cells.retain_mut(|cell| {
+                        let Some(&(col, cols)) = place.next() else { return true };
+                        let kept = used.iter().skip(col).take(cols).filter(|u| **u).count();
+                        if kept < cols {
+                            cell.colspan = u16::try_from(kept).unwrap_or(1);
+                        }
+                        kept > 0
+                    });
                 }
             } else {
                 for row in &mut rows {
@@ -1489,8 +1570,21 @@ impl Builder {
             && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
-        if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
+        // A table its text stands apart from ([`TableBuild::outer_align`]) stays one when it is
+        // narrower than the line or holds tables floated to a side: it is stood where that
+        // alignment says, a share of the line wide or as wide as the floats together, with its
+        // text at the left, as in a browser.
+        let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
+        let stands = table.outer_align.is_some()
+            && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
+                || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
+        if layout
+            && plain
+            && !slices
+            && !stands
+            && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
         {
+            let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
                 for mut cell in row.cells {
                     if i > 0
@@ -1498,12 +1592,15 @@ impl Builder {
                     {
                         first.space = first.space.max(1);
                     }
+                    if let Some(align) = outer {
+                        cell.blocks.iter_mut().filter(|b| b.align == Align::Left).for_each(|b| b.align = align);
+                    }
                     self.splice(cell.blocks, cell.padding);
                 }
             }
             return;
         }
-        let kind = BlockKind::Table(Table {
+        let mut kind = BlockKind::Table(Table {
             rows,
             columns: u16::try_from(columns).unwrap_or(u16::MAX),
             layout,
@@ -1515,10 +1612,24 @@ impl Builder {
             radius: table.radius,
             spacing: table.spacing,
             inline: table.inline,
+            float: table.float,
+            // (The margins of a box on a line are the table's own: the line is placed as a whole.)
+            box_margin: if table.inline { table.margin } else { [0, 0] },
             ..Table::default()
         });
-        let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
+        // A box that follows another with nothing between them stands in its line, as for a
+        // block that is a box ([`Builder::end_box`]); white space parts boxes, never floats.
+        let beside = table.inline && self.frame().after_box == Some(table.parent);
+        let spaced = beside && std::mem::take(&mut self.frame().box_space) && !table.float;
+        if let BlockKind::Table(t) = &mut kind {
+            t.spaced = spaced;
+        }
+        let inset = if table.inline { [0, 0] } else { table.margin };
+        let block = Block { quote: self.quote_depth(), align: table.align, beside, inset, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
+        let frame = self.frame();
+        frame.after_box = table.inline.then_some(table.parent);
+        frame.box_space = false;
     }
 
     /// Open a table that a stray `<tr>` or `<td>` implies; its index, or `None` when the stack is full.
@@ -1543,6 +1654,9 @@ impl Builder {
             last_row: false,
             spacing: None,
             inline: false,
+            float: false,
+            parent: 0,
+            outer_align: None,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1557,12 +1671,17 @@ impl Builder {
         let css = css_of(tag);
         let border = tag.attr("border").is_some_and(|b| style::attr_px(&b).map_or(b.trim().is_empty(), |px| px > 0.0));
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
-        let inline = self.can_box(tag, &css).is_some();
+        let parent = self.can_box(tag, &css);
+        let inline = parent.is_some();
+        let float = if inline { floated(tag, &css) } else { None };
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
             background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
-            align: tag.attr("align").and_then(|a| style::attr_align(&a)).or(css.centred().then_some(Align::Center)).unwrap_or(self.style().align),
+            align: float
+                .or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)))
+                .or(css.centred().then_some(Align::Center))
+                .unwrap_or(self.style().align),
             border,
             outline: css.framed(),
             lines: css.lines,
@@ -1577,10 +1696,13 @@ impl Builder {
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
             inline,
+            float: float.is_some(),
+            parent: parent.unwrap_or(0),
+            outer_align: (self.style().align_attr && self.style().align != Align::Left).then_some(self.style().align),
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
-        if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), ..Delta::of(&css) }, hidden) {
+        if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), table: true, ..Delta::of(&css) }, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         } else if inline {
             self.made_box();
@@ -1610,7 +1732,7 @@ impl Builder {
         }
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
         let background = css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
@@ -1689,7 +1811,10 @@ impl Builder {
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
+        if header && delta.align.is_none() && self.style().align_reset {
+            delta.align = Some(Align::Center);
+        }
         let hidden = css.hidden || tag.has("hidden");
         if !self.push_node(if header { "th" } else { "td" }, Kind::Cell(build), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
@@ -1895,10 +2020,13 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        if name == "center" {
-            delta.align = delta.align.or(Some(Align::Center));
+        let align = if name == "center" { Some(Align::Center) } else { tag.attr("align").and_then(|a| style::attr_align(&a)) };
+        if matches!(name, "div" | "p" | "center") {
+            delta.or_attr_align(align);
+        } else {
+            // (`<body align>`, `<section align>` and the like align as a style does.)
+            delta.align = delta.align.or(align);
         }
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
         let mut background = css.background;
         if name == "body" {
             delta.color = delta.color.or_else(|| tag.attr("text").and_then(|c| style::attr_color(&c)).map(Some));
@@ -2020,6 +2148,7 @@ impl Builder {
     fn open_structure(&mut self, name: &'static str, kind: Kind, tag: &Tag<'_>) -> bool {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
+        // (A heading's or a list's `align` aligns as a style does, into a table too.)
         delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
         // A heading is bold unless it says it is not.
         if matches!(kind, Kind::Heading(_)) {
@@ -2226,6 +2355,25 @@ fn box_width(css: &Css) -> Option<Length> {
     sized(css, None).filter(|w| *w != Length::Percent(100))
 }
 
+/// The side a table floats to, as a browser floats it: `align="left"` or `"right"` on a table that
+/// is shown, isn't a box on a line by its style, and isn't the whole width (which nothing can
+/// stand beside). Whether it stands beside others is for what holds it to say (`Look::only_floats`).
+pub(crate) fn floated(tag: &Tag<'_>, css: &Css) -> Option<Align> {
+    if tag.name != "table" || css.inline_block || left_out(tag, css) {
+        return None;
+    }
+    let align = tag.attr("align")?;
+    let align = align.trim();
+    let side = if align.eq_ignore_ascii_case("left") {
+        Align::Left
+    } else if align.eq_ignore_ascii_case("right") {
+        Align::Right
+    } else {
+        return None;
+    };
+    (sized(css, tag.attr("width").and_then(|w| style::attr_length(&w))) != Some(Length::Percent(100))).then_some(side)
+}
+
 /// Whether a style gives an element something to show of its own as a box: a background, a frame,
 /// padding that is more than none, or a width.
 pub(crate) fn has_box_look(css: &Css) -> bool {
@@ -2293,6 +2441,35 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     let schemeless = url.strip_prefix("//").is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let url = if schemeless { format!("https:{url}") } else { url.to_string() };
     is_safe_url(&url).then_some(url)
+}
+
+/// Where each cell of `rows` sits, as the reading pane places it: its first column and how many it
+/// covers, minding the cells above that span rows, a span held to the columns there are. `None`
+/// when a row has more than the widest row's columns (as a cell above that spans rows can make
+/// it), which the pane puts on in a row of its own.
+fn places(rows: &[Row]) -> Option<Vec<Vec<(usize, usize)>>> {
+    let columns = rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS);
+    // Per column, how many rows a cell from above still covers.
+    let mut covered = [0usize; MAX_TABLE_COLUMNS];
+    let covered = covered.get_mut(..columns)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut places = Vec::with_capacity(row.cells.len());
+        let mut col = 0usize;
+        for cell in &row.cells {
+            while covered.get(col).is_some_and(|c| *c > 0) {
+                col += 1;
+            }
+            let wanted = usize::from(cell.colspan).clamp(1, columns.checked_sub(col).filter(|n| *n > 0)?);
+            let cols = covered.iter().skip(col).take(wanted).take_while(|c| **c == 0).count().max(1);
+            covered.iter_mut().skip(col).take(cols).for_each(|c| *c = usize::from(cell.rowspan).max(1));
+            places.push((col, cols));
+            col += cols;
+        }
+        covered.iter_mut().for_each(|c| *c = c.saturating_sub(1));
+        out.push(places);
+    }
+    Some(out)
 }
 
 /// Whether the rows read like a grid of short texts: at least two rows with something in two

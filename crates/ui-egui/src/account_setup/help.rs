@@ -127,10 +127,12 @@ impl AccountSetup {
             self.approval.said |= end == SignInEnd::Approval;
             return;
         }
+        let google = self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
         match end {
-            SignInEnd::Approval => self.open_approval(true),
-            // (Said by the page, in its own words.)
-            SignInEnd::Declined | SignInEnd::TimedOut | SignInEnd::NoBrowser => self.error.clear(),
+            // Google's Workspace/test-user restrictions are not Microsoft's admin-consent API.
+            SignInEnd::Approval if !google => self.open_approval(true),
+            // The Google page explains this known outcome without exposing a raw provider error.
+            SignInEnd::Approval | SignInEnd::Declined | SignInEnd::TimedOut | SignInEnd::NoBrowser => self.error.clear(),
             SignInEnd::Other => self.error = error,
         }
     }
@@ -180,6 +182,9 @@ impl AccountSetup {
 
     /// Do what a command asks, as the dialog's own links and buttons do it.
     pub(crate) fn run(&mut self, app: &mut MailApp, what: Help) -> Result<Value, String> {
+        if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
+            return Err(tl!("Google sign-in does not use Microsoft's administrator consent flow").to_string());
+        }
         if !self.at_sign_in() {
             return Err(tl!("No sign-in with Microsoft is under way").to_string());
         }
@@ -261,10 +266,11 @@ impl AccountSetup {
     pub(super) fn signing_in_page(&mut self, app: &mut MailApp, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let provider = self.oauth.as_ref().map(|o| o.provider.label()).unwrap_or_default();
+        let google = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Google);
         let who = shown(self.email.trim(), 120);
         let mut action = None;
         page(ui, &t, |ui| {
-            if self.approved {
+            if self.approved && !google {
                 note(ui, tl!("Your organisation has approved MailCraft. Now sign in with your own account."), t.green);
             }
             ui.add_space(8.0);
@@ -279,31 +285,48 @@ impl AccountSetup {
                 ui.label(RichText::new(tl!(NO_BROWSER_OPENED)).color(t.text_dim));
             });
             ui.add_space(8.0);
-            rule(ui, &t);
-            ui.label(RichText::new(tl!("If that page says you need admin approval")).font(semibold(13.0)).color(t.text));
-            note(ui, tl!(WAITING_HELP), t.text);
-            action = self.approval_steps(app, ui, &t, false);
-            ui.horizontal_wrapped(|ui| {
-                let more = ui.link(tl!("More about this"));
-                app.hit.add("signInApprovalHelp", self.existing, more.rect);
-                if more.clicked() {
-                    action = Some(Action::Approval);
-                }
-                // The way out when the provider's page shows an error of another kind.
-                if !self.mail_only {
-                    let hint = tl!("Asks for mail alone, without the calendar and contacts, which can be connected later");
-                    if ui.link(tl!("Trouble on that page? Sign in for mail only")).on_hover_text(hint).clicked() {
-                        action = Some(Action::MailOnly);
+            if google {
+                note(
+                    ui,
+                    tl!(
+                        "During development, Google may restrict sign-in to approved test users. In testing mode, Google refresh tokens may expire after seven days."
+                    ),
+                    t.text_dim,
+                );
+                note(
+                    ui,
+                    tl!(
+                        "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
+                    ),
+                    t.text_dim,
+                );
+            } else {
+                rule(ui, &t);
+                ui.label(RichText::new(tl!("If that page says you need admin approval")).font(semibold(13.0)).color(t.text));
+                note(ui, tl!(WAITING_HELP), t.text);
+                action = self.approval_steps(app, ui, &t, false);
+                ui.horizontal_wrapped(|ui| {
+                    let more = ui.link(tl!("More about this"));
+                    app.hit.add("signInApprovalHelp", self.existing, more.rect);
+                    if more.clicked() {
+                        action = Some(Action::Approval);
                     }
-                }
-            });
+                    // The way out when the provider's page shows an error of another kind.
+                    if !self.mail_only {
+                        let hint = tl!("Asks for mail alone, without the calendar and contacts, which can be connected later");
+                        if ui.link(tl!("Trouble on that page? Sign in for mail only")).on_hover_text(hint).clicked() {
+                            action = Some(Action::MailOnly);
+                        }
+                    }
+                });
+            }
             error(ui, &self.error);
         });
         let (mut cancel, mut again) = (false, false);
         strip(ui, self.page, |ui| {
             cancel = button(ui, tl!("Cancel"), false, true).clicked();
             let reopen = button(ui, tl!("Open the page again"), false, true)
-                .on_hover_text(tl!("Closed the page? This opens Microsoft's sign-in page afresh."));
+                .on_hover_text(tl!("Closed the page? This opens the provider's sign-in page afresh."));
             app.hit.add("signInTryAgain", self.existing, reopen.rect);
             again = reopen.clicked();
         });
@@ -326,13 +349,45 @@ impl AccountSetup {
     /// approval is on this page itself then, under what happened.
     pub(super) fn sign_in_ended_page(&mut self, app: &mut MailApp, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
-        let (title, text) = match self.ended {
-            Some(SignInEnd::Declined) => (crate::approval::SIGN_IN_DECLINED, DECLINED_HELP),
-            Some(SignInEnd::TimedOut) => (crate::approval::SIGN_IN_TIMED_OUT, TIMED_OUT_HELP),
-            Some(SignInEnd::NoBrowser) => (crate::approval::NO_BROWSER, NO_BROWSER_HELP),
-            _ => ("Signing in didn't work", ""),
+        let google = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Google);
+        let (title, text) = if google {
+            match self.ended {
+                Some(SignInEnd::Approval) => (
+                    tl!("Google blocked access to MailCraft"),
+                    tl!(
+                        "If MailCraft is still in Google's testing mode, ask its developer to add this address to the Test users list. If your organization blocked access, ask your Google Workspace administrator. Your mailbox was not changed."
+                    ),
+                ),
+                Some(SignInEnd::Declined) => (
+                    tl!("Google sign-in was declined"),
+                    tl!("Google did not authorize MailCraft. Your mailbox was not changed. You can retry or choose an app password."),
+                ),
+                Some(SignInEnd::TimedOut) => (
+                    tl!("Google sign-in did not finish"),
+                    tl!(
+                        "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
+                    ),
+                ),
+                Some(SignInEnd::NoBrowser) => (
+                    tl!("Could not open Google sign-in"),
+                    tl!("MailCraft needs your system browser to sign in. You can also use a Google app password."),
+                ),
+                _ => (
+                    tl!("Google sign-in didn't work"),
+                    tl!(
+                        "No mailbox or existing credentials were changed. Try again, or return to account settings and choose another sign-in method."
+                    ),
+                ),
+            }
+        } else {
+            match self.ended {
+                Some(SignInEnd::Declined) => (crate::approval::SIGN_IN_DECLINED, DECLINED_HELP),
+                Some(SignInEnd::TimedOut) => (crate::approval::SIGN_IN_TIMED_OUT, TIMED_OUT_HELP),
+                Some(SignInEnd::NoBrowser) => (crate::approval::NO_BROWSER, NO_BROWSER_HELP),
+                _ => ("Signing in didn't work", ""),
+            }
         };
-        let may_need_approval = matches!(self.ended, Some(SignInEnd::Declined | SignInEnd::TimedOut));
+        let may_need_approval = !google && matches!(self.ended, Some(SignInEnd::Declined | SignInEnd::TimedOut));
         let (mut approval, mut step) = (false, None);
         page(ui, &t, |ui| {
             heading(ui, tl!(title), &t);
@@ -349,7 +404,7 @@ impl AccountSetup {
                 let more = ui.link(tl!("More about this"));
                 app.hit.add("signInApprovalHelp", self.existing, more.rect);
                 approval = more.clicked();
-            } else if self.ended.is_some() {
+            } else if !google && self.ended.is_some() {
                 // Whatever it was: it may have ended for want of an approval all the same.
                 let link = ui.link(tl!("My organisation has to approve MailCraft first: what to do"));
                 app.hit.add("signInApprovalHelp", self.existing, link.rect);
@@ -361,9 +416,14 @@ impl AccountSetup {
             let retry = button(ui, tl!("Try again"), true, true);
             app.hit.add("signInTryAgain", self.existing, retry.rect);
             again = retry.clicked();
-            manual = button(ui, tl!("Set up manually"), false, true).clicked();
-            if !self.mail_only {
-                mail_only = button(ui, tl!("Mail only"), false, true).on_hover_text(tl!("Sign in again, asking for mail alone")).clicked();
+            if google {
+                manual =
+                    button(ui, if self.edit.is_some() { tl!("Back to account settings") } else { tl!("Use an app password") }, false, true).clicked();
+            } else {
+                manual = button(ui, tl!("Set up manually"), false, true).clicked();
+                if !self.mail_only {
+                    mail_only = button(ui, tl!("Mail only"), false, true).on_hover_text(tl!("Sign in again, asking for mail alone")).clicked();
+                }
             }
         });
         if approval {
@@ -371,7 +431,7 @@ impl AccountSetup {
         } else if step.is_some() {
             step
         } else if manual {
-            Some(Action::Manual)
+            Some(if google { Action::GooglePassword } else { Action::Manual })
         } else if mail_only {
             Some(Action::MailOnly)
         } else {

@@ -107,6 +107,8 @@ mod mail_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod threads_tests;
+#[cfg(test)]
 mod up_tests;
 
 pub use auth::{AuthError, Scheme};

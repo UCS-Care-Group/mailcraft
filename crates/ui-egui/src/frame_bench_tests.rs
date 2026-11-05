@@ -54,10 +54,9 @@
 //! A click or an arrow key that opens a message saves the same 40 ms of copying.
 //!
 //! The frame after a selection, measured on 2026-11-02 before and after the reading pane's
-//! conversation came from an index of the conversations (`mailcraft_model::threads`) rather
-//! than a walk over the account's 108,000 messages: 65–90 ms before, 1.5–3.6 ms after. The
-//! first selection builds the index (120–145 ms, once); after a change other than read marks,
-//! which it follows message by message, the next selection walks it in step (about 11 ms).
+//! conversation came from an index of the conversations rather than a walk over the account's
+//! 108,000 messages: 65–90 ms before, 1.5–3.6 ms after. (That index, keyed by subject, went
+//! with #795's conversations by thread: see 2026-11-05 below.)
 //!
 //! A change to the mailbox, measured on 2026-11-02 before and after the messages were kept in
 //! chunks shared between the mailbox and its copies (`mailcraft_model::Messages`), the folder
@@ -77,18 +76,35 @@
 //! A move changes what the Inbox lists, which is built again (98,000 rows, 27 ms).
 //!
 //! Then, the same day: the window holds the list's rows weakly (a read mark copied all of them
-//! to put one row's unread count right: the command 10 ms, now 0.3–0.5); the index of
-//! conversations is built a few chunks a frame from the opening on (the first selection 105–160
-//! ms, now 5–9; 70 frames of 1–17 ms meanwhile); a Shift+click from a listed anchor takes the
-//! span of rows without asking of each message whether it is listed (10,000 rows 11–25 ms, now 7;
-//! 33,800 messages 50–70, now 21); Undo merges only the messages its versions differ in, brings
-//! the counts in step itself and builds the list once, and the known correspondents follow the
-//! map chunk by chunk:
+//! to put one row's unread count right: the command 10 ms, now 0.3–0.5); a Shift+click from a
+//! listed anchor takes the span of rows without asking of each message whether it is listed
+//! (10,000 rows 11–25 ms, now 7; 33,800 messages 50–70, now 21); Undo merges only the messages
+//! its versions differ in, brings the counts in step itself and builds the list once, and the
+//! known correspondents follow the map chunk by chunk:
 //!
 //! | Undo, the command and the frame after it    | Before      | After     |
 //! |---------------------------------------------|-------------|-----------|
 //! | Of a thousand deleted                        | 340, 107    | 58, 31    |
 //! | Of every Inbox message marked read (98,000)  | 388, 127    | 115, 57   |
+//!
+//! Measured on 2026-11-05, with #795's conversations by thread (`mailcraft_model::ThreadIndex`,
+//! built in one pass over every message and kept by `mailcraft_engine::conversations`, which
+//! checks it chunk by chunk after a change: a chunk the mailbox and its copy share isn't looked
+//! into, and in one they don't, a message that is the same `Arc` isn't hashed again). The
+//! conversations are built in the window's first frame over the mailbox (205–270 ms, once), and
+//! worked out again only when a message comes or goes or a header or a server's conversation id
+//! changes:
+//!
+//! | The command, and the frame after it           | 2026-11-05 |
+//! |-----------------------------------------------|------------|
+//! | A click (the frame after a selection)         | 1.3–3.9    |
+//! | A read mark                                   | 0.5, 0.7–1.0 |
+//! | A flag                                        | 0.1–0.5, 0.7 |
+//! | A move                                        | 0.4, 20–23 |
+//! | Shift+click over 10 / 10,000 / 33,800 rows    | 0.0 / 4 / 14, then 1–3 |
+//! | Mark All as Read (98,000), and its Undo       | 89, 44; 109, 40 |
+//! | Delete a thousand, and its Undo               | 31, 14; 32, 13 |
+//! | A message copied in (the conversations again) | 6–7, 280–310; its Undo 24–28, 270 |
 
 use std::time::Instant;
 
@@ -205,15 +221,18 @@ fn frame_bench() {
     eprintln!("FRAME_BENCH made {} messages in {:.0} ms", mb.messages.len(), ms(making.elapsed()));
     let inbox = mb.inbox().unwrap();
     {
-        let mut threads = mailcraft_model::threads::Threads::default();
         let t = Instant::now();
-        threads.update(&mb);
-        eprintln!("FRAME_BENCH the index of conversations, built: {:.1} ms", ms(t.elapsed()));
-        let t = Instant::now();
-        threads.update(&mb);
-        eprintln!("FRAME_BENCH the index of conversations, brought in step with no change: {:.1} ms", ms(t.elapsed()));
+        let threads = mailcraft_model::ThreadIndex::build(mb.messages.values().map(|m| m.as_ref()));
+        eprintln!("FRAME_BENCH the conversations (ThreadIndex), built: {:.1} ms, {} steps", ms(t.elapsed()), threads.work());
     }
+    let t = Instant::now();
     let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    eprintln!("FRAME_BENCH the window made over it: {:.0} ms", ms(t.elapsed()));
+    // What the window's first frame does before anything else (`Session::prepare_conversations`;
+    // the harness runs that frame as it is built, so it is done here, timed).
+    let t = Instant::now();
+    let built = app.session.prepare_conversations();
+    eprintln!("FRAME_BENCH the conversations, worked out for the window: {} in {:.1} ms", if built { "built" } else { "in step" }, ms(t.elapsed()));
     app.autosave = false;
     app.auto_sync = false;
     let mut harness =
@@ -228,15 +247,11 @@ fn frame_bench() {
     let first = Instant::now();
     harness.run_steps(4);
     eprintln!("FRAME_BENCH first four frames: {:.0} ms", ms(first.elapsed()));
-    // The index of conversations is built a few chunks a frame from the opening on.
-    let (mut warming, mut worst) = (0usize, 0f64);
-    while harness.state_mut().session.prepare_conversations(0) && warming < 10_000 {
-        let t = Instant::now();
-        harness.step();
-        worst = worst.max(ms(t.elapsed()));
-        warming += 1;
-    }
-    eprintln!("FRAME_BENCH the index of conversations built over {warming} frames, the slowest {worst:.1} ms");
+    // (Asked again here, they are in step and nothing is built.)
+    let t = Instant::now();
+    let built = harness.state_mut().session.prepare_conversations();
+    eprintln!("FRAME_BENCH the conversations after the first frames: {} in {:.1} ms", if built { "built now" } else { "in step" }, ms(t.elapsed()));
+    // (The conversations were worked out in those frames: `Session::prepare_conversations`.)
     let _ = harness.state_mut().execute("ui.dismissReminder", serde_json::json!({"all": true}));
     harness.run_steps(2);
     report("steady", &mut harness, 20);
@@ -345,13 +360,26 @@ fn frame_bench() {
         ("undo it", "edit.undo", serde_json::json!({})),
         ("delete a thousand", "mail.delete", serde_json::json!({"ids": thousand})),
         ("undo the delete", "edit.undo", serde_json::json!({})),
+        // A message more (as mail that comes is): the conversations are worked out again.
+        ("copy one in (a message comes)", "mail.copy", serde_json::json!({"ids": [ids[0]], "folder": inbox})),
+        ("undo the copy", "edit.undo", serde_json::json!({})),
     ] {
         let t = Instant::now();
         let r = harness.state_mut().run(command, params);
         let took = ms(t.elapsed());
         let t = Instant::now();
         harness.step();
-        eprintln!("FRAME_BENCH {what}: command {took:.1} ms{}, next frame {:.1} ms", if r.is_err() { " (failed)" } else { "" }, ms(t.elapsed()));
+        let frame = ms(t.elapsed());
+        // (Worked out again in that frame when the command changed what groups a message or how
+        // many there are; checked and kept otherwise.)
+        let t = Instant::now();
+        let built = harness.state_mut().session.prepare_conversations();
+        eprintln!(
+            "FRAME_BENCH {what}: command {took:.1} ms{}, next frame {frame:.1} ms; the conversations then {} in {:.1} ms",
+            if r.is_err() { " (failed)" } else { "" },
+            if built { "built" } else { "in step" },
+            ms(t.elapsed())
+        );
     }
     let _ = harness.state_mut().run("mail.select", serde_json::json!({"ids": []}));
     harness.step();

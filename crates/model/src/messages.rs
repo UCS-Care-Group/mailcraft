@@ -54,7 +54,7 @@ impl Messages {
     }
 
     /// The chunks, in order: for an index of the messages that follows the map chunk by chunk
-    /// (`crate::threads`, the known correspondents of the sender warnings): one that is the same
+    /// (the engine's conversations, the known correspondents of the sender warnings): one that is the same
     /// allocation as before holds the same messages, and no chunk is ever empty.
     pub fn chunks(&self) -> &BTreeMap<Id, Arc<Chunk>> {
         &self.chunks

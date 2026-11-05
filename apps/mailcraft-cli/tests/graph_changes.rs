@@ -377,8 +377,9 @@ fn ten_thousand_marked_read_take_no_more_than_500_batches() {
     let since = &state.requests[from..];
     let batches = since.iter().filter(|r| r.method == "POST" && r.target == "/v1.0/$batch").count();
     let patches = since.iter().filter(|r| r.method == "PATCH").count();
-    // One batch is the run's question of which folder is which; the rest are the changes.
-    assert!(batches <= 501, "{batches} batches");
+    // Two batches are the run's question of which folder is which (the special folders, then
+    // the server's other own ones, #756); the rest are the changes.
+    assert!(batches <= 502, "{batches} batches");
     assert_eq!(patches, 10_000);
     assert!(state.mailbox.messages.values().all(|m| m.read));
     drop(state);
