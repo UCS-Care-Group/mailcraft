@@ -603,7 +603,7 @@ mod tests {
         use mailcraft_model::{Event, Origin};
         use mailcraft_time::DateTime;
         const NOW: i64 = 1_791_993_600;
-        let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+        let s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
         let start = DateTime::from_timestamp(NOW, 0);
         let event = Event {
             title: "Exchange reminder".into(),
