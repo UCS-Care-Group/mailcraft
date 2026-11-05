@@ -608,7 +608,10 @@ impl<S: Read + Write> Imap<S> {
         if user.contains('\0') || password.contains('\0') {
             return Err(ProtoError::Auth("the user name or password has a character that can't be sent".into()));
         }
-        // RFC 3501 §6.2.3: a server that says LOGINDISABLED must not be sent a password.
+        // RFC 3501 §6.2.3: a server that says LOGINDISABLED must not be sent a password. (Add
+        // Account shows this text in the interface language by its exact words, with this
+        // error's "sign-in failed: " before it: `in_own_words` in `mailcraft-ui-egui`'s
+        // `account_setup.rs`. Change both together.)
         if self.offers("LOGINDISABLED") {
             return Err(ProtoError::Auth("the server doesn't take a password on this connection".into()));
         }
