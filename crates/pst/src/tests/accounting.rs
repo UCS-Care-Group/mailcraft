@@ -40,6 +40,33 @@ fn a_damaged_property_of_a_message_is_named_in_left_out() {
 }
 
 #[test]
+fn a_variable_cell_too_short_for_its_reference_loses_that_property_only() {
+    let spec = sample(Layout::new(Format::Unicode, Encryption::None), None);
+    let mut all = nodes(&spec);
+    let (tag, number) = (0x6100_0102u32, 0x6101_0003u32);
+    let rows = vec![(((0x20000) << 5) | 4, vec![(tag, binary(b"ok")), (number, int32(7))])];
+    let (mut blocks, subs) = tc(&spec.layout, &[tag, number], &rows);
+    // The binary column's description (tag, offset, width, bit): its width cut to 2 bytes.
+    let heap = &mut blocks[0];
+    let at = heap.windows(4).position(|w| w == tag.to_le_bytes()).unwrap();
+    assert_eq!(heap[at + 6], 4);
+    heap[at + 6] = 2;
+    let table = all.iter_mut().find(|n| n.nid == (0x403 << 5) | 0x0E).unwrap();
+    table.data = Data::Blocks(blocks);
+    table.subnodes = subs;
+    let bytes = raw(&spec.layout, &all);
+    let mut pst = open(&bytes);
+    let folder = inbox(&mut pst);
+    let list = pst.items(folder).unwrap();
+    assert_eq!(list.items.len(), 1);
+    let props = &list.items[0].properties;
+    assert_eq!(props.get(0x6101), Some(&PropValue::Int32(7)), "the rest of the row is read");
+    assert!(matches!(props.get(0x6100), Some(PropValue::Damaged { .. })));
+    assert_eq!(list.left_out.len(), 1);
+    assert_eq!((list.left_out[0].property, &list.left_out[0].reason), (Some(0x6100), &Error::Corrupt("a structure runs past its end")));
+}
+
+#[test]
 fn a_damaged_cell_of_an_item_list_is_named_in_left_out() {
     let spec = sample(Layout::new(Format::Unicode, Encryption::None), None);
     let mut all = nodes(&spec);

@@ -8,9 +8,10 @@ use std::io::Cursor;
 use super::writer::{self, HeapBuilder, Layout, build, nodes, raw};
 use super::{exercise, sample};
 use crate::crc::crc32;
-use crate::header::Header;
+use crate::header::{HEADER_READ, Header};
 use crate::heap::Heap;
-use crate::ndb::signature;
+use crate::ndb::{Ndb, signature};
+use crate::source::Source;
 use crate::{Encryption, Error, Format, Limits, Pst};
 
 fn base(format: Format) -> Vec<u8> {
@@ -180,21 +181,19 @@ fn heap_ids_past_the_heap_are_refused() {
 #[test]
 fn block_signatures_are_checked() {
     let clean = base(Format::Ansi);
+    // The message store's block, found through the file's own trees.
+    let limits = Limits::default();
+    let mut src = Source::new(Cursor::new(&clean[..]), &limits).unwrap();
+    let header = Header::parse(&src.read_at(0, HEADER_READ).unwrap()).unwrap();
+    let mut ndb = Ndb::new(src, header, limits);
+    let store = ndb.node(0x21).unwrap();
+    let entry = ndb.block_entry(store.data).unwrap();
+    // Its trailer (ANSI: cb, wSig, bid, CRC): only the signature changed. The CRC covers the
+    // data alone, so it still holds.
+    let ts = Format::Ansi.trailer_size();
+    let trailer = entry.ib as usize + (usize::from(entry.cb) + ts).div_ceil(64) * 64 - ts;
     let mut b = clean.clone();
-    // The first block's trailer: its signature (ANSI: cb, wSig, bid, crc).
-    let cb = 0usize; // found by scanning for the first trailer below
-    let _ = cb;
-    let h = Header::parse(&clean).unwrap();
-    assert!(h.bbt.ib > 0x4400);
-    // Change every byte of the first 64-byte block's trailer area in turn, fixing nothing.
-    let mut errors = 0;
-    for at in 0x4400..0x4440 {
-        b[at] ^= 0x5A;
-        if open(&b).is_err() {
-            errors += 1;
-        }
-        b[at] ^= 0x5A;
-    }
-    assert!(errors > 0);
+    b[trailer + 2] ^= 0xFF;
+    assert_eq!(open(&b).err(), Some(Error::BadChecksum("a block's signature")));
     assert_eq!(signature(0x4400, 4), 0x4404);
 }

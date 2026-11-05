@@ -55,7 +55,7 @@ pub(crate) type Subnodes = BTreeMap<u32, SubEntry>;
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BlockEntry {
     pub ib: u64,
-    cb: u16,
+    pub cb: u16,
 }
 
 struct Page {

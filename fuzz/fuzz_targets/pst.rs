@@ -25,6 +25,7 @@ fn fix_header(b: &mut [u8]) {
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let mut data = data.to_vec();
+    // ponytail: only the header's CRCs are put right; pages and blocks keep theirs, since the proptests already mutate with checksums put right. Add a repair mode if coverage stalls behind them.
     fix_header(&mut data);
     // Small caps, so that one input stays quick.
     let limits = Limits {

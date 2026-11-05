@@ -311,10 +311,8 @@ impl Table {
                     }
                 }
                 Some(_) => salvage(col.ty, u32_at(cell, 0).and_then(|h| self.node.heap.item(h).and_then(|b| prop::fixed(col.ty, b))))?,
-                None if is_known_variable(col.ty) => {
-                    let hnid = u32_at(cell, 0)?;
-                    salvage(col.ty, self.node.apart(ndb, col.ty, hnid, budget))?
-                }
+                // A cell too short for its reference loses that property alone.
+                None if is_known_variable(col.ty) => salvage(col.ty, u32_at(cell, 0).and_then(|hnid| self.node.apart(ndb, col.ty, hnid, budget)))?,
                 None => PropValue::Unknown { ty: col.ty, data: cell.to_vec() },
             };
             let p = Property { id: col.id, ty: col.ty, value };
