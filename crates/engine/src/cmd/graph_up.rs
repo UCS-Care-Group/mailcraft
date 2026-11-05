@@ -418,7 +418,8 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                         // that copies and then deletes: it is still on the server (its delete
                         // waited for this answer), and comes back rather than being lost (#566),
                         // with the copy's content, which the copy names for the mailbox file (what
-                        // the delete kept may have been read back from it without its content).
+                        // the delete kept may have been read back from it without its content),
+                        // unless the copy holds only a preview of what the original has whole.
                         // (Not a delete of another kind, of a message moved out of the account
                         // say, which has nothing here to put back.)
                         match take_delete(mb, account, id, true).flatten() {
