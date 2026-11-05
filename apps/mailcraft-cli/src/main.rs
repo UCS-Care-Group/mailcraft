@@ -23,10 +23,13 @@ USAGE:
   mailcraft-cli import <mailbox> <file>... [--folder PATH]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
-  mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
-                                                preview: the mail of a .pst file
-                                                into a new folder named after the file on this
-                                                computer (or under the local folder PATH); the
+  mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH] [--no-contact-tag]
+                                                preview: the mail and contacts of a .pst file;
+                                                mail into a new folder named after the file on this
+                                                computer (or under the local folder PATH),
+                                                contacts into the computer's contacts, each given
+                                                a category named after the file (not with
+                                                --no-contact-tag); the
                                                 file's password, when it has one, is read from
                                                 MAILCRAFT_PST_PASSWORD. Prints the import report
                                                 (JSON) and saves the mailbox (not with --dry-run);
@@ -350,7 +353,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             Ok(())
         }
         "import-pst" => {
-            let pos = positionals("import-pst", &rest, &[flag("--dry-run"), value("--under")])?;
+            let pos = positionals("import-pst", &rest, &[flag("--dry-run"), value("--under"), flag("--no-contact-tag")])?;
             let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
             let dry = rest.iter().any(|a| a == "--dry-run");
             let mut s = open_or_new(mailbox)?;
@@ -358,6 +361,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
             if let Some(under) = arg_value(&rest, "--under") {
                 s.run("folder.select", &json!({"path": under}))?;
                 params["places"] = json!({"mail": s.view.folder});
+            }
+            if rest.iter().any(|a| a == "--no-contact-tag") {
+                params["places"]["contacts"] = json!("here");
             }
             // The file's password from the environment, never the command line.
             if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {

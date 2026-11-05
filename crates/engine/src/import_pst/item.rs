@@ -124,7 +124,7 @@ impl Text {
     }
 
     /// The values of a multi-valued text property.
-    fn list(&self, p: &Properties, id: u16) -> Vec<String> {
+    pub fn list(&self, p: &Properties, id: u16) -> Vec<String> {
         match p.get(id) {
             Some(PropValue::MultiString(v)) => v.clone(),
             Some(PropValue::MultiString8(v)) => v.iter().map(|b| self.decode(b)).collect(),
@@ -136,7 +136,7 @@ impl Text {
 }
 
 /// What every item of a file is read with: the ids its named properties have in that file.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Named {
     /// PidNameKeywords: the categories.
     pub keywords: Option<u16>,
@@ -144,6 +144,8 @@ pub struct Named {
     pub due: Option<u16>,
     /// The file's own code page, for an item without one.
     pub charset: Option<&'static str>,
+    /// The ids of the named properties of contacts.
+    pub contact: super::contact::ContactIds,
 }
 
 /// PSETID_Task, as a .pst file keeps a property set (the first three fields little-endian).
@@ -191,6 +193,33 @@ pub fn held(m: &Message) -> u64 {
             .iter()
             .map(|a| text(&a.name).saturating_add(text(&a.mime)).saturating_add(text(&a.content_id)).saturating_add(a.data.len() as u64))
             .fold(0u64, u64::saturating_add),
+    ]
+    .into_iter()
+    .fold(OVERHEAD, u64::saturating_add)
+}
+
+/// About how much memory a contact holds: its texts and lists.
+pub fn held_contact(c: &mailcraft_model::Contact) -> u64 {
+    let text = |s: &str| (s.len() as u64).saturating_add(OVERHEAD);
+    let labeled = |l: &[mailcraft_model::Labeled]| l.iter().map(|l| text(&l.label).saturating_add(text(&l.value))).fold(0u64, u64::saturating_add);
+    let texts = |l: &[String]| l.iter().map(|s| text(s)).fold(0u64, u64::saturating_add);
+    let places = c.addresses.iter().map(|a| (a.one_line().len() as u64).saturating_add(6 * OVERHEAD)).fold(0u64, u64::saturating_add);
+    [
+        text(&c.display_name),
+        text(&c.first),
+        text(&c.middle),
+        text(&c.last),
+        text(&c.nickname),
+        text(&c.company),
+        text(&c.title),
+        text(&c.department),
+        text(&c.notes),
+        text(&c.imported),
+        labeled(&c.emails),
+        labeled(&c.phones),
+        texts(&c.websites),
+        texts(&c.categories),
+        places,
     ]
     .into_iter()
     .fold(OVERHEAD, u64::saturating_add)
@@ -680,16 +709,13 @@ fn part_name(part: &mailcraft_pst::Part) -> String {
 }
 
 /// What an item is, by its message class: `None` for mail (a message, a report, a post, a
-/// meeting request); otherwise the kind a later part brings in.
+/// meeting request, a contact or a distribution list, which [`super::contact`] reads);
+/// otherwise the kind a later part brings in.
 pub fn later_kind(class: &str) -> Option<&'static str> {
     let c = class.to_ascii_lowercase();
     let family = |prefix: &str| c == prefix || c.strip_prefix(prefix).is_some_and(|rest| rest.starts_with('.'));
     if family("ipm.appointment") {
         Some("appointment")
-    } else if family("ipm.contact") {
-        Some("contact")
-    } else if family("ipm.distlist") {
-        Some("contact group")
     } else if family("ipm.task") || family("ipm.taskrequest") {
         Some("task")
     } else if family("ipm.stickynote") {

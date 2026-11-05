@@ -91,6 +91,9 @@ pub struct Report {
     pub later: Vec<(String, usize)>,
     /// The owner called it off: what was brought in stays, and another run brings the rest.
     pub cancelled: bool,
+    /// Contacts and distribution lists (kept as contacts) brought in, of the items added.
+    pub contacts_added: usize,
+    pub lists_added: usize,
     /// Categories of the file's list added to this computer's.
     pub categories_added: usize,
     /// Where the text of the report was written, when it was.
@@ -191,7 +194,9 @@ impl Report {
             "format": self.format,
             "found": t.found,
             "added": t.added,
-            "messages": t.added,
+            "messages": t.added.saturating_sub(self.contacts_added).saturating_sub(self.lists_added),
+            "contacts": self.contacts_added,
+            "lists": self.lists_added,
             "already": t.already,
             "leftOut": t.left_out,
             "later": t.later,
@@ -222,7 +227,7 @@ impl Report {
             out.push_str(&s);
             out.push('\n');
         };
-        line(format!("MailCraft: import of the .pst file {} (preview: mail only so far)", short(&self.file)));
+        line(format!("MailCraft: import of the .pst file {} (preview: mail and contacts so far)", short(&self.file)));
         line(format!("When: {when}"));
         line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
         line(format!("File: {} .pst file", self.format));
@@ -240,6 +245,12 @@ impl Report {
         if !self.later.is_empty() {
             let kinds: Vec<String> = self.later.iter().map(|(k, n)| format!("{n} {k}")).collect();
             line(format!("Not yet brought in (a later version brings them): {}.", kinds.join(", ")));
+        }
+        if self.contacts_added > 0 || self.lists_added > 0 {
+            line(format!(
+                "Contacts brought in: {}; distribution lists kept as contacts listing their members: {}.",
+                self.contacts_added, self.lists_added
+            ));
         }
         if self.categories_added > 0 {
             line(format!("Categories added from the file: {}.", self.categories_added));
