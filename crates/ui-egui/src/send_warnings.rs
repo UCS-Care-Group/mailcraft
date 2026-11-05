@@ -67,23 +67,33 @@ pub(crate) fn question(app: &mut MailApp, params: &Value) -> Option<Question> {
     })
 }
 
-/// The parameter that holds the recipient lines the owner's question was asked about. The window
-/// adds it and takes it out again; nothing else reads it.
+/// The parameter that holds the recipient lines the owner's question was asked about, and the
+/// warnings it showed ([`asked_about`]). The window adds it and takes it out again; nothing else
+/// reads it.
 pub(crate) const ASKED_ABOUT: &str = "recipientsAskedAbout";
+
+/// What the owner's question about the message `params` name is asked about, as
+/// [`ASKED_ABOUT`] holds it: its recipient lines ([`snapshot`]) and its warnings.
+pub(crate) fn asked_about(app: &mut MailApp, params: &Value) -> Value {
+    let warnings: Vec<Value> = app.session.send_warnings(params).iter().map(SendWarning::json).collect();
+    json!({"lines": snapshot(app, params), "warnings": warnings})
+}
 
 /// The recipient lines of the message `params` name, as a question remembers them.
 pub(crate) fn snapshot(app: &MailApp, params: &Value) -> Value {
     Lines::named(&app.session, params).map_or(Value::Null, |l| json!([l.to, l.cc, l.bcc]))
 }
 
-/// The owner's `compose.send` `params` as the window runs them: the lines its question was asked
-/// about taken out, and its yes with them when the message has changed since (an agent may have
-/// changed it while the question was up), so that it is asked again about what it is now.
-pub(crate) fn settle(app: &MailApp, mut params: Value) -> Value {
+/// The owner's `compose.send` `params` as the window runs them: what its question was asked about
+/// taken out, and its yes with it when the message has changed since (an agent may have changed it
+/// while the question was up) or has a warning the question didn't show (the message it answers
+/// was deleted meanwhile, say), so that it is asked again about what it is now.
+pub(crate) fn settle(app: &mut MailApp, mut params: Value) -> Value {
     let Some(asked) = params.as_object_mut().and_then(|map| map.remove(ASKED_ABOUT)) else { return params };
-    if snapshot(app, &params) != asked
-        && let Some(map) = params.as_object_mut()
-    {
+    let shown = asked.get("warnings").and_then(Value::as_array).cloned().unwrap_or_default();
+    let changed = asked.get("lines").is_none_or(|lines| snapshot(app, &params) != *lines)
+        || app.session.send_warnings(&params).iter().any(|w| !shown.contains(&w.json()));
+    if changed && let Some(map) = params.as_object_mut() {
         map.remove(CONFIRMED);
     }
     params

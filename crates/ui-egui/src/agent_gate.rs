@@ -133,13 +133,23 @@ fn queue(
     app: &mut MailApp,
     req: &ControlRequest,
     id: &str,
-    params: Value,
+    mut params: Value,
     (class, what): (Class, String),
     allow: &[Class],
     warnings: Vec<mailcraft_model::send_warnings::SendWarning>,
 ) -> Outcome {
     if app.asking.len() >= MOST {
         return err("too many questions are waiting for the owner; nothing was done");
+    }
+    // The message asked about is the one that goes, whichever is current when the owner answers.
+    if id == "compose.send" && params.is_null() {
+        params = json!({});
+    }
+    if id == "compose.send"
+        && params.get("compose").is_none()
+        && let (Some(compose), Some(map)) = (app.session.compose_id(), params.as_object_mut())
+    {
+        map.insert("compose".into(), json!(compose));
     }
     let counted = match counted(app, id, &params) {
         Ok(counted) => counted,

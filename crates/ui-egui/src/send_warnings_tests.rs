@@ -113,6 +113,42 @@ fn a_message_changed_while_the_owner_is_asked_is_asked_about_again() {
 }
 
 #[test]
+fn a_warning_the_question_didnt_show_is_asked_about_though_the_recipients_are_the_same() {
+    // A reply to all of outsiders who saw each other on the message it answers, with a lookalike
+    // in Bcc: the question shows the lookalike alone.
+    let mut a = app();
+    let inbox = a.session.mailbox.folders.iter().find(|f| f.kind == FolderKind::Inbox).unwrap().id;
+    let account = a.session.mailbox.accounts[0].id;
+    let list = mailcraft_model::Address::parse_list(FIVE_AT_TWO);
+    let original = mailcraft_model::Message {
+        account,
+        folder: inbox,
+        from: list[0].clone(),
+        to: vec![mailcraft_model::Address::new("Avery Quinn", "avery@lumen.example")],
+        cc: list[1..].to_vec(),
+        subject: "Kick-off".into(),
+        message_id: "kick-off@brightfield.example".into(),
+        ..mailcraft_model::Message::default()
+    };
+    let original = a.session.mailbox.add_message(original).unwrap();
+    a.execute("mail.replyAll", json!({"id": original})).unwrap();
+    let c = a.session.compose.as_mut().unwrap();
+    c.subject = "Plans".into();
+    c.bcc = LOOKALIKE.into();
+    a.run("compose.send", json!({})).unwrap();
+    let (command, params, ask) = question(&a);
+    assert!(!ask.text.contains("outside your organisation"), "{}", ask.text);
+    // The message it answers is deleted while the question is up: the outsiders are news.
+    a.dialog = None;
+    a.session.mailbox.remove_message(original).unwrap();
+    go_ahead(&mut a, &command, answered(&params, &Value::Null, None));
+    assert!(sent(&a).is_empty(), "the yes was to fewer warnings");
+    let (_, again, ask) = question(&a);
+    assert!(ask.text.contains("5 people outside your organisation"), "{}", ask.text);
+    assert!(again.get("confirmed").is_none());
+}
+
+#[test]
 fn escape_cancels_and_enter_never_sends() {
     // The sample mailbox: Avery at lumen.example; lumem.example is one letter away. Going ahead
     // takes a deliberate click.
@@ -241,6 +277,24 @@ fn an_agents_send_whose_recipients_were_swapped_meanwhile_is_not_sent() {
     let r = rx.try_recv().unwrap();
     assert_eq!(r["ok"], false, "{r}");
     assert!(sent(&a).is_empty());
+}
+
+#[test]
+fn an_agents_send_sends_the_message_asked_about_though_another_is_current() {
+    let mut a = app();
+    write(&mut a, LOOKALIKE);
+    let asked = a.session.compose_id().unwrap();
+    let (_, rx) = ask(&mut a, json!({}), vec![]);
+    assert_eq!(a.asking.front().unwrap().params["compose"], json!(asked), "the question is about this message");
+    // Another to the same people is started while the question is up.
+    a.execute("mail.new", json!({"to": LOOKALIKE, "subject": "Other"})).unwrap();
+    let other = a.session.compose_id().unwrap();
+    assert_ne!(other, asked);
+    agent_gate::answer_with(&mut a, Answer::Yes);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    assert_eq!(sent(&a).len(), 1, "the one asked about went");
+    assert!(a.session.composing_by_id(other).is_some(), "the other is still being written");
+    assert!(a.session.composing_by_id(asked).is_none());
 }
 
 #[test]

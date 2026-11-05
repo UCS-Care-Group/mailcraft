@@ -263,6 +263,28 @@ fn more_recipients_than_are_checked_is_a_warning_itself() {
 }
 
 #[test]
+fn too_many_says_how_many_different_recipients_were_checked() {
+    use crate::send_warnings::{MAX_NAMED, MAX_RECIPIENTS};
+    let checked = |to_: &[&str]| {
+        check(&to(to_), &[], &[], &facts(), &HashSet::new()).into_iter().find_map(|w| match w {
+            SendWarning::TooManyRecipients { checked } => Some(checked),
+            _ => None,
+        })
+    };
+    // More entries than are read, all of them one address: one was checked, not a thousand.
+    let same = vec!["maya.okafor@lumen.example"; MAX_NAMED + 1];
+    assert_eq!(checked(&same), Some(1));
+    // Three addresses named over and over.
+    let three: Vec<&str> =
+        ["maya.okafor@lumen.example", "dev.patel@example.org", "lin.zhao@harborworks.example"].into_iter().cycle().take(MAX_NAMED + 1).collect();
+    assert_eq!(checked(&three), Some(3));
+    // More different ones than are looked at: as many as are.
+    let many: Vec<String> = (0..=MAX_RECIPIENTS).map(|i| format!("person{i}@lumen.example")).collect();
+    let many: Vec<&str> = many.iter().map(String::as_str).collect();
+    assert_eq!(checked(&many), Some(MAX_RECIPIENTS));
+}
+
+#[test]
 fn lookalikes_said_are_bounded() {
     let many: Vec<String> = (0..100).map(|i| format!("p{i}@harborwork.example")).collect();
     let many: Vec<&str> = many.iter().map(String::as_str).collect();

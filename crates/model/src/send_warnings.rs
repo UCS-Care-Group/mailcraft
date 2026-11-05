@@ -35,7 +35,7 @@ pub const MIN_OUTSIDE_DOMAINS: usize = 2;
 pub const MAX_RECIPIENTS: usize = 1_000;
 /// The most entries of the recipient lines read, the same address named again included; past
 /// that, too many as well.
-const MAX_NAMED: usize = 100_000;
+pub(crate) const MAX_NAMED: usize = 100_000;
 /// The most lookalike recipients said, and the most outsiders named.
 pub const MAX_SAID: usize = 20;
 
@@ -47,8 +47,8 @@ pub enum SendWarning {
     /// `count` people outside the organisation, at `domains` domains, would see each other's
     /// addresses in To and Cc; the first [`MAX_SAID`] of them.
     Outsiders { count: usize, domains: usize, addresses: Vec<String> },
-    /// More recipients than are looked at ([`MAX_RECIPIENTS`] different ones): those past them
-    /// weren't checked.
+    /// More recipients than are looked at ([`MAX_RECIPIENTS`] different ones, or more entries
+    /// in the lines than are read): those past them weren't checked; `checked` different ones were.
     TooManyRecipients { checked: usize },
 }
 
@@ -186,6 +186,7 @@ pub fn outsiders(facts: &Facts, to: &[Address], cc: &[Address], seen: &HashSet<S
 /// [`MAX_SAID`] lookalikes are said, and saying no more never makes a warning none.
 pub fn check(to: &[Address], cc: &[Address], bcc: &[Address], facts: &Facts, seen: &HashSet<String>) -> Vec<SendWarning> {
     let (all, too_many) = unique(&[to, cc, bcc]);
+    let checked = all.len();
     let mut out: Vec<SendWarning> = all
         .into_iter()
         .filter_map(|a| lookalike(facts, &a.email).map(|like| SendWarning::LookalikeRecipient { address: shown(&a.email), like }))
@@ -193,7 +194,7 @@ pub fn check(to: &[Address], cc: &[Address], bcc: &[Address], facts: &Facts, see
         .collect();
     out.extend(outsiders(facts, to, cc, seen));
     if too_many {
-        out.push(SendWarning::TooManyRecipients { checked: MAX_RECIPIENTS });
+        out.push(SendWarning::TooManyRecipients { checked });
     }
     out
 }

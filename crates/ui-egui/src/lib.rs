@@ -2083,7 +2083,7 @@ impl MailApp {
             {
                 map.insert("compose".into(), json!(compose));
             }
-            let asked = send_warnings::snapshot(self, &params);
+            let asked = send_warnings::asked_about(self, &params);
             if let Some(map) = params.as_object_mut() {
                 map.insert(send_warnings::ASKED_ABOUT.into(), asked);
             }
