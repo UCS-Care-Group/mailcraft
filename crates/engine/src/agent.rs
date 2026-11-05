@@ -1402,7 +1402,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
             if s.undo_removes_items(redo) {
-                does.push("puts contacts, events, tasks, calendars or categories that were deleted back as they were".to_string());
+                // Gone for good: they don't go to Deleted Items.
+                does.push("takes away contacts, events, tasks, calendars or categories made since, for good".to_string());
             }
             if !others.is_empty() {
                 does.push(format!("takes away {}", messages_text(s, &others)));

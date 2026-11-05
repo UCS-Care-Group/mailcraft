@@ -364,7 +364,9 @@ fn a_step_that_reverts_the_accounts_and_removes_a_contact_needs_delete_too() {
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Accounts, _)));
     assert_eq!(also(&s, "edit.undo", &json!({}), Class::Accounts), vec![Class::Delete]);
     let d = describe(&s, "edit.undo", &json!({}));
-    assert!(d.contains("the accounts") && d.contains("contacts"), "{d}");
+    assert!(d.contains("the accounts") && d.contains("takes away contacts, events, tasks, calendars or categories made since, for good"), "{d}");
+    // Not a restore: nothing says the contact comes back.
+    assert!(!d.contains("deleted back"), "{d}");
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Delete]), Verdict::Run);
 }
@@ -381,7 +383,7 @@ fn a_step_that_removes_a_contact_and_takes_mail_names_both() {
     }
     assert!(asks_delete(&s, "edit.undo"));
     let d = describe(&s, "edit.undo", &json!({}));
-    assert!(d.contains("contacts") && d.contains("takes away 1 message"), "{d}");
+    assert!(d.contains("takes away contacts") && d.contains("takes away 1 message"), "{d}");
 }
 
 #[test]
