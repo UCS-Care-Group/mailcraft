@@ -809,9 +809,12 @@ fn a_standard_server_parses_the_header_for_a_client_and_one_that_names_by_place_
             "2026-10-16T00:00:00Z",
         )
     });
-    let parsed = ["threadId", "subject", "from", "to", "cc", "messageId", "sentAt"];
+    let parsed = ["subject", "from", "to", "cc", "messageId", "sentAt"];
     let email = call(&stand_in, "Email/get", json!({"ids": [coded, ids.first], "properties": parsed})).unwrap()["list"].clone();
-    assert_eq!(email[0]["threadId"], json!(coded));
+    // The thread is the email's metadata, which every kind of server gives (RFC 8621 §4.1.1, #795):
+    // after the first message its header names, here itself.
+    let threads = call(&stand_in, "Email/get", json!({"ids": [coded], "properties": ["threadId"]})).unwrap()["list"].clone();
+    assert!(threads[0]["threadId"].as_str().is_some_and(|t| t.starts_with('T')), "{threads}");
     assert_eq!(email[0]["subject"], "Café");
     assert_eq!(email[0]["from"], json!([{"name": "Zoë Park", "email": "zoe@example.org"}]));
     assert_eq!(email[0]["to"], json!([{"name": "Ada", "email": "ada@example.org"}, {"name": null, "email": "bob@example.org"}]));

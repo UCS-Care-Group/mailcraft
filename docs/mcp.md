@@ -262,4 +262,3 @@ parameters.
 | 2026-11-02 | patch | #632: an undo or redo that would put a to-do in an account's To Do, or change the owner's answer about their local tasks, asks `send` |
 | 2026-11-03 | patch | #632: `tasks.list` and `list_tasks` refuse an account without To Do, an agent's new to-do doesn't change where the owner's next one goes, and the summary of what an undo or redo asks names the to-dos |
 | 2026-11-03 | minor | #631: `view.peopleAccount` chooses whose contacts are listed, `people.list` takes `account`, and `list_contacts` shows every account unless `account` names one (one whose contacts aren't on its server is refused) |
-| 2026-11-04 | patch | #661: an undo or redo that would have a category deleted in Outlook asks `delete`, naming it, and is refused to an agent without `delete` |

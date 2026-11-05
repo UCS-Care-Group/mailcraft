@@ -27,6 +27,8 @@ mod category_tests;
 pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
+#[cfg(test)]
+mod conversation_thread_tests;
 pub mod edit;
 mod ews_down;
 pub mod ews_mail;
@@ -93,7 +95,11 @@ mod picture_tests;
 mod quote_tests;
 #[cfg(test)]
 mod read_receipt_tests;
+#[cfg(test)]
+mod refused_delete_tests;
 pub mod remote;
+#[cfg(test)]
+mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
@@ -117,6 +123,7 @@ pub mod tasks_remote;
 mod tasks_remote_tests;
 #[cfg(test)]
 mod tasks_tests;
+mod thread_ids;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;

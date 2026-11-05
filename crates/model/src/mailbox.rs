@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name,
+    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
+    clean_name,
 };
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -191,6 +192,11 @@ pub struct ServerFolder {
     /// (which use `delta`).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub sync_state: String,
+    /// The server's own folder (a Microsoft account's well-known folder, such as Conversation
+    /// History, #756): it can't be deleted or moved, and the server would refuse it every run.
+    /// False until a listing says so.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub well_known: bool,
 }
 
 /// A folder's message counts as its server's listing gives them (#276).
@@ -206,6 +212,13 @@ fn is_false(b: &bool) -> bool {
 }
 
 impl Folder {
+    /// It is one of its server's own folders ([`ServerFolder::well_known`]), which can't be
+    /// renamed, moved or deleted. Only known once a listing has said so (#756): until the first
+    /// run after the update, a folder of that kind is still taken for one the owner made.
+    pub fn server_owned(&self) -> bool {
+        self.server.as_ref().is_some_and(|s| s.well_known)
+    }
+
     /// Whether the folder has been read whole once ([`Folder::whole`]); for a folder of a file
     /// from before that was kept, whether it was read up to some UID.
     pub fn read_whole(&self) -> bool {
@@ -694,12 +707,15 @@ pub enum OAuthProvider {
     /// Outlook.com and Microsoft 365.
     #[default]
     Microsoft,
+    /// Gmail and Google Workspace over IMAP/SMTP XOAUTH2.
+    Google,
 }
 
 impl OAuthProvider {
     pub fn parse(s: &str) -> Option<OAuthProvider> {
         match s.trim().to_ascii_lowercase().as_str() {
             "microsoft" | "outlook" | "office365" | "microsoft365" => Some(OAuthProvider::Microsoft),
+            "google" | "gmail" | "googleworkspace" => Some(OAuthProvider::Google),
             _ => None,
         }
     }
@@ -707,12 +723,14 @@ impl OAuthProvider {
     pub fn code(self) -> &'static str {
         match self {
             OAuthProvider::Microsoft => "microsoft",
+            OAuthProvider::Google => "google",
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
             OAuthProvider::Microsoft => "Microsoft",
+            OAuthProvider::Google => "Google",
         }
     }
 }
@@ -761,10 +779,16 @@ pub enum Queued {
     /// server has answered: one the server refuses to delete is put back from it, with all that
     /// was fetched of it (S20). An entry without one (from an earlier version, or for a copy the
     /// server made of a message gone here) is put back from what the server says of it.
+    ///
+    /// The copy is whole only while it is whole in memory: one whose text or files were kept on
+    /// disk is kept to be fetched again ([`Message::to_fetch_again`]), and so is every copy
+    /// written to a file and read back from one (#793), since nothing in the mailbox file names
+    /// the content of a copy and a sweep takes it. The server, having refused the delete, has
+    /// the message whole.
     DeleteMessage {
         account: Id,
         id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "kept_written", deserialize_with = "kept_read_back")]
         kept: Option<Box<Message>>,
     },
     /// The message `message` was moved or copied here into a folder of `account` from another
@@ -786,6 +810,45 @@ pub enum Queued {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<Id>,
     },
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: to be fetched again, whatever it
+/// holds (#793). A file written by 0.5.0 up to #793 kept the copy without the text and files it
+/// had on disk, which would come back as a message with no text and files of no bytes.
+fn kept_read_back<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Box<Message>>, D::Error> {
+    let kept = Option::<Box<Message>>::deserialize(d)?;
+    Ok(kept.map(|mut m| {
+        m.to_fetch_again();
+        m
+    }))
+}
+
+/// The copy a [`Queued::DeleteMessage`] keeps, as a file has it: as [`kept_read_back`] would
+/// take it, so that a copy whole in memory isn't written whole into the file at every save only
+/// to be let go of when it is read.
+fn kept_written<S: serde::Serializer>(kept: &Option<Box<Message>>, s: S) -> Result<S::Ok, S::Error> {
+    let written = kept.as_deref().map(|m| {
+        let mut m = m.clone();
+        m.to_fetch_again();
+        m
+    });
+    written.serialize(s)
+}
+
+/// What a message deleted for good keeps of itself while its server is asked to delete it
+/// ([`Queued::DeleteMessage`]): all of it when it is whole in memory (named by nothing on disk:
+/// what is in memory is all it needs), else what [`Message::to_fetch_again`] leaves (#793).
+fn kept_for_put_back(m: &Message) -> Message {
+    let mut copy = m.clone();
+    if copy.is_loaded() && !copy.kept.as_deref().is_some_and(|k| k.failed) {
+        copy.kept = None;
+        for a in &mut copy.attachments {
+            a.kept = None;
+        }
+    } else {
+        copy.to_fetch_again();
+    }
+    copy
 }
 
 impl Queued {
@@ -1068,6 +1131,12 @@ pub struct Mailbox {
     /// for once only, so that a message whose own bytes are broken isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub redecoded: bool,
+    /// The messages of Microsoft and Exchange server accounts that look as one put back with no
+    /// text and files of no bytes after a refused delete for good (#793) were looked for once,
+    /// and marked to be fetched again from the server: once only, so that a message that really
+    /// is empty isn't fetched at every start.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unhollowed: bool,
     next_id: Id,
 }
 
@@ -1108,6 +1177,7 @@ impl Default for Mailbox {
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
+            unhollowed: false,
             next_id: 1,
         }
     }
@@ -1178,22 +1248,6 @@ fn subject_said(m: &Message) -> String {
 /// Why a message can't go elsewhere before it is fetched whole.
 fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
-}
-
-/// Whether `x` is of the conversation whose key ([`Message::thread_key`]) is `key`, with a cheap
-/// no first: the topic is what is left of the subject once its prefixes are taken off, so an
-/// ASCII subject that doesn't end in the key (letter case aside; lower case keeps an ASCII text's
-/// length) isn't of it, and the key of one that might be is worked out, which takes a string.
-fn same_thread(x: &Message, key: &str) -> bool {
-    let s = x.subject.trim();
-    if s.is_ascii() && key.is_ascii() {
-        let ends_in_key =
-            s.len().checked_sub(key.len()).and_then(|at| s.as_bytes().get(at..)).is_some_and(|end| end.eq_ignore_ascii_case(key.as_bytes()));
-        if !ends_in_key {
-            return false;
-        }
-    }
-    x.thread_key() == key
 }
 
 impl Mailbox {
@@ -1709,6 +1763,11 @@ impl Mailbox {
             if self.depth(p) >= MAX_DEPTH {
                 return Err(invalid("folders are nested too deeply"));
             }
+            // Nor in one of the server's own that has no kind here (Conversation History, say),
+            // as a folder isn't moved into one (#756).
+            if pf.kind == FolderKind::Custom && pf.server_owned() {
+                return Err(invalid(format!("a folder can't be made in {}", pf.name)));
+            }
         }
         if self.name_taken(account, parent, &name, None) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));
@@ -1725,7 +1784,7 @@ impl Mailbox {
         if name.contains('/') && !self.names_may_hold_slashes(f.account) {
             return Err(invalid("a folder name can't contain /"));
         }
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be renamed", f.name)));
         }
         // Nor one of a JMAP account's server's mailboxes: its server wouldn't hear of the new name.
@@ -1742,7 +1801,7 @@ impl Mailbox {
     /// Move a folder the user made under `parent` (or to the top level).
     pub fn move_folder(&mut self, id: Id, parent: Option<Id>) -> Result<(), ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be moved", f.name)));
         }
         // Nor one holding what a JMAP account's server has: its server wouldn't hear of the move.
@@ -1753,6 +1812,11 @@ impl Mailbox {
             let pf = self.folder(p).ok_or(not_found("folder", p))?;
             if pf.account != f.account {
                 return Err(invalid("a folder can't move to another account"));
+            }
+            // Nor into one of the server's own that has no kind here (Conversation History, say):
+            // the server wouldn't take it. (The special folders, Inbox and Archive, do.)
+            if pf.kind == FolderKind::Custom && pf.server_owned() {
+                return Err(invalid(format!("a folder can't move into {}", pf.name)));
             }
             if self.subtree(id).contains(&p) {
                 return Err(invalid("a folder can't move into itself"));
@@ -1781,7 +1845,7 @@ impl Mailbox {
     /// ([`Queued::DeleteFolder`]), as Outlook does (ADR 0003).
     pub fn delete_folder(&mut self, id: Id) -> Result<bool, ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
-        if f.kind != FolderKind::Custom {
+        if f.kind != FolderKind::Custom || f.server_owned() {
             return Err(invalid(format!("{} can't be deleted", f.name)));
         }
         // Nor one holding what a JMAP account's server has: the next run would bring it back.
@@ -2549,10 +2613,10 @@ impl Mailbox {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
         if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
-            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if let Some(out) = &m.moving_out {
-            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(m.clone())) });
+            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if !self.queued.is_empty() {
             self.queued.retain(|q| match q {
@@ -2629,24 +2693,26 @@ impl Mailbox {
         }
     }
 
-    /// The messages of the conversation `id` is part of (same account, same topic), oldest first.
+    /// The messages of the conversation `id` is part of (same account, same topic, linked by
+    /// their headers or their server's conversation id: [`ThreadIndex`], #795), oldest first,
+    /// but for those of the folders it leaves out ([`Mailbox::conversation_skips`]).
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
-        let skips = self.conversation_skips(m.account, m.folder);
-        let among = self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account && !skips.contains(&x.folder));
-        self.conversation_among(m, among)
+        let threads = ThreadIndex::build(self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == m.account));
+        self.conversation_in(&threads, id)
     }
 
-    /// [`Mailbox::conversation`] of `m`, looked for among `among`: the messages of its account
-    /// but for those of the folders a conversation leaves out ([`Mailbox::conversation_skips`]),
-    /// for a caller that has them listed by folder and needn't walk every message.
-    pub fn conversation_among<'a>(&self, m: &Message, among: impl Iterator<Item = &'a Message>) -> Vec<Id> {
-        let key = m.thread_key();
-        // A message without a subject is a conversation of its own ([`Message::thread_key`]).
-        if key.starts_with('\0') {
-            return vec![m.id];
-        }
-        let mut v: Vec<&Message> = among.filter(|x| same_thread(x, &key)).collect();
+    /// [`Mailbox::conversation`] of `id` by `threads`, built of (at least) the messages of its
+    /// account, for a caller that keeps one rather than walk every message each time.
+    pub fn conversation_in(&self, threads: &ThreadIndex, id: Id) -> Vec<Id> {
+        let Some(m) = self.message(id) else { return Vec::new() };
+        let skips = self.conversation_skips(m.account, m.folder);
+        let mut v: Vec<&Message> = threads
+            .members(id)
+            .into_iter()
+            .filter_map(|x| self.message(x))
+            .filter(|x| x.account == m.account && !skips.contains(&x.folder))
+            .collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }
@@ -3913,6 +3979,42 @@ impl Mailbox {
                 None => {
                     self.messages.remove(&id);
                 }
+            }
+        }
+        // A Microsoft account's Sent Items hold what was sent. Exchange files the copy of a
+        // message sent as MIME with `isDraft` still true, and a mailbox kept before that was
+        // known took it for a draft (#611); the server never says it again, so it is put right
+        // here. Only a copy that came down from the server's own Sent Items: it is kept with no
+        // `server_draft`, or with one that only a fetch made (opening one, or the background
+        // fetch, gives a draft fetched whole what the server had of it and nothing else), as a
+        // draft written or saved here never is, and its server copy lies in that folder. A draft
+        // moved into Sent Items here whose move hasn't gone up (its server
+        // copy still lies in Drafts) is left alone: Outlook keeps it as a draft, and it is one
+        // again when moved back. What this can't tell apart: a draft that came down from Drafts,
+        // was never written in here, and was then moved into Sent Items by the owner, once that
+        // move has gone up, looks the same as a sent copy and is taken for one.
+        // Not said as a repair: nothing in the mailbox was damaged, and the owner isn't told
+        // that it was.
+        let sent_items: HashMap<Id, &str> = self
+            .folders
+            .iter()
+            .filter(|f| f.kind == FolderKind::Sent && self.keeps_drafts_on_server(f.account))
+            .filter_map(|f| Some((f.id, f.server.as_ref()?.id.as_str())))
+            .collect();
+        let sent_copies: Vec<Id> = self
+            .messages
+            .values()
+            .filter(|m| {
+                m.draft
+                    && m.server_draft.as_ref().is_none_or(|d| d.only_fetched())
+                    && sent_items.get(&m.folder).is_some_and(|sent| m.server.as_ref().is_some_and(|s| s.folder == *sent))
+            })
+            .map(|m| m.id)
+            .collect();
+        for id in sent_copies {
+            if let Some(m) = self.messages.get_mut(&id) {
+                let m = Arc::make_mut(m);
+                (m.draft, m.server_draft) = (false, None);
             }
         }
         // What is kept about the server's copies must hang together: a UID names one message of
