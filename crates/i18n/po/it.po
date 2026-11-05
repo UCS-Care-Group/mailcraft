@@ -524,7 +524,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -3997,8 +3997,8 @@ msgstr ""
 "Proprietà\n"
 "cartella"
 
-#. command label
-#: crates/engine/src/cmd/view.rs
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Riquadro delle cartelle"
@@ -5691,12 +5691,6 @@ msgstr "MailCraft non ha trovato le impostazioni per questo indirizzo. Controlla
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft non è riuscito ad aprire il browser per la pagina di approvazione di Microsoft. Copiare invece il messaggio: il collegamento al suo interno apre la stessa pagina."
 
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
-msgstr "MailCraft non cerca nuove versioni da solo; in File › Opzioni è possibile fargliele cercare una volta al giorno."
-
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
@@ -5743,12 +5737,6 @@ msgid "MailCraft keeps this account's rules on this computer: the rule runs whil
 msgstr "MailCraft conserva le regole di questo account su questo computer: la regola viene eseguita mentre MailCraft è aperto."
 
 #. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
-msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni). Viene interpellato solo GitHub."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
 msgstr ""
@@ -5761,8 +5749,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
-msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Opzioni."
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
+msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Informazioni."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -6306,11 +6294,23 @@ msgstr ""
 "Sposta\n"
 "cartella"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Move Account"
+msgstr "Sposta account"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Sposta tutto e invia inviti"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Down"
+msgstr "Sposta giù"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6335,6 +6335,12 @@ msgstr "Sposta elemento ricorrente"
 #, fuzzy
 msgid "Move Rule"
 msgstr "Sposta la regola"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Move Up"
+msgstr "Sposta su"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6820,6 +6826,12 @@ msgstr "Nessun comando corrispondente."
 #, fuzzy
 msgid "No completed tasks yet."
 msgstr "Ancora nessuna attività completata."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "No contacts from this account yet"
+msgstr "Ancora nessun contatto da questo account"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -8273,6 +8285,12 @@ msgstr "Rileggi ora i Preferiti da Outlook"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Sola lettura"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9906,6 +9924,12 @@ msgstr "Mostra come"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Mostra calendario"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Of"
+msgstr "Mostra contatti di"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11953,6 +11977,12 @@ msgid "This account's calendar can't be asked yet: Send/Receive signs it in firs
 msgstr "Non è ancora possibile interrogare il calendario di questo account: prima Invia/Ricevi effettua l'accesso."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Il server di questo account conserva questo contatto. Le modifiche fatte qui non vengono ancora inviate indietro, quindi qui non può essere modificato né eliminato. Preferito e categorie sono conservati su questo computer."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
@@ -12183,7 +12213,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+msgid "This is a development build: it checks only when you press Check for Updates."
 msgstr "Questa è una build di sviluppo: verifica solo quando si preme Verifica aggiornamenti in File › Informazioni."
 
 #. interface
@@ -14024,6 +14054,12 @@ msgid "a shared mailbox keeps as much mail offline as the account it is opened t
 msgstr "una cassetta postale condivisa conserva offline tanta posta quanto l'account tramite cui è aperta: indicare quell'account"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "una cassetta postale condivisa resta sotto l'account tramite cui è aperta: spostare quell'account"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
@@ -14094,6 +14130,12 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "un account non può essere messo prima di sé stesso"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15201,6 +15243,12 @@ msgstr "il server non consente di spostare la regola accanto"
 #, fuzzy
 msgid "the server doesn't let this rule be changed"
 msgstr "il server non consente di modificare questa regola"
+
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "il server mantiene questa cartella: non può essere rinominata, spostata o eliminata"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -16357,12 +16405,26 @@ msgstr[0] "{n} messaggio rimosso"
 msgstr[1] "{n} messaggi rimossi"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message that came back empty after a refused delete is being downloaded again."
+msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 msgstr[1] "{n} messaggi verranno eliminati definitivamente."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message with characters that couldn't be read is being downloaded again."
+msgid_plural "{n} messages with characters that couldn't be read are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16823,6 +16885,26 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
+#~ msgstr "MailCraft non cerca nuove versioni da solo; in File › Opzioni è possibile fargliele cercare una volta al giorno."
+
+#, fuzzy
+#~ msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+#~ msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni). Viene interpellato solo GitHub."
+
+#, fuzzy
+#~ msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
+#~ msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Opzioni."
+
+#, fuzzy
+#~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+#~ msgstr "Questa è una build di sviluppo: verifica solo quando si preme Verifica aggiornamenti in File › Informazioni."
+
+#, fuzzy
+#~ msgid "This account has no contacts"
+#~ msgstr "Questo account non ha contatti"
 
 #, fuzzy
 #~ msgid "Permanently Delete"

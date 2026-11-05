@@ -7,8 +7,9 @@ name: Release
 # so ArtCraft Launcher and anything else that reads those releases finds MailCraft's files by
 # the same names. A maintainer reviews the draft and publishes it by hand. See docs/releasing.md.
 #
-# A tag builds and signs only when its commit is on main and CI passed there (the `version` job
-# checks that first; every other job needs it).
+# A tag builds and signs only when its commit is on main and CI passed there, or the commit merges
+# an up-to-date pull request whose CI passed on the same tree (the `version` job checks that
+# first; every other job needs it).
 #
 # The signing and publishing jobs run in the protected `release` environment, which holds the
 # signing secrets and is limited to version tags; only a pushed tag reaches them.
@@ -67,13 +68,29 @@ jobs:
             echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main: a release is tagged on a commit that was reviewed and merged"
             exit 1
           fi
-          ok=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci-ok&filter=latest&per_page=100" \
-            --jq '[.check_runs[] | select(.conclusion == "success")] | length')
-          if [ "${ok:-0}" -lt 1 ]; then
-            echo "::error::no passing ci-ok check on $GITHUB_SHA: wait for CI on main to pass, or tag a commit that ran it (documentation-only commits do not run it)"
-            exit 1
+          passed() {
+            ok=$(gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=ci-ok&filter=latest&per_page=100" \
+              --jq '[.check_runs[] | select(.conclusion == "success" and .app.slug == "github-actions")] | length')
+            [ "${ok:-0}" -ge 1 ]
+          }
+          if passed "$GITHUB_SHA"; then
+            echo "$GITHUB_SHA is on main and its ci-ok passed"
+            exit 0
           fi
-          echo "$GITHUB_SHA is on main and its ci-ok passed"
+          # The merge commit of a pull request that was up to date with main holds exactly the
+          # tree its pull request's CI tested: main's tip was already in the branch, so the merge
+          # added nothing. Its ci-ok stands for the merge commit's, and a release need not wait for
+          # CI to run again on main.
+          read -r _ base head extra <<<"$(git rev-list --parents -n 1 "$GITHUB_SHA")"
+          if [ -n "${head:-}" ] && [ -z "${extra:-}" ] \
+            && git merge-base --is-ancestor "$base" "$head" \
+            && [ "$(git rev-parse "$GITHUB_SHA^{tree}")" = "$(git rev-parse "$head^{tree}")" ] \
+            && passed "$head"; then
+            echo "$GITHUB_SHA is on main and merges $head, whose ci-ok passed on the same tree"
+            exit 0
+          fi
+          echo "::error::no passing ci-ok check on $GITHUB_SHA, nor on a pull request it merged with the same tree: wait for CI on main to pass, or tag a commit that ran it (documentation-only commits do not run it)"
+          exit 1
       - id: v
         name: The tag is the version in Cargo.toml
         run: |

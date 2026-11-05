@@ -114,7 +114,7 @@ impl MailApp {
 
     /// Where each account of the open mailbox connects to, one line per account.
     pub fn account_servers(&self) -> Vec<String> {
-        self.session.mailbox.accounts.iter().filter(|a| a.kind.has_server()).map(line).collect()
+        self.session.mailbox.accounts_in_order().into_iter().filter(|a| a.kind.has_server()).map(line).collect()
     }
 
     /// A mailbox has just taken the place of the one before: it is unconfirmed when it names

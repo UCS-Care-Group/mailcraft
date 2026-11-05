@@ -80,9 +80,10 @@ pub fn local_task_count(mailbox: &Mailbox) -> usize {
     local_tasks(mailbox).count()
 }
 
-/// The accounts whose to-dos are kept in step now.
+/// The accounts whose to-dos are kept in step now, in the order the owner put the accounts in
+/// (#702).
 pub fn task_accounts(mailbox: &Mailbox) -> Vec<Id> {
-    mailbox.accounts.iter().map(|a| a.id).filter(|id| keeps_tasks(mailbox, *id)).collect()
+    mailbox.accounts_in_order().into_iter().map(|a| a.id).filter(|id| keeps_tasks(mailbox, *id)).collect()
 }
 
 /// How many changes wait to be told to `account`'s server.
@@ -359,6 +360,24 @@ pub fn apply_tasks(s: &mut Session, download: &TasksDownload) -> Result<Merged, 
         s.mailbox_changed();
     }
     Ok(merged)
+}
+
+/// Whether `upload` tells the server to drop a to-do: the window asks before the upload goes
+/// into its job, and passes the answer to [`mark_sent`].
+pub fn carries_delete(upload: &TasksUpload) -> bool {
+    upload.ops.iter().any(|op| op.kind == TaskOpKind::Delete)
+}
+
+/// Forget the undo history as the job that sends an upload starts (the window calls this), when
+/// it carries a delete ([`carries_delete`]): the server is told to drop that to-do, and going back to a mailbox from
+/// before would bring it back here alone, to be taken away again by the next read (#706). Not an
+/// undo step. As for rules ([`super::rules_remote::mark_sent`]), a job that fails leaves the
+/// delete to be sent again, which forgets the history again; the whole history goes, not just
+/// the delete's step, as in [`apply_task_changes`].
+pub fn mark_sent(s: &mut Session, deletes: bool) {
+    if deletes {
+        s.forget_history();
+    }
 }
 
 /// Take in what a host heard from the server ([`apply_task_outcomes`]).
