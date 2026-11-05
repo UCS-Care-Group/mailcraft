@@ -20,6 +20,19 @@ pub fn shortcut_text(app: &MailApp, id: &str) -> String {
     key.or_else(|| crate::compose::editor::key_of(id)).map(key_text).unwrap_or_default()
 }
 
+/// Shortcut text for the control called `key` that runs command `id`: the body's key for that
+/// control when it has one of its own (Align Left, Center and Align Right run one command), else
+/// the command's.
+pub fn control_shortcut_text(app: &MailApp, key: &str, id: &str) -> String {
+    control_shortcut_in(app, key, id, cfg!(target_arch = "wasm32"))
+}
+
+/// [`control_shortcut_text`] in the browser (`browser`) or out of it: the browser keeps Ctrl+L,
+/// Ctrl+E and Ctrl+R, so Align Left, Center and Align Right say no key there.
+pub(crate) fn control_shortcut_in(app: &MailApp, key: &str, id: &str, browser: bool) -> String {
+    crate::compose::editor::key_in(key, browser).map_or_else(|| shortcut_text(app, id), key_text)
+}
+
 /// A key as the platform writes it (`⌘⇧K` on macOS, `Ctrl+Shift+K` elsewhere).
 pub fn key_text(sc: &str) -> String {
     if sc.is_empty() {
@@ -33,10 +46,10 @@ pub fn key_text(sc: &str) -> String {
     }
 }
 
-/// The tooltip of a control that runs command `id`: its name and key, where it is in the ribbon,
-/// and why it can't run when it can't. `label` is already in the interface language.
-pub(crate) fn command_tooltip(app: &MailApp, resp: Response, label: &str, id: &str) -> Response {
-    let sc = shortcut_text(app, id);
+/// The tooltip of the control called `key` that runs command `id`: its name and key, where it is
+/// in the ribbon, and why it can't run when it can't. `label` is already in the interface language.
+pub(crate) fn command_tooltip(app: &MailApp, resp: Response, label: &str, key: &str, id: &str) -> Response {
+    let sc = control_shortcut_text(app, key, id);
     let spec = app.session.registry.get(id);
     let desc = spec.map(|s| crate::i18n::location(s.location)).unwrap_or_default();
     let reason = spec.and_then(|s| (s.enabled)(&app.session));
