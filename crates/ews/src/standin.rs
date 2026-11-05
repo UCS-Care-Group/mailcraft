@@ -176,6 +176,11 @@ pub struct State {
     /// The server doesn't know the properties `item:Preview` and `item:Flag`
     /// (`ErrorInvalidPropertyRequest`).
     pub lacks_preview: bool,
+    /// The server doesn't know the property `item:ConversationId` (`ErrorInvalidPropertyRequest`
+    /// for every item asked with it), and knows the preview and the flag.
+    pub lacks_conversation: bool,
+    /// Every `GetItem` is told that the server is busy, as [`State::busy`] tells it.
+    pub busy_get_item: bool,
     /// A server that ignores `MaxChangesReturned` and gives every change it has in one answer.
     pub ignores_max: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
@@ -250,6 +255,8 @@ impl Default for State {
             item_log: Vec::new(),
             epoch: 0,
             lacks_preview: false,
+            lacks_conversation: false,
+            busy_get_item: false,
             ignores_max: false,
             bad_items_in: String::new(),
             issued: 0,
@@ -421,6 +428,9 @@ impl State {
                 self.busy.1
             ));
             return Ok((500, "ErrorServerBusy".into(), body));
+        }
+        if self.busy_get_item && operation.name == "GetItem" {
+            self.busy.0 = self.busy.0.max(1);
         }
         if self.busy.0 > 0 {
             self.busy.0 = self.busy.0.saturating_sub(1);

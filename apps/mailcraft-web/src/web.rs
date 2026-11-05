@@ -60,7 +60,10 @@ pub fn start() {
                     let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
                         let mut services = services(build_inbox, ctx.clone());
                         crate::jmap::install(&mut services, &ctx, hook.clone());
-                        let mut app = MailApp::new(Session::new(arrival.mailbox), services);
+                        let mut session = Session::new(arrival.mailbox);
+                        // The steps every opening takes (#793).
+                        mailcraft_engine::cmd::file::after_opening(&mut session);
+                        let mut app = MailApp::new(session, services);
                         match prefs {
                             Some(ui) => app.apply_prefs(ui),
                             None => app.fresh_prefs(),

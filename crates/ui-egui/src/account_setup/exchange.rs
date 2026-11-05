@@ -147,7 +147,7 @@ impl AccountSetup {
         self.oauth = None;
         self.service.clear();
         self.note.clear();
-        self.settings_open = false;
+        (self.settings_open, self.guessed) = (false, false);
         self.go(Page::Exchange);
     }
 

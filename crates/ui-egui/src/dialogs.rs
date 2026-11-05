@@ -140,6 +140,8 @@ pub enum Dialog {
     AutomaticReplies(Box<crate::auto_replies::Draft>),
     /// What is in a folder of mbox files, before it is imported ([`crate::import_tree`]).
     ImportTree(Box<crate::import_tree::ImportTree>),
+    /// A .pst file, before and while its mail is imported ([`crate::import_pst`]).
+    ImportPst(Box<crate::import_pst::ImportPst>),
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
@@ -246,6 +248,7 @@ impl Dialog {
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::AutomaticReplies(_) => "automaticReplies",
             Dialog::ImportTree(_) => "importTree",
+            Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
@@ -388,6 +391,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
+    }
+    if name == "importPst" {
+        let path = params.get("path").and_then(Value::as_str)?;
+        return Some(Dialog::ImportPst(Box::new(crate::import_pst::ImportPst::open(app, path))));
     }
     if name == "importTree" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -705,13 +712,15 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     // Whole conversations only when nothing of them in the folder in view stays: a tab or a search
     // lists some of their messages, and may list them from other folders.
     let folder_id = s.view.folder;
-    let keys: HashSet<(Id, String)> = asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, m.thread_key())).collect();
+    let threads = s.threads();
+    let keys: HashSet<(Id, mailcraft_model::ThreadKey)> =
+        asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, threads.key(m.id))).collect();
     let accounts: HashSet<Id> = keys.iter().map(|(a, _)| *a).collect();
     // What of them stays: in this folder, and in the others the conversation is read from (not
     // Deleted Items or Junk E-mail), whatever the tab lists.
     let (mut stays_here, mut stays_elsewhere) = (false, false);
     for m in mb.messages.values().filter(|m| accounts.contains(&m.account) && !picked.contains(&m.id)) {
-        if !keys.contains(&(m.account, m.thread_key())) {
+        if !keys.contains(&(m.account, threads.key(m.id))) {
             continue;
         }
         if m.folder == folder_id {
@@ -2060,6 +2069,14 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut done = false;
             let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
+        }
+        Dialog::ImportPst(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Import a .pst File (preview)"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
+            // the report is shown first.)
+            let asked = close || !open;
+            close = done || (asked && !dialog.stop());
         }
         // (Enter is the date and time fields' to say OK with; the replies have lines of their own.)
         Dialog::AutomaticReplies(dialog) => {
