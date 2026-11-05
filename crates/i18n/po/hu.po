@@ -1289,6 +1289,16 @@ msgstr "Miután elfogadod, előre megfontoltan elfogadod vagy visszautasítod a 
 msgid "Agenda"
 msgstr "Napirend"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/format.rs
 msgid "Align Text"
@@ -3023,6 +3033,11 @@ msgstr "Másolat: {names}"
 #, fuzzy
 msgid "Celebrate"
 msgstr "Ünneplés"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs

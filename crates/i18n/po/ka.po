@@ -1284,6 +1284,16 @@ msgstr "როცა ფოსტაში შეხვედრის მოთ
 msgid "Agenda"
 msgstr "დღის წესრიგი"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/format.rs
 msgid "Align Text"
@@ -3010,6 +3020,11 @@ msgstr "ასლი: {names}"
 #. interface
 #: crates/ui-egui/src/reading/react.rs
 msgid "Celebrate"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
 msgstr ""
 
 #. interface
