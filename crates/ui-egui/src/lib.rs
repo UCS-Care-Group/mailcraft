@@ -84,6 +84,7 @@ mod field_drag_tests;
 pub mod files;
 mod find_replace;
 mod folder_properties;
+mod font_index;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
