@@ -5665,16 +5665,16 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
-msgstr "MailCraft n'a pas trouvé les paramètres de cette adresse. Vérifiez les serveurs ci-dessous avant de vous connecter."
-
-#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft n'a pas pu ouvrir votre navigateur sur la page d'approbation de Microsoft. Copiez plutôt le message : le lien qu'il contient ouvre la même page."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft ne connaît pas les paramètres de cette adresse. Les serveurs ci-dessous ne sont qu'une supposition faite à partir de son domaine : vérifiez-les auprès de votre fournisseur ou de votre administrateur avant de vous connecter."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7686,6 +7686,12 @@ msgstr "Facultatif"
 #, fuzzy
 msgid "Options"
 msgstr "Options"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Or is it one of these?"
+msgstr "Ou s'agit-il de l'un de ceux-ci ?"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -14879,6 +14885,12 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte qui est synchronisé via Microsoft Graph"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "sign-in failed: the server doesn't take a password on this connection"
+msgstr "échec de la connexion : le serveur n'accepte pas de mot de passe sur cette connexion"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
 msgstr ""
@@ -16862,6 +16874,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#~ msgstr "MailCraft n'a pas trouvé les paramètres de cette adresse. Vérifiez les serveurs ci-dessous avant de vous connecter."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
