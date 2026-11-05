@@ -1648,6 +1648,11 @@ msgid "Back online"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Back to account settings"
+msgstr "Torna alle impostazioni dell’account"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Basic (user name and password over a secure connection)"
 msgstr ""
@@ -2015,6 +2020,11 @@ msgid "Change account settings"
 msgstr "Modifica impostazioni account"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Change email address"
+msgstr "Modifica l’indirizzo e-mail"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Change the colour"
@@ -2202,6 +2212,11 @@ msgid "Choose Default Signature"
 msgstr "Scegli firma predefinita"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Choose Google sign-in, or select Use an app password instead."
+msgstr "Scegli l’accesso con Google oppure Usa invece una password per le app."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Choose a category"
@@ -2378,9 +2393,8 @@ msgstr "Chiude questa cassetta postale condivisa e rimuove la posta conservata q
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
-msgid "Closed the page? This opens Microsoft's sign-in page afresh."
-msgstr "Pagina chiusa? Questo riapre da capo la pagina di accesso di Microsoft."
+msgid "Closed the page? This opens the provider's sign-in page afresh."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2638,6 +2652,11 @@ msgstr "Copia la versione, la piattaforma e la parte finale del registro di Mail
 #, fuzzy
 msgid "Copy to Folder"
 msgstr "Copia nella cartella"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Could not open Google sign-in"
+msgstr "Impossibile aprire la pagina di accesso Google"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3391,6 +3410,11 @@ msgid "Due {when}"
 msgstr "Scadenza {when}"
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "During development, Google may restrict sign-in to approved test users. In testing mode, Google refresh tokens may expire after seven days."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "E-mail"
@@ -3926,6 +3950,11 @@ msgstr ""
 msgid "First name"
 msgstr "Nome"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4394,16 +4423,91 @@ msgid "Going back to MailCraft {version} didn't happen: this version is still th
 msgstr "Il ritorno a MailCraft {version} non è avvenuto: è ancora installata questa versione."
 
 #. name
-#: crates/ui-egui/src/account_setup.rs
+#: crates/model/src/mailbox.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Google"
 msgstr "Google"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Google Desktop Application ID"
+msgstr "ID dell’applicazione desktop Google"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Google Desktop application ID"
+msgstr "ID dell’applicazione desktop Google"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google blocked access to MailCraft"
+msgstr "Google ha bloccato l’accesso a MailCraft"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google did not authorize MailCraft. Your mailbox was not changed. You can retry or choose an app password."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google did not confirm the unchanged account and its Gmail servers. The app-password account was not changed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google did not confirm this unchanged account. Its previous sign-in and mail were kept."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password."
 msgstr "Google non ha accettato la password. Un account con la verifica in due passaggi richiede una password per le app: crearne una nella pagina Password per le app di Google, quindi incollarla qui al posto della password abituale."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google sign-in did not finish"
+msgstr "L’accesso con Google non è stato completato"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google sign-in didn't work"
+msgstr "L’accesso con Google non è riuscito"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google sign-in does not use Microsoft's administrator consent flow"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is not configured for this build"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is not configured for this build."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is not configured for this build. Use an app password instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in needs Google's IMAP server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Google sign-in was declined"
+msgstr "L’accesso con Google è stato rifiutato"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4631,6 +4735,16 @@ msgstr "Sono un amministratore: approvalo per la mia organizzazione"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Icons"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "If MailCraft is still in Google's testing mode, ask its developer to add this address to the Test users list. If your organization blocked access, ask your Google Workspace administrator. Your mailbox was not changed."
 msgstr ""
 
 #. interface
@@ -5665,16 +5779,16 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
-msgstr "MailCraft non ha trovato le impostazioni per questo indirizzo. Controllare i server qui sotto prima di connettersi."
-
-#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft non è riuscito ad aprire il browser per la pagina di approvazione di Microsoft. Copiare invece il messaggio: il collegamento al suo interno apre la stessa pagina."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft non conosce le impostazioni di questo indirizzo. I server qui sotto sono solo un'ipotesi fatta in base al suo dominio: verificarli presso il proprio provider o amministratore prima di connettersi."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -5732,10 +5846,15 @@ msgid "MailCraft needs your permission to change your automatic replies first: F
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "MailCraft needs your system browser to sign in. You can also use a Google app password."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
-msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Informazioni."
+msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Informazioni sul programma."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -5795,6 +5914,11 @@ msgstr "È disponibile MailCraft {version}, che corregge un problema di sicurezz
 #, fuzzy
 msgid "MailCraft {version} wasn't installed: this version is still the one here."
 msgstr "MailCraft {version} non è stato installato: è ancora installata questa versione."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "MailCraft's Google Desktop registration is not yet configured for this build."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -6876,6 +7000,11 @@ msgid "No mailbox is being opened"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "No mailbox or existing credentials were changed. Try again, or return to account settings and choose another sign-in method."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/select.rs
 #, fuzzy
 msgid "No message is being read there"
@@ -7688,6 +7817,12 @@ msgid "Options"
 msgstr "Opzioni"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Or is it one of these?"
+msgstr "Oppure è uno di questi?"
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Organizer"
@@ -8356,6 +8491,22 @@ msgstr "Posta recente"
 #, fuzzy
 msgid "Recipient's address contains"
 msgstr "L'indirizzo del destinatario contiene"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Recommended"
+msgstr "Consigliato"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Reconnect with Google"
+msgstr "Riconnettiti con Google"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
+msgstr "Riconnettiti con Google se l'accesso è scaduto o è stato revocato. I messaggi scaricati e le impostazioni dell'account restano invariati."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9139,6 +9290,26 @@ msgstr "Salva come iCalendar…"
 #, fuzzy
 msgid "Save draft"
 msgstr "Salva bozza"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes here before reconnecting."
+msgstr "Salva o annulla le modifiche prima di riconnetterti."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes here before switching sign-in methods."
+msgstr "Salva o annulla le modifiche prima di cambiare metodo di accesso."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes to this account before reconnecting with Google."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes to this account before switching to Google sign-in."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10168,6 +10339,11 @@ msgstr "Accedi di nuovo"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Sign in again and choose {typed}, or change the email address to start a separate account setup. No account has been added."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Sign in again and pick {typed} on the sign-in page, or set up the account you signed in as instead."
 msgstr "Accedere di nuovo e scegliere {typed} nella pagina di accesso, oppure configurare invece l'account con cui si è effettuato l'accesso."
@@ -10220,6 +10396,11 @@ msgid "Sign in once more, so that MailCraft may show and change your calendar"
 msgstr "Accedere ancora una volta, affinché MailCraft possa mostrare e modificare il calendario"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Sign in securely with Google in your browser. Your Google password is never entered in MailCraft."
+msgstr "Accedi in modo sicuro con Google nel browser. La password di Google non viene mai inserita in MailCraft."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in there as {address}. This window carries on by itself once you have."
@@ -10248,6 +10429,11 @@ msgstr "Accedere al proprio account"
 #, fuzzy
 msgid "Sign in to {owner} first (Send/Receive), then add the shared mailbox."
 msgstr "Accedere prima a {owner} (Invia/Ricevi), poi aggiungere la cassetta postale condivisa."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Sign in with Google"
+msgstr "Accedi con Google"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/nav.rs
@@ -10682,6 +10868,11 @@ msgstr "domenica"
 msgid "Switch"
 msgstr "Passa"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Switch to Google sign-in"
+msgstr "Passa all’accesso con Google"
+
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -10693,6 +10884,12 @@ msgstr "Passa a Microsoft Graph"
 #, fuzzy
 msgid "Switch without Them"
 msgstr "Passa senza di essi"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Switching to Google sign-in keeps your downloaded messages and folders. Your current app password stays in use unless Google signs in as this same account."
+msgstr "Passare all'accesso con Google mantiene i messaggi e le cartelle scaricati. La password per le app attuale resta in uso finché Google non conferma lo stesso account."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -10979,6 +11176,11 @@ msgstr "Il"
 #, fuzzy
 msgid "The Entire Series"
 msgstr "L'intera serie"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -11899,6 +12101,11 @@ msgid "This Week"
 msgstr "Questa settimana"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account does not use Google sign-in."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
@@ -11923,6 +12130,11 @@ msgid "This account has no sign-in with Microsoft"
 msgstr "Questo account non ha un accesso con Microsoft"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account is no longer in the mailbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
@@ -11940,9 +12152,24 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "This account no longer uses an app password"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "This account was added by a newer version of MailCraft. This version keeps it as it is and doesn't send or receive with it: use the newer version for that, and to change its settings."
 msgstr "Questo account è stato aggiunto da una versione più recente di MailCraft. Questa versione lo mantiene com'è e non lo usa per inviare o ricevere: usare la versione più recente per questo e per modificarne le impostazioni."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account was removed before Google sign-in began"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account was removed while Google sign-in was open"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -12194,7 +12421,7 @@ msgstr ""
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Questa è una build di sviluppo: verifica solo quando si preme Verifica aggiornamenti in File › Informazioni."
+msgstr "Questa è una build di sviluppo: verifica solo quando si preme Verifica aggiornamenti."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -12638,6 +12865,11 @@ msgid "To Me"
 msgstr "A me"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "To add another Google address, go back and start a new account setup."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid ""
 "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
@@ -12703,6 +12935,11 @@ msgid ""
 "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "To switch, first save Google's standard IMAP and SMTP servers and an email-matching user name."
 msgstr ""
 
 #. interface
@@ -13013,6 +13250,11 @@ msgid "Updating {account}"
 msgstr "Aggiornamento di {account}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Use Google sign-in instead"
+msgstr "Usa invece l’accesso con Google"
+
+#. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Use Send/Receive to sign in to {address}"
@@ -13029,6 +13271,21 @@ msgstr "Usare AAAA-MM-GG"
 #, fuzzy
 msgid "Use a 12-hour clock (3:05 PM)"
 msgstr "Usa il formato a 12 ore (3:05 PM)"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Use a Google app password, not your everyday Google account password."
+msgstr "Usa una password per le app di Google, non la normale password del tuo account."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs
+msgid "Use an app password"
+msgstr "Usa una password per le app"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Use an app password instead"
+msgstr "Usa invece una password per le app"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13133,6 +13390,11 @@ msgstr ""
 #, fuzzy
 msgid "Waiting"
 msgstr "In attesa"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Waiting for MailCraft's Google registration"
+msgstr "In attesa della registrazione Google di MailCraft"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -14875,6 +15137,12 @@ msgstr "le cassette postali condivise si aprono sotto un account sincronizzato t
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "sign-in failed: the server doesn't take a password on this connection"
+msgstr "accesso non riuscito: il server non accetta una password su questa connessione"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -16861,6 +17129,26 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
 
+#~ msgid "Google Desktop Registration Secret"
+#~ msgstr "Segreto di registrazione Google Desktop"
+
+#~ msgid "Google Desktop client secret"
+#~ msgstr "Segreto client desktop Google"
+
+#, fuzzy
+#~ msgid "Google sign-in is not configured for this build. Use an app password, or configure MailCraft's Google Desktop registration in File > Options."
+#~ msgstr "L'accesso con Google non è configurato per questa versione. Usa una password per le app oppure configura la registrazione Google Desktop di MailCraft in File > Opzioni."
+
+#~ msgid "Google sign-in is not configured in File > Options"
+#~ msgstr "L’accesso con Google non è configurato in File > Opzioni"
+
+#~ msgid "Google sign-in is not configured in File > Options."
+#~ msgstr "L’accesso con Google non è configurato in File > Opzioni."
+
+#, fuzzy
+#~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#~ msgstr "MailCraft non ha trovato le impostazioni per questo indirizzo. Controllare i server qui sotto prima di connettersi."
+
 #, fuzzy
 #~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
 #~ msgstr "MailCraft non cerca nuove versioni da solo; in File › Opzioni è possibile fargliele cercare una volta al giorno."
@@ -16880,6 +17168,10 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 #~ msgid "This account has no contacts"
 #~ msgstr "Questo account non ha contatti"
+
+#, fuzzy
+#~ msgid "Closed the page? This opens Microsoft's sign-in page afresh."
+#~ msgstr "Pagina chiusa? Questo riapre da capo la pagina di accesso di Microsoft."
 
 #, fuzzy
 #~ msgid "Permanently Delete"
@@ -16968,4 +17260,82 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 #~ msgid "Updating the calendar and contacts…"
 #~ msgstr "Aggiornamento del calendario e dei contatti…"
+
+#, fuzzy
+#~ msgid "\"{name}\" will be deleted for good."
+#~ msgstr "«{name}» verrà eliminato definitivamente."
+
+#, fuzzy
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Un indirizzo web, un indirizzo di posta elettronica o un numero di telefono (tel:). Se non è selezionato nulla, l'indirizzo viene inserito così com'è."
+
+#, fuzzy
+#~ msgid "Close (the draft stays as last saved)"
+#~ msgstr "Chiudi (la bozza resta com'era all'ultimo salvataggio)"
+
+#, fuzzy
+#~ msgid "Delete for Good"
+#~ msgstr "Elimina definitivamente"
+
+#, fuzzy
+#~ msgid "Everything in \"{folder}\" will be deleted for good."
+#~ msgstr "Tutto il contenuto di «{folder}» verrà eliminato definitivamente."
+
+#, fuzzy
+#~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+#~ msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
+
+#, fuzzy
+#~ msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
+#~ msgstr "Non è ancora possibile spostare o copiare posta in un account Microsoft da un altro account o da una cartella locale: questa versione non può inserire un messaggio nel server di Microsoft"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't send mail from a JMAP account yet"
+#~ msgstr "MailCraft non invia ancora posta da un account JMAP"
+
+#, fuzzy
+#~ msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
+#~ msgstr "Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale; resta in una cartella locale."
+
+#, fuzzy
+#~ msgid "Move to Junk Email"
+#~ msgstr "Sposta in Posta indesiderata"
+
+#, fuzzy
+#~ msgid "Only a meeting you organize has a Scheduling Assistant"
+#~ msgstr "Solo una riunione organizzata da sé ha l'Assistente Pianificazione"
+
+#, fuzzy
+#~ msgid "Permanently Delete"
+#~ msgstr "Elimina definitivamente"
+
+#, fuzzy
+#~ msgid "Pictures are always downloaded from:"
+#~ msgstr "Le immagini vengono sempre scaricate da:"
+
+#, fuzzy
+#~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
+#~ msgstr "Indicare cosa aprire: `message` o `event` tramite il suo id, oppure `new` (\"appointment\" o \"meeting\")"
+
+#, fuzzy
+#~ msgid "Scheduling Assistant"
+#~ msgstr "Assistente Pianificazione"
+
+#, fuzzy
+#~ msgid "This contact will be deleted for good."
+#~ msgstr "Questo contatto verrà eliminato definitivamente."
+
+#, fuzzy
+#~ msgid "This message will be deleted for good."
+#~ msgstr "Questo messaggio verrà eliminato definitivamente."
+
+#, fuzzy
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "un collegamento punta a un indirizzo http, https, mailto o tel"
+
+#, fuzzy
+#~ msgid "{n} message will be deleted for good."
+#~ msgid_plural "{n} messages will be deleted for good."
+#~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
+#~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 

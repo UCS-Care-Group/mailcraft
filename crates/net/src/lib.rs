@@ -73,6 +73,20 @@ mod tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::*;
 
+/// A Google mail access token is for Google's IMAP/SMTP servers alone. Never send it to
+/// servers copied from a mailbox file or chosen by a plugin/agent. Loopback is only permitted
+/// inside this crate's synthetic protocol tests.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn google_destination(account: &mailcraft_model::Account, host: &str, expected: &str) -> Result<(), NetError> {
+    if account.oauth.as_ref().is_some_and(|oauth| oauth.provider == mailcraft_model::OAuthProvider::Google) {
+        let name = host.trim().trim_end_matches('.');
+        if !(name.eq_ignore_ascii_case(expected) || (cfg!(test) && name.eq_ignore_ascii_case("127.0.0.1"))) {
+            return Err(NetError::Config("Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers".into()));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
     use mailcraft_model::Account;
@@ -162,6 +176,12 @@ mod native {
         /// owner to sign in again the cure.
         pub fn is_refused_sign_in(&self) -> bool {
             matches!(self, NetError::Proto(mailcraft_proto::ProtoError::Auth(_)))
+        }
+
+        /// A Google refresh grant was explicitly revoked or expired; a transient failure
+        /// or a denied browser consent must never make us erase an otherwise usable token.
+        pub fn is_revoked_google_refresh(&self) -> bool {
+            matches!(self, NetError::Proto(mailcraft_proto::ProtoError::Auth(reason)) if reason == crate::oauth::GOOGLE_REFRESH_REVOKED)
         }
 
         /// Whether the other side couldn't be reached or stopped answering, as against an answer

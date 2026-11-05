@@ -577,6 +577,10 @@ const NEVER: &[&str] = &[
     "ui.openDataFolder",
     // The redacted log tail, and the clipboard overwritten with it.
     "ui.copyDiagnostics",
+    // Only the owner may configure an OAuth registration; an agent has no route to its
+    // installed-app registration value, even when granted account/settings commands.
+    "ui.googleClientId",
+    "ui.googleClientSecret",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
