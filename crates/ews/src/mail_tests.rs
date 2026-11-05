@@ -454,6 +454,12 @@ fn a_fetch_with_a_refused_sign_in_says_so() {
 }
 
 #[test]
+fn the_folder_list_asks_where_each_folder_lies() {
+    let xml = crate::hierarchy::SyncFolderHierarchy::new("").element().write();
+    assert!(xml.contains("folder:ParentFolderId"), "{xml}");
+}
+
+#[test]
 fn the_requests_hold_to_the_schema_and_write_nothing() {
     let standin = StandIn::new();
     standin.state().deliver("inbox", "Kickoff", false);

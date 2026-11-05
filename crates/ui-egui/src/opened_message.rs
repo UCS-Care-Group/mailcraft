@@ -22,6 +22,7 @@ use crate::MailApp;
 /// The largest message file shown this way, in bytes; a larger one is brought in with File ›
 /// Import, which reads up to the engine's own bound. (The file stays in memory beside its parsed
 /// message while the window is open.)
+#[cfg(not(target_arch = "wasm32"))]
 pub const MAX_BYTES: u64 = 64 << 20;
 
 /// A message file read, ready for a window: its message and its bytes.

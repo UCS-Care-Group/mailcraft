@@ -766,10 +766,7 @@ fn pane_views(app: &MailApp) -> Vec<PaneView> {
     let panes = calendar_settings::panes(&app.session);
     // A tab says its calendar's name, and whose calendar it is only where two of those in view
     // are called the same (two accounts' "Calendar").
-    let plain = |calendar: &mailcraft_model::Calendar| {
-        let name = calendar.name.trim();
-        if name.is_empty() { tl!("Calendar").to_string() } else { tl!(clip_text(name, 200)).to_string() }
-    };
+    let plain = |calendar: &mailcraft_model::Calendar| listed_name(&app.session, calendar);
     let names: Vec<String> = panes.iter().flat_map(|pane| &pane.calendars).filter_map(|id| mailbox.calendar(*id)).take(400).map(plain).collect();
     let mut views: Vec<PaneView> = Vec::new();
     for (n, pane) in panes.into_iter().take(MAX_PANES).enumerate() {
@@ -1244,6 +1241,17 @@ pub(crate) fn calendar_label(session: &mailcraft_engine::Session, calendar: &mai
     }
 }
 
+/// What the calendar is called in the list at the side and over its block. The account's main
+/// calendar is usually just "Calendar" on its server, which says nothing beside another
+/// account's or beside the one kept here: it is named with its account.
+fn listed_name(session: &mailcraft_engine::Session, calendar: &mailcraft_model::Calendar) -> String {
+    if calendar.origin.account != 0 && calendar.origin.id.is_empty() {
+        return calendar_label(session, calendar);
+    }
+    let name = calendar.name.trim();
+    if name.is_empty() { tl!("Calendar").to_string() } else { tl!(clip_text(name, 200)).to_string() }
+}
+
 /// Height of the quiet line under the list of calendars.
 const EXTRAS_H: f32 = 44.0;
 
@@ -1288,7 +1296,9 @@ fn calendar_groups(app: &MailApp) -> Vec<ListGroup> {
         let c = mailbox.calendar(*id)?;
         Some(CalendarRow {
             id: c.id,
-            name: c.name.clone(),
+            // The main calendar is often simply "Calendar" on its server: beside another
+            // account's, and beside the one kept here, that says nothing about whose it is.
+            name: listed_name(&app.session, c),
             color: c32(c.shown_color()),
             own_color: c.own_color,
             visible: c.visible,
@@ -5385,6 +5395,7 @@ mod tests {
         let names: Vec<(&str, bool)> = mailbox.calendars.iter().map(|c| (c.name.as_str(), c.origin.is_local())).collect();
         assert_eq!(names, [("On this computer", true), ("Calendar", false)]);
         assert_eq!(calendar_label(&rig.app.session, mailbox.calendar(of_server).unwrap()), "Calendar (avery@mail.example)");
+        assert_eq!(listed_name(&rig.app.session, mailbox.calendar(of_server).unwrap()), "Calendar (avery@mail.example)");
         assert_eq!(calendar_label(&rig.app.session, mailbox.calendar(own).unwrap()), "On this computer");
         // Nothing was picked: the server's is the one being worked in, so what the ribbon makes
         // reaches it.

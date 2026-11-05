@@ -1137,6 +1137,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line(&[(10.0, 13.5), (10.0, 16.5)]);
             pen.line(&[(6.5, 16.5), (13.5, 16.5)]);
         }
+        // Linchange: its own mark, drawn here (a rounded square, an L and a small envelope).
+        "linchange" => {
+            pen.rect(2.5, 2.5, 17.5, 17.5, c);
+            pen.line(&[(6.0, 5.5), (6.0, 14.5), (11.5, 14.5)]);
+            pen.rect(11.0, 5.5, 16.0, 10.0, a);
+            pen.line_c(&[(11.5, 6.5), (13.5, 8.25), (15.5, 6.5)], a);
+        }
         // Formatting the text of a message being written: the only letters, all in one face.
         "bold" => pen.text(10.0, 10.0, 15.0, "B", c, 0.0),
         "italic" => pen.text(10.0, 10.0, 15.0, "I", c, 0.22),
@@ -1417,6 +1424,7 @@ pub const NAMES: &[&str] = &[
     "work",
     "server",
     "device",
+    "linchange",
     "tick",
     "bold",
     "italic",

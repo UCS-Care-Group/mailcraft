@@ -395,6 +395,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// For an account on a Linchange server: where its calendars and address books are, kept in
+    /// step over CalDAV and CardDAV while its mail goes over IMAP and SMTP as any other account's
+    /// does. Plain settings: the password is never kept here. `None` for every other account, and
+    /// in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub dav: Option<crate::DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -665,6 +671,12 @@ impl Account {
     /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).
     pub fn keeps_contacts(&self) -> bool {
         self.keeps_tasks()
+    }
+
+    /// Whether the account is on a Linchange server: its mail goes over IMAP and SMTP, and its
+    /// calendars and address books over CalDAV and CardDAV ([`Account::dav`]).
+    pub fn is_linchange(&self) -> bool {
+        self.kind == AccountKind::Imap && self.dav.is_some()
     }
 
     /// The shared mailbox's own address, when this is one. Read here rather than at each call

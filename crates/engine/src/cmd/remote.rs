@@ -735,6 +735,8 @@ pub fn contact_from_remote(remote: &RemoteContact) -> Contact {
         websites: remote.websites.clone(),
         birthday: remote.birthday,
         notes: remote.notes.clone(),
+        uid: remote.uid.clone(),
+        book: remote.book.clone(),
         origin: Origin { account: 0, id: remote.id.clone(), change_key: remote.change_key.clone(), ..Default::default() },
         ..Default::default()
     }
@@ -1401,11 +1403,18 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
         let proposes = change.kind == EventChangeKind::Respond && change.send && matches!(change.response, Response::Tentative | Response::Declined);
+        let etag = change
+            .base
+            .as_deref()
+            .map(|base| base.origin.change_key.clone())
+            .or_else(|| event.map(|event| event.origin.change_key.clone()))
+            .unwrap_or_default();
         ops.push(EventOp {
             kind: change.kind,
             event: change.event,
             remote: change.remote.clone(),
             token: change.token.clone(),
+            etag,
             fields,
             series: if change.of_occurrence() { change.series.clone() } else { String::new() },
             occurrence: if change.of_occurrence() { change.occurrence } else { 0 },
@@ -1512,7 +1521,11 @@ fn expect(mailbox: &mut Mailbox, mut check: EventCheck) {
     let same = |other: &EventCheck| {
         other.account == check.account
             && other.of_occurrence() == check.of_occurrence()
-            && if check.of_occurrence() { other.series == check.series && other.occurrence == check.occurrence } else { other.remote == check.remote }
+            && if check.of_occurrence() {
+                resource_key(&other.series) == resource_key(&check.series) && other.occurrence == check.occurrence
+            } else {
+                resource_key(&other.remote) == resource_key(&check.remote)
+            }
     };
     if let Some(at) = mailbox.event_checks.iter().position(same) {
         let earlier = mailbox.event_checks.remove(at);
@@ -1554,7 +1567,7 @@ pub fn unverified_calendars(s: &Session, account: Id) -> Vec<Id> {
         .events
         .values()
         .filter(|event| event.origin.account == account && !event.origin.id.is_empty())
-        .map(|event| (event.origin.id.as_str(), event.calendar))
+        .map(|event| (resource_key(&event.origin.id), event.calendar))
         .collect();
     let mut calendars: Vec<Id> = Vec::new();
     for check in mailbox.event_checks.iter().filter(|check| check.account == account).take(MAX_EVENT_CHECKS) {
@@ -1562,7 +1575,7 @@ pub fn unverified_calendars(s: &Session, account: Id) -> Vec<Id> {
         // One that was deleted is looked for where it was.
         let calendar = match (check.kind, check.base.as_deref()) {
             (EventChangeKind::Delete, Some(base)) => Some(base.calendar),
-            _ => here.get(name).copied(),
+            _ => here.get(resource_key(name)).copied(),
         };
         if let Some(calendar) = calendar.filter(|calendar| !calendars.contains(calendar)) {
             calendars.push(calendar);
@@ -2050,7 +2063,7 @@ fn take_back_copy(mailbox: &mut Mailbox, account: Id, copy: &str) -> bool {
         return true;
     };
     let _ = mailbox.remove_event(found.id);
-    mailbox.event_changes.retain(|change| !(change.account == account && change.remote == copy));
+    mailbox.event_changes.retain(|change| !(change.account == account && resource_key(&change.remote) == copy));
     // (With the copy as it was: the server is asked for it in the calendar it is in.)
     mailbox.event_changes.push(EventChange {
         account,
@@ -2079,7 +2092,9 @@ fn waits_for_copy(mailbox: &Mailbox, change: &EventChange, now: Timestamp) -> Op
         return None;
     }
     let copy_of = if change.copy_account == 0 { change.account } else { change.copy_account };
-    let of_copy = |check: &&EventCheck| check.account == copy_of && check.kind != EventChangeKind::Delete && check.remote == change.moved;
+    let of_copy = |check: &&EventCheck| {
+        check.account == copy_of && check.kind != EventChangeKind::Delete && resource_key(&check.remote) == resource_key(&change.moved)
+    };
     let until = mailbox.event_checks.iter().find(of_copy).map(|check| check.made.saturating_add(COPY_WAIT))?;
     (now <= until).then_some(until.saturating_add(1))
 }
@@ -2090,13 +2105,13 @@ fn waits_for_copy(mailbox: &Mailbox, change: &EventChange, now: Timestamp) -> Op
 fn move_not_seen(mailbox: &mut Mailbox, account: Id, copy: &str) -> Option<String> {
     let ends = |change: &EventChange| {
         let copy_of = if change.copy_account == 0 { change.account } else { change.copy_account };
-        change.kind == EventChangeKind::Delete && copy_of == account && change.moved == copy
+        change.kind == EventChangeKind::Delete && copy_of == account && resource_key(&change.moved) == copy
     };
     let at = mailbox.event_changes.iter().position(ends)?;
     // (Only an original that can be put back: its place here is the copy's.)
     let base = mailbox.event_changes.get(at).and_then(|change| change.base.clone())?;
     mailbox.event_changes.remove(at);
-    mailbox.event_changes.retain(|change| !(change.account == account && change.remote == copy));
+    mailbox.event_changes.retain(|change| !(change.account == account && resource_key(&change.remote) == copy));
     let name = called(Some(&base));
     match mailbox.event_mut(base.id) {
         Ok(event) => *event = *base,
@@ -2781,7 +2796,7 @@ fn check_sent(
     let complete = download.complete && download.events.len() <= MAX_EVENTS && download.from < download.to;
     let asked = |instant: Timestamp| complete && (download.from..download.to).contains(&instant);
     let covers = |event: &Event| event.calendar == calendar && event.recurrence.is_none() && asked(server_start(event, offset_at));
-    let theirs: HashMap<&str, &RemoteEvent> = series.iter().chain(rest).map(|remote| (remote.id.as_str(), remote)).collect();
+    let theirs: HashMap<&str, &RemoteEvent> = series.iter().chain(rest).map(|remote| (resource_key(&remote.id), remote)).collect();
     let mut still: Vec<EventCheck> = Vec::new();
     // What a log line calls the event: a tag made of its id, the same in every line about it.
     let tag = |check: &EventCheck| id_tag(if check.of_occurrence() { &check.series } else { &check.remote });
@@ -2804,7 +2819,10 @@ fn check_sent(
         }
         if check.of_occurrence() {
             // One day of a series that was deleted there: the series is not to have it.
-            let of = mailbox.events.values().find(|event| event.origin.account == account && event.origin.id == check.series);
+            let of = mailbox
+                .events
+                .values()
+                .find(|event| event.origin.account == account && resource_key(&event.origin.id) == resource_key(&check.series));
             let Some(of) = of.map(|of| of.as_ref().clone()) else { continue };
             if of.calendar != calendar || !asked(check.occurrence) {
                 still.push(check);
@@ -2812,7 +2830,7 @@ fn check_sent(
             }
             let near = if of.all_day { 12 * 3_600 - 1 } else { 90 };
             let is_it = |remote: &RemoteEvent| {
-                remote.series == check.series
+                resource_key(&remote.series) == resource_key(&check.series)
                     && remote.kind != RemoteEventKind::Single
                     && remote.original.unwrap_or(remote.start).saturating_sub(check.occurrence).saturating_abs() <= near
             };
@@ -2823,7 +2841,7 @@ fn check_sent(
             check.tries = check.tries.saturating_add(1);
             if check.tries < MAX_CHECK_TRIES {
                 not_yet(&check);
-                checked.held_days.entry(check.series.clone()).or_default().push(check.occurrence);
+                checked.held_days.entry(resource_key(&check.series).to_string()).or_default().push(check.occurrence);
                 still.push(check);
             } else {
                 let name = called(Some(&of));
@@ -2834,20 +2852,21 @@ fn check_sent(
             continue;
         }
         // A change still waits for it: what it is to be on the server is not settled yet.
-        if waiting.contains_key(&check.remote) {
+        let key = resource_key(&check.remote).to_string();
+        if waiting.contains_key(&key) {
             still.push(check);
             continue;
         }
-        let here = mailbox.events.values().find(|event| event.origin.account == account && event.origin.id == check.remote);
+        let here = mailbox.events.values().find(|event| event.origin.account == account && resource_key(&event.origin.id) == key);
         let here = here.map(|event| event.as_ref().clone());
-        match (check.kind, theirs.get(check.remote.as_str())) {
+        match (check.kind, theirs.get(key.as_str())) {
             (EventChangeKind::Delete, found) => {
                 // Still there, itself or (a series) in one of its days?
-                if found.is_some() || rest.iter().any(|remote| remote.series == check.remote) {
+                if found.is_some() || rest.iter().any(|remote| resource_key(&remote.series) == key) {
                     check.tries = check.tries.saturating_add(1);
                     if check.tries < MAX_CHECK_TRIES {
                         not_yet(&check);
-                        checked.held.insert(check.remote.clone(), EventChangeKind::Delete);
+                        checked.held.insert(key.clone(), EventChangeKind::Delete);
                         still.push(check);
                     } else {
                         let name = called(check.base.as_deref());
@@ -2900,7 +2919,7 @@ fn check_sent(
                     check.tries = check.tries.saturating_add(1);
                     if check.tries < MAX_CHECK_TRIES {
                         not_yet(&check);
-                        checked.held.insert(check.remote.clone(), EventChangeKind::Update);
+                        checked.held.insert(key.clone(), EventChangeKind::Update);
                         still.push(check);
                         continue;
                     }
@@ -2927,14 +2946,14 @@ fn check_sent(
                 check.tries = check.tries.saturating_add(1);
                 if check.tries < MAX_CHECK_TRIES {
                     not_yet(&check);
-                    checked.held.insert(check.remote.clone(), EventChangeKind::Update);
+                    checked.held.insert(key.clone(), EventChangeKind::Update);
                     still.push(check);
                     continue;
                 }
                 let name = called(Some(&here));
                 // The copy of an appointment that was being moved here from another calendar,
                 // whose original the server still has: the move is taken back.
-                if let Some(name) = move_not_seen(mailbox, account, &check.remote) {
+                if let Some(name) = move_not_seen(mailbox, account, &key) {
                     let line = format!(
                         "{name} was moved to another calendar here and the server said it took it there, but that calendar doesn't have it. It wasn't moved: it is back where it was."
                     );
@@ -2972,6 +2991,17 @@ fn check_sent(
 ///
 /// `offset_at` is the local zone's offset (minutes east of UTC) at an instant
 /// ([`event_from_remote`]). Nothing is changed when this returns an error.
+/// An event's identity for comparisons: its path, without scheme or host. A server may name the
+/// whole address in the answer to a write and only the path in a download, and the two are the
+/// same event. Keeping the full spelling as the identity is how a just-sent event became a second
+/// copy on the next read.
+fn resource_key(id: &str) -> &str {
+    match id.split_once("://") {
+        Some((_, rest)) => rest.find('/').map(|at| &rest[at..]).unwrap_or(rest),
+        None => id,
+    }
+}
+
 pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at: &dyn Fn(Timestamp) -> i32) -> Result<Merged, CmdError> {
     let (account, email) = owner(mailbox, download.account, &download.email).map(|owner| (owner.id, owner.email.clone()))?;
     let remote_calendar = download.calendar.trim();
@@ -3001,7 +3031,7 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
     for event in mailbox.events.values().filter(|event| event.origin.account == account && !event.origin.id.is_empty()) {
-        extra.extend(known.insert(event.origin.id.clone(), event.id));
+        extra.extend(known.insert(resource_key(&event.origin.id).to_string(), event.id));
     }
     // What was changed or deleted here and not sent yet, by what the server calls the event; what
     // was made here and not sent yet (or sent, with the answer still to come), by its mark; and
@@ -3013,7 +3043,7 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     // that server until the copy is seen: the download of that one leaves it out too.)
     for change in mailbox.event_changes.iter().filter(|change| change.account != account && !change.replaces.is_empty()) {
         if change.base.as_deref().is_some_and(|base| base.origin.account == account) {
-            waiting.insert(change.replaces.clone(), EventChangeKind::Delete);
+            waiting.insert(resource_key(&change.replaces).to_string(), EventChangeKind::Delete);
         }
     }
     for change in mailbox.event_changes.iter().filter(|change| change.account == account) {
@@ -3021,7 +3051,7 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
         // has, is as good as deleted here. And a meeting that is being forwarded is as it is on
         // the server: a download goes on telling what it is.
         if !change.replaces.is_empty() {
-            waiting.insert(change.replaces.clone(), EventChangeKind::Delete);
+            waiting.insert(resource_key(&change.replaces).to_string(), EventChangeKind::Delete);
         }
         if change.kind == EventChangeKind::Forward {
             continue;
@@ -3034,10 +3064,10 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
             _ if change.of_occurrence() => waiting_days.entry(change.series.clone()).or_default().push(change.occurrence),
             // A meeting that was declined is gone here, as one that was deleted is.
             EventChangeKind::Respond if change.response == Response::Declined => {
-                waiting.insert(change.remote.clone(), EventChangeKind::Delete);
+                waiting.insert(resource_key(&change.remote).to_string(), EventChangeKind::Delete);
             }
             kind => {
-                waiting.insert(change.remote.clone(), kind);
+                waiting.insert(resource_key(&change.remote).to_string(), kind);
             }
         }
     }
@@ -3047,6 +3077,11 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     for remote in download.events.iter().take(MAX_EVENTS) {
         let mut remote = remote.clone();
         remote.tidy();
+        // A server may name one resource by its whole address in one answer and by its path in
+        // the next. Both are the same event; keep the one spelling the maps use.
+        let id = resource_key(&remote.id).to_string();
+        let series_key = resource_key(&remote.series).to_string();
+        (remote.id, remote.series) = (id, series_key);
         if remote.id.is_empty() || !seen.insert(remote.id.clone()) {
             merged.skipped += 1;
         } else if remote.kind == RemoteEventKind::SeriesMaster {
@@ -3404,12 +3439,13 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
     for contact in mailbox.contacts.values().filter(|contact| contact.origin.account == account && !contact.origin.id.is_empty()) {
-        extra.extend(known.insert(contact.origin.id.clone(), contact.id));
+        extra.extend(known.insert(resource_key(&contact.origin.id).to_string(), contact.id));
     }
     let mut seen: HashSet<String> = HashSet::new();
     for remote in download.contacts.iter().take(MAX_CONTACTS) {
         let mut remote = remote.clone();
         remote.tidy();
+        remote.id = resource_key(&remote.id).to_string();
         let mut fresh = contact_from_remote(&remote);
         // Somebody with no name, company or address would be an empty line in the list.
         if remote.id.is_empty() || fresh.name().is_empty() || !seen.insert(remote.id.clone()) {
@@ -3420,10 +3456,16 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         match known.get(&remote.id).and_then(|id| mailbox.contact(*id)) {
             Some(old) => {
                 fresh.id = old.id;
-                // What is only kept here stays as it is here.
+                // What is only kept here stays as it is here; a server's own vCard UID and book
+                // win when it gives them.
                 fresh.categories = old.categories.clone();
                 fresh.favorite = old.favorite;
-                fresh.uid = old.uid.clone();
+                if fresh.uid.is_empty() {
+                    fresh.uid = old.uid.clone();
+                }
+                if fresh.book.is_empty() {
+                    fresh.book = old.book.clone();
+                }
                 if *old == fresh {
                     merged.unchanged += 1;
                 } else if let Ok(contact) = mailbox.contact_mut(fresh.id) {
@@ -3595,11 +3637,14 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
 /// the account may change it. The account's main calendar is the one events came into before
 /// there was a list. A calendar the server no longer lists goes, with the copies of its events,
 /// when the list is complete. Whether each is shown is kept here, and stays: a calendar that
-/// arrives is shown when it is the account's main one and listed unticked otherwise (birthdays,
-/// holidays and the rest wait for the owner to tick them), and one that is here already keeps
-/// whatever the owner set, whatever a later list says. Not an undo step.
+/// arrives is shown when it is the account's main one, or when the server says whose it is (the
+/// account's own and one shared with it); one with no owner (birthdays, a feed) waits for the
+/// owner to tick it. One that is here already keeps whatever the owner set, whatever a later
+/// list says, except that learning the owner of one listed before owners were read shows it
+/// once. Not an undo step.
 pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResult {
     let account = owner(&s.mailbox, download.account, &download.email)?.id;
+    let shared_mailbox = s.mailbox.account(account).is_some_and(|a| a.is_shared());
     let mut download = download.clone();
     download.tidy();
     // Calendars opened by address (#70) come from the host, never from a server's list, and
@@ -3634,10 +3679,18 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
                 && calendar.group == remote.group
                 && calendar.rights == remote.rights
                 && calendar.owner == remote.owner;
+            // The first list that names the owner is also the first that can tell a calendar
+            // shared with the account from a feed: it is shown once, as a new one would be.
+            // (Not in a shared mailbox: its calendars stay unticked until the owner ticks one,
+            // because reading them there asks for a permission of its own.)
+            let learned_owner = !shared_mailbox && calendar.owner.is_none() && remote.owner.is_some() && !remote.main;
             if !same {
                 (calendar.name, calendar.color, calendar.group) = (title, color, remote.group.clone());
                 (calendar.rights, calendar.owner) = (remote.rights, remote.owner.clone());
                 updated += 1;
+            }
+            if learned_owner {
+                calendar.visible = true;
             }
             // What its meetings may be held online with, when the list says (else: as it was).
             if remote.online_providers.is_some() && calendar.online_providers != remote.online_providers {
@@ -3654,8 +3707,10 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
                 id,
                 name: title,
                 color,
-                // Only the account's own calendar is ticked to begin with.
-                visible: remote.main || own.is_some_and(|o| o.ticked),
+                // The account's own calendar, and any calendar the server names an owner for
+                // (its own others and the ones shared with it), are ticked to begin with.
+                // Birthdays and feeds, whose owner it doesn't say, wait to be ticked.
+                visible: remote.main || (!shared_mailbox && remote.owner.is_some()) || own.is_some_and(|o| o.ticked),
                 origin,
                 rights: remote.rights,
                 owner: remote.owner.clone(),
