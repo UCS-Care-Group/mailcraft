@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
 use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security, Server};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -376,14 +376,20 @@ pub(crate) fn is_microsoft_host(host: &str) -> bool {
     host_in(&host.trim().trim_end_matches('.').to_ascii_lowercase(), &["office365.com", "outlook.com"])
 }
 
-/// A sign-in with a Microsoft access token (XOAUTH2) goes only to Microsoft's own mail servers
-/// (or to this computer, for tests): an account that names another server, from a mailbox file
-/// say, is refused before a connection is made, so that the token never leaves for a stranger.
-pub(crate) fn token_may_go_to(server: &Server) -> Result<(), NetError> {
-    if is_microsoft_host(&server.host) || crate::transport::is_loopback(&server.host) {
-        return Ok(());
+/// Refuse a sign-in token's destination outside its provider before a connection is made:
+/// Google checks this protocol's Gmail host, Microsoft its own mail domains. A server named
+/// in a mailbox file cannot receive another provider's token.
+pub(crate) fn token_may_go_to(account: &Account, server: &Server, google_host: &str) -> Result<(), NetError> {
+    match account.oauth.as_ref().map(|oauth| oauth.provider) {
+        None => Ok(()),
+        Some(OAuthProvider::Google) => crate::google_destination(account, &server.host, google_host),
+        Some(OAuthProvider::Microsoft) => {
+            if is_microsoft_host(&server.host) || crate::transport::is_loopback(&server.host) {
+                return Ok(());
+            }
+            Err(NetError::Config("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server".into()))
+        }
     }
-    Err(NetError::Config("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server".into()))
 }
 
 /// Put a copy of each message that was sent into the server's mailbox for sent mail, marked as
@@ -429,6 +435,7 @@ pub(crate) fn open_imap_with<'a>(
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Imap<Stream<'a>>, NetError> {
     let server = account.incoming.as_ref().ok_or_else(|| NetError::Config("the account has no incoming server".into()))?;
+    token_may_go_to(account, server, "imap.gmail.com")?;
     let user = account.login();
     if user.is_empty() {
         return Err(NetError::Config("the account has no user name or e-mail address to sign in with".into()));
@@ -439,9 +446,6 @@ pub(crate) fn open_imap_with<'a>(
     }
     if account.oauth.is_none() && secret.is_empty() {
         return Err(NetError::Config("enter a password to sign in".into()));
-    }
-    if account.oauth.is_some() {
-        token_may_go_to(server)?;
     }
     let (mut stream, host) = transport::open(server, Service::Imap, patience)?;
     stream.watch(cancel);

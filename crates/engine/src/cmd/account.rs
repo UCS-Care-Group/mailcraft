@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -43,7 +43,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -99,7 +99,7 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(_) => return Err(bad("`auth` is password or oauth2")),
     }
     let provider = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
@@ -140,7 +140,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         _ => return Err(bad(format!("\"{email}\" isn't an e-mail address"))),
     };
     let asked = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     // The owner says whose the account is: that settles it.
@@ -154,6 +154,9 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let exchangers = v.get("mx").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     let by_mx = || exchangers.iter().take(20).filter_map(Value::as_str).find_map(provider::by_mx);
     let (found, via) = match (asked, own) {
+        // Explicitly choosing Google OAuth beats an app-password provider preset.
+        // Ordinary discovery without that choice keeps the password flow.
+        (Some(OAuthProvider::Google), own) => (Some(provider::google(own.is_some_and(|p| p.service == "Gmail"))), "asked"),
         _ if named.is_some() => (named, "asked"),
         // Said to be Microsoft's: Outlook.com when the domain is, work or school mail otherwise.
         (Some(OAuthProvider::Microsoft), own) => {

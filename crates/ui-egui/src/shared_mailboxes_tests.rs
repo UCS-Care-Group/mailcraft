@@ -554,11 +554,13 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
     // A sign-in renewed with a kept token: nobody is in the browser, and it is short.
     let (renewed, rx) = mpsc::channel();
     let cancel = Arc::new(AtomicBool::new(false));
+    let snapshot = app.session.mailbox.account(owner).cloned();
     app.signing_in = Some(crate::SigningIn {
         graph: false,
         favorites: false,
         quiet: true,
         account: owner,
+        snapshot,
         shared: None,
         shared_send: false,
         shared_calendars: false,

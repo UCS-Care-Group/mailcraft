@@ -696,6 +696,17 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let _ = app.execute("ui.microsoftClientId", json!({"value": id.trim()}));
         }
     });
+    row(ui, tl!("Google Desktop application ID"), |ui| {
+        let mut id = app.ui.google_client_id.clone();
+        let hint = if app.services.google_client_id.is_empty() {
+            tl!("Waiting for MailCraft's Google registration")
+        } else {
+            tl!("The one this build came with")
+        };
+        if ui.add(egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0)).changed() {
+            let _ = app.execute("ui.googleClientId", json!({"value": id.trim()}));
+        }
+    });
     row(ui, tl!("Send and receive automatically"), |ui| {
         let label = |n: u32| match n {
             0 => tl!("Only when I ask").to_string(),
