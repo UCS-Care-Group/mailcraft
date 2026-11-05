@@ -44,6 +44,8 @@ pub(crate) struct Touched {
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
+    /// The contacts it added, changed or took away.
+    changed_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
 }
@@ -111,6 +113,15 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
                 }
                 is.next();
             }
+        }
+    }
+    for id in before.contacts.keys().chain(after.contacts.keys()) {
+        let same = match (before.contacts.get(id), after.contacts.get(id)) {
+            (Some(b), Some(a)) => Arc::ptr_eq(a, b) || a == b,
+            _ => false,
+        };
+        if !same {
+            t.changed_contacts.insert(*id);
         }
     }
     for b in &before.folders {
@@ -284,6 +295,19 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
             None => {
                 out.messages.remove(&id);
+            }
+        }
+    }
+    // Contacts the change didn't touch are as they are now (those an import put in and a later
+    // step's snapshot holds are not brought back by undoing that step).
+    let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();
+    for id in ids.into_iter().filter(|id| !touched.changed_contacts.contains(id)) {
+        match now.contacts.get(&id) {
+            Some(c) => {
+                out.contacts.insert(id, c.clone());
+            }
+            None => {
+                out.contacts.remove(&id);
             }
         }
     }

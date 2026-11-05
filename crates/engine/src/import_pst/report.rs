@@ -229,7 +229,11 @@ impl Report {
         };
         line(format!("MailCraft: import of the .pst file {} (preview: mail and contacts so far)", short(&self.file)));
         line(format!("When: {when}"));
-        line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
+        if self.name.is_empty() {
+            line("Into: your contacts on this computer".to_string());
+        } else {
+            line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
+        }
         line(format!("File: {} .pst file", self.format));
         if self.dry_run {
             line("A look only (dry run): nothing was imported; \"brought in\" says what would be.".to_string());

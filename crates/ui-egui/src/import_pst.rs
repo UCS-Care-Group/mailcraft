@@ -365,12 +365,23 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     ui.label(
         RichText::new(crate::i18n::fmt(
             tl!("{added} brought in, of {found} found."),
-            &[("added", &tln!(n("added"), "{n} item", "{n} items")), ("found", &tln!(n("found"), "{n} item", "{n} items"))],
+            &[
+                (
+                    "added",
+                    &if n("contacts") + n("lists") == 0 {
+                        tln!(n("added"), "{n} message", "{n} messages")
+                    } else {
+                        tln!(n("added"), "{n} item", "{n} items")
+                    },
+                ),
+                ("found", &tln!(n("found"), "{n} item", "{n} items")),
+            ],
         ))
         .strong(),
     );
+    // (With contacts among them, what the items are is said line by line.)
     for (count, line) in [
-        (n("messages"), tln!(n("messages"), "{n} message", "{n} messages")),
+        (if n("contacts") + n("lists") == 0 { 0 } else { n("messages") }, tln!(n("messages"), "{n} message", "{n} messages")),
         (n("contacts"), tln!(n("contacts"), "{n} contact", "{n} contacts")),
         (
             n("lists"),

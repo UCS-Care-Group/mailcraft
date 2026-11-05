@@ -15513,6 +15513,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+msgid "the import has no folder to put mail in"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
 msgid "the import was stopped"
 msgstr ""
 

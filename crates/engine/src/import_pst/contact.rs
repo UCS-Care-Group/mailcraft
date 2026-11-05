@@ -34,7 +34,8 @@ const MAX_SHORT: usize = 4096;
 const MAX_VALUES: usize = 100;
 /// Most members of a distribution list kept.
 pub const MAX_MEMBERS: usize = 1000;
-/// Most bytes of the notes of a contact, and of a list of members, read.
+/// Most bytes of the notes of a contact read; what is kept is cut to fit a vCard's longest line
+/// ([`fit`]).
 const MAX_NOTES: u64 = 1 << 20;
 const MAX_MEMBER_BYTES: u64 = 4 << 20;
 /// Longest a member entry may be (one-off entry ids are small).
@@ -51,9 +52,10 @@ const LIST_NAME: u32 = 0x8053;
 const LIST_ONE_OFF: u32 = 0x8054;
 const LIST_MEMBERS: u32 = 0x8055;
 const INSTANT_MESSAGING: u32 = 0x8062;
+const LIST_STREAM: u32 = 0x8064;
 
 fn wanted() -> Vec<u32> {
-    let mut v = vec![FILE_UNDER, HTML, BIRTHDAY_LOCAL, ANNIVERSARY_LOCAL, LIST_NAME, LIST_ONE_OFF, LIST_MEMBERS, INSTANT_MESSAGING];
+    let mut v = vec![FILE_UNDER, HTML, BIRTHDAY_LOCAL, ANNIVERSARY_LOCAL, LIST_NAME, LIST_ONE_OFF, LIST_MEMBERS, INSTANT_MESSAGING, LIST_STREAM];
     v.extend(WORK_ADDRESS);
     for (a, b, c) in EMAIL_SLOTS {
         v.extend([a, b, c]);
@@ -128,6 +130,38 @@ pub fn kind(class: &str) -> Option<bool> {
     } else {
         None
     }
+}
+
+/// Whether `s` is an address: something before and after an `@`.
+fn is_address(s: &str) -> bool {
+    s.split_once('@').is_some_and(|(local, domain)| !local.trim().is_empty() && !domain.trim().is_empty())
+}
+
+/// How many bytes of the notes' vCard line `s` takes: the escapes count (a line break, comma,
+/// semicolon or backslash is written as two).
+fn cost(s: &str) -> usize {
+    s.chars().map(|c| c.len_utf8() + usize::from(matches!(c, '\\' | ',' | ';' | '\n'))).fold(0usize, usize::saturating_add)
+}
+
+/// What the notes may take, in bytes of the vCard line: the longest line the vCard reader keeps
+/// (`people_merge::MAX_NOTES`), less `NOTE:`.
+fn room() -> usize {
+    crate::cmd::people_merge::MAX_NOTES.saturating_sub(8)
+}
+
+/// `s` cut, at a character, to what takes at most `room` bytes of the notes' vCard line; whether
+/// it was cut.
+fn fit(s: &str, room: usize) -> (String, bool) {
+    let mut used = 0usize;
+    let mut end = s.len();
+    for (at, c) in s.char_indices() {
+        used = used.saturating_add(cost(c.encode_utf8(&mut [0u8; 4])));
+        if used > room {
+            end = at;
+            break;
+        }
+    }
+    (s.get(..end).unwrap_or_default().to_string(), end < s.len())
 }
 
 /// A text of one line: no control characters, trimmed, cut.
@@ -220,15 +254,6 @@ fn value<R: Read + Seek>(
     }
 }
 
-/// `s` cut to at most `max` bytes at a character boundary.
-fn cut(s: &str, max: usize) -> &str {
-    let mut end = max.min(s.len());
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    s.get(..end).unwrap_or_default()
-}
-
 /// Read the contact or list `m` into a contact of the mailbox. Never fails for what one item
 /// gets wrong, only for what ends the import.
 pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named: &Named, list: bool) -> Result<Built, PstError> {
@@ -257,7 +282,7 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
     for (kind, address, original) in EMAIL_SLOTS {
         let Some(shown) = r.lid(address) else { continue };
         let smtp = r.lid(kind).is_none_or(|k| k.eq_ignore_ascii_case("SMTP"));
-        let email = if smtp && shown.contains('@') { Some(shown) } else { r.lid(original).filter(|o| o.contains('@') && !o.contains(' ')) };
+        let email = if smtp && is_address(&shown) { Some(shown) } else { r.lid(original).filter(|o| is_address(o) && !o.contains(' ')) };
         match email {
             Some(e) if !c.has_email(&e) => c.emails.push(Labeled::new("email", e)),
             Some(_) => {}
@@ -292,7 +317,11 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
     c.birthday = r.lid_time(BIRTHDAY_LOCAL).or_else(|| r.p.time(0x3A42)).and_then(day);
 
     if let Some(id) = named.keywords {
-        c.categories = r.text.list(r.p, id).iter().filter_map(|s| mailcraft_model::clean_name(s)).take(MAX_VALUES).collect();
+        for name in r.text.list(r.p, id).iter().filter_map(|s| mailcraft_model::clean_name(s)) {
+            if c.categories.len() < MAX_VALUES && !c.categories.iter().any(|o| o.eq_ignore_ascii_case(&name)) {
+                c.categories.push(name);
+            }
+        }
     }
 
     let body = match value(pst, m, 0x1000, MAX_NOTES, "notes", &mut notes)? {
@@ -301,7 +330,12 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         _ => None,
     };
     if let Some(b) = body {
-        c.notes = cut(b.trim_end_matches('\0').replace("\r\n", "\n").as_str(), MAX_NOTES as usize).to_string();
+        // (A list's notes share the room with its members.)
+        let (text, cut) = fit(b.trim_end_matches('\0').replace("\r\n", "\n").as_str(), if list { room() / 2 } else { room() });
+        c.notes = text;
+        if cut {
+            notes.push("its notes were longer than a contact's notes can be and are cut".to_string());
+        }
     }
 
     // What the model has no place for, named.
@@ -327,11 +361,16 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         if c.display_name.is_empty() {
             c.display_name = r.lid(LIST_NAME).unwrap_or_default();
         }
-        let (text, count) = members_text(pst, m, ids, &mut notes)?;
+        let left = room().saturating_sub(cost(&c.notes)).saturating_sub(8);
+        let (text, count) = members_text(pst, m, ids, left, &mut notes)?;
         members = Some(count);
         if !text.is_empty() {
             c.notes = if c.notes.trim().is_empty() { text } else { format!("{}\n\n{text}", c.notes.trim_end()) };
         }
+    }
+    // A contact needs a name to be edited: from what it has, else a plain one.
+    if c.name().is_empty() {
+        c.display_name = c.phones.first().map(|p| p.value.clone()).or_else(|| c.websites.first().cloned()).unwrap_or_else(|| "(no name)".to_string());
     }
     Ok(Built { contact: c, notes, members })
 }
@@ -342,6 +381,7 @@ fn members_text<R: Read + Seek>(
     pst: &mut Pst<R>,
     m: &mailcraft_pst::Message,
     ids: &ContactIds,
+    room: usize,
     notes: &mut Vec<String>,
 ) -> Result<(String, usize), PstError> {
     let one_off = match ids.id(LIST_ONE_OFF) {
@@ -352,8 +392,9 @@ fn members_text<R: Read + Seek>(
         Some(PropValue::MultiBinary(v)) => v,
         _ => Vec::new(),
     };
-    // (Members the list names that are contacts or other lists, not addresses, are in the other
-    // property alone: they are counted and named as not kept.)
+    // (OneOffMembers is kept in step with Members, one for one [MS-OXOCNTC] 2.2.2.2.2: a member
+    // that is a contact or another list has an entry there with no address, and is counted and
+    // named as not kept.)
     let listed = match ids.id(LIST_MEMBERS).and_then(|id| m.properties.get(id)) {
         Some(PropValue::MultiBinary(v)) => v.len(),
         _ => 0,
@@ -363,6 +404,7 @@ fn members_text<R: Read + Seek>(
     let mut seen: HashSet<String> = HashSet::new();
     let mut unreadable = listed.saturating_sub(entries.len());
     let mut more = 0usize;
+    let mut used = "Members:\n".len();
     for e in &entries {
         let Some((name, address)) = one_off_member(e) else {
             unreadable += 1;
@@ -371,11 +413,15 @@ fn members_text<R: Read + Seek>(
         if !seen.insert(address.to_lowercase()) {
             continue;
         }
-        if lines.len() >= MAX_MEMBERS {
+        let line = if name.is_empty() || name == address { address } else { format!("{name} <{address}>") };
+        // (Each line, and the line break after it, takes this much of the notes' room.)
+        let take = cost(&line).saturating_add(2);
+        if lines.len() >= MAX_MEMBERS || used.saturating_add(take) > room {
             more += 1;
             continue;
         }
-        lines.push(if name.is_empty() || name == address { address } else { format!("{name} <{address}>") });
+        used += take;
+        lines.push(line);
     }
     if unreadable > 0 {
         notes.push(format!("{unreadable} member(s) of the list name no internet address and are left out"));
@@ -383,8 +429,20 @@ fn members_text<R: Read + Seek>(
     if more > 0 {
         notes.push(format!("{more} member(s) past the limit of {MAX_MEMBERS} are left out"));
     }
+    // Past 15,000 bytes a list is kept in a stream of its own (PidLidDistributionListStream,
+    // [MS-OXOCNTC] 2.2.2.2.4), and the two lists above are not kept: said, not read.
+    let streamed = ids.id(LIST_STREAM).is_some_and(|id| m.properties.get(id).is_some());
+    if streamed && entries.is_empty() {
+        notes.push("the members are kept in a form (the list's stream) this version doesn't read, and are left out".to_string());
+    }
     let count = lines.len();
-    let text = if lines.is_empty() { String::new() } else { format!("Members:\n{}", lines.join("\n")) };
+    let text = if !lines.is_empty() {
+        format!("Members:\n{}", lines.join("\n"))
+    } else if streamed && entries.is_empty() {
+        "Members: kept in a form this version doesn't read.".to_string()
+    } else {
+        String::new()
+    };
     Ok((text, count))
 }
 
@@ -408,5 +466,5 @@ fn one_off_member(entry: &[u8]) -> Option<(String, String)> {
     };
     let [name, kind, address] = <[String; 3]>::try_from(texts).ok()?;
     let address = one_line(&address)?;
-    (kind.eq_ignore_ascii_case("SMTP") && address.contains('@')).then(|| (one_line(&name).unwrap_or_default(), address))
+    (kind.eq_ignore_ascii_case("SMTP") && is_address(&address)).then(|| (one_line(&name).unwrap_or_default(), address))
 }

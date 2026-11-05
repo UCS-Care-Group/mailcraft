@@ -73,8 +73,9 @@ pub struct Contact {
     /// vCard `UID`, kept so an exported card updates the same contact elsewhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub uid: String,
-    /// Where in an imported .pst file the contact was (the file's identity and the item's node
-    /// id): how a second import of the file knows it is here already. Private: never shown,
+    /// Where in imported .pst files the contact was, each as the file's identity and the item's
+    /// node id, separated by spaces (a merge keeps those of every contact it joins): how a second
+    /// import of the file knows it is here already. Private: never shown,
     /// exported or handed to an agent.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub imported: String,
