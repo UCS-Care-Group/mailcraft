@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #565: a message's SVG pictures are drawn, with nothing they refer to ever fetched or read,
-//! and a drawing made to take the window down (by its size, its depth, its references or its
-//! filters) is a broken picture, quickly.
+//! #565: a message's SVG pictures are drawn when they are plain drawings, with nothing they refer
+//! to ever fetched or read; anything else, and a drawing made to take the window down (by its
+//! size, its depth, its copies or its layers), is a broken picture, quickly.
 
 use std::time::{Duration, Instant};
 
@@ -11,7 +11,7 @@ use mailcraft_model::{Address, Attachment, Body, Mailbox, Message};
 use serde_json::json;
 
 use super::images::{self, Pictures};
-use super::svg::{self, MAX_SVG_BYTES, MAX_SVG_DEPTH, MAX_SVG_PIXELS, MAX_SVG_SIDE};
+use super::svg::{self, MAX_SVG_BYTES, MAX_SVG_DEPTH, MAX_SVG_PIXELS, MAX_SVG_SIDE, REFUSED};
 use crate::{MailApp, Services};
 
 const NOW: i64 = 1_791_993_600;
@@ -41,6 +41,17 @@ fn refused(data: &[u8]) -> bool {
     let refused = images::probe(data).is_none() && images::decode(data, 512, 512).is_none();
     assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
     refused
+}
+
+fn b64(bytes: &[u8]) -> String {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    bytes
+        .chunks(3)
+        .flat_map(|group| {
+            let n = group.iter().enumerate().fold(0u32, |n, (i, b)| n | u32::from(*b) << (16 - 8 * i));
+            (0..4).map(move |i| if i <= group.len() { char::from(ABC[(n >> (18 - 6 * i) & 63) as usize]) } else { '=' })
+        })
+        .collect()
 }
 
 #[test]
@@ -78,36 +89,38 @@ fn an_svg_is_drawn_at_the_size_it_is_shown() {
     assert_eq!(pixel(&images::decode(&huge, 2048, 64).unwrap(), 10, 10), GREEN);
 }
 
-/// A drawing that refers to `address` every way a drawing can, each drawn in red.
-fn referring_to(address: &str) -> Vec<u8> {
-    drawing(
-        40,
-        40,
-        &format!(
-            "<style>@import url('{address}/sheet.css'); @font-face {{ font-family: X; src: url('{address}/font.woff') }} \
-             .far {{ fill: url('{address}/paint.svg#p') red }}</style>\
-             <image href='{address}/a.svg' x='0' y='0' width='40' height='40'/>\
-             <image xlink:href='{address}/b.svg' x='0' y='0' width='40' height='40'/>\
-             <image href='{address}/c.png' x='0' y='0' width='40' height='40'/>\
-             <use href='{address}/d.svg#r'/><use xlink:href='{address}/e.svg#r'/>\
-             <rect width='40' height='40' fill='url({address}/f.svg#p) red' opacity='0' class='far'/>\
-             <filter id='fi'><feImage href='{address}/g.svg'/></filter><rect width='40' height='40' filter='url(#fi)' fill='none'/>\
+/// Drawings that refer to `address` every way a drawing can: the first is a plain drawing whose
+/// paint and clip name it (drawn, those left out); the rest have what is refused.
+fn referring_to(address: &str) -> Vec<Vec<u8>> {
+    [
+        format!(
+            "<rect width='40' height='40' fill='url({address}/f.svg#p) #2e8b57' clip-path='url({address}/c.svg#c)'/>\
              <text x='1' y='20' font-family='X' fill='red'>words</text>"
         ),
-    )
+        format!("<style>@import url('{address}/sheet.css'); @font-face {{ font-family: X; src: url('{address}/font.woff') }}</style>"),
+        format!("<image href='{address}/a.svg' width='40' height='40'/><image xlink:href='{address}/b.png' width='40' height='40'/>"),
+        format!("<use href='{address}/d.svg#r'/><use xlink:href='{address}/e.svg#r'/>"),
+        format!("<filter id='fi'><feImage href='{address}/g.svg'/></filter><rect width='40' height='40' filter='url(#fi)'/>"),
+    ]
+    .iter()
+    .map(|body| drawing(40, 40, body))
+    .collect()
 }
 
 #[test]
 fn nothing_an_svg_refers_to_on_the_web_is_fetched() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
-    let address = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
-    for address in [address.clone(), address.replace("http:", "https:"), format!("//127.0.0.1:{}", listener.local_addr().unwrap().port())] {
-        let data = referring_to(&address);
-        let image = images::decode(&data, 2048, 40).unwrap();
-        assert_eq!(pixel(&image, 20, 20), GREEN, "{address}");
+    let port = listener.local_addr().unwrap().port();
+    for address in [format!("http://127.0.0.1:{port}"), format!("https://127.0.0.1:{port}"), format!("//127.0.0.1:{port}")] {
+        let drawings = referring_to(&address);
+        // Drawn, with what it names on the web taken as no paint and no clip.
+        assert!(images::decode(&drawings[0], 2048, 40).is_some(), "{address}");
+        for data in &drawings[1..] {
+            assert!(refused(data), "{address}");
+        }
     }
-    // Nobody came: the drawing is drawn and done, and nothing was asked of the server.
+    // Nobody came: nothing was asked of the server.
     match listener.accept() {
         Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock),
         Ok((_, from)) => panic!("an SVG made a connection from {from}"),
@@ -121,43 +134,29 @@ fn no_file_an_svg_refers_to_is_read() {
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("red.svg");
     std::fs::write(&file, format!("<svg {NS} width='40' height='40'><rect width='40' height='40' fill='red'/></svg>")).unwrap();
-    // As a drawing would load it (the default way would draw it in red: proved here, so that the
-    // test below proves something).
+    // As usvg would load it on its own (it draws it in red: proved here, so that the rest of the
+    // test proves something).
     let path = file.to_string_lossy().replace('\\', "/");
-    let names = [path.clone(), file.to_string_lossy().into_owned(), format!("file:///{}", path.trim_start_matches('/')), "red.svg".into()];
     let mut loads = resvg::usvg::Options { resources_dir: Some(dir.clone()), ..Default::default() };
     loads.image_href_resolver = resvg::usvg::ImageHrefResolver::default();
     let tree = resvg::usvg::Tree::from_data(&drawing(40, 40, &format!("<image href='{path}' width='40' height='40'/>")), &loads).unwrap();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(40, 40).unwrap();
     resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
-    assert_eq!(pixmap.pixel(20, 20).map(|p| [p.red(), p.green(), p.blue()]), Some([255, 0, 0]), "the default resolver reads files");
-    for name in names {
+    assert_eq!(pixmap.pixel(20, 20).map(|p| [p.red(), p.green(), p.blue()]), Some([255, 0, 0]), "usvg's own resolver reads files");
+    let red = b64(format!("<svg {NS} width='40' height='40'><rect width='40' height='40' fill='red'/></svg>").as_bytes());
+    let names = [path.clone(), file.to_string_lossy().into_owned(), format!("file:///{}", path.trim_start_matches('/')), "red.svg".into()];
+    for name in names.iter().map(String::as_str).chain([format!("data:image/svg+xml;base64,{red}").as_str()]) {
         for body in [
             format!("<image href='{name}' width='40' height='40'/>"),
             format!("<image xlink:href='{name}' width='40' height='40'/>"),
             format!("<filter id='f'><feImage href='{name}'/></filter><rect width='40' height='40' filter='url(#f)'/>"),
+            format!("<rect width='40' height='40' fill='url({name}#p) #2e8b57'/>"),
         ] {
-            let image = images::decode(&drawing(40, 40, &body), 2048, 40).unwrap();
-            assert!(!any_red(&image), "{body}");
+            // Refused, or drawn without it.
+            assert!(images::decode(&drawing(40, 40, &body), 2048, 40).is_none_or(|image| !any_red(&image)), "{body}");
         }
     }
-    // Nor one written into it: a drawing never holds another, nor a picture.
-    let red = b64(format!("<svg {NS} width='40' height='40'><rect width='40' height='40' fill='red'/></svg>").as_bytes());
-    let image =
-        images::decode(&drawing(40, 40, &format!("<image href='data:image/svg+xml;base64,{red}' width='40' height='40'/>")), 2048, 40).unwrap();
-    assert!(!any_red(&image));
     let _ = std::fs::remove_dir_all(&dir);
-}
-
-fn b64(bytes: &[u8]) -> String {
-    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    bytes
-        .chunks(3)
-        .flat_map(|group| {
-            let n = group.iter().enumerate().fold(0u32, |n, (i, b)| n | u32::from(*b) << (16 - 8 * i));
-            (0..4).map(move |i| if i <= group.len() { char::from(ABC[(n >> (18 - 6 * i) & 63) as usize]) } else { '=' })
-        })
-        .collect()
 }
 
 #[test]
@@ -175,8 +174,7 @@ fn what_an_svg_says_runs_never_does() {
         20,
         20,
         "<script>while(true){}</script><rect width='20' height='20' fill='#2e8b57' onload='alert(1)'/>\
-         <animate attributeName='fill' to='red' dur='1s'/><set attributeName='fill' to='red'/>\
-         <foreignObject width='20' height='20'><div xmlns='http://www.w3.org/1999/xhtml' style='background:red'>x</div></foreignObject>",
+         <animate attributeName='fill' to='red' dur='1s'/><set attributeName='fill' to='red'/>",
     );
     let image = images::decode(&data, 2048, 20).unwrap();
     assert_eq!(pixel(&image, 10, 10), GREEN);
@@ -190,9 +188,10 @@ fn entities_are_refused_and_a_plain_document_type_is_not() {
         (b'b'..=b'j').map(|c| format!("<!ENTITY {} '{}'>", char::from(c), format!("&{};", char::from(c - 1)).repeat(10))).collect::<String>()
     );
     assert!(refused(laughs.as_bytes()));
-    // One entity, however harmless, is refused: none is ever expanded.
+    // One entity, however harmless, is refused: none is ever expanded; so is any internal subset.
     assert!(refused(format!("<!DOCTYPE svg [<!ENTITY ns 'http://www.w3.org/2000/svg'>]><svg {NS} width='1' height='1'/>").as_bytes()));
     assert!(refused(format!("<!DOCTYPE svg [<!entity x SYSTEM 'file:///etc/passwd'>]><svg {NS} width='1' height='1'>&x;</svg>").as_bytes()));
+    assert!(refused(format!("<!DOCTYPE svg [<!ATTLIST svg x CDATA ']>'>]><svg {NS} width='8' height='8'/>").as_bytes()));
     // What drawing programs write before a drawing is fine.
     let plain = format!(
         "<?xml version='1.0' encoding='UTF-8'?>\n<!-- Generator: a drawing program -->\n<!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' \
@@ -217,13 +216,11 @@ fn an_svg_over_the_caps_is_refused() {
     assert!(refused(&big));
     // Too many elements.
     assert!(refused(&drawing(8, 8, &"<g/>".repeat(30_000))));
-    // Too deep, by nesting and by references in a chain.
+    // Too deep, however deep.
     let deep = |n: usize| drawing(8, 8, &format!("{}{}", "<g>".repeat(n), "</g>".repeat(n)));
-    assert!(refused(&deep(10_000)));
+    assert!(refused(&deep(30_000)));
     assert!(refused(&deep(MAX_SVG_DEPTH + 1)));
-    let chain: String = (0..MAX_SVG_DEPTH + 2).map(|i| format!("<use id='u{}' href='#u{i}'/>", i + 1)).collect();
-    assert!(refused(&drawing(8, 8, &format!("<defs><rect id='u0' width='1' height='1'/>{chain}</defs>"))));
-    // A drawing of no size, or not one at all.
+    // A drawing of no size.
     assert!(refused(format!("<svg {NS} width='0' height='10'/>").as_bytes()));
     assert!(refused(format!("<svg {NS} width='-5' height='10'/>").as_bytes()));
 }
@@ -239,8 +236,109 @@ fn an_svg_at_the_deepest_allowed_is_drawn_on_a_small_stack() {
 }
 
 #[test]
-fn references_inherited_from_a_group_are_counted_for_each_shape() {
-    // Patterns whose content takes its fill from a group: each shape copies the pattern below.
+fn only_a_plain_drawing_is_shown() {
+    // Each element whose content is copied, a style sheet, filters, pictures and foreign content.
+    for name in REFUSED.iter().chain(&["feGaussianBlur", "feOffset", "feTurbulence", "feMorphology"]) {
+        assert!(refused(&drawing(8, 8, &format!("<defs><{name} id='x'/></defs>"))), "{name}");
+        assert!(refused(&drawing(8, 8, &format!("<g><{name}/></g>"))), "{name}");
+    }
+    // `inherit` anywhere, a comment or an escape in a style, a clip inside a clip.
+    assert!(refused(&drawing(8, 8, "<g clip-path=' INHERIT '/>")));
+    assert!(refused(&drawing(8, 8, "<rect fill='inherit' width='8' height='8'/>")));
+    assert!(refused(&drawing(8, 8, "<rect style='fill: /**/ red' width='8' height='8'/>")));
+    assert!(refused(&drawing(8, 8, "<rect style='fill: \\75 rl(#g)' width='8' height='8'/>")));
+    assert!(refused(&drawing(
+        8,
+        8,
+        "<clipPath id='a'><rect width='1' height='1'/></clipPath><clipPath id='b' clip-path='url(#a)'><rect/></clipPath>"
+    )));
+    assert!(refused(&drawing(
+        8,
+        8,
+        "<clipPath id='a'><rect width='1' height='1'/></clipPath><clipPath id='b'><rect style='clip-path:url(#a)'/></clipPath>"
+    )));
+    // What drawing programs write for logos and icons is drawn: gradients and clips by
+    // attribute, opacity, nested drawings, links.
+    let mut body = String::from("<defs>");
+    for i in 0..60 {
+        body += &format!(
+            "<linearGradient id='g{i}' x1='0' x2='1'><stop offset='0' stop-color='#2e8b57'/><stop offset='1' stop-color='#2e8b57'/></linearGradient>\
+             <radialGradient id='r{i}' href='#g{i}'/><clipPath id='c{i}'><rect width='40' height='40'/></clipPath>"
+        );
+    }
+    body += "</defs>";
+    for i in 0..60 {
+        body += &format!(
+            "<g clip-path='url(#c{i})' opacity='0.999'><path fill='url(#g{i})' d='M0 0h40v40H0z'/><a href='#c1'><circle r='1' fill='url(#r{i})'/></a></g>"
+        );
+    }
+    body += "<svg width='10' height='10'><rect width='10' height='10' fill='#2e8b57'/></svg>";
+    let image = images::decode(&drawing(40, 40, &body), 2048, 40).unwrap();
+    assert!(pixel(&image, 30, 30)[1].abs_diff(GREEN[1]) <= 2, "{:?}", pixel(&image, 30, 30));
+}
+
+/// Review finding 1: a marker drawn at each point of a path whose numbers are packed so that a
+/// count of them comes short. Markers are refused, whatever the path.
+#[test]
+fn review_1_markers_at_packed_points_are_refused() {
+    let marker = format!("<marker id='m'>{}</marker>", "<rect width='1' height='1'/>".repeat(100));
+    for d in [
+        format!("M0 0L{}", "1.2.3.4.5.6.7.8.9".repeat(1_500)),
+        format!("M0 0L{}", "-1-2-3-4-5-6-7-8".repeat(1_500)),
+        format!("M0 0{}", "z".repeat(20_000)),
+    ] {
+        assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><path d='{d}' marker-mid='url(#m)'/>"))));
+        assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><g marker-mid='url(#m)'><path d='{d}'/></g>"))));
+    }
+}
+
+/// Review findings 2 and 3: rules of a style sheet matched against many elements of many classes,
+/// nested deep (quadratic, and work done before it was counted). A style sheet is refused before
+/// anything is matched, at once.
+#[test]
+fn review_2_and_3_a_style_sheet_is_refused_at_once() {
+    let sheet: String = (0..1_500).map(|i| format!(".c{i}{{opacity:0.5;fill:url(#g)}}")).collect();
+    let classes: String = (0..60).map(|i| format!("c{i} ")).collect();
+    let depth = MAX_SVG_DEPTH - 4;
+    let nested = format!(
+        "{}{}{}",
+        format!("<g class='{classes}'>").repeat(depth),
+        format!("<rect class='{classes}' width='1' height='1'/>").repeat(400),
+        "</g>".repeat(depth)
+    );
+    assert!(refused(&drawing(8, 8, &format!("<style>{sheet}</style>{nested}"))));
+    // Without the sheet, the same elements are a plain drawing.
+    assert!(images::probe(&drawing(8, 8, &nested)).is_some());
+}
+
+/// Review finding 4: copies counted by the elements written, not the elements drawn (through
+/// `<use>` and through what a group gives the shapes in it).
+#[test]
+fn review_4_copies_are_bounded_by_what_is_drawn() {
+    // `<use>`, which copies what it names, ten times ten times over.
+    let mut uses = String::from("<linearGradient id='l0'>".to_string() + &"<stop offset='0' stop-color='red'/>".repeat(50) + "</linearGradient>");
+    for level in 1..=6 {
+        uses += &format!("<g id='l{level}'>{}</g>", format!("<use href='#l{}'/><rect fill='url(#l0)'/>", level - 1).repeat(10));
+    }
+    assert!(refused(&drawing(8, 8, &format!("<defs>{uses}</defs><use href='#l6'/>"))));
+    // Under every bound counted by the elements written: a group of 600 shapes painted with a
+    // gradient of 500 stops, drawn 60 times, is 18 million stops copied.
+    let gradient = format!("<linearGradient id='g'>{}</linearGradient>", "<stop offset='0' stop-color='#2e8b57'/>".repeat(500));
+    let group = format!("<g id='a' fill='url(#g)'>{}</g>", "<rect width='1' height='1'/>".repeat(600));
+    assert!(refused(&drawing(8, 8, &format!("<defs>{gradient}{group}</defs>{}", "<use href='#a'/>".repeat(60)))));
+    // A gradient of many stops given by a group to many shapes: each shape copies the stops.
+    let gradient = format!("<linearGradient id='g'>{}</linearGradient>", "<stop offset='0' stop-color='#2e8b57'/>".repeat(3_000));
+    assert!(refused(&drawing(8, 8, &format!("{gradient}<g fill='url(#g)'>{}</g>", "<rect width='1' height='1'/>".repeat(1_000)))));
+    // A clip of many shapes given to many elements: each copies the clip's content.
+    let clip = format!("<clipPath id='c'>{}</clipPath>", "<rect width='1' height='1'/>".repeat(500));
+    assert!(refused(&drawing(8, 8, &format!("{clip}{}", "<rect width='1' height='1' clip-path='url(#c)'/>".repeat(500)))));
+    // Clips in clips through ids in any namespace, ten deep: no clip may be clipped.
+    let mut clips = String::from("<clipPath xml:id='p0'><rect width='1' height='1'/></clipPath>");
+    for k in 1..=10 {
+        clips += &format!("<clipPath xml:id='p{k}'>{}</clipPath>", format!("<rect width='1' height='1' clip-path='url(#p{})'/>", k - 1).repeat(10));
+    }
+    assert!(refused(&drawing(8, 8, &format!("<defs>{clips}</defs><rect width='8' height='8' clip-path='url(#p10)'/>"))));
+    // Patterns, masks and markers that copy themselves for what inherits them.
     let mut patterns = String::from("<pattern id='p0' width='1' height='1'><rect width='1' height='1'/></pattern>");
     for k in 1..=10 {
         patterns += &format!(
@@ -250,198 +348,34 @@ fn references_inherited_from_a_group_are_counted_for_each_shape() {
         );
     }
     assert!(refused(&drawing(8, 8, &format!("<defs>{patterns}</defs><rect width='8' height='8' fill='url(#p10)'/>"))));
-    // A marker given to a group, drawn at every point of the shapes in it.
-    let points: String = (0..10_000).map(|i| format!(" {},{}", i % 8, i % 7)).collect();
-    let marker = format!("<marker id='m'>{}</marker>", "<rect width='1' height='1'/>".repeat(500));
-    assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><g marker-mid='url(#m)'><polyline points='{points}'/></g>"))));
-    // A mask a shape takes from its group with `inherit`.
-    let mask = format!("<mask id='m'>{}</mask>", "<rect width='1' height='1'/>".repeat(5_000));
-    let shapes = "<rect width='1' height='1' mask='inherit'/>".repeat(5_000);
-    assert!(refused(&drawing(8, 8, &format!("<defs>{mask}</defs><g mask='url(#m)'>{shapes}</g>"))));
-    let shapes = "<rect width='1' height='1' style='clip-path: inherit'/>".repeat(5_000);
-    let clip = mask.replace("mask", "clipPath");
-    assert!(refused(&drawing(8, 8, &format!("<defs>{clip}</defs><g clip-path='url(#m)'>{shapes}</g>"))));
-}
-
-#[test]
-fn a_target_named_any_way_the_renderer_finds_it_is_counted() {
-    // An id in the XML or the SVG namespace is an id to the renderer: clips in clips, ten deep.
-    let mut clips = String::from("<clipPath xml:id='p0'><rect width='1' height='1'/></clipPath>");
-    for k in 1..=10 {
-        clips += &format!("<clipPath xml:id='p{k}'>{}</clipPath>", format!("<rect width='1' height='1' clip-path='url(#p{})'/>", k - 1).repeat(10));
-    }
-    assert!(refused(&drawing(8, 8, &format!("<defs>{clips}</defs><rect width='8' height='8' clip-path='url(#p10)'/>"))));
-    let svg_ns = clips.replace("xml:id=", "svg:id=");
-    assert!(refused(
-        format!(
-            "<svg {NS} xmlns:svg='http://www.w3.org/2000/svg' width='8' height='8'><defs>{svg_ns}</defs><rect width='8' height='8' clip-path='url(#p10)'/></svg>"
-        )
-        .as_bytes()
-    ));
-    // `url()` with spaces and quotes, as the renderer reads it.
-    let spaced = clips.replace("xml:id=", "id=").replace("url(#", "url(  \"#").replace(")'/>", "  \" )'/>");
-    assert!(refused(&drawing(8, 8, &format!("<defs>{spaced}</defs><rect width='8' height='8' clip-path='url(#p10)'/>"))));
-    // A style sheet's reference to anything but a gradient, however its rules are written (a
-    // quoted brace or semicolon would hide a rule from a careless reader).
-    let mut quoted = String::from("<clipPath id='q0'><rect width='1' height='1'/></clipPath>");
-    let mut sheet = String::new();
-    for k in 1..=10 {
-        quoted += &format!("<clipPath id='q{k}'>{}</clipPath>", format!("<rect width='1' height='1' class='c{}'/>", k - 1).repeat(10));
-        sheet += &format!(".c{} {{ font-family: \"}};{{\"; clip-path: url(#q{}) }} ", k - 1, k - 1);
-    }
-    assert!(refused(&drawing(8, 8, &format!("<style>{sheet}</style><defs>{quoted}</defs><rect width='8' height='8' class='c9'/>"))));
-    // A style that escapes what it says is not read for what it might mean: it is refused.
-    assert!(refused(&drawing(8, 8, "<style>.a { fill: \\75 rl(#g) }</style><rect class='a' width='8' height='8'/>")));
-    assert!(refused(&drawing(8, 8, "<rect style='fill: \\75 rl(#g)' width='8' height='8'/>")));
-    // An internal subset of the document type, which nothing needs.
-    assert!(refused(format!("<!DOCTYPE svg [<!ATTLIST svg x CDATA ']>'>]><svg {NS} width='8' height='8'/>").as_bytes()));
-}
-
-#[test]
-fn the_points_of_a_shape_are_never_counted_short() {
-    // Numbers run together as the path grammar allows, and commands with no number at all.
-    let marker = format!("<marker id='m'>{}</marker>", "<rect width='1' height='1'/>".repeat(100));
-    for d in [
-        format!("M0 0L{}", "1.2.3.4.5.6.7.8.9".repeat(1_500)),
-        format!("M0 0L{}", "-1-2-3-4-5-6-7-8".repeat(1_500)),
-        format!("M0 0{}", "z".repeat(20_000)),
-    ] {
-        assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><path d='{d}' marker-mid='url(#m)'/>"))), "{}", &d[..20]);
-    }
-}
-
-#[test]
-fn a_style_sheet_of_many_rules_and_classes_is_weighed_quickly() {
-    // Many rules, and many elements nested deep, each of many classes: the sheet is never matched
-    // against the elements, so it is drawn at once.
-    let sheet: String = (0..1_500).map(|i| format!(".c{i}{{opacity:0.5;fill:url(#g)}}")).collect();
-    let classes: String = (0..60).map(|i| format!("c{i} ")).collect();
-    let depth = MAX_SVG_DEPTH - 4;
-    let nested = format!(
-        "{}{}{}",
-        format!("<g class='{classes}'>").repeat(depth),
-        format!("<rect class='{classes}' width='1' height='1'/>").repeat(2_000),
-        "</g>".repeat(depth)
-    );
-    let gradient = "<linearGradient id='g'><stop offset='0' stop-color='#2e8b57'/></linearGradient>";
-    let start = Instant::now();
-    assert!(images::decode(&drawing(8, 8, &format!("<style>{sheet}</style>{gradient}{nested}")), 64, 8).is_some());
-    assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
-}
-
-#[test]
-fn what_is_copied_depending_on_where_it_is_drawn_is_refused() {
-    // A pattern or a marker, wherever it is, and a style sheet referring to anything but a
-    // gradient: what they come to depends on what inherits them or what the sheet matches.
-    assert!(refused(&drawing(8, 8, "<pattern id='p' width='1' height='1'><rect width='1' height='1'/></pattern>")));
-    assert!(refused(&drawing(8, 8, "<defs><marker id='m'><rect width='1' height='1'/></marker></defs><path d='M0 0L8 8'/>")));
+    let mask = format!("<mask id='m'>{}</mask>", "<rect width='1' height='1'/>".repeat(2_000));
     assert!(refused(&drawing(
         8,
         8,
-        "<style>.k { clip-path: url(#c) }</style><clipPath id='c'><rect width='1' height='1'/></clipPath><g class='k'/>"
+        &format!("<defs>{mask}</defs><g mask='url(#m)'>{}</g>", "<rect width='1' height='1' mask='inherit'/>".repeat(2_000))
     )));
-    assert!(refused(&drawing(8, 8, "<style>.k { filter: url(#f) }</style><filter id='f'><feOffset/></filter><g class='k'/>")));
-    // `inherit` anywhere in a style, or for a clip, a mask or a filter in an attribute.
-    assert!(refused(&drawing(8, 8, "<style>.k { fill: inherit }</style>")));
-    assert!(refused(&drawing(8, 8, "<g clip-path=' INHERIT '/>")));
-    // A comment in a style.
-    assert!(refused(&drawing(8, 8, "<rect style='fill: /**/ red' width='8' height='8'/>")));
-    // Gradients from a style sheet are drawn, as drawing programs export them.
-    let gradient = "<style>.f { fill: url(#g) }</style><linearGradient id='g'><stop offset='0' stop-color='#2e8b57'/></linearGradient>\
-                    <rect class='f' width='8' height='8'/>";
-    assert_eq!(pixel(&images::decode(&drawing(8, 8, gradient), 64, 8).unwrap(), 4, 4), GREEN);
-}
-
-#[test]
-fn references_that_multiply_are_refused() {
-    // Ten deep, each ten times the one before: 10^10 copies.
-    let mut uses = String::from("<rect id='l0' width='1' height='1'/>");
-    for level in 1..=10 {
-        uses += &format!("<g id='l{level}'>{}</g>", format!("<use href='#l{}'/>", level - 1).repeat(10));
-    }
-    assert!(refused(&drawing(8, 8, &format!("<defs>{uses}</defs><use href='#l10'/>"))));
-    assert!(refused(&drawing(8, 8, &format!("<defs>{}</defs><use xlink:href='#l10'/>", uses.replace("href=", "xlink:href=")))));
-    // Patterns that fill with patterns, through a style sheet and through attributes.
-    let mut patterns = String::from("<pattern id='p0' width='1' height='1'><rect width='1' height='1'/></pattern>");
-    for level in 1..=10 {
-        patterns += &format!(
-            "<pattern id='p{level}' width='1' height='1'>{}</pattern>",
-            format!("<rect width='1' height='1' class='c{}'/>", level - 1).repeat(10)
-        );
-    }
-    let sheet: String = (0..=10).map(|i| format!(".c{i} {{ fill: url(#p{i}) }}")).collect();
-    assert!(refused(&drawing(8, 8, &format!("<style>{sheet}</style><defs>{patterns}</defs><rect width='8' height='8' class='c10'/>"))));
-    let attributes = patterns.replace(" class='c", " fill='url(#p").replace("'/>", ")'/>");
-    assert!(refused(&drawing(8, 8, &format!("<defs>{attributes}</defs><rect width='8' height='8' fill='url(#p10)'/>"))));
-    // Clips and masks the same way, a selector that matches everything, and a marker at each
-    // of very many points.
-    let mut masks = String::from("<mask id='m0'><rect width='1' height='1'/></mask>");
-    for level in 1..=10 {
-        masks += &format!(
-            "<mask id='m{level}'>{}</mask>",
-            "<rect width='1' height='1' style='mask: url(#mX)'/>".replace('X', &(level - 1).to_string()).repeat(10)
-        );
-    }
-    assert!(refused(&drawing(8, 8, &format!("<defs>{masks}</defs><rect width='8' height='8' mask='url(#m10)'/>"))));
-    assert!(refused(&drawing(8, 8, "<style>* { clip-path: url(#c) }</style><clipPath id='c'><rect width='1' height='1'/></clipPath>")));
-    let points: String = (0..20_000).map(|i| format!(" {} {}", i % 8, i % 7)).collect();
-    let marker = format!("<marker id='mk'>{}</marker>", "<rect width='1' height='1'/>".repeat(100));
-    assert!(refused(&drawing(8, 8, &format!("<defs>{marker}</defs><polyline points='{points}' marker-mid='url(#mk)'/>"))));
     // A reference to itself.
     assert!(refused(&drawing(8, 8, "<g id='me'><use href='#me'/></g>")));
 }
 
+/// Review finding 5: the layers counted by the elements written. They are counted in the tree
+/// the renderer made, where each element a clip is given to is a layer of its own.
 #[test]
-fn what_drawing_programs_write_is_not_mistaken_for_a_bomb() {
-    // Gradients from a style sheet and clips by attribute, as drawing programs export them, many
-    // of each.
-    let mut body = String::from("<defs><style>");
-    for i in 0..60 {
-        body += &format!(".f{i}{{fill:url(#g{i});}}.o{i}{{opacity:0.9}}");
-    }
-    body += "</style>";
-    for i in 0..60 {
-        body += &format!(
-            "<linearGradient id='g{i}' x1='0' x2='1'><stop offset='0' stop-color='#2e8b57'/><stop offset='1' stop-color='#2e8b57'/></linearGradient>\
-             <clipPath id='c{i}'><rect width='40' height='40'/></clipPath>"
-        );
-    }
-    body += "</defs>";
-    for i in 0..60 {
-        body += &format!("<g clip-path='url(#c{i})'><path class='f{i}' d='M0 0h40v40H0z'/><use href='#s'/></g>");
-    }
-    body += "<symbol id='s'><circle r='1' fill='#2e8b57'/></symbol>";
-    // A drop shadow.
-    body += "<filter id='sh'><feGaussianBlur stdDeviation='2'/><feOffset dx='1' dy='1'/><feMerge><feMergeNode/><feMergeNode in='SourceGraphic'/></feMerge></filter>\
-             <rect width='10' height='10' fill='#2e8b57' filter='url(#sh)'/>";
-    let image = images::decode(&drawing(40, 40, &body), 2048, 40).unwrap();
-    assert_eq!(pixel(&image, 30, 30), GREEN);
-}
-
-#[test]
-fn filters_that_cost_without_bound_are_refused() {
-    for filter in [
-        "<feMorphology radius='1'/>",
-        "<feTurbulence baseFrequency='0.05' numOctaves='1000000000'/>",
-        "<feConvolveMatrix order='40' kernelMatrix='1'/>",
-    ] {
-        let data = drawing(8, 8, &format!("<filter id='f'>{filter}</filter><rect width='8' height='8' filter='url(#f)'/>"));
-        assert!(refused(&data), "{filter}");
-    }
-    // Within bounds they are drawn.
-    let data =
-        drawing(8, 8, "<filter id='f'><feTurbulence baseFrequency='0.05' numOctaves='4'/></filter><rect width='8' height='8' filter='url(#f)'/>");
-    assert!(images::decode(&data, 64, 8).is_some());
-}
-
-#[test]
-fn a_drawing_of_many_layers_is_drawn_with_fewer_pixels() {
-    let many: String = (0..800).map(|i| format!("<rect x='{}' width='1' height='40' fill='#2e8b57' opacity='0.5'/>", i % 40)).collect();
+fn review_5_layers_are_counted_in_the_tree_that_is_drawn() {
     let few = svg::probe(&drawing(40, 40, "")).unwrap();
-    let layered = svg::probe(&drawing(40, 40, &many)).unwrap();
+    let clip = "<clipPath id='c'><rect width='40' height='40'/></clipPath>";
+    let clipped =
+        svg::probe(&drawing(40, 40, &format!("{clip}{}", "<rect width='1' height='1' fill='#2e8b57' clip-path='url(#c)'/>".repeat(150)))).unwrap();
+    assert!(clipped.max_pixels < few.max_pixels / 2, "{} {}", clipped.max_pixels, few.max_pixels);
+    let opaque: String = (0..800).map(|i| format!("<rect x='{}' width='1' height='40' fill='#2e8b57' opacity='0.5'/>", i % 40)).collect();
+    let layered = svg::probe(&drawing(40, 40, &opaque)).unwrap();
     assert!(layered.max_pixels < few.max_pixels, "{} {}", layered.max_pixels, few.max_pixels);
-    let image = images::decode(&drawing(40, 40, &many), 8192, 8192).unwrap();
+    let image = images::decode(&drawing(40, 40, &opaque), 8192, 8192).unwrap();
     assert!((image.size[0] * image.size[1]) as u64 <= layered.max_pixels, "{:?}", image.size);
+    // A style sheet's opacity on a group drawn many times over (layers counted by the elements
+    // written would be few): refused, as any style sheet and any `<use>` is.
+    let group = format!("<g id='a'>{}</g>", "<rect class='o' width='1' height='1'/>".repeat(900));
+    assert!(refused(&drawing(40, 40, &format!("<style>.o {{ opacity: 0.5 }}</style><defs>{group}</defs>{}", "<use href='#a'/>".repeat(60)))));
 }
 
 #[test]
@@ -482,10 +416,10 @@ fn arbitrary_and_damaged_svgs_never_panic() {
     let good = drawing(
         16,
         16,
-        "<defs><linearGradient id='g'><stop offset='0' stop-color='red'/></linearGradient><clipPath id='c'><circle r='4'/></clipPath>\
-         <filter id='f'><feGaussianBlur stdDeviation='1'/></filter></defs>\
-         <path d='M1 1 L15 15 Q 8 0 1 15 Z' fill='url(#g)' clip-path='url(#c)' filter='url(#f)' stroke-dasharray='1 2' stroke='blue'/>\
-         <use href='#c'/><style>.a{fill:url(#g)}</style>",
+        "<defs><linearGradient id='g'><stop offset='0' stop-color='red'/></linearGradient><radialGradient id='r' href='#g'/>\
+         <clipPath id='c'><circle r='4'/></clipPath></defs>\
+         <path d='M1 1 L15 15 Q 8 0 1 15 Z' fill='url(#g)' clip-path='url(#c)' stroke-dasharray='1 2' stroke='url(#r)' opacity='.5'/>\
+         <g transform='rotate(30)' style='fill:url(#g)'><ellipse rx='3' ry='2'/></g>",
     );
     let pieces = ["<", ">", "/", "'", "=", " ", "<g>", "</g>", "url(#", "#g", "href='#c'", "<!--", "]]>", "<![CDATA[", "&amp;", "&#x0;", "e9", "-"];
     for round in 0..600 {

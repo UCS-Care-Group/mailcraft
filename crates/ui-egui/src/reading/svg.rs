@@ -4,57 +4,53 @@
 //! (`cid:`), written into it (`data:`) or, when the owner asked for its pictures, on the web.
 //! An `<svg>` element in the message itself is not drawn.
 //!
-//! A drawing is a stranger's program for a renderer, so it is read in steps that each refuse
-//! what could take the window down or reach outside the drawing, and drawn with `resvg`:
+//! A drawing is a stranger's program for a renderer, so only plain drawings are shown, the kind
+//! logos and icons are: shapes, groups, gradients and clips. Everything else is a broken
+//! picture, as a damaged PNG is:
 //!
-//! - **Nothing is loaded from outside it.** Every picture, drawing, style sheet or font a drawing
-//!   names, on the web, on this computer or written into it, is left out: the resolvers that
-//!   would load them answer nothing ([`options`]), no folder is given to look in, `<use>` and
-//!   paint only ever refer to the drawing's own elements, and the renderer is built without
-//!   text, so no font is looked for (a drawing's words are not drawn). Scripts, animation and
-//!   links do nothing: resvg has none of them.
-//! - **It is read within caps, before the renderer sees it:** [`MAX_SVG_BYTES`] of UTF-8, not
-//!   packed (an `svgz` is not unpacked, so it is no SVG here), nesting no deeper than
-//!   [`MAX_SVG_DEPTH`] by a scan with no stack before the XML reader (which recurses) sees it,
-//!   at most [`MAX_SVG_NODES`] nodes, and no entity declared (none is then expanded: an entity
-//!   bomb is refused unread).
-//! - **What could be copied depending on where it is drawn is refused, and the rest weighed
-//!   ([`Weigh`]).** The renderer copies what a reference names for each element that refers to
-//!   it, and an element can be given a reference by its ancestors (paint and markers inherit; a
-//!   clip, mask or filter with `inherit`) or by any rule of a style sheet that matches it. So a
-//!   drawing with a `<pattern>` or a `<marker>`, a clip, mask or filter that says `inherit`, a
-//!   style with a comment, an escape or `inherit` in it, or a style sheet that refers to anything
-//!   but a gradient is refused (a gradient's copies are its stops, bounded for the drawing as a
-//!   whole). What is left is copied the same wherever it is drawn: each element is weighed once,
-//!   with its children and what its own attributes refer to (`<use>`, a clip, mask, filter or
-//!   gradient), read as the renderer reads them (an id in any namespace, `url()` as `svgtypes`
-//!   parses it). The elements drawn may come to at most `MAX_SVG_COST`, nesting and references
-//!   [`MAX_SVG_DEPTH`] deep (the window's thread has a small stack). A reference to itself is
-//!   refused. The filters whose cost has no bound (`feMorphology`, `feTurbulence` of many
-//!   octaves, `feConvolveMatrix` of a large kernel) are refused.
+//! - **Nothing is loaded from outside it.** The resolvers usvg would load a picture or another
+//!   drawing with answer nothing ([`options`]), no folder is given to look in, and the renderer is
+//!   built without text, so no font is looked for (a drawing's words are not drawn). Scripts,
+//!   animation and links do nothing: resvg has none of them.
+//! - **Refused before it is read:** more than [`MAX_SVG_BYTES`], not UTF-8, packed (`svgz` is not
+//!   unpacked), nesting deeper than [`MAX_SVG_DEPTH`] (by a scan with no stack, before the XML
+//!   reader, which recurses, sees it), more than [`MAX_SVG_NODES`] nodes, an entity or an
+//!   internal subset of the document type, or a root that is no `<svg>` in SVG's namespace.
+//! - **Refused for what it has ([`REFUSED`]):** the elements whose content the renderer copies
+//!   for each element that uses them, or that inherits them from a group (`<use>`, `<pattern>`,
+//!   `<marker>`, `<mask>`), style sheets (`<style>`, which could give any element anything), and
+//!   filters, pictures and foreign content; `inherit` in any value; a comment or an escape in a
+//!   `style`; and a clip inside a clip.
+//! - **What is left is bounded before it is read:** a clip's content is copied for each element
+//!   it clips, and a gradient's stops for each element painted with it, so the elements clipped
+//!   times the elements in clips, and the elements (with those copies) times the gradients'
+//!   stops, are capped.
+//! - **The tree usvg made is counted** ([`counted`]): at most `MAX_SVG_COST` nodes, and its
+//!   layers (groups drawn apart, for opacity or a clip) set the pixels it is drawn with.
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
-//!   texture caps and [`MAX_SVG_PIXELS`]; a drawing of many layers (each one a pass over its
-//!   pixels) is drawn with fewer.
+//!   texture caps and [`MAX_SVG_PIXELS`]; a drawing of many layers is drawn with fewer.
 //!
-//! Anything refused, damaged or not an SVG drawing by its bytes is a broken picture, as a damaged
-//! PNG is. Parsing and drawing are somebody else's code reading hostile bytes: a panic in them
-//! is a broken picture too.
-
-use std::collections::HashMap;
+//! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
+//! broken picture too.
 
 use resvg::{tiny_skia, usvg, usvg::roxmltree};
 
 /// Largest drawing that is read, in bytes.
-pub const MAX_SVG_BYTES: usize = 2 * 1024 * 1024;
+pub const MAX_SVG_BYTES: usize = 256 * 1024;
 
 /// Most nodes (elements, text, comments) of a drawing.
 pub const MAX_SVG_NODES: u32 = 20_000;
 
-/// Deepest a drawing's elements may nest, references followed counting as a step each.
+/// Deepest a drawing's elements may nest.
 pub const MAX_SVG_DEPTH: usize = 40;
 
-/// Most elements a drawing may come to with every reference counted with what it brings.
+/// Most nodes the tree usvg makes of a drawing may have, its clips' and the copies of them in.
 const MAX_SVG_COST: u64 = 100_000;
+
+/// Most copies of what is in clips (the elements clipped times the elements in clips), and of
+/// gradients' stops (the elements times the stops and gradients), a drawing may come to.
+const MAX_CLIP_COPIES: u64 = 100_000;
+const MAX_GRADIENT_COPIES: u64 = 2_000_000;
 
 /// Longest side a drawing is taken to have, in pixels: one that says it is larger is shown as
 /// if it said this, its shape kept.
@@ -65,15 +61,13 @@ pub const MAX_SVG_PIXELS: u64 = 4_000_000;
 const MIN_SVG_PIXELS: u64 = 256 * 256;
 
 /// The pixels the layers of one drawing may take all together: the passes of its group
-/// opacities, clips, masks, patterns and filter steps over the pixels it is drawn with.
+/// opacities and clips over the pixels it is drawn with.
 const LAYER_WORK: u64 = 400_000_000;
 
-/// Most text of a drawing's style sheets.
-const MAX_SHEET_BYTES: usize = 64 * 1024;
-
-/// The largest `numOctaves` of `feTurbulence`, and kernel of `feConvolveMatrix`, that is drawn.
-const MAX_OCTAVES: f32 = 8.0;
-const MAX_KERNEL_ORDER: f32 = 5.0;
+/// The elements a drawing that is shown may not have (any element whose name begins `fe`, a
+/// filter's step, is refused too).
+pub const REFUSED: &[&str] =
+    &["use", "pattern", "marker", "mask", "style", "filter", "image", "foreignObject", "symbol", "tref", "textPath", "feImage"];
 
 /// What is known of a drawing that can be shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,7 +83,7 @@ pub fn is_svg(data: &[u8]) -> bool {
     mailcraft_html::looks_like_svg(data)
 }
 
-/// What a drawing is, read and weighed; `None` when it is not one that is shown.
+/// What a drawing is, read and counted; `None` when it is not one that is shown.
 pub fn probe(data: &[u8]) -> Option<Drawing> {
     std::panic::catch_unwind(|| read(data).and_then(|(tree, layers)| drawing(&tree, layers))).ok().flatten()
 }
@@ -165,9 +159,84 @@ fn read(data: &[u8]) -> Option<(usvg::Tree, u64)> {
     if root.tag_name().name() != "svg" || root.tag_name().namespace() != Some("http://www.w3.org/2000/svg") {
         return None;
     }
-    let layers = Weigh::new(&document)?.total(root)?.layers;
+    plain(&document)?;
     let tree = usvg::Tree::from_xmltree(&document, &options()).ok()?;
+    let layers = counted(&tree)?;
     Some((tree, layers))
+}
+
+/// `Some` when `document` is a plain drawing: none of what is [`REFUSED`], and what the renderer
+/// copies of clips and gradients within bounds.
+fn plain(document: &roxmltree::Document) -> Option<()> {
+    let (mut elements, mut clipped, mut in_clips, mut stops) = (0u64, 0u64, 0u64, 0u64);
+    for node in document.descendants().filter(roxmltree::Node::is_element) {
+        let name = node.tag_name().name();
+        if REFUSED.contains(&name) || name.starts_with("fe") {
+            return None;
+        }
+        elements += 1;
+        let in_clip = node.ancestors().any(|a| a.tag_name().name() == "clipPath");
+        let mut clips = false;
+        for attribute in node.attributes() {
+            let value = attribute.value();
+            let lower = value.to_ascii_lowercase();
+            if lower.contains("inherit") {
+                return None;
+            }
+            match attribute.name() {
+                "style" if value.contains("/*") || value.contains('\\') => return None,
+                "style" => clips |= lower.contains("clip-path"),
+                "clip-path" => clips = true,
+                _ => {}
+            }
+        }
+        // A clip's content (or a clip itself) clipped again would be copied for each copy.
+        if clips && in_clip {
+            return None;
+        }
+        clipped += u64::from(clips);
+        if in_clip && name != "clipPath" {
+            in_clips += 1;
+        }
+        if matches!(name, "stop" | "linearGradient" | "radialGradient") {
+            stops += 1;
+        }
+    }
+    let clip_copies = clipped.saturating_mul(in_clips);
+    let drawn = elements.saturating_add(clip_copies);
+    (clip_copies <= MAX_CLIP_COPIES && drawn.saturating_mul(stops) <= MAX_GRADIENT_COPIES).then_some(())
+}
+
+/// The layers of the tree usvg made (groups drawn apart, for an opacity or a clip, and the
+/// clips themselves), counting every node it has, its clips' content included; `None` for one of
+/// more than `MAX_SVG_COST` nodes.
+fn counted(tree: &usvg::Tree) -> Option<u64> {
+    let (mut nodes, mut layers) = (0u64, 0u64);
+    let mut groups = vec![tree.root()];
+    while let Some(group) = groups.pop() {
+        nodes += 1;
+        layers += u64::from(group.should_isolate());
+        let mut clip = group.clip_path();
+        while let Some(path) = clip {
+            nodes += 1;
+            layers += 1;
+            groups.push(path.root());
+            clip = path.clip_path();
+            if nodes > MAX_SVG_COST {
+                return None;
+            }
+        }
+        for child in group.children() {
+            nodes += 1;
+            if let usvg::Node::Group(child) = child {
+                groups.push(child);
+            }
+        }
+        if nodes > MAX_SVG_COST {
+            return None;
+        }
+    }
+    Some(layers)
 }
 
 /// How deep the elements of XML text nest, at most, read a byte at a time with no stack: tags
@@ -218,245 +287,4 @@ fn nesting(text: &str) -> Option<usize> {
         };
     }
     Some(deepest)
-}
-
-/// What one element comes to: the elements drawn, the layers among them, and how many steps
-/// deep it goes, through what it holds and what it refers to (the renderer follows each).
-#[derive(Clone, Copy, Debug, Default)]
-struct Cost {
-    elements: u64,
-    layers: u64,
-    height: usize,
-}
-
-impl Cost {
-    /// `other`, held or referred to `times` over, added; `None` past the cap.
-    fn and(self, other: Cost, times: u64) -> Option<Cost> {
-        let elements = self.elements.saturating_add(other.elements.saturating_mul(times));
-        let layers = self.layers.saturating_add(other.layers.saturating_mul(times));
-        let height = self.height.max(other.height.saturating_add(1));
-        (elements <= MAX_SVG_COST && height <= MAX_SVG_DEPTH).then_some(Cost { elements, layers, height })
-    }
-}
-
-fn is_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r')
-}
-
-/// The ids a value refers to with `url(#id)`, read as the renderer reads one (`svgtypes`'
-/// `FuncIRI`: spaces skipped, a quote or none, `#`, then to the quote, or to a space or `)`),
-/// wherever in the value one begins, in any letter case: never fewer than the renderer finds.
-fn func_iris(value: &str) -> Vec<String> {
-    let bytes = value.as_bytes();
-    let lower = value.to_ascii_lowercase();
-    let mut ids = Vec::new();
-    for (at, _) in lower.match_indices("url(") {
-        let mut j = at + 4;
-        while bytes.get(j).copied().is_some_and(is_space) {
-            j += 1;
-        }
-        let quote = bytes.get(j).copied().filter(|b| *b == b'\'' || *b == b'"');
-        if quote.is_some() {
-            j += 1;
-            while bytes.get(j).copied().is_some_and(is_space) {
-                j += 1;
-            }
-        }
-        if bytes.get(j) != Some(&b'#') {
-            continue;
-        }
-        j += 1;
-        let rest = bytes.get(j..).unwrap_or_default();
-        let end = match quote {
-            Some(q) => rest.iter().position(|b| *b == q),
-            None => rest.iter().position(|b| *b == b' ' || *b == b')'),
-        }
-        .map_or(bytes.len(), |n| j + n);
-        let id = value.get(j..end).unwrap_or_default();
-        let id = if quote.is_some() { id.trim_end() } else { id };
-        if !id.is_empty() {
-            ids.push(id.to_string());
-        }
-    }
-    ids
-}
-
-/// The id an `href` refers to, read as the renderer reads one (`svgtypes`' IRI: spaces
-/// skipped, `#`, then to a space).
-fn iri(value: &str) -> Option<String> {
-    let rest = value.trim_start_matches([' ', '\t', '\n', '\r']).strip_prefix('#')?;
-    let id = rest.split(' ').next().unwrap_or_default();
-    (!id.is_empty()).then(|| id.to_string())
-}
-
-/// The properties that draw an element as a layer of its own.
-const LAYER_PROPERTIES: &[&str] = &["opacity", "filter", "mask", "clip-path", "mix-blend-mode", "isolation"];
-
-/// The elements a reference to which draws a layer of its own.
-const LAYER_ELEMENTS: &[&str] = &["mask", "clipPath", "filter"];
-
-/// The paint a drawing's style sheet may refer to: gradients, whose copies are their stops.
-const GRADIENTS: &[&str] = &["linearGradient", "radialGradient"];
-
-/// The elements a drawing that is shown may not have. A pattern is painted by any shape that
-/// inherits it, and a marker drawn at every point of any shape that inherits it: what they
-/// would come to depends on where they are inherited, which is not weighed; and `feMorphology`
-/// costs without bound.
-const REFUSED_ELEMENTS: &[&str] = &["pattern", "marker", "feMorphology"];
-
-/// Most stops of gradients a drawing may come to, each element taking a copy of each gradient
-/// (as many as a style sheet or an inherited paint could give it).
-const MAX_GRADIENT_COPIES: u64 = 2_000_000;
-
-/// Whether the text of a style (a sheet or a `style` attribute) is refused: a comment or an
-/// escape, which could make a reference of what doesn't read as one, or `inherit`, which could
-/// give an element a clip, mask or filter its parent has. No drawing needs them.
-fn style_refused(text: &str) -> bool {
-    text.contains("/*") || text.contains('\\') || text.to_ascii_lowercase().contains("inherit")
-}
-
-#[derive(Clone, Copy)]
-enum State {
-    New,
-    /// Being weighed: met again, it refers to itself.
-    Busy,
-    Done(Cost),
-}
-
-/// The weighing of a drawing. With patterns, markers and `inherit` refused, and a style sheet
-/// that refers only to gradients, what an element comes to doesn't depend on where it is drawn:
-/// its children and what its own attributes refer to (`href`, `url(#…)` in any attribute and its
-/// `style`), each element weighed once and taken as known after. Copies of gradients, which an
-/// element may take from its ancestors or a style sheet, are bounded for the drawing as a whole.
-struct Weigh<'a, 'input> {
-    ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>>,
-    states: Vec<State>,
-    /// Layers the style sheet may give: as many as there are elements, if it names a property
-    /// that makes one.
-    sheet_layers: u64,
-}
-
-impl<'a, 'input> Weigh<'a, 'input> {
-    /// Ready to weigh `document`; `None` when it has what is refused.
-    fn new(document: &'a roxmltree::Document<'input>) -> Option<Self> {
-        let mut ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>> = HashMap::new();
-        let mut sheet = String::new();
-        let (mut last, mut elements, mut stops) = (0, 0u64, 0u64);
-        for node in document.descendants() {
-            last = last.max(node.id().get_usize());
-            if !node.is_element() {
-                continue;
-            }
-            elements += 1;
-            let name = node.tag_name().name();
-            let number = |name: &str| {
-                node.attribute(name).map(|v| v.split([' ', ',', '\t', '\r', '\n']).filter_map(|n| n.trim().parse::<f32>().ok()).collect::<Vec<_>>())
-            };
-            let refused = REFUSED_ELEMENTS.contains(&name)
-                || match name {
-                    "feTurbulence" => number("numOctaves").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_OCTAVES)),
-                    "feConvolveMatrix" => number("order").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_KERNEL_ORDER)),
-                    _ => false,
-                };
-            if refused {
-                return None;
-            }
-            if name == "style" {
-                for text in node.children().filter_map(|t| t.text()) {
-                    sheet.push_str(text);
-                    sheet.push('\n');
-                }
-                if sheet.len() > MAX_SHEET_BYTES {
-                    return None;
-                }
-            }
-            if name == "stop" || GRADIENTS.contains(&name) {
-                stops += 1;
-            }
-            for attribute in node.attributes() {
-                let value = attribute.value();
-                match attribute.name() {
-                    // An id in any namespace: the renderer takes one in SVG's, XLink's or XML's too.
-                    "id" => ids.entry(value).or_default().push(node),
-                    "style" if style_refused(value) => return None,
-                    "clip-path" | "mask" | "filter" if value.trim().eq_ignore_ascii_case("inherit") => return None,
-                    _ => {}
-                }
-            }
-        }
-        if style_refused(&sheet) || elements.saturating_mul(stops) > MAX_GRADIENT_COPIES {
-            return None;
-        }
-        // Whatever the sheet's rules match, each element could take a copy of what it names:
-        // only a gradient's is small and bounded.
-        for id in func_iris(&sheet) {
-            if ids.get(id.as_str()).into_iter().flatten().any(|target| !GRADIENTS.contains(&target.tag_name().name())) {
-                return None;
-            }
-        }
-        let lower = sheet.to_ascii_lowercase();
-        let sheet_layers = if LAYER_PROPERTIES.iter().any(|p| lower.contains(p)) { elements } else { 0 };
-        Some(Weigh { ids, states: vec![State::New; last + 1], sheet_layers })
-    }
-
-    /// What the drawing comes to: its root weighed, and the layers its style sheet may add.
-    fn total(mut self, root: roxmltree::Node<'a, 'input>) -> Option<Cost> {
-        let mut cost = self.of(root, 0)?;
-        cost.layers = cost.layers.saturating_add(self.sheet_layers);
-        Some(cost)
-    }
-
-    /// The ids `node`'s own attributes refer to, and whether they draw it as a layer of its own.
-    fn refs(node: roxmltree::Node) -> (Vec<String>, bool) {
-        let name = node.tag_name().name();
-        let (mut refs, mut layer) = (Vec::new(), name.starts_with("fe"));
-        for attribute in node.attributes() {
-            let value = attribute.value();
-            match attribute.name() {
-                // `<a href>` is a link, never drawn.
-                "href" => {
-                    if name != "a" {
-                        refs.extend(iri(value));
-                    }
-                }
-                "id" | "class" => {}
-                property => {
-                    refs.extend(func_iris(value));
-                    let lower = value.to_ascii_lowercase();
-                    layer |= LAYER_PROPERTIES.contains(&property) || (property == "style" && LAYER_PROPERTIES.iter().any(|p| lower.contains(p)));
-                }
-            }
-        }
-        (refs, layer)
-    }
-
-    /// What `node` comes to, with its children and what it refers to; `None` past a cap, or for
-    /// an element that refers to itself.
-    fn of(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize) -> Option<Cost> {
-        if depth > MAX_SVG_DEPTH {
-            return None;
-        }
-        let index = node.id().get_usize();
-        match *self.states.get(index)? {
-            // Weighed already, from elsewhere: as deep below here as it was below there.
-            State::Done(cost) => return (depth.saturating_add(cost.height) <= MAX_SVG_DEPTH).then_some(cost),
-            State::Busy => return None,
-            State::New => {}
-        }
-        *self.states.get_mut(index)? = State::Busy;
-        let (refs, layer) = Self::refs(node);
-        let mut cost = Cost { elements: 1, layers: u64::from(layer), height: 0 };
-        for child in node.children().filter(roxmltree::Node::is_element) {
-            cost = cost.and(self.of(child, depth + 1)?, 1)?;
-        }
-        for id in refs {
-            for target in self.ids.get(id.as_str()).cloned().unwrap_or_default() {
-                let mut brought = self.of(target, depth + 1)?;
-                brought.layers = brought.layers.saturating_add(u64::from(LAYER_ELEMENTS.contains(&target.tag_name().name())));
-                cost = cost.and(brought, 1)?;
-            }
-        }
-        *self.states.get_mut(index)? = State::Done(cost);
-        Some(cost)
-    }
 }

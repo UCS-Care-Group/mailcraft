@@ -12,9 +12,8 @@ fn an_svg_on_the_web_is_shown_once_asked_for_and_nothing_it_names_is() {
     let pictures = web_pictures("drawings.example", 3);
     let (mut app, ids) = app_with(vec![web_message(0, "a@drawings.example", "Drawings", &pictures)]);
     let host = Host::answering(&mut app, |url| match url.rsplit('/').next().unwrap_or("") {
-        "0.png" => Ok(b"<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'><rect width='40' height='30' fill='#2e8b57'/>\
-                        <image href='https://drawings.example/inside.png' width='40' height='30'/>\
-                        <style>@import url('https://drawings.example/sheet.css');</style></svg>"
+        "0.png" => Ok(b"<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'>\
+                        <rect width='40' height='30' fill='url(https://drawings.example/paint.svg#p) #2e8b57'/></svg>"
             .to_vec()),
         "1.png" => Ok(b"<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'><rect></svg>".to_vec()),
         _ => Ok(png(40, 30)),
