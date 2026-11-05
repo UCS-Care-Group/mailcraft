@@ -649,6 +649,33 @@ fn a_drawing_is_never_drawn_on_the_windows_thread() {
     }
 }
 
+/// A drawing given up on after its patience holds the next one back until its thread has
+/// finished: slow drawings never run side by side, however many there are.
+#[test]
+fn a_drawing_given_up_on_holds_the_next_until_its_thread_is_done() {
+    let ctx = egui::Context::default();
+    let mut pictures = Pictures::default();
+    let shown = egui::vec2(40.0, 20.0);
+    let slow = std::sync::Arc::new(drawing(40, 20, ""));
+    let next = std::sync::Arc::new(drawing(20, 20, ""));
+    assert!(matches!(pictures.texture(&ctx, &slow, shown), images::Picture::Pending));
+    let worker = pictures.hold_drawing().unwrap();
+    let begun = pictures.decodes();
+    // Its patience run out, it is a broken picture, and its thread goes on.
+    pictures.settle_after(&ctx, 11.0);
+    assert!(matches!(pictures.texture(&ctx, &slow, shown), images::Picture::Failed));
+    // The next drawing waits for it.
+    for _ in 0..3 {
+        assert!(matches!(pictures.texture(&ctx, &next, shown), images::Picture::Pending));
+    }
+    assert_eq!(pictures.decodes(), begun, "no second thread while the first runs");
+    // Its thread done (what it brings is let go), the next is drawn.
+    worker.send(None).unwrap();
+    assert!(matches!(pictures.texture(&ctx, &next, shown), images::Picture::Pending));
+    assert_eq!(pictures.decodes(), begun + 1);
+    assert!(matches!(pictures.texture(&ctx, &slow, shown), images::Picture::Failed), "the given-up one stays broken");
+}
+
 #[test]
 fn an_attached_svg_is_shown_in_the_message() {
     assert_eq!(shown(message("cid:logo@example.org", Some(drawing(40, 20, "")))), (1, 1));

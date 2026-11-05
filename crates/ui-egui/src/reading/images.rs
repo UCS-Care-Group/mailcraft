@@ -306,6 +306,9 @@ pub struct Pictures {
     /// The SVG drawing being drawn on a thread of its own, if any: one at a time, never on the
     /// window's thread.
     drawing: Option<Drawn>,
+    /// The thread of a drawing given up on after [`DRAWING_PATIENCE`] that has not finished yet:
+    /// no other drawing is begun until it has, so drawings that take long never run side by side.
+    given_up: Option<std::sync::mpsc::Receiver<Option<egui::ColorImage>>>,
 }
 
 /// A drawing being drawn apart: whose bytes, and where its picture (or `None`, it can't be
@@ -317,8 +320,8 @@ struct Drawn {
     since: f64,
 }
 
-/// Seconds a drawing may take on its thread before it is given up as a broken picture, so that
-/// the next one is drawn (the thread finishes by itself, and what it brings is let go).
+/// Seconds a drawing may take on its thread before it is given up as a broken picture (the thread
+/// finishes by itself, and what it brings is let go; the next drawing waits for that).
 const DRAWING_PATIENCE: f64 = 10.0;
 
 impl Pictures {
@@ -490,7 +493,7 @@ impl Pictures {
     /// drawn.
     fn draw_apart(&mut self, ctx: &egui::Context, index: usize, max_side: u32, wanted: u32, have: Option<egui::TextureHandle>) -> Picture {
         let waiting = have.map_or(Picture::Pending, Picture::Ready);
-        if self.drawing.is_some() {
+        if self.drawing.is_some() || self.given_up.is_some() {
             // Looked at again in a while, whether it comes or not.
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
             return waiting;
@@ -520,14 +523,31 @@ impl Pictures {
     /// those bytes, or the same bytes anew), or that it can't be drawn; and give it up as one that
     /// can't once it has taken [`DRAWING_PATIENCE`].
     fn settle(&mut self, ctx: &egui::Context) {
-        let Some(drawn) = &self.drawing else { return };
+        self.settle_at(ctx, ctx.input(|i| i.time));
+    }
+
+    /// [`Pictures::settle`] at the time `now` (egui's, in seconds).
+    fn settle_at(&mut self, ctx: &egui::Context, now: f64) {
+        // A thread given up on is waited for until it has finished: it has sent what it drew, or
+        // it is gone.
+        if self.given_up.as_ref().is_some_and(|answer| !matches!(answer.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty))) {
+            self.given_up = None;
+        }
+        let Some(drawn) = self.drawing.take() else { return };
         let image = match drawn.answer.try_recv() {
             Ok(image) => image,
-            Err(std::sync::mpsc::TryRecvError::Empty) if ctx.input(|i| i.time) - drawn.since <= DRAWING_PATIENCE => return,
-            Err(_) => None,
+            Err(std::sync::mpsc::TryRecvError::Empty) if now - drawn.since <= DRAWING_PATIENCE => {
+                self.drawing = Some(drawn);
+                return;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                // Given up on, its thread still running: it holds the next drawing back.
+                self.given_up = Some(drawn.answer);
+                None
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
         };
-        let data = drawn.data.clone();
-        self.drawing = None;
+        let data = drawn.data;
         let entry = match self.entries.iter().position(|e| Arc::ptr_eq(&e.data, &data)) {
             Some(index) => self.entries.get_mut(index),
             None => self.entries.iter_mut().find(|e| e.data.len() == data.len() && e.data == data),
@@ -602,6 +622,23 @@ impl Pictures {
     #[cfg(test)]
     pub fn decodes(&self) -> usize {
         self.decodes
+    }
+
+    /// The drawing being drawn apart is answered through the sender this returns, as its thread
+    /// would answer, and not by its thread.
+    #[cfg(test)]
+    pub fn hold_drawing(&mut self) -> Option<std::sync::mpsc::Sender<Option<egui::ColorImage>>> {
+        let drawn = self.drawing.as_mut()?;
+        let (sender, answer) = std::sync::mpsc::channel();
+        drawn.answer = answer;
+        Some(sender)
+    }
+
+    /// [`Pictures::settle`] as of `seconds` after the drawing being drawn apart was begun.
+    #[cfg(test)]
+    pub fn settle_after(&mut self, ctx: &egui::Context, seconds: f64) {
+        let since = self.drawing.as_ref().map_or(0.0, |d| d.since);
+        self.settle_at(ctx, since + seconds);
     }
 
     /// [`Pictures::release_unseen`] as of `seconds` after the last picture was asked for.
