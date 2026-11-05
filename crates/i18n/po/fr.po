@@ -793,6 +793,11 @@ msgid "Address"
 msgstr "Adresse"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
 msgstr ""
@@ -893,6 +898,11 @@ msgstr "Autoriser la conservation des règles sur le serveur"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Allow Keeping Tasks in Step with Microsoft To Do"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Allow MailCraft on your Linchange account"
 msgstr ""
 
 #. interface
@@ -5576,6 +5586,16 @@ msgstr "Clair"
 msgid "Limited details: and the titles"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Linchange"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Linchange's sign-in page is open in your browser"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Line Spacing"
@@ -5826,6 +5846,11 @@ msgstr "Courrier, calendrier, contacts et tâches, écrits de zéro en Rust."
 msgid "Mail, calendar, people and tasks, written from scratch in Rust. It runs natively on macOS, Windows, Linux and BSD, and in the browser."
 msgstr "Courrier, calendrier, contacts et tâches, écrits de zéro en Rust. Il fonctionne nativement sous macOS, Windows, Linux et BSD, ainsi que dans le navigateur."
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mail, calendars and address books"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
@@ -5920,6 +5945,11 @@ msgstr ""
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr "MailCraft installe désormais ses mises à jour lui-même. Vous pouvez désactiver cela dans Fichier › À propos."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "MailCraft on {computer}"
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -10483,6 +10513,11 @@ msgid "Sign in securely with Google in your browser. Your Google password is nev
 msgstr "Connectez-vous en toute sécurité avec Google dans votre navigateur. Votre mot de passe Google n’est jamais saisi dans MailCraft."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Sign in there and allow MailCraft on {computer}. This window carries on by itself once you have."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in there as {address}. This window carries on by itself once you have."
@@ -11281,6 +11316,21 @@ msgstr "Toute la série"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The Linchange address isn't a server address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The Linchange approval didn't finish"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The Linchange sign-in stopped unexpectedly"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
 msgstr ""
 
@@ -11377,7 +11427,12 @@ msgid "The calendar \"{name}\" only shows when its owner is busy: this account c
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/account_setup.rs
+msgid "The calendar and address-book address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Les modifications du calendrier n'ont pas pu être intégrées : {error}"
@@ -11417,6 +11472,11 @@ msgstr "La connexion du calendrier fonctionne : ce qui a été envoyé est arr
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Le calendrier n'a pas pu être intégré : {error}"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendar events couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -11472,6 +11532,11 @@ msgid ""
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars couldn't be taken in: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr ""
@@ -11514,7 +11579,7 @@ msgid "The contact {id} is named twice."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Les contacts n'ont pas pu être intégrés : {error}"
@@ -11772,6 +11837,11 @@ msgstr "Le serveur de courrier sortant n'est pas un nom d'hôte (lettres, chiffr
 #, fuzzy
 msgid "The owner hasn't allowed update checks."
 msgstr "Le propriétaire n'a pas autorisé la recherche de mises à jour."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The password you type there is never given to MailCraft; the page creates a separate application password for this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -12386,6 +12456,11 @@ msgstr "Cette version ne peut pas joindre le serveur du compte."
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't sign in to Linchange"
 msgstr ""
 
 #. interface
@@ -13182,10 +13257,15 @@ msgid "Try Signing In Again"
 msgstr "Réessayer de se connecter"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Réessayer"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Try again to open the page, or cancel and check the server's address."
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -15872,6 +15952,11 @@ msgstr "ce compte n'a pas de dossier {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "ce compte n'est pas autorisé à l'enregistrer"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "this computer"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
