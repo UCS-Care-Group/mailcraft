@@ -18,17 +18,18 @@
 //!   [`MAX_SVG_DEPTH`] by a scan with no stack before the XML reader (which recurses) sees it,
 //!   at most [`MAX_SVG_NODES`] nodes, and no entity declared (none is then expanded: an entity
 //!   bomb is refused unread).
-//! - **What it would come to is weighed first ([`Weigh`]).** A reference copies or draws again
-//!   what it refers to: `<use>`, and a pattern, clip, mask, marker or filter for each element
-//!   that names it, by an attribute, its `style`, a rule of the drawing's style sheet (taken to
-//!   name it for any element it might match) or by inheriting it: paint and markers from any
-//!   ancestor, a clip, mask or filter from the parent with `inherit`. References are read as the
-//!   renderer reads them (an id in any namespace, `url()` as `svgtypes` parses it), and a style
-//!   with an escape, an unclosed comment or quote, or more selectors or classes than any drawing
-//!   has is refused. The weighing goes the way the renderer would, every reference followed as
-//!   often as it is copied, within a count of steps: the elements drawn may come to at most
-//!   `MAX_SVG_COST`, nesting and references [`MAX_SVG_DEPTH`] deep (the window's thread has a
-//!   small stack), a marker counted at each point a shape may have. A reference to itself is
+//! - **What could be copied depending on where it is drawn is refused, and the rest weighed
+//!   ([`Weigh`]).** The renderer copies what a reference names for each element that refers to
+//!   it, and an element can be given a reference by its ancestors (paint and markers inherit; a
+//!   clip, mask or filter with `inherit`) or by any rule of a style sheet that matches it. So a
+//!   drawing with a `<pattern>` or a `<marker>`, a clip, mask or filter that says `inherit`, a
+//!   style with a comment, an escape or `inherit` in it, or a style sheet that refers to anything
+//!   but a gradient is refused (a gradient's copies are its stops, bounded for the drawing as a
+//!   whole). What is left is copied the same wherever it is drawn: each element is weighed once,
+//!   with its children and what its own attributes refer to (`<use>`, a clip, mask, filter or
+//!   gradient), read as the renderer reads them (an id in any namespace, `url()` as `svgtypes`
+//!   parses it). The elements drawn may come to at most `MAX_SVG_COST`, nesting and references
+//!   [`MAX_SVG_DEPTH`] deep (the window's thread has a small stack). A reference to itself is
 //!   refused. The filters whose cost has no bound (`feMorphology`, `feTurbulence` of many
 //!   octaves, `feConvolveMatrix` of a large kernel) are refused.
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
@@ -39,8 +40,7 @@
 //! PNG is. Parsing and drawing are somebody else's code reading hostile bytes: a panic in them
 //! is a broken picture too.
 
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::collections::HashMap;
 
 use resvg::{tiny_skia, usvg, usvg::roxmltree};
 
@@ -165,7 +165,7 @@ fn read(data: &[u8]) -> Option<(usvg::Tree, u64)> {
     if root.tag_name().name() != "svg" || root.tag_name().namespace() != Some("http://www.w3.org/2000/svg") {
         return None;
     }
-    let layers = Weigh::new(&document)?.of(root, 0, Vec::new())?.layers;
+    let layers = Weigh::new(&document)?.total(root)?.layers;
     let tree = usvg::Tree::from_xmltree(&document, &options()).ok()?;
     Some((tree, layers))
 }
@@ -239,66 +239,6 @@ impl Cost {
     }
 }
 
-/// What an element (or a rule of the style sheet) names, by the way the renderer uses it: paint
-/// (`fill`, `stroke`) and markers, which the element's descendants inherit; the rest (`clip-path`,
-/// `mask`, `filter` and anything else with a `url(#…)`), which a descendant takes only by saying
-/// `inherit`; and `href` links. Whether it is drawn as a layer of its own, and whether it says
-/// `inherit` for one of the rest.
-#[derive(Default)]
-struct Effect {
-    paint: Vec<String>,
-    marker: Vec<String>,
-    other: Vec<String>,
-    link: Vec<String>,
-    layer: bool,
-    inherit: bool,
-}
-
-impl Effect {
-    fn is_empty(&self) -> bool {
-        self.paint.is_empty() && self.marker.is_empty() && self.other.is_empty() && !self.layer && !self.inherit
-    }
-
-    /// What a `property: value` names.
-    fn declare(&mut self, property: &str, value: &str) {
-        let property = property.trim().to_ascii_lowercase();
-        let ids = func_iris(value);
-        match property.as_str() {
-            "fill" | "stroke" => self.paint.extend(ids),
-            p if p.starts_with("marker") => self.marker.extend(ids),
-            _ => self.other.extend(ids),
-        }
-        self.layer |= LAYER_PROPERTIES.contains(&property.as_str());
-        self.inherit |= matches!(property.as_str(), "clip-path" | "mask" | "filter") && value.trim().eq_ignore_ascii_case("inherit");
-    }
-
-    /// What a list of declarations (a `style`, a rule's body; comments taken out) names.
-    fn declarations(&mut self, text: &str) {
-        for declaration in split_outside_quotes(text, b';') {
-            if let Some((property, value)) = declaration.split_once(':') {
-                self.declare(property, value);
-            }
-        }
-    }
-}
-
-/// The properties that draw an element as a layer of its own.
-const LAYER_PROPERTIES: &[&str] = &["opacity", "filter", "mask", "clip-path", "mix-blend-mode", "isolation"];
-
-/// The elements a reference to which draws a layer of its own.
-const LAYER_ELEMENTS: &[&str] = &["pattern", "mask", "clipPath", "filter"];
-
-/// The elements that are painted, and so take the paint and markers they inherit.
-const SHAPES: &[&str] = &["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "textPath", "tref"];
-
-/// Most selectors in a drawing's style sheets, and most classes an element may have.
-const MAX_SELECTORS: usize = 4_000;
-const MAX_CLASSES: usize = 64;
-
-/// Most steps weighing a drawing may take: each element looked at, each reference followed and
-/// each rule of the style sheet applied to an element is one.
-const MAX_STEPS: u64 = 1_000_000;
-
 fn is_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
 }
@@ -349,386 +289,174 @@ fn iri(value: &str) -> Option<String> {
     (!id.is_empty()).then(|| id.to_string())
 }
 
-/// `text` cut at each `separator` that is not inside quotes.
-fn split_outside_quotes(text: &str, separator: u8) -> Vec<&str> {
-    let mut parts = Vec::new();
-    let (mut start, mut quote) = (0, None);
-    for (i, b) in text.bytes().enumerate() {
-        match quote {
-            Some(q) if b == q => quote = None,
-            Some(_) => {}
-            None if b == b'"' || b == b'\'' => quote = Some(b),
-            None if b == separator => {
-                parts.push(text.get(start..i).unwrap_or_default());
-                start = i + 1;
-            }
-            None => {}
-        }
-    }
-    parts.push(text.get(start..).unwrap_or_default());
-    parts
+/// The properties that draw an element as a layer of its own.
+const LAYER_PROPERTIES: &[&str] = &["opacity", "filter", "mask", "clip-path", "mix-blend-mode", "isolation"];
+
+/// The elements a reference to which draws a layer of its own.
+const LAYER_ELEMENTS: &[&str] = &["mask", "clipPath", "filter"];
+
+/// The paint a drawing's style sheet may refer to: gradients, whose copies are their stops.
+const GRADIENTS: &[&str] = &["linearGradient", "radialGradient"];
+
+/// The elements a drawing that is shown may not have. A pattern is painted by any shape that
+/// inherits it, and a marker drawn at every point of any shape that inherits it: what they
+/// would come to depends on where they are inherited, which is not weighed; and `feMorphology`
+/// costs without bound.
+const REFUSED_ELEMENTS: &[&str] = &["pattern", "marker", "feMorphology"];
+
+/// Most stops of gradients a drawing may come to, each element taking a copy of each gradient
+/// (as many as a style sheet or an inherited paint could give it).
+const MAX_GRADIENT_COPIES: u64 = 2_000_000;
+
+/// Whether the text of a style (a sheet or a `style` attribute) is refused: a comment or an
+/// escape, which could make a reference of what doesn't read as one, or `inherit`, which could
+/// give an element a clip, mask or filter its parent has. No drawing needs them.
+fn style_refused(text: &str) -> bool {
+    text.contains("/*") || text.contains('\\') || text.to_ascii_lowercase().contains("inherit")
 }
 
-/// CSS with its comments made spaces, as the style sheet reader takes them. `None` for a
-/// comment or a quote that is never closed, or an escape (`\`), which could make a reference of
-/// what doesn't read as one: no drawing needs them.
-fn uncommented(text: &str) -> Option<String> {
-    if text.contains('\\') {
-        return None;
-    }
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let (mut i, mut start, mut quote) = (0, 0, None);
-    while let Some(&b) = bytes.get(i) {
-        match quote {
-            Some(q) if b == q => quote = None,
-            Some(_) => {}
-            None if b == b'"' || b == b'\'' => quote = Some(b),
-            None if b == b'/' && bytes.get(i + 1) == Some(&b'*') => {
-                out.push_str(text.get(start..i)?);
-                out.push(' ');
-                let end = bytes.get(i + 2..)?.windows(2).position(|w| w == b"*/")?;
-                i += 2 + end + 2;
-                start = i;
-                continue;
-            }
-            None => {}
-        }
-        i += 1;
-    }
-    if quote.is_some() {
-        return None;
-    }
-    out.push_str(text.get(start..)?);
-    Some(out)
+#[derive(Clone, Copy)]
+enum State {
+    New,
+    /// Being weighed: met again, it refers to itself.
+    Busy,
+    Done(Cost),
 }
 
-/// The rules of a drawing's style sheets that name something, by the elements they might match:
-/// any element, or those of a class or an id (taken from the last part of each selector; a part
-/// with a pseudo-class, an attribute or no class or id is taken to match any element).
-#[derive(Default)]
-struct Css {
-    rules: Vec<Effect>,
-    any: Vec<usize>,
-    by_class: HashMap<String, Vec<usize>>,
-    by_id: HashMap<String, Vec<usize>>,
-}
-
-impl Css {
-    /// The style sheet read; `None` for one that is refused ([`uncommented`]), is not closed or
-    /// has too many selectors.
-    fn read(sheet: &str) -> Option<Css> {
-        let text = uncommented(sheet)?;
-        let bytes = text.as_bytes();
-        let mut css = Css::default();
-        let mut selectors = 0usize;
-        let mut open: Vec<&str> = Vec::new();
-        let (mut start, mut quote) = (0, None);
-        for (i, &b) in bytes.iter().enumerate() {
-            match quote {
-                Some(q) if b == q => quote = None,
-                Some(_) => {}
-                None if b == b'"' || b == b'\'' => quote = Some(b),
-                None if b == b'{' => {
-                    open.push(text.get(start..i)?);
-                    start = i + 1;
-                }
-                None if b == b'}' => {
-                    let prelude = open.pop()?;
-                    let body = text.get(start..i)?;
-                    start = i + 1;
-                    if prelude.trim_start().starts_with('@') {
-                        continue;
-                    }
-                    let parts = split_outside_quotes(prelude, b',');
-                    selectors = selectors.saturating_add(parts.len());
-                    if selectors > MAX_SELECTORS {
-                        return None;
-                    }
-                    let mut effect = Effect::default();
-                    effect.declarations(body);
-                    if effect.is_empty() {
-                        continue;
-                    }
-                    let index = css.rules.len();
-                    css.rules.push(effect);
-                    for selector in parts {
-                        let last = selector.trim().rsplit(|c: char| c.is_whitespace() || matches!(c, '>' | '+' | '~')).next().unwrap_or_default();
-                        if last.is_empty() || last.contains([':', '[', '*', '"', '\'']) || !last.contains(['.', '#']) {
-                            css.any.push(index);
-                            continue;
-                        }
-                        for (at, sign) in last.match_indices(['.', '#']) {
-                            let name = last.get(at + 1..).unwrap_or_default().split(['.', '#']).next().unwrap_or_default();
-                            if !name.is_empty() {
-                                let map = if sign == "." { &mut css.by_class } else { &mut css.by_id };
-                                map.entry(name.to_string()).or_default().push(index);
-                            }
-                        }
-                    }
-                }
-                // A statement at the top (`@import …;`) is not part of the selectors after it.
-                None if b == b';' && open.last().is_none_or(|p| p.trim_start().starts_with('@')) => start = i + 1,
-                None => {}
-            }
-        }
-        (quote.is_none() && open.is_empty()).then_some(css)
-    }
-}
-
-/// How many points a shape has, at most: what a marker is drawn at. Every number has a digit,
-/// and two numbers' digits are never side by side, so each run of digits, and each command
-/// letter (one may stand alone, as `z` does), counts as one: never fewer than there are.
-fn points(node: roxmltree::Node) -> u64 {
-    let count = |name: &str| {
-        let value = node.attribute(name).unwrap_or_default().as_bytes();
-        let runs =
-            value.iter().enumerate().filter(|&(i, b)| b.is_ascii_digit() && !(i > 0 && value.get(i - 1).is_some_and(u8::is_ascii_digit))).count();
-        runs + value.iter().filter(|b| b.is_ascii_alphabetic()).count()
-    };
-    (count("d") + count("points")).max(2) as u64
-}
-
-/// An element as it is weighed: what it names itself, the rules of the style sheet it might
-/// match, and the elements it inherits from (its parent; for what a `<use>` draws, the `<use>`
-/// and the parent where it is written).
-struct Frame {
-    own: Effect,
-    css: Vec<usize>,
-    parents: Vec<Rc<Frame>>,
-}
-
-/// The weighing of a drawing: every element and every reference followed, as often as the
-/// renderer would copy or draw it (nothing is taken as known from before: the steps are capped
-/// instead, [`MAX_STEPS`]).
+/// The weighing of a drawing. With patterns, markers and `inherit` refused, and a style sheet
+/// that refers only to gradients, what an element comes to doesn't depend on where it is drawn:
+/// its children and what its own attributes refer to (`href`, `url(#…)` in any attribute and its
+/// `style`), each element weighed once and taken as known after. Copies of gradients, which an
+/// element may take from its ancestors or a style sheet, are bounded for the drawing as a whole.
 struct Weigh<'a, 'input> {
     ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>>,
-    css: Css,
-    steps: u64,
-    /// The elements being weighed, from the root down: met again, one refers to itself.
-    on_path: Vec<bool>,
-    /// The frame of each element as written in the document, once worked out.
-    written: HashMap<usize, Rc<Frame>>,
+    states: Vec<State>,
+    /// Layers the style sheet may give: as many as there are elements, if it names a property
+    /// that makes one.
+    sheet_layers: u64,
 }
 
 impl<'a, 'input> Weigh<'a, 'input> {
-    /// Ready to weigh `document`; `None` when it has a filter that is refused, or a style sheet.
+    /// Ready to weigh `document`; `None` when it has what is refused.
     fn new(document: &'a roxmltree::Document<'input>) -> Option<Self> {
         let mut ids: HashMap<&'a str, Vec<roxmltree::Node<'a, 'input>>> = HashMap::new();
         let mut sheet = String::new();
-        let mut last = 0;
+        let (mut last, mut elements, mut stops) = (0, 0u64, 0u64);
         for node in document.descendants() {
             last = last.max(node.id().get_usize());
             if !node.is_element() {
                 continue;
             }
+            elements += 1;
+            let name = node.tag_name().name();
             let number = |name: &str| {
                 node.attribute(name).map(|v| v.split([' ', ',', '\t', '\r', '\n']).filter_map(|n| n.trim().parse::<f32>().ok()).collect::<Vec<_>>())
             };
-            let refused = match node.tag_name().name() {
-                "feMorphology" => true,
-                "feTurbulence" => number("numOctaves").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_OCTAVES)),
-                "feConvolveMatrix" => number("order").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_KERNEL_ORDER)),
-                "style" => {
-                    for text in node.children().filter_map(|t| t.text()) {
-                        sheet.push_str(text);
-                        sheet.push('\n');
-                    }
-                    sheet.len() > MAX_SHEET_BYTES
-                }
-                _ => false,
-            };
+            let refused = REFUSED_ELEMENTS.contains(&name)
+                || match name {
+                    "feTurbulence" => number("numOctaves").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_OCTAVES)),
+                    "feConvolveMatrix" => number("order").is_some_and(|n| n.iter().any(|o| !o.is_finite() || *o > MAX_KERNEL_ORDER)),
+                    _ => false,
+                };
             if refused {
                 return None;
             }
-            // An id in any namespace: the renderer takes one in SVG's, XLink's or XML's too.
-            for attribute in node.attributes().filter(|a| a.name() == "id") {
-                ids.entry(attribute.value()).or_default().push(node);
+            if name == "style" {
+                for text in node.children().filter_map(|t| t.text()) {
+                    sheet.push_str(text);
+                    sheet.push('\n');
+                }
+                if sheet.len() > MAX_SHEET_BYTES {
+                    return None;
+                }
+            }
+            if name == "stop" || GRADIENTS.contains(&name) {
+                stops += 1;
+            }
+            for attribute in node.attributes() {
+                let value = attribute.value();
+                match attribute.name() {
+                    // An id in any namespace: the renderer takes one in SVG's, XLink's or XML's too.
+                    "id" => ids.entry(value).or_default().push(node),
+                    "style" if style_refused(value) => return None,
+                    "clip-path" | "mask" | "filter" if value.trim().eq_ignore_ascii_case("inherit") => return None,
+                    _ => {}
+                }
             }
         }
-        Some(Weigh { ids, css: Css::read(&sheet)?, steps: 0, on_path: vec![false; last + 1], written: HashMap::new() })
+        if style_refused(&sheet) || elements.saturating_mul(stops) > MAX_GRADIENT_COPIES {
+            return None;
+        }
+        // Whatever the sheet's rules match, each element could take a copy of what it names:
+        // only a gradient's is small and bounded.
+        for id in func_iris(&sheet) {
+            if ids.get(id.as_str()).into_iter().flatten().any(|target| !GRADIENTS.contains(&target.tag_name().name())) {
+                return None;
+            }
+        }
+        let lower = sheet.to_ascii_lowercase();
+        let sheet_layers = if LAYER_PROPERTIES.iter().any(|p| lower.contains(p)) { elements } else { 0 };
+        Some(Weigh { ids, states: vec![State::New; last + 1], sheet_layers })
     }
 
-    fn step(&mut self, by: usize) -> Option<()> {
-        self.steps = self.steps.saturating_add(by as u64);
-        (self.steps <= MAX_STEPS).then_some(())
+    /// What the drawing comes to: its root weighed, and the layers its style sheet may add.
+    fn total(mut self, root: roxmltree::Node<'a, 'input>) -> Option<Cost> {
+        let mut cost = self.of(root, 0)?;
+        cost.layers = cost.layers.saturating_add(self.sheet_layers);
+        Some(cost)
     }
 
-    /// The frame of `node` inheriting from `parents`.
-    fn frame(&mut self, node: roxmltree::Node, parents: Vec<Rc<Frame>>) -> Option<Rc<Frame>> {
+    /// The ids `node`'s own attributes refer to, and whether they draw it as a layer of its own.
+    fn refs(node: roxmltree::Node) -> (Vec<String>, bool) {
         let name = node.tag_name().name();
-        let mut own = Effect::default();
-        let mut css = Vec::new();
-        let mut classes = 0;
+        let (mut refs, mut layer) = (Vec::new(), name.starts_with("fe"));
         for attribute in node.attributes() {
-            self.step(1)?;
             let value = attribute.value();
             match attribute.name() {
                 // `<a href>` is a link, never drawn.
                 "href" => {
                     if name != "a" {
-                        own.link.extend(iri(value));
+                        refs.extend(iri(value));
                     }
                 }
-                "style" => own.declarations(&uncommented(value)?),
-                "id" => css.extend(self.css.by_id.get(value).into_iter().flatten()),
-                "class" => {
-                    for class in value.split_whitespace() {
-                        classes += 1;
-                        if classes > MAX_CLASSES {
-                            return None;
-                        }
-                        css.extend(self.css.by_class.get(class).into_iter().flatten());
-                    }
+                "id" | "class" => {}
+                property => {
+                    refs.extend(func_iris(value));
+                    let lower = value.to_ascii_lowercase();
+                    layer |= LAYER_PROPERTIES.contains(&property) || (property == "style" && LAYER_PROPERTIES.iter().any(|p| lower.contains(p)));
                 }
-                property => own.declare(property, value),
             }
         }
-        css.extend(&self.css.any);
-        self.step(css.len())?;
-        own.layer |= name.starts_with("fe");
-        Some(Rc::new(Frame { own, css, parents }))
+        (refs, layer)
     }
 
-    /// The frame `node`'s children inherit from where it is written: its own, inheriting from its
-    /// ancestors. `None` inside when `node` is no element (the document).
-    fn written(&mut self, node: roxmltree::Node) -> Option<Option<Rc<Frame>>> {
-        if !node.is_element() {
-            return Some(None);
-        }
-        let index = node.id().get_usize();
-        if let Some(frame) = self.written.get(&index) {
-            return Some(Some(frame.clone()));
-        }
-        let parents = match node.parent() {
-            Some(parent) => self.written(parent)?.into_iter().collect(),
-            None => Vec::new(),
-        };
-        let frame = self.frame(node, parents)?;
-        self.written.insert(index, frame.clone());
-        Some(Some(frame))
-    }
-
-    /// The ids `pick` gives of `frame` and its rules, and of every frame it inherits from too
-    /// when `inherited`; each a step.
-    fn gather(&mut self, frame: &Rc<Frame>, pick: fn(&Effect) -> &Vec<String>, inherited: bool) -> Option<Vec<String>> {
-        let mut ids = Vec::new();
-        let mut seen: HashSet<*const Frame> = HashSet::new();
-        let mut todo = vec![frame.clone()];
-        while let Some(f) = todo.pop() {
-            if !seen.insert(Rc::as_ptr(&f)) {
-                continue;
-            }
-            ids.extend(pick(&f.own).iter().cloned());
-            for &rule in &f.css {
-                ids.extend(self.css.rules.get(rule).map(pick).into_iter().flatten().cloned());
-            }
-            if inherited {
-                todo.extend(f.parents.iter().cloned());
-            }
-        }
-        self.step(ids.len() + seen.len())?;
-        Some(ids)
-    }
-
-    /// Whether a frame says `inherit` for a clip, a mask or a filter, itself or by a rule.
-    fn inherits(&self, frame: &Frame) -> bool {
-        frame.own.inherit || frame.css.iter().any(|&rule| self.css.rules.get(rule).is_some_and(|e| e.inherit))
-    }
-
-    /// Whether a frame is drawn as a layer of its own.
-    fn layer(&self, frame: &Frame) -> bool {
-        frame.own.layer || frame.css.iter().any(|&rule| self.css.rules.get(rule).is_some_and(|e| e.layer))
-    }
-
-    /// The clips, masks, filters and the like `frame` draws with: its own, and its parent's
-    /// when it says `inherit` (and theirs when they do).
-    fn others(&mut self, frame: &Rc<Frame>) -> Option<Vec<String>> {
-        let mut ids = self.gather(frame, |e| &e.other, false)?;
-        let mut todo: Vec<Rc<Frame>> = if self.inherits(frame) { frame.parents.clone() } else { Vec::new() };
-        let mut seen: HashSet<*const Frame> = HashSet::new();
-        while let Some(parent) = todo.pop() {
-            if !seen.insert(Rc::as_ptr(&parent)) {
-                continue;
-            }
-            ids.extend(self.gather(&parent, |e| &e.other, false)?);
-            if self.inherits(&parent) {
-                todo.extend(parent.parents.iter().cloned());
-            }
-        }
-        Some(ids)
-    }
-
-    fn targets(&self, id: &str) -> Vec<roxmltree::Node<'a, 'input>> {
-        self.ids.get(id).cloned().unwrap_or_default()
-    }
-
-    /// `cost` with what each element of id `id` brings, `times` over, weighed where it is written.
-    fn charge(&mut self, mut cost: Cost, id: &str, depth: usize, times: u64) -> Option<Cost> {
-        for target in self.targets(id) {
-            let parents = match target.parent() {
-                Some(parent) => self.written(parent)?.into_iter().collect(),
-                None => Vec::new(),
-            };
-            let mut brought = self.of(target, depth + 1, parents)?;
-            brought.layers = brought.layers.saturating_add(u64::from(LAYER_ELEMENTS.contains(&target.tag_name().name())));
-            cost = cost.and(brought, times)?;
-        }
-        Some(cost)
-    }
-
-    /// What `node` comes to, inheriting from `parents`, with its children and what it refers to;
-    /// `None` past a cap, or for an element that refers to itself.
-    fn of(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize, parents: Vec<Rc<Frame>>) -> Option<Cost> {
+    /// What `node` comes to, with its children and what it refers to; `None` past a cap, or for
+    /// an element that refers to itself.
+    fn of(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize) -> Option<Cost> {
         if depth > MAX_SVG_DEPTH {
             return None;
         }
         let index = node.id().get_usize();
-        if *self.on_path.get(index)? {
-            return None;
+        match *self.states.get(index)? {
+            // Weighed already, from elsewhere: as deep below here as it was below there.
+            State::Done(cost) => return (depth.saturating_add(cost.height) <= MAX_SVG_DEPTH).then_some(cost),
+            State::Busy => return None,
+            State::New => {}
         }
-        *self.on_path.get_mut(index)? = true;
-        let cost = self.weigh(node, depth, parents);
-        if let Some(on) = self.on_path.get_mut(index) {
-            *on = false;
-        }
-        cost
-    }
-
-    fn weigh(&mut self, node: roxmltree::Node<'a, 'input>, depth: usize, parents: Vec<Rc<Frame>>) -> Option<Cost> {
-        self.step(1)?;
-        let frame = self.frame(node, parents)?;
-        let name = node.tag_name().name();
-        let mut cost = Cost { elements: 1, layers: u64::from(self.layer(&frame)), height: 0 };
-        if SHAPES.contains(&name) {
-            let points = points(node);
-            for id in self.gather(&frame, |e| &e.paint, true)? {
-                cost = self.charge(cost, &id, depth, 1)?;
-            }
-            for id in self.gather(&frame, |e| &e.marker, true)? {
-                cost = self.charge(cost, &id, depth, points)?;
-            }
-        }
-        for id in self.others(&frame)? {
-            cost = self.charge(cost, &id, depth, 1)?;
-        }
-        for id in frame.own.link.clone() {
-            if name != "use" {
-                cost = self.charge(cost, &id, depth, 1)?;
-                continue;
-            }
-            // What a `<use>` draws inherits from it, and (to be sure) from where it is written.
-            for target in self.targets(&id) {
-                let mut parents = vec![frame.clone()];
-                if let Some(parent) = target.parent() {
-                    parents.extend(self.written(parent)?);
-                }
-                cost = cost.and(self.of(target, depth + 1, parents)?, 1)?;
-            }
-        }
+        *self.states.get_mut(index)? = State::Busy;
+        let (refs, layer) = Self::refs(node);
+        let mut cost = Cost { elements: 1, layers: u64::from(layer), height: 0 };
         for child in node.children().filter(roxmltree::Node::is_element) {
-            cost = cost.and(self.of(child, depth + 1, vec![frame.clone()])?, 1)?;
+            cost = cost.and(self.of(child, depth + 1)?, 1)?;
         }
+        for id in refs {
+            for target in self.ids.get(id.as_str()).cloned().unwrap_or_default() {
+                let mut brought = self.of(target, depth + 1)?;
+                brought.layers = brought.layers.saturating_add(u64::from(LAYER_ELEMENTS.contains(&target.tag_name().name())));
+                cost = cost.and(brought, 1)?;
+            }
+        }
+        *self.states.get_mut(index)? = State::Done(cost);
         Some(cost)
     }
 }

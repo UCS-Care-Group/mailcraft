@@ -265,26 +265,29 @@ fn references_inherited_from_a_group_are_counted_for_each_shape() {
 
 #[test]
 fn a_target_named_any_way_the_renderer_finds_it_is_counted() {
-    // An id in the XML or the SVG namespace is an id to the renderer.
-    let mut patterns = String::from("<pattern xml:id='p0' width='1' height='1'><rect width='1' height='1'/></pattern>");
+    // An id in the XML or the SVG namespace is an id to the renderer: clips in clips, ten deep.
+    let mut clips = String::from("<clipPath xml:id='p0'><rect width='1' height='1'/></clipPath>");
     for k in 1..=10 {
-        patterns += &format!(
-            "<pattern xml:id='p{k}' width='1' height='1'>{}</pattern>",
-            format!("<rect width='1' height='1' fill='url(#p{})'/>", k - 1).repeat(10)
-        );
+        clips += &format!("<clipPath xml:id='p{k}'>{}</clipPath>", format!("<rect width='1' height='1' clip-path='url(#p{})'/>", k - 1).repeat(10));
     }
-    assert!(refused(&drawing(8, 8, &format!("<defs>{patterns}</defs><rect width='8' height='8' fill='url(#p10)'/>"))));
-    let svg_ns = patterns.replace("xml:id=", "svg:id=").replace("<defs>", "");
+    assert!(refused(&drawing(8, 8, &format!("<defs>{clips}</defs><rect width='8' height='8' clip-path='url(#p10)'/>"))));
+    let svg_ns = clips.replace("xml:id=", "svg:id=");
     assert!(refused(
-        format!("<svg {NS} xmlns:svg='http://www.w3.org/2000/svg' width='8' height='8'><defs>{svg_ns}</defs><rect width='8' height='8' fill='url(#p10)'/></svg>").as_bytes()
+        format!(
+            "<svg {NS} xmlns:svg='http://www.w3.org/2000/svg' width='8' height='8'><defs>{svg_ns}</defs><rect width='8' height='8' clip-path='url(#p10)'/></svg>"
+        )
+        .as_bytes()
     ));
-    // A rule a quoted brace or semicolon would hide from a careless reader.
-    let mut quoted = String::from("<pattern id='q0' width='1' height='1'><rect width='1' height='1'/></pattern>");
+    // `url()` with spaces and quotes, as the renderer reads it.
+    let spaced = clips.replace("xml:id=", "id=").replace("url(#", "url(  \"#").replace(")'/>", "  \" )'/>");
+    assert!(refused(&drawing(8, 8, &format!("<defs>{spaced}</defs><rect width='8' height='8' clip-path='url(#p10)'/>"))));
+    // A style sheet's reference to anything but a gradient, however its rules are written (a
+    // quoted brace or semicolon would hide a rule from a careless reader).
+    let mut quoted = String::from("<clipPath id='q0'><rect width='1' height='1'/></clipPath>");
     let mut sheet = String::new();
     for k in 1..=10 {
-        quoted +=
-            &format!("<pattern id='q{k}' width='1' height='1'>{}</pattern>", format!("<rect width='1' height='1' class='c{}'/>", k - 1).repeat(10));
-        sheet += &format!(".c{} {{ font-family: \"}};{{\"; fill: url(#q{}) }} ", k - 1, k - 1);
+        quoted += &format!("<clipPath id='q{k}'>{}</clipPath>", format!("<rect width='1' height='1' class='c{}'/>", k - 1).repeat(10));
+        sheet += &format!(".c{} {{ font-family: \"}};{{\"; clip-path: url(#q{}) }} ", k - 1, k - 1);
     }
     assert!(refused(&drawing(8, 8, &format!("<style>{sheet}</style><defs>{quoted}</defs><rect width='8' height='8' class='c9'/>"))));
     // A style that escapes what it says is not read for what it might mean: it is refused.
@@ -309,14 +312,44 @@ fn the_points_of_a_shape_are_never_counted_short() {
 
 #[test]
 fn a_style_sheet_of_many_rules_and_classes_is_weighed_quickly() {
-    // Many rules and many elements, each of many classes: weighed (or refused) at once.
-    let sheet: String = (0..2_000).map(|i| format!(".c{i}{{opacity:0.5}}")).collect();
+    // Many rules, and many elements nested deep, each of many classes: the sheet is never matched
+    // against the elements, so it is drawn at once.
+    let sheet: String = (0..1_500).map(|i| format!(".c{i}{{opacity:0.5;fill:url(#g)}}")).collect();
     let classes: String = (0..60).map(|i| format!("c{i} ")).collect();
-    let shapes = format!("<rect class='{classes}' width='1' height='1'/>").repeat(2_000);
-    let _ = refused(&drawing(8, 8, &format!("<style>{sheet}</style>{shapes}")));
-    // An element of more classes than any drawing has is refused.
-    let classes: String = (0..200).map(|i| format!("c{i} ")).collect();
-    assert!(refused(&drawing(8, 8, &format!("<rect class='{classes}' width='1' height='1'/>"))));
+    let depth = MAX_SVG_DEPTH - 4;
+    let nested = format!(
+        "{}{}{}",
+        format!("<g class='{classes}'>").repeat(depth),
+        format!("<rect class='{classes}' width='1' height='1'/>").repeat(2_000),
+        "</g>".repeat(depth)
+    );
+    let gradient = "<linearGradient id='g'><stop offset='0' stop-color='#2e8b57'/></linearGradient>";
+    let start = Instant::now();
+    assert!(images::decode(&drawing(8, 8, &format!("<style>{sheet}</style>{gradient}{nested}")), 64, 8).is_some());
+    assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
+}
+
+#[test]
+fn what_is_copied_depending_on_where_it_is_drawn_is_refused() {
+    // A pattern or a marker, wherever it is, and a style sheet referring to anything but a
+    // gradient: what they come to depends on what inherits them or what the sheet matches.
+    assert!(refused(&drawing(8, 8, "<pattern id='p' width='1' height='1'><rect width='1' height='1'/></pattern>")));
+    assert!(refused(&drawing(8, 8, "<defs><marker id='m'><rect width='1' height='1'/></marker></defs><path d='M0 0L8 8'/>")));
+    assert!(refused(&drawing(
+        8,
+        8,
+        "<style>.k { clip-path: url(#c) }</style><clipPath id='c'><rect width='1' height='1'/></clipPath><g class='k'/>"
+    )));
+    assert!(refused(&drawing(8, 8, "<style>.k { filter: url(#f) }</style><filter id='f'><feOffset/></filter><g class='k'/>")));
+    // `inherit` anywhere in a style, or for a clip, a mask or a filter in an attribute.
+    assert!(refused(&drawing(8, 8, "<style>.k { fill: inherit }</style>")));
+    assert!(refused(&drawing(8, 8, "<g clip-path=' INHERIT '/>")));
+    // A comment in a style.
+    assert!(refused(&drawing(8, 8, "<rect style='fill: /**/ red' width='8' height='8'/>")));
+    // Gradients from a style sheet are drawn, as drawing programs export them.
+    let gradient = "<style>.f { fill: url(#g) }</style><linearGradient id='g'><stop offset='0' stop-color='#2e8b57'/></linearGradient>\
+                    <rect class='f' width='8' height='8'/>";
+    assert_eq!(pixel(&images::decode(&drawing(8, 8, gradient), 64, 8).unwrap(), 4, 4), GREEN);
 }
 
 #[test]
@@ -360,10 +393,11 @@ fn references_that_multiply_are_refused() {
 
 #[test]
 fn what_drawing_programs_write_is_not_mistaken_for_a_bomb() {
-    // Gradients and clips from a style sheet, as drawing programs export them, many of each.
+    // Gradients from a style sheet and clips by attribute, as drawing programs export them, many
+    // of each.
     let mut body = String::from("<defs><style>");
     for i in 0..60 {
-        body += &format!(".f{i}{{fill:url(#g{i});}}.k{i}{{clip-path:url(#c{i});}}");
+        body += &format!(".f{i}{{fill:url(#g{i});}}.o{i}{{opacity:0.9}}");
     }
     body += "</style>";
     for i in 0..60 {
@@ -374,7 +408,7 @@ fn what_drawing_programs_write_is_not_mistaken_for_a_bomb() {
     }
     body += "</defs>";
     for i in 0..60 {
-        body += &format!("<g class='k{i}'><path class='f{i}' d='M0 0h40v40H0z'/><use href='#s'/></g>");
+        body += &format!("<g clip-path='url(#c{i})'><path class='f{i}' d='M0 0h40v40H0z'/><use href='#s'/></g>");
     }
     body += "<symbol id='s'><circle r='1' fill='#2e8b57'/></symbol>";
     // A drop shadow.
