@@ -455,6 +455,9 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     {
         let _ = app.run("file.importFolderTree", json!({}));
     }
+    if tile(ui, "import", tl!("Import a .pst File (preview)"), tl!("The mail of a .pst file, into a folder on this computer"), t) {
+        let _ = app.run("file.importPst", json!({}));
+    }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
         let _ = app.run("ui.open", json!({}));
     }

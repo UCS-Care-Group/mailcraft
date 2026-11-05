@@ -95,6 +95,7 @@ fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog 
             .add_filter("Calendars", &["ics", "ical"])
             .add_filter("Contacts", &["vcf", "vcard"])
             .add_filter("All files", &["*"]),
+        "pst" => d.add_filter(".pst files", &["pst"]).add_filter("All files", &["*"]),
         "picture" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]),
         "bodyPicture" => d.add_filter("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"]),
         _ => d,

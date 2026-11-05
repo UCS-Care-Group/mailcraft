@@ -31,6 +31,7 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+pub mod import_pst;
 pub mod import_tree;
 pub mod io;
 #[cfg(test)]
@@ -408,6 +409,8 @@ mod counts_tests;
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
+#[cfg(test)]
+mod import_pst_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]
