@@ -96,7 +96,7 @@ msgstr "(keine)"
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
-msgstr "* Die Größen lassen Nachrichten aus, deren Größe hier nicht bekannt ist: Von ihnen sind nur die Kopfzeilen auf diesem Computer und ihr Server hat keine Größe genannt, oder sie waren zu groß zum Herunterladen."
+msgstr "* Die Größen lassen Nachrichten aus, deren Größe hier nicht bekannt ist: Von ihnen sind nur die Kopfzeilen auf diesem Computer und Ihr Server hat keine Größe genannt, oder sie waren zu groß zum Herunterladen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -545,7 +545,9 @@ msgstr "Konto"
 msgid ""
 "Account\n"
 "Settings"
-msgstr "Kontoeinstellungen"
+msgstr ""
+"Konto-\n"
+"einstellungen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -3075,7 +3077,7 @@ msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie l�
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
+msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit Ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -8497,7 +8499,9 @@ msgstr "Schreibgeschützt"
 msgid ""
 "Reading\n"
 "Pane"
-msgstr "Lesebereich"
+msgstr ""
+"Lese-\n"
+"bereich"
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -8668,7 +8672,9 @@ msgstr "Erinnerungen"
 msgid ""
 "Reminders\n"
 "Window"
-msgstr "Erinnerungsfenster"
+msgstr ""
+"Erinnerungs-\n"
+"fenster"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -9075,7 +9081,9 @@ msgstr "Menüband"
 msgid ""
 "Ribbon\n"
 "Layout"
-msgstr "Menüband-Layout"
+msgstr ""
+"Menüband-\n"
+"Layout"
 
 #. command label, interface, ribbon
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -12662,7 +12670,7 @@ msgstr "Diese Besprechung ist in einem Kalender, der von hier aus nicht geänder
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This meeting is kept by the server of {who}, and somebody else organizes it. Whether it is held online is for its organizer to say."
-msgstr "Diese Besprechung liegt auf dem Server von {who}, und jemand anderes organisiert sie. Ob sie online stattfindet, entscheidet ihr Organisator."
+msgstr "Diese Besprechung liegt auf dem Server von {who}, und jemand anderes organisiert sie. Ob sie online stattfindet, entscheidet Ihr Organisator."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -12692,7 +12700,7 @@ msgstr "Diese Besprechung ist hier noch nicht in Ihrem Kalender. Sie kann beantw
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "This meeting was called off by its organizer."
-msgstr "Diese Besprechung wurde von ihrem Organisator abgesagt."
+msgstr "Diese Besprechung wurde von Ihrem Organisator abgesagt."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -13056,7 +13064,7 @@ msgid ""
 msgstr ""
 "Um aus {address} zu senden, benötigt MailCraft Ihre Erlaubnis, aus freigegebenen Postfächern zu senden. Die Microsoft-Seite öffnet sich dazu einmalig in Ihrem Browser.\n"
 "\n"
-"Ob Ihre E-Mail als {address} oder in deren Auftrag gesendet wird, entscheidet Ihre Organisation. Bis Sie es erlauben, wartet die E-Mail in ihrem Postausgang, und nichts wird von Ihrer eigenen Adresse gesendet."
+"Ob Ihre E-Mail als {address} oder in deren Auftrag gesendet wird, entscheidet Ihre Organisation. Bis Sie es erlauben, wartet die E-Mail in Ihrem Postausgang, und nichts wird von Ihrer eigenen Adresse gesendet."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -13611,7 +13619,7 @@ msgstr "Ergebnis des vorherigen Senden/Empfangen: Das letzte brachte nichts Neue
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "What the people invited are asked for is for its organizer to say."
-msgstr "Worum die Eingeladenen gebeten werden, entscheidet ihr Organisator."
+msgstr "Worum die Eingeladenen gebeten werden, entscheidet Ihr Organisator."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13692,7 +13700,7 @@ msgstr ""
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Whether it is held online is for its organizer to say."
-msgstr "Ob sie online stattfindet, entscheidet ihr Organisator."
+msgstr "Ob sie online stattfindet, entscheidet Ihr Organisator."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13703,7 +13711,7 @@ msgstr ""
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Who is invited is for its organizer to say."
-msgstr "Wer eingeladen ist, entscheidet ihr Organisator."
+msgstr "Wer eingeladen ist, entscheidet Ihr Organisator."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14138,7 +14146,7 @@ msgstr "Ihre Organisation muss MailCraft zuerst genehmigen"
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Your organisation keeps this permission for its administrators to give. Once one of them has approved it, choose it again here. Until then the Favorites kept in MailCraft are shown."
-msgstr "Ihre Organisation behält das Erteilen dieser Berechtigung ihren Administratoren vor. Sobald einer von ihnen sie genehmigt hat, wählen Sie sie hier erneut. Bis dahin werden die in MailCraft gespeicherten Favoriten angezeigt."
+msgstr "Ihre Organisation behält das Erteilen dieser Berechtigung Ihren Administratoren vor. Sobald einer von ihnen sie genehmigt hat, wählen Sie sie hier erneut. Bis dahin werden die in MailCraft gespeicherten Favoriten angezeigt."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -16189,7 +16197,7 @@ msgstr "{counted} · Angehalten bis zum nächsten Senden/Empfangen"
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{count} messages weren't searched in full: only their beginning is here until they download."
-msgstr "{count} Nachrichten wurden nicht vollständig durchsucht: Bis sie heruntergeladen sind, ist nur ihr Anfang hier."
+msgstr "{count} Nachrichten wurden nicht vollständig durchsucht: Bis sie heruntergeladen sind, ist nur Ihr Anfang hier."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -17455,7 +17463,7 @@ msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die N
 
 #, fuzzy
 #~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
-#~ msgstr "diese Nachricht war zu groß zum Herunterladen: Nur ihr Nachrichtenkopf ist hier, daher kann sie nicht als Anlage weitergeleitet werden"
+#~ msgstr "diese Nachricht war zu groß zum Herunterladen: Nur Ihr Nachrichtenkopf ist hier, daher kann sie nicht als Anlage weitergeleitet werden"
 
 #, fuzzy
 #~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
