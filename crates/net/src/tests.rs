@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, FolderState, Moved, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage,
 };
-use mailcraft_model::{Account, AccountKind, Address, FlagStatus, FolderKind, Id, Message, OAuth, Security, Server};
+use mailcraft_model::{Account, AccountKind, Address, FlagStatus, FolderKind, Id, Message, OAuth, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 
 use crate::fake::{Fake, FakeImap, FakeMailbox, FakeMessage, FakeSmtp, ImapWorld, SmtpWorld};
@@ -366,6 +366,95 @@ fn an_oauth_account_signs_in_with_its_token() {
     assert!(!lines().any(|line| line.contains("LOGIN") || line.contains("AUTH PLAIN") || line.contains(PASSWORD)));
     // Nor the token as it is: it travels in its envelope.
     assert!(!lines().any(|line| line.contains(TOKEN)));
+}
+
+#[test]
+fn google_xoauth2_reuses_imap_smtp_without_sending_a_password() {
+    let (imap, smtp) = token_servers();
+    let mut account = oauth_account(Some(&imap), Some(&smtp));
+    account.oauth.as_mut().unwrap().provider = mailcraft_model::OAuthProvider::Google;
+    assert_eq!(test_account(&account, TOKEN), Ok(()));
+    let mut request = request(account.clone(), local_folders());
+    request.access_token = TOKEN.into();
+    request.outbox = vec![hello()];
+    let result = sync(&request);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(send(&account, TOKEN, &hello()), Ok(()));
+    let (imap, smtp) = (imap.world(), smtp.world());
+    assert!(imap.log.iter().any(|line| line.contains("AUTHENTICATE XOAUTH2")));
+    assert!(smtp.log.iter().any(|line| line.starts_with("AUTH XOAUTH2")));
+    assert!(!imap.log.iter().chain(smtp.log.iter()).any(|line| line.contains(PASSWORD) || line.contains(TOKEN)));
+}
+
+#[test]
+fn oauth_named_mail_servers_reach_the_transport_security_check() {
+    // Use the real destination names, but refuse cleartext before DNS or a connection. The
+    // loopback protocol tests alone cannot catch a provider rejecting its own mail servers.
+    for (provider, incoming, outgoing) in [
+        (OAuthProvider::Google, "imap.gmail.com", "smtp.gmail.com"),
+        (OAuthProvider::Google, " IMAP.GMAIL.COM. ", " SMTP.GMAIL.COM. "),
+        (OAuthProvider::Microsoft, "outlook.office365.com", "smtp.office365.com"),
+        (OAuthProvider::Microsoft, " IMAP-MAIL.OUTLOOK.COM. ", " SMTP-MAIL.OUTLOOK.COM. "),
+    ] {
+        let mut account = oauth_account(None, None);
+        account.oauth.as_mut().unwrap().provider = provider;
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
+            assert!(matches!(&error, NetError::Config(why) if why.contains("is set to use no encryption")), "{provider:?}: {error:?}");
+            assert!(!format!("{error} {error:?}").contains(TOKEN));
+        }
+    }
+}
+
+#[test]
+fn oauth_destinations_cannot_cross_providers_or_protocols() {
+    for (provider, incoming, outgoing) in [
+        (OAuthProvider::Google, "outlook.office365.com", "smtp.office365.com"),
+        (OAuthProvider::Google, "smtp.gmail.com", "imap.gmail.com"),
+        (OAuthProvider::Google, "mail.example.org", "relay.example.org"),
+        (OAuthProvider::Google, "imap.gmail.com.attacker.example", "smtp.gmail.com.attacker.example"),
+        (OAuthProvider::Google, "other.imap.gmail.com", "other.smtp.gmail.com"),
+        (OAuthProvider::Google, "imap.googlemail.com", "smtp.googlemail.com"),
+        (OAuthProvider::Microsoft, "imap.gmail.com", "smtp.gmail.com"),
+        (OAuthProvider::Microsoft, "mail.example.org", "relay.example.org"),
+        (OAuthProvider::Microsoft, "office365.com.attacker.example", "evil-outlook.com"),
+    ] {
+        let mut account = oauth_account(None, None);
+        account.oauth.as_mut().unwrap().provider = provider;
+        // Even a broken destination guard would stop at the encryption check without reaching
+        // a real server; the provider-specific error proves the guard ran first on each path.
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        let expected = match provider {
+            OAuthProvider::Google => "Google OAuth access tokens may only be sent",
+            OAuthProvider::Microsoft => "a Microsoft sign-in is only used",
+        };
+        for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
+            assert!(matches!(&error, NetError::Config(why) if why.starts_with(expected)), "{provider:?}: {error:?}");
+            assert!(!format!("{error} {error:?}").contains(TOKEN));
+        }
+    }
+}
+
+#[test]
+fn google_access_tokens_never_go_to_untrusted_imap_or_smtp_servers() {
+    let (imap, smtp) = token_servers();
+    let mut account = oauth_account(Some(&imap), Some(&smtp));
+    account.oauth.as_mut().unwrap().provider = mailcraft_model::OAuthProvider::Google;
+    account.incoming.as_mut().unwrap().host = "imap.attacker.example".into();
+    let error = test_account(&account, TOKEN).unwrap_err();
+    assert!(matches!(error, NetError::Config(_)));
+    assert_eq!(imap.world().connections, 0);
+    assert_eq!(smtp.world().connections, 0);
+
+    // An SMTP server supplied through a hostile mailbox cannot receive Google's bearer token.
+    account.incoming = None;
+    account.outgoing.as_mut().unwrap().host = "smtp.attacker.example".into();
+    let error = send(&account, TOKEN, &hello()).unwrap_err();
+    assert!(matches!(error, NetError::Config(_)));
+    assert_eq!(smtp.world().connections, 0);
+    assert!(!format!("{error:?}").contains(TOKEN));
 }
 
 #[test]
