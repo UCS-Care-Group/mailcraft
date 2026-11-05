@@ -942,6 +942,11 @@ msgstr "Na"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "Nadat u een vergaderverzoek in de e-mail hebt geaccepteerd, voorlopig hebt geaccepteerd of hebt afgewezen, of een geannuleerde vergadering uit uw agenda hebt gehaald, gaat het bericht naar Verwijderde items. Als dit is uitgeschakeld, blijft het waar het is en geeft het weer wat u hebt geantwoord."
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr "Tekst uitlijnen"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
