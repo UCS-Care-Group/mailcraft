@@ -79,6 +79,35 @@ fn a_download_is_taken_in_exactly_as_a_microsoft_accounts_is() {
 }
 
 #[test]
+fn a_second_directory_run_keeps_the_same_event_and_reminder() {
+    let (mut s, account) = session();
+    let calendars = CalendarsDownload {
+        account,
+        email: ME.into(),
+        complete: true,
+        calendars: vec![RemoteCalendar { id: String::new(), name: String::new(), main: true, rights: Rights::Edit, ..Default::default() }],
+        ..Default::default()
+    };
+    let event = RemoteEvent {
+        id: "event-1".into(),
+        change_key: "ck-1".into(),
+        title: "Budget review".into(),
+        start: 1_000,
+        end: 1_600,
+        kind: RemoteEventKind::Single,
+        reminder_minutes: Some(15),
+        ..Default::default()
+    };
+    let events = EventsDownload { account, email: ME.into(), from: 0, to: 2_000, complete: true, events: vec![event], ..Default::default() };
+    let result = EwsDirectoryResult { account, email: ME.into(), calendars: Some(calendars), events: vec![events], ..Default::default() };
+    apply_ews_directory(&mut s, &result).unwrap();
+    let first = s.mailbox.events.values().next().map(|event| (event.id, event.start, event.reminder_minutes)).unwrap();
+    apply_ews_directory(&mut s, &result).unwrap();
+    let second = s.mailbox.events.values().next().map(|event| (event.id, event.start, event.reminder_minutes)).unwrap();
+    assert_eq!(first, second, "a second read is the same event, at the same reminder time");
+}
+
+#[test]
 fn a_result_for_another_account_is_refused_whole() {
     let (mut s, account) = session();
     let result = EwsDirectoryResult { account, email: "eve@example.org".into(), ..Default::default() };
