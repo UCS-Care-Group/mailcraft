@@ -237,8 +237,8 @@ impl<'a> Command<'a> {
 enum Section {
     Whole,
     Header,
-    /// Its first bytes.
-    Start,
+    /// Its first bytes, at most this many.
+    Start(usize),
 }
 
 /// What one FETCH response says about a message.
@@ -767,9 +767,10 @@ impl<S: Read + Write> Imap<S> {
 
     /// UID FETCH <uid> (UID FLAGS INTERNALDATE BODY.PEEK[]<0.bytes>): the first `bytes` bytes of a
     /// message (its header and the start of its text, #653), in [`Fetched::body`]; all of it when
-    /// it is shorter. `\Seen` is not set. `None` when the UID is gone.
+    /// it is shorter, and never more than `bytes` of it, whatever the server sends. `\Seen` is not set. `None` when the UID is gone.
     pub fn uid_fetch_start(&mut self, uid: u32, bytes: u32) -> Result<Option<Fetched>, ProtoError> {
-        self.fetch_one(uid, &format!("(UID FLAGS INTERNALDATE BODY.PEEK[]<0.{}>)", bytes.max(1)), Section::Start)
+        let bytes = bytes.max(1);
+        self.fetch_one(uid, &format!("(UID FLAGS INTERNALDATE BODY.PEEK[]<0.{bytes}>)"), Section::Start(usize::try_from(bytes).unwrap_or(usize::MAX)))
     }
 
     /// UID FETCH <set> (UID RFC822.SIZE INTERNALDATE): the size in bytes and the date it arrived
@@ -818,8 +819,12 @@ impl<S: Read + Write> Imap<S> {
                     Section::Whole => item.body,
                     Section::Header => item.header,
                     // A server that sends the whole of a short message without the `<0>` is
-                    // taken at its word.
-                    Section::Start => item.start.or(item.body),
+                    // taken at its word; more than was asked for, in either, is cut to what was
+                    // (the bytes have come, but are not kept).
+                    Section::Start(most) => item.start.or(item.body).map(|mut body| {
+                        body.truncate(most);
+                        body
+                    }),
                 };
                 message.body = asked_for.or(message.body.take());
             }

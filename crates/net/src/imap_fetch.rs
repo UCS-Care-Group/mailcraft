@@ -10,9 +10,10 @@
 //!   copy of a message under each of its labels. A mailbox numbered anew since is not asked for
 //!   its UIDs, which are other messages' now: they are said to be refused, and the next
 //!   Send/Receive reads the mailbox afresh.
-//! - **Bounded**: a message larger than a synchronisation takes whole, or one whose size the
-//!   server doesn't say, is refused (it stays as it is here), and one request brings at most so
-//!   many bytes; what it didn't get to is asked for again.
+//! - **Bounded**: a message larger than a synchronisation takes whole is refused (it stays as it
+//!   is here); nothing is downloaded whole while the server doesn't say how large it is, and is
+//!   asked for again; and one request brings at most so many bytes; what it didn't get to is
+//!   asked for again.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -98,7 +99,19 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
             keys.into_iter().partition(|k| k.uid_validity != 0 && selected.uid_validity != 0 && k.uid_validity != selected.uid_validity);
         out.failed.extend(renumbered.iter().map(ImapFetchKey::write));
         let uids: Vec<u32> = same.iter().map(|k| k.uid).collect();
-        let sizes = sizes(&mut imap, &uids);
+        let sizes = match sizes(&mut imap, &uids) {
+            Ok(sizes) => sizes,
+            // Not refused: nothing is known of these messages, and they are asked for again.
+            Err(e) => {
+                let e = NetError::from(e);
+                out.errors.push(format!("Couldn't read the sizes of the messages in \"{}\": {e}", shown(&remote)));
+                if e.is_fatal() {
+                    out.offline = e.is_unreachable();
+                    break;
+                }
+                continue;
+            }
+        };
         for key in same {
             if cancel.load(Ordering::Relaxed) {
                 break 'mailboxes;
@@ -110,8 +123,9 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
                     out.missing.push(key.write());
                     continue;
                 }
-                // A size the server wouldn't say is no size within the bounds: refused, as one
-                // too large is, and asked for again when it is next opened.
+                // Not in an answer that names it (it can't be, but if it were): no size within
+                // the bounds, refused as one too large is, and asked for again when it is next
+                // opened.
                 None => {
                     out.failed.push(key.write());
                     continue;
@@ -153,14 +167,17 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
 mod tests;
 
 /// The sizes of `uids` in the open mailbox, as the server says them: `Some(None)` for one it was
-/// asked for and has not (gone), and nothing for one it wouldn't answer for.
-fn sizes(imap: &mut mailcraft_proto::imap::Imap<crate::transport::Stream<'_>>, uids: &[u32]) -> BTreeMap<u32, Option<u64>> {
+/// asked for and has not (gone). An error when the server wouldn't say them, or the connection
+/// broke while it did.
+fn sizes(
+    imap: &mut mailcraft_proto::imap::Imap<crate::transport::Stream<'_>>,
+    uids: &[u32],
+) -> Result<BTreeMap<u32, Option<u64>>, mailcraft_proto::ProtoError> {
     let mut out = BTreeMap::new();
     for (set, named) in uid_sets(uids) {
-        if let Ok(sizes) = imap.uid_fetch_sizes(&set) {
-            out.extend(named.into_iter().map(|uid| (uid, None)));
-            out.extend(sizes.into_iter().map(|(uid, size)| (uid, Some(size))));
-        }
+        let sizes = imap.uid_fetch_sizes(&set)?;
+        out.extend(named.into_iter().map(|uid| (uid, None)));
+        out.extend(sizes.into_iter().map(|(uid, size)| (uid, Some(size))));
     }
-    out
+    Ok(out)
 }

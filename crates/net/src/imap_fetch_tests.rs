@@ -116,14 +116,31 @@ fn one_too_large_to_take_is_refused_and_the_rest_comes() {
 }
 
 #[test]
-fn one_whose_size_the_server_doesnt_say_is_refused_unasked() {
-    // A size not known is no size under the bounds: nothing is downloaded whole on trust.
+fn one_whose_size_the_server_doesnt_say_is_not_downloaded_and_asked_for_again() {
+    // A size not known is no size under the bounds: nothing is downloaded whole on trust. Nor
+    // is it refused: the server said nothing of the message, and it is asked for again.
     let imap = server();
     imap.world().refuse = vec!["RFC822.SIZE".into()];
     let result = fetch(&imap, vec![key("INBOX", 11, 4), key("INBOX", 11, 1)]);
-    assert_eq!(result.failed, vec![key("INBOX", 11, 4), key("INBOX", 11, 1)]);
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors[0].starts_with("Couldn't read the sizes of the messages in \"INBOX\""), "{:?}", result.errors);
+    assert!(result.failed.is_empty() && result.missing.is_empty(), "{:?} {:?}", result.failed, result.missing);
     assert!(result.fetched.is_empty() && !result.offline);
     assert!(!imap.world().log.iter().any(|line| line.contains("BODY.PEEK[]")));
+}
+
+#[test]
+fn a_connection_lost_while_the_sizes_come_is_offline_and_refuses_nothing() {
+    // A break in the middle is no word on the messages: none of them is passed over for the
+    // rest of the session, and the mailboxes after it are not asked for on a dead connection.
+    let imap = server();
+    imap.world().hang_up_on = Some("RFC822.SIZE".into());
+    let result = fetch(&imap, vec![key("INBOX", 11, 4), key("INBOX", 11, 1), key("[Gmail]/All Mail", 51, 9)]);
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors[0].starts_with("Couldn't read the sizes of the messages in \"INBOX\""), "{:?}", result.errors);
+    assert!(result.failed.is_empty() && result.missing.is_empty(), "{:?} {:?}", result.failed, result.missing);
+    assert!(result.fetched.is_empty() && result.offline);
+    assert!(!imap.world().log.iter().any(|line| line.contains("EXAMINE \"[Gmail]/All Mail\"")));
 }
 
 #[test]

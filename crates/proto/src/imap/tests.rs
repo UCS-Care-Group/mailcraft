@@ -1056,6 +1056,34 @@ fn the_start_of_a_message_arrives_without_setting_seen() {
 }
 
 #[test]
+fn the_start_of_a_message_is_no_longer_than_was_asked_for() {
+    // A server that answers with more than the first bytes, the whole message or a longer
+    // start, has the rest cut off: what is kept is what was asked for.
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[] {10}
+0123456789)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[]<0> {10}
+0123456789)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+    // What fits is kept whole.
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[] {4}
+0123)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+}
+
+#[test]
 fn sizes_and_dates_come_together() {
     let mut s = Script::new(
         "* 1 FETCH (UID 4 RFC822.SIZE 120 INTERNALDATE \"01-Jul-2003 09:52:37 +0000\")\r\n* 2 FETCH (INTERNALDATE \"02-Jul-2003 09:52:37 +0000\" UID 6 RFC822.SIZE 9)\r\n* 3 FETCH (UID 7 RFC822.SIZE 5)\r\nA0001 OK done\r\n",
