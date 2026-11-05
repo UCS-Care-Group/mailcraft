@@ -1403,11 +1403,18 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
         let proposes = change.kind == EventChangeKind::Respond && change.send && matches!(change.response, Response::Tentative | Response::Declined);
+        let etag = change
+            .base
+            .as_deref()
+            .map(|base| base.origin.change_key.clone())
+            .or_else(|| event.map(|event| event.origin.change_key.clone()))
+            .unwrap_or_default();
         ops.push(EventOp {
             kind: change.kind,
             event: change.event,
             remote: change.remote.clone(),
             token: change.token.clone(),
+            etag,
             fields,
             series: if change.of_occurrence() { change.series.clone() } else { String::new() },
             occurrence: if change.of_occurrence() { change.occurrence } else { 0 },

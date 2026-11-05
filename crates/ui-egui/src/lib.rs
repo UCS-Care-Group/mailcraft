@@ -2337,7 +2337,11 @@ impl MailApp {
                 != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            self.forget_account_secrets(&before);
+            // Adding DAV to an account keeps the same mail password; move it to the new bound
+            // name instead of forgetting it. Any other endpoint change still forgets.
+            if !self.migrate_dav_secret(&before, &after) {
+                self.forget_account_secrets(&before);
+            }
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
@@ -2872,6 +2876,43 @@ impl MailApp {
         if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&key) {
             self.ui.remembered_keys.push(key);
         }
+    }
+
+    /// When DAV is added to an existing account, its password was kept under the old name
+    /// without the DAV endpoints. Move it to the new name instead of dropping it; the mail
+    /// servers, account kind and address must be unchanged.
+    fn migrate_dav_secret(&mut self, before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        if before.dav.is_some()
+            || after.dav.is_none()
+            || before.kind != after.kind
+            || !before.email.eq_ignore_ascii_case(&after.email)
+            || before.incoming != after.incoming
+            || before.outgoing != after.outgoing
+        {
+            return false;
+        }
+        let Some(store) = &self.services.secrets else { return false };
+        let mut moved = false;
+        for kind in ["password", "refresh"] {
+            let old = Self::secret_key(kind, before);
+            let new = Self::secret_key(kind, after);
+            if old == new {
+                continue;
+            }
+            let Some(secret) = store.get(&old) else { continue };
+            if store.set(&new, &secret).is_err() {
+                continue;
+            }
+            store.delete(&old);
+            self.secret_cache.remove(&old);
+            self.secret_cache.insert(new.clone(), secret);
+            if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&new) {
+                self.ui.remembered_keys.push(new);
+            }
+            self.ui.remembered_keys.retain(|key| key != &old);
+            moved = true;
+        }
+        moved
     }
 
     /// Delete every entry MailCraft put in the credential store: those noted in `remembered_keys`
