@@ -145,6 +145,31 @@ fn more_words_or_exceptions_than_a_rule_keeps_are_refused_not_cut() {
     assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).map(|r| r.conditions.len()), Some(20));
 }
 
+/// An address up to the 254 characters an address can have is looked for whole, never cut into
+/// somebody else's; a longer one is refused (#566).
+#[test]
+fn a_long_address_is_looked_for_whole_and_a_longer_one_is_refused() {
+    let (mut s, account, _, _) = session();
+    let long = format!("a@{}.{}.{}.{}.example", "b".repeat(60), "c".repeat(60), "d".repeat(60), "e".repeat(30));
+    assert!(long.len() > 200 && long.len() <= 254);
+    let longer = format!("a@{}.{}", "f".repeat(40), long.trim_start_matches("a@"));
+    assert!(longer.len() > 254);
+    for kind in ["from", "sentTo"] {
+        let rule = |value: &str| json!({"name": "Long", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "markRead"}]});
+        let id = s.run("rules.add", &rule(&long)).unwrap()["id"].as_u64().unwrap();
+        let made = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
+        let whole = vec![long.clone()];
+        assert!(
+            made.conditions == [Condition::From(whole.clone())] || made.conditions == [Condition::SentTo(whole)],
+            "{kind}: {:?}",
+            made.conditions
+        );
+        let before = s.mailbox.rules.len();
+        assert!(s.run("rules.add", &rule(&longer)).is_err(), "{kind}");
+        assert_eq!(s.mailbox.rules.len(), before);
+    }
+}
+
 #[test]
 fn the_new_parts_act_on_arriving_mail_and_on_mail_already_there() {
     let (mut s, account, inbox, kept) = session();

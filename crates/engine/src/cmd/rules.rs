@@ -212,8 +212,13 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
 /// The words under `value`: a text, or a list of them, any one of which is enough; at most
 /// [`MAX_WORDS_EACH`] of 200 characters each. `what` says what they are, for an error.
 fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
+    words_of(v, what, 200)
+}
+
+/// [`words`], each cut to `cap` characters.
+fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> {
     let one = |w: &Value| -> Result<String, CmdError> {
-        let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(200).collect();
+        let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(cap).collect();
         if t.is_empty() { Err(bad(format!("`value` has {what} that is empty"))) } else { Ok(t) }
     };
     let list: Vec<String> = match v.get("value") {
@@ -237,10 +242,11 @@ pub fn by_address(email: &str) -> bool {
     email.len() <= 254 && mailcraft_model::search::is_address(email)
 }
 
-/// The people under `value`, by their whole addresses (`name@domain`).
+/// The people under `value`, by their whole addresses (`name@domain`), each read whole: one cut
+/// short would be somebody else's, and one longer than an address can be is refused.
 fn people(v: &Value) -> Result<Vec<String>, CmdError> {
-    let list = words(v, "addresses")?;
-    match list.iter().find(|a| !mailcraft_model::search::is_address(a)) {
+    let list = words_of(v, "addresses", 255)?;
+    match list.iter().find(|a| !by_address(a)) {
         Some(a) => Err(bad(format!("\"{a}\" isn't an address"))),
         None => Ok(list),
     }
