@@ -4,31 +4,32 @@
 //! (`cid:`), written into it (`data:`) or, when the owner asked for its pictures, on the web.
 //! An `<svg>` element in the message itself is not drawn.
 //!
-//! A drawing is a stranger's program for a renderer, so only plain drawings are shown, the kind
-//! logos and icons are: shapes, groups, gradients and clips. Everything else is a broken
-//! picture, as a damaged PNG is:
+//! A drawing is a stranger's program for a renderer that was not made for strangers, drawn on
+//! the window's own thread. So only the plainest drawings are shown, the kind flat logos and
+//! icons are, by an allowlist: what is not on it makes the drawing a broken picture, as a damaged
+//! PNG is.
 //!
 //! - **Nothing is loaded from outside it.** The resolvers usvg would load a picture or another
 //!   drawing with answer nothing ([`options`]), no folder is given to look in, and the renderer is
-//!   built without text, so no font is looked for (a drawing's words are not drawn). Scripts,
-//!   animation and links do nothing: resvg has none of them.
-//! - **Refused before it is read:** more than [`MAX_SVG_BYTES`], not UTF-8, packed (`svgz` is not
-//!   unpacked), nesting deeper than [`MAX_SVG_DEPTH`] (by a scan with no stack, before the XML
-//!   reader, which recurses, sees it), more than [`MAX_SVG_NODES`] nodes, an entity or an
-//!   internal subset of the document type, or a root that is no `<svg>` in SVG's namespace.
-//! - **Refused for what it has ([`REFUSED`]):** the elements whose content the renderer copies
-//!   for each element that uses them, or that inherits them from a group (`<use>`, `<pattern>`,
-//!   `<marker>`, `<mask>`), style sheets (`<style>`, which could give any element anything), and
-//!   filters, pictures and foreign content; `inherit` in any value; a comment or an escape in a
-//!   `style`; and a clip inside a clip.
-//! - **What is left is bounded before it is read:** a clip's content is copied for each element
-//!   it clips, and a gradient's stops for each element painted with it, so the elements clipped
-//!   times the elements in clips, and the elements (with those copies) times the gradients'
-//!   stops, are capped.
-//! - **The tree usvg made is counted** ([`counted`]): at most `MAX_SVG_COST` nodes, and its
-//!   layers (groups drawn apart, for opacity or a clip) set the pixels it is drawn with.
+//!   built without text, so no font is looked for. No element or attribute that refers to
+//!   anything but a gradient is allowed.
+//! - **Before it is read:** at most [`MAX_SVG_BYTES`] of UTF-8 (`svgz` is not unpacked), nesting
+//!   no deeper than [`MAX_SVG_DEPTH`] (by a scan with no stack, before the XML reader, which
+//!   recurses, sees it), at most [`MAX_SVG_NODES`] nodes, no entity and no internal subset of the
+//!   document type, an `<svg>` root in SVG's namespace.
+//! - **Only what is allowed ([`plain`]):** the elements of [`ELEMENTS`] (and elements of other
+//!   namespaces, which the renderer skips), the attributes of [`ATTRIBUTES`] (and `data-…`,
+//!   `aria-…` and other namespaces' but XLink's, which it ignores), a `style` of those properties
+//!   alone with nothing quoted, escaped or commented, and `opacity` on a shape alone, so that no
+//!   layer is drawn inside another. So there is no `<use>`, style sheet, `href` (gradients don't
+//!   refer to each other), clip, mask, marker, pattern, filter, dash, blend mode or picture, and
+//!   nothing the renderer copies but a gradient's stops for each shape painted with it: the
+//!   elements times the stops are capped. At most [`MAX_SHAPES`] shapes.
+//! - **The tree usvg made is checked** ([`counted`]): no clip, mask or filter in it, no layer in
+//!   a layer, at most `MAX_SVG_COST` nodes.
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
-//!   texture caps and [`MAX_SVG_PIXELS`]; a drawing of many layers is drawn with fewer.
+//!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes and layers it
+//!   has, so that drawing it is a bounded amount of work.
 //!
 //! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
 //! broken picture too.
@@ -44,30 +45,103 @@ pub const MAX_SVG_NODES: u32 = 20_000;
 /// Deepest a drawing's elements may nest.
 pub const MAX_SVG_DEPTH: usize = 40;
 
-/// Most nodes the tree usvg makes of a drawing may have, its clips' and the copies of them in.
-const MAX_SVG_COST: u64 = 100_000;
+/// Most shapes a drawing may have.
+pub const MAX_SHAPES: u64 = 5_000;
 
-/// Most copies of what is in clips (the elements clipped times the elements in clips), and of
-/// gradients' stops (the elements times the stops and gradients), a drawing may come to.
-const MAX_CLIP_COPIES: u64 = 100_000;
+/// Most nodes the tree usvg makes of a drawing may have.
+const MAX_SVG_COST: u64 = 50_000;
+
+/// Most copies of gradients' stops (the elements times the stops and gradients) a drawing may
+/// come to: each shape painted with a gradient, its own or one a group gives it, takes a copy.
 const MAX_GRADIENT_COPIES: u64 = 2_000_000;
 
 /// Longest side a drawing is taken to have, in pixels: one that says it is larger is shown as
 /// if it said this, its shape kept.
 pub const MAX_SVG_SIDE: f32 = 4096.0;
 
-/// Most pixels a drawing is drawn with, and the fewest a drawing of very many layers is.
+/// Most pixels a drawing is drawn with, and the fewest a drawing of very many shapes is.
 pub const MAX_SVG_PIXELS: u64 = 4_000_000;
 const MIN_SVG_PIXELS: u64 = 256 * 256;
 
-/// The pixels the layers of one drawing may take all together: the passes of its group
-/// opacities and clips over the pixels it is drawn with.
-const LAYER_WORK: u64 = 400_000_000;
+/// The pixels drawing one drawing may touch all together, each shape and each layer taken to
+/// cover all of it: the pixels it is drawn with are this over their count.
+const DRAWING_WORK: u64 = 600_000_000;
 
-/// The elements a drawing that is shown may not have (any element whose name begins `fe`, a
-/// filter's step, is refused too).
-pub const REFUSED: &[&str] =
-    &["use", "pattern", "marker", "mask", "style", "filter", "image", "foreignObject", "symbol", "tref", "textPath", "feImage"];
+/// The elements of SVG's namespace a drawing that is shown may have.
+pub const ELEMENTS: &[&str] = &[
+    "svg",
+    "g",
+    "defs",
+    "path",
+    "rect",
+    "circle",
+    "ellipse",
+    "line",
+    "polyline",
+    "polygon",
+    "linearGradient",
+    "radialGradient",
+    "stop",
+    "title",
+    "desc",
+    "metadata",
+];
+
+/// The shapes among them.
+const SHAPES: &[&str] = &["path", "rect", "circle", "ellipse", "line", "polyline", "polygon"];
+
+/// The attributes they may have (and the properties a `style` may set, those of them that are).
+pub const ATTRIBUTES: &[&str] = &[
+    // What each element is.
+    "id",
+    "class",
+    "version",
+    "baseProfile",
+    "viewBox",
+    "preserveAspectRatio",
+    "x",
+    "y",
+    "width",
+    "height",
+    "transform",
+    "d",
+    "points",
+    "cx",
+    "cy",
+    "r",
+    "rx",
+    "ry",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "fx",
+    "fy",
+    "fr",
+    "offset",
+    "gradientUnits",
+    "gradientTransform",
+    "spreadMethod",
+    "enable-background",
+    // How it is painted.
+    "fill",
+    "fill-opacity",
+    "fill-rule",
+    "stroke",
+    "stroke-width",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-miterlimit",
+    "stroke-opacity",
+    "color",
+    "stop-color",
+    "stop-opacity",
+    "opacity",
+    "display",
+    "visibility",
+    "shape-rendering",
+    "style",
+];
 
 /// What is known of a drawing that can be shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,9 +157,9 @@ pub fn is_svg(data: &[u8]) -> bool {
     mailcraft_html::looks_like_svg(data)
 }
 
-/// What a drawing is, read and counted; `None` when it is not one that is shown.
+/// What a drawing is, read and checked; `None` when it is not one that is shown.
 pub fn probe(data: &[u8]) -> Option<Drawing> {
-    std::panic::catch_unwind(|| read(data).and_then(|(tree, layers)| drawing(&tree, layers))).ok().flatten()
+    std::panic::catch_unwind(|| read(data).and_then(|(tree, work)| drawing(&tree, work))).ok().flatten()
 }
 
 /// The size a drawing is drawn at, shown `max_width` pixels wide: as wide as that, larger than
@@ -103,8 +177,8 @@ pub fn kept_size(drawing: &Drawing, max_side: u32, max_width: u32) -> [u32; 2] {
 /// not one that is shown.
 pub fn decode(data: &[u8], max_side: u32, max_width: u32) -> Option<egui::ColorImage> {
     std::panic::catch_unwind(|| {
-        let (tree, layers) = read(data)?;
-        let [w, h] = kept_size(&drawing(&tree, layers)?, max_side, max_width);
+        let (tree, work) = read(data)?;
+        let [w, h] = kept_size(&drawing(&tree, work)?, max_side, max_width);
         let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
         let size = tree.size();
         let transform = tiny_skia::Transform::from_scale(w as f32 / size.width(), h as f32 / size.height());
@@ -116,15 +190,16 @@ pub fn decode(data: &[u8], max_side: u32, max_width: u32) -> Option<egui::ColorI
     .flatten()
 }
 
-/// Its size and the pixels it may take, from the tree and how many layers it has.
-fn drawing(tree: &usvg::Tree, layers: u64) -> Option<Drawing> {
+/// Its size and the pixels it may take, from the tree and how many passes (shapes and layers)
+/// drawing it takes.
+fn drawing(tree: &usvg::Tree, passes: u64) -> Option<Drawing> {
     let (w, h) = (tree.size().width(), tree.size().height());
     if !(w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0) {
         return None;
     }
     let scale = (MAX_SVG_SIDE / w).min(MAX_SVG_SIDE / h).min(1.0);
     let size = [(w * scale).round().max(1.0) as u32, (h * scale).round().max(1.0) as u32];
-    let max_pixels = (LAYER_WORK / layers.saturating_add(1)).clamp(MIN_SVG_PIXELS, MAX_SVG_PIXELS);
+    let max_pixels = (DRAWING_WORK / passes.max(1)).clamp(MIN_SVG_PIXELS, MAX_SVG_PIXELS);
     Some(Drawing { size, max_pixels })
 }
 
@@ -136,7 +211,8 @@ fn options() -> usvg::Options<'static> {
     options
 }
 
-/// The drawing read within the caps, and how many layers it has; `None` for anything refused.
+/// The drawing read within the caps, and the passes drawing it takes; `None` for anything
+/// refused.
 fn read(data: &[u8]) -> Option<(usvg::Tree, u64)> {
     if data.len() > MAX_SVG_BYTES || !is_svg(data) {
         return None;
@@ -156,80 +232,90 @@ fn read(data: &[u8]) -> Option<(usvg::Tree, u64)> {
     let document = roxmltree::Document::parse_with_options(text, xml).ok()?;
     let root = document.root_element();
     // As a browser shows an `<img>` of one: an `<svg>` in SVG's namespace, or no drawing.
-    if root.tag_name().name() != "svg" || root.tag_name().namespace() != Some("http://www.w3.org/2000/svg") {
+    if root.tag_name().name() != "svg" || root.tag_name().namespace() != Some(SVG) {
         return None;
     }
-    plain(&document)?;
+    let shapes = plain(&document)?;
     let tree = usvg::Tree::from_xmltree(&document, &options()).ok()?;
     let layers = counted(&tree)?;
-    Some((tree, layers))
+    Some((tree, shapes.saturating_add(layers).saturating_add(1)))
 }
 
-/// `Some` when `document` is a plain drawing: none of what is [`REFUSED`], and what the renderer
-/// copies of clips and gradients within bounds.
-fn plain(document: &roxmltree::Document) -> Option<()> {
-    let (mut elements, mut clipped, mut in_clips, mut stops) = (0u64, 0u64, 0u64, 0u64);
+const SVG: &str = "http://www.w3.org/2000/svg";
+const XLINK: &str = "http://www.w3.org/1999/xlink";
+
+/// Whether a `style` sets only what is allowed: the properties of [`ATTRIBUTES`], with nothing
+/// quoted, escaped, commented or in braces, so that it reads the same to anybody; `opacity` only
+/// on a shape.
+fn plain_style(style: &str, shape: bool) -> bool {
+    if style.contains(['"', '\'', '\\', '{', '}', '<', '>', '@']) || style.contains("/*") {
+        return false;
+    }
+    style.split(';').filter(|d| !d.trim().is_empty()).all(|declaration| {
+        let Some((property, _)) = declaration.split_once(':') else { return false };
+        let property = property.trim();
+        ATTRIBUTES.contains(&property) && !matches!(property, "style" | "id" | "class") && (shape || property != "opacity")
+    })
+}
+
+/// The shapes `document` has, when it has only what is allowed: the elements, attributes and
+/// styles above, and within the caps of shapes and gradient copies.
+fn plain(document: &roxmltree::Document) -> Option<u64> {
+    let (mut elements, mut shapes, mut stops) = (0u64, 0u64, 0u64);
     for node in document.descendants().filter(roxmltree::Node::is_element) {
+        // An element of another namespace (an editor's own) is skipped by the renderer, all in it.
+        if node.tag_name().namespace() != Some(SVG) {
+            continue;
+        }
         let name = node.tag_name().name();
-        if REFUSED.contains(&name) || name.starts_with("fe") {
+        // Only the root is an `<svg>`: one inside it is a drawing of its own.
+        let root = node.parent().is_some_and(|p| !p.is_element());
+        if !ELEMENTS.contains(&name) || (name == "svg" && !root) {
             return None;
+        }
+        let shape = SHAPES.contains(&name);
+        for attribute in node.attributes() {
+            let local = attribute.name();
+            let allowed = match attribute.namespace() {
+                None | Some(SVG) => {
+                    ATTRIBUTES.contains(&local) && (shape || local != "opacity") || local.starts_with("data-") || local.starts_with("aria-")
+                }
+                Some(XLINK) => false,
+                // `xml:space` and `xml:lang` say nothing that is drawn; `xml:id` would be an id.
+                Some("http://www.w3.org/XML/1998/namespace") => local != "id",
+                // Another namespace's (an editor's own): ignored by the renderer.
+                Some(_) => true,
+            };
+            if !allowed || (local == "style" && !plain_style(attribute.value(), shape)) {
+                return None;
+            }
         }
         elements += 1;
-        let in_clip = node.ancestors().any(|a| a.tag_name().name() == "clipPath");
-        let mut clips = false;
-        for attribute in node.attributes() {
-            let value = attribute.value();
-            let lower = value.to_ascii_lowercase();
-            if lower.contains("inherit") {
-                return None;
-            }
-            match attribute.name() {
-                "style" if value.contains("/*") || value.contains('\\') => return None,
-                "style" => clips |= lower.contains("clip-path"),
-                "clip-path" => clips = true,
-                _ => {}
-            }
-        }
-        // A clip's content (or a clip itself) clipped again would be copied for each copy.
-        if clips && in_clip {
-            return None;
-        }
-        clipped += u64::from(clips);
-        if in_clip && name != "clipPath" {
-            in_clips += 1;
-        }
-        if matches!(name, "stop" | "linearGradient" | "radialGradient") {
-            stops += 1;
-        }
+        shapes += u64::from(shape);
+        stops += u64::from(matches!(name, "stop" | "linearGradient" | "radialGradient"));
     }
-    let clip_copies = clipped.saturating_mul(in_clips);
-    let drawn = elements.saturating_add(clip_copies);
-    (clip_copies <= MAX_CLIP_COPIES && drawn.saturating_mul(stops) <= MAX_GRADIENT_COPIES).then_some(())
+    (shapes <= MAX_SHAPES && elements.saturating_mul(stops) <= MAX_GRADIENT_COPIES).then_some(shapes)
 }
 
-/// The layers of the tree usvg made (groups drawn apart, for an opacity or a clip, and the
-/// clips themselves), counting every node it has, its clips' content included; `None` for one of
-/// more than `MAX_SVG_COST` nodes.
+/// The layers of the tree usvg made (shapes drawn apart for their opacity), when it has none of
+/// what is refused: no clip, mask or filter, no layer in a layer, at most `MAX_SVG_COST` nodes.
 fn counted(tree: &usvg::Tree) -> Option<u64> {
     let (mut nodes, mut layers) = (0u64, 0u64);
-    let mut groups = vec![tree.root()];
-    while let Some(group) = groups.pop() {
+    let mut groups = vec![(tree.root(), false)];
+    while let Some((group, in_layer)) = groups.pop() {
         nodes += 1;
-        layers += u64::from(group.should_isolate());
-        let mut clip = group.clip_path();
-        while let Some(path) = clip {
-            nodes += 1;
-            layers += 1;
-            groups.push(path.root());
-            clip = path.clip_path();
-            if nodes > MAX_SVG_COST {
-                return None;
-            }
+        if group.clip_path().is_some() || group.mask().is_some() || !group.filters().is_empty() {
+            return None;
         }
+        let layer = group.should_isolate();
+        if layer && in_layer {
+            return None;
+        }
+        layers += u64::from(layer);
         for child in group.children() {
             nodes += 1;
             if let usvg::Node::Group(child) = child {
-                groups.push(child);
+                groups.push((child, in_layer || layer));
             }
         }
         if nodes > MAX_SVG_COST {
@@ -240,12 +326,30 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
 }
 
 /// How deep the elements of XML text nest, at most, read a byte at a time with no stack: tags
-/// counted in and out, comments, character data, processing instructions, the document type and
-/// quoted attribute values skipped. `None` for text that ends inside one of them or a tag, which
-/// is no drawing. (It may count a little deeper than the XML is, never less.)
+/// counted in and out; comments, character data, processing instructions, the document type and
+/// what is quoted in a tag or the document type skipped, each to where XML ends it. `None` for
+/// text that ends inside one of them, which is no drawing, and for a document type with an
+/// internal subset. (It may count a little deeper than the XML is, never less.)
 fn nesting(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     let find = |from: usize, end: &[u8]| bytes.get(from..)?.windows(end.len()).position(|w| w == end).map(|at| from + at + end.len());
+    // From `from`, past what is quoted, to the first `>` that isn't; `None` at a `[` (an internal
+    // subset) when `subset` is refused.
+    let close = |from: usize, refuse_subset: bool| -> Option<usize> {
+        let (mut j, mut quote) = (from, None);
+        loop {
+            let b = *bytes.get(j)?;
+            match quote {
+                Some(q) if b == q => quote = None,
+                Some(_) => {}
+                None if b == b'"' || b == b'\'' => quote = Some(b),
+                None if b == b'[' && refuse_subset => return None,
+                None if b == b'>' => return Some(j),
+                None => {}
+            }
+            j += 1;
+        }
+    };
     let (mut depth, mut deepest, mut i) = (0usize, 0usize, 0usize);
     while let Some(at) = bytes.get(i..).and_then(|rest| rest.iter().position(|&b| b == b'<')).map(|at| i + at) {
         let rest = bytes.get(at..)?;
@@ -256,27 +360,10 @@ fn nesting(text: &str) -> Option<usize> {
         } else if rest.starts_with(b"<?") {
             find(at + 2, b"?>")?
         } else if rest.starts_with(b"<!") {
-            // A document type. One with an internal subset (in brackets), which no drawing needs
-            // and which could say things about the rest, is refused.
-            let open = rest.iter().position(|&b| b == b'[' || b == b'>')?;
-            if rest.get(open) == Some(&b'[') {
-                return None;
-            }
-            at + open + 1
+            // A document type: its literals may hold a `>`.
+            close(at + 2, true)? + 1
         } else {
-            // A tag: to its `>`, past what is quoted.
-            let (mut j, mut quote) = (at + 1, None);
-            loop {
-                let b = *bytes.get(j)?;
-                match quote {
-                    Some(q) if b == q => quote = None,
-                    Some(_) => {}
-                    None if b == b'"' || b == b'\'' => quote = Some(b),
-                    None if b == b'>' => break,
-                    None => {}
-                }
-                j += 1;
-            }
+            let j = close(at + 1, false)?;
             if rest.starts_with(b"</") {
                 depth = depth.saturating_sub(1);
             } else if bytes.get(j - 1) != Some(&b'/') {
