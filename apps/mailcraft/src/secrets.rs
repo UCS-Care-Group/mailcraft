@@ -156,21 +156,43 @@ mod os {
         }
 
         fn set(&self, key: &str, secret: &str) -> Result<(), String> {
-            // The error text names the store's complaint, never the secret.
+            // Platform errors may echo the attempted secret, so never return their words.
             let refused = |e: Error| {
                 self.note(&e);
-                format!("the system's credential store refused: {e}")
+                "the system's credential store could not keep this sign-in".to_string()
             };
+            if secret.is_empty() {
+                self.delete(key);
+                return Ok(());
+            }
             let pieces = pieces(secret).ok_or("it is too long for the system's credential store")?;
             self.delete(key);
             for (i, piece) in pieces.iter().enumerate() {
-                self.build(key, &i.to_string()).and_then(|e| e.set_password(piece)).map_err(refused)?;
+                if let Err(e) = self.build(key, &i.to_string()).and_then(|entry| entry.set_password(piece)) {
+                    // The count marker is deliberately written last. Clean up even an
+                    // incomplete write so an account removal cannot leave token fragments.
+                    self.delete(key);
+                    return Err(refused(e));
+                }
             }
-            self.build(key, "n").and_then(|e| e.set_password(&pieces.len().to_string())).map_err(refused)
+            if let Err(e) = self.build(key, "n").and_then(|entry| entry.set_password(&pieces.len().to_string())) {
+                self.delete(key);
+                return Err(refused(e));
+            }
+            Ok(())
         }
 
         fn delete(&self, key: &str) {
-            let pieces = self.count(key).unwrap_or(0);
+            // A failed older write may have stored #0, #1... without ever committing #n.
+            // A damaged or stale #n can also underestimate the parts. Probe #0 or the
+            // first uncounted piece, then sweep the bounded number of parts only if needed.
+            // An ordinary missing entry costs one extra lookup, not sixteen round-trips.
+            let pieces = match self.count(key) {
+                Some(n) if n < MAX_PIECES && self.read(key, &n.to_string()).is_some() => MAX_PIECES,
+                Some(n) => n,
+                None if self.read(key, "0").is_some() => MAX_PIECES,
+                None => 0,
+            };
             for part in (0..pieces).map(|i| i.to_string()).chain(["n".to_string()]) {
                 if let Some(e) = self.entry(key, &part) {
                     // Nothing kept under the key is what deleting wants anyway.
@@ -186,6 +208,10 @@ mod os {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "secrets_security_tests.rs"]
+mod security_tests;
 
 #[cfg(test)]
 mod tests {
