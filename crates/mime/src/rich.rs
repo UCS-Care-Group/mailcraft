@@ -12,15 +12,18 @@
 //! [`signature_html`] lays a signature out, its first picture beside or above the text when it
 //! asks for that, in a two-cell table, as Outlook writes it.
 //!
-//! [`from_html`] is the way back, and the way in for anything pasted: the HTML is read by
-//! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
-//! set (a link keeps only an address a reader follows, `http`, `https`, `mailto`, `tel` or `cid`; a
-//! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts). Tables
+//! [`from_html`] is the way back: the HTML is read by `mailcraft_html` (which never runs or
+//! fetches anything) and what it gives is reduced to the set, as text without pictures (a link
+//! keeps only an address a reader follows, `http`, `https`, `mailto`, `tel` or `cid`). Tables
 //! give their cells' paragraphs in reading order; colours, the model's fonts and a paragraph's
 //! alignment (a list item's excepted) are kept; pictures, rules and everything else are dropped.
+//! A paste and a draft are read with [`from_html_with_pictures_and_others`] and
+//! [`from_html_with_pictures`]: there the reader asks about each attached picture it shows, and
+//! one that is taken stands in the text where it was. A draft of this program's keeps any link
+//! the model accepts; a paste holds to what a reader follows.
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
-use mailcraft_model::rich::{Align, Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{Align, Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
 use mailcraft_model::signature::{Layout, Picture, Signature};
 
 /// How a picture of the text is written: its `cid:` address (without the scheme), the width it
@@ -140,7 +143,7 @@ fn img(out: &mut String, img: &Img) {
     out.push_str(&mailcraft_html::escape(&cid));
     out.push('"');
     if let Some(w) = img.width {
-        out.push_str(&format!(" width=\"{}\"", w.clamp(1, mailcraft_model::pictures::MAX_SHOWN_WIDTH)));
+        out.push_str(&format!(" width=\"{}\"", w.clamp(mailcraft_model::pictures::MIN_SHOWN_WIDTH, mailcraft_model::pictures::MAX_SHOWN_WIDTH)));
     }
     out.push_str(" alt=\"");
     out.push_str(&mailcraft_html::escape(&img.alt.chars().filter(|c| !c.is_control()).collect::<String>()));
@@ -283,7 +286,7 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
 /// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
 /// them there.
 pub fn from_html(html: &str) -> RichText {
-    read(html, false)
+    read(html, None, false).0
 }
 
 /// An `<img src="cid:…">` of an HTML draft this program wrote.
@@ -299,115 +302,42 @@ pub struct ImgRef {
 
 /// [`from_html`] for a draft of this program's: each `<img src="cid:…">` that `claim` takes (it
 /// answers the id the picture has in the text) stands in the text where it was, as a picture
-/// run. Any other picture is left out, as in [`from_html`].
+/// run. `claim` is asked only for a picture the reading pane shows, in the order they are written
+/// ([`mailcraft_html::parse_text_own_with`]). Any other picture is left out, as in [`from_html`].
+/// (A draft's picture written 1 or 2 pixels wide, which the reading pane hides as a tracker, is
+/// not taken: it stays among the draft's attachments.)
 ///
 /// The HTML is the owner's own, so a link keeps any address [`safe_link`] accepts (a link to
 /// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
 /// received mail.
 pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
-    read(&mark_pictures(html, claim), true)
+    read(html, Some(claim), true).0
 }
 
-/// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
-/// other `OBJECT` (nothing but this puts one in the text).
-fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
-    let html = html.replace(OBJECT, "");
-    let lower = html.to_ascii_lowercase();
-    let (mut out, mut at) = (String::with_capacity(html.len()), 0usize);
-    while let Some(start) = lower.get(at..).and_then(|rest| rest.find("<img")).map(|rel| at + rel) {
-        let after = start + 4;
-        let boundary = html.as_bytes().get(after).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>'));
-        let end = if boundary { tag_end(&html, after) } else { None };
-        let Some(end) = end else {
-            // Not a tag of its own (`<imgx>`) or never closed: kept as it is.
-            out.push_str(html.get(at..after).unwrap_or(""));
-            at = after;
-            continue;
-        };
-        out.push_str(html.get(at..start).unwrap_or(""));
-        let tag = html.get(after..end).unwrap_or("");
-        match img_ref(tag).and_then(|img| claim(&img)) {
-            Some(id) => out.push_str(&format!("{OBJECT}{id}{OBJECT}")),
-            None => out.push_str(html.get(start..end).unwrap_or("")),
-        }
-        at = end;
-    }
-    out.push_str(html.get(at..).unwrap_or(""));
-    out
+/// [`from_html_with_pictures`] for a paste, whose links are held to what a reader follows as in
+/// [`from_html`]; and how many pictures the reading pane shows there that are not attached
+/// (written into the HTML, or on the web): a text never holds them.
+pub fn from_html_with_pictures_and_others(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> (RichText, usize) {
+    read(html, Some(claim), false)
 }
 
-/// Where the tag whose attributes start at `from` ends (just past its `>`), quotes respected.
-fn tag_end(html: &str, from: usize) -> Option<usize> {
-    let mut quote = None;
-    for (i, b) in html.as_bytes().get(from..)?.iter().enumerate() {
-        match (quote, *b) {
-            (Some(q), b) if b == q => quote = None,
-            (Some(_), _) => {}
-            (None, b'"' | b'\'') => quote = Some(*b),
-            (None, b'>') => return Some(from + i + 1),
-            _ => {}
-        }
-    }
-    None
-}
-
-/// The `src`, `width` and `alt` of an `<img>` whose attributes are `attrs`, when `src` is a `cid:`.
-fn img_ref(attrs: &str) -> Option<ImgRef> {
-    let chars: Vec<char> = attrs.trim_end_matches('>').chars().collect();
-    let (mut i, mut img, mut src) = (0usize, ImgRef::default(), None);
-    while i < chars.len() {
-        while chars.get(i).is_some_and(|c| c.is_whitespace() || *c == '/') {
-            i += 1;
-        }
-        let name_start = i;
-        while chars.get(i).is_some_and(|c| !c.is_whitespace() && !matches!(c, '=' | '/')) {
-            i += 1;
-        }
-        let name: String = chars.get(name_start..i).unwrap_or(&[]).iter().collect::<String>().to_ascii_lowercase();
-        while chars.get(i).is_some_and(|c| c.is_whitespace()) {
-            i += 1;
-        }
-        let mut value = String::new();
-        if chars.get(i) == Some(&'=') {
-            i += 1;
-            while chars.get(i).is_some_and(|c| c.is_whitespace()) {
-                i += 1;
-            }
-            match chars.get(i) {
-                Some(q @ ('"' | '\'')) => {
-                    i += 1;
-                    while let Some(c) = chars.get(i).filter(|c| *c != q) {
-                        value.push(*c);
-                        i += 1;
-                    }
-                    i += 1;
-                }
-                _ => {
-                    while let Some(c) = chars.get(i).filter(|c| !c.is_whitespace()) {
-                        value.push(*c);
-                        i += 1;
-                    }
-                }
-            }
-        }
-        match name.as_str() {
-            "src" => src = Some(value),
-            "width" => img.width = value.trim().parse().ok(),
-            "alt" => img.alt = value.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"),
-            _ => {}
-        }
-    }
-    let src = src?;
-    let src = src.trim();
-    let cid = src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
-    img.cid = cid.to_string();
-    Some(img)
-}
-
-fn read(html: &str, pictures: bool) -> RichText {
+/// The text, and how many pictures shown there it leaves out ([`pictures_among`]).
+fn read(html: &str, claim: Option<&mut dyn FnMut(&ImgRef) -> Option<u32>>, own: bool) -> (RichText, usize) {
     // The look and the text only: pictures written into the HTML are not decoded for this.
-    let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
-    let mut reader = Reader { out: Vec::new(), pictures };
+    // A draft of this program's keeps the links its owner wrote; anything else, what a reader
+    // follows.
+    let own_link: Option<fn(&str) -> Option<String>> = own.then_some(safe_link);
+    let blocks = match claim {
+        Some(claim) => {
+            let mut ask = |p: &mailcraft_html::Attached<'_>| claim(&ImgRef { cid: p.cid.to_string(), width: p.width, alt: p.alt.to_string() });
+            match own_link {
+                Some(accept) => mailcraft_html::parse_text_own_with(html, accept, &mut ask),
+                None => mailcraft_html::parse_text_with(html, &mut ask),
+            }
+        }
+        None => mailcraft_html::parse_text(html),
+    };
+    let mut reader = Reader { out: Vec::new() };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -416,7 +346,7 @@ fn read(html: &str, pictures: bool) -> RichText {
     if found {
         out.extend(std::iter::repeat_with(Paragraph::default).take(trail));
     }
-    RichText::from_paragraphs(out)
+    (RichText::from_paragraphs(out), pictures_among(&blocks))
 }
 
 /// The empty paragraphs [`to_html`] wrote before the first paragraph with text and after the last.
@@ -442,8 +372,16 @@ fn edge_blank_lines(html: &str) -> (usize, usize) {
 
 struct Reader {
     out: Vec<Paragraph>,
-    /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
-    pictures: bool,
+}
+
+/// The pictures among `blocks` that stand in a block of their own, which the text never holds
+/// (read with a `claim`, those that are not attached), however many paragraphs the text keeps.
+fn pictures_among(blocks: &[Block]) -> usize {
+    blocks.iter().fold(0usize, |n, b| match &b.kind {
+        BlockKind::Image { .. } => n.saturating_add(1),
+        BlockKind::Table(table) => n.saturating_add(table.rows.iter().flat_map(|r| &r.cells).map(|c| pictures_among(&c.blocks)).sum::<usize>()),
+        _ => n,
+    })
 }
 
 impl Reader {
@@ -505,22 +443,14 @@ impl Reader {
                 font: span.font.as_deref().and_then(Font::from_css),
                 highlight: span.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
             };
+            if let Some(id) = span.picture {
+                cur.push(Run::picture(id, style));
+                continue;
+            }
             let text = span.text.replace('\u{a0}', " ");
             for (i, line) in text.split('\n').enumerate() {
                 if i > 0 {
                     self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level).aligned(align));
-                }
-                if self.pictures && line.contains(OBJECT) {
-                    // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
-                    for (n, part) in line.split(OBJECT).enumerate() {
-                        match (n % 2, part.parse::<u32>()) {
-                            (1, Ok(id)) => cur.push(Run::picture(id, style.clone())),
-                            (1, Err(_)) => {}
-                            _ if part.is_empty() => {}
-                            _ => cur.push(Run::new(part, style.clone())),
-                        }
-                    }
-                    continue;
                 }
                 cur.push(Run::new(line, style.clone()));
             }

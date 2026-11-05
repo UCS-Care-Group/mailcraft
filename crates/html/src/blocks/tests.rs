@@ -1436,3 +1436,259 @@ fn an_hr_with_the_hidden_attribute_is_not_drawn() {
     assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
     assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
 }
+
+#[test]
+fn a_hook_puts_the_attached_pictures_it_takes_in_their_line_and_nothing_for_the_others() {
+    let html = "<div>a <img src=\"cid:one\" alt=\"One &amp; only\" width=\"40\"> b<img src=\"cid:two\"><img hidden src=\"cid:three\">c</div>";
+    let mut asked = Vec::new();
+    let blocks = parse_text_with(html, &mut |p| {
+        asked.push((p.cid.to_string(), p.alt.to_string(), p.width));
+        (p.cid == "one").then_some(5)
+    });
+    // One block: the line is not broken, and the picture is a span of its own.
+    let spans: Vec<(&str, Option<u32>)> = blocks.iter().flat_map(|b| &b.spans).map(|s| (s.text.as_str(), s.picture)).collect();
+    assert_eq!((blocks.len(), spans), (1, vec![("a ", None), ("\u{fffc}", Some(5)), (" bc", None)]));
+    assert_eq!(asked, [("one".to_string(), "One & only".to_string(), Some(40)), ("two".to_string(), String::new(), None)]);
+    // Without a hook, they are pictures of their own, as ever.
+    let blocks = parse_text(html);
+    assert_eq!(blocks.iter().filter(|b| matches!(b.kind, BlockKind::Image { .. })).count(), 2, "{blocks:?}");
+    assert!(blocks.iter().flat_map(|b| &b.spans).all(|s| s.picture.is_none()));
+}
+
+#[test]
+fn a_hook_is_asked_only_about_the_attached_pictures_parse_gives_a_block_before_the_cap() {
+    let shown = |html: &str| parse_text(html).iter().filter(|b| matches!(&b.kind, BlockKind::Image { src, .. } if src.starts_with("cid:"))).count();
+    let asked = |html: &str| {
+        let mut n = 0usize;
+        parse_text_with(html, &mut |_| {
+            n += 1;
+            Some(1)
+        });
+        n
+    };
+    // `parse` ends the text before a picture as a block, then gives the picture one while there is
+    // room: the last picture that fits is asked about, and one past it is not.
+    for (rules, fits) in [(MAX_BLOCKS - 2, 1), (MAX_BLOCKS - 1, 0)] {
+        let html = format!("{}x<img src=\"cid:q@x\">", "<hr>".repeat(rules));
+        assert_eq!((shown(&html), asked(&html)), (fits, fits), "{rules} rules");
+    }
+    // A picture with text on each side is three blocks to `parse` and none of its own here.
+    let html = "<div>a<img src=\"cid:q@x\">b</div>".repeat(MAX_BLOCKS / 2);
+    assert_eq!((shown(&html), asked(&html)), (MAX_BLOCKS.div_ceil(3), MAX_BLOCKS.div_ceil(3)));
+}
+
+/// The pictures among `blocks`, table cells walked, in order: the `cid:` addresses (without
+/// `cid:`), and how many others.
+fn pictures_among(blocks: &[Block], cids: &mut Vec<String>, others: &mut usize) {
+    for b in blocks {
+        match &b.kind {
+            BlockKind::Image { src, .. } => match src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..)) {
+                Some(cid) => cids.push(cid.to_string()),
+                None => *others += 1,
+            },
+            BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).for_each(|c| pictures_among(&c.blocks, cids, others)),
+            _ => {}
+        }
+    }
+}
+
+/// How many pictures a hook took stand among `blocks`, table cells walked.
+fn taken_among(blocks: &[Block]) -> usize {
+    blocks
+        .iter()
+        .map(|b| match &b.kind {
+            BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).map(|c| taken_among(&c.blocks)).sum(),
+            _ => b.spans.iter().filter(|s| s.picture.is_some()).count(),
+        })
+        .sum()
+}
+
+/// The text of `blocks` but their pictures' descriptions, blanks left out, table cells walked.
+fn text_among(blocks: &[Block], out: &mut String) {
+    for b in blocks {
+        match &b.kind {
+            BlockKind::Image { .. } => {}
+            BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).for_each(|c| text_among(&c.blocks, out)),
+            _ => out.extend(b.text().chars().filter(|c| !is_blank(*c))),
+        }
+    }
+}
+
+/// Whether the hook is asked about exactly the attached pictures `parse` shows, in the order they
+/// are written, every one it takes stands in the text, and the others are given a block where
+/// `parse` gives one, whichever of them it takes (`take`, by the order it is asked); the first
+/// input where not, and what each gave. (`html` numbers its attached pictures in the order they
+/// are written, `cid:<n>@x`: `parse` shows what a table holds outside its cells above the table,
+/// ahead of the pictures in it.) Every picture refused, the text is `parse_text`'s (blanks
+/// aside), and more only where `parse_text` stopped at the most blocks.
+fn hook_differs(html: &str) -> Option<String> {
+    let (mut shown, mut others) = (Vec::new(), 0);
+    pictures_among(&parse(html), &mut shown, &mut others);
+    shown.sort_by_key(|cid| cid.split('@').next().and_then(|n| n.parse::<usize>().ok()));
+    // By the order it is asked.
+    let takes: [fn(usize) -> bool; 4] = [|_| false, |_| true, |n| n % 2 == 0, |n| n % 2 == 1];
+    for (pattern, take) in takes.iter().enumerate() {
+        let mut asked = Vec::new();
+        let mut taken = 0usize;
+        let blocks = parse_text_with(html, &mut |p| {
+            let n = asked.len();
+            asked.push(p.cid.to_string());
+            taken += usize::from(take(n));
+            take(n).then_some(1)
+        });
+        let head: String = html.chars().take(160).collect();
+        if taken_among(&blocks) != taken {
+            return Some(format!("pattern {pattern}, {head}…: {taken} taken, {} standing", taken_among(&blocks)));
+        }
+        if pattern == 0 {
+            let (mut read, mut hooked) = (String::new(), String::new());
+            text_among(&parse_text(html), &mut read);
+            text_among(&blocks, &mut hooked);
+            if !hooked.starts_with(&read) {
+                return Some(format!("{head}…: every picture refused, the text is {hooked:?}; parse_text's is {read:?}"));
+            }
+        }
+        let (mut left, mut given) = (Vec::new(), 0);
+        pictures_among(&blocks, &mut left, &mut given);
+        if (&asked, left.len(), given) != (&shown, 0, others) {
+            return Some(format!(
+                "pattern {pattern}, {head}…: asked {asked:?} and gave {given} others, {} attached; parse shows {shown:?} and {others} others",
+                left.len()
+            ));
+        }
+    }
+    None
+}
+
+#[test]
+fn the_hook_is_asked_about_the_attached_pictures_parse_shows_and_gives_the_others_parse_gives() {
+    let c = |n: u32| format!("<img src=\"cid:{n}@x\">");
+    let web = "<img src=\"https://example.org/a.png\">";
+    let written = "<img src=\"data:image/png;base64,iVBORw0KGgo=\">";
+    let mut corpus = vec![
+        // In a line, alone on one, side by side.
+        format!("<div>a{}b</div><div>{}</div><div>{}{} {}</div>", c(1), c(2), c(3), c(4), c(5)),
+        format!("<p>a {web} b{} c{written}</p>{}", c(1), c(2)),
+        // In table cells, and in tables a stray cell implies.
+        format!("<table><tr><td>x{}</td><td>{}y</td></tr></table>{}", c(1), c(2), c(3)),
+        format!("<td>x</td>{}<span hidden></tr>{}</span>{}", c(1), c(2), c(3)),
+        format!("<td>x</td>y{}<span hidden></tr>{}</span>{}", c(1), c(2), c(3)),
+        format!("<tr><td>x</td></tr>{}<td>{}</td>y{}<div hidden></table>{}</div>{}", c(1), c(2), c(3), c(4), c(5)),
+        format!("<td>{}</td>{web}<span hidden><td>{}</span>{}", c(1), c(2), c(3)),
+        format!("<table><tr><td><td>x</td>{}<tr>{}</table>{}<td>{}", c(1), c(2), c(3), c(4)),
+        // In list items, quotes and links.
+        format!("<ul><li>{} one</li><li>two{}</li><ol><li>{}</li></ol></ul>", c(1), c(2), c(3)),
+        format!("<blockquote>q{}r<blockquote>{}</blockquote></blockquote>", c(1), c(2)),
+        format!("<a href=\"https://example.org\">{}</a> and <a href=\"https://example.org\">t{}</a>", c(1), c(2)),
+        // Hidden by their place, by their own tag and by a sheet, sibling selectors included.
+        format!("<div style=\"display:none\">{}</div><div hidden>{}</div>x{}", c(1), c(2), c(3)),
+        format!("<img hidden src=\"cid:1@x\"><img style=\"display:none\" src=\"cid:2@x\"><img width=1 src=\"cid:3n@x\">{}", c(4)),
+        format!(
+            "<style>img.gone{{display:none}} .h img{{display:none}}</style><img class=\"gone\" src=\"cid:1@x\"><div class=\"h\">{}</div>{}",
+            c(2),
+            c(3)
+        ),
+        // One or two pixels wide, alone or with other ways of hiding: never asked about.
+        format!("<div>a<img src=\"cid:1n@x\" width=\"1\">b{}c<img width=\"2\" src=\"cid:3n@x\"></div><td>x<img width=1 src=\"cid:4n@x\"></td>{}", c(2), c(5)),
+        "<img hidden width=1 src=\"cid:1@x\"><img width=1 height=1 src=\"cid:2@x\"><img width=1 style=\"display:none\" src=\"cid:3@x\"><div hidden><img width=1 src=\"cid:4@x\"></div><img style=\"width:1px\" src=\"cid:5@x\">".to_string(),
+        "<style>img.x{display:none} img.y{width:2px}</style><img class=\"x\" width=\"1\" src=\"cid:1@x\"><img class=\"y\" src=\"cid:2@x\"><img width=\"2\" src=\"https://example.org/a.png\">".to_string(),
+        format!(
+            "<style>img + img{{display:none}} span ~ img{{display:none}} td:first-child img{{display:none}}</style><p>{}{}</p><p><span>s</span>{}</p><table><tr><td>{}</td><td>{}</td></tr></table>",
+            c(1),
+            c(2),
+            c(3),
+            c(4),
+            c(5)
+        ),
+    ];
+    // Boxes on a line (`display:inline-block`), beside pictures and in a list item, and where
+    // there is no room left to open one.
+    let boxed = "<span style=\"display:inline-block;padding:4px\">x</span>";
+    corpus.push(format!("<div>{}{boxed}</div><div><span style=\"display:inline-block;padding:4px\">{}</span>{boxed}</div>", c(1), c(2)));
+    corpus.push(format!("<div><img width=\"1\" src=\"cid:1n@x\">{boxed}</div>{}", c(2)));
+    // A picture one pixel wide near the most blocks.
+    for rules in MAX_BLOCKS - 4..=MAX_BLOCKS - 2 {
+        corpus.push(format!("{}<td>x</td><td>y</td><img width=1 src=\"cid:1n@x\">", "<hr>".repeat(rules)));
+    }
+    corpus.push(format!(
+        "{}<div><span style=\"display:inline-block;padding:4px\">{}</span>{boxed}</div>{}",
+        "<span>".repeat(MAX_DEPTH - 1),
+        c(1),
+        "</span>".repeat(MAX_DEPTH - 1)
+    ));
+    corpus.push(format!("<div>{}</div>{boxed}{boxed}<div>a{}b{boxed}</div>{}", c(1), c(2), c(3)));
+    corpus.push(format!("<ul><li><div><p>{}</p>{boxed}</div></li></ul>{}", c(1), c(2)));
+    // The most blocks `parse` gives, reached before, at and after each picture.
+    for rules in MAX_BLOCKS - 8..=MAX_BLOCKS + 1 {
+        corpus.push(format!("{}<ul><li><div><p>{}</p>{boxed}</div></li></ul>{}", "<hr>".repeat(rules), c(1), c(2)));
+        corpus.push(format!("<div>a{}b</div>{}{}{web}x{}{}", c(1), "<hr>".repeat(rules), c(2), c(3), c(4)));
+        corpus.push(format!("{}{web}<div>a{}b</div>{}", "<hr>".repeat(rules), c(1), c(2)));
+    }
+    corpus.push(format!("<div>a{}b</div>{web}", c(1)).repeat(MAX_BLOCKS / 4 + 2));
+    // The most input read, the pictures written into the message aside.
+    let at_end = |extra: &str, short: usize| format!("{extra}<!--{}--><div>x{}</div>", "a".repeat(MAX_INPUT - 50 + short), c(1));
+    let data = format!("<img src=\"data:image/png;base64,{}\">", "A".repeat(100_000));
+    for short in 0..30 {
+        corpus.push(at_end("", short));
+        corpus.push(at_end(&data, short));
+    }
+    let wrong: Vec<String> = corpus.iter().filter_map(|html| hook_differs(html)).collect();
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(96))]
+    #[test]
+    fn the_hook_is_asked_about_what_parse_shows_in_tag_soup(parts in proptest::collection::vec(0usize..22, 0..40)) {
+        const PARTS: [&str; 22] = [
+            "<table>", "</table>", "<tr>", "</tr>", "<td>", "</td>", "<div>", "</div>", "<span hidden>", "</span>", "", "<img src=\"https://example.org/a.png\">",
+            "<br>", "text", " ", "<li>", "</li>", "<blockquote>", "</blockquote>", "narrow", "<span style=\"display:inline-block;padding:4px\">", "<p>",
+        ];
+        let html: String = parts.iter().enumerate().map(|(i, p)| match PARTS.get(*p) {
+            Some(&"") => format!("<img src=\"cid:{i}@x\">"),
+            Some(&"narrow") => format!("<img width=1 src=\"cid:{i}n@x\">"),
+            Some(part) => part.to_string(),
+            None => String::new(),
+        }).collect();
+        let differs = hook_differs(&html);
+        proptest::prop_assert!(differs.is_none(), "{:?}", differs);
+    }
+}
+
+#[test]
+fn a_box_on_a_line_after_a_picture_taken_in_a_list_item_does_not_keep_the_hook_from_a_picture_parse_shows() {
+    // `parse` gives the first picture a block and leaves the list item to come, so the `<span>`
+    // is no box; a picture taken stands in the item's line, and must not make it one.
+    let html = format!(
+        "{}<ul><li><div><p><img src=\"cid:1@x\"></p><span style=\"display:inline-block;padding:4px\">x</span></div></li></ul><img src=\"cid:2@x\">",
+        "<hr>".repeat(MAX_BLOCKS - 3)
+    );
+    assert_eq!(hook_differs(&html), None);
+}
+
+#[test]
+fn a_picture_taken_in_front_of_a_box_on_a_line_stands_in_the_text() {
+    // Answered 7; `parse` shows it in a box, and the box after it is where `parse` puts it.
+    let style = "display:inline-block;padding:4px";
+    let deep = format!(
+        "{}<div><span style='{style}'><img src='cid:1@x'></span><span style='{style}'>x</span></div>{}",
+        "<span>".repeat(MAX_DEPTH - 1),
+        "</span>".repeat(MAX_DEPTH - 1)
+    );
+    let blocks = parse_text_with(&deep, &mut |_| Some(7));
+    assert_eq!(taken_among(&blocks), 1, "{deep}");
+}
+
+#[test]
+fn a_picture_one_or_two_pixels_wide_is_never_asked_about_as_parse_shows_none() {
+    for width in ["1", "2", "1.5", "1px"] {
+        let html = format!("<div>a<img src=\"cid:q@x\" width=\"{width}\" alt=\"Chart\">b</div>");
+        let mut asked = 0;
+        let blocks = parse_text_with(&html, &mut |_| {
+            asked += 1;
+            Some(7)
+        });
+        assert_eq!((asked, blocks.iter().map(Block::text).collect::<Vec<_>>()), (0, vec!["ab".to_string()]), "width {width}");
+        assert!(parse(&html).iter().all(|b| !matches!(b.kind, BlockKind::Image { .. })), "width {width}");
+    }
+}

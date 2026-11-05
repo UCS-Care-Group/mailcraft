@@ -95,21 +95,70 @@ pub(crate) struct Built {
     pub dark_design: bool,
     /// The text of what the message hides, when it was asked for.
     pub hidden: String,
+    /// How many pictures were shown: given a block, or with a hook, reached.
+    pub pictures: usize,
+    /// The start tags, by number, let be boxes on a line.
+    pub boxes: Vec<usize>,
 }
 
 pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
-    build_with(html, decode, env, keep_hidden, None)
+    build_with(html, decode, env, keep_hidden, None, None)
 }
 
 /// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
 /// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
 /// reading rule ([`is_safe_url`]). Never for received mail.
 pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
-    build_with(html, false, &Env::default(), false, Some(accept)).blocks
+    build_with(html, false, &Env::default(), false, Some(accept), None).blocks
 }
 
-fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>) -> Built {
-    let mut builder = Builder::new(decode);
+/// A picture attached to the message (`cid:`), as [`parse_text_with`] asks about it: its address
+/// without `cid:`, its description and its `width`, each as the reader reads it (the first one
+/// written, character references decoded).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Attached<'a> {
+    pub cid: &'a str,
+    pub alt: &'a str,
+    pub width: Option<u16>,
+}
+
+/// [`parse_text`], asking `attached` about each attached picture where [`parse`] shows it, in
+/// the order they are written: the number it answers stands in the line as a span of its own
+/// ([`Span::picture`]), the line unbroken; for `None`, nothing does. Only the pictures [`parse`]
+/// shows are there, attached or not, and the hook is asked about no other.
+pub fn parse_text_with(html: &str, attached: &mut dyn FnMut(&Attached<'_>) -> Option<u32>) -> Vec<Block> {
+    with_hook(html, None, attached)
+}
+
+/// [`parse_text_with`] for HTML the owner wrote, its links judged by `accept` as
+/// [`parse_text_own`] judges them. Never for received mail.
+pub fn parse_text_own_with(html: &str, accept: fn(&str) -> Option<String>, attached: &mut dyn FnMut(&Attached<'_>) -> Option<u32>) -> Vec<Block> {
+    with_hook(html, Some(accept), attached)
+}
+
+fn with_hook(html: &str, own_link: Option<fn(&str) -> Option<String>>, attached: &mut dyn FnMut(&Attached<'_>) -> Option<u32>) -> Vec<Block> {
+    // [`parse`] ends the text before a picture as a block and gives the picture one of its own, so
+    // it comes to the most blocks it makes sooner: read as it reads first, to know how many
+    // pictures it shows, and where it makes boxes on a line (a picture taken stands in its line,
+    // which would otherwise decide that).
+    let env = Env::default();
+    let first = build_with(html, false, &env, false, own_link, None);
+    let hook = Hook { ask: attached, shown: first.pictures, boxes: first.boxes };
+    build_with(html, false, &env, false, own_link, Some(hook)).blocks
+}
+
+/// What the read with a hook ([`with_hook`]) is given.
+struct Hook<'a> {
+    ask: &'a mut dyn FnMut(&Attached<'_>) -> Option<u32>,
+    /// The pictures [`parse`] shows: no picture past them is shown.
+    shown: usize,
+    /// The start tags, by number, that [`parse`] lets be boxes on a line: these, and only these,
+    /// are ([`Builder::can_box`]).
+    boxes: Vec<usize>,
+}
+
+fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>, hook: Option<Hook<'_>>) -> Built {
+    let mut builder = Builder::new(decode, hook);
     builder.own_link = own_link;
     builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
@@ -159,12 +208,13 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
     }
     let dark_design = look.dark_design();
     let hidden = builder.unseen.take().unwrap_or_default();
-    Built { blocks: builder.finish(), dark_design, hidden }
+    let (shown, boxes) = (builder.pictures, std::mem::take(&mut builder.boxes));
+    Built { blocks: builder.finish(), dark_design, hidden, pictures: shown, boxes }
 }
 
 /// For an element that asks to be a box on a line: the id of what holds it, when everything
 /// that holder holds besides boxes is white space (`look.rs`).
-fn box_holder(builder: &Builder, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<usize> {
+fn box_holder(builder: &Builder<'_>, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<usize> {
     let asks = tag.sheet.as_ref().is_some_and(|a| a.css.inline_block)
         || tag.raw_attr("style").is_some_and(|s| s.as_bytes().windows(12).any(|w| w.eq_ignore_ascii_case(b"inline-block")));
     // A table floated to a side stands beside the others its holder holds (and nothing else).
@@ -232,6 +282,7 @@ impl Style {
             background: self.background,
             size: self.size,
             font: self.font.as_deref().map(str::to_string),
+            picture: None,
         }
     }
 
@@ -558,7 +609,7 @@ struct Frame {
     outer: Context,
 }
 
-struct Builder {
+struct Builder<'a> {
     root: Frame,
     /// The frames inside the message, innermost last.
     frames: Vec<Frame>,
@@ -591,7 +642,8 @@ struct Builder {
     hidden: usize,
     /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
     unseen: Option<String>,
-    /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`]).
+    /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`],
+    /// [`parse_text_own_with`]).
     own_link: Option<fn(&str) -> Option<String>>,
     /// A space is due before the next hidden word.
     unseen_gap: bool,
@@ -626,10 +678,16 @@ struct Builder {
     decode: bool,
     /// What those have taken so far.
     budget: Budget,
+    /// Asked about each attached picture shown, which then stands in its line ([`parse_text_with`]).
+    hook: Option<Hook<'a>>,
+    /// The pictures shown so far, attached or not.
+    pictures: usize,
+    /// The start tags, by number, let be boxes on a line so far ([`Builder::can_box`]).
+    boxes: Vec<usize>,
 }
 
-impl Builder {
-    fn new(decode: bool) -> Builder {
+impl<'a> Builder<'a> {
+    fn new(decode: bool, hook: Option<Hook<'a>>) -> Builder<'a> {
         Builder {
             root: Frame::default(),
             frames: Vec::new(),
@@ -668,6 +726,9 @@ impl Builder {
             boxed: None,
             decode,
             budget: Budget::default(),
+            hook,
+            pictures: 0,
+            boxes: Vec::new(),
         }
     }
 
@@ -846,6 +907,12 @@ impl Builder {
 
     /// One visible character of the current block.
     fn push(&mut self, c: char) {
+        self.begin();
+        self.append(c);
+    }
+
+    /// Start the current block, unless it is started.
+    fn begin(&mut self) {
         if self.spans.is_empty() {
             self.settle();
             self.kind = if self.pre > 0 {
@@ -865,7 +932,6 @@ impl Builder {
             self.line_height = self.style().line_height;
             self.fresh = true;
         }
-        self.append(c);
     }
 
     /// Add a character in the current style, to the last span when it has the same style.
@@ -875,7 +941,7 @@ impl Builder {
             None => &self.base,
         };
         match self.spans.last_mut() {
-            Some(last) if !self.fresh || style.matches(last) => last.text.push(c),
+            Some(last) if last.picture.is_none() && (!self.fresh || style.matches(last)) => last.text.push(c),
             _ => self.spans.push(style.span(c.to_string())),
         }
         self.fresh = false;
@@ -1084,7 +1150,31 @@ impl Builder {
             Some(written) => Some(data::picture(written, self.decode, &mut self.budget)),
             None => picture_url(raw).map(|src| (src, None)),
         };
+        let attached = picture.as_ref().is_some_and(|(src, _)| src.get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:")));
+        if let Some(hook) = &self.hook
+            && picture.is_some()
+        {
+            // With a hook, the pictures [`parse`] shows are the first so many reached, as the
+            // elements around them are ended alike: none past them is shown.
+            if self.pictures >= hook.shown {
+                return;
+            }
+            self.pictures = self.pictures.saturating_add(1);
+        }
         match picture {
+            Some((src, _)) if attached && self.hook.is_some() => {
+                // The elements a picture ends, ended as [`parse`] ends them, whatever the answer
+                // (the text before it goes on in its line). Taken, it stands in its line as a span
+                // of its own; else nothing stands there.
+                self.settle();
+                let width = tag.attr("width").and_then(|w| w.trim().parse().ok());
+                let shown = Attached { cid: src.get(4..).unwrap_or(""), alt: &tag.attr("alt").unwrap_or_default(), width };
+                if let Some(n) = self.hook.as_mut().and_then(|hook| (hook.ask)(&shown)) {
+                    self.begin();
+                    let span = Span { picture: Some(n), ..self.style().span("\u{fffc}".to_string()) };
+                    self.spans.push(span);
+                }
+            }
             Some((src, data)) => {
                 // Text in the line before it, or a picture with nothing but spaces since: the
                 // picture stands in that line.
@@ -1105,6 +1195,9 @@ impl Builder {
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
+                if self.hook.is_none() && self.after_picture {
+                    self.pictures = self.pictures.saturating_add(1);
+                }
             }
             // No picture to load: its description is all there is, where text can be read.
             None if self.style().tiny => {}
@@ -1274,13 +1367,24 @@ impl Builder {
     /// table floated to a side): the message has not had too many, and there is room to nest one. Only a box that was made
     /// counts ([`Builder::made_box`]).
     /// It gives the id of what holds the box.
-    fn can_box(&self, tag: &Tag<'_>, css: &Css) -> Option<usize> {
+    fn can_box(&mut self, tag: &Tag<'_>, css: &Css) -> Option<usize> {
         let parent = self.boxed?;
-        let room = self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
-        // (A list item's marker, a heading and preformatted text are kept as they are.)
-        let plain = self.item.is_none() && self.heading.is_none() && self.pre == 0;
-        let asks = css.inline_block || floated(tag, css).is_some();
-        (asks && !left_out(tag, css) && room && plain && self.line_is_blank()).then_some(parent)
+        let can = match &self.hook {
+            // Where [`parse`] makes one: a picture taken stands in its line, which would otherwise
+            // decide it.
+            Some(hook) => hook.boxes.binary_search(&self.at.1).is_ok(),
+            None => {
+                let room = self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
+                // (A list item's marker, a heading and preformatted text are kept as they are.)
+                let plain = self.item.is_none() && self.heading.is_none() && self.pre == 0;
+                let asks = css.inline_block || floated(tag, css).is_some();
+                asks && !left_out(tag, css) && room && plain && self.line_is_blank()
+            }
+        };
+        if can {
+            self.boxes.push(self.at.1);
+        }
+        can.then_some(parent)
     }
 
     /// What holds the element about to open, if a box may stand in it: the nearest element that
@@ -1931,8 +2035,11 @@ impl Builder {
         // (Not in the middle of a sentence: there it is a run of text with a highlight, as before.)
         let parent = if has_box_look(&css) && !hidden { self.can_box(tag, &css) } else { None };
         if let Some(parent) = parent {
-            // (White space in front of it is not a line of its own.)
-            self.spans.clear();
+            // (White space in front of it is not a line of its own; a picture a hook took is, as
+            // [`parse`] gives it a block: [`Builder::can_box`].)
+            if self.line_is_blank() {
+                self.spans.clear();
+            }
             self.flush();
             self.after_picture = false;
             let margins = css.margin_insets();

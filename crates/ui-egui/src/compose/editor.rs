@@ -994,9 +994,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 Event::Copy | Event::Cut if !sel.is_empty() => {
                     // HTML of the set and its text, through the host's clipboard where it has
-                    // one that takes HTML (the desktop); egui's takes the text.
+                    // one that takes HTML (the desktop); egui's takes the text. A cut refused (one
+                    // that would join a picture onto the signature, #580) says why.
                     let cut = matches!(event, Event::Cut);
-                    if let Ok(got) = app.execute(if cut { "edit.cut" } else { "edit.copy" }, json!({})) {
+                    if let Ok(got) = app.run(if cut { "edit.cut" } else { "edit.copy" }, json!({})) {
                         let text = got.get("text").and_then(Value::as_str).unwrap_or_default().to_string();
                         let html = got.get("html").and_then(Value::as_str);
                         let put = match (&app.services.clipboard, html) {
@@ -1229,7 +1230,7 @@ fn settle(app: &MailApp, ui: &Ui, which: Which, st: &mut State) {
     }
     let Ok(part) = body.text().slice(from, to) else { return };
     st.told = span;
-    let text = part.to_plain();
+    let text = mailcraft_engine::cmd::format::plain_text(&app.session, &part);
     if !text.is_empty() {
         ui.ctx().send_cmd(egui::OutputCommand::TextSelectionSettled(text));
     }
