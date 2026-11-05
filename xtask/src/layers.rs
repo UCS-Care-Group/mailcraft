@@ -46,6 +46,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("mime", Class::Layer(2)),
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
+    ("pst", Class::Layer(2)),
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),

@@ -5,8 +5,9 @@
 //!
 //! The owner types an address and presses Connect. The address's domain says whose servers it
 //! uses or, for a company's own domain, its mail exchangers do (the host looks them up). A
-//! Microsoft account then signs in on Microsoft's page in the browser; any other gives its
-//! password, which the host tries on the servers before the account is added.
+//! Microsoft accounts sign in on Microsoft's page. New Gmail and Google Workspace accounts
+//! prefer browser-based Google sign-in, with app passwords offered as an explicit alternative.
+//! Other accounts give a password that the host checks before adding the account.
 //!
 //! The wizard is a small state machine: a [`Page`], what was collected so far, and what the host
 //! still owes an answer for. It only collects input: what it does, it does by running commands
@@ -180,6 +181,16 @@ pub enum Action {
     Manual,
     /// Sign in again, asking for mail alone (without the calendar and contacts).
     MailOnly,
+    /// Start Google's browser sign-in for a new Gmail or Google Workspace account.
+    GoogleSignIn,
+    /// Choose an app password explicitly, or fall back after a failed Google sign-in.
+    GooglePassword,
+    /// Switch the new-account wizard back to its recommended Google sign-in.
+    GooglePreferSignIn,
+    /// Explicitly convert an existing Gmail app-password account, after successful Google sign-in.
+    ConvertToGoogle,
+    /// Refresh an already Google-OAuth account's sign-in without replacing the account.
+    GoogleReconnect,
     /// Start over for one more account.
     Another,
     /// Show what to do when the organisation has to approve MailCraft first.
@@ -375,6 +386,8 @@ pub struct AccountSetup {
     page: Page,
     /// Google refused the password: the password page links to Google's App passwords page.
     app_passwords: bool,
+    /// A new Google account starts with OAuth; its password field appears only on request.
+    google_app_password_selected: bool,
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
@@ -412,6 +425,8 @@ pub struct AccountSetup {
     check: Option<Receiver<Result<(), String>>>,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
+    /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
+    reconnecting_google: bool,
     /// The owner asked to sign in for mail alone (the provider's page refused the fuller request).
     mail_only: bool,
     /// How the last sign-in ended, when it ended without signing anybody in.
@@ -485,6 +500,26 @@ fn forget_field(ctx: &egui::Context) {
     ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(password_id()));
 }
 
+/// A Google OAuth conversion must retain the saved IMAP/SMTP servers and user name.
+/// Only standard TLS-protected Google endpoints are accepted: a different or edited
+/// server must be explicitly saved by the owner before a sign-in can replace its password.
+fn google_conversion_ready(account: &Account) -> bool {
+    let incoming = account
+        .incoming
+        .as_ref()
+        .is_some_and(|server| server.host.trim().eq_ignore_ascii_case("imap.gmail.com") && server.port == 993 && server.security == Security::Tls);
+    let outgoing = account.outgoing.as_ref().is_some_and(|server| {
+        server.host.trim().eq_ignore_ascii_case("smtp.gmail.com")
+            && matches!((server.port, server.security), (465, Security::Tls) | (587, Security::StartTls))
+    });
+    let username = account.username.trim();
+    account.kind == AccountKind::Imap
+        && account.oauth.is_none()
+        && incoming
+        && outgoing
+        && (username.is_empty() || username.eq_ignore_ascii_case(account.email.trim()))
+}
+
 impl AccountSetup {
     fn blank(page: Page) -> AccountSetup {
         AccountSetup {
@@ -495,6 +530,7 @@ impl AccountSetup {
             manual: false,
             picked: false,
             app_passwords: false,
+            google_app_password_selected: false,
             service: String::new(),
             note: String::new(),
             oauth: None,
@@ -511,6 +547,7 @@ impl AccountSetup {
             lookup: None,
             check: None,
             waiting: false,
+            reconnecting_google: false,
             mail_only: false,
             ended: None,
             approval: help::Approval::default(),
@@ -749,8 +786,18 @@ impl AccountSetup {
                 tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string(),
             );
         }
-        if self.edit.is_some() && self.oauth.is_some() && !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) {
-            return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
+        if self.edit.is_some() {
+            match self.oauth.as_ref().map(|oauth| oauth.provider) {
+                Some(OAuthProvider::Microsoft) if !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) => {
+                    return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
+                }
+                // The desktop host supplies Google's registration; Options can override its public ID. A
+                // saved Google account need not have its own client ID or a tenant.
+                Some(OAuthProvider::Google) if !self.client_id.trim().is_empty() && !is_identifier(self.client_id.trim(), 200) => {
+                    return Some(tl!("An application ID is letters, digits, dots and dashes").to_string());
+                }
+                _ => {}
+            }
         }
         None
     }
@@ -773,6 +820,7 @@ impl AccountSetup {
 
     /// Take over what `account.preset` answered.
     fn take(&mut self, preset: Preset) {
+        self.google_app_password_selected = false;
         self.service = preset.service;
         self.note = preset.note;
         self.oauth = preset.oauth.map(|provider| OAuth { provider, ..Default::default() });
@@ -810,7 +858,18 @@ impl AccountSetup {
             }
             (Page::SignIn, Action::Back) => {
                 self.stop_sign_in(app);
-                self.go(Page::Address);
+                if let Some(edit) = &self.edit {
+                    self.oauth = app.session.mailbox.account(edit.id).and_then(|account| account.oauth.clone());
+                    self.reconnecting_google = false;
+                    self.go(Page::Settings);
+                } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
+                    // Cancel must not discard Google's detected server settings or typed address.
+                    self.oauth = None;
+                    self.someone_else = None;
+                    self.go(Page::Password);
+                } else {
+                    self.go(Page::Address);
+                }
             }
             // The sign-in that is waiting goes on waiting: the owner may yet come back from it.
             (Page::SignIn, Action::Approval) => self.open_approval(false),
@@ -847,13 +906,80 @@ impl AccountSetup {
                 self.stop_sign_in(app);
                 self.go(Page::Choose);
             }
+            (Page::SignIn, Action::GooglePassword) => {
+                if self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Google) {
+                    self.stop_sign_in(app);
+                    self.oauth = None;
+                    if let Some(edit) = &self.edit {
+                        // Conversion cancellation keeps an app password; reconnect cancellation
+                        // keeps the existing OAuth provider and any still-usable old token.
+                        self.oauth = app.session.mailbox.account(edit.id).and_then(|account| account.oauth.clone());
+                        self.reconnecting_google = false;
+                        self.go(Page::Settings);
+                    } else {
+                        self.note = tl!("Use a Google app password, not your everyday Google account password.").to_string();
+                        self.go(Page::Password);
+                        self.google_app_password_selected = true;
+                    }
+                }
+            }
             // "Sign in again": for the address typed; Microsoft's page asks who, every time.
             (Page::SomeoneElse, Action::Go) => {
                 self.someone_else = None;
                 self.start_sign_in(app);
             }
+            (Page::SomeoneElse, Action::UseSignedIn) if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) => {
+                // Never silently reuse the IMAP identity and servers of the originally chosen
+                // account for a different Google identity. Start its setup separately.
+                self.error = tl!("To add another Google address, go back and start a new account setup.").to_string();
+            }
             (Page::SomeoneElse, Action::UseSignedIn) => self.use_signed_in(app),
-            (Page::Password, Action::Go) => self.try_password(app),
+            (Page::SomeoneElse, Action::GooglePassword) => {
+                self.someone_else = None;
+                self.oauth = None;
+                self.go(Page::Password);
+                self.google_app_password_selected = true;
+            }
+            (Page::SomeoneElse, Action::Back) => {
+                self.someone_else = None;
+                self.oauth = None;
+                self.go(Page::Address);
+            }
+            (Page::Password, Action::GooglePassword) => {
+                self.google_app_password_selected = true;
+                self.error.clear();
+                self.focus = true;
+            }
+            (Page::Password, Action::GooglePreferSignIn) => {
+                self.google_app_password_selected = false;
+                self.forget_password();
+                self.error.clear();
+                self.focus = true;
+            }
+            (Page::Password, Action::GoogleSignIn) => {
+                if !self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com") {
+                    self.error = tl!("Google sign-in needs Google's IMAP server").to_string();
+                } else if !app.google_registration_ready() {
+                    self.error = tl!("Google sign-in is not configured for this build. Use an app password instead.").to_string();
+                } else {
+                    self.forget_password();
+                    self.oauth = Some(OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
+                    self.proceed(app);
+                }
+            }
+            (Page::Password, Action::Go) => {
+                // Do not let an Enter key or a command bypass the OAuth-first choice and
+                // add a Google account without the owner selecting app-password setup.
+                if self.google_oauth_first(app) {
+                    self.error = tl!("Choose Google sign-in, or select Use an app password instead.").to_string();
+                } else {
+                    // A password is never passed to XOAUTH2 as if it were an access token.
+                    if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
+                        self.oauth = None;
+                    }
+                    self.try_password(app);
+                }
+            }
             (Page::Password, Action::Back) => {
                 self.forget_password();
                 self.go(self.origin());
@@ -865,6 +991,8 @@ impl AccountSetup {
             (Page::Done, Action::Go) | (Page::Settings, Action::Back) => return true,
             (Page::Done, Action::Another) => *self = AccountSetup::new(app, &Value::Null),
             (Page::Settings, Action::Go) => return self.save(app),
+            (Page::Settings, Action::ConvertToGoogle) => self.start_google_conversion(app),
+            (Page::Settings, Action::GoogleReconnect) => self.start_google_reconnect(app),
             _ => {}
         }
         false
@@ -954,6 +1082,12 @@ impl AccountSetup {
             return;
         }
         let mut preset = Preset::read(&v);
+        if kind == Kind::Google {
+            // Manual Google selection gets the same OAuth-first choice as discovery.
+            // It must not open a browser or fall back to passwords without a click.
+            preset.oauth = None;
+            preset.note.clear();
+        }
         if kind == Kind::Other {
             // Whatever the domain suggests, another server takes a password, and its name wants
             // a look.
@@ -973,6 +1107,57 @@ impl AccountSetup {
         match app.execute(command, params) {
             Ok(_) => self.start_sign_in(app),
             Err(e) => self.error = e,
+        }
+    }
+
+    /// The owner explicitly chose to convert an existing Gmail app-password account. Keep
+    /// the old authentication method and credential intact until Google's sign-in succeeds.
+    fn start_google_conversion(&mut self, app: &mut MailApp) {
+        let Some(edit) = self.edit.as_ref() else { return };
+        let id = edit.id;
+        let Some(existing) = app.session.mailbox.account(id) else {
+            self.error = tl!("This account was removed before Google sign-in began").to_string();
+            return;
+        };
+        if existing.oauth.is_some() {
+            self.error = tl!("This account no longer uses an app password").to_string();
+        } else if !existing.email.trim().eq_ignore_ascii_case(self.email.trim()) {
+            self.error =
+                tl!("The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods.").to_string();
+        } else if !google_conversion_ready(existing) {
+            self.error = tl!("First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods.")
+                .to_string();
+        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+            // A switch must not silently save unrelated edits or drop a newly typed password.
+            self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
+        } else if !app.google_registration_ready() {
+            self.error = tl!("Google sign-in is not configured for this build").to_string();
+        } else {
+            self.reconnecting_google = false;
+            self.oauth = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
+            self.start_sign_in(app);
+        }
+    }
+
+    /// A saved OAuth account keeps its identity and mailbox; this only renews its authorization.
+    fn start_google_reconnect(&mut self, app: &mut MailApp) {
+        let Some(edit) = &self.edit else { return };
+        let Some(existing) = app.session.mailbox.account(edit.id) else {
+            self.error = tl!("This account is no longer in the mailbox.").to_string();
+            return;
+        };
+        let Some(oauth) = existing.oauth.as_ref().filter(|oauth| oauth.provider == OAuthProvider::Google).cloned() else {
+            self.error = tl!("This account does not use Google sign-in.").to_string();
+            return;
+        };
+        if !app.google_registration_ready() {
+            self.error = tl!("Google sign-in is not configured for this build").to_string();
+        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+            self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
+        } else {
+            self.oauth = Some(oauth);
+            self.reconnecting_google = true;
+            self.start_sign_in(app);
         }
     }
 
@@ -1044,6 +1229,69 @@ impl AccountSetup {
         self.go(Page::Password);
         self.error = why;
         self.settings_open = true;
+    }
+
+    /// Convert only after the user explicitly chose Google sign-in and the sign-in identified
+    /// the SAME existing account. Until this point the app password has not been changed.
+    fn convert_existing_google(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
+        let Some(id) = self.edit.as_ref().map(|edit| edit.id) else { return };
+        let Some(existing) = app.session.mailbox.account(id).cloned() else {
+            self.oauth = None;
+            self.go(Page::Settings);
+            self.error = tl!("This account was removed while Google sign-in was open").to_string();
+            return;
+        };
+        if existing.oauth.is_some()
+            || !google_conversion_ready(&existing)
+            || !existing.email.trim().eq_ignore_ascii_case(self.email.trim())
+            || self.edit.as_ref().is_none_or(|edit| AccountSetup::edit(&existing).fields() != edit.baseline)
+            || tokens.email.trim().is_empty()
+            || !tokens.email.trim().eq_ignore_ascii_case(existing.email.trim())
+        {
+            self.oauth = None;
+            self.go(Page::Settings);
+            self.error =
+                tl!("Google did not confirm the unchanged account and its Gmail servers. The app-password account was not changed.").to_string();
+            return;
+        }
+        // The owner has authenticated the correct, unchanged account. Only now does the engine switch
+        // the provider. MailApp::execute discards the old app-password credentials, and the
+        // new refresh token is remembered only when the owner enabled remembered sign-ins.
+        match app.execute("account.edit", json!({"id": id, "auth": "oauth2", "provider": "google"})) {
+            Ok(_) => {
+                app.adopt_tokens(id, tokens);
+                let _ = app.execute("ui.sync", json!({"account": id}));
+                self.done = true;
+            }
+            Err(why) => {
+                self.oauth = None;
+                self.go(Page::Settings);
+                self.error = why;
+            }
+        }
+    }
+
+    /// Reauthorize an existing Google OAuth account without changing its account ID,
+    /// mail, folders, server settings, or sign-in method.
+    fn reconnect_existing_google(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
+        let Some(id) = self.edit.as_ref().map(|edit| edit.id) else { return };
+        let valid = app.session.mailbox.account(id).is_some_and(|account| {
+            account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google)
+                && account.email.trim().eq_ignore_ascii_case(self.email.trim())
+                && !tokens.email.trim().is_empty()
+                && tokens.email.trim().eq_ignore_ascii_case(account.email.trim())
+                && self.edit.as_ref().is_some_and(|edit| AccountSetup::edit(account).fields() == edit.baseline)
+        });
+        if !valid {
+            self.oauth = app.session.mailbox.account(id).and_then(|account| account.oauth.clone());
+            self.reconnecting_google = false;
+            self.go(Page::Settings);
+            self.error = tl!("Google did not confirm this unchanged account. Its previous sign-in and mail were kept.").to_string();
+            return;
+        }
+        app.adopt_tokens(id, tokens);
+        let _ = app.execute("ui.sync", json!({"account": id}));
+        self.done = true;
     }
 
     /// Add the account the owner just signed in to, with the tokens that brought back. One that
@@ -1204,7 +1452,13 @@ impl AccountSetup {
         match app.take_setup_sign_in() {
             Some(Ok(tokens)) => {
                 self.waiting = false;
-                self.add_signed_in(app, tokens);
+                if self.reconnecting_google {
+                    self.reconnect_existing_google(app, tokens);
+                } else if self.edit.is_some() {
+                    self.convert_existing_google(app, tokens);
+                } else {
+                    self.add_signed_in(app, tokens);
+                }
             }
             Some(Err(e)) => {
                 self.waiting = false;
@@ -1215,7 +1469,18 @@ impl AccountSetup {
             None if !app.signing_in() => {
                 self.waiting = false;
                 if self.page == Page::SignIn {
-                    self.go(Page::Address);
+                    if self.edit.as_ref().is_some_and(|edit| app.session.mailbox.account(edit.id).is_some()) {
+                        // A cancellation from elsewhere must not discard an existing account.
+                        let id = self.edit.as_ref().map(|edit| edit.id).unwrap_or(0);
+                        self.oauth = app.session.mailbox.account(id).and_then(|account| account.oauth.clone());
+                        self.reconnecting_google = false;
+                        self.go(Page::Settings);
+                    } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
+                        self.oauth = None;
+                        self.go(Page::Password);
+                    } else {
+                        self.go(Page::Address);
+                    }
                 }
             }
             None => {}
@@ -1425,29 +1690,64 @@ impl AccountSetup {
         if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
     }
 
+    /// New Google accounts open here with OAuth as the primary action. No password edit
+    /// exists until the owner chooses the app-password alternative; older accounts are not
+    /// sent through this page when they are merely opened for editing.
+    fn google_oauth_first(&self, app: &MailApp) -> bool {
+        self.edit.is_none()
+            && self.oauth.is_none()
+            && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
+            && app.services.sign_in.is_some()
+            && app.google_registration_ready()
+            && !self.google_app_password_selected
+    }
+
     fn password_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
         let t = pass.t;
-        // A build that can't reach a mail server has no use for a password.
         let asks = app.services.test_account.is_some() || app.services.sync.is_some();
+        let google = self.edit.is_none()
+            && self.oauth.is_none()
+            && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
+            && app.services.sign_in.is_some();
+        let configured = app.google_registration_ready();
+        let oauth_first = self.google_oauth_first(app);
         let title = if self.service.is_empty() {
             tl!("Sign in to your account").to_string()
         } else {
             fmt(tl!("{service} account"), &[("service", &self.service)])
         };
+        let mut change_method = None;
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
             if self.guessed {
                 note(ui, tl!("MailCraft couldn't find the settings for this address. Check the servers below before you connect."), t.orange);
             }
-            if !self.note.is_empty() {
+            if !self.note.is_empty() && !oauth_first {
                 note(ui, tl!(&self.note), t.text);
             }
-            if asks {
-                self.password_field(ui, pass, app.secret_watch(), "");
-                note(ui, kept_where(app), t.text_dim);
+            if oauth_first {
+                note(ui, tl!("Sign in securely with Google in your browser. Your Google password is never entered in MailCraft."), t.text);
+                note(ui, tl!("Recommended"), t.accent);
+                ui.add_space(4.0);
+                if button(ui, tl!("Use an app password instead"), false, true).clicked() {
+                    change_method = Some(Action::GooglePassword);
+                }
             } else {
-                note(ui, tl!("This build can't connect to mail servers. The account can still be added."), t.text_dim);
+                if google {
+                    if !configured {
+                        note(ui, tl!("Google sign-in is not configured for this build. Use an app password instead."), t.orange);
+                    } else if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
+                        change_method = Some(Action::GooglePreferSignIn);
+                    }
+                    note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
+                }
+                if asks {
+                    self.password_field(ui, pass, app.secret_watch(), "");
+                    note(ui, kept_where(app), t.text_dim);
+                } else {
+                    note(ui, tl!("This build can't connect to mail servers. The account can still be added."), t.text_dim);
+                }
             }
             ui.add_space(2.0);
             disclosure(ui, tl!("Change account settings"), &mut self.settings_open, &t);
@@ -1456,18 +1756,32 @@ impl AccountSetup {
             }
         });
         problem(ui, &self.error);
-        if self.app_passwords {
+        if self.app_passwords && !oauth_first {
             egui::Frame::NONE.inner_margin(Margin { left: PAD, right: PAD, top: 0, bottom: 0 }).show(ui, |ui| {
                 ui.hyperlink(GOOGLE_APP_PASSWORDS);
             });
         }
         let ready = !asks || !self.password.0.is_empty();
-        let (mut go, mut back) = (false, false);
+        let (mut go, mut back, mut google_sign_in) = (false, false, false);
         strip(ui, self.page, |ui| {
-            go = button(ui, tl!("Connect"), true, ready).clicked();
+            if oauth_first {
+                google_sign_in = button(ui, tl!("Sign in with Google"), true, true).clicked();
+            } else {
+                go = button(ui, tl!("Connect"), true, ready).clicked();
+            }
             back = button(ui, tl!("Back"), false, true).clicked();
         });
-        if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
+        if let Some(change_method) = change_method {
+            Some(change_method)
+        } else if back {
+            Some(Action::Back)
+        } else if google_sign_in || (oauth_first && pass.submit) {
+            Some(Action::GoogleSignIn)
+        } else if !oauth_first {
+            (ready && (go || pass.submit)).then_some(Action::Go)
+        } else {
+            None
+        }
     }
 
     /// The owner signed in as somebody other than the address typed (#103): who, and the two
@@ -1481,22 +1795,45 @@ impl AccountSetup {
             let said = fmt(tl!("You signed in as {signedIn}, not {typed}."), &[("signedIn", &shown(&who, 120)), ("typed", &shown(typed, 120))]);
             ui.label(RichText::new(said).font(medium(13.0)).color(t.text));
             ui.add_space(2.0);
-            let next = fmt(
-                tl!("Sign in again and pick {typed} on the sign-in page, or set up the account you signed in as instead."),
-                &[("typed", &shown(typed, 120))],
-            );
+            let next = if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
+                fmt(
+                    tl!(
+                        "Sign in again and choose {typed}, or change the email address to start a separate account setup. No account has been added."
+                    ),
+                    &[("typed", &shown(typed, 120))],
+                )
+            } else {
+                fmt(
+                    tl!("Sign in again and pick {typed} on the sign-in page, or set up the account you signed in as instead."),
+                    &[("typed", &shown(typed, 120))],
+                )
+            };
             note(ui, &next, t.text_dim);
             ui.add_space(4.0);
         });
         problem(ui, &self.error);
+        let google = self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
         let usable = address(&who).is_some();
         let use_label = fmt(tl!("Use {address}"), &[("address", &shown(&who, 40))]);
-        let (mut again, mut take) = (false, false);
+        let (mut again, mut take, mut alternative, mut back) = (false, false, false, false);
         strip(ui, self.page, |ui| {
             again = button(ui, tl!("Sign in again"), true, true).clicked();
-            take = button(ui, &use_label, false, usable).clicked();
+            if google {
+                alternative = button(ui, tl!("Use an app password"), false, true).clicked();
+                back = button(ui, tl!("Change email address"), false, true).clicked();
+            } else {
+                take = button(ui, &use_label, false, usable).clicked();
+            }
         });
-        if take { Some(Action::UseSignedIn) } else { (again || pass.submit).then_some(Action::Go) }
+        if alternative {
+            Some(Action::GooglePassword)
+        } else if back {
+            Some(Action::Back)
+        } else if take {
+            Some(Action::UseSignedIn)
+        } else {
+            (again || pass.submit).then_some(Action::Go)
+        }
     }
 
     fn done_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
@@ -1547,6 +1884,17 @@ impl AccountSetup {
             } else {
                 app.services.test_account.is_some() || app.services.sync.is_some()
             };
+        let saved_google = self.edit.as_ref().and_then(|edit| app.session.mailbox.account(edit.id)).filter(|account| {
+            account.oauth.is_none()
+                && account.kind == AccountKind::Imap
+                && account.incoming.as_ref().is_some_and(|server| server.host.trim().eq_ignore_ascii_case("imap.gmail.com"))
+        });
+        let can_convert = saved_google.is_some() && self.oauth.is_none() && app.services.sign_in.is_some();
+        let can_reconnect =
+            self.edit.is_some() && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) && app.services.sign_in.is_some();
+        let compatible = saved_google.is_some_and(google_conversion_ready);
+        let unchanged = self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline) && self.password.0.is_empty();
+        let configured = app.google_registration_ready();
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
@@ -1555,11 +1903,52 @@ impl AccountSetup {
             }
             None => tl!("Signs in with a password").to_string(),
         };
+        // At standard dialog widths the conversion button can stay in the always-visible
+        // footer. At 320px it would push Save/Cancel outside the window, so it moves into
+        // the scrollable body instead (where keyboard focus can still reach it).
+        let footer_google_action = ui.available_width() >= 390.0;
+        let (mut convert, mut reconnect) = (false, false);
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
             if self.graph {
                 note(ui, tl!("Its mail is kept in step through Microsoft Graph, without mail servers"), t.text_dim);
+            }
+            if can_reconnect {
+                if !footer_google_action {
+                    reconnect = button(ui, tl!("Reconnect with Google"), false, configured && unchanged).clicked();
+                    ui.add_space(4.0);
+                }
+                note(
+                    ui,
+                    tl!("Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."),
+                    t.text_dim,
+                );
+                if !configured {
+                    note(ui, tl!("Google sign-in is not configured for this build."), t.orange);
+                } else if !unchanged {
+                    note(ui, tl!("Save or discard changes here before reconnecting."), t.orange);
+                }
+            }
+            if can_convert {
+                if !footer_google_action {
+                    convert = button(ui, tl!("Switch to Google sign-in"), false, configured && compatible && unchanged).clicked();
+                    ui.add_space(4.0);
+                }
+                note(
+                    ui,
+                    tl!(
+                        "Switching to Google sign-in keeps your downloaded messages and folders. Your current app password stays in use unless Google signs in as this same account."
+                    ),
+                    t.text_dim,
+                );
+                if !compatible {
+                    note(ui, tl!("To switch, first save Google's standard IMAP and SMTP servers and an email-matching user name."), t.orange);
+                } else if !unchanged {
+                    note(ui, tl!("Save or discard changes here before switching sign-in methods."), t.orange);
+                } else if !configured {
+                    note(ui, tl!("MailCraft's Google Desktop registration is not yet configured for this build."), t.orange);
+                }
             }
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
             if asks {
@@ -1572,9 +1961,11 @@ impl AccountSetup {
             } else if !self.graph {
                 self.settings(ui, pass);
             }
-            if self.oauth.is_some() {
+            if let Some(oauth) = &self.oauth {
                 field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
-                field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+                if oauth.provider == OAuthProvider::Microsoft {
+                    field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+                }
             }
             if let Some((_, keep)) = self.keep_offline.as_mut() {
                 caption(ui, tl!("Mail to keep offline"), &t);
@@ -1599,9 +1990,23 @@ impl AccountSetup {
         let (mut save, mut cancel) = (false, false);
         strip(ui, self.page, |ui| {
             save = button(ui, tl!("Save"), true, true).clicked();
+            if footer_google_action && can_convert {
+                convert = button(ui, tl!("Switch to Google sign-in"), false, configured && compatible && unchanged).clicked();
+            }
+            if footer_google_action && can_reconnect {
+                reconnect = button(ui, tl!("Reconnect with Google"), false, configured && unchanged).clicked();
+            }
             cancel = button(ui, tl!("Cancel"), false, true).clicked();
         });
-        if cancel { Some(Action::Back) } else { (save || pass.submit).then_some(Action::Go) }
+        if cancel {
+            Some(Action::Back)
+        } else if convert {
+            Some(Action::ConvertToGoogle)
+        } else if reconnect {
+            Some(Action::GoogleReconnect)
+        } else {
+            (save || pass.submit).then_some(Action::Go)
+        }
     }
 
     /// The settings of an account a newer MailCraft added: what it is, and nothing to change (its
@@ -1903,6 +2308,14 @@ mod tests {
     use crate::{Services, SignInRequest};
     use egui::Key;
 
+    /// Google-specific keyboard, accessibility and compact-window behavior in both themes.
+    mod google_accessibility_tests;
+    /// Existing Gmail account preservation and transactional OAuth conversion.
+    mod google_conversion_tests;
+    /// OAuth-first new-account setup, deliberate app-password fallback, and missing registration.
+    mod google_oauth_first_tests;
+    /// Google sign-in results, Workspace recovery and existing-account reconnection.
+    mod google_signin_outcome_tests;
     /// What the wizard says about a sign-in on Microsoft's page, and the approval help (M4.4).
     mod help;
     /// The password's eye (#438).
