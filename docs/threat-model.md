@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -77,7 +77,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   organisation's domains is not vouched for this way. A message moved or copied onto the
   server from another account or from this computer leaves the stamp behind (`forget_stamps`),
   and the reader keeps room for it past its caps on header fields and header bytes too; an undo
-  that moves mail back from a shared mailbox leaves it behind as well. The firewall does not
+  that moves mail back from a shared mailbox leaves it behind as well. Versions from before kept
+  it on such a move, so a stamp is believed only when this version read it from the message
+  (`Message::fresh_stamps`): one already in a mailbox file vouches for nothing. The firewall does not
   guard mail that another program puts on the server (Outlook dragging mail in from another
   account, a migration tool, a Graph upload or an IMAP `APPEND`): Exchange keeps its headers as
   written, a forged `Internal` with them (observed on a tenant for a Graph upload; `APPEND` not

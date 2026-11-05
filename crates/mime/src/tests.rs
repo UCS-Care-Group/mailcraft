@@ -520,6 +520,7 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
+            fresh_stamps: false,
             id: 7,
             account: 3,
             folder: 5,
@@ -750,6 +751,8 @@ fn exchange_stamps_are_kept_past_the_header_cap() {
         "X-Pad: 1\r\n".repeat(150)
     );
     assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // Read here, so believed (#781): a stamp saved by a build from before is not.
+    assert!(parse(padded.as_bytes()).fresh_stamps);
     let flood = format!("{AUTH_AS}: Internal\r\n").repeat(MAX_AUTH_AS + 10);
     assert_eq!(stamps(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
     // Past the cap on header fields too.

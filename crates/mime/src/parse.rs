@@ -123,6 +123,7 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     kept_auth_as += 1;
                     // Cut short by `header::split` already.
                     m.headers.push((field.name.clone(), value.to_string()));
+                    m.fresh_stamps = true;
                 }
             }
             _ => {

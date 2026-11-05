@@ -365,6 +365,7 @@ fn exchange_online_vouches_for_mail_from_inside_the_organisation() {
         let mut m = message(results);
         m.from = Address::new("Colleague", "anna@lumen.example");
         m.headers.extend(stamps.iter().map(|v| ("X-MS-Exchange-Organization-AuthAs".to_string(), v.to_string())));
+        m.fresh_stamps = true;
         m
     };
     let none = "dkim=none (message not signed) header.d=none;dmarc=none action=none header.from=lumen.example;";

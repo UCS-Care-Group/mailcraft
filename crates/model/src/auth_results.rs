@@ -118,15 +118,15 @@ fn incoming_host(account: &Account) -> Option<String> {
 /// Whether Exchange Online says `m` came from inside the owner's own organisation: the account is
 /// on Exchange Online and has its own domain (not a consumer one such as `outlook.com`), `m` is on
 /// the server, every [`AUTH_AS`] header of it says `Internal` (there is at least one, and fewer
-/// than [`MAX_AUTH_AS`]), and the sender's domain is the account's or under it ([`judged_for`]).
-/// Exchange's header firewall removes that header from mail arriving from outside and Exchange
+/// than [`MAX_AUTH_AS`]) and was read by this version ([`Message::fresh_stamps`]), and the sender's
+/// domain is the account's or under it ([`judged_for`]). Exchange's header firewall removes that header from mail arriving from outside and Exchange
 /// writes its own, so a sender can't write it; mail between colleagues gets no DMARC verdict (`dmarc=none`), and often no
 /// `Authentication-Results` at all. The cross-tenant header is not read: the sending tenant
 /// writes it, and it travels on to other organisations.
 fn internal(account: Option<&Account>, m: &Message) -> bool {
     let Some(account) = account.filter(|account| on_exchange_online(account)) else { return false };
     let Some(own) = domain(&account.email).filter(|own| !provider::is_mail_provider(own)) else { return false };
-    if m.uid == 0 && m.server.is_none() {
+    if !m.fresh_stamps || (m.uid == 0 && m.server.is_none()) {
         return false;
     }
     let mut stamps = 0usize;

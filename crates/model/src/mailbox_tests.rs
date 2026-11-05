@@ -1155,3 +1155,24 @@ fn exchange_stamps_stay_behind_when_mail_goes_to_another_server() {
     mb.move_message(a, other_inbox).unwrap();
     assert_eq!(mb.message(a).map(|m| (m.account, m.headers.len())), Some((other, 1)));
 }
+
+/// Before #781 a message moved into a Microsoft 365 account kept every header, a sender's forged
+/// `AuthAs: Internal` among them, and the mailbox file kept it too. Loaded again, that stamp vouches
+/// for nothing; one read by this version is believed, and still is after a save.
+#[test]
+fn exchange_stamps_saved_before_781_vouch_for_nothing() {
+    let (mut mb, _, a) = synced_mailbox();
+    (mb.accounts[0].kind, mb.accounts[0].email) = (AccountKind::Microsoft, "owner@lumen.example".into());
+    let m = mb.message_mut(a).unwrap();
+    m.from = Address::new("Forger", "boss@lumen.example");
+    m.headers = vec![(auth_results::AUTH_AS.to_string(), "Internal".to_string())];
+    let saved = |mb: &Mailbox| serde_json::to_vec(mb).unwrap();
+    let vouched = |mb: &Mailbox| mb.message(a).is_some_and(|m| auth_results::vouched(mb.account(m.account), m));
+    // As a build from before wrote it: nothing says how the stamp was read.
+    let before = saved(&mb);
+    assert!(!String::from_utf8_lossy(&before).contains("freshStamps"));
+    assert!(!vouched(&from_json(&before, usize::MAX).unwrap()));
+    mb.message_mut(a).unwrap().fresh_stamps = true;
+    assert!(vouched(&mb));
+    assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
+}
