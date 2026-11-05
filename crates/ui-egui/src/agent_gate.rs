@@ -451,6 +451,10 @@ mod tests {
     fn every_window_command_has_a_class() {
         let missing: Vec<&str> = crate::UI_COMMANDS.iter().map(|c| c.0).filter(|id| agent::access(id).is_none()).collect();
         assert!(missing.is_empty(), "classify these for agents in crates/engine/src/agent.rs: {missing:?}");
+        assert_eq!(agent::access("ui.googleClientId"), Some(mailcraft_engine::agent::Access::Never));
+        // The retired secret setter stays explicitly denied, but is no longer a window command.
+        assert_eq!(agent::access("ui.googleClientSecret"), Some(mailcraft_engine::agent::Access::Never));
+        assert!(!crate::UI_COMMANDS.iter().any(|command| command.0 == "ui.googleClientSecret"));
     }
 
     #[test]

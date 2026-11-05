@@ -442,9 +442,16 @@ fn run(args: &[String]) -> Result<(), Failure> {
                         Ok(token) => token,
                         Err(_) => {
                             if oauth.client_id.is_empty() {
-                                // The one named when this runs, else the one the build was given.
-                                let built_in = option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default().to_string();
-                                oauth.client_id = std::env::var("MAILCRAFT_MS_CLIENT_ID").unwrap_or(built_in);
+                                // Never give a Google sign-in the Microsoft app registration.
+                                let (variable, built_in) = match oauth.provider {
+                                    mailcraft_model::OAuthProvider::Microsoft => {
+                                        ("MAILCRAFT_MS_CLIENT_ID", option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default())
+                                    }
+                                    mailcraft_model::OAuthProvider::Google => {
+                                        ("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID").unwrap_or_default())
+                                    }
+                                };
+                                oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
                             }
                             let open = |url: &str| {
                                 eprintln!(
@@ -453,8 +460,24 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 )
                             };
                             let cancel = std::sync::atomic::AtomicBool::new(false);
-                            let tokens =
-                                mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel).map_err(|e| format!("sync: {e}"))?;
+                            let signed_in = match oauth.provider {
+                                mailcraft_model::OAuthProvider::Microsoft => {
+                                    mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel)
+                                }
+                                mailcraft_model::OAuthProvider::Google => {
+                                    let default = option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_default();
+                                    let secret = std::env::var("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| default.to_string());
+                                    mailcraft_net::oauth::sign_in_google_at(
+                                        &mailcraft_net::oauth::Endpoints::of(&oauth),
+                                        &oauth,
+                                        &secret,
+                                        &request.account.email,
+                                        &open,
+                                        &cancel,
+                                    )
+                                }
+                            };
+                            let tokens = signed_in.map_err(|e| format!("sync: {e}"))?;
                             if tokens.someone_else(&request.account.email, &request.account.username) {
                                 return Err(SOMEONE_ELSE.to_string().into());
                             }

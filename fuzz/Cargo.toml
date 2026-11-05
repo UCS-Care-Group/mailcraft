@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -24,6 +24,7 @@ mailcraft-ews = { path = "../crates/ews" }
 mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
 mailcraft-proto = { path = "../crates/proto" }
+mailcraft-pst = { path = "../crates/pst" }
 mailcraft-vcard = { path = "../crates/vcard" }
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
@@ -158,6 +159,13 @@ bench = false
 [[bin]]
 name = "dav_document"
 path = "fuzz_targets/dav_document.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pst"
+path = "fuzz_targets/pst.rs"
 test = false
 doc = false
 bench = false
