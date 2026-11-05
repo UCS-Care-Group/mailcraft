@@ -130,6 +130,14 @@ fn always_move_messages_from_this_sender_fills_the_new_rule_in() {
     let f = RulesForm::new(&s, &json!({"folder": to, "id": odd}));
     assert_eq!(f.conds, [Cond { kind: When::From, text: "noreply".into(), ..Default::default() }]);
     assert_eq!(f.lacks(), None);
+    // A long address is taken whole, never cut into somebody else's.
+    let long = format!("a@{}.{}.{}.{}.example", "b".repeat(60), "c".repeat(60), "d".repeat(60), "e".repeat(30));
+    assert!(long.len() > 200 && long.len() <= 254);
+    let long_one = Message { folder: inbox, from: Address::new("", &long), subject: "x".into(), ..Default::default() };
+    let long_one = s.mailbox.add_message(long_one).unwrap();
+    let f = RulesForm::new(&s, &json!({"folder": to, "id": long_one}));
+    assert_eq!(f.conds, [Cond { kind: When::Person, text: long, ..Default::default() }]);
+    assert_eq!(f.lacks(), None);
 }
 
 #[test]
@@ -169,6 +177,9 @@ fn what_each_new_part_needs_is_said() {
     assert!(needs(&f).contains("whole addresses"), "{}", needs(&f));
     f.conds[0].text = "news@club.example; noor@example.org".into();
     assert_eq!(f.lacks(), None);
+    // No longer than an address can be.
+    f.conds[0].text = format!("a@{}.example", "b".repeat(250));
+    assert!(needs(&f).contains("whole addresses"), "{}", needs(&f));
     // Two sizes, the smaller first.
     f.conds[0] = Cond { kind: When::Size, min: "500".into(), max: "20".into(), ..Default::default() };
     assert!(needs(&f).contains("sizes in KB"), "{}", needs(&f));

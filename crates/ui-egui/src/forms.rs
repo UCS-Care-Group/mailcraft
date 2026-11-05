@@ -5906,8 +5906,9 @@ pub(crate) mod rules {
             }
             let ok = match self.kind {
                 kind if kind.takes_people() => {
-                    // One whole address each, as `rules.add` takes a person.
-                    if words.iter().any(|w| !mailcraft_model::search::is_address(w)) {
+                    // One whole address each, as `rules.add` takes a person: no longer than an
+                    // address can be.
+                    if words.iter().any(|w| !by_address(w)) {
                         return Some(tl!("From and Sent to take whole addresses, such as someone@example.org."));
                     }
                     !words.is_empty()
@@ -6460,8 +6461,9 @@ pub(crate) mod rules {
             self.name = name.chars().take(mailcraft_model::MAX_NAME).collect();
             // By the whole address, as `rules.fromMessage` makes it; a sender's that isn't one is
             // looked for as words.
-            let kind = if by_address(sender) { When::Person } else { When::From };
-            self.conds = vec![Cond { kind, text: sender.chars().take(200).collect(), ..Default::default() }];
+            // (The address whole: one cut short would be somebody else's.)
+            let (kind, text) = if by_address(sender) { (When::Person, sender.to_string()) } else { (When::From, sender.chars().take(200).collect()) };
+            self.conds = vec![Cond { kind, text, ..Default::default() }];
             self.acts = vec![Act { kind: Do::Move, folder, ..self.fresh_action() }];
             self.open = true;
             self.run_in = Some((m.folder, crate::nav::folder_path(mb, m.folder)));
