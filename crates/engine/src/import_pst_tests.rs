@@ -1634,6 +1634,9 @@ fn the_file_a_contact_came_from_is_not_free_text_but_is_imported_finds_it() {
     // `is:imported` finds the imported ones, alone or with other words.
     let hits = |q: &str| s.mailbox.contacts.values().filter(|c| c.matches(q)).count();
     assert_eq!((hits("is:imported"), hits("IS:IMPORTED smith"), hits("is:imported nobody"), hits("is:importedx")), (1, 1, 0, 0));
+    // The term many times over is read in a loop: no stack is used up.
+    let long = "is:imported ".repeat(200_000);
+    assert_eq!(hits(&long), 1);
 }
 
 #[test]

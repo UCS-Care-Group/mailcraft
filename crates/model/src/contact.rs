@@ -131,15 +131,19 @@ impl Contact {
     /// Whether any name, company, address or phone contains `needle` (case-insensitive). The file
     /// a contact was imported from is not text to find it by: only `is:imported` finds those.
     pub fn matches(&self, needle: &str) -> bool {
-        let n = needle.trim();
+        let mut n = needle.trim();
         // `is:imported`, alone or before other words ("is:imported smith"): imported ones only.
-        if let Some(rest) = n
+        // A loop, not a call of itself: a query of the term many times over can't use up the stack.
+        while let Some(rest) = n
             .get(..11)
             .filter(|t| t.eq_ignore_ascii_case("is:imported"))
             .and_then(|_| n.get(11..))
             .filter(|r| r.is_empty() || r.starts_with(char::is_whitespace))
         {
-            return !self.imported_from.is_empty() && self.matches(rest);
+            if self.imported_from.is_empty() {
+                return false;
+            }
+            n = rest.trim();
         }
         n.is_empty()
             || [&self.display_name, &self.first, &self.middle, &self.last, &self.nickname, &self.company, &self.title, &self.department, &self.notes]
