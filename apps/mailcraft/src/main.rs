@@ -1699,6 +1699,7 @@ fn services(
     let download_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
     let tree_ctx = ctx.clone();
+    let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1774,6 +1775,23 @@ fn services(
             background(&tree_ctx, "folder import", move || {
                 mailcraft_engine::import_tree::load_path(&job.path, None, job.count_only, &job.progress).map_err(|e| e.to_string())
             })
+        })),
+        // A .pst file's mail, read off the window's thread a batch at a time (#815): a small
+        // channel, so that the reader waits for the window rather than holding the whole file.
+        import_pst: Some(Box::new(move |job: mailcraft_ui_egui::import_pst::PstJob| {
+            let (tx, rx) = std::sync::mpsc::sync_channel(2);
+            let wake = pst_ctx.clone();
+            let spawned = std::thread::Builder::new().name("pst import".into()).spawn(move || {
+                mailcraft_engine::import_pst::read_path(&job.path, &job.job, &job.progress, &mut |event| {
+                    let sent = tx.send(event).is_ok();
+                    wake.request_repaint();
+                    sent
+                });
+            });
+            if let Err(e) = spawned {
+                log::error!("couldn't start the .pst import: {e}");
+            }
+            rx
         })),
         // Another mailbox file, read off the window's thread before it takes the place of the one
         // open (File › Open, #519): the window shows how far it has got and can call it off. A

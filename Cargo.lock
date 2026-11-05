@@ -2522,6 +2522,7 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
+ "mailcraft-pst",
  "mailcraft-time",
  "serde",
  "serde_json",
