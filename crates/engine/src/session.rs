@@ -1081,6 +1081,10 @@ pub struct Session {
     /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
     /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
     pub staged_tree: Option<crate::import_tree::Parsed>,
+    /// What the host has read of a .pst file off the window's thread, waiting for
+    /// `file.importPst` with `staged` to put it in, a batch at a time, and then the report (#815).
+    /// Never saved.
+    pub staged_pst: Option<crate::import_pst::Staged>,
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
@@ -1230,6 +1234,7 @@ impl Session {
             saving: Saving::Asked,
             graph_switch_backup: None,
             staged_tree: None,
+            staged_pst: None,
             server_search: Default::default(),
             auto_replies: Default::default(),
             history: Vec::new(),

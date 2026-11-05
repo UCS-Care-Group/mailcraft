@@ -1,0 +1,228 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The import report of a .pst file (#815): for each folder of the file, how many items were
+//! found, brought in, already here, left out and not yet brought in (a later part brings them),
+//! each item left out with what it is, its folder and why, the folders not brought, and the
+//! damage the reader met. Shown at the end, answered by `file.importPst`, and written as a text
+//! file beside the mailbox.
+//!
+//! What the file holds goes into it (folder names, subjects), so every list is capped and every
+//! text cut to size: a hostile file makes a long report, never an unbounded one.
+
+use serde_json::{Value, json};
+
+/// Most items left out listed one by one (the rest are counted).
+pub const MAX_LISTED: usize = 2000;
+/// Most notes listed (the rest are counted).
+pub const MAX_NOTES: usize = 2000;
+/// Most damaged parts of the file listed.
+const MAX_DAMAGE: usize = 200;
+/// Most characters of a subject or a folder's path in the report.
+const MAX_TEXT: usize = 200;
+
+/// One folder of the file, and what came of its items.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Row {
+    /// Its path below the top of the file (`Inbox/Projects`; empty for the top itself).
+    pub path: String,
+    pub found: usize,
+    pub added: usize,
+    pub already: usize,
+    pub left_out: usize,
+    /// Calendar items, contacts, tasks, notes and journal entries: a later part brings them.
+    pub later: usize,
+}
+
+impl Row {
+    /// Whether every item found is accounted for.
+    pub fn adds_up(&self) -> bool {
+        self.added.saturating_add(self.already).saturating_add(self.left_out).saturating_add(self.later) == self.found
+    }
+}
+
+/// One thing of the file named in the report: what it is, its folder, and why (or what of it).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Entry {
+    pub what: String,
+    pub folder: String,
+    pub why: String,
+}
+
+/// The report of one run.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Report {
+    /// The .pst file's own name (not its path).
+    pub file: String,
+    /// The folder it went into (made, or picked).
+    pub name: String,
+    pub dry_run: bool,
+    /// "Unicode" or "ANSI".
+    pub format: String,
+    pub rows: Vec<Row>,
+    /// Items left out, one by one, as many as [`MAX_LISTED`].
+    pub left_out: Vec<Entry>,
+    pub left_out_more: usize,
+    /// What of an item brought in was not (an attachment past a cap, rich text kept as a file,
+    /// S/MIME kept whole), as many as [`MAX_NOTES`].
+    pub notes: Vec<Entry>,
+    pub notes_more: usize,
+    /// The file's own folders (the root, searches, views), not brought.
+    pub not_brought: Vec<Entry>,
+    /// What the reader couldn't read of the file's structure.
+    pub damage: Vec<String>,
+    /// Items not yet brought in, by kind.
+    pub later: Vec<(String, usize)>,
+    /// The owner called it off: what was brought in stays, and another run brings the rest.
+    pub cancelled: bool,
+    /// Categories of the file's list added to this computer's.
+    pub categories_added: usize,
+    /// Where the text of the report was written, when it was.
+    pub written: Option<String>,
+}
+
+/// `s` without control characters, cut to [`MAX_TEXT`] characters.
+pub fn short(s: &str) -> String {
+    let mut out: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).take(MAX_TEXT).collect();
+    if s.chars().count() > MAX_TEXT {
+        out.push('…');
+    }
+    out
+}
+
+impl Report {
+    pub fn total(&self) -> Row {
+        let mut t = Row::default();
+        for r in &self.rows {
+            t.found = t.found.saturating_add(r.found);
+            t.added = t.added.saturating_add(r.added);
+            t.already = t.already.saturating_add(r.already);
+            t.left_out = t.left_out.saturating_add(r.left_out);
+            t.later = t.later.saturating_add(r.later);
+        }
+        t
+    }
+
+    pub fn leave_out(&mut self, what: &str, folder: &str, why: &str) {
+        if self.left_out.len() < MAX_LISTED {
+            self.left_out.push(Entry { what: short(what), folder: short(folder), why: short(why) });
+        } else {
+            self.left_out_more = self.left_out_more.saturating_add(1);
+        }
+    }
+
+    pub fn note(&mut self, what: &str, folder: &str, note: &str) {
+        if self.notes.len() < MAX_NOTES {
+            self.notes.push(Entry { what: short(what), folder: short(folder), why: short(note) });
+        } else {
+            self.notes_more = self.notes_more.saturating_add(1);
+        }
+    }
+
+    pub fn damaged(&mut self, what: String) {
+        if self.damage.len() < MAX_DAMAGE {
+            self.damage.push(short(&what));
+        }
+    }
+
+    pub fn count_later(&mut self, kind: &str) {
+        match self.later.iter_mut().find(|(k, _)| k == kind) {
+            Some((_, n)) => *n = n.saturating_add(1),
+            None => self.later.push((kind.to_string(), 1)),
+        }
+    }
+
+    /// The answer of `file.importPst`.
+    pub fn to_json(&self) -> Value {
+        let t = self.total();
+        let entries = |list: &[Entry]| list.iter().map(|e| json!({"what": e.what, "folder": e.folder, "why": e.why})).collect::<Vec<_>>();
+        json!({
+            "file": self.file,
+            "name": self.name,
+            "dryRun": self.dry_run,
+            "format": self.format,
+            "found": t.found,
+            "added": t.added,
+            "messages": t.added,
+            "already": t.already,
+            "leftOut": t.left_out,
+            "later": t.later,
+            "laterKinds": self.later.iter().map(|(k, n)| json!({"kind": k, "count": n})).collect::<Vec<_>>(),
+            "folders": self.rows.iter().map(|r| json!({
+                "path": r.path, "found": r.found, "added": r.added, "already": r.already, "leftOut": r.left_out, "later": r.later,
+            })).collect::<Vec<_>>(),
+            "leftOutItems": entries(&self.left_out),
+            "leftOutMore": self.left_out_more,
+            "notes": entries(&self.notes),
+            "notesMore": self.notes_more,
+            "notBrought": entries(&self.not_brought),
+            "damage": self.damage,
+            "cancelled": self.cancelled,
+            "categoriesAdded": self.categories_added,
+            "report": self.written,
+            "preview": true,
+        })
+    }
+
+    /// The report as text, for the file beside the mailbox.
+    pub fn to_text(&self, when: &str) -> String {
+        let t = self.total();
+        let mut out = String::new();
+        let mut line = |s: String| {
+            out.push_str(&s);
+            out.push('\n');
+        };
+        line(format!("MailCraft: import of the .pst file {} (preview: mail only so far)", short(&self.file)));
+        line(format!("When: {when}"));
+        line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
+        line(format!("File: {} .pst file", self.format));
+        if self.dry_run {
+            line("A look only (dry run): nothing was imported.".to_string());
+        }
+        if self.cancelled {
+            line("Cancelled: what was brought in stays; import the file again to bring in the rest.".to_string());
+        }
+        line(String::new());
+        line(format!(
+            "Found {} items: {} brought in, {} already here, {} left out, {} not yet brought in.",
+            t.found, t.added, t.already, t.left_out, t.later
+        ));
+        if !self.later.is_empty() {
+            let kinds: Vec<String> = self.later.iter().map(|(k, n)| format!("{n} {k}")).collect();
+            line(format!("Not yet brought in (a later version brings them): {}.", kinds.join(", ")));
+        }
+        if self.categories_added > 0 {
+            line(format!("Categories added from the file: {}.", self.categories_added));
+        }
+        line(String::new());
+        line("Folders (found / brought in / already here / left out / not yet)".to_string());
+        for r in &self.rows {
+            let path = if r.path.is_empty() { "(the top of the file)".to_string() } else { r.path.clone() };
+            line(format!("  {path}: {} / {} / {} / {} / {}", r.found, r.added, r.already, r.left_out, r.later));
+        }
+        let mut list = |title: &str, entries: &[Entry], more: usize| {
+            if entries.is_empty() && more == 0 {
+                return;
+            }
+            line(String::new());
+            line(title.to_string());
+            for e in entries {
+                let folder = if e.folder.is_empty() { String::new() } else { format!(" in {}", e.folder) };
+                line(format!("  {}{folder}: {}", e.what, e.why));
+            }
+            if more > 0 {
+                line(format!("  and {more} more"));
+            }
+        };
+        list("Not brought (the file's own folders)", &self.not_brought, 0);
+        list("Left out", &self.left_out, self.left_out_more);
+        list("Brought in, with notes", &self.notes, self.notes_more);
+        if !self.damage.is_empty() {
+            line(String::new());
+            line("Damage in the file".to_string());
+            for d in &self.damage {
+                line(format!("  {d}"));
+            }
+        }
+        out
+    }
+}

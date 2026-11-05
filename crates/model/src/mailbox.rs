@@ -958,6 +958,41 @@ pub struct Category {
 /// The colour of a category with none: one a list doesn't have, or one new to the list.
 pub const GREY_CATEGORY: Rgb = Rgb(0x8A, 0x8A, 0x8A);
 
+/// Our own colours for the numbered colours Outlook gives a category (0 to 24: red, orange,
+/// brown, yellow, green, teal, olive, blue, purple, cranberry, steel, dark steel, gray, dark
+/// gray, black, then the dark ones of the first ten), as Microsoft Graph names them
+/// (`preset0`…) and a .pst file's list of categories numbers them; `None` for any other.
+pub fn preset_category_color(n: i64) -> Option<Rgb> {
+    const COLORS: [Rgb; 25] = [
+        Rgb(0xD1, 0x3B, 0x3B),
+        Rgb(0xE0, 0x7B, 0x1F),
+        Rgb(0x9C, 0x6B, 0x3F),
+        Rgb(0xD9, 0xA4, 0x0C),
+        Rgb(0x2E, 0x8B, 0x57),
+        Rgb(0x1A, 0x9B, 0xA6),
+        Rgb(0x7A, 0x8B, 0x2E),
+        Rgb(0x2F, 0x6F, 0xD0),
+        Rgb(0x7E, 0x57, 0xC2),
+        Rgb(0xB0, 0x2E, 0x6B),
+        Rgb(0x6E, 0x8A, 0xA5),
+        Rgb(0x4A, 0x5F, 0x73),
+        Rgb(0x8A, 0x8A, 0x8A),
+        Rgb(0x5A, 0x5A, 0x5A),
+        Rgb(0x2B, 0x2B, 0x2B),
+        Rgb(0x8E, 0x1F, 0x1F),
+        Rgb(0xA8, 0x52, 0x0C),
+        Rgb(0x6B, 0x45, 0x23),
+        Rgb(0x9A, 0x73, 0x00),
+        Rgb(0x1C, 0x5E, 0x38),
+        Rgb(0x0F, 0x66, 0x6E),
+        Rgb(0x52, 0x5E, 0x1A),
+        Rgb(0x1B, 0x45, 0x8A),
+        Rgb(0x52, 0x35, 0x8A),
+        Rgb(0x78, 0x1B, 0x47),
+    ];
+    usize::try_from(n).ok().and_then(|n| COLORS.get(n).copied())
+}
+
 /// The categories a new mailbox starts with (our own colours).
 fn default_categories() -> Vec<Category> {
     [
