@@ -9,7 +9,7 @@ use mailcraft_model::{Id, Importance, Task};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
-use super::tasks_remote::{merge_tasks, task_upload};
+use super::tasks_remote::{carries_delete, mark_sent, merge_tasks, task_upload};
 use crate::Session;
 
 const NOW: i64 = 1_790_000_000;
@@ -101,6 +101,32 @@ fn a_field_changed_here_stays_and_the_rest_is_the_servers() {
     let patch = t.patch().unwrap();
     assert_eq!(patch.title.as_deref(), Some("Call Bo today"));
     assert_eq!((patch.importance, patch.due, patch.notes), (None, None, None));
+}
+
+#[test]
+fn a_day_read_a_day_early_is_put_right_by_the_next_download_and_nothing_goes_up() {
+    // Before #809 a to-do due on 10 November east of UTC came down as due on the 9th; the next
+    // download, read right, brings the 10th, and nothing of it is told back to the server.
+    let (mut s, a) = session();
+    let mut early = remote("t1", "Call Bo");
+    (early.start, early.due) = (Date::new(2026, 11, 9), Date::new(2026, 11, 9));
+    merge_tasks(&mut s.mailbox, &download(a, vec![early])).unwrap();
+    let mut right = remote("t1", "Call Bo");
+    (right.start, right.due) = (Date::new(2026, 11, 10), Date::new(2026, 11, 10));
+    assert_eq!(merge_tasks(&mut s.mailbox, &download(a, vec![right])).unwrap().updated, 1);
+    let t = titled(&s, "Call Bo");
+    assert_eq!((t.start, t.due), (Date::new(2026, 11, 10), Date::new(2026, 11, 10)));
+    assert_eq!(t.patch(), None);
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+    // A due date changed here meanwhile stays, and is the one thing told.
+    run(&mut s, "tasks.edit", json!({"id": t.id, "due": "2026-11-12"}));
+    let mut again = remote("t1", "Call Bo");
+    (again.start, again.due) = (Date::new(2026, 11, 10), Date::new(2026, 11, 10));
+    merge_tasks(&mut s.mailbox, &download(a, vec![again])).unwrap();
+    let t = titled(&s, "Call Bo");
+    assert_eq!((t.start, t.due), (Date::new(2026, 11, 10), Date::new(2026, 11, 12)));
+    let patch = t.patch().unwrap();
+    assert_eq!((patch.due, patch.start), (Some(Date::new(2026, 11, 12)), None));
 }
 
 #[test]
@@ -705,4 +731,95 @@ fn a_to_do_taken_out_of_a_shared_list_by_another_way_is_an_overstep() {
     let mut after = s.mailbox.clone();
     after.task_mut(ours).unwrap().list = "L1".into();
     assert_eq!(overstep(&s.mailbox, &after, &[]), Some(Class::Send));
+}
+
+/// A synced to-do "One" deleted here, ready for the job that tells the server.
+fn deleted_one() -> (Session, Id) {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "One")])).unwrap();
+    let id = titled(&s, "One").id;
+    run(&mut s, "tasks.delete", json!({"id": id}));
+    (s, a)
+}
+
+#[test]
+fn undo_after_the_delete_went_out_does_nothing_and_the_task_stays_gone() {
+    let (mut s, a) = deleted_one();
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete && op.id == "t1"));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(!s.can_undo() && !s.undo());
+    assert!(s.mailbox.tasks.values().all(|t| t.title != "One"));
+}
+
+#[test]
+fn undo_before_the_delete_went_out_cancels_it() {
+    let (mut s, a) = deleted_one();
+    assert!(s.undo());
+    assert!(s.mailbox.tasks.values().any(|t| t.title == "One"));
+    assert!(s.mailbox.task_gone.is_empty());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().all(|op| op.kind != TaskOpKind::Delete));
+}
+
+#[test]
+fn an_upload_without_a_delete_leaves_the_history_alone() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+    let id = titled(&s, "Call Bo").id;
+    run(&mut s, "tasks.edit", json!({"id": id, "notes": "bring tea"}));
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    run(&mut s, "tasks.new", json!({"title": "Fresh"}));
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Update) && up.ops.iter().any(|op| op.kind == TaskOpKind::Create));
+    assert!(up.ops.iter().all(|op| op.kind != TaskOpKind::Delete));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(s.can_undo());
+    assert!(s.undo());
+    assert!(s.mailbox.tasks.values().all(|t| t.title != "Fresh"));
+}
+
+#[test]
+fn a_delete_going_out_forgets_earlier_unrelated_steps_too() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "One"), remote("t2", "Two")])).unwrap();
+    let two = titled(&s, "Two").id;
+    run(&mut s, "tasks.edit", json!({"id": two, "notes": "unrelated"}));
+    let one = titled(&s, "One").id;
+    run(&mut s, "tasks.delete", json!({"id": one}));
+    assert!(s.can_undo());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    mark_sent(&mut s, carries_delete(&up));
+    // The whole history goes (as with rules and the answer to a sent change), not just the delete.
+    assert!(!s.can_undo() && !s.undo());
+    assert_eq!(titled(&s, "Two").notes, "unrelated");
+}
+
+#[test]
+fn a_delete_going_out_forgets_redo_too() {
+    let (mut s, a) = deleted_one();
+    run(&mut s, "tasks.new", json!({"title": "Later"}));
+    assert!(s.undo());
+    assert!(s.can_redo());
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert!(up.ops.iter().any(|op| op.kind == TaskOpKind::Delete));
+    mark_sent(&mut s, carries_delete(&up));
+    assert!(!s.can_redo() && !s.redo());
+    assert!(!s.can_undo());
+}
+
+#[test]
+fn a_failed_delete_is_sent_again_with_the_next_job() {
+    let (mut s, a) = deleted_one();
+    let up = task_upload(&s.mailbox, a).unwrap();
+    mark_sent(&mut s, carries_delete(&up));
+    let op = up.ops.iter().find(|op| op.kind == TaskOpKind::Delete).unwrap();
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![outcome(op, TaskResult::Failed)]));
+    let again = task_upload(&s.mailbox, a).unwrap();
+    assert_eq!(again.ops.iter().filter(|op| op.kind == TaskOpKind::Delete && op.id == "t1").count(), 1);
+    // A step made meanwhile is lost when the retry starts: the trade-off the rules make too.
+    run(&mut s, "tasks.new", json!({"title": "Meanwhile"}));
+    assert!(s.can_undo());
+    mark_sent(&mut s, carries_delete(&again));
+    assert!(!s.can_undo());
 }

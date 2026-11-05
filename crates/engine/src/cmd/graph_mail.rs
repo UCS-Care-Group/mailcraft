@@ -86,6 +86,8 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,
         inbox_pass: None,
         full: full_sweep_due(s, account),
+        // The conversation ids of mail listed before they were asked for (#795).
+        threads: super::thread_ids::to_ask(&s.mailbox, account),
     })
 }
 
@@ -205,6 +207,9 @@ pub(super) fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Fo
                 };
                 note(&|| FolderChange::Create { folder: f.id, name: f.name.clone(), parent: server_parent.clone(), parent_folder: local_parent });
             }
+            // One of the server's own folders is never renamed or moved (#756): the server would
+            // refuse it every run (a change an earlier version left is undone by the listing).
+            Some(server) if server.well_known => {}
             Some(server) => {
                 if f.kind == FolderKind::Custom && f.name != server.name {
                     note(&|| FolderChange::Rename { folder: f.id, id: server.id.clone(), name: f.name.clone() });
@@ -401,6 +406,8 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // The conversations of mail listed before they were asked for (#795).
+    let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
     // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
     // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
@@ -419,7 +426,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named {
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
@@ -540,6 +547,7 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
                 round_ended: false,
                 counts: None,
                 sync_state: String::new(),
+                well_known: false,
             });
             taken.pushed += 1;
             None
@@ -585,6 +593,12 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
 /// known by their ids as Graph's folders are).
 pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
     release_outbox(mb, account, listing, taken);
+    // A deletion an earlier version queued of a folder that is the server's own: the server
+    // keeps it, and would be asked every run (#756).
+    // (Marked by the listing, or earlier: `update` keeps the mark whatever one listing says.)
+    let kept = mb.folders.iter().filter(|f| f.account == account).filter_map(|f| f.server.as_ref()).filter(|s| s.well_known).map(|s| s.id.as_str());
+    let own: HashSet<&str> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).chain(kept).collect();
+    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id.as_str())));
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
@@ -612,7 +626,13 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
                     parent: parent_here,
                     name: name.clone(),
                     kind: there.kind,
-                    server: Some(ServerFolder { id: there.id.clone(), name, parent: there.parent.clone(), ..Default::default() }),
+                    server: Some(ServerFolder {
+                        id: there.id.clone(),
+                        name,
+                        parent: there.parent.clone(),
+                        well_known: there.well_known,
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 });
                 here.insert(there.id.clone(), id);
@@ -701,8 +721,11 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
     let last = f.server.clone().unwrap_or_default();
     // What the folder's parent is on the server, as this mailbox has it now.
     let parent_now = parent_on_server(mb, f);
-    let renamed_here = f.server.is_some() && f.name != last.name;
-    let moved_here = f.server.is_some() && parent_now.as_deref() != Some(last.parent.as_str());
+    // (One of the server's own folders is never renamed or moved here: a change left by an
+    // earlier version is undone.)
+    let own = there.well_known || last.well_known;
+    let renamed_here = f.server.is_some() && !own && f.name != last.name;
+    let moved_here = f.server.is_some() && !own && parent_now.as_deref() != Some(last.parent.as_str());
     // A place it can be: known here (or the top), and not inside itself (a move made here may
     // not have reached the server yet).
     let can_go = (there.parent.is_empty() || parent_here.is_some()) && !parent_here.is_some_and(|p| mb.subtree(id).contains(&p));
@@ -728,6 +751,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         counts: last.counts,
         // (An Exchange server account's folder goes on from its sync state; the other kinds have none.)
         sync_state: last.sync_state,
+        // (Once the server's own, always: one odd answer doesn't clear it.)
+        well_known: own,
     });
     *f != before
 }
@@ -735,6 +760,10 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
 #[cfg(test)]
 #[path = "graph_mail_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "graph_well_known_tests.rs"]
+mod well_known_tests;
 
 #[cfg(test)]
 #[path = "graph_sweep_tests.rs"]
