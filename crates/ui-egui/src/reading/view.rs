@@ -133,6 +133,22 @@ impl Doc {
                 doc.remote_left_out += 1;
             }
         }
+        // The pictures behind boxes (#601) are pictures like the others: asked for with them.
+        for behind in mailcraft_html::bg_pictures(&blocks) {
+            let src = behind.src.trim();
+            if mailcraft_html::is_embedded(src) {
+                continue;
+            }
+            doc.remote_pictures += 1;
+            if !images::is_remote(src) || !seen.insert(src) {
+                continue;
+            }
+            if doc.remote.len() < super::remote::MAX_PER_MESSAGE {
+                doc.remote.push(Arc::from(src));
+            } else {
+                doc.remote_left_out += 1;
+            }
+        }
         let (blocks, cuts) = in_pieces(blocks);
         doc.blocks = blocks;
         doc.cuts = cuts.into();
@@ -750,6 +766,15 @@ pub fn paint(
                 on_picture |= over.is_some();
                 if over.is_some() && (picture.link.is_some() || !picture.alt.is_empty()) {
                     hover = Some(Hover { link: picture.link.clone(), note: (!picture.alt.is_empty()).then(|| picture.alt.clone()) });
+                }
+            }
+            ItemKind::Backdrop(behind) => {
+                let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
+                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &behind.data, behind.tile);
+                match state {
+                    Picture::Ready(texture) => super::backdrop::paint(&painter, rect, clip, behind, texture.id()),
+                    Picture::Pending => ctx.request_repaint(),
+                    Picture::Failed => {}
                 }
             }
             ItemKind::Placeholder(placeholder) => {

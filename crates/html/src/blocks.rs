@@ -17,8 +17,8 @@ use crate::sheet;
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
-    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT, MAX_ROW_SPAN,
-    MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
+    Align, BgPicture, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT,
+    MAX_ROW_SPAN, MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -131,8 +131,7 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
             break;
         }
         if let Token::Open(tag) = &token
-            && tag.name == "img"
-            && let Some(src) = tag.raw_attr("src").filter(|src| data::is_data(src))
+            && let Some(src) = picture_text(tag)
         {
             pictures = pictures.saturating_add(src.len());
         }
@@ -160,6 +159,17 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
     let dark_design = look.dark_design();
     let hidden = builder.unseen.take().unwrap_or_default();
     Built { blocks: builder.finish(), dark_design, hidden }
+}
+
+/// The text of a picture written into the element (an `<img>`'s, or the `background` of a table,
+/// a cell or the body, #601), which isn't counted against [`MAX_INPUT`].
+fn picture_text<'a>(tag: &'a Tag<'_>) -> Option<&'a str> {
+    let attribute = match tag.name.as_ref() {
+        "img" => "src",
+        "table" | "td" | "th" | "body" => "background",
+        _ => return None,
+    };
+    tag.raw_attr(attribute).filter(|src| data::is_data(src))
 }
 
 /// For an element that asks to be a box on a line: the id of what holds it, when everything
@@ -378,6 +388,7 @@ struct BoxBuild {
     inline: bool,
     /// What holds it, for telling whether a box before it is on its line ([`Frame::after_box`]).
     parent: usize,
+    bg_picture: Option<Box<BgPicture>>,
 }
 
 #[derive(Debug)]
@@ -409,6 +420,7 @@ struct TableBuild {
     last_row: bool,
     spacing: Option<u8>,
     inline: bool,
+    bg_picture: Option<Box<BgPicture>>,
 }
 
 #[derive(Debug)]
@@ -433,6 +445,7 @@ struct CellBuild {
     padding: Option<Insets>,
     radius: u8,
     valign: Option<VAlign>,
+    bg_picture: Option<Box<BgPicture>>,
 }
 
 /// What an open element is.
@@ -985,6 +998,38 @@ impl Builder {
         self.emit(block, false);
     }
 
+    /// The picture behind an element (#601): what its style says, else its `background`
+    /// attribute where `attribute` (a table, a cell, the body). One attached to the message
+    /// (`cid:`) or on the web (`http`, `https`) is kept by its address, under the same rules as an
+    /// `<img>`'s; one written into it (`data:`) is decoded within the caps the message's pictures
+    /// share, and is no picture when it can't be.
+    fn bg_picture(&mut self, tag: &Tag<'_>, css: &Css, attribute: bool) -> Option<Box<BgPicture>> {
+        let raw = match &css.bg.image {
+            Some(image) => image.clone(),
+            None if attribute => tag.attr("background"),
+            None => None,
+        }?;
+        let (src, data) = if data::is_data(&raw) {
+            let (src, data) = data::picture(&raw, self.decode, &mut self.budget);
+            (src, Some(data?))
+        } else {
+            let src = picture_url(Some(raw))?;
+            let scheme = src.split_once(':').map_or("", |(scheme, _)| scheme);
+            if !["http", "https", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s)) {
+                return None;
+            }
+            (src, None)
+        };
+        let bg = &css.bg;
+        Some(Box::new(BgPicture {
+            src,
+            data,
+            repeat: bg.repeat.unwrap_or_default(),
+            position: bg.position.unwrap_or_default(),
+            size: bg.size.unwrap_or_default(),
+        }))
+    }
+
     fn image(&mut self, tag: &Tag<'_>) {
         if self.hidden > 0 {
             return;
@@ -1139,10 +1184,10 @@ impl Builder {
     /// Whether something open has a background of its own.
     fn tinted(&self) -> bool {
         self.nodes.iter().any(|n| match &n.kind {
-            Kind::Block(block) => block.boxed.as_ref().is_some_and(|b| b.background.is_some()),
-            Kind::Cell(cell) => cell.background.is_some(),
+            Kind::Block(block) => block.boxed.as_ref().is_some_and(|b| b.background.is_some() || b.bg_picture.is_some()),
+            Kind::Cell(cell) => cell.background.is_some() || cell.bg_picture.is_some(),
             Kind::Row(row) => row.background.is_some(),
-            Kind::Table(table) => table.background.is_some(),
+            Kind::Table(table) => table.background.is_some() || table.bg_picture.is_some(),
             _ => false,
         })
     }
@@ -1355,7 +1400,14 @@ impl Builder {
         if blocks.is_empty() {
             return;
         }
-        let cell = Cell { blocks, background: boxed.background, padding: boxed.padding, radius: boxed.radius, ..Cell::default() };
+        let cell = Cell {
+            blocks,
+            background: boxed.background,
+            padding: boxed.padding,
+            radius: boxed.radius,
+            bg_picture: boxed.bg_picture,
+            ..Cell::default()
+        };
         let table = Table {
             rows: vec![Row { cells: vec![cell] }],
             columns: 1,
@@ -1396,6 +1448,7 @@ impl Builder {
             padding: cell.padding,
             radius: cell.radius,
             valign: cell.valign,
+            bg_picture: cell.bg_picture,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
@@ -1439,7 +1492,7 @@ impl Builder {
             return;
         }
         let mut rows = table.rows;
-        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && !cell.border.any();
+        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
         rows.retain(|r| !r.cells.iter().all(empty));
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
@@ -1481,6 +1534,7 @@ impl Builder {
         // rows of a table, for whoever draws them to set them edge to edge.
         let framed = table.lines.iter().any(Line::is_set);
         let plain = table.background.is_none()
+            && table.bg_picture.is_none()
             && !table.outline
             && !framed
             && !table.border
@@ -1489,8 +1543,8 @@ impl Builder {
             && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
-        if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
-        {
+        let bare = |c: &Cell| c.background.is_none() && c.bg_picture.is_none() && !c.border.any();
+        if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(bare)) {
             for (i, row) in rows.into_iter().enumerate() {
                 for mut cell in row.cells {
                     if i > 0
@@ -1515,6 +1569,7 @@ impl Builder {
             radius: table.radius,
             spacing: table.spacing,
             inline: table.inline,
+            bg_picture: table.bg_picture,
             ..Table::default()
         });
         let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
@@ -1543,6 +1598,7 @@ impl Builder {
             last_row: false,
             spacing: None,
             inline: false,
+            bg_picture: None,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1558,6 +1614,7 @@ impl Builder {
         let border = tag.attr("border").is_some_and(|b| style::attr_px(&b).map_or(b.trim().is_empty(), |px| px > 0.0));
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
         let inline = self.can_box(tag, &css).is_some();
+        let bg_picture = self.bg_picture(tag, &css, true);
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
@@ -1577,6 +1634,7 @@ impl Builder {
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
             inline,
+            bg_picture,
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
@@ -1670,6 +1728,7 @@ impl Builder {
         }
         self.flush();
         let css = css_of(tag);
+        let bg_picture = self.bg_picture(tag, &css, true);
         let span = |name: &str, max: u16| tag.attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
         let build = CellBuild {
             header,
@@ -1685,6 +1744,7 @@ impl Builder {
             padding: css.padding_insets(),
             radius: css.radius,
             valign: css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
+            bg_picture,
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
@@ -1805,6 +1865,7 @@ impl Builder {
                 margin: [margins.left, margins.right],
                 inline: true,
                 parent,
+                bg_picture: self.bg_picture(tag, &css, false),
             };
             delta.background = None;
             if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
@@ -1916,7 +1977,8 @@ impl Builder {
         let paragraph = name == "p" && !outlook;
         // A box on a line (`display: inline-block`) that has something to show of its own: padding,
         // a background, a frame or a width. Without them it is a block as any other.
-        let asks = background.is_some() || has_box_look(&css);
+        let bg_picture = self.bg_picture(tag, &css, name == "body");
+        let asks = background.is_some() || bg_picture.is_some() || has_box_look(&css);
         let parent = if asks && name != "body" { self.can_box(tag, &css) } else { None };
         let inline = parent.is_some();
         let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
@@ -1927,7 +1989,7 @@ impl Builder {
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
-        let boxed = (background.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
+        let boxed = (background.is_some() || bg_picture.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
         let padding = css.padding_insets().unwrap_or_default();
         // (A box on a line takes no margins above and below: the lines of boxes have their own gap.)
         let margins = if inline { Insets { top: 0, bottom: 0, ..css.margin_insets() } } else { css.margin_insets() };
@@ -1954,8 +2016,9 @@ impl Builder {
                 parent: parent.unwrap_or(0),
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
-                radius: if background.is_some() || outline { css.radius } else { 0 },
+                radius: if background.is_some() || bg_picture.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bg_picture,
             }),
         };
         if margin_above {
@@ -2229,7 +2292,11 @@ fn box_width(css: &Css) -> Option<Length> {
 /// Whether a style gives an element something to show of its own as a box: a background, a frame,
 /// padding that is more than none, or a width.
 pub(crate) fn has_box_look(css: &Css) -> bool {
-    css.background.is_some() || css.framed() || css.padding_insets().is_some_and(Insets::any) || box_width(css).is_some()
+    css.background.is_some()
+        || matches!(css.bg.image, Some(Some(_)))
+        || css.framed()
+        || css.padding_insets().is_some_and(Insets::any)
+        || box_width(css).is_some()
 }
 
 /// Whether the element is one the blocks leave out: hidden by its style or its `hidden`

@@ -12,7 +12,8 @@
 //! | Read | From |
 //! |---|---|
 //! | text colour | `color` |
-//! | background colour | `background-color`, the colour in `background` (a `url()` there is never used) |
+//! | background colour | `background-color`, the colour in `background` |
+//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): one in the message always, one on the web only when the owner asks for the message's pictures |
 //! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
 //! | alignment | `text-align` |
@@ -49,6 +50,7 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
+use crate::bg::{BgCss, is_bg_property};
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
     MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
@@ -154,6 +156,8 @@ pub(crate) struct Css {
     pub inline_block: bool,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
+    /// A picture behind the box (`bg.rs`, #601).
+    pub bg: BgCss,
 }
 
 impl Css {
@@ -175,10 +179,18 @@ impl Css {
         let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
-            if value.len() > MAX_VALUE || property.len() > 32 {
+            if property.len() > 32 {
                 continue;
             }
             let property = property.to_ascii_lowercase();
+            // (A picture behind a box may be written into the value: it is as long as the caps
+            // on the whole text allow, and keeps its letter case.)
+            if is_bg_property(&property) {
+                css.bg.read(&property, strip_important(value).0);
+            }
+            if value.len() > MAX_VALUE {
+                continue;
+            }
             let value = value.to_ascii_lowercase();
             let value = strip_important(&value).0;
             match property.as_str() {
@@ -748,7 +760,7 @@ fn number(text: &str) -> Option<f32> {
 }
 
 /// A number and its unit (lower case; empty when there is none).
-fn dimension(value: &str) -> Option<(f32, &str)> {
+pub(crate) fn dimension(value: &str) -> Option<(f32, &str)> {
     let value = value.trim();
     let split = value.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+'))).unwrap_or(value.len());
     let n = number(value.get(..split)?)?;
@@ -756,7 +768,7 @@ fn dimension(value: &str) -> Option<(f32, &str)> {
 }
 
 /// A length in absolute units, in CSS pixels. Relative lengths (`em`, `%`) give nothing.
-fn length_px(value: &str) -> Option<f32> {
+pub(crate) fn length_px(value: &str) -> Option<f32> {
     let (n, unit) = dimension(value)?;
     let px = match unit {
         "px" => n,
@@ -1276,7 +1288,7 @@ mod tests {
     fn everything_else_is_ignored() {
         let css = Css::parse(
             "position:absolute; left:-9999px; float:left; line-height:0; \
-             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
+             content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
         assert_eq!(css, Css::default());

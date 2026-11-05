@@ -6,8 +6,8 @@
 //! presentational facts as a `style` attribute ([`crate::style`]); a style sheet is one more
 //! source of the same values, never a new kind of presentation. Nothing in a sheet is run or
 //! fetched: `@import`, `@font-face`, `@media` (for now), every other at-rule, `url()` (but in a
-//! background, which the whitelist reads only for its colour), `content` and everything else the
-//! whitelist doesn't name are ignored.
+//! background, whose picture is kept as an address for the reading pane to show under the rules
+//! for pictures, `bg.rs`), `content` and everything else the whitelist doesn't name are ignored.
 //!
 //! What is read is CSS as a browser reads it, from our own code (no CSS crate):
 //!
@@ -945,6 +945,10 @@ fn kept(property: &str) -> bool {
         "color"
             | "background"
             | "background-color"
+            | "background-image"
+            | "background-repeat"
+            | "background-position"
+            | "background-size"
             | "font"
             | "font-weight"
             | "font-style"

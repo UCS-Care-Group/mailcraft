@@ -407,10 +407,15 @@ fn built_newsletter() {
     assert_eq!(block(&blocks, "Tallow & Wick Candle Works").kind, images(&blocks).first().map(|b| b.kind.clone()).unwrap_or(BlockKind::Rule));
     // The two small pictures of the last row stand in one line.
     assert_eq!((block(&blocks, "Photographs").space, block(&blocks, "Letters").space), (0, 0));
-    // Nothing else it names is anywhere in the result: not the background picture, given as an
-    // attribute, in the style, in a style sheet and in VML, nor `srcset`, nor the pixels.
+    // The background picture, given as an attribute, in a style sheet, in the style and in VML,
+    // is behind its cell once: the style's, which the cascade puts over the others (#601).
+    let behind: Vec<&crate::BgPicture> = crate::bg_pictures(&blocks);
+    assert_eq!(behind.iter().map(|b| b.src.as_str()).collect::<Vec<_>>(), ["https://img.tallowwick.example/bg/css-linen.jpg"]);
+    assert_eq!((behind[0].repeat, behind[0].size), (crate::BgRepeat::None, crate::BgSize::Cover));
+    // Nothing else it names is anywhere in the result: not the other copies of that picture,
+    // nor `srcset`, nor the pixels.
     let kept = format!("{blocks:?}").to_ascii_lowercase();
-    for gone in ["/bg/", "linen", "@3x", "for-outlook", "/o/7qk2", "metrics.", "seen.gif", "v:rect", "roundrect", "mso"] {
+    for gone in ["attr-linen", "sheet-linen", "@3x", "for-outlook", "/o/7qk2", "metrics.", "seen.gif", "v:rect", "roundrect", "mso"] {
         assert!(!kept.contains(gone), "{gone} survived");
     }
     // The cell that has the background picture keeps its colour, and the light text on it.
@@ -647,6 +652,18 @@ fn nothing_remote_or_active_survives() {
             "https://evil.example/mathml.gif",
         ]
     );
+    // The pictures behind boxes (#601) are kept by their address too, for when the owner asks:
+    // the one the cascade gives each box (a style sheet's or a style's over the attribute).
+    let behind: Vec<&str> = crate::bg_pictures(&blocks).iter().map(|b| b.src.as_str()).collect();
+    assert_eq!(
+        behind,
+        [
+            "https://evil.example/body-bg.gif",
+            "https://evil.example/table-bg.gif",
+            "https://evil.example/shorthand-bg.gif",
+            "https://evil.example/div-bg.gif"
+        ]
+    );
     // Nothing else of the forty-odd addresses in the message is anywhere in the result.
     let kept = format!("{blocks:?}");
     for gone in [
@@ -654,7 +671,6 @@ fn nothing_remote_or_active_survives() {
         "preload.gif",
         "import.css",
         "font.woff2",
-        "body-bg.gif",
         "after.gif",
         "payload.js",
         "beacon",
@@ -681,11 +697,8 @@ fn nothing_remote_or_active_survives() {
         "sprite.svg",
         "input.gif",
         "collect",
-        "table-bg.gif",
         "cell-bg.gif",
         "style-bg.gif",
-        "shorthand-bg.gif",
-        "div-bg.gif",
         "list.gif",
         "cursor.cur",
         "border.png",
@@ -703,7 +716,7 @@ fn nothing_remote_or_active_survives() {
     ] {
         assert!(!kept.to_ascii_lowercase().contains(gone), "{gone} survived");
     }
-    // The one background colour that came with a picture is kept; its picture is not.
+    // The one background colour that came with a picture is kept, and so is the picture its style names last.
     assert_eq!(
         table_with(&blocks, "VISIBLE-THREE").rows.first().and_then(|r| r.cells.first()).and_then(|c| c.background),
         Some(Rgb(0xff, 0xee, 0xee))

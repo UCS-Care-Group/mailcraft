@@ -141,7 +141,7 @@ fn what_cannot_be_asked_never_matches() {
 #[test]
 fn only_the_whitelist_is_kept() {
     let blocks = parse(
-        "<style>p{color:#f00;behavior:url(x.htc);content:'x';position:absolute;background-image:url(https://t.example/p.gif);\
+        "<style>p{color:#f00;behavior:url(x.htc);content:'x';position:absolute;\
          font-family:url(x);margin:url(a)}</style><p>x</p>",
     );
     assert_eq!(blocks.len(), 1);

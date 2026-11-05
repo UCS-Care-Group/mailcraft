@@ -21,6 +21,10 @@
 //!    [`TARGET_CONTRAST`]. Text that names no colour takes the window's text colour on the
 //!    window's surface, and near black or near white on a background of the message's own. So
 //!    nothing is invisible: not white on white, not black in a dark window.
+//!
+//! A picture behind a box (#601) is not looked at for its colours: the text on it is checked
+//! against the box's colour, the one its sender gives for programs that show no picture, and in
+//! the dark theme the picture is dimmed as that colour is turned dark ([`super::backdrop`]).
 
 use egui::Color32;
 use mailcraft_html::Rgb;
