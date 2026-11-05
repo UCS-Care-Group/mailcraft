@@ -134,6 +134,11 @@ msgid "-----Original Message-----"
 msgstr "-----Mensaje original-----"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid ".pst file ({format})"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "1 day"
@@ -221,6 +226,11 @@ msgstr "@{login}, probando desde {since}"
 #, fuzzy
 msgid "@{login}: {prs} merged PRs, {commits} commits, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}"
 msgstr "@{login}: {prs} PR integradas, {commits} commits, +{added} / −{deleted} líneas (Δ {delta}), +{binAdded} / −{binDeleted} recursos binarios, {first} – {last}"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "A .pst file is being imported: try again when it is done"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -1036,6 +1046,11 @@ msgid_plural "And {n} more links like it."
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Another mailbox was opened: the import stopped."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -1470,6 +1485,16 @@ msgstr[1] ""
 msgid "Attachment keywords"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Attachment options"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Attachment options for {name}"
+msgstr ""
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -1886,7 +1911,7 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Cancelar"
@@ -2344,7 +2369,7 @@ msgid "Clipboard"
 msgstr "Portapapeles"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Cerrar"
@@ -4039,6 +4064,11 @@ msgstr ""
 msgid "Folder name"
 msgstr "Nombre de la carpeta"
 
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Folder {folder} ({n} of {of})"
+msgstr ""
+
 #. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -4798,7 +4828,7 @@ msgid "Illustrations"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Import"
 msgstr "Importar"
@@ -4811,6 +4841,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "Import Contacts"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/file.rs
+msgid "Import a .pst File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+msgid "Import a .pst File (preview)"
 msgstr ""
 
 #. command label, interface
@@ -4859,6 +4899,11 @@ msgstr "Se importó {what}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+msgid "Imported {what} from the .pst file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
 msgstr "Importación de {what} en Borradores en este equipo: un borrador se queda en este equipo hasta que se envía"
@@ -4880,6 +4925,11 @@ msgid "Imported {what}; stopped after {count}: the file has more than one import
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Importing a .pst file isn't supported in the browser yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "Importing… {messages} of {total}"
 msgstr ""
@@ -4887,6 +4937,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "In Progress"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "In a new folder called {name} on this computer"
 msgstr ""
 
 #. interface
@@ -4921,6 +4976,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "In the selection"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "In {folder}"
 msgstr ""
 
 #. interface
@@ -5682,6 +5742,11 @@ msgid "Mail can't be imported into an Outbox: it would be sent. Choose another f
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file again brings the rest."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
 msgstr ""
@@ -5779,16 +5844,16 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
-msgstr "MailCraft no encontró la configuración para esta dirección. Revise los servidores siguientes antes de conectar."
-
-#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft no pudo abrir su navegador para la página de aprobación de Microsoft. Copie el mensaje en su lugar: el vínculo que contiene abre la misma página."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft no conoce la configuración de esta dirección. Los servidores siguientes son solo una suposición hecha a partir de su dominio: compruébelos con su proveedor o su administrador antes de conectar."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7817,6 +7882,12 @@ msgid "Options"
 msgstr "Opciones"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Or is it one of these?"
+msgstr "¿O es uno de estos?"
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Organizer"
@@ -8009,6 +8080,11 @@ msgstr "Contraseña"
 #, fuzzy
 msgid "Password for {account}"
 msgstr "Contraseña de {account}"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Password:"
+msgstr ""
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -8247,6 +8323,11 @@ msgid "Preview lines in the message list"
 msgstr "Líneas de vista previa en la lista de mensajes"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Preview: only the mail is brought in for now. Calendar items, contacts, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Previous"
@@ -8339,6 +8420,11 @@ msgstr "Inicio propuesto"
 #, fuzzy
 msgid "Proposed time"
 msgstr "Hora propuesta"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10783,6 +10869,11 @@ msgstr "Detenido"
 msgid "Stopped ({line})"
 msgstr "Detenido ({line})"
 
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Stopped before the end. Import the file again to bring the rest."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -10794,6 +10885,11 @@ msgstr "Detenido; la próxima vez continuará desde aquí"
 #, fuzzy
 msgid "Stopping…"
 msgstr "Deteniendo…"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Stopping… what has come in stays."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11157,6 +11253,11 @@ msgid "That isn't a shared mailbox"
 msgstr "Eso no es un buzón compartido"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "That isn't the password of this file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
 msgstr ""
@@ -11166,6 +11267,11 @@ msgstr ""
 #, fuzzy
 msgid "The"
 msgstr "El"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The .pst file has {what} to import; nothing was imported"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11480,6 +11586,16 @@ msgid "The forward of several messages that was waiting was called off: another 
 msgstr "Se canceló el reenvío de varios mensajes que estaba en espera: otra descarga ocupó su lugar."
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "The full report is in:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -11531,6 +11647,11 @@ msgstr "La lista de remitentes está llena: quite algunos en Archivo › Opcione
 #, fuzzy
 msgid "The logo is the signature's first picture: add one with Insert Picture."
 msgstr "El logotipo es la primera imagen de la firma: agregue una con Insertar imagen."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The mail of a .pst file, into a folder on this computer"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -12391,6 +12512,16 @@ msgid "This event is kept by the server of {who}. It can be moved to another cal
 msgstr "Este evento lo guarda el servidor de {who}. Se puede mover a otro calendario de esa cuenta, pero no fuera de ella: sacarlo lo eliminaría allí."
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "This file can't be imported: {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "This file has a password. Nothing is imported without it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "This invitation can't be answered from here, so no other time can be proposed for it."
@@ -12417,7 +12548,7 @@ msgstr ""
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This is a development build: it checks only when you press Check for Updates."
-msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones en Archivo › Acerca de."
+msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13121,6 +13252,11 @@ msgstr "Escriba su dirección. MailCraft encuentra sus servidores de correo y c�
 #, fuzzy
 msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only"
 msgstr "Escriba su dirección de correo electrónico y MailCraft encuentra el resto: Microsoft 365, Outlook.com, Google y otros proveedores, o un buzón solo en este dispositivo"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Under a folder on this computer:"
+msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -14151,6 +14287,11 @@ msgid "`value` is true or false"
 msgstr "`value` es true o false"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr ""
@@ -14534,6 +14675,11 @@ msgstr "iCloud"
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com y mac.com"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "importing a .pst file isn't supported in the browser yet"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -14722,6 +14868,11 @@ msgstr ""
 msgid "month"
 msgstr "mes"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "more than {max} folders"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -14815,10 +14966,15 @@ msgid "no folder \"{path}\""
 msgstr "no existe la carpeta «{path}»"
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "no hay ninguna carpeta con el id. {id}"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "no free name for the folder {name}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14954,7 +15110,7 @@ msgid "nothing is selected in the message"
 msgstr "no hay nada seleccionado en el mensaje"
 
 #. what a command says
-#: crates/engine/src/import_tree.rs
+#: crates/engine/src/import_pst.rs crates/engine/src/import_tree.rs
 msgid "nothing is waiting to be imported"
 msgstr ""
 
@@ -15134,6 +15290,12 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "sign-in failed: the server doesn't take a password on this connection"
+msgstr "error al iniciar sesión: el servidor no acepta una contraseña en esta conexión"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
 msgstr ""
@@ -15167,6 +15329,11 @@ msgstr "eso no es una dirección de correo electrónico"
 msgid "that isn't on the list"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "that isn't the password of this .pst file: nothing was imported"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src
 msgid "that mailbox is open in another MailCraft window; close it there first"
@@ -15192,6 +15359,16 @@ msgstr "ese mensaje no está retenido"
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "that was only looked at, not read in full"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the .pst file couldn't be opened: {e}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the .pst file couldn't be read: {why}"
 msgstr ""
 
 #. what a command says
@@ -15310,10 +15487,30 @@ msgid "the folder it moves mail to isn't on the server"
 msgstr "la carpeta a la que mueve el correo no está en el servidor"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into is gone: the import stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the import couldn't account for every item of {path}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the import was stopped"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15625,6 +15822,11 @@ msgid "these settings are for another account, not for {who}"
 msgstr "esta configuración es para otra cuenta, no para {who}"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "this .pst file has a password: give it to import the file"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "this Exchange server account has no server settings"
 msgstr ""
@@ -15687,6 +15889,11 @@ msgstr "esta descarga era para otra cuenta, no para {name}"
 #, fuzzy
 msgid "this draft isn't downloaded yet: open it once you're online, then edit it"
 msgstr "este borrador aún no se ha descargado: ábralo cuando tenga conexión y luego edítelo"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "this isn't a .pst file"
+msgstr ""
 
 #. name
 #: crates/model/src/sync.rs
@@ -15870,6 +16077,11 @@ msgid "{account} · No access"
 msgstr "{account} · Sin acceso"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{added} brought in, of {found} found."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "{address} (shared mailbox)"
@@ -15985,7 +16197,7 @@ msgid "{days} (all day)"
 msgstr "{days} (todo el día)"
 
 #. interface
-#: crates/ui-egui/src/sync_panel.rs
+#: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{done} of {total}"
 msgstr "{done} de {total}"
@@ -16519,12 +16731,19 @@ msgstr[0] "{n} hora"
 msgstr[1] "{n} horas"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] "{n} elemento"
 msgstr[1] "{n} elementos"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} item couldn't be read and is left out"
+msgid_plural "{n} items couldn't be read and are left out"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16541,6 +16760,13 @@ msgid "{n} item is only on this computer, and not in your Outlook calendar."
 msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
 msgstr[0] "{n} elemento solo está en este equipo, y no en su calendario de Outlook."
 msgstr[1] "{n} elementos solo están en este equipo, y no en su calendario de Outlook."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} item isn't mail and is left for a later version"
+msgid_plural "{n} items aren't mail and are left for a later version"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16566,7 +16792,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{n} message"
 msgid_plural "{n} messages"
@@ -16916,6 +17142,13 @@ msgstr[0] "{n} no leído en el servidor"
 msgstr[1] "{n} no leídos en el servidor"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} was here already"
+msgid_plural "{n} were here already"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} was there already"
@@ -17083,6 +17316,11 @@ msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} se agregó con una versión más reciente de MailCraft, {then}"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{why} What came in before stays; import the file again for the rest."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."
@@ -17137,6 +17375,10 @@ msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenv
 
 #~ msgid "Google sign-in is not configured in File > Options."
 #~ msgstr "El inicio de sesión con Google no está configurado en Archivo > Opciones."
+
+#, fuzzy
+#~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#~ msgstr "MailCraft no encontró la configuración para esta dirección. Revise los servidores siguientes antes de conectar."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
