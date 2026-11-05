@@ -482,8 +482,24 @@ pub fn take_fetched(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: 
 /// [`take_fetched`], answering which message it was.
 pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: &str, mime: &[u8]) -> Option<Id> {
     let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id))?;
-    let read = crate::mime::parse(mime);
     let m = mb.message_mut(here).ok()?;
+    take_mime(m, mime);
+    // A draft as the server has it now: what a change made here is worked out from.
+    if m.draft {
+        let state = mailcraft_model::sync::DraftState::of(m);
+        let sd = m.server_draft.get_or_insert_with(Default::default);
+        if !sd.pending {
+            sd.synced = Some(state);
+        }
+    }
+    Some(here)
+}
+
+/// Message `m` fetched whole as `mime`: its text, attachments and headers from it, with what the
+/// mailbox keeps of it (where it is, its marks, its server state) as it was. An IMAP account's
+/// too (#653, [`super::imap_fetch`]).
+pub(crate) fn take_mime(m: &mut Message, mime: &[u8]) {
+    let read = crate::mime::parse(mime);
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
     m.references = read.references;
@@ -518,15 +534,6 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if let Some(server) = m.server.as_mut() {
         server.size = mime.len() as u64;
     }
-    // A draft as the server has it now: what a change made here is worked out from.
-    if m.draft {
-        let state = mailcraft_model::sync::DraftState::of(m);
-        let sd = m.server_draft.get_or_insert_with(Default::default);
-        if !sd.pending {
-            sd.synced = Some(state);
-        }
-    }
-    Some(here)
 }
 
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the

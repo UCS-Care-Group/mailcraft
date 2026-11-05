@@ -582,7 +582,8 @@ impl AccountSetup {
         }
         w.oauth = a.oauth.clone();
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
-        if a.kind == AccountKind::Microsoft && !a.is_shared() {
+        // (An IMAP account's too, #653.)
+        if mailcraft_model::has_window(a.kind) && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
         }
         // (A shared mailbox asks as its owner does.)

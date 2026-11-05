@@ -158,12 +158,15 @@ impl AfterOpening {
 ///   (#185), and that of IMAP accounts by UID at the next Send/Receive (#650).
 /// - Mail an earlier version put back empty after a refused delete for good is fetched again
 ///   before anything can move it (#793).
+/// - IMAP accounts from before their mail kept to a window keep all of it (#653).
 pub fn after_opening(s: &mut Session) -> AfterOpening {
     let favorites_now_graph = s.mailbox.take_retired_favorites_choices();
     let unreadable = super::graph_down::refetch_unreadable(&mut s.mailbox).saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
     let hollow = super::graph_down::refetch_hollow(&mut s.mailbox);
+    // IMAP accounts from before their mail kept to a window keep all of it (#653).
+    let windowed = s.mailbox.keep_imap_mail_as_it_was();
     let after = AfterOpening { favorites_now_graph, unreadable, hollow };
-    if after.favorites_now_graph > 0 || after.fetched_again() > 0 {
+    if after.favorites_now_graph > 0 || after.fetched_again() > 0 || windowed > 0 {
         s.mailbox_changed();
     }
     after

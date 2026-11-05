@@ -1637,6 +1637,7 @@ fn services(
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
+    let imap_fetch_ctx = ctx.clone();
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
@@ -1684,6 +1685,11 @@ fn services(
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
         graph_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
             background(&fetch_ctx, "message download", move || mailcraft_net::graph::fetch_messages(&job.access, &job.request, &job.cancel))
+        })),
+        // Messages of an IMAP account fetched whole by their UID, those its mail to keep offline
+        // left as their headers and preview (#653).
+        imap_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::ImapFetchJob| {
+            background(&imap_fetch_ctx, "message download", move || mailcraft_net::fetch_imap(&job.request, &job.secret, &job.cancel))
         })),
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),

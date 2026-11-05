@@ -1089,6 +1089,12 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The IMAP accounts were looked at once when their mail first kept to a window (#653): those
+    /// from before keep all of it ([`Mailbox::keep_imap_mail_as_it_was`]), done the first time a
+    /// mailbox is opened by a version that holds them to it. A new mailbox
+    /// ([`Mailbox::with_local_account`]) has it from the start; a file from before has none.
+    #[serde(skip_serializing_if = "is_false")]
+    pub imap_windowed: bool,
     next_id: Id,
 }
 
@@ -1125,6 +1131,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            imap_windowed: false,
             next_id: 1,
         }
     }
@@ -1200,7 +1207,8 @@ fn not_downloaded_yet(subject: &str) -> String {
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
-        let mut mb = Mailbox::default();
+        // A new mailbox: its IMAP accounts keep the window they are given from the start (#653).
+        let mut mb = Mailbox { imap_windowed: true, ..Mailbox::default() };
         mb.add_account(Account { name: email.to_string(), email: email.to_string(), display_name: display_name.to_string(), ..Default::default() });
         mb
     }
@@ -2363,6 +2371,11 @@ impl Mailbox {
         if self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
+        // Of an IMAP account's message that is only its headers and preview here (#653), what
+        // would go is not the message: it is downloaded when it is opened.
+        if m.unfetched && m.server.is_none() && self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap) {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         // Back into the IMAP account whose server still has the original: the move out of it
         // that waits goes on there, or is called off.
         let owner = self.waiting(id, fresh).and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -2522,7 +2535,10 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
+        // Nor of an IMAP account's message that is only its headers and preview here, anywhere
+        // (#653): the copy, which its server isn't told of, would be that for good.
+        let imap = self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap);
+        if m.unfetched && (imap || (from_account != to_account && self.keeps_changes_for_server(from_account))) {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));

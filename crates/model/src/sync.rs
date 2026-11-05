@@ -13,12 +13,14 @@ use mailcraft_time::Timestamp;
 
 mod drafts;
 mod ews;
+mod imap_fetch;
 mod jmap;
 mod place;
 mod progress;
 mod search;
 pub use drafts::*;
 pub use ews::*;
+pub use imap_fetch::*;
 pub use jmap::*;
 pub use place::*;
 pub use progress::*;
@@ -123,6 +125,12 @@ pub struct SyncRequest {
     /// account or from this computer (#451); after `ops`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<ImapPlace>,
+    /// The account's mail to keep offline (#653): the earliest time a message arrived
+    /// (`INTERNALDATE`) for it to come down whole. Of an older one only its header and the start
+    /// of its text come, for a preview ([`Message::unfetched`]); it is fetched whole when it is
+    /// opened. Never in Drafts or the Outbox, never a draft. `None` brings everything whole.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_since: Option<Timestamp>,
 }
 
 /// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).

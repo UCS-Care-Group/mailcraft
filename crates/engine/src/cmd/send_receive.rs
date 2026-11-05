@@ -29,6 +29,7 @@ pub const ASKS_A_SERVER: &[&str] = &[
     "sync.jmapFetchRequest",
     "sync.ewsRequest",
     "sync.ewsFetchRequest",
+    "sync.imapFetchRequest",
     "sync.eventChanges",
     "sync.taskChanges",
 ];
