@@ -6,6 +6,7 @@
 //! cannot answer, and so is never sent the key. See `docs/control-protocol.md`, Keys.
 
 /// What the HMAC covers: this label, a space, and the nonce as it was sent.
+#[cfg(not(target_arch = "wasm32"))]
 const LABEL: &str = "mailcraft-control-v1 ";
 
 /// The shortest and longest nonce (hex digits) the app answers: the bridge sends 64.
