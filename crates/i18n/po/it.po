@@ -5779,16 +5779,16 @@ msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
-msgstr "MailCraft non ha trovato le impostazioni per questo indirizzo. Controllare i server qui sotto prima di connettersi."
-
-#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft non è riuscito ad aprire il browser per la pagina di approvazione di Microsoft. Copiare invece il messaggio: il collegamento al suo interno apre la stessa pagina."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft non conosce le impostazioni di questo indirizzo. I server qui sotto sono solo un'ipotesi fatta in base al suo dominio: verificarli presso il proprio provider o amministratore prima di connettersi."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7815,6 +7815,12 @@ msgstr "Facoltativo"
 #, fuzzy
 msgid "Options"
 msgstr "Opzioni"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Or is it one of these?"
+msgstr "Oppure è uno di questi?"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -15133,6 +15139,12 @@ msgid "shared mailboxes open under an account that is kept in step through Micro
 msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "sign-in failed: the server doesn't take a password on this connection"
+msgstr "accesso non riuscito: il server non accetta una password su questa connessione"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
 msgstr ""
@@ -17132,6 +17144,10 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 
 #~ msgid "Google sign-in is not configured in File > Options."
 #~ msgstr "L’accesso con Google non è configurato in File > Opzioni."
+
+#, fuzzy
+#~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
+#~ msgstr "MailCraft non ha trovato le impostazioni per questo indirizzo. Controllare i server qui sotto prima di connettersi."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
