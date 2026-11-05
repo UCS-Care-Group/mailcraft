@@ -32,8 +32,8 @@
 //! changed here since the server last said. No server id and no sync state is logged.
 
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsScope, GraphFetchResult, MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES,
-    MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MessageOutcome, SendOutcome, SyncPhase,
+    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsScope, FolderChange, FolderChangeDone, GraphFetchResult,
+    MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MessageOutcome, SendOutcome, SyncPhase,
 };
 use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -301,6 +301,17 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, &mut taken) {
             errors.push(said);
         }
+    }
+    // A folder deleted here that the server refused to delete comes back only in a read of the
+    // folder list afresh (#779): its state goes, and the run's folder piece, when the run gets
+    // that far, sets it again. A run that stops first (a 429, called off, a read that failed)
+    // leaves the next one to read the list afresh.
+    let refused_delete =
+        |done: &FolderChangeDone| matches!((&done.change, &done.outcome), (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. }));
+    if result.changes.iter().any(refused_delete)
+        && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
+    {
+        server.hierarchy.clear();
     }
     let mut refusals = Refusals::default();
     for done in &result.messages {

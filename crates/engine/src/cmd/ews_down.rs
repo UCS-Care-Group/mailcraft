@@ -222,13 +222,18 @@ fn parents_first(folders: &mut [GraphFolder]) {
 /// brings them or not: a mailbox read before the mark existed has them among the folders the delta
 /// doesn't mention. A folder not named keeps the mark it had (`take_listing` keeps it).
 ///
-/// How many folders went, and whether the folder list has to be read afresh next time: a deletion
-/// an earlier version queued of one of the server's own that this mailbox no longer has was
-/// dropped, and a delta would never bring the folder back.
+/// How many folders went, and whether the folder list has to be read afresh next time: one of the
+/// server's own is missing here, and a delta would never bring it back. Either a deletion an
+/// earlier version queued of it was dropped, or the folder went here before the upgrade and its
+/// deletion is no longer queued (the server refused it then, and the refusal dropped it): a delta
+/// that names it as the server's own but neither brings it nor says it went.
 pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> (usize, bool) {
     let own: HashSet<String> = deltas.well_known.iter().cloned().collect();
     let have = |id: &str| deltas.changed.iter().any(|f| f.id == id) || mb.folder_by_server(account, id).is_some();
-    let lost = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id) && !have(id)));
+    let queued = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id) && !have(id)));
+    // (Not after a read afresh: what it didn't bring isn't the server's mail folder to show.)
+    let missing = !deltas.afresh && own.iter().any(|id| !have(id) && !deltas.deleted.contains(id));
+    let lost = queued || missing;
     super::graph_mail::drop_own_deletes(mb, account, &own);
     let mut folders: Vec<GraphFolder> = deltas.changed.clone();
     if !deltas.afresh {

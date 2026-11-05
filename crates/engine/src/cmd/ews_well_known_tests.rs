@@ -174,9 +174,68 @@ fn a_refused_deletion_is_dropped_and_the_folder_comes_back_from_the_read_afresh_
     };
     apply_ews_mail(&mut s, EwsMailResult { changes: vec![refused], ..piece(account) }).unwrap();
     assert!(s.mailbox.queued.is_empty());
-    // The run read the folder list afresh, as it does after such a refusal.
+    // The folder list's state went with the refusal: a run that stopped here (a 429, called off,
+    // a read of the list that failed) leaves the next one to read it afresh.
+    assert!(ews_mail_request(&s, account, false).unwrap().hierarchy.is_empty(), "a refused deletion reads the folder list afresh");
+    // The run read the folder list afresh, as it does after such a refusal, and goes on from there.
     take(&mut s, account, EwsFolderDeltas { changed: folders(), afresh: true, well_known: vec!["co".into()], ..Default::default() });
     assert!(marked(&s, account, "co"));
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER");
+}
+
+#[test]
+fn a_run_that_stops_after_a_refused_deletion_reads_the_folder_list_afresh_next_time() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "pr"));
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into() });
+    let refused =
+        FolderChangeDone { change: FolderChange::Delete { id: "pr".into() }, outcome: ChangeOutcome::Refused { why: "access denied".into() } };
+    // The push piece of a run the server then asked to leave alone: no folder piece follows.
+    apply_ews_mail(&mut s, EwsMailResult { changes: vec![refused], ..piece(account) }).unwrap();
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.hierarchy.is_empty() && request.list_folders, "the next run reads the folder list afresh");
+    take(&mut s, account, EwsFolderDeltas { changed: folders(), afresh: true, ..Default::default() });
+    assert!(s.mailbox.folder_by_server(account, "pr").is_some(), "the folder the server kept is back");
+}
+
+#[test]
+fn one_of_the_servers_own_deleted_here_before_the_upgrade_comes_back() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    // Deleted by an earlier version, whose deletion the server refused and the refusal dropped:
+    // gone here, nothing queued, the folder list going on from its state.
+    s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "co"));
+    assert!(s.mailbox.queued.is_empty());
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER");
+    // A delta that names it as the server's own, but neither brings it nor says it went.
+    take(&mut s, account, empty_delta(&["in", "de", "co"]));
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.hierarchy.is_empty() && request.list_folders, "the folder list is read afresh");
+    take(
+        &mut s,
+        account,
+        EwsFolderDeltas { changed: folders(), afresh: true, well_known: vec!["in".into(), "de".into(), "co".into()], ..Default::default() },
+    );
+    assert!(marked(&s, account, "co"), "back, and marked");
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER", "and the list goes on from its state again");
+}
+
+#[test]
+fn one_of_the_servers_own_that_a_delta_says_went_is_not_read_afresh() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "co"));
+    // (The server's Outbox while it is empty: named as its own, and among the deleted.)
+    take(&mut s, account, EwsFolderDeltas { deleted: vec!["co".into()], well_known: vec!["in".into(), "co".into()], ..Default::default() });
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER");
+    // Nor is a read afresh checked: the listing is what it brings.
+    take(
+        &mut s,
+        account,
+        EwsFolderDeltas { changed: folders(), afresh: true, well_known: vec!["in".into(), "elsewhere".into()], ..Default::default() },
+    );
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER");
 }
 
 #[test]

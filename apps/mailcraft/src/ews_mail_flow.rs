@@ -321,3 +321,21 @@ fn the_servers_own_folders_come_down_marked_and_cannot_be_deleted_moved_or_renam
     assert!(state.writes.is_empty());
     assert!(state.requests.iter().any(|r| r.operation.is_empty() && r.status == 403), "the lookup was refused");
 }
+
+#[test]
+fn an_account_with_nothing_deleted_goes_on_from_the_folder_lists_state() {
+    // The server's own folders it names (#779) are all listed, or among the deleted (its empty
+    // Outbox): no run reads the folder list afresh for want of one.
+    let server = serve();
+    server.standin.state().add_own_folder("conversationhistory", "Conversation History", "msgfolderroot");
+    let (mut app, account) = window(&server);
+    let hierarchy = |app: &MailApp| app.session.mailbox.account(account).unwrap().ews.as_ref().unwrap().hierarchy.clone();
+    send_receive(&mut app, json!({"account": account, "password": PASSWORD}));
+    let first = hierarchy(&app);
+    assert!(!first.is_empty());
+    for _ in 0..2 {
+        send_receive(&mut app, json!({"account": account}));
+        assert!(app.session.sync_status.starts_with("Up to date"), "{}", app.session.sync_status);
+        assert!(!hierarchy(&app).is_empty(), "the folder list goes on from its state");
+    }
+}
