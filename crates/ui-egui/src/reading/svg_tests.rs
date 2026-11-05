@@ -100,7 +100,7 @@ fn referring_to(address: &str) -> Vec<Vec<u8>> {
         format!("<use href='{address}/d.svg#r'/><use xlink:href='{address}/e.svg#r'/>"),
         format!("<filter id='fi'><feImage href='{address}/g.svg'/></filter><rect width='40' height='40' filter='url(#fi)'/>"),
         format!("<linearGradient id='g' href='{address}/h.svg#g'/><rect width='40' height='40' fill='url(#g)'/>"),
-        format!("<text font-family='X'>words</text>"),
+        "<text font-family='X'>words</text>".to_string(),
     ]
     .iter()
     .map(|body| drawing(40, 40, body))
