@@ -682,8 +682,13 @@ msgid "Address"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
 msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Address book unavailable"
 msgstr ""
 
 #. interface
@@ -4907,6 +4912,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/account.rs
 msgid "List Accounts"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
 msgstr ""
 
 #. command label
@@ -9928,6 +9938,26 @@ msgstr ""
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The address book chosen is no longer available. Send/Receive may bring it back, and the contact can be saved then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "The approval didn't go through."
@@ -10087,6 +10117,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "The contact {id} is named twice."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The contacts couldn't be saved: {error}"
 msgstr ""
 
 #. interface
@@ -11639,6 +11674,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
 msgstr ""
 
 #. interface
