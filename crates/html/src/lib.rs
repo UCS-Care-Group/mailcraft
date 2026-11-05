@@ -354,6 +354,11 @@ pub struct Block {
     /// container, nor where a line break or a block of its own came in between.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub beside: bool,
+    /// The block is part of a list item: the item itself, or a further paragraph, heading,
+    /// preformatted text, picture or table inside one, and the blocks of that table's cells. What
+    /// it looks like is its `kind`; a paste into the composer reads all of it as the item's.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_item: bool,
     /// Room above the block in pixels, from a margin of the block or the one above (the larger of
     /// the two), at most [`MAX_BOX_PX`]. When it is set it is the gap, instead of `space`'s.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
@@ -385,7 +390,19 @@ fn is_zero_u8(n: &u8) -> bool {
 impl Block {
     /// A block of `kind` with no quoting, alignment or gap.
     pub fn new(kind: BlockKind, spans: Vec<Span>) -> Block {
-        Block { kind, spans, quote: 0, align: Align::Left, space: 0, beside: false, gap: 0, line_height: None, inset: [0, 0], line: Line::default() }
+        Block {
+            kind,
+            spans,
+            quote: 0,
+            align: Align::Left,
+            space: 0,
+            beside: false,
+            in_item: false,
+            gap: 0,
+            line_height: None,
+            inset: [0, 0],
+            line: Line::default(),
+        }
     }
 
     /// The block's text without formatting (not what is inside a table: see [`has_text`]).
