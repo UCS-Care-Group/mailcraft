@@ -405,7 +405,7 @@ fn run_keys(app: &mut MailApp, ctx: &egui::Context) {
     for (key, modifiers) in pressed {
         let Some(name) = crate::keys::key_name(key) else { continue };
         let function = name.len() > 1 && name.starts_with('F') && name[1..].chars().all(|c| c.is_ascii_digit());
-        if !(modifiers.command || modifiers.alt || function) || (in_body && modifiers.command && crate::compose::editor::owns_chord(key)) {
+        if !(modifiers.command || modifiers.alt || function) || (in_body && modifiers.command && crate::compose::editor::owns_chord(key, modifiers)) {
             continue;
         }
         let combo = crate::keys::combo(modifiers, name);
