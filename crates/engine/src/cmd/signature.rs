@@ -8,7 +8,6 @@
 //! (`compose.type`, `format.*`, `edit.*`, `compose.undo`) work on, and `signature.save` puts it
 //! back. While it is open, the picture and layout commands for it change the open one.
 
-use mailcraft_model::RichBody;
 use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
 use mailcraft_model::signature::{Layout, Signature};
 use mailcraft_model::{AccountKind, Id, clean_name};
@@ -34,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"name": string (the signature), "data"?: base64 | "path"?: string (PNG, JPEG or GIF; never a web address), "file"?: string (its name), "alt"?: string, "at"?: number (a position in the text; default: the start)} — answers the picture's id"#,
         ),
         CommandSpec::new("signature.picture.set", "Picture Size and Description", "File › Signatures", picture_set)
-            .params(r#"{"name": string, "id": number, "width"?: number (pixels, at most 600) | null (its own), "alt"?: string}"#),
+            .params(r#"{"name": string, "id": number, "width"?: number (pixels, 3 to 600) | null (its own), "alt"?: string}"#),
         CommandSpec::new("signature.picture.remove", "Remove Picture", "File › Signatures", picture_remove)
             .params(r#"{"name": string, "id": number}"#),
         CommandSpec::new("signature.layout", "Picture Layout", "File › Signatures", layout)
@@ -82,7 +81,7 @@ fn reopen(s: &mut Session, name: &str) {
     if let Some(e) = s.signature_edit.as_mut().filter(|e| e.signature.name.eq_ignore_ascii_case(name))
         && let Some(sig) = s.mailbox.signature(name)
     {
-        *e = SignatureEdit { signature: sig.clone(), body: RichBody::new(sig.body().clone()), dirty: false };
+        *e = SignatureEdit::new(sig.clone());
     }
 }
 
@@ -127,7 +126,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if s.signature_edit.as_ref().is_some_and(|e| e.signature.name == sig.name) {
         return done();
     }
-    s.signature_edit = Some(SignatureEdit { body: RichBody::new(sig.body().clone()), signature: sig, dirty: false });
+    s.signature_edit = Some(SignatureEdit::new(sig));
     done()
 }
 
@@ -288,16 +287,26 @@ fn picture_add(s: &mut Session, v: &Value) -> CmdResult {
     let file = p::str(v, "file").or_else(|| (!path.is_empty()).then(|| path.rsplit(['/', '\\']).next().unwrap_or(path))).unwrap_or("picture");
     let at = p::u64(v, "at").and_then(|n| usize::try_from(n).ok());
     let alt = p::str(v, "alt");
-    if names_open(s, v)
-        && let Some(e) = s.signature_edit.as_mut()
-    {
+    if names_open(s, v) && s.signature_edit.is_some() {
+        // Never the id of one it held before, which a step of undo may show again: refused, before
+        // anything changes, when no id is left.
+        let least = s.signature_edit.as_ref().and_then(|e| e.next_picture);
+        let least = least.ok_or_else(|| fail("this signature has had as many pictures as it can"))?;
+        if let (Some(at), Some(e)) = (at, s.signature_edit.as_mut()) {
+            e.body.select(at, at).map_err(|err| fail(err.to_string()))?;
+        }
+        // Each time its text shows a picture counts, the selection it takes the place of aside.
+        if super::format::room(s) == Some(0) {
+            return Err(super::format::too_many(s));
+        }
+        let e = s.signature_edit.as_mut().ok_or_else(|| fail("no signature is open"))?;
         // ponytail: the open one's pictures are first made what its text holds now, so a picture
         // deleted and then brought back by undo is gone; add it again.
         let mut sig = edited(e)?;
-        let id = sig.add_picture(file, bytes, alt, None).map_err(|err| fail(err.to_string()))?;
-        if let Some(at) = at {
-            e.body.select(at, at).map_err(|err| fail(err.to_string()))?;
-        }
+        // Those it shows only in the selection the new one takes the place of are kept, for undo:
+        // at a cap the new one is refused, as any is there.
+        let id = sig.hold_picture(file, bytes, alt, least).map_err(|err| fail(err.to_string()))?;
+        e.next_picture = id.checked_add(1);
         let run = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(id, Style::default())], Default::default())]);
         e.body.paste(&run).map_err(|err| fail(err.to_string()))?;
         let bytes = sig.picture_bytes();

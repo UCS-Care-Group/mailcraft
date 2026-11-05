@@ -14095,6 +14095,11 @@ msgid "a message being written or waiting to be sent can't be snoozed"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
@@ -14182,6 +14187,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
 msgstr ""
 
 #. why a command can't run
@@ -15124,6 +15134,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
 msgstr ""
@@ -15729,6 +15744,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "the signature is no longer there"
 msgstr ""
@@ -16001,6 +16021,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "this series has too many changed days"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
 msgstr ""
 
 #. interface

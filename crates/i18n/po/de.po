@@ -15950,6 +15950,11 @@ msgid "a message being written or waiting to be sent can't be snoozed"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
@@ -16050,6 +16055,11 @@ msgstr "die Adresse eines freigegebenen Postfachs kann nicht geändert werden: E
 #, fuzzy
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "die Regeln eines freigegebenen Postfachs sind seine eigenen: Diese Version erstellt sie nicht"
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -17114,6 +17124,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
 msgstr ""
@@ -17807,6 +17822,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr "die Signatur enthält Änderungen: Speichern Sie sie, oder schließen Sie sie mit discard"
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature is no longer there"
@@ -18119,6 +18139,11 @@ msgstr "diese Serie hat zu viele abgesagte Tage"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "diese Serie hat zu viele geänderte Tage"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

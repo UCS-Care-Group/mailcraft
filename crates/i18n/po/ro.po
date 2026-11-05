@@ -17044,6 +17044,11 @@ msgid "a message being written or waiting to be sent can't be snoozed"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
@@ -17149,6 +17154,11 @@ msgstr "adresa unei cutii poștale partajate nu poate fi schimbată: eliminați-
 #, fuzzy
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "regulile unei cutii poștale partajate sunt ale ei: această versiune nu le creează"
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -18276,6 +18286,11 @@ msgid "that was only looked at, not read in full"
 msgstr "a fost doar privit, nu citit integral"
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "the .pst file couldn't be opened: {e}"
@@ -19002,6 +19017,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr "semnătura are modificări: salvați-o sau închideți-o renunțând la ele"
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature is no longer there"
@@ -19329,6 +19349,11 @@ msgstr "această serie are prea multe zile anulate"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "această serie are prea multe zile modificate"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
