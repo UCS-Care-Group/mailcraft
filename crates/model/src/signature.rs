@@ -24,6 +24,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::ModelError;
+use crate::pictures::MIN_SHOWN_WIDTH;
 use crate::rich::{Align, Paragraph, RichText, Run, Style, safe_link};
 
 /// Most bytes one picture may have.
@@ -80,7 +81,7 @@ pub struct Picture {
     pub mime: String,
     #[serde(with = "crate::b64")]
     pub data: Arc<Vec<u8>>,
-    /// The width it is shown at, in pixels, at most [`MAX_WIDTH`]; `None` for its own (capped).
+    /// The width it is shown at, in pixels, from [`MIN_SHOWN_WIDTH`] to [`MAX_WIDTH`]; `None` for its own (capped).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<u16>,
     /// What it shows, in words: for screen readers, for recipients who don't load pictures, and
@@ -317,7 +318,7 @@ impl<'de> Deserialize<'de> for Signature {
         for p in raw.pictures {
             if seen.insert(p.id) && sig.check(&p.data, None).is_ok() {
                 let mime = picture_mime(&p.data).unwrap_or_default().to_string();
-                sig.pictures.push(Picture { mime, width: p.width.map(|w| w.clamp(1, MAX_WIDTH)), alt: clean_alt(&p.alt), ..p });
+                sig.pictures.push(Picture { mime, width: p.width.map(|w| w.clamp(MIN_SHOWN_WIDTH, MAX_WIDTH)), alt: clean_alt(&p.alt), ..p });
             }
         }
         sig.tidy();
@@ -467,20 +468,45 @@ impl Signature {
 
     /// Add a picture at text position `at` (the end when it is past it): its id.
     pub fn add_picture(&mut self, name: &str, data: Vec<u8>, alt: Option<&str>, at: Option<usize>) -> Result<u32, ModelError> {
+        let kept = self.pictures.len();
+        let id = self.hold_picture(name, data, alt, 1)?;
+        let at = at.unwrap_or(usize::MAX).min(self.body.len());
+        let mut text = self.body.clone();
+        let fragment = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(id, Style::default())], Default::default())]);
+        // Each time the text shows a picture counts (one pasted twice, twice), so that all of them
+        // cut can always be pasted back.
+        let shown = match self.body.pictures().len() {
+            n if n >= MAX_PICTURES => Err(ModelError::Invalid(format!("a signature holds at most {MAX_PICTURES} pictures"))),
+            _ => text.insert_rich(at, &fragment),
+        };
+        if let Err(e) = shown {
+            self.pictures.truncate(kept);
+            return Err(e);
+        }
+        self.body = text;
+        Ok(id)
+    }
+
+    /// The least id a picture added now may have, past those of the pictures it holds: `None` when
+    /// one of them has the last id there is.
+    pub fn next_picture_id(&self) -> Option<u32> {
+        self.pictures.iter().map(|p| p.id).max().map_or(Some(1), |n| n.checked_add(1))
+    }
+
+    /// Hold a picture its text does not show yet: its id, past those of the pictures it holds and
+    /// `least` at the least. (The open signature's text is edited apart from it, and shows the
+    /// picture where the owner put it; it counts the times it does.)
+    pub fn hold_picture(&mut self, name: &str, data: Vec<u8>, alt: Option<&str>, least: u32) -> Result<u32, ModelError> {
         if self.html.is_some() {
             return Err(ModelError::Invalid("an HTML signature shows pictures from their web address: switch it to rich text to add one".into()));
         }
         let mime = self.check(&data, None)?;
-        let id = self.pictures.iter().map(|p| p.id).max().map_or(1, |n| n.saturating_add(1));
+        let id = self.next_picture_id().map(|id| id.max(least));
+        let id = id.ok_or_else(|| ModelError::Invalid("this signature has had as many pictures as it can".into()))?;
         let name: String = name.chars().filter(|c| !c.is_control()).take(255).collect();
         // By default the file's name without its extension describes it.
         let alt = alt.map_or_else(|| name.rsplit_once('.').map_or(name.as_str(), |(stem, _)| stem).replace(['_', '-'], " "), str::to_string);
-        let at = at.unwrap_or(usize::MAX).min(self.body.len());
-        let mut text = self.body.clone();
-        let fragment = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(id, Style::default())], Default::default())]);
-        text.insert_rich(at, &fragment)?;
         self.pictures.push(Picture { id, name, mime: mime.to_string(), data: Arc::new(data), width: None, alt: clean_alt(&alt) });
-        self.body = text;
         Ok(id)
     }
 
@@ -488,7 +514,7 @@ impl Signature {
     pub fn set_picture(&mut self, id: u32, width: Option<Option<u16>>, alt: Option<&str>) -> Result<(), ModelError> {
         let p = self.pictures.iter_mut().find(|p| p.id == id).ok_or_else(|| ModelError::Invalid(format!("no picture {id} in this signature")))?;
         if let Some(width) = width {
-            p.width = width.map(|w| w.clamp(1, MAX_WIDTH));
+            p.width = width.map(|w| w.clamp(MIN_SHOWN_WIDTH, MAX_WIDTH));
         }
         if let Some(alt) = alt {
             p.alt = clean_alt(alt);

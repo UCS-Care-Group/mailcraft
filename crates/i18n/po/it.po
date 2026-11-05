@@ -15889,6 +15889,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
@@ -15984,6 +15989,11 @@ msgstr "l'indirizzo di una cassetta postale condivisa non può essere modificato
 #, fuzzy
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "le regole di una cassetta postale condivisa sono sue: questa versione non le crea"
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -17043,6 +17053,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
 msgstr ""
@@ -17726,6 +17741,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr "la firma contiene modifiche: salvarla, oppure chiuderla con discard"
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature is no longer there"
@@ -18033,6 +18053,11 @@ msgstr "questa serie ha troppi giorni annullati"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "questa serie ha troppi giorni modificati"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

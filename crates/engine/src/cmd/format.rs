@@ -8,7 +8,9 @@
 //! signature is open in File › Signatures they work on it instead ([`Session::doc`]).
 //! Positions count characters of the body's text, a paragraph break being one.
 
+use mailcraft_mime::rich::{Img, ImgRef};
 use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_SIZE, MIN_SIZE, safe_color};
+use mailcraft_model::signature::Picture;
 use mailcraft_model::{ModelError, RichBody, RichText};
 use serde_json::{Value, json};
 
@@ -84,15 +86,15 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_html),
         CommandSpec::new("edit.copy", "Copy", "Message › Clipboard", copy)
             .pure()
-            .params(r#"{"from"?: number, "to"?: number} — answers the selection as {"html", "text"} for the clipboard (HTML only in an HTML message); changes nothing"#)
+            .params(r#"{"from"?: number, "to"?: number} — answers the selection as {"html", "text"} for the clipboard (HTML only in an HTML message); a picture of the message's own, or of the open signature, is an <img> naming it by a cid: (never its bytes), and its description in brackets in the text; changes nothing"#)
             .when_writing(needs_doc),
         CommandSpec::new("edit.cut", "Cut", "Message › Clipboard", cut)
             .pure()
-            .params(r#"{"from"?: number, "to"?: number} — answers the selection as edit.copy does, and takes it out of the text"#)
+            .params(r#"{"from"?: number, "to"?: number} — answers the selection as edit.copy does, and takes it out of the text (a picture taken out comes back with edit.paste, in the same message or signature)"#)
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, a colour, a highlight, the composer's fonts, links, lists and a paragraph's alignment (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, a colour, a highlight, the composer's fonts, links, lists and a paragraph's alignment (in a plain-text message, to the text a copy of it gives: lists with their markers, links with their address, each picture named by cid: as its description); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing. A cid: picture comes only when it is one edit.copy named of the message's own pictures (in a signature, the open signature's) that it holds now, the same bytes, as wide and described as it has it; a paste that would show one in the message's signature (which goes out with its own pictures only), or have the text show pictures more than 30 times (a signature's, 10), each time counted, is refused; any other picture is left out, which a signature's answer says in `note` when the reading pane shows it"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -403,18 +405,103 @@ fn outdent(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The selection (after the params' range, when they name one) as the clipboard takes it: HTML
-/// of the set, written as the message's own HTML part is, and its plain text.
+/// of the set, written as the message's own HTML part is, and its plain text. A picture of the
+/// text's holder ([`held`]) is an `<img>` naming it ([`picture_cid`]), never its bytes, and its
+/// description in brackets in the text, so that a picture alone is never an empty text.
 fn clipboard(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
     let reach = reach(s);
-    let d = doc_mut(s)?;
-    select_range(d.body, v, reach)?;
-    let sel = d.body.selection();
+    select_range(doc_mut(s)?.body, v, reach)?;
+    let (body, plain) = s.doc().ok_or_else(|| fail("no message is being written"))?;
+    let sel = body.selection();
     if sel.is_empty() {
         return Err(fail("nothing is selected in the message"));
     }
-    let part = d.body.text().slice(sel.start(), sel.end()).map_err(model)?;
-    let html = (!d.plain).then(|| mailcraft_mime::rich::to_html(&part));
-    Ok(json!({"text": part.to_plain(), "html": html}))
+    let part = own(s, &body.text().slice(sel.start(), sel.end()).map_err(model)?);
+    let (prefix, pictures, _) = held(s);
+    let img = |id: u32| pictures.iter().find(|p| p.id == id).map(|p| Img::of(p, picture_cid(prefix, p)));
+    let html = (!plain).then(|| mailcraft_mime::rich::to_html_with(&part, &img));
+    Ok(json!({"text": plain_text(s, &part), "html": html}))
+}
+
+/// `part` of the text being edited as plain text, as a copy of it has it: a picture of the
+/// text's holder ([`held`]) its description in brackets. Also what goes to the primary selection.
+pub fn plain_text(s: &Session, part: &RichText) -> String {
+    let (_, pictures, _) = held(s);
+    own(s, part).to_plain_with(|id| pictures.iter().find(|p| p.id == id).map(|p| super::compose::said(&p.alt)))
+}
+
+/// `part` of the text being edited with only its holder's pictures ([`held`]) named by their
+/// ids: in a message, a picture of the signature put in it (whose id may be one of the message's
+/// own) names none, so that it is copied, described and counted as nothing, as ever.
+fn own(s: &Session, part: &RichText) -> RichText {
+    if s.signature_edit.is_some() || !part.paragraphs().iter().any(|p| p.signature) {
+        return part.clone();
+    }
+    // (No picture of a message has an id below the first.)
+    let none = mailcraft_model::pictures::FIRST_ID.saturating_sub(1);
+    let paragraphs = part.paragraphs().iter().cloned().map(|mut p| {
+        if p.signature {
+            p.runs.iter_mut().filter(|r| r.picture.is_some()).for_each(|r| r.picture = Some(none));
+        }
+        p
+    });
+    RichText::from_paragraphs(paragraphs.collect())
+}
+
+/// Whose pictures the text being edited shows, as a copy names them: the open signature's
+/// (`sig-`), else the message's own (`pic-`; never its signature's, which go out only in their
+/// signature); and the most times its text may show them.
+fn held(s: &Session) -> (&'static str, &[Picture], usize) {
+    match (&s.signature_edit, &s.compose) {
+        (Some(e), _) => ("sig-", e.signature.pictures(), mailcraft_model::signature::MAX_PICTURES),
+        (None, Some(c)) => ("pic-", &c.pictures, mailcraft_model::pictures::MAX_PICTURES),
+        (None, None) => ("pic-", &[], 0),
+    }
+}
+
+/// How many more times a paste or a new picture may show the pictures of the text's holder
+/// ([`held`]): as many as it may hold, each time it shows one counted, less those it shows outside
+/// the selection it takes the place of; `None` in the signature put in a message, which goes out
+/// with its own pictures only ([`not_in_signature`]).
+pub(super) fn room(s: &Session) -> Option<usize> {
+    let (prefix, pictures, most) = held(s);
+    let (body, _) = s.doc()?;
+    let (text, sel) = (body.text(), body.selection());
+    let in_signature = text.signature_start().zip(text.signature()).is_some_and(|(at, sig)| (at..=at + sig.len()).contains(&sel.start()));
+    if prefix == "pic-" && in_signature {
+        return None;
+    }
+    let shown = |t: &RichText| own(s, t).pictures().iter().filter(|id| pictures.iter().any(|p| p.id == **id)).count();
+    let selected = text.slice(sel.start(), sel.end()).map_or(0, |t| shown(&t));
+    Some(most.saturating_sub(shown(text).saturating_sub(selected)))
+}
+
+/// Why a picture of the message does not go in the signature put in it.
+pub(super) fn not_in_signature() -> CmdError {
+    fail("the signature in the message goes out with its own pictures only: put the picture outside it")
+}
+
+/// Why no more pictures go in the text of its holder ([`held`]).
+pub(super) fn too_many(s: &Session) -> CmdError {
+    match s.signature_edit {
+        Some(_) => failed!("a signature holds at most {n} pictures", n = mailcraft_model::signature::MAX_PICTURES),
+        None => failed!("a message holds at most {n} pictures", n = mailcraft_model::pictures::MAX_PICTURES),
+    }
+}
+
+/// The Content-ID a copy names a picture by: its holder, its id and its bytes' [`fingerprint`].
+fn picture_cid(prefix: &str, p: &Picture) -> String {
+    format!("{prefix}{}.{}@mailcraft.invalid", p.id, fingerprint(&p.data))
+}
+
+/// What a copy names a picture by beside its id: 16 hex digits of the FNV-1a hash of its bytes, so
+/// that a picture of the same id in another message or signature is never taken for it.
+pub(super) fn fingerprint(bytes: &[u8]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        hash = (hash ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{hash:016x}")
 }
 
 fn copy(s: &mut Session, v: &Value) -> CmdResult {
@@ -441,32 +528,65 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     }
     let too_much = || fail("that is too much to paste into one message");
     // The HTML when there is some, reduced to the set; when it comes to nothing at all (a picture
-    // alone, which a text can't hold), the text beside it, weighed only then; and nothing at all
-    // changes nothing, the selection included. Lines left blank on purpose are something. (What
-    // is looked at is what would be pasted, once cleaned of what a text never keeps.)
+    // not taken, alone), the text beside it, weighed only then; and nothing at all changes nothing,
+    // the selection included. Lines left blank on purpose are something. (What is looked at is
+    // what would be pasted, once cleaned of what a text never keeps.) A picture the HTML names is
+    // shown only when it is one the text's holder holds now, by the name a copy gives it (bytes and
+    // all), and while there is room ([`room`]): a paste that would show more than that, or show one
+    // in the message's signature, is refused, so that nothing it names is lost unsaid. It is then
+    // as the holder has it, whatever width or description the HTML gives it. A plain-text message
+    // takes the text a copy of it gives: lists with their markers, links with their address, and
+    // each attached picture the reading pane shows as its description, the holder's as it has it.
+    let mut left_out = 0usize;
     let from_html = match html {
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
-            let rich = mailcraft_mime::rich::from_html(html);
-            Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
+            let (prefix, pictures, _) = held(s);
+            // Named once, and only when the HTML names a picture: a hash goes over every byte.
+            let mut names: Option<Vec<(String, &Picture)>> = None;
+            // In a plain-text message, what each picture says, by the number it is given.
+            let mut described: Vec<String> = Vec::new();
+            let mut claim = |img: &ImgRef| {
+                let names = names.get_or_insert_with(|| pictures.iter().map(|p| (picture_cid(prefix, p), p)).collect());
+                let picture = names.iter().find(|(cid, _)| *cid == img.cid).map(|(_, p)| *p);
+                if plain {
+                    let n = u32::try_from(described.len()).ok();
+                    described.push(super::compose::said(picture.map_or(&img.alt, |p| &p.alt)));
+                    return n;
+                }
+                left_out += usize::from(picture.is_none());
+                picture.map(|p| p.id)
+            };
+            let (rich, others) = mailcraft_mime::rich::from_html_with_pictures_and_others(html, &mut claim);
+            left_out += others;
+            let rich = if plain {
+                RichText::from_plain(&rich.to_plain_with(|n| described.get(usize::try_from(n).ok()?).cloned()))
+            } else {
+                // Counted as they are pasted: one past the most paragraphs a text holds is not.
+                let shown = rich.pictures().len();
+                match room(s) {
+                    None if shown > 0 => return Err(not_in_signature()),
+                    Some(room) if shown > room => return Err(too_many(s)),
+                    _ => rich,
+                }
+            };
+            Some(rich).filter(|rich| !rich.is_empty())
         }
         None => None,
     };
     let fragment = match (from_html, text) {
-        (Some(rich), _) => rich,
+        (Some(rich), _) => Some(rich),
         (None, Some(text)) if text.len() > MAX_PASTE => return Err(too_much()),
-        (None, Some(text)) => RichText::from_plain(text),
-        (None, None) => return Ok(state(s)),
+        (None, Some(text)) => Some(RichText::from_plain(text)),
+        (None, None) => None,
     };
-    if fragment.is_empty() {
-        return Ok(state(s));
+    if let Some(fragment) = fragment.filter(|f| !f.is_empty()) {
+        edit(s, &json!({}), |b| b.paste(&fragment))?;
     }
-    edit(s, &json!({}), |b| b.paste(&fragment))?;
     let mut out = state(s);
-    // A signature's pictures come from files only (nothing is fetched); say so when the paste
-    // had some.
-    let pictures = p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
-    if pictures
+    // A signature's pictures come from files only (nothing is fetched), or from its own copied:
+    // say so when the paste left out others the reading pane shows, even with nothing else pasted.
+    if left_out > 0
         && s.signature_edit.is_some()
         && let Some(o) = out.as_object_mut()
     {

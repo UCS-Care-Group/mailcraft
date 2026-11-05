@@ -618,3 +618,241 @@ fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
     assert!(links(&super::from_html(html)).is_empty());
     assert_eq!(links(&super::from_html_with_pictures(html, &mut |_| None)), vec!["ms-settings:network-vpn".to_string()]);
 }
+
+#[test]
+fn an_object_character_written_as_an_entity_is_never_a_picture_and_a_claim_shows_one_at_most() {
+    // Hostile input: OBJECT characters written as entities around a number, as if they marked a
+    // picture, beside no picture claimed or beside one that is.
+    let forged = |id: u32| format!("&#xFFFC;{id}&#xFFFC;&#65532;{id}&#65532;");
+    let html = format!("<div>a{}b</div>", forged(7));
+    assert!(from_html_with_pictures(&html, &mut |_| None).pictures().is_empty());
+    let html = format!("<div>a{}<img src=\"cid:q@x\">{}b</div>", forged(7).repeat(500), forged(8));
+    let back = from_html_with_pictures(&html, &mut |img| (img.cid == "q@x").then_some(7));
+    assert_eq!(back.pictures(), vec![7]);
+}
+
+#[test]
+fn an_object_character_written_as_an_entity_or_as_it_is_leaves_the_text_around_it_and_the_pictures_where_they_were() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+    let picture = "<img src=\"cid:q@x\">";
+    for (html, text) in [
+        // An even number of them, an odd one, and a pair naming the picture claimed elsewhere.
+        (format!("<div>A&#65532;KEEP&#65532;B{picture}C</div>"), format!("AKEEPB{o}C")),
+        (format!("<div>&#xFFFC;before{picture}after</div>"), format!("before{o}after")),
+        (format!("<div>&#xFFFC;7&#xFFFC;</div><div>before{picture}after</div>"), format!("7\nbefore{o}after")),
+        // Written with leading zeros, without its `;`, in capitals.
+        (format!("<div>a&#x0fffc;b&#0065532 c&#XFFFC;d{picture}e</div>"), format!("ab cd{o}e")),
+        // One left out by hand, or as an entity, would make an entity of what is around it.
+        (format!("<div>a&#x{o}FFFC;7&#x{o}FFFC;b{picture}c</div>"), format!("a&#xFFFC;7&#xFFFC;b{o}c")),
+        (format!("<div>a&#x&#xFFFC;FFFC;7&#x&#xFFFC;FFFC;b{picture}c</div>"), format!("a&#xFFFC;7&#xFFFC;b{o}c")),
+    ] {
+        let back = read(&html);
+        assert_eq!((back.text(), back.pictures()), (text, vec![7]), "{html}");
+    }
+}
+
+#[test]
+fn an_img_never_closed_is_read_in_bounded_time_by_both_reads() {
+    let html = "<img ".repeat(800_000);
+    let started = std::time::Instant::now();
+    let back = from_html_with_pictures(&html, &mut |_| Some(1));
+    assert!(back.pictures().is_empty());
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
+}
+
+#[test]
+fn a_picture_is_claimed_only_where_it_is_shown_and_not_when_the_end_of_what_is_read_cuts_its_tag_short() {
+    let o = mailcraft_model::rich::OBJECT;
+    let img = |n: usize| format!("<img src=\"cid:{n}@x\">");
+    let id = |img: &ImgRef| img.cid.strip_suffix("@x").and_then(|n| n.parse().ok());
+    // Pictures in a comment, in hidden text and in an attribute are not shown, so not claimed.
+    let html = format!("<!--{}--><div style=\"display:none\">{}</div><div title='{}'>a{}b</div>", img(1), img(2), img(3), img(4));
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(&html, &mut |i| {
+        asked.push(i.cid.clone());
+        id(i)
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("a{o}b"), vec![4], vec!["4@x".to_string()]));
+    // A line of nothing but pictures not claimed is not there, as with any picture left out, and
+    // one amid a line leaves it whole.
+    let read = |html: String| from_html_with_pictures(&html, &mut |_| None).text();
+    assert_eq!(read(format!("<div>a</div><div>{}{}</div><div>b</div>", img(5), img(6))), "a\nb");
+    assert_eq!(read(format!("<div>a{}b</div>", img(5))), "ab");
+    // A picture whose tag ends where what is read ends is shown; one whose tag that end cuts
+    // short is not, and is left out.
+    let read_to = |short: usize| {
+        let pad = "a".repeat(mailcraft_html::MAX_INPUT - "<!----><div>x".len() - img(1).len() + short);
+        let back = from_html_with_pictures(&format!("<!--{pad}--><div>x{}</div>", img(1)), &mut |i| id(i));
+        (back.text(), back.pictures())
+    };
+    assert_eq!((read_to(0), read_to(1)), ((format!("x{o}"), vec![1]), ("x".to_string(), vec![])));
+}
+
+#[test]
+fn a_picture_hidden_by_its_own_tag_or_too_small_to_see_is_not_claimed_and_leaves_room_for_one_shown() {
+    let o = mailcraft_model::rich::OBJECT;
+    let html = "<div>a<img hidden src=\"cid:1@x\" alt=\"one\"><img style=\"display:none\" src=\"cid:2@x\"><img src=\"cid:3@x\" style=\"visibility:hidden\">\
+                <img width=1 src=\"cid:4@x\"><img height=\"2px\" src=\"cid:5@x\"><img style=\"width:1px;height:1px\" src=\"cid:6@x\">b<img src=\"cid:7@x\">c</div>";
+    let mut asked = Vec::new();
+    // One picture may be shown yet, and the one shown takes that room.
+    let back = from_html_with_pictures(html, &mut |i| {
+        asked.push(i.cid.clone());
+        (asked.len() == 1).then(|| i.cid.strip_suffix("@x").and_then(|n| n.parse().ok())).flatten()
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("ab{o}c"), vec![7], vec!["7@x".to_string()]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_its_own_tag_or_makes_too_small_to_see_is_not_claimed_and_leaves_room_for_one_shown() {
+    let o = mailcraft_model::rich::OBJECT;
+    let html = "<style>img.gone{display:none} img.dot{width:1px}</style>\
+                <div>a<img class=\"gone\" src=\"cid:1@x\"><img class=\"dot\" src=\"cid:2@x\">b<img src=\"cid:3@x\">c</div>";
+    let mut asked = Vec::new();
+    // One picture may be shown yet, and the one shown takes that room.
+    let back = from_html_with_pictures(html, &mut |i| {
+        asked.push(i.cid.clone());
+        (asked.len() == 1).then(|| i.cid.strip_suffix("@x").and_then(|n| n.parse().ok())).flatten()
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("ab{o}c"), vec![3], vec!["3@x".to_string()]));
+}
+
+#[test]
+fn a_style_sheet_rule_that_depends_on_a_pictures_place_acts_on_the_paste_as_on_the_original() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| {
+        let back = from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+        (back.text(), back.pictures())
+    };
+    // The text the sheet hides after the picture stays hidden, and the text the picture's place
+    // keeps shown stays.
+    let hides = read("<style>img + span{display:none}</style><p>a<img src=\"cid:q@x\"><span>hidden</span> b</p>");
+    let shows = read("<style>span:first-child{display:none}</style><p><img src=\"cid:q@x\"><span>shown</span> b</p>");
+    // So too beside a picture that is not claimed.
+    let other = read("<style>img + span{display:none}</style><p>a<img src=\"cid:missing@x\"><span>hidden</span> b</p>");
+    assert_eq!((hides, shows, other), ((format!("a{o} b"), vec![7]), (format!("{o}shown b"), vec![7]), ("a b".to_string(), vec![])));
+}
+
+#[test]
+fn a_picture_is_claimed_where_the_style_sheet_and_its_own_style_together_show_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| {
+        let back = from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+        (back.text(), back.pictures())
+    };
+    // Every picture hidden or made one pixel wide by the sheet, and one its own style hides that
+    // the sheet's `!important` shows.
+    let hidden = read("<style>img { display:none }</style><div>A<img src=\"cid:q@x\">B</div>");
+    let dot = read("<style>img { width:1px }</style><div>A<img src=\"cid:q@x\">B</div>");
+    let shown = read("<style>img { display:block !important }</style><div>A<img style=\"display:none\" src=\"cid:q@x\">B</div>");
+    assert_eq!((hidden, dot, shown), (("AB".to_string(), vec![]), ("AB".to_string(), vec![]), (format!("A{o}B"), vec![7])));
+}
+
+/// `html` read for pictures with `q@x` claimed as 7: its text, its pictures, and the pictures
+/// `claim` was asked for.
+fn read_q(html: &str) -> (String, Vec<u32>, Vec<String>) {
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(html, &mut |img| {
+        asked.push(img.cid.clone());
+        (img.cid == "q@x").then_some(7)
+    });
+    (back.text(), back.pictures(), asked)
+}
+
+#[test]
+fn a_tag_naming_two_pictures_is_the_first_as_the_reading_pane_shows_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures("<div>before<img src=\"cid:A\" src=\"cid:B\">after</div>", &mut |img| {
+        asked.push(img.cid.clone());
+        [("A", 1), ("B", 2)].iter().find(|(cid, _)| img.cid == *cid).map(|(_, id)| *id)
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("before{o}after"), vec![1], vec!["A".to_string()]));
+}
+
+#[test]
+fn a_pictures_address_written_with_a_character_reference_is_read_as_the_reading_pane_reads_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    assert_eq!(read_q("<div>a<img src=\"cid:q&#64;x\">b</div>"), (format!("a{o}b"), vec![7], vec!["q@x".to_string()]));
+}
+
+#[test]
+fn a_picture_after_a_comment_holding_an_img_and_a_stray_quote_is_claimed() {
+    let o = mailcraft_model::rich::OBJECT;
+    assert_eq!(read_q("<div>a<!-- <img ' --><img src=\"cid:q@x\">b</div>"), (format!("a{o}b"), vec![7], vec!["q@x".to_string()]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_its_address_or_its_missing_description_is_not_claimed() {
+    let none = ("ab".to_string(), vec![], vec![]);
+    assert_eq!(read_q("<style>img[src^=\"cid:\"]{display:none}</style><div>a<img src=\"cid:q@x\">b</div>"), none);
+    assert_eq!(read_q("<style>img:not([alt]){display:none}</style><div>a<img src=\"cid:q@x\">b</div>"), none);
+}
+
+#[test]
+fn a_picture_hidden_by_its_last_attribute_the_reader_keeps_is_not_claimed() {
+    // 31 attributes, `hidden` the last: within the 32 the reader keeps.
+    let more: String = (1..=29).map(|n| format!(" a{n}")).collect();
+    assert_eq!(read_q(&format!("<div>a<img src=\"cid:q@x\"{more} hidden>b</div>")), ("ab".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn an_img_in_a_textarea_is_its_text_and_nothing_else() {
+    let html = "<textarea><img src=\"cid:q@x\"></textarea>";
+    assert_eq!(read_q(html), ("<img src=\"cid:q@x\">".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_a_class_with_an_object_character_is_not_claimed() {
+    // The character written as a CSS escape in the sheet and as a reference in the class.
+    let html = "<style>.x\\fffc{display:none}</style><div>a<img class=\"x&#65532;\" src=\"cid:q@x\">b</div>";
+    assert_eq!(read_q(html), ("ab".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_past_the_input_read_is_not_claimed_however_the_text_before_it_is_written() {
+    // The comment alone, OBJECT characters written as references, is longer than what is read.
+    let html = format!("<!--{}--><img src=\"cid:q@x\">", "&#65532;".repeat(262_144));
+    assert_eq!(read_q(&html), (String::new(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_in_text_of_no_size_is_claimed_as_the_reading_pane_shows_it() {
+    // A size of nothing hides text, not pictures, from an inline style or from a sheet.
+    let o = mailcraft_model::rich::OBJECT;
+    let shown = (o.to_string(), vec![7], vec!["q@x".to_string()]);
+    assert_eq!(read_q("<div style=\"font-size:0\"><span>a<img src=\"cid:q@x\">b</span></div>"), shown);
+    assert_eq!(read_q("<style>div{font-size:0}</style><div><span>a<img src=\"cid:q@x\">b</span></div>"), shown);
+}
+
+#[test]
+fn a_picture_not_taken_ends_a_table_a_cell_implied_as_the_reading_pane_ends_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    // `parse` ends the table the cell implied at the first picture, so the `</tr>` inside the
+    // hidden span closes nothing, and the second picture stays hidden.
+    let html = "<td>x</td><img src=\"cid:a\"><span hidden></tr><img src=\"cid:b\"></span><img src=\"cid:c\">";
+    let mut shown = Vec::new();
+    collect_cids(&mailcraft_html::parse(html), &mut shown);
+    assert_eq!(shown, ["a", "c"]);
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(html, &mut |img| {
+        asked.push(img.cid.clone());
+        match img.cid.as_str() {
+            "b" => Some(2),
+            "c" => Some(3),
+            _ => None,
+        }
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("x\n{o}"), vec![3], shown));
+}
+
+/// The `cid:` addresses of the pictures among `blocks`, table cells walked, in order.
+fn collect_cids(blocks: &[mailcraft_html::Block], out: &mut Vec<String>) {
+    for b in blocks {
+        match &b.kind {
+            mailcraft_html::BlockKind::Image { src, .. } => out.extend(src.strip_prefix("cid:").map(str::to_string)),
+            mailcraft_html::BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).for_each(|c| collect_cids(&c.blocks, out)),
+            _ => {}
+        }
+    }
+}

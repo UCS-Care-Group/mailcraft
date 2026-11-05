@@ -527,6 +527,9 @@ impl RichText {
                 let style = run.style.clean();
                 if let Some(id) = run.picture {
                     if budget == 0 {
+                        // The paragraph up to the picture is kept.
+                        cur.normalize();
+                        out.push(cur);
                         break 'all;
                     }
                     budget -= 1;
@@ -915,7 +918,8 @@ impl RichText {
     }
 
     /// Remove `[from, to)`; a paragraph break inside it joins the paragraphs on either side
-    /// (the first one's kind stays).
+    /// (the first one's kind stays). A join that would bring a picture onto the signature put in
+    /// a message from a line outside it is refused, and nothing changes.
     pub fn delete(&mut self, from: usize, to: usize) -> Result<(), ModelError> {
         let (from, to) = self.span(from, to)?;
         if from == to {
@@ -933,6 +937,16 @@ impl RichText {
                 p.normalize();
             }
             return Ok(());
+        }
+        // A picture is never joined onto the signature put in a message from outside it: the
+        // signature goes out with its own pictures only (whose ids may be the message's), so the
+        // picture would be sent as another, or not at all, and copied as nothing (#580).
+        let into_signature = self.paragraphs.get(pa).is_some_and(|p| p.signature)
+            && self.paragraphs.get(pb).is_some_and(|p| !p.signature && p.clone().split_off(ob).runs.iter().any(|r| r.picture.is_some()));
+        if into_signature {
+            return Err(ModelError::Invalid(
+                "that would put the picture into the signature, which keeps only its own pictures: move the picture first".into(),
+            ));
         }
         let tail = match self.paragraphs.get_mut(pb) {
             Some(p) => p.split_off(ob),
