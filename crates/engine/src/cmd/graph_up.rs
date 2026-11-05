@@ -417,9 +417,9 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                         // Its original deleted for good here meanwhile, by the owner or by a rule
                         // that copies and then deletes: it is still on the server (its delete
                         // waited for this answer), and comes back rather than being lost (#566),
-                        // with the copy's content, which the copy names for the mailbox file (what
-                        // the delete kept may have been read back from it without its content),
-                        // unless the copy holds only a preview of what the original has whole.
+                        // with what the delete kept of it, or, when that is to be fetched again
+                        // (read back from the mailbox file without its content, say), with the
+                        // copy's content, which the copy names for the mailbox file.
                         // (Not a delete of another kind, of a message moved out of the account
                         // say, which has nothing here to put back.)
                         match take_delete(mb, account, id, true).flatten() {
@@ -434,7 +434,7 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                             Some(mut kept) => {
                                 let copied = if here { mb.forget_message(*copy).ok() } else { mb.message(*copy).cloned() };
                                 if let Some(copied) = &copied {
-                                    kept.take_content_of(copied);
+                                    kept.fill_content_from(copied);
                                 }
                                 put_back(mb, account, id, Some(kept), None);
                                 // Should the server say it is gone since, it is kept here instead.

@@ -461,18 +461,23 @@ impl Message {
     }
 
     /// The content of `other` (its text, HTML, the words its sender hid and its files, in memory
-    /// or as `other` names them on disk) in place of this one's. Not when this one is whole and
-    /// `other` is not (a copy made while the message was only listed): its text and files are
-    /// never given up for a preview. Whether this one is to be fetched again stays as it was: it
-    /// may be so because its server has a newer version, which `other` doesn't have either.
+    /// or as `other` names them on disk) in place of this one's.
     pub fn take_content_of(&mut self, other: &Message) {
-        if other.unfetched && !self.unfetched {
-            return;
-        }
         self.body = other.body.clone();
         self.hidden_text = other.hidden_text.clone();
         self.attachments = other.attachments.clone();
         self.kept = other.kept.clone();
+    }
+
+    /// A message put back with what it kept of itself, given `other`'s content ([`Message::take_content_of`])
+    /// only when it is to be fetched again (what it had was let go of) and `other` is whole. One
+    /// whole here keeps its own: `other` (a copy made earlier) may hold only a preview, or a
+    /// version older than one fetched since. Whether it is to be fetched again stays as it was:
+    /// it may be so because its server has a newer version, which `other` doesn't have either.
+    pub fn fill_content_from(&mut self, other: &Message) {
+        if self.unfetched && !other.unfetched {
+            self.take_content_of(other);
+        }
     }
 
     /// Every recipient: To, Cc, Bcc.

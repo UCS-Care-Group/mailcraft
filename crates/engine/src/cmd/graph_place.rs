@@ -273,7 +273,8 @@ pub(crate) fn a_copy_of_one_here(mb: &Mailbox, copy: bool, source: Option<Id>) -
 /// deleted for good here meanwhile, that delete waited for this answer
 /// ([`Mailbox::copy_waits_for`]), so the server still has the original, which comes back here
 /// from what was kept of where and how it lay, with the copy's content (its text and files,
-/// which the copy names for the mailbox file), where its server has it, and the delete is called
+/// which the copy names for the mailbox file) when what was kept is to be fetched again
+/// ([`Message::fill_content_from`]), where its server has it, and the delete is called
 /// off (#566). It comes back once: put back on the Microsoft account it lay in, the deletion of
 /// the IMAP original it was moved there from goes as that move meant it to; put back on the IMAP
 /// account, so does the deletion of the Microsoft original it was moved there from; and one still
@@ -329,7 +330,7 @@ fn original_back_on_graph(mb: &mut Mailbox, source: Id, copied: &Message, moving
     else {
         return false;
     };
-    kept.take_content_of(copied);
+    kept.fill_content_from(copied);
     let out = if moving { kept.moving_out.take() } else { None };
     match out {
         Some(out) => {

@@ -651,6 +651,41 @@ fn an_original_fetched_whole_comes_back_with_its_own_text_when_a_copy_of_its_pre
     }
 }
 
+/// A copy holds the message as it was when it was made: one fetched in a newer version since (a
+/// draft changed on another device, say), deleted for good and its copy refused, comes back as
+/// that newer version, which a save or a move would otherwise put back over it (#566).
+#[test]
+fn an_original_changed_since_its_copy_comes_back_as_it_is_now_when_the_copy_is_refused() {
+    use crate::cmd::graph_mail::apply_graph_fetch;
+    use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
+    let version = |words: &str| format!("From: kit@example.org\r\nSubject: Notes\r\nMessage-ID: <n@example.org>\r\n\r\n{words}\r\n").into_bytes();
+    let mut s = Session::empty();
+    let mine = microsoft(&mut s, OWNER);
+    let (inbox, archive) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(mine, FolderKind::Archive).unwrap());
+    let server = ServerMessage { id: "AAkA9".into(), folder: "in".into(), size: 4000, ..Default::default() };
+    let m = s
+        .mailbox
+        .add_message(Message { folder: inbox, subject: "Notes".into(), server: Some(server), unfetched: true, ..Default::default() })
+        .unwrap();
+    let fetch = |s: &mut Session, mime: Vec<u8>| {
+        s.mailbox.message_mut(m).unwrap().unfetched = true;
+        let fetched = vec![GraphFetched { id: "AAkA9".into(), mime }];
+        apply_graph_fetch(s, GraphFetchResult { account: mine, email: OWNER.into(), fetched, ..Default::default() }).unwrap();
+    };
+    fetch(&mut s, version("Version one."));
+    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+    // Its server says it changed, and the newer version comes down.
+    fetch(&mut s, version("Version two, with more in it."));
+    assert!(s.mailbox.message(m).unwrap().body.text.contains("Version two"));
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    let asked = graph_mail_request(&s, mine).unwrap().messages;
+    let [change @ MessageChange::Copy { .. }] = asked.as_slice() else { panic!("{asked:?}") };
+    let done = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    apply_graph_mail(&mut s, GraphMailResult { account: mine, email: OWNER.into(), messages: vec![done], ..Default::default() }).unwrap();
+    let back = s.mailbox.message(titled(&s, "Notes")).unwrap();
+    assert!(back.body.text.contains("Version two") && !back.unfetched, "{:?}", back.body.text);
+}
+
 /// A copy moved on into a third account before it was made still holds its original's delete
 /// (#566): refused there, the original comes back; made, its delete goes.
 #[test]
