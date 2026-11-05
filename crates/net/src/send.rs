@@ -79,6 +79,7 @@ pub(crate) fn open_smtp_with<'a>(
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Smtp<Stream<'a>>, NetError> {
     let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config("the account has no outgoing server".into()))?;
+    crate::sync::token_may_go_to(account, server, "smtp.gmail.com")?;
     let user = account.login();
     if account.oauth.is_some() {
         if user.is_empty() {
@@ -88,7 +89,6 @@ pub(crate) fn open_smtp_with<'a>(
         if secret.is_empty() {
             return Err(not_signed_in(account));
         }
-        crate::sync::token_may_go_to(server)?;
     }
     let (mut stream, host) = transport::open(server, Service::Smtp, patience)?;
     stream.watch(cancel);

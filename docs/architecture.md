@@ -204,9 +204,20 @@ egui, eframe, winit or rfd.
   the operating system's credential store when the owner wants it remembered (`Services::secrets`;
   Windows, macOS, and the Secret Service on Linux and FreeBSD; a store that can't be used is
   `StoreTrouble`, said once a session). The mailbox file, `ui.json` and logs never hold one.
-- **Signing in on the provider's page.** Microsoft accounts use OAuth 2.0 (authorization code with
-  PKCE, a loopback redirect, the system's browser) and XOAUTH2. The engine only knows that an
-  account signs in that way (`Account::oauth`); the host with sockets does it and hands tokens in.
+- **Signing in on the provider's page.** Microsoft and Google desktop accounts use OAuth 2.0
+  (authorization code with PKCE, a loopback redirect and the system's browser) and XOAUTH2.
+  `OAuthProvider` selects provider-specific endpoints, scopes and refresh handling. Google's
+  implementation is in `crates/net/src/oauth/google.rs`; it does not add browser Gmail or Google
+  calendar/contact synchronization. The engine records the account's method (`Account::oauth`);
+  the host with sockets does the authorization and passes session tokens in. New Google accounts
+  prefer OAuth when the application's registration is configured. A legacy account changes only
+  through a successful, explicit same-address conversion; canceled/failed conversion retains its
+  credential and mail. The Google identity token's email must match the account's primary address;
+  Workspace aliases are not resolved and never cause an automatic account rebind. The Desktop
+  registration is application configuration, not a user password or refresh token: its secret
+  comes only from the build or process environment and is paired with the effective client ID.
+  Only the public client ID has a File → Options override. Registration precedence and the
+  app-password alternative are documented in [Google account setup](google-accounts.md#development-registration).
 - **Plain-text composing.** Rich text needs an editor component the project does not have yet.
 
 ## Start-up
