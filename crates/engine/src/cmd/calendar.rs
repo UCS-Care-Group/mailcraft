@@ -507,7 +507,7 @@ fn may_change(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool,
 /// day from now on, and what happens on it is an event of its own. `changed` is the series as
 /// the change would leave it; the occurrence is changed by as much (an hour later, another
 /// title), on its own day.
-fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Event) -> CmdResult {
+fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, mut changed: Event) -> CmdResult {
     if !happens_on(s, series, day) {
         return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
     }
@@ -518,6 +518,9 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
     if kept && series.origin.id.is_empty() {
         return Err(fail("This series is still on its way to the account's server. Change one of its days once it is there (in a moment)."));
     }
+    // (Spelled after the refusals above, and before whether the day changes at all is seen:
+    // that is seen with its final categories.)
+    spell_categories(s, v, &mut changed, series)?;
     let apart = series.start.date.days_until(day);
     let origin = if kept {
         mailcraft_model::Origin {
@@ -649,8 +652,6 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("an event needs a title"));
     }
     if let Part::One(day) = one {
-        // (Spelled first: whether the day changes at all is seen with its final categories.)
-        spell_categories(s, v, &mut e, &before)?;
         return change_one(s, v, &before, day, e);
     }
     let kept = kept_by(s, &before);

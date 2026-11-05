@@ -901,3 +901,46 @@ fn one_day_of_a_series_takes_the_lists_spelling_and_a_new_name_joins_it() {
     assert!(s.mailbox.event(series).unwrap().categories.is_empty());
     assert_eq!(s.mailbox.category("Day only").map(|c| c.color), Some(GREY_CATEGORY));
 }
+
+#[test]
+fn a_name_longer_than_a_typed_one_the_item_carries_stays_its_own_on_an_unchanged_save() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let items = editable(&mut s, a);
+    // From an `.ics`, say: longer than the 120 characters a typed name may have.
+    let long = format!("Project {}", "a".repeat(122));
+    assert_eq!(long.chars().count(), 130);
+    let came = vec![long.clone()];
+    for (command, id) in &items {
+        match *command {
+            "calendar.edit" => s.mailbox.event_mut(*id).unwrap().categories = came.clone(),
+            "people.edit" => s.mailbox.contact_mut(*id).unwrap().categories = came.clone(),
+            _ => s.mailbox.task_mut(*id).unwrap().categories = came.clone(),
+        }
+    }
+    for list in [a, 0] {
+        for i in 0..200 {
+            s.mailbox.set_category(list, &format!("C{i}"), RED).unwrap();
+        }
+    }
+    let lists_before = lists(&s);
+    for (command, id) in &items {
+        // The window sends the categories back as the item has them, with another change.
+        s.run(command, &json!({"id": id, "notes": "Renamed", "categories": [long.clone()]})).unwrap();
+        assert_eq!(carried_by(&s, command, *id), [long.as_str()], "{command}");
+        assert_eq!(lists(&s), lists_before, "{command}");
+    }
+}
+
+#[test]
+fn a_day_the_series_doesnt_have_is_said_before_a_full_list() {
+    let (mut s, _, _) = rig();
+    let calendar = calendar_of(&mut s, 0);
+    let v = json!({"title": "Stand-up", "calendar": calendar, "start": "2027-01-04T09:00", "recurrence": {"freq": "daily", "count": 5}});
+    let series = s.run("calendar.new", &v).unwrap()["id"].as_u64().unwrap();
+    for i in 0..200 {
+        s.mailbox.set_category(0, &format!("C{i}"), RED).unwrap();
+    }
+    let err = s.run("calendar.edit", &json!({"id": series, "occurrence": "2027-02-01", "categories": ["One more"]})).unwrap_err();
+    assert!(err.to_string().contains("doesn't happen on"), "{err}");
+}

@@ -66,14 +66,17 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
 /// joins the list, as putting it on with Categorize does, and so does one that was on the list
 /// of the account it was in (an event moved to another account's calendar). One it carried
 /// already that neither list has stays as the item had it, so that an edit that changes nothing
-/// of its categories needs no room on a full list.
+/// of its categories needs no room on a full list. Names are compared as [`clean_name`] leaves
+/// them, so that one the item came with that is longer than a typed name may be (from an
+/// `.ics`, say) is still its own, and isn't cut and put on the list as a new one.
 pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
+    let same = |c: &str, name: &str| clean_name(c).is_some_and(|c| c.eq_ignore_ascii_case(name));
     let mut carried: Vec<String> = Vec::new();
     for name in given.iter().filter_map(|name| clean_name(name)) {
-        if carried.iter().any(|c| c.eq_ignore_ascii_case(&name)) {
+        if carried.iter().any(|c| same(c, &name)) {
             continue;
         }
-        let had_as = had.iter().map(|c| c.trim()).find(|c| c.eq_ignore_ascii_case(&name));
+        let had_as = had.iter().map(|c| c.trim()).find(|c| same(c, &name));
         let listed = |s: &Session, list: Id| s.mailbox.category_of(list, &name).is_some();
         let spelling = match had_as {
             Some(c) if !listed(s, account) && !listed(s, had_account) => c.to_string(),
