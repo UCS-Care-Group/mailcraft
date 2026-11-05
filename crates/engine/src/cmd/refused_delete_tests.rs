@@ -87,7 +87,7 @@ fn there() -> GraphMessage {
     let mut there = GraphMessage {
         subject: "Invoice 42".into(),
         preview: "Please pay invoice 42 by Friday.".into(),
-        has_attachments: true,
+        has_attachments: Some(true),
         ..Default::default()
     };
     there.server = ServerMessage { id: "AAkA1".into(), folder: "in".into(), ..Default::default() };
