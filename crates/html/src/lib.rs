@@ -41,7 +41,7 @@ mod tokenizer;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
+pub use blocks::{Attached, MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_own_with, parse_text_with};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
@@ -268,6 +268,10 @@ pub struct Span {
     /// into the composer keeps the first, when it is one of the few the composer knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<String>,
+    /// An attached picture in the line, as the hook of [`parse_text_with`] numbered it; its text
+    /// is then one U+FFFC, and nothing else is added to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<u32>,
 }
 
 impl Span {

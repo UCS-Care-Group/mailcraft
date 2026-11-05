@@ -9,7 +9,7 @@ use egui::{Event, Key, Modifiers, OutputCommand, PointerButton, Pos2};
 use mailcraft_model::rich::Selection;
 use serde_json::json;
 
-use super::{Board, LINES, Window, editor, on_char, plain, sel, signature_page, signature_text, writing_lines};
+use super::{Board, LINES, Window, editor, on_char, plain, sel, signature_page, signature_text, type_in, writing, writing_lines};
 use crate::control::{ControlRequest, Outcome, handle};
 
 /// What the frame just run put in the primary selection.
@@ -282,4 +282,37 @@ fn the_owners_select_all_takes_back_the_same_selection_from_an_agent() {
     request(&mut h, "engine.execute", json!({"command": "compose.select", "params": {"from": 0, "to": len}}), true);
     assert!(driven(&mut h).is_empty());
     assert_eq!(keyed(&mut h, Modifiers::COMMAND, Key::A), [whole]);
+}
+
+/// What a copy of the selection gives as text.
+fn copied(h: &mut Window) -> String {
+    h.state_mut().execute("edit.copy", json!({})).unwrap()["text"].as_str().unwrap().to_string()
+}
+
+#[test]
+fn a_picture_selected_alone_in_the_body_settles_as_the_text_a_copy_gives() {
+    let mut h = writing();
+    type_in(&mut h, "ab");
+    let data = crate::files::base64_lite::encode(&crate::compose::picture_tests::png(40));
+    h.state_mut().execute("insert.picture", json!({"data": data, "alt": "Chart", "at": 1})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 1})).unwrap();
+    h.run_steps(1);
+    // The owner's Shift+Right selects the picture alone: its description goes there, not what
+    // another program put there before.
+    assert_eq!(keyed(&mut h, Modifiers::SHIFT, Key::ArrowRight), ["[Chart]"]);
+    assert_eq!(copied(&mut h), "[Chart]");
+}
+
+#[test]
+fn a_picture_selected_alone_in_a_signature_settles_as_the_text_a_copy_gives() {
+    let mut h = signature_page();
+    let at = h.state().hit.rect("signatureBody", 0).unwrap().min + egui::vec2(1.0, 8.0);
+    frames(&mut h, click_events(at, 1));
+    h.state_mut().execute("compose.select", json!({"from": 0})).unwrap();
+    let data = crate::files::base64_lite::encode(&crate::compose::picture_tests::png(40));
+    h.state_mut().execute("signature.picture.add", json!({"data": data, "alt": "Logo"})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0})).unwrap();
+    h.run_steps(1);
+    assert_eq!(keyed(&mut h, Modifiers::SHIFT, Key::ArrowRight), ["[Logo]"]);
+    assert_eq!(copied(&mut h), "[Logo]");
 }

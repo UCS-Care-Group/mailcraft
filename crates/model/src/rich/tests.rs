@@ -692,3 +692,13 @@ fn a_fixed_width_family_comes_back_as_courier_new() {
         assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier), "{first}");
     }
 }
+
+#[test]
+fn a_picture_past_the_most_characters_leaves_the_text_of_its_paragraph_before_it() {
+    let text = RichText::from_paragraphs(vec![
+        Paragraph::new(vec![Run::plain("Heading")], ListKind::None),
+        Paragraph::new(vec![Run::plain("x".repeat(MAX_CHARS)), Run::picture(1, Style::default())], ListKind::None),
+    ]);
+    // "Heading", the break after it, and as much of the line as fits: the picture is past them.
+    assert_eq!((text.text(), text.pictures()), (format!("Heading\n{}", "x".repeat(MAX_CHARS - 8)), vec![]));
+}

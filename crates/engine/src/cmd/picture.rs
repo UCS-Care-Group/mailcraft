@@ -26,7 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("insert.picture", "Pictures", "Insert › Illustrations", insert)
             .pure()
             .params(
-                r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
+                r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels, at least 3; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together (a picture the text shows twice counted twice), and none in the message's signature (which goes out with its own pictures only). Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
             )
             .when_writing(needs_picture),
     ]
@@ -74,10 +74,20 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
     let file = renamed.as_deref().unwrap_or(file);
     let alt = p::str(v, "alt");
     let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
-    let (kept, seq) = (c.pictures.clone(), c.picture_seq);
     if let Some(at) = at {
         c.body.select(at, at).map_err(|e| fail(e.to_string()))?;
     }
+    // Each time the text shows a picture counts (one pasted twice, twice), the selection it takes
+    // the place of aside, so that all of them cut can always be pasted back; and the signature put
+    // in the message goes out with its own pictures only.
+    match super::format::room(s) {
+        None => return Err(super::format::not_in_signature()),
+        Some(0) => return Err(super::format::too_many(s)),
+        Some(_) => {}
+    }
+    let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
+    let (kept, seq) = (c.pictures.clone(), c.picture_seq);
+    // The pictures the selection shows are kept, for undo: at a cap the new one is refused.
     let held: HashSet<u32> = c.body.text().pictures().into_iter().collect();
     let id = model::add(&mut c.pictures, &mut c.picture_seq, &held, file, bytes, alt, width).map_err(|e| fail(e.to_string()))?;
     let run = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(id, Style::default())], Default::default())]);
