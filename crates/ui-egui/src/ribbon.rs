@@ -273,7 +273,7 @@ impl Item {
     }
 
     /// What the tooltip calls it.
-    fn tip_text(&self) -> String {
+    pub(crate) fn tip_text(&self) -> String {
         if self.tip.is_empty() { self.name() } else { tl!(self.tip).to_string() }
     }
 }
@@ -688,38 +688,41 @@ fn align_items(look: &Look, section: u8) -> [Item; 3] {
     ]
 }
 
+/// The Message tab's Basic Text group as `look` says the text is: the composer's formatting, which
+/// File › Signatures draws for the open signature too, so that the two can't drift apart.
+pub(crate) fn basic_text(look: &Look) -> Vec<Item> {
+    let [left, center, right] = align_items(look, 1);
+    vec![
+        Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
+        Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
+        Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
+        Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
+        Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
+        Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
+        Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
+        Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(1, 3).plain(),
+        Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(1, 3).plain(),
+        left,
+        center,
+        right,
+        Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(1, 4).plain(),
+        Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(1, 4).plain(),
+        Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(1, 5).plain(),
+    ]
+}
+
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
-    let [left, center, right] = align_items(&look, 1);
     Tab::of(vec![
         g("Send", vec![Item::big("send", "Send", "compose.send", no()).at(0, 1)]),
         g(
             "Clipboard",
             vec![Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain()],
         ),
-        g(
-            "Basic Text",
-            vec![
-                Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
-                Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
-                Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
-                Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
-                Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
-                Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
-                Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
-                Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(1, 3).plain(),
-                Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(1, 3).plain(),
-                left,
-                center,
-                right,
-                Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(1, 4).plain(),
-                Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(1, 4).plain(),
-                Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(1, 5).plain(),
-            ],
-        ),
+        g("Basic Text", basic_text(&look)),
         g("Names", vec![Item::big("checkNames", "Check\nNames", "compose.checkNames", no()).at(3, 4)]),
         g(
             "Include",

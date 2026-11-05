@@ -295,12 +295,7 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
         ui.menu_button(tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
-        for (label, on, command) in [("B", look.bold, "format.bold"), ("I", look.italic, "format.italic"), ("U", look.underline, "format.underline")]
-        {
-            if ui.add(egui::Button::selectable(on, egui::RichText::new(label).strong())).on_hover_text(tl!(command_label(command))).clicked() {
-                let _ = app.run(command, json!({}));
-            }
-        }
+        ui.menu_button(tl!("Highlight"), |ui| crate::ribbon::highlight_menu(ui, app));
         if ui.add(egui::Button::selectable(look.link, tl!("Link"))).clicked() {
             let _ = app.run("compose.link", json!({}));
         }
@@ -331,6 +326,7 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    basic_text(app, ui, &look);
     egui::Frame::NONE.fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).inner_margin(10.0).show(ui, |ui| {
         ui.set_min_height(150.0);
         editor::show_doc(app, ui, Which::Signature, 130.0, false);
@@ -507,12 +503,23 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
 }
 
-fn command_label(command: &str) -> &'static str {
-    match command {
-        "format.bold" => "Bold",
-        "format.italic" => "Italic",
-        _ => "Underline",
-    }
+/// The buttons of the Message tab's Basic Text group, as the ribbon draws them, each showing what
+/// the open signature's selection is; its menus are the first row's Font, Size, Colour and Highlight. A click
+/// runs the command on the signature and leaves the keyboard in it.
+fn basic_text(app: &mut MailApp, ui: &mut Ui, look: &crate::ribbon::Look) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 1.0;
+        for item in crate::ribbon::basic_text(look) {
+            let Some((command, params)) = &item.command else { continue };
+            let on = app.enabled(command);
+            let resp = crate::widgets::small_frame(ui, item.icon, None, on, item.checked, false);
+            app.hit.add("signatureBar", crate::ribbon::hit_id(item.key), resp.rect);
+            let resp = crate::widgets::command_tooltip(app, resp, &item.tip_text(), item.key, command);
+            if resp.clicked() && on {
+                let _ = app.run(command, params.clone());
+            }
+        }
+    });
 }
 
 /// The picture that is the selection, alone: its width and description, and taking it out.

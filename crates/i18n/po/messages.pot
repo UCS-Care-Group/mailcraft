@@ -4132,6 +4132,11 @@ msgstr ""
 msgid "High on top"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
 msgid "Hold Unsent Mail"

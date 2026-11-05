@@ -188,6 +188,23 @@ fn alignment_in_the_open_signature_is_saved_and_goes_out_inside_the_table_and_ab
     assert!(html.contains("<div style=\"text-align:center\"><img src=\"cid:sig-"), "{html}");
 }
 
+/// File › Signatures' bar has the Message tab's Text Highlight Color too (#580, part 3): a
+/// highlight in the open signature is saved and goes out with it.
+#[test]
+fn a_highlight_in_the_open_signature_is_saved_and_goes_out() {
+    let mut s = session();
+    logo(&mut s);
+    run(&mut s, "signature.open", json!({"name": "Logo"}));
+    run(&mut s, "format.highlight", json!({"value": "#ffff00", "from": 1, "to": 6}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("<span style=\"background-color:#ffff00\">Avery</span>"), "{html}");
+}
+
 #[test]
 fn a_plain_text_message_has_the_signature_in_words_and_no_pictures() {
     let mut s = session();

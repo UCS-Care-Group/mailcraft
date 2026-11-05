@@ -4736,6 +4736,11 @@ msgstr "Priorità alta"
 msgid "High on top"
 msgstr "Alta in alto"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
