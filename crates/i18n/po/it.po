@@ -15521,6 +15521,11 @@ msgid "the mailbox has no folders"
 msgstr "la cassetta postale non ha cartelle"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the mailbox is still being saved; try again when that is done (the status bar shows how far it has got)"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "the mailbox isn't kept in a file, so content outside memory can't be read"

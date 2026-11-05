@@ -2664,8 +2664,9 @@ impl Session {
     }
 
     /// A .pst import that came in a batch at a time, kept as one step to undo: the mailbox as it
-    /// is without the messages `added` and the folders `made`, and with the categories as they
-    /// were (#815). What the owner did meanwhile stays as it is.
+    /// is without the messages `added`, without the folders `made` that are empty then, and with
+    /// the categories as they were (#815). What the owner did meanwhile stays as it is: a folder
+    /// of the import that holds mail or a folder of the owner's stays, with them in it.
     pub(crate) fn keep_import_step(&mut self, label: &'static str, added: &[Id], made: &[Id], categories: Vec<mailcraft_model::Category>) {
         if added.is_empty() && made.is_empty() && categories == self.mailbox.categories {
             return;
@@ -2674,7 +2675,28 @@ impl Session {
         for id in added {
             before.mailbox.messages.remove(id);
         }
-        before.mailbox.remove_folders(made);
+        // The folders it made, deepest first (each was made after its parent), that hold nothing
+        // once its mail is out: not a message, not a folder.
+        let holding: HashSet<Id> = before.mailbox.messages.values().map(|m| m.folder).collect();
+        let mut children: HashMap<Id, usize> = HashMap::new();
+        for f in &before.mailbox.folders {
+            if let Some(p) = f.parent {
+                *children.entry(p).or_default() += 1;
+            }
+        }
+        let mut gone = Vec::new();
+        for id in made.iter().rev() {
+            if holding.contains(id) || children.get(id).copied().unwrap_or(0) > 0 {
+                continue;
+            }
+            if let Some(p) = before.mailbox.folder(*id).and_then(|f| f.parent)
+                && let Some(n) = children.get_mut(&p)
+            {
+                *n = n.saturating_sub(1);
+            }
+            gone.push(*id);
+        }
+        before.mailbox.remove_folders(&gone);
         before.mailbox.categories = categories;
         before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
         before.mail = true;
@@ -2684,6 +2706,11 @@ impl Session {
         }
         self.redo.clear();
         self.dirty = true;
+    }
+
+    /// Whether a .pst import is putting its mail in, batch by batch (Undo waits).
+    pub fn importing_pst(&self) -> bool {
+        self.pst_running.is_some()
     }
 
     pub fn can_undo(&self) -> bool {

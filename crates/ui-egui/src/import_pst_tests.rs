@@ -209,3 +209,40 @@ fn batches_come_in_as_they_arrive_and_cancel_keeps_them() {
     h.state_mut().session.run("edit.undo", &json!({})).unwrap();
     assert_eq!(messages(&h), before);
 }
+
+/// The window of an import that is reading goes (another dialog in its place): the import stops,
+/// what came in is one step to undo, and Undo is free again.
+#[test]
+fn an_import_whose_window_goes_is_one_step_to_undo() {
+    let dir = Scratch::new("replaced");
+    let path = pst(&dir, 5, None);
+    let (jobs_tx, jobs_rx) = channel::<(PstJob, Sender<Event>)>();
+    let services = Services {
+        import_pst: Some(Box::new(move |job: PstJob| {
+            let (tx, rx) = channel();
+            jobs_tx.send((job, tx)).unwrap();
+            rx
+        })),
+        ..Default::default()
+    };
+    let mut h = window(services, &dir);
+    let before = messages(&h);
+    open(&mut h, &path);
+    click(&mut h, "Import");
+    let (job, tx) = jobs_rx.try_recv().unwrap();
+    let mut events = Vec::new();
+    mailcraft_engine::import_pst::read_path(&job.path, &job.job, &job.progress, &mut |e| {
+        events.push(e);
+        true
+    });
+    tx.send(events.remove(0)).unwrap();
+    h.run_steps(4);
+    assert!(messages(&h) > before && h.state().session.importing_pst());
+    h.state_mut().dialog = None;
+    h.run_steps(2);
+    assert!(job.progress.is_cancelled());
+    assert!(!h.state().session.importing_pst());
+    assert_eq!(h.state().session.undo_label(), Some("Import a .pst File"));
+    h.state_mut().session.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(messages(&h), before);
+}

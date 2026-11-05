@@ -103,6 +103,11 @@ impl ImportPst {
         importing
     }
 
+    /// Whether it is reading and putting the mail in.
+    pub fn is_importing(&self) -> bool {
+        matches!(self.phase, Phase::Importing(_))
+    }
+
     fn file(&self) -> String {
         self.path.rsplit(['/', '\\']).next().unwrap_or(&self.path).to_string()
     }

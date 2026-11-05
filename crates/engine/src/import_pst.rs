@@ -859,6 +859,8 @@ impl Running {
         let gone: Vec<Id> = self.made.drain(made.min(self.made.len())..).collect();
         s.mailbox.remove_folders(&gone);
         let gone: HashSet<Id> = gone.into_iter().collect();
+        // (The folder named after the file, made by this batch, is gone with it.)
+        s.pst_tops.retain(|_, top| !gone.contains(top));
         self.paths.retain(|_, id| !gone.contains(id));
         for names in self.names.values_mut() {
             names.retain(|_, id| !id.is_some_and(|id| gone.contains(&id)));
@@ -891,7 +893,11 @@ fn check_top(s: &Session, top: Id) -> Result<(), CmdError> {
 pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdError> {
     let mut run = match s.pst_running.take() {
         Some(r) if r.identity == batch.identity => r,
-        _ => Running::start(s, place, &batch.identity)?,
+        Some(r) => {
+            s.pst_running = Some(r);
+            return Err(fail(BUSY));
+        }
+        None => Running::start(s, place, &batch.identity)?,
     };
     let (made, added) = (run.made.len(), run.added.len());
     let r = put(s, &mut run, batch);
@@ -974,6 +980,9 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
     Ok(answer)
 }
 
+/// Why another import waits.
+const BUSY: &str = "A .pst file is being imported: try again when it is done";
+
 /// The label of an import's step to undo (the command's own).
 pub const IMPORT_LABEL: &str = "Import a .pst File";
 
@@ -1029,11 +1038,23 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
     if p::bool(v, "staged").unwrap_or(false) {
         // Read by the window, off its thread, and handed over a batch at a time.
         let name = p::str(v, "name").map(tidy_name).unwrap_or_else(|| "Imported .pst".to_string());
-        let place = place_of(s, v, &name)?;
-        return match s.staged_pst.take().ok_or_else(|| fail("nothing is waiting to be imported"))? {
-            Staged::Batch(batch) => Ok(json!({"staged": apply(s, &place, batch)?})),
-            Staged::Done(outcome) => finish(s, &place, *outcome, true),
+        let staged = s.staged_pst.take().ok_or_else(|| fail("nothing is waiting to be imported"))?;
+        let place = place_of(s, v, &name);
+        return match staged {
+            Staged::Batch(batch) => Ok(json!({"staged": apply(s, &place?, batch)?})),
+            Staged::Done(outcome) => {
+                // The last word: whatever becomes of it, what came in is one step to undo.
+                let done = place.and_then(|place| finish(s, &place, *outcome, true));
+                if done.is_err() {
+                    end_staged(s);
+                }
+                done
+            }
         };
+    }
+    // Not while the window's import runs: that one is still putting its mail in.
+    if s.pst_running.is_some() {
+        return Err(fail(BUSY));
     }
     #[cfg(target_arch = "wasm32")]
     {

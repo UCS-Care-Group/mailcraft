@@ -662,23 +662,94 @@ fn an_import_is_one_step_to_undo() {
     assert!(s.mailbox.messages.is_empty());
 }
 
-/// An import that ends without its last word keeps what came in as one step, and Undo is free.
-#[test]
-fn an_import_ended_early_is_one_step_too() {
-    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", (0..5).map(|i| note(&format!("N {i}"))).collect(), vec![])]));
-    let mut s = session();
+/// The batches and the outcome of reading `bytes`.
+fn staged(bytes: &[u8]) -> (Vec<Batch>, crate::import_pst::Outcome) {
     let mut batches = Vec::new();
-    read(Cursor::new(&bytes), &job(false), Limits::default(), &Progress::default(), &mut |b: Batch| {
+    let outcome = read(Cursor::new(bytes), &job(false), Limits::default(), &Progress::default(), &mut |b: Batch| {
         batches.push(b);
         Ok(())
     })
     .unwrap();
-    s.staged_pst = Some(crate::import_pst::Staged::Batch(batches.remove(0)));
-    s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
-    crate::import_pst::end_staged(&mut s);
+    (batches, outcome)
+}
+
+fn hand_over(s: &mut Session, what: crate::import_pst::Staged, params: &Json) -> Result<Json, crate::CmdError> {
+    s.staged_pst = Some(what);
+    s.run("file.importPst", params)
+}
+
+fn letters(n: usize) -> Vec<u8> {
+    w::build(&folder_list(vec![folder("Inbox", "IPF.Note", (0..n).map(|i| note(&format!("N {i}"))).collect(), vec![])]))
+}
+
+/// The place goes for good while the window's import runs: its last word fails, and what came
+/// in is still one step to undo, with Undo free again.
+#[test]
+fn an_import_whose_last_word_fails_is_one_step_too() {
+    let mut s = session();
+    let account = s.mailbox.local_account();
+    let under = s.mailbox.add_folder(account, None, "Archives").unwrap();
+    let (mut batches, outcome) = staged(&letters(6));
+    let params = json!({"staged": true, "name": "old-mail", "places": {"mail": under}});
+    hand_over(&mut s, crate::import_pst::Staged::Batch(batches.remove(0)), &params).unwrap();
+    s.mailbox.remove_folders(&[under]);
+    assert!(hand_over(&mut s, crate::import_pst::Staged::Batch(batches.remove(0)), &params).is_err());
+    assert!(hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).is_err());
+    assert!(!s.importing_pst(), "the import is over");
     assert_eq!(s.undo_label(), Some("Import a .pst File"));
     s.run("edit.undo", &json!({})).unwrap();
-    assert!(s.mailbox.messages.is_empty());
+}
+
+/// Undoing an import takes out its mail alone: what the owner put in its folders meanwhile, a
+/// message or a folder, stays where it was put; Redo brings the import back.
+#[test]
+fn undoing_an_import_keeps_what_the_owner_put_in_its_folders() {
+    let mut s = session();
+    let account = s.mailbox.local_account();
+    let inbox = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    let own = s.mailbox.add_message(Message { folder: inbox, subject: "the owner's".into(), ..Default::default() }).unwrap();
+    let (batches, outcome) = staged(&letters(8));
+    let params = json!({"staged": true, "name": "old-mail"});
+    for (i, b) in batches.into_iter().enumerate() {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+        if i == 0 {
+            let imported = folder_id(&s, &["old-mail", "Inbox"]).unwrap();
+            s.mailbox.message_mut(own).unwrap().folder = imported;
+            s.mailbox.add_folder(account, Some(imported), "Sub").unwrap();
+        }
+    }
+    hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).unwrap();
+    assert_eq!(s.mailbox.messages.len(), 9);
+    s.run("edit.undo", &json!({})).unwrap();
+    let imported = folder_id(&s, &["old-mail", "Inbox"]).expect("the folder with the owner's things stays");
+    assert_eq!(s.mailbox.messages.len(), 1);
+    assert_eq!(s.mailbox.message(own).unwrap().folder, imported);
+    assert!(folder_id(&s, &["old-mail", "Inbox", "Sub"]).is_some(), "the owner's folder stays where it was");
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.messages.len(), 9);
+}
+
+/// Another import (an agent's, a script's) waits while the window's runs, which keeps its one
+/// step and its Undo held; a batch of another file is refused too.
+#[test]
+fn another_import_waits_while_one_runs() {
+    let mut s = session();
+    let bytes = letters(6);
+    let (mut batches, outcome) = staged(&bytes);
+    let params = json!({"staged": true, "name": "old-mail"});
+    hand_over(&mut s, crate::import_pst::Staged::Batch(batches.remove(0)), &params).unwrap();
+    let e = import(&mut s, &bytes, json!({})).unwrap_err().to_string();
+    assert!(e.contains("being imported"), "{e}");
+    let mut other = Batch::default();
+    other.identity = "another file".into();
+    assert!(hand_over(&mut s, crate::import_pst::Staged::Batch(other), &params).unwrap_err().to_string().contains("being imported"));
+    assert!(s.importing_pst());
+    for b in batches {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+    }
+    hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.messages.is_empty(), "the first batch is in the step too");
 }
 
 /// A batch is measured by all a message holds (P2-3): recipients and headers too.

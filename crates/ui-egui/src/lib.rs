@@ -4273,6 +4273,11 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // A .pst import whose window went while it read (closed, or another dialog put in its
+        // place) has stopped: what came in is one step to undo, and Undo is free again.
+        if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
+            mailcraft_engine::import_pst::end_staged(&mut self.session);
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
