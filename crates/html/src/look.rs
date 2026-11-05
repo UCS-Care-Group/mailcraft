@@ -10,13 +10,18 @@
 //! something hidden, besides other boxes. Otherwise the element is drawn in the line, as it
 //! would be without `display: inline-block`.
 //!
+//! Tables floated to a side (`align="left"` or `"right"`) stand side by side the same way, when
+//! their holder holds two or more of them and nothing else but white space, a comment or something
+//! hidden: text or a block beside a float would flow round it in a browser, which is not done here,
+//! so there the tables stay where they were.
+//!
 //! The look is bounded: it reads at most [`MAX_TOKENS`] tokens for one holder, the looks of a
 //! message together read at most [`MAX_LOOKED`], and the verdict for a holder is kept, so a page
 //! of many boxes is read once. Past a bound the answer is no.
 
 use std::collections::HashMap;
 
-use crate::blocks::{block_name, canon, css_of, has_box_look, left_out};
+use crate::blocks::{block_name, canon, css_of, floated, has_box_look, left_out};
 use crate::entities::unescape;
 use crate::is_blank;
 use crate::media::Env;
@@ -47,6 +52,8 @@ pub(crate) struct Look<'a> {
     html: &'a str,
     sheet: Option<Sheet>,
     verdicts: HashMap<usize, bool>,
+    /// The verdicts on holders of floated tables.
+    floats: HashMap<usize, bool>,
     left: usize,
 }
 
@@ -54,7 +61,7 @@ impl<'a> Look<'a> {
     /// `env`: the pane and theme the `@media` of the sheets are tested against, for the look as
     /// for the build.
     pub fn new(html: &'a str, env: &Env) -> Look<'a> {
-        Look { html, sheet: Sheet::read_in(html, env), verdicts: HashMap::new(), left: MAX_LOOKED }
+        Look { html, sheet: Sheet::read_in(html, env), verdicts: HashMap::new(), floats: HashMap::new(), left: MAX_LOOKED }
     }
 
     /// Put what the sheet says about the `ordinal`th start tag on `tag`. Whether a rule for dark
@@ -87,12 +94,24 @@ impl<'a> Look<'a> {
         if let Some(verdict) = self.verdicts.get(&holder.id) {
             return *verdict;
         }
-        let verdict = self.read(holder);
+        let verdict = self.read(holder, false);
         self.verdicts.insert(holder.id, verdict);
         verdict
     }
 
-    fn read(&mut self, holder: &Holder) -> bool {
+    /// Whether the holder holds two or more tables floated to a side and nothing else but white
+    /// space and what is hidden.
+    pub fn only_floats(&mut self, holder: &Holder) -> bool {
+        if let Some(verdict) = self.floats.get(&holder.id) {
+            return *verdict;
+        }
+        let verdict = self.read(holder, true);
+        self.floats.insert(holder.id, verdict);
+        verdict
+    }
+
+    /// `floats`: everything the holder holds that is shown is a floated table, two or more.
+    fn read(&mut self, holder: &Holder, floats: bool) -> bool {
         if let Some(sheet) = self.sheet.as_mut() {
             sheet.keep_answers();
         }
@@ -104,6 +123,9 @@ impl<'a> Look<'a> {
         let mut open: Vec<String> = Vec::new();
         let mut skipping: Option<usize> = None;
         let mut read = 0usize;
+        // The floated tables met, and whether that is the verdict the holder's end gives.
+        let mut found = 0usize;
+        let done = |found: usize| !floats || found >= 2;
         for mut token in tokens {
             read += 1;
             let cost = 1 + match &token {
@@ -142,10 +164,16 @@ impl<'a> Look<'a> {
                     }
                     if skipping.is_none() {
                         if ends_holder(holder.name, name) {
-                            return true;
+                            return done(found);
                         }
                         let css = css_of(tag);
                         let hidden = left_out(tag, &css);
+                        if floats && !hidden {
+                            if floated(tag, &css).is_none() {
+                                return false;
+                            }
+                            found += 1;
+                        }
                         if !hidden && holds_more(name) {
                             return false;
                         }
@@ -170,13 +198,13 @@ impl<'a> Look<'a> {
                             skipping = None;
                         }
                     } else if skipping.is_none() && closes_holder(holder.name, name) {
-                        return true;
+                        return done(found);
                     }
                 }
             }
         }
         // The input ended: so did the holder.
-        true
+        done(found)
     }
 }
 

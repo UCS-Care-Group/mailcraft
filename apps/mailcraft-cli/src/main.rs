@@ -23,6 +23,14 @@ USAGE:
   mailcraft-cli import <mailbox> <file>... [--folder PATH]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
+  mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
+                                                preview: the mail of a .pst file
+                                                into a new folder named after the file on this
+                                                computer (or under the local folder PATH); the
+                                                file's password, when it has one, is read from
+                                                MAILCRAFT_PST_PASSWORD. Prints the import report
+                                                (JSON) and saves the mailbox (not with --dry-run);
+                                                a second import skips what is already there
   mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
@@ -341,6 +349,28 @@ fn run(args: &[String]) -> Result<(), Failure> {
             eprintln!("wrote {mailbox}");
             Ok(())
         }
+        "import-pst" => {
+            let pos = positionals("import-pst", &rest, &[flag("--dry-run"), value("--under")])?;
+            let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
+            let dry = rest.iter().any(|a| a == "--dry-run");
+            let mut s = open_or_new(mailbox)?;
+            let mut params = json!({"path": file, "dryRun": dry});
+            if let Some(under) = arg_value(&rest, "--under") {
+                s.run("folder.select", &json!({"path": under}))?;
+                params["places"] = json!({"mail": s.view.folder});
+            }
+            // The file's password from the environment, never the command line.
+            if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {
+                params["password"] = json!(password);
+            }
+            let report = s.run("file.importPst", &params).map_err(|e| format!("{file}: {e}"))?;
+            print_json(&report)?;
+            if !dry {
+                s.run("file.save", &json!({"path": mailbox}))?;
+                eprintln!("wrote {mailbox}");
+            }
+            Ok(())
+        }
         "export" => {
             let pos = positionals("export", &rest, &[value("--folder"), value("--id")])?;
             let mut s = open(pos.first().ok_or_else(missing)?)?;
@@ -442,9 +472,16 @@ fn run(args: &[String]) -> Result<(), Failure> {
                         Ok(token) => token,
                         Err(_) => {
                             if oauth.client_id.is_empty() {
-                                // The one named when this runs, else the one the build was given.
-                                let built_in = option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default().to_string();
-                                oauth.client_id = std::env::var("MAILCRAFT_MS_CLIENT_ID").unwrap_or(built_in);
+                                // Never give a Google sign-in the Microsoft app registration.
+                                let (variable, built_in) = match oauth.provider {
+                                    mailcraft_model::OAuthProvider::Microsoft => {
+                                        ("MAILCRAFT_MS_CLIENT_ID", option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default())
+                                    }
+                                    mailcraft_model::OAuthProvider::Google => {
+                                        ("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID").unwrap_or_default())
+                                    }
+                                };
+                                oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
                             }
                             let open = |url: &str| {
                                 eprintln!(
@@ -453,8 +490,24 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 )
                             };
                             let cancel = std::sync::atomic::AtomicBool::new(false);
-                            let tokens =
-                                mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel).map_err(|e| format!("sync: {e}"))?;
+                            let signed_in = match oauth.provider {
+                                mailcraft_model::OAuthProvider::Microsoft => {
+                                    mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel)
+                                }
+                                mailcraft_model::OAuthProvider::Google => {
+                                    let default = option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_default();
+                                    let secret = std::env::var("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| default.to_string());
+                                    mailcraft_net::oauth::sign_in_google_at(
+                                        &mailcraft_net::oauth::Endpoints::of(&oauth),
+                                        &oauth,
+                                        &secret,
+                                        &request.account.email,
+                                        &open,
+                                        &cancel,
+                                    )
+                                }
+                            };
+                            let tokens = signed_in.map_err(|e| format!("sync: {e}"))?;
                             if tokens.someone_else(&request.account.email, &request.account.username) {
                                 return Err(SOMEONE_ELSE.to_string().into());
                             }

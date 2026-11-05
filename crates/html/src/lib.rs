@@ -434,6 +434,13 @@ pub struct Table {
     /// A picture behind the whole table, over its background colour (#601).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bg_picture: Option<Box<BgPicture>>,
+    /// A box on a line that the source floats to a side: a table with `align="left"` or
+    /// `"right"` among two or more such tables that are all its holder holds. Its block's `align`
+    /// is the side. The boxes that float left stand from the left edge of the line in their order,
+    /// those that float right from the right edge, the first of them outermost; a box that has no
+    /// room left goes on in a line below. No white space parts them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub float: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -593,7 +600,11 @@ mod bg_tests;
 #[cfg(test)]
 mod data_tests;
 #[cfg(test)]
+mod float_tests;
+#[cfg(test)]
 mod inline_tests;
+#[cfg(test)]
+mod nested_align_tests;
 #[cfg(test)]
 mod text_link_tests;
 
