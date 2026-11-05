@@ -342,9 +342,12 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
         assert_eq!(f.lacks(), None, "{kind:?}");
         assert!(s.run("rules.add", &f.command().1).is_ok(), "{kind:?}");
     }
+    // Forwarding too, though only a server forwards mail and this account's rules stay on this
+    // computer (forward_tests.rs).
+    assert!(!s.mailbox.keeps_rules(f.account));
     for kind in Do::ALL {
-        f.acts = vec![Act { kind, ..f.fresh_action() }];
-        assert!(s.run("rules.add", &f.command().1).is_ok(), "{kind:?}");
+        f.acts = vec![Act { kind, people: "books@example.org".into(), ..f.fresh_action() }];
+        assert_eq!(s.run("rules.add", &f.command().1).is_ok(), !kind.forwards(), "{kind:?}");
     }
 }
 

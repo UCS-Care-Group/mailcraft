@@ -24,6 +24,10 @@ use crate::{Address, FlagStatus, Id, Importance, Message, ModelError, Sensitivit
 /// Most words one condition looks for, any of which is enough.
 pub const MAX_WORDS_EACH: usize = 20;
 
+/// The most people a rule forwards or redirects mail to, all its forwarding actions together:
+/// what a Microsoft account's server takes (Exchange Online's limits, #566).
+pub const MAX_FORWARD_TO: usize = 10;
+
 /// The words of a condition, any of which is enough (Outlook's Search Text): one is written as
 /// text, as rules had it before they took several (#566), so that an earlier MailCraft still
 /// reads it; either is read.
@@ -411,6 +415,13 @@ pub enum Action {
     FlagFor(FollowUp),
     ClearFlag,
     ClearCategories,
+    /// Forward it to these people (their whole addresses), as a message of the owner's with the
+    /// original under it (#566). Only a server does it: see [`Rule::forwards`].
+    ForwardTo(Vec<String>),
+    /// Forward it to these people with the original attached.
+    ForwardAsAttachmentTo(Vec<String>),
+    /// Send it on to these people as it is, from its sender.
+    RedirectTo(Vec<String>),
 }
 
 impl Action {
@@ -441,6 +452,17 @@ impl Action {
             },
             Action::ClearFlag => lang.t("clear its flag").into(),
             Action::ClearCategories => lang.t("clear its categories").into(),
+            Action::ForwardTo(to) => fmt(lang.t("forward it to {people}"), &[("people", &to.join(", "))]),
+            Action::ForwardAsAttachmentTo(to) => fmt(lang.t("forward it as an attachment to {people}"), &[("people", &to.join(", "))]),
+            Action::RedirectTo(to) => fmt(lang.t("redirect it to {people}"), &[("people", &to.join(", "))]),
+        }
+    }
+
+    /// The people it forwards or redirects mail to, for one that does.
+    pub fn forwards_to(&self) -> Option<&[String]> {
+        match self {
+            Action::ForwardTo(to) | Action::ForwardAsAttachmentTo(to) | Action::RedirectTo(to) => Some(to),
+            _ => None,
         }
     }
 
@@ -455,7 +477,8 @@ impl Action {
             | Action::FlagFor(_)
             | Action::ClearFlag
             | Action::ClearCategories => 0,
-            Action::CopyTo(_) => 1,
+            // Never run here ([`Rule::forwards`]); on a server, before mail goes elsewhere.
+            Action::CopyTo(_) | Action::ForwardTo(_) | Action::ForwardAsAttachmentTo(_) | Action::RedirectTo(_) => 1,
             Action::MoveTo(_) | Action::Delete => 2,
             Action::DeleteForGood => 3,
         }
@@ -621,6 +644,7 @@ impl Rule {
         let open = |c: &Condition| c.unread_in(m) && !c.holds_in(m, how);
         self.enabled
             && self.known()
+            && self.runs_anywhere()
             && !self.conditions.is_empty()
             && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
             && !self.exceptions.iter().any(|c| !c.unread_in(m) && c.matches_in(m, how))
@@ -629,7 +653,21 @@ impl Rule {
 
     /// Whether it is on and its conditions hold, exceptions aside.
     fn reaches(&self, m: &Message, how: &Matching<'_>) -> bool {
-        self.enabled && self.known() && !self.conditions.is_empty() && self.conditions.iter().all(|c| c.holds_in(m, how))
+        self.enabled && self.known() && self.runs_anywhere() && !self.conditions.is_empty() && self.conditions.iter().all(|c| c.holds_in(m, how))
+    }
+
+    /// Whether it forwards or redirects mail (#566). Only its account's server does that: as in
+    /// Outlook, where an Exchange account's server forwards, and so that an organisation's block
+    /// on forwarding outside it, which holds for the server's rules, isn't gone round by mail
+    /// sent from here. One the server doesn't have (not yet, or not taken) does nothing here, and
+    /// Run Rules Now leaves out one it has: the server forwards new mail as it arrives.
+    pub fn forwards(&self) -> bool {
+        self.actions.iter().any(|a| a.forwards_to().is_some())
+    }
+
+    /// Whether it runs at all: one that forwards only once its server has it.
+    fn runs_anywhere(&self) -> bool {
+        !self.forwards() || self.on_server()
     }
 
     /// `When from contains "x" and has an attachment, except if it is flagged: flag it, mark it

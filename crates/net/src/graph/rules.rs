@@ -37,6 +37,10 @@ pub const MAX_FOLDER_LOOKUPS: usize = 20;
 const MOVE: &str = "moveToFolder";
 /// And its copy.
 const COPY: &str = "copyToFolder";
+/// What its forwarding is called: to people, with the message attached, and sent on as it is.
+const FORWARD: &str = "forwardTo";
+const FORWARD_ATTACHED: &str = "forwardAsAttachmentTo";
+const REDIRECT: &str = "redirectTo";
 
 /// The account's rules, as its server has them. `folders` are the ids of the account's folders
 /// as its mail has them; a rule that moves mail to a folder named otherwise has it looked up.
@@ -259,6 +263,10 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
                 _ => false,
             },
             "markAsRead" => take(Action::MarkRead),
+            // Each a list of people by their addresses; one without one isn't known here.
+            FORWARD => addresses_of(value).is_some_and(|to| take(Action::ForwardTo(to))),
+            FORWARD_ATTACHED => addresses_of(value).is_some_and(|to| take(Action::ForwardAsAttachmentTo(to))),
+            REDIRECT => addresses_of(value).is_some_and(|to| take(Action::RedirectTo(to))),
             "markImportance" => value.as_str().and_then(Importance::parse).is_some_and(|i| take(Action::SetImportance(i))),
             "delete" => take(Action::Delete),
             MOVE | COPY => match value.as_str() {
@@ -388,6 +396,17 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
             Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Err("the server's rules can't flag mail"),
             Action::ClearCategories => return Err("the server's rules can't clear categories"),
             Action::MoveTo(_) | Action::CopyTo(_) => return Err("a folder a rule puts mail in is named by the server's id"),
+            Action::ForwardTo(to) | Action::ForwardAsAttachmentTo(to) | Action::RedirectTo(to) => {
+                let name = match action {
+                    Action::ForwardTo(_) => FORWARD,
+                    Action::ForwardAsAttachmentTo(_) => FORWARD_ATTACHED,
+                    _ => REDIRECT,
+                };
+                let people: Vec<Value> = to.iter().map(|a| json!({"emailAddress": {"address": a}})).collect();
+                if to.is_empty() || actions.insert(name.into(), Value::Array(people)).is_some() {
+                    return Err("the server's rules forward mail one way to one list of people");
+                }
+            }
         }
     }
     if !categories.is_empty() {

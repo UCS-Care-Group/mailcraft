@@ -86,7 +86,10 @@ computer, for you, and for nothing else:
 - changing the rules your mailbox keeps on Microsoft's servers (the same permission), so that a
   rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is
+  nowhere else. A rule that forwards or redirects mail carries the addresses of the people it goes to,
+  and your Microsoft account then sends the mail the rule picks out on to them, whether MailCraft is
+  open or not (your organisation may stop mail going outside it); MailCraft itself forwards nothing by a
+  rule, and an agent makes or switches on such a rule only after you say yes. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is
   asked for by itself the first time a rule is to go to the server, after the program has asked you, and
   File › Info shows whether it was given. Until it is, your rules stay on this computer and nothing of them
   is sent; the rules already on the server are read with your mailbox settings and shown;

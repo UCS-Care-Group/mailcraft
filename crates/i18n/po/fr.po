@@ -422,6 +422,12 @@ msgstr "Une règle de Tous les comptes est modifiée quand elle est donnée à u
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A rule kept on this computer doesn't forward mail: only a server does"
+msgstr "Une règle conservée sur cet ordinateur ne transfère pas de courrier : seul un serveur le fait"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A rule needs a name, and something to look for."
 msgstr "Une règle a besoin d'un nom et de quelque chose à rechercher."
 
@@ -460,6 +466,18 @@ msgstr "Une règle indique à MailCraft que faire du courrier à son arrivée. L
 #, fuzzy
 msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
 msgstr "Une règle indique à MailCraft que faire du courrier à son arrivée. Les règles s'exécutent de haut en bas : d'abord celles de Tous les comptes, puis celles-ci."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule that forwards mail is kept on the server, which can't keep this one: {why}. Leave that part out to add it."
+msgstr "Une règle qui transfère du courrier est conservée sur le serveur, qui ne peut pas garder celle-ci : {why}. Retirez cette partie pour l'ajouter."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule that forwards mail is kept on the server: only a server forwards mail"
+msgstr "Une règle qui transfère du courrier est conservée sur le serveur : seul un serveur transfère du courrier"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -4320,6 +4338,24 @@ msgstr "Transférer cette occurrence…"
 msgid "Forward as Attachment"
 msgstr "Transférer en tant que pièce jointe"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Forward as an attachment to"
+msgstr "Transférer en tant que pièce jointe à"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Forward to"
+msgstr "Transférer à"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Forward to, Forward as an attachment to and Redirect to take people with whole addresses, at most 10 in all."
+msgstr "« Transférer à », « Transférer en tant que pièce jointe à » et « Rediriger vers » demandent des personnes aux adresses complètes, 10 au plus en tout."
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -5183,6 +5219,12 @@ msgstr "Il part comme un message depuis la Boîte d'envoi au prochain Envoyer/Re
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it doesn't run: only the server forwards mail."
+msgstr "Elle passe sur le serveur dès que MailCraft peut modifier les règles du serveur (Fichier › Informations › Redemander) ; d'ici là, elle ne s'exécute pas : seul le serveur transfère du courrier."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
 msgstr "Elle passe sur le serveur dès que MailCraft peut modifier les règles du serveur (Fichier › Informations › Redemander) ; d'ici là, elle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
 
@@ -5307,6 +5349,12 @@ msgstr "Ses messages dans d'autres dossiers restent où ils sont."
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Its server forwards new mail as it arrives: Run Rules Now leaves this rule out"
+msgstr "Son serveur transfère le nouveau courrier à son arrivée : « Exécuter les règles maintenant » laisse cette règle de côté"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7392,6 +7440,24 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Pas maintenant : elle sera installée quand vous quitterez MailCraft."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not running yet: only the server forwards mail, and it doesn't have this rule yet ({why})"
+msgstr "Pas encore active : seul le serveur transfère du courrier, et il n'a pas encore cette règle ({why})"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not running: only the server forwards mail, and it doesn't have this rule"
+msgstr "Inactive : seul le serveur transfère du courrier, et il n'a pas cette règle"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not running: the server didn't take it ({why}), and only the server forwards mail"
+msgstr "Inactive : le serveur ne l'a pas acceptée ({why}), et seul le serveur transfère du courrier"
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Not saved"
@@ -7671,6 +7737,12 @@ msgstr "En ligne"
 #, fuzzy
 msgid "Online meeting"
 msgstr "Réunion en ligne"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"
+msgstr "Seul le serveur d'un compte Microsoft transfère du courrier par une règle, et MailCraft conserve les règles de ce compte sur cet ordinateur"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -8669,6 +8741,12 @@ msgstr "L'adresse du destinataire contient"
 #, fuzzy
 msgid "Recurrence"
 msgstr "Périodicité"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Redirect to"
+msgstr "Rediriger vers"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -14200,6 +14278,12 @@ msgid "Your organisation lets only an administrator approve a new program. Nothi
 msgstr "Dans votre organisation, seul un administrateur peut approuver un nouveau programme. Votre compte et votre mot de passe ne posent aucun problème, et il n'y a rien à attendre ici."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Your organisation may not let mail be forwarded outside it. Then the server doesn't forward it, and the sender, not you, gets a notice that it wasn't delivered."
+msgstr "Votre organisation peut ne pas permettre de transférer du courrier à l'extérieur. Le serveur ne le transfère alors pas, et c'est l'expéditeur, pas vous, qui reçoit un avis de non-remise."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password."
@@ -14430,8 +14514,20 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account doesn't forward mail: only an account's server does"
+msgstr "une règle pour tous les comptes ne transfère pas de courrier : seul le serveur d'un compte le fait"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "une règle porte sur le courrier propre d'un compte, pas sur celui d'une boîte aux lettres partagée"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule kept on this computer doesn't forward mail: only its server does, so keep it on the server first"
+msgstr "une règle conservée sur cet ordinateur ne transfère pas de courrier : seul son serveur le fait, conservez-la donc d'abord sur le serveur"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -14444,6 +14540,18 @@ msgstr "la règle d'un compte ne peut pas aller sur le serveur d'un autre compte
 #, fuzzy
 msgid "a rule stays for its account"
 msgstr "une règle reste propre à son compte"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule that forwards mail is kept on its account's server, which can't keep this one: {why}"
+msgstr "une règle qui transfère du courrier est conservée sur le serveur de son compte, qui ne peut pas garder celle-ci : {why}"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule that forwards mail is kept on its account's server: only a server forwards mail"
+msgstr "une règle qui transfère du courrier est conservée sur le serveur de son compte : seul un serveur transfère du courrier"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -14806,6 +14914,18 @@ msgstr "pour le courrier de {account}"
 #. what a command says
 #: crates/model/src/rule.rs
 #, fuzzy
+msgid "forward it as an attachment to {people}"
+msgstr "le transférer en tant que pièce jointe à {people}"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "forward it to {people}"
+msgstr "le transférer à {people}"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
 msgid "from contains {words}"
 msgstr "l'expéditeur contient {words}"
 
@@ -14979,6 +15099,12 @@ msgstr "il supprime définitivement"
 #, fuzzy
 msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
 msgstr "elle supprime le courrier définitivement, ce que MailCraft ne demande à aucun serveur"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it forwards or redirects mail one way twice, and the server takes one list of people for each way"
+msgstr "elle transfère ou redirige du courrier deux fois de la même façon, et le serveur n'accepte qu'une liste de personnes par façon"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15443,6 +15569,12 @@ msgid "on"
 msgstr "le"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"
+msgstr "seul le serveur d'un compte Microsoft transfère du courrier par une règle, et MailCraft conserve les règles de ce compte sur cet ordinateur"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "only a message you sent can be sent again"
 msgstr ""
@@ -15539,6 +15671,12 @@ msgstr "un destinataire contient {words}"
 #, fuzzy
 msgid "recipient's address contains {words}"
 msgstr "l'adresse d'un destinataire contient {words}"
+
+#. what a command says
+#: crates/model/src/rule.rs
+#, fuzzy
+msgid "redirect it to {people}"
+msgstr "le rediriger vers {people}"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -17737,6 +17875,12 @@ msgstr "{who} a été ajouté par une version plus récente de MailCraft, {then}
 #, fuzzy
 msgid "{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."
 msgstr "{why} ; les connexions ne sont donc pas mémorisées : MailCraft les redemande à chaque démarrage."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "{why}. Take the forwarding out to save the rule."
+msgstr "{why}. Retirez le transfert pour enregistrer la règle."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs

@@ -365,6 +365,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A rule kept on this computer doesn't forward mail: only a server does"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "A rule needs a name, and something to look for."
 msgstr ""
 
@@ -396,6 +401,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "A rule tells MailCraft what to do with mail as it arrives. Rules run from the top down: those of All accounts first, then these."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A rule that forwards mail is kept on the server, which can't keep this one: {why}. Leave that part out to add it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A rule that forwards mail is kept on the server: only a server forwards mail"
 msgstr ""
 
 #. interface
@@ -3742,6 +3757,21 @@ msgstr ""
 msgid "Forward as Attachment"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Forward as an attachment to"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Forward to"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Forward to, Forward as an attachment to and Redirect to take people with whole addresses, at most 10 in all."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Forwarded to {n} person"
@@ -4499,6 +4529,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it doesn't run: only the server forwards mail."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
 msgstr ""
 
@@ -4605,6 +4640,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Its server forwards new mail as it arrives: Run Rules Now leaves this rule out"
 msgstr ""
 
 #. interface
@@ -6385,6 +6425,21 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Not running yet: only the server forwards mail, and it doesn't have this rule yet ({why})"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Not running: only the server forwards mail, and it doesn't have this rule"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Not running: the server didn't take it ({why}), and only the server forwards mail"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Not saved"
 msgstr ""
@@ -6622,6 +6677,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Online meeting"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"
 msgstr ""
 
 #. interface
@@ -7502,6 +7562,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Recurrence"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Redirect to"
 msgstr ""
 
 #. command label, name
@@ -12327,6 +12392,11 @@ msgid "Your organisation lets only an administrator approve a new program. Nothi
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Your organisation may not let mail be forwarded outside it. Then the server doesn't forward it, and the sender, not you, gets a notice that it wasn't delivered."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password."
 msgstr ""
@@ -12533,7 +12603,17 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule for every account doesn't forward mail: only an account's server does"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 msgid "a rule is for an account's own mail, not a shared mailbox's"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule kept on this computer doesn't forward mail: only its server does, so keep it on the server first"
 msgstr ""
 
 #. what a command says
@@ -12544,6 +12624,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule stays for its account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule that forwards mail is kept on its account's server, which can't keep this one: {why}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule that forwards mail is kept on its account's server: only a server forwards mail"
 msgstr ""
 
 #. what a command says
@@ -12857,6 +12947,16 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/rule.rs
+msgid "forward it as an attachment to {people}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "forward it to {people}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
 msgid "from contains {words}"
 msgstr ""
 
@@ -13008,6 +13108,11 @@ msgstr ""
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it forwards or redirects mail one way twice, and the server takes one list of people for each way"
 msgstr ""
 
 #. interface
@@ -13406,6 +13511,11 @@ msgid "on"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "only a message you sent can be sent again"
 msgstr ""
@@ -13488,6 +13598,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/rule.rs
 msgid "recipient's address contains {words}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rule.rs
+msgid "redirect it to {people}"
 msgstr ""
 
 #. what a command says
@@ -15411,6 +15526,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "{why}. Take the forwarding out to save the rule."
 msgstr ""
 
 #. interface

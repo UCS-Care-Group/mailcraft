@@ -1530,7 +1530,14 @@ mod event {
     /// (with Tab, say) is suggested nothing and stays exactly as it is. When it is left,
     /// the names on it that stand for one contact become that contact, and from then on it reads
     /// as the people it names.
-    fn attendee_line(ui: &mut Ui, pass: &mut Pass, s: &Session, key: &'static str, text: &mut String, hint: &str) {
+    pub(super) fn attendee_line(
+        ui: &mut Ui,
+        pass: &mut Pass,
+        s: &Session,
+        key: impl std::hash::Hash + std::fmt::Debug,
+        text: &mut String,
+        hint: &str,
+    ) {
         let t = pass.t;
         let id = kit::field_id(key);
         let focused = ui.memory(|m| m.has_focus(id));
@@ -5694,7 +5701,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, files_elsewhere, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, Condition, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, Address, Condition, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body_over, close_button, error, error_room, footer, row, shown, tall_row};
@@ -5973,10 +5980,14 @@ pub(crate) mod rules {
         SetImportance,
         Delete,
         DeleteForGood,
+        /// Forward, forward as an attachment and redirect: to people, by a server alone (#566).
+        Forward,
+        ForwardAttached,
+        Redirect,
     }
 
     impl Do {
-        const ALL: [Do; 10] = [
+        const ALL: [Do; 13] = [
             Do::Move,
             Do::Copy,
             Do::Categorize,
@@ -5987,6 +5998,9 @@ pub(crate) mod rules {
             Do::SetImportance,
             Do::Delete,
             Do::DeleteForGood,
+            Do::Forward,
+            Do::ForwardAttached,
+            Do::Redirect,
         ];
 
         fn label(self) -> &'static str {
@@ -6001,12 +6015,20 @@ pub(crate) mod rules {
                 Do::SetImportance => "Set importance",
                 Do::Delete => "Delete",
                 Do::DeleteForGood => "Delete permanently",
+                Do::Forward => "Forward to",
+                Do::ForwardAttached => "Forward as an attachment to",
+                Do::Redirect => "Redirect to",
             }
         }
 
         /// It puts mail in a folder.
         fn takes_folder(self) -> bool {
             matches!(self, Do::Move | Do::Copy)
+        }
+
+        /// It sends mail on to people, which only a server does.
+        fn forwards(self) -> bool {
+            matches!(self, Do::Forward | Do::ForwardAttached | Do::Redirect)
         }
     }
 
@@ -6020,6 +6042,8 @@ pub(crate) mod rules {
         importance: Importance,
         /// When a flag falls due: none for no date.
         due: Option<FollowUp>,
+        /// Whom it forwards to, as typed: names and addresses set apart by semicolons.
+        people: String,
     }
 
     impl Act {
@@ -6039,7 +6063,15 @@ pub(crate) mod rules {
                 Do::SetImportance => json!({"type": "setImportance", "value": self.importance.code()}),
                 Do::Delete => json!({"type": "delete"}),
                 Do::DeleteForGood => json!({"type": "deleteForGood"}),
+                Do::Forward => json!({"type": "forwardTo", "value": self.addresses()}),
+                Do::ForwardAttached => json!({"type": "forwardAsAttachmentTo", "value": self.addresses()}),
+                Do::Redirect => json!({"type": "redirectTo", "value": self.addresses()}),
             }
+        }
+
+        /// The addresses of the people it forwards to.
+        fn addresses(&self) -> Vec<String> {
+            Address::parse_list(&self.people).into_iter().map(|a| a.email.trim().to_string()).filter(|a| !a.is_empty()).collect()
         }
     }
 
@@ -6099,6 +6131,9 @@ pub(crate) mod rules {
             Action::SetImportance(i) => Act { importance: *i, ..kind(Do::SetImportance) },
             Action::Delete => kind(Do::Delete),
             Action::DeleteForGood => kind(Do::DeleteForGood),
+            Action::ForwardTo(to) => Act { people: to.join("; "), ..kind(Do::Forward) },
+            Action::ForwardAsAttachmentTo(to) => Act { people: to.join("; "), ..kind(Do::ForwardAttached) },
+            Action::RedirectTo(to) => Act { people: to.join("; "), ..kind(Do::Redirect) },
         }
     }
 
@@ -6420,7 +6455,21 @@ pub(crate) mod rules {
         }
         if r.waiting() {
             let reason = server_cannot(mb, r, account).map_or_else(|| app.rules_wait_reason(account), why);
+            // Only a server forwards mail (#566): until it has the rule, the rule does nothing.
+            if r.forwards() {
+                return crate::i18n::fmt(
+                    tl!("Not running yet: only the server forwards mail, and it doesn't have this rule yet ({why})"),
+                    &[("why", &reason)],
+                );
+            }
             return crate::i18n::fmt(tl!("Only on this computer for now: {why}"), &[("why", &reason)]);
+        }
+        if r.forwards() {
+            if !r.refused.is_empty() {
+                let said = tl!("Not running: the server didn't take it ({why}), and only the server forwards mail");
+                return crate::i18n::fmt(said, &[("why", &shown(&r.refused, 120))]);
+            }
+            return tl!("Not running: only the server forwards mail, and it doesn't have this rule").to_string();
         }
         if !mb.keeps_rules(r.account) {
             return tl!("On this computer").to_string();
@@ -6625,8 +6674,14 @@ pub(crate) mod rules {
             ui.close();
         }
         let over = crate::i18n::fmt(tl!("Run this rule over {folder}"), &[("folder", &shown(rows.folder, 80))]);
-        let why_not = if r.known() { tl!("Switch the rule on to run it") } else { tl!("MailCraft can't run a rule with parts it can't show") };
-        let can_run = r.enabled && r.known();
+        let why_not = if r.forwards() {
+            tl!("Its server forwards new mail as it arrives: Run Rules Now leaves this rule out")
+        } else if r.known() {
+            tl!("Switch the rule on to run it")
+        } else {
+            tl!("MailCraft can't run a rule with parts it can't show")
+        };
+        let can_run = r.enabled && r.known() && !r.forwards();
         if ui.add_enabled(can_run, egui::Button::new(tl!("Run Rule Now"))).on_hover_text(over).on_disabled_hover_text(why_not).clicked() {
             *run = Some(("rules.run", json!({"id": r.id})));
             ui.close();
@@ -6811,7 +6866,14 @@ pub(crate) mod rules {
         }
 
         fn fresh_action(&self) -> Act {
-            Act { kind: Do::Move, folder: self.first_folder, category: self.first_category.clone(), importance: Importance::High, due: None }
+            Act {
+                kind: Do::Move,
+                folder: self.first_folder,
+                category: self.first_category.clone(),
+                importance: Importance::High,
+                due: None,
+                people: String::new(),
+            }
         }
 
         /// From the rule page (a new rule's, or one being changed) back to the lists, letting what
@@ -6908,11 +6970,17 @@ pub(crate) mod rules {
             }
             if self.account != 0 {
                 params["account"] = json!(self.account);
-                if !self.server {
+                // One that forwards mail is the server's, whatever the box said before.
+                if !self.server && !self.forwards() {
                     params["server"] = json!(false);
                 }
             }
             ("rules.add", params)
+        }
+
+        /// Whether the rule being made forwards or redirects mail (#566).
+        fn forwards(&self) -> bool {
+            self.acts.iter().any(|a| a.kind.forwards())
         }
 
         /// What the rule still needs before Add can run, in words: a name, all that each
@@ -6946,6 +7014,15 @@ pub(crate) mod rules {
             }
             if self.acts.is_empty() && !self.alert {
                 return Some(tl!("A rule needs something to do: an action, or a desktop alert."));
+            }
+            // Whole addresses, at most ten people in all, as `rules.add` takes them.
+            let forwarding: Vec<&Act> = self.acts.iter().filter(|a| a.kind.forwards()).collect();
+            let whole = |a: &&Act| {
+                let list = Address::parse_list(&a.people);
+                !list.is_empty() && list.iter().all(|p| by_address(p.email.trim()))
+            };
+            if !forwarding.iter().all(whole) || forwarding.iter().map(|a| a.addresses().len()).sum::<usize>() > mailcraft_model::MAX_FORWARD_TO {
+                return Some(tl!("Forward to, Forward as an attachment to and Redirect to take people with whole addresses, at most 10 in all."));
             }
             let acts = self.acts.iter().all(|a| match a.kind {
                 kind if kind.takes_folder() => a.folder != 0,
@@ -6996,7 +7073,7 @@ pub(crate) mod rules {
                             // Then the new rule alone over the mail already in the folder, as the
                             // menu that opened it says and Outlook offers.
                             let made = v.get("id").and_then(Value::as_u64);
-                            if let Some(((folder, _), rule)) = self.run_in.take().filter(|_| self.then_run).zip(made) {
+                            if let Some(((folder, _), rule)) = self.run_in.take().filter(|_| self.then_run && !self.forwards()).zip(made) {
                                 match app.execute("rules.run", json!({"folder": folder, "id": rule})) {
                                     Ok(v) => self.ran = v.get("matched").and_then(Value::as_u64),
                                     Err(e) => self.error = e,
@@ -7227,10 +7304,12 @@ pub(crate) mod rules {
                     let said = tl!("It moved or copied mail to another account's folder: choose the folder again.");
                     ui.label(egui::RichText::new(said).size(11.5).color(t.orange));
                 }
-                asked = self.builder(ui, &mut pass, &categories, &place, held);
+                asked = self.builder(ui, &mut pass, &app.session, &categories, &place, held);
             });
             error(ui, &self.error);
-            let ready = self.lacks().is_none() && !matches!(place, Where::Server(Some(_)));
+            let ready = self.lacks().is_none()
+                && !matches!(place, Where::Server(Some(_)))
+                && !(self.forwards() && matches!(place, Where::Choose(_, Some(_)) | Where::Here));
             let buttons = footer(ui, if changed.is_some() { tl!("Save") } else { tl!("Add Rule") }, ready, false);
             if back || buttons.cancel {
                 self.back();
@@ -7242,12 +7321,12 @@ pub(crate) mod rules {
         /// The rule being made: its name, then its conditions, exceptions and actions each in a
         /// box of its own, as Outlook's new rule has them, then the rest. Returns `true` when Enter
         /// asked for Add Rule (which runs only when the rule has all it needs).
-        fn builder(&mut self, ui: &mut Ui, pass: &mut Pass, categories: &[String], place: &Where, held: bool) -> bool {
+        fn builder(&mut self, ui: &mut Ui, pass: &mut Pass, s: &Session, categories: &[String], place: &Where, held: bool) -> bool {
             let t = pass.t;
             // A rule kept on the server looks at addresses alone, as the server does; one kept here
             // at names too.
             let on_server = match place {
-                Where::Choose(_, cannot) => self.server && cannot.is_none(),
+                Where::Choose(_, cannot) => (self.server || self.forwards()) && cannot.is_none(),
                 Where::Server(_) => true,
                 Where::Here => false,
             };
@@ -7299,12 +7378,24 @@ pub(crate) mod rules {
             let fresh = self.fresh_action();
             // The last action can go when the alert is all the rule does.
             let many = self.acts.len() > 1 || self.alert;
-            let (acts, folders) = (&mut self.acts, &self.folders);
+            // Only a server forwards mail (#566): a Microsoft account's, which keeps the rule.
+            let no_forwarding = match place {
+                Where::Here => Some(tl!("A rule kept on this computer doesn't forward mail: only a server does")),
+                Where::Choose(_, Some(NotOnServer::NotInStep)) => Some(tl!(NotOnServer::NotInStep.said())),
+                Where::Choose(_, Some(NotOnServer::NoServer)) => {
+                    Some(tl!("Only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"))
+                }
+                _ => None,
+            };
+            let lists = ActLists { folders: &self.folders, categories, no_forwarding };
+            // Chosen before, where it can't be now: said, and not saved.
+            let stuck = no_forwarding.filter(|_| self.forwards());
+            let acts = &mut self.acts;
             group(ui, t, tl!("Actions"), tl!("What the rule does to the message"), |ui| {
                 let mut drop_act = None;
                 for (i, a) in acts.iter_mut().enumerate() {
                     row(ui, if i == 0 { tl!("Then") } else { tl!("and") }, |ui| {
-                        if act_row(ui, t, a, i, folders, categories, many) {
+                        if act_row(ui, pass, s, a, (i, many), &lists) {
                             drop_act = Some(i);
                         }
                     });
@@ -7334,18 +7425,41 @@ pub(crate) mod rules {
                     ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
                 });
             }
+            if let Some(why) = stuck {
+                let said = crate::i18n::fmt(tl!("{why}. Take the forwarding out to save the rule."), &[("why", why)]);
+                tall_row(ui, "", |ui| {
+                    ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
+                });
+            }
             // Where a new rule is kept: the owner says, while the server can do all of it; greyed,
             // with why, when it can't.
+            // One that forwards mail is the server's, or isn't made (#566).
+            let forwards = self.forwards();
             if let Where::Choose(address, cannot) = place {
-                let can = cannot.is_none();
-                let mut ticked = self.server && can;
+                let can = cannot.is_none() && !forwards;
+                let mut ticked = (self.server || forwards) && cannot.is_none();
                 let label = crate::i18n::fmt(tl!("Keep on the server of {address}"), &[("address", address)]);
                 row(ui, "", |ui| {
-                    if ui.add_enabled(can, egui::Checkbox::new(&mut ticked, label)).changed() {
+                    let tip = if forwards { tl!("A rule that forwards mail is kept on the server: only a server forwards mail") } else { "" };
+                    if ui.add_enabled(can, egui::Checkbox::new(&mut ticked, label)).on_disabled_hover_text(tip).changed() {
                         self.server = ticked;
                     }
                 });
                 let (said, warn) = match cannot {
+                    // Said above.
+                    Some(_) if stuck.is_some() => (String::new(), true),
+                    Some(why) if forwards => (
+                        crate::i18n::fmt(
+                            tl!("A rule that forwards mail is kept on the server, which can't keep this one: {why}. Leave that part out to add it."),
+                            &[("why", tl!(why.said()))],
+                        ),
+                        true,
+                    ),
+                    None if forwards && held => (
+                        tl!("It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it doesn't run: only the server forwards mail.")
+                            .to_string(),
+                        true,
+                    ),
                     Some(NotOnServer::NoServer) => {
                         (tl!("MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open.").to_string(), false)
                     }
@@ -7364,16 +7478,33 @@ pub(crate) mod rules {
                     None if ticked => {
                         (tl!("It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone.").to_string(), false)
                     }
+                    None if forwards => {
+                        (tl!("It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone.").to_string(), false)
+                    }
                     None => (tl!("It runs on this computer, while MailCraft is open.").to_string(), false),
                 };
                 // Wrapped within the dialog: a reason can be long.
+                if !said.is_empty() {
+                    tall_row(ui, "", |ui| {
+                        ui.label(egui::RichText::new(said).color(if warn { t.orange } else { t.text_dim }).size(11.5));
+                    });
+                }
+            }
+            // An organisation may not let its mail be forwarded outside it, and then the sender,
+            // not the owner, hears of it from the server (#566).
+            if forwards && outside_the_organisation(s, self.giving.unwrap_or(self.account), &self.acts) {
                 tall_row(ui, "", |ui| {
-                    ui.label(egui::RichText::new(said).color(if warn { t.orange } else { t.text_dim }).size(11.5));
+                    let said = tl!(
+                        "Your organisation may not let mail be forwarded outside it. Then the server doesn't forward it, and the sender, not you, gets a notice that it wasn't delivered."
+                    );
+                    ui.label(egui::RichText::new(said).color(t.text_dim).size(11.5));
                 });
             }
+            // Run Rules Now leaves out a rule that forwards: its server forwards new mail.
             if let Some(label) = self
                 .run_in
                 .as_ref()
+                .filter(|_| !forwards)
                 .map(|(_, path)| crate::i18n::fmt(tl!("Then run it over the mail already in {folder}"), &[("folder", &shown(path, 80))]))
             {
                 row(ui, "", |ui| {
@@ -7393,10 +7524,16 @@ pub(crate) mod rules {
     /// One action of the rule being made: what it does, and the folder, category, importance or
     /// due day it takes. Returns `true` when its button to take it out was clicked (it has one
     /// when it isn't the only thing the rule does: `removable`).
-    fn act_row(ui: &mut Ui, t: Tokens, a: &mut Act, i: usize, folders: &[(Id, String)], categories: &[String], removable: bool) -> bool {
-        egui::ComboBox::from_id_salt(("do", i)).width(150.0).selected_text(tl!(a.kind.label())).show_ui(ui, |ui| {
+    fn act_row(ui: &mut Ui, pass: &mut Pass, s: &Session, a: &mut Act, (i, removable): (usize, bool), lists: &ActLists<'_>) -> bool {
+        let t = pass.t;
+        let (folders, categories) = (lists.folders, lists.categories);
+        // Tall enough for every kind, forwarding last, with no scrolling.
+        egui::ComboBox::from_id_salt(("do", i)).width(150.0).height(420.0).selected_text(tl!(a.kind.label())).show_ui(ui, |ui| {
             for kind in Do::ALL {
-                if ui.selectable_label(kind == a.kind, tl!(kind.label())).clicked() {
+                // Forwarding is greyed, with why, where only a server could do it and none will.
+                let why = lists.no_forwarding.filter(|_| kind.forwards() && kind != a.kind);
+                let item = ui.add_enabled(why.is_none(), egui::Button::selectable(kind == a.kind, tl!(kind.label())));
+                if item.on_disabled_hover_text(why.unwrap_or_default()).clicked() {
                     a.kind = kind;
                 }
             }
@@ -7434,8 +7571,36 @@ pub(crate) mod rules {
             Do::DeleteForGood => {
                 ui.label(egui::RichText::new(tl!("It can't be undone")).color(t.orange).size(11.5));
             }
+            // Whom to, with the recipients suggested as the composer suggests them.
+            Do::Forward | Do::ForwardAttached | Do::Redirect => {
+                let height = ui.spacing().interact_size.y;
+                ui.allocate_ui_with_layout(vec2(width, height), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    super::event::attendee_line(ui, pass, s, ("do_people", i), &mut a.people, tl!("Names or addresses, separated by ;"));
+                });
+            }
         }
         removable && remove_button(ui, tl!("Remove this action"))
+    }
+
+    /// Whether the rule being made for `account` may forward mail out of its organisation: the
+    /// account is Microsoft's and not a personal one (by its directory, or by its address, as Open
+    /// Shared Calendar tells), and somebody it forwards to has an address of another domain.
+    fn outside_the_organisation(s: &Session, account: Id, acts: &[Act]) -> bool {
+        use mailcraft_model::Directory;
+        let Some(a) = s.mailbox.account(account).filter(|a| a.kind == mailcraft_model::AccountKind::Microsoft) else { return false };
+        let domain = |address: &str| address.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase());
+        let Some(own) = domain(&a.email) else { return false };
+        let personal = a.oauth.as_ref().is_some_and(|o| o.directory == Directory::Personal || Directory::of_tenant(&o.tenant) == Directory::Personal)
+            || mailcraft_model::provider::by_domain(&own).is_some_and(|preset| preset.service == "Outlook.com");
+        !personal && acts.iter().filter(|x| x.kind.forwards()).flat_map(Act::addresses).any(|to| domain(&to).as_deref() != Some(own.as_str()))
+    }
+
+    /// What the action rows of the rule page choose from: the folders, the categories, and why
+    /// forwarding can't be chosen, when it can't.
+    struct ActLists<'a> {
+        folders: &'a [(Id, String)],
+        categories: &'a [String],
+        no_forwarding: Option<&'static str>,
     }
 
     #[cfg(test)]
@@ -7443,6 +7608,9 @@ pub(crate) mod rules {
 
     #[cfg(test)]
     mod page_tests;
+
+    #[cfg(test)]
+    mod forward_tests;
 
     #[cfg(test)]
     mod tests {

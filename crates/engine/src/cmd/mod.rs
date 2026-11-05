@@ -97,6 +97,8 @@ pub mod rules;
 #[cfg(test)]
 mod rules_edit_tests;
 #[cfg(test)]
+mod rules_forward_tests;
+#[cfg(test)]
 mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]

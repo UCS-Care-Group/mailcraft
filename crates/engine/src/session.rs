@@ -2755,6 +2755,13 @@ impl Session {
             .collect()
     }
 
+    /// Whether undoing (`redo`: redoing) changes the rules and leaves one switched on that forwards
+    /// mail (#566).
+    pub fn undo_rules_forward(&self, redo: bool) -> bool {
+        let step = if redo { self.redo.last() } else { self.history.last() };
+        step.is_some_and(|step| crate::agent::undo_rules_forward(&self.mailbox, &step.mailbox))
+    }
+
     /// Whether undoing (`redo`: redoing) changes the rules and leaves one switched on that deletes
     /// mail for good here (#566).
     pub fn undo_rules_delete_for_good(&self, redo: bool) -> bool {
@@ -2798,6 +2805,10 @@ impl Session {
         }
         // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
         if crate::agent::places_tasks(now, to) {
+            return Some(Class::Send);
+        }
+        // Rules with one switched on that forwards mail to other people (#566).
+        if crate::agent::undo_rules_forward(now, to) {
             return Some(Class::Send);
         }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.

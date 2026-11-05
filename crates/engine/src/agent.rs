@@ -687,6 +687,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if rules_onto_another_server(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    // A rule that forwards or redirects mail sends it to other people, from its server, whether
+    // MailCraft is open or not (#566).
+    if rules_forward(s, id, params).is_some_and(|(makes, beside)| makes || !beside.is_empty()) {
+        return Access::Owner(Class::Send);
+    }
     if rules_delete_for_good(s, id, params) || server_rule_deletes(s, id, params) {
         return Access::Owner(Class::Delete);
     }
@@ -1024,6 +1029,77 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     }
 }
 
+/// What this command does to rules that forward or redirect mail (#566), read as the commands
+/// read them (what they refuse does nothing, and needs no question): whether it makes one,
+/// switches one on or changes one that does after the change, and the rules switched on that
+/// forward mail beside the server's rule it changes. A server runs its rules in order, before
+/// the mail comes here, so a change to its rules may let more mail reach one that forwards (a
+/// rule before it that stopped the rest goes, or one sets a category it looks for); switching
+/// that rule off or deleting it only forwards less. A change to the rules of this computer
+/// doesn't reach the server's. `None` for a command that isn't about rules.
+fn rules_forward<'a>(s: &'a Session, id: &str, params: &Value) -> Option<(bool, Vec<&'a mailcraft_model::Rule>)> {
+    let mb = &s.mailbox;
+    let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
+    let there = |r: &mailcraft_model::Rule| r.keep == mailcraft_model::Keep::Server || r.on_server();
+    // The rule changed: its account and id, whether the command makes or switches on one that
+    // forwards, whether the rule is on after it, and whether it is (or becomes) the server's.
+    let (account, rule, makes, on, server) = match id {
+        "rules.add" => match crate::cmd::rules::rule_from_params(s, params) {
+            Ok(r) => (r.account, 0, r.forwards(), true, there(&r)),
+            Err(_) => return None,
+        },
+        "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
+            Ok((r, _)) => (r.account, 0, false, true, there(&r)),
+            Err(_) => return None,
+        },
+        "rules.enable" => match (p::opt_bool(params, "value"), named()) {
+            (Ok(value), Some(r)) => {
+                let on = value.unwrap_or(!r.enabled);
+                (r.account, r.id, on && r.forwards(), on, there(r))
+            }
+            _ => return None,
+        },
+        // What the rule becomes, switched on or off as it is.
+        "rules.edit" => match crate::cmd::rules::edited_rule(s, params) {
+            Ok((_, r)) => (r.account, r.id, r.enabled && r.forwards(), false, there(&r)),
+            Err(_) => return None,
+        },
+        "rules.keepOnServer" => named().map(|r| (r.account, r.id, false, true, true))?,
+        "rules.move" | "rules.remove" => named().map(|r| (r.account, r.id, false, id != "rules.remove", there(r)))?,
+        _ => return None,
+    };
+    let beside = mb
+        .rules
+        .iter()
+        .filter(|x| server && account != 0 && x.account == account && x.enabled && x.known() && x.forwards() && (on || x.id != rule))
+        .collect();
+    Some((makes, beside))
+}
+
+/// What a question about a change to the rules adds when rules beside it forward mail
+/// ([`rules_forward`]): their names (at most five), and why.
+fn forward_beside_said(s: &Session, id: &str, params: &Value) -> String {
+    let Some((_, beside)) = rules_forward(s, id, params) else { return String::new() };
+    let names: Vec<String> = beside.iter().map(|r| quoted(&r.name)).collect();
+    if names.is_empty() {
+        return String::new();
+    }
+    let more = names.len().saturating_sub(5);
+    let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+    let (rule, verb, them) = if names.len() == 1 { ("rule", "forwards", "it") } else { ("rules", "forward", "them") };
+    format!(
+        "; the {rule} {}{more}, switched on, {verb} mail to other people from the server, and a change to the server's rules may let more mail reach {them}",
+        names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+    )
+}
+
+/// Whether an undo or redo from the rules of `now` to those of `to` changes them and leaves one
+/// switched on that forwards mail: it brings that rule back or switches it on, or changes the
+/// rules beside it, as [`rules_forward`] asks of a command (#566).
+pub(crate) fn undo_rules_forward(now: &Mailbox, to: &Mailbox) -> bool {
+    to.rules != now.rules && to.rules.iter().any(|r| r.enabled && r.known() && r.forwards())
+}
+
 /// Whether the rule `rules.fromMessage` makes from these params, kept on its server, deletes mail:
 /// it runs at once on the mail from that sender, so a yes deletes it, and the window's question
 /// answers with Delete. Asked only because a rule beside it deletes for good, a yes deletes
@@ -1304,6 +1380,9 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         fields.remove("unsaved");
     }
     let mut what = what_it_does(s, id, &bare);
+    if id.starts_with("rules.") {
+        what.push_str(&forward_beside_said(s, id, &bare));
+    }
     // Another mailbox in view closes the message the owner is writing (#494); what isn't saved of
     // it goes to Drafts first, unless it is let go of (`discard`, #470).
     if matches!(id, "file.new" | "file.open") && owner_writing_any(s) {
@@ -1481,6 +1560,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
+                Some(Class::Send) if s.undo_rules_forward(redo) => "the rules, with one switched on that forwards mail to other people,",
                 Some(Class::Send) => {
                     "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
                 }

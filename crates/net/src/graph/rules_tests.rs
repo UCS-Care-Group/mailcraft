@@ -154,13 +154,14 @@ fn a_rule_of_known_parts_is_read_whole() {
 #[test]
 fn parts_this_version_does_not_know_are_named() {
     let rule = rule_of(&json!({
-        "id": "A2", "displayName": "Forward", "sequence": 1, "isEnabled": true,
+        "id": "A2", "displayName": "Odd", "sequence": 1, "isEnabled": true,
         "conditions": {"senderContains": ["a@example.org"], "isEncrypted": true, "messageActionFlag": "call"},
         "exceptions": {"subjectContains": ["private"], "isSigned": true},
-        "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true}
+        // An action Graph doesn't have now, as a later one may add.
+        "actions": {"playSound": true, "delete": true}
     }))
     .unwrap();
-    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo"] {
+    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "playSound"] {
         assert!(rule.unknown.iter().any(|u| u == part), "{part} in {:?}", rule.unknown);
     }
     assert_eq!(rule.unknown.len(), 4, "{:?}", rule.unknown);
@@ -229,6 +230,49 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     // Graph's sizes are in kilobytes (`sizeRange`), as a rule's are: 10 KB to 500 KB goes up as
     // 10 and 500, never as bytes.
     assert_eq!(body["conditions"]["withinSizeRange"], json!({"minimumSize": 10, "maximumSize": 500}));
+}
+
+#[test]
+fn forwarding_is_read_whole_and_written_back_by_addresses_alone() {
+    let people = |a: &[&str]| json!(a.iter().map(|a| json!({"emailAddress": {"name": "Somebody", "address": a}})).collect::<Vec<_>>());
+    let rule = rule_of(&json!({
+        "id": "F1", "displayName": "On to the team", "sequence": 1, "isEnabled": true,
+        "conditions": {"senderContains": ["accounts"]},
+        "actions": {"forwardTo": people(&["ann@example.org", "bob@example.org"]), "forwardAsAttachmentTo": people(&["cat@example.org"]),
+                    "redirectTo": people(&["dan@example.org"]), "stopProcessingRules": true}
+    }))
+    .unwrap();
+    assert!(rule.unknown.is_empty(), "{:?}", rule.unknown);
+    for a in [
+        Action::ForwardTo(vec!["ann@example.org".into(), "bob@example.org".into()]),
+        Action::ForwardAsAttachmentTo(vec!["cat@example.org".into()]),
+        Action::RedirectTo(vec!["dan@example.org".into()]),
+    ] {
+        assert!(rule.actions.contains(&a), "{a:?} in {:?}", rule.actions);
+    }
+    // Written back by their addresses alone, as the server keeps them.
+    let body = rule_body(&rule).unwrap();
+    assert_eq!(
+        body["actions"]["forwardTo"],
+        json!([{"emailAddress": {"address": "ann@example.org"}}, {"emailAddress": {"address": "bob@example.org"}}])
+    );
+    assert_eq!(body["actions"]["forwardAsAttachmentTo"], json!([{"emailAddress": {"address": "cat@example.org"}}]));
+    assert_eq!(body["actions"]["redirectTo"], json!([{"emailAddress": {"address": "dan@example.org"}}]));
+    // Somebody without a whole address, or more people than a rule forwards to, isn't known here:
+    // such a rule is only switched on or off, moved or deleted.
+    for actions in [
+        json!({"forwardTo": [{"emailAddress": {"name": "No address"}}]}),
+        json!({"redirectTo": people(&["not an address"])}),
+        json!({"forwardTo": people(&["a1@example.org", "a2@example.org", "a3@example.org", "a4@example.org", "a5@example.org", "a6@example.org"]),
+               "redirectTo": people(&["b1@example.org", "b2@example.org", "b3@example.org", "b4@example.org", "b5@example.org"])}),
+    ] {
+        let odd = rule_of(&json!({"id": "F2", "displayName": "Odd", "conditions": {"subjectContains": ["x"]}, "actions": actions})).unwrap();
+        assert!(!odd.unknown.is_empty(), "{actions}");
+    }
+    // One way twice can't go up: the server keeps one list of people each way.
+    let mut twice = rule.clone();
+    twice.actions.push(Action::ForwardTo(vec!["eve@example.org".into()]));
+    assert!(rule_body(&twice).is_err());
 }
 
 #[test]

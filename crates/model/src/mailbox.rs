@@ -2816,6 +2816,10 @@ impl Mailbox {
         let waits = ruling == Ruling::Arriving && listed;
         let mut waiting = Vec::new();
         for mut rule in order {
+            // Only its server forwards, new mail as it arrives (Rule::forwards).
+            if now && rule.forwards() {
+                continue;
+            }
             let Some(m) = self.message(id) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
             // says whether the rules after it run, whatever was switched here and not sent yet.
@@ -2914,7 +2918,8 @@ impl Mailbox {
         let Some(m) = self.message(id) else { return false };
         let account = m.account;
         let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(account)).cloned() else { return false };
-        if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
+        // Only its server forwards, new mail as it arrives (Rule::forwards).
+        if rule.forwards() || !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;
         }
         self.act(id, &rule.actions, clock, true);
@@ -2956,6 +2961,8 @@ impl Mailbox {
                 Action::DeleteForGood => {
                     let _ = self.remove_message(id);
                 }
+                // Only a server forwards mail ([`crate::Rule::forwards`]): Run Rules Now does the rest.
+                Action::ForwardTo(_) | Action::ForwardAsAttachmentTo(_) | Action::RedirectTo(_) => {}
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
                     match change {

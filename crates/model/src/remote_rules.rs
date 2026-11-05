@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::remote::{key, line};
-use crate::{Account, Action, Condition, Id, MAX_NAME, MAX_RULES, MAX_WORDS_EACH, clean_name};
+use crate::{Account, Action, Condition, Id, MAX_FORWARD_TO, MAX_NAME, MAX_RULES, MAX_WORDS_EACH, clean_name};
 
 /// Most rules one download is taken to hold; what is beyond is left out and the download is not
 /// complete.
@@ -111,6 +111,8 @@ impl RemoteRule {
         self.conditions = tidy_all(std::mem::take(&mut self.conditions));
         self.exceptions = tidy_all(std::mem::take(&mut self.exceptions));
         let mut actions = Vec::new();
+        // The people the rule forwards or redirects mail to, all its forwarding together.
+        let mut people = 0usize;
         for action in std::mem::take(&mut self.actions).into_iter().take(MAX_PARTS) {
             match action {
                 Action::MoveTo(_) | Action::CopyTo(_) => {}
@@ -121,7 +123,20 @@ impl RemoteRule {
                     Some(name) if c.trim().chars().count() <= MAX_NAME => actions.push(Action::Categorize(name)),
                     _ => note(CUT_CATEGORY),
                 },
-                other => actions.push(other),
+                Action::ForwardTo(to) | Action::ForwardAsAttachmentTo(to) | Action::RedirectTo(to)
+                    if to.is_empty() || !to.iter().all(|a| a.len() <= 254 && crate::search::is_address(a)) =>
+                {
+                    note(CUT_PEOPLE)
+                }
+                Action::ForwardTo(to) | Action::ForwardAsAttachmentTo(to) | Action::RedirectTo(to)
+                    if people.saturating_add(to.len()) > MAX_FORWARD_TO =>
+                {
+                    note(CUT_MANY_PEOPLE)
+                }
+                other => {
+                    people = people.saturating_add(other.forwards_to().map_or(0, <[String]>::len));
+                    actions.push(other)
+                }
             }
         }
         self.actions = actions;
@@ -144,6 +159,8 @@ const CUT_EMPTY: &str = "(a condition with no words)";
 const CUT_CATEGORY: &str = "(a category with no name)";
 const CUT_UNNAMED: &str = "(a part with no name)";
 const CUT_NOT_SERVERS: &str = "(an action a server's rule doesn't take)";
+const CUT_PEOPLE: &str = "(forwarding to someone without a whole address)";
+const CUT_MANY_PEOPLE: &str = "(forwarding to more people than a rule does)";
 
 /// An account's rules, as its server has them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

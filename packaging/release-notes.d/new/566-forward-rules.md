@@ -1,0 +1,1 @@
+- **Rules that forward mail.** A rule for a Microsoft account can forward mail to people, forward it as an attachment or redirect it (at most 10 people in all); it is kept on the account's server, which forwards the mail whether MailCraft is open or not, and for other accounts the three actions are greyed with the reason ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

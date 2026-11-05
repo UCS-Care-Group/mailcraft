@@ -9,7 +9,9 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
-use mailcraft_model::{Action, Condition, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name};
+use mailcraft_model::{
+    Action, Condition, FollowUp, Id, Importance, Keep, MAX_FORWARD_TO, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name,
+};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message};
@@ -20,7 +22,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"} | {"type": "forwardTo"|"forwardAsAttachmentTo"|"redirectTo", "value": address or [address] (at most 10 people, all of a rule's forwarding together)}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account in view, as the Rules window has it), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (one that forwards or redirects mail always is, and is refused for any other account: only a server forwards mail, and it does nothing until the server has it) (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.edit", "Change Rule", "Home › Move", edit).params(
             r#"{"id": number, "name": string, "conditions": [condition], "exceptions"?: [condition], "actions": [action], "stop"?: bool, "alert"?: bool, "account"?: number (for a rule for every account, from before rules had accounts, required: the account it is then for alone, kept on this computer, first of its rules there; for any other rule, its own)} — as `rules.add` takes them: what the rule is becomes that; it stays for its account, where it is kept, switched on or off and in its place. One its server keeps is changed there too at the next look, and can have only what the server can do; refused for one the server doesn't let be changed, one with parts MailCraft can't show (made in another program or on the web) and one the server is still making. Answers {"id", "keep": "server"|"here"}"#,
@@ -31,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"account"?: number} — the rules (of that account and those for every account, in the order they run); each says where it is kept: "server", "waiting" (to go to the server), "here" (with why when it can't go there) or "everyAccount""#,
         ),
         CommandSpec::new("rules.run", "Run Rules Now", "Folder › Clean Up", run)
-            .params(r#"{"folder"?: number (default: the folder in view), "id"?: number (that rule alone)} — the enabled rules for the folder's account, those its server keeps too, over the mail in it; answers {"matched"}"#),
+            .params(r#"{"folder"?: number (default: the folder in view), "id"?: number (that rule alone)} — the enabled rules for the folder's account, those its server keeps too, over the mail in it, but none that forwards or redirects mail (its server does that to new mail as it arrives); answers {"matched"}"#),
         CommandSpec::new("rules.fromMessage", "Always Move Messages From", "Home › Move", from_message)
             .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
@@ -87,6 +89,9 @@ pub enum NotOnServer {
     /// It deletes mail for good, which MailCraft asks of no server (R3): here, as Shift+Delete
     /// does, it goes where the server keeps what can still be recovered.
     DeleteForGood,
+    /// It forwards mail one way twice (forwards it to two lists of people, say): the server keeps
+    /// one list of each.
+    TwoForwards,
 }
 
 impl NotOnServer {
@@ -112,6 +117,7 @@ impl NotOnServer {
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
             NotOnServer::DeleteForGood => "it deletes mail for good, which MailCraft doesn't ask a server to do",
+            NotOnServer::TwoForwards => "it forwards or redirects mail one way twice, and the server takes one list of people for each way",
         }
     }
 }
@@ -144,6 +150,10 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     let mut moves = 0usize;
     let mut copies = 0usize;
     let mut importance: Option<Importance> = None;
+    let forwarding: Vec<_> = rule.actions.iter().filter(|a| a.forwards_to().is_some()).map(std::mem::discriminant).collect();
+    if forwarding.iter().enumerate().any(|(i, k)| forwarding.iter().skip(i + 1).any(|other| other == k)) {
+        return Some(NotOnServer::TwoForwards);
+    }
     for action in &rule.actions {
         match action {
             Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Some(NotOnServer::Flag),
@@ -177,7 +187,12 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
                 importance = Some(*i);
             }
             Action::DeleteForGood => return Some(NotOnServer::DeleteForGood),
-            Action::Categorize(_) | Action::MarkRead | Action::Delete => {}
+            Action::Categorize(_)
+            | Action::MarkRead
+            | Action::Delete
+            | Action::ForwardTo(_)
+            | Action::ForwardAsAttachmentTo(_)
+            | Action::RedirectTo(_) => {}
         }
     }
     match (moves > 1, copies > 1) {
@@ -218,8 +233,13 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
 /// The words under `value`: a text, or a list of them, any one of which is enough; at most
 /// [`MAX_WORDS_EACH`] of 200 characters each. `what` says what they are, for an error.
 fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
+    words_of(v, what, 200)
+}
+
+/// [`words`], each cut to `cap` characters.
+fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> {
     let one = |w: &Value| -> Result<String, CmdError> {
-        let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(200).collect();
+        let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(cap).collect();
         if t.is_empty() { Err(bad(format!("`value` has {what} that is empty"))) } else { Ok(t) }
     };
     let list: Vec<String> = match v.get("value") {
@@ -335,7 +355,47 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
         }
         "delete" => Action::Delete,
         "deleteForGood" => Action::DeleteForGood,
+        "forwardTo" => Action::ForwardTo(forward_people(v)?),
+        "forwardAsAttachmentTo" => Action::ForwardAsAttachmentTo(forward_people(v)?),
+        "redirectTo" => Action::RedirectTo(forward_people(v)?),
         other => return Err(bad(format!("unknown action type \"{other}\""))),
+    })
+}
+
+/// The people a rule forwards or redirects mail to: whole addresses, as a server takes them, each
+/// read whole (one cut short would be somebody else's).
+fn forward_people(v: &Value) -> Result<Vec<String>, CmdError> {
+    let list = words_of(v, "addresses", 255)?;
+    if list.len() > MAX_FORWARD_TO || list.iter().any(|a| !by_address(a)) {
+        return Err(bad(format!("a rule forwards or redirects mail to at most {MAX_FORWARD_TO} people, by their whole addresses")));
+    }
+    Ok(list)
+}
+
+/// Why a rule that forwards or redirects mail can't be what `rule` is, or `None` when it can:
+/// only an account's server forwards mail ([`Rule::forwards`]), so the rule is one of a Microsoft
+/// account, kept on its server.
+fn forwarding_refused(mb: &Mailbox, rule: &Rule) -> Option<CmdError> {
+    if !rule.forwards() {
+        return None;
+    }
+    if rule.account == 0 {
+        return Some(fail("a rule for every account doesn't forward mail: only an account's server does"));
+    }
+    if !mb.keeps_rules(rule.account) {
+        return Some(match server_cannot(mb, rule, rule.account) {
+            Some(NotOnServer::NotInStep) => CmdError::Failed(NotOnServer::NotInStep.said().to_string()),
+            _ => fail("only a Microsoft account's server forwards mail by a rule, and MailCraft keeps this account's rules on this computer"),
+        });
+    }
+    if rule.keep == Keep::Here {
+        return Some(fail("a rule kept on this computer doesn't forward mail: only its server does, so keep it on the server first"));
+    }
+    server_cannot(mb, rule, rule.account).map(|why| {
+        failed!(
+            "a rule that forwards mail is kept on its account's server, which can't keep this one: {why}",
+            why = mailcraft_i18n::Arg::words(why.said())
+        )
     })
 }
 
@@ -408,6 +468,9 @@ fn rule_parts(s: &Session, v: &Value) -> Result<Rule, CmdError> {
         return Err(bad(format!("`actions` has more than {MOST_PARTS}")));
     }
     let actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+    if actions.iter().filter_map(Action::forwards_to).map(<[String]>::len).sum::<usize>() > MAX_FORWARD_TO {
+        return Err(bad(format!("a rule forwards or redirects mail to at most {MAX_FORWARD_TO} people, all its forwarding together")));
+    }
     let alert = p::opt_bool(v, "alert")?.unwrap_or(false);
     if conditions.is_empty() || (actions.is_empty() && !alert) {
         return Err(bad("a rule needs at least one condition and one action"));
@@ -421,7 +484,16 @@ fn rule_parts(s: &Session, v: &Value) -> Result<Rule, CmdError> {
 fn place(s: &Session, rule: &mut Rule, v: &Value) -> Result<(), CmdError> {
     let account = rule.account;
     let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, rule, account) };
-    match (p::opt_bool(v, "server")?, cannot) {
+    let server = p::opt_bool(v, "server")?;
+    // One that forwards mail is the server's, or nothing.
+    if rule.forwards() {
+        if server == Some(false) {
+            return Err(fail("a rule that forwards mail is kept on its account's server: only a server forwards mail"));
+        }
+        rule.keep = Keep::Server;
+        return forwarding_refused(&s.mailbox, rule).map_or(Ok(()), Err);
+    }
+    match (server, cannot) {
         (Some(false), _) => {}
         (Some(true), _) if account == 0 => return Err(bad("say which account's server is to keep it (`account`)")),
         (Some(true), Some(why)) => return Err(CmdError::Failed(why.said().to_string())),
@@ -511,6 +583,9 @@ pub(crate) fn edited_rule(s: &Session, v: &Value) -> Result<(usize, Rule), CmdEr
         if let Some(server) = rule.server.as_mut().filter(|server| !server.id.is_empty() && !same) {
             server.edited = server.edited.checked_add(1).unwrap_or(1);
         }
+    }
+    if let Some(no) = forwarding_refused(&s.mailbox, &rule) {
+        return Err(no);
     }
     Ok((i, rule))
 }

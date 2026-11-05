@@ -291,8 +291,18 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String
 /// Whether two rules do the same, whichever way the categories are written. An action said twice
 /// counts once: it goes to the server once, which gives it back so.
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
+    // The people a rule forwards to, in any order, whatever the case of their addresses.
+    let people = |list: &[String]| {
+        let mut list: Vec<String> = list.iter().map(|a| a.to_lowercase()).collect();
+        list.sort_unstable();
+        list.dedup();
+        list
+    };
     let same = |a: &Action, b: &Action| match (a, b) {
         (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
+        (Action::ForwardTo(x), Action::ForwardTo(y))
+        | (Action::ForwardAsAttachmentTo(x), Action::ForwardAsAttachmentTo(y))
+        | (Action::RedirectTo(x), Action::RedirectTo(y)) => people(x) == people(y),
         _ => a == b,
     };
     here.iter().all(|a| there.iter().any(|b| same(a, b))) && there.iter().all(|b| here.iter().any(|a| same(a, b)))
