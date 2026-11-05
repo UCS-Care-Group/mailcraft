@@ -735,6 +735,8 @@ pub fn contact_from_remote(remote: &RemoteContact) -> Contact {
         websites: remote.websites.clone(),
         birthday: remote.birthday,
         notes: remote.notes.clone(),
+        uid: remote.uid.clone(),
+        book: remote.book.clone(),
         origin: Origin { account: 0, id: remote.id.clone(), change_key: remote.change_key.clone(), ..Default::default() },
         ..Default::default()
     }
@@ -1401,11 +1403,18 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
         let proposes = change.kind == EventChangeKind::Respond && change.send && matches!(change.response, Response::Tentative | Response::Declined);
+        let etag = change
+            .base
+            .as_deref()
+            .map(|base| base.origin.change_key.clone())
+            .or_else(|| event.map(|event| event.origin.change_key.clone()))
+            .unwrap_or_default();
         ops.push(EventOp {
             kind: change.kind,
             event: change.event,
             remote: change.remote.clone(),
             token: change.token.clone(),
+            etag,
             fields,
             series: if change.of_occurrence() { change.series.clone() } else { String::new() },
             occurrence: if change.of_occurrence() { change.occurrence } else { 0 },
@@ -2972,6 +2981,17 @@ fn check_sent(
 ///
 /// `offset_at` is the local zone's offset (minutes east of UTC) at an instant
 /// ([`event_from_remote`]). Nothing is changed when this returns an error.
+/// An event or card's identity for comparisons: its path, without scheme or host. A server may
+/// name the whole address in the answer to a write and only the path in a download, and the two
+/// are the same resource.
+#[allow(dead_code)]
+fn resource_key(id: &str) -> &str {
+    match id.split_once("://") {
+        Some((_, rest)) => rest.find('/').map(|at| &rest[at..]).unwrap_or(rest),
+        None => id,
+    }
+}
+
 pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at: &dyn Fn(Timestamp) -> i32) -> Result<Merged, CmdError> {
     let (account, email) = owner(mailbox, download.account, &download.email).map(|owner| (owner.id, owner.email.clone()))?;
     let remote_calendar = download.calendar.trim();
@@ -3420,10 +3440,16 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         match known.get(&remote.id).and_then(|id| mailbox.contact(*id)) {
             Some(old) => {
                 fresh.id = old.id;
-                // What is only kept here stays as it is here.
+                // What is only kept here stays as it is here; a server's own vCard UID and book
+                // win when it gives them.
                 fresh.categories = old.categories.clone();
                 fresh.favorite = old.favorite;
-                fresh.uid = old.uid.clone();
+                if fresh.uid.is_empty() {
+                    fresh.uid = old.uid.clone();
+                }
+                if fresh.book.is_empty() {
+                    fresh.book = old.book.clone();
+                }
                 if *old == fresh {
                     merged.unchanged += 1;
                 } else if let Ok(contact) = mailbox.contact_mut(fresh.id) {

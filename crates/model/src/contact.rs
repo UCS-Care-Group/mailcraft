@@ -73,6 +73,11 @@ pub struct Contact {
     /// vCard `UID`, kept so an exported card updates the same contact elsewhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub uid: String,
+    /// The address book it came from on its account's server (Linchange's personal book, a book
+    /// shared with the owner, or the organization directory). Empty for a contact kept here only
+    /// and for servers whose contacts are one list.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book: String,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
