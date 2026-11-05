@@ -149,3 +149,17 @@ fn a_refusal_of_a_password_is_said_in_the_interface_language() {
         assert_eq!(in_own_words(other), other);
     }
 }
+
+#[test]
+fn a_google_server_that_takes_no_password_here_isnt_said_to_want_an_app_password() {
+    // An app password is a password too: what helps is a connection that takes one.
+    let mut a = app(false);
+    checks(&mut a, Some(Err(NO_PASSWORD)));
+    let mut h = open(a, json!({}));
+    connect(&mut h, "noor@gmail.com");
+    type_password(&mut h);
+    press(&mut h, Key::Enter);
+    assert_eq!(page(&h), Some(Page::Password));
+    assert!(says(&h, "doesn't take a password on this connection"));
+    assert!(!says(&h, "Google didn't accept the password") && wizard(&h).is_some_and(|w| !w.app_passwords));
+}

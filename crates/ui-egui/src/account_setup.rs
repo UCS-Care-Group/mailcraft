@@ -260,14 +260,15 @@ pub fn address(text: &str) -> Option<(&str, &str)> {
     ok.then_some((text, domain))
 }
 
+/// What `mailcraft-proto`'s IMAP LOGIN says when the server announces LOGINDISABLED (RFC 3501
+/// §6.2.3): no password on this connection, an app password included.
+const NO_PASSWORD_HERE: &str = "sign-in failed: the server doesn't take a password on this connection";
+
 /// What the host said went wrong, in the interface language where it is one of the host's own
 /// sentences; what a server said for itself is left as it said it.
 fn in_own_words(error: &str) -> String {
     match error {
-        // `mailcraft-proto`'s IMAP LOGIN, when the server announces LOGINDISABLED (RFC 3501 §6.2.3).
-        "sign-in failed: the server doesn't take a password on this connection" => {
-            tl!("sign-in failed: the server doesn't take a password on this connection").to_string()
-        }
+        NO_PASSWORD_HERE => tl!("sign-in failed: the server doesn't take a password on this connection").to_string(),
         _ => error.to_string(),
     }
 }
@@ -1258,7 +1259,9 @@ impl AccountSetup {
                 log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
                 self.refuse(e);
-                if google && self.error.starts_with("sign-in failed") {
+                // (A connection that takes no password takes no app password either: that is
+                // said as it is, Google's or not.)
+                if google && self.error.starts_with("sign-in failed") && self.error != NO_PASSWORD_HERE {
                     self.error = tl!("Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password.").to_string();
                     self.app_passwords = true;
                 } else {
