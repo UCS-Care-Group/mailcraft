@@ -2304,6 +2304,7 @@ dependencies = [
  "mailcraft-mcp",
  "mailcraft-model",
  "mailcraft-net",
+ "mailcraft-pst",
  "mailcraft-time",
  "serde_json",
 ]

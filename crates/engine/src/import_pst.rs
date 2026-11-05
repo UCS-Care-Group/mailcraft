@@ -787,7 +787,7 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
             let bytes = base64_decode(data)?;
             read(std::io::Cursor::new(bytes), &job, Limits::default(), &progress, &mut sink)?
         } else if let Some(path) = p::str(v, "path") {
-            let f = crate::io::regular_file(std::path::Path::new(path)).map_err(|e| failed!("{path}: {e}", path = path, e = e.to_string()))?;
+            let f = crate::io::regular_file(std::path::Path::new(path)).map_err(|e| failed!("the .pst file couldn't be opened: {e}", e = e.to_string()))?;
             read(std::io::BufReader::new(f), &job, Limits::default(), &progress, &mut sink)?
         } else {
             return Err(crate::cmd::bad("name the .pst file (`path`), or hand it over as `name` and base64 `data`"));
