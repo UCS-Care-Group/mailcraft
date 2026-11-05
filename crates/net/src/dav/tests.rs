@@ -15,8 +15,10 @@ fn an_mx_host_is_asked_whether_it_is_linchange_without_a_password() {
     );
     // The test asks the two stand-ins instead of a real host: each is reached by the same
     // paths the service roots would be.
-    assert!(names_linchange(&cal.url("/caldav/"), "CalDAV").unwrap());
-    assert!(names_linchange(&card.url("/carddav/"), "CardDAV").unwrap());
+    let (named, _) = send_following(&cal.url("/caldav/"), "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024).unwrap();
+    assert!(names_linchange(&named, "CalDAV"));
+    let (named, _) = send_following(&card.url("/carddav/"), "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024).unwrap();
+    assert!(names_linchange(&named, "CardDAV"));
     let request = cal.request(0);
     assert!(request.starts_with("PROPFIND /caldav/ HTTP/1.1\r\n"));
     assert!(!request.to_ascii_lowercase().contains("authorization"), "{request}");
@@ -87,6 +89,7 @@ fn a_change_made_here_goes_up_as_it_is_the_servers() {
     assert!(request.starts_with("PUT /caldav/ada@example.org/calendar/made-here.ics HTTP/1.1\r\n"), "{request}");
     assert!(request.contains("Authorization: Basic "), "{request}");
     assert!(request.contains("Content-Type: text/calendar; charset=utf-8\r\n"), "{request}");
+    assert!(request.contains("If-None-Match: *\r\n"), "{request}");
     assert!(request.contains("SUMMARY:Stand-up") && request.contains("UID:made-here\r\n"), "{request}");
 }
 
@@ -99,6 +102,34 @@ fn hostile_xml_gives_nothing_and_never_panics() {
 }
 
 #[test]
+fn a_delete_of_an_event_named_by_its_path_is_conditional_on_the_version_read() {
+    use mailcraft_model::remote::{EventChangeKind, EventOp, EventsUpload};
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:e-1\r\nDTSTART:20261012T130000Z\r\nDTEND:20261012T140000Z\r\nSUMMARY:Before\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Type: text/calendar\r\nContent-Length: {}\r\n\r\n{}", ics.len(), ics).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Delete,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics".into(),
+            ..Default::default()
+        }],
+        zone: "UTC".into(),
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Done);
+    assert!(server.request(1).starts_with("DELETE /caldav/ada%40example.org/Calendar/e-1.ics HTTP/1.1\r\n"), "{}", server.request(1));
+    assert!(server.request(1).contains("If-Match: \"v1\"\r\n"), "{}", server.request(1));
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()
@@ -106,4 +137,150 @@ fn a_card_says_which_book_it_came_from() {
         .unwrap();
     let remote = remote_contact(card, "/carddav/ada/contacts/~book-7/one.vcf".into(), "\"1\"".into(), "Suppliers");
     assert_eq!((remote.book.as_str(), remote.uid.as_str(), remote.display_name.as_str()), ("Suppliers", "one", "Ada Lovelace"));
+}
+
+#[test]
+fn an_edit_keeps_unknown_ics_bytes_and_the_events_zone() {
+    use mailcraft_model::remote::{EventChangeKind, EventFields, EventOp, EventsUpload};
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e-1\r\nDTSTAMP:20260101T000000Z\r\nDTSTART;TZID=Europe/Stockholm:20261024T090000\r\nDTEND;TZID=Europe/Stockholm:20261024T100000\r\nRRULE:FREQ=WEEKLY;COUNT=3\r\nSUMMARY:Before\r\nX-PRIVATE:keep\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Reminder\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Length: {}\r\n\r\n{}", ics.len(), ics).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        zone: "UTC".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Update,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics".into(),
+            fields: EventFields { title: Some("After".into()), ..Default::default() },
+            ..Default::default()
+        }],
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Done);
+    let put = server.request(1);
+    assert!(put.contains("SUMMARY:After\r\n"), "{put}");
+    assert!(put.contains("X-PRIVATE:keep\r\n") && put.contains("BEGIN:VALARM") && put.contains("TZID=Europe/Stockholm"), "{put}");
+    assert!(put.contains("If-Match: \"v1\"\r\n"), "{put}");
+}
+
+#[test]
+fn an_event_changed_on_the_server_is_not_overwritten() {
+    use mailcraft_model::remote::{EventChangeKind, EventFields, EventOp, EventsUpload};
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:e-1\r\nDTSTART:20261012T130000Z\r\nDTEND:20261012T140000Z\r\nSUMMARY:Before\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v2\"\r\nContent-Length: {}\r\n\r\n{}", ics.len(), ics).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        zone: "UTC".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Update,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics".into(),
+            etag: "\"v1\"".into(),
+            fields: EventFields { title: Some("After".into()), ..Default::default() },
+            ..Default::default()
+        }],
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Refused);
+    assert_eq!(server.asked(), 1, "only the read that found the newer version");
+}
+
+#[test]
+fn a_meeting_is_not_written_through_caldav() {
+    use mailcraft_model::remote::{EventChangeKind, EventFields, EventOp, EventsUpload};
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:e-1\r\nDTSTART:20261012T130000Z\r\nDTEND:20261012T140000Z\r\nSUMMARY:Meeting\r\nORGANIZER:mailto:ada@example.org\r\nATTENDEE:mailto:bo@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Length: {}\r\n\r\n{}", ics.len(), ics).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        zone: "UTC".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Update,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics".into(),
+            fields: EventFields { title: Some("Changed".into()), ..Default::default() },
+            ..Default::default()
+        }],
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Refused);
+    assert_eq!(server.asked(), 1, "a meeting is refused before any PUT");
+}
+
+#[test]
+fn an_occurrence_is_not_deleted_or_rewritten_as_its_series() {
+    use mailcraft_model::remote::{EventChangeKind, EventOp, EventsUpload};
+    let server = FakeHttp::answering(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        zone: "UTC".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Delete,
+            event: 42,
+            remote: "/caldav/ada%40example.org/Calendar/e-1.ics#e-1#20261026T130000Z".into(),
+            ..Default::default()
+        }],
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Refused);
+    assert_eq!(server.asked(), 0);
+}
+
+#[test]
+fn apply_fields_keeps_a_recurring_events_zone() {
+    use mailcraft_model::Event;
+    use mailcraft_model::remote::{EventFields, EventTime};
+    let mut event = Event {
+        start_zone: "Europe/Stockholm".into(),
+        end_zone: "Europe/Stockholm".into(),
+        recurrence: Some(mailcraft_model::Recurrence::default()),
+        ..Default::default()
+    };
+    apply_fields(
+        &mut event,
+        &EventFields { time: Some(EventTime { start: 1_800_000_000, end: 1_800_003_600, all_day: false }), ..Default::default() },
+    );
+    assert_eq!((event.start_zone.as_str(), event.end_zone.as_str()), ("Europe/Stockholm", "Europe/Stockholm"));
+}
+
+#[test]
+fn a_redirect_is_followed_but_never_to_another_server() {
+    let server = FakeHttp::start(|n, _| {
+        if n == 0 {
+            b"HTTP/1.1 301 Moved Permanently\r\nLocation: /caldav/next/\r\nContent-Length: 0\r\n\r\n".to_vec()
+        } else {
+            b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"linchange CalDAV\"\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let (reply, final_url) = send_following(&server.url("/caldav/"), "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024).unwrap();
+    assert_eq!((reply.status, final_url), (401, server.url("/caldav/next/")));
+    let elsewhere =
+        FakeHttp::answering(b"HTTP/1.1 301 Moved Permanently\r\nLocation: https://elsewhere.example/caldav/\r\nContent-Length: 0\r\n\r\n".to_vec());
+    assert!(
+        send_following(&elsewhere.url("/caldav/"), "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024)
+            .unwrap_err()
+            .to_string()
+            .contains("another server")
+    );
 }

@@ -21,13 +21,14 @@
 use std::time::Duration;
 
 use mailcraft_charset::base64::STANDARD as BASE64;
+use mailcraft_dav::document::{Component, patch};
 use mailcraft_model::dav::DavServer;
 use mailcraft_model::remote::{
     CalendarsDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded,
     RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
 };
 use mailcraft_model::{Event, Rgb, Rights};
-use mailcraft_time::{DateTime, Timestamp};
+use mailcraft_time::{DateTime, Timestamp, Zone};
 use quick_xml::Reader;
 use quick_xml::escape::resolve_xml_entity;
 use quick_xml::events::{BytesRef, Event as XmlEvent};
@@ -80,19 +81,41 @@ pub struct DavSync {
 /// This blocks; a host calls it on a background thread.
 pub fn probe(host: &str) -> Result<Option<Endpoints>, NetError> {
     let Some(endpoints) = DavServer::for_host(host) else { return Ok(None) };
-    let caldav = names_linchange(&endpoints.caldav, "CalDAV")?;
-    let carddav = names_linchange(&endpoints.carddav, "CardDAV")?;
-    Ok((caldav && carddav).then_some(Endpoints { caldav: endpoints.caldav, carddav: endpoints.carddav }))
+    let Some(caldav) = discover_service(host, &endpoints.caldav, "CalDAV")? else { return Ok(None) };
+    let Some(carddav) = discover_service(host, &endpoints.carddav, "CardDAV")? else { return Ok(None) };
+    Ok(Some(Endpoints { caldav, carddav }))
 }
 
-/// Whether the unauthenticated service root asks for a sign-in in Linchange's own realm.
-fn names_linchange(base: &str, service: &str) -> Result<bool, NetError> {
-    let url = Url::parse(base)?;
-    let answer =
-        http::request(&url, &HttpRequest { method: "PROPFIND", headers: &[("Depth", "0")], body: None, patience: PATIENCE, max_body: 16 * 1024 })?;
+/// Ask the RFC 6764 well-known address first, then the service root the server publishes. A
+/// redirect from either is followed; the address the challenge came from is the service root.
+fn discover_service(host: &str, base: &str, service: &str) -> Result<Option<String>, NetError> {
+    if let Some(root) = service_root(host) {
+        let well_known = format!("{root}.well-known/{}", service.to_ascii_lowercase());
+        let (answer, final_url) = send_following(&well_known, "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024)?;
+        if names_linchange(&answer, service) {
+            return Ok(Some(service_url(&final_url)));
+        }
+    }
+    let (answer, final_url) = send_following(base, "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024)?;
+    Ok(names_linchange(&answer, service).then(|| service_url(&final_url)))
+}
+
+/// `https://host[:port]/` from the service root `DavServer` builds.
+fn service_root(host: &str) -> Option<String> {
+    let base = DavServer::for_host(host)?.caldav;
+    base.rsplit_once("/caldav/").map(|(root, _)| format!("{root}/"))
+}
+
+/// The service root, with the trailing slash the paths below it are resolved against.
+fn service_url(url: &str) -> String {
+    if url.ends_with('/') { url.to_string() } else { format!("{url}/") }
+}
+
+/// Whether an unauthenticated DAV answer asks for a sign-in in Linchange's own realm.
+fn names_linchange(answer: &http::Reply, service: &str) -> bool {
     // A server that lets a stranger read a collection is not the one this looks for.
-    Ok(answer.status == 401
-        && answer.challenges.iter().take(16).any(|line| line.to_ascii_lowercase().contains(&format!("linchange {service}").to_ascii_lowercase())))
+    answer.status == 401
+        && answer.challenges.iter().take(16).any(|line| line.to_ascii_lowercase().contains(&format!("linchange {service}").to_ascii_lowercase()))
 }
 
 /// Bring the calendars, events and contacts of an account down. `from` and `to` are the stretch
@@ -136,14 +159,62 @@ fn send(
     content_type: &str,
     max_body: usize,
 ) -> Result<http::Reply, NetError> {
+    Ok(send_following(url, method, depth, body, auth, content_type, &[], max_body)?.0)
+}
+
+/// Send one request, following the redirects a DAV service may answer with (a service root
+/// without its trailing slash, or the address a well-known name leads to). A redirect may not
+/// leave the account's server: the credential goes with every request.
+fn send_following(
+    url: &str,
+    method: &str,
+    depth: Option<&str>,
+    body: Option<&str>,
+    auth: &str,
+    content_type: &str,
+    extra: &[(&str, &str)],
+    max_body: usize,
+) -> Result<(http::Reply, String), NetError> {
+    const MAX_REDIRECTS: usize = 5;
+    let mut current = url.to_string();
+    for _ in 0..=MAX_REDIRECTS {
+        let reply = send_once(&current, method, depth, body, auth, content_type, extra, max_body)?;
+        if matches!(reply.status, 301 | 302 | 303 | 307 | 308)
+            && let Some(location) = reply.location.as_deref()
+        {
+            let Some(next) = resolve(&current, location) else {
+                return Err(NetError::Forbidden("a DAV redirect led to another server".into()));
+            };
+            current = next;
+            continue;
+        }
+        return Ok((reply, current));
+    }
+    Err(NetError::Forbidden("too many DAV redirects".into()))
+}
+
+fn send_once(
+    url: &str,
+    method: &str,
+    depth: Option<&str>,
+    body: Option<&str>,
+    auth: &str,
+    content_type: &str,
+    extra: &[(&str, &str)],
+    max_body: usize,
+) -> Result<http::Reply, NetError> {
     let url = Url::parse(url)?;
-    let mut headers: Vec<(&str, &str)> = vec![("Authorization", auth), ("Accept", "application/xml, text/xml")];
+    let mut headers: Vec<(&str, &str)> = vec![("Accept", "application/xml, text/xml")];
+    if !auth.is_empty() {
+        headers.push(("Authorization", auth));
+    }
     if let Some(depth) = depth {
         headers.push(("Depth", depth));
     }
     if body.is_some() {
         headers.push(("Content-Type", content_type));
     }
+    headers.extend(extra.iter().copied());
     let request = HttpRequest { method, headers: &headers, body: body.map(str::as_bytes), patience: PATIENCE, max_body };
     http::request(&url, &request)
 }
@@ -204,7 +275,10 @@ fn calendars(
             online_providers: None,
         });
         match events_of(&href, auth, from, to, if is_main { "" } else { &href }) {
-            Ok(download) => events.push(download),
+            Ok(download) => {
+                out.complete &= download.complete;
+                events.push(download);
+            }
             // A calendar that can't be read doesn't hide the others; its events are simply not
             // brought this time, and the owner is told which calendar it was.
             Err(e) => {
@@ -248,10 +322,24 @@ fn events_of(
     }
     let responses = multistatus(&reply.body)?;
     let mut out = mailcraft_model::remote::EventsDownload { from, to, complete: true, calendar: calendar_id.to_string(), ..Default::default() };
+    if responses.len() > MAX_OBJECTS {
+        out.complete = false;
+    }
     for response in responses.iter().take(MAX_OBJECTS) {
-        let Some(text) = response.prop_text("calendar-data") else { continue };
+        let Some(text) = response.prop_text("calendar-data") else {
+            // A listing that names an object but gives no document is not whole; removing what
+            // is missing here would delete a calendar the server still has.
+            out.complete = false;
+            continue;
+        };
         let etag = response.prop_text("getetag").unwrap_or_default();
         let parsed = mailcraft_ical::parse_events(&text, &|_| 0, 500);
+        if parsed.events.is_empty() || parsed.events.len() >= 500 {
+            out.complete = false;
+            if parsed.events.is_empty() {
+                continue;
+            }
+        }
         let many = parsed.events.len() > 1;
         for event in parsed.events {
             let uid = if event.uid.trim().is_empty() { slug(&response.href) } else { event.uid.clone() };
@@ -319,6 +407,9 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
     let listing = propfind(&home, "1", LIST_ADDRESSBOOKS, auth)?;
     let mut out = ContactsDownload { complete: true, ..Default::default() };
     let mut books = 0usize;
+    if listing.len() > MAX_COLLECTIONS {
+        out.complete = false;
+    }
     for response in listing.iter().take(MAX_COLLECTIONS) {
         if !response.has_resource_type("addressbook") {
             continue;
@@ -471,24 +562,77 @@ fn request_url(base: &str, url: &str) -> Option<String> {
 /// be done is in the outcomes, never an error as a whole.
 ///
 /// This blocks; a host calls it on a background thread.
-pub fn upload_events(_caldav: &str, username: &str, password: &str, upload: &EventsUpload, main_calendar: &str) -> EventsUploaded {
+pub fn upload_events(caldav: &str, username: &str, password: &str, upload: &EventsUpload, main_calendar: &str) -> EventsUploaded {
     let auth = basic(username, password);
     let mut out = EventsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     for op in upload.ops.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
-        out.outcomes.push(one_change(&auth, op, main_calendar));
+        out.outcomes.push(one_change(&auth, op, main_calendar, caldav));
     }
     out
 }
 
+/// A document the server gave us, with the bytes and validator needed to change it safely.
+struct FetchedEvent {
+    raw: String,
+    etag: String,
+    event: Event,
+}
+
+fn event_text(event: &Event) -> String {
+    let options = mailcraft_ical::WriteOptions { now: mailcraft_time::now(), ..Default::default() };
+    mailcraft_ical::write_in(&[event], &[], &options, Some(Zone::UTC))
+}
+
+fn condition(etag: &str, create: bool) -> Vec<(&'static str, &str)> {
+    if create {
+        vec![("If-None-Match", "*")]
+    } else if etag.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![("If-Match", etag.trim())]
+    }
+}
+
 /// One change, as the server made of it.
-fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
+fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> EventOutcome {
     let mut outcome = EventOutcome { op: op.clone(), ..Default::default() };
     let calendar = if op.calendar.trim().is_empty() { main_calendar.trim() } else { op.calendar.trim() };
+    // An occurrence or an override lives in the same resource as its series. Until the whole
+    // series document can be changed, never delete or rewrite it from the wrong address.
+    if (op.kind == EventChangeKind::Update || op.kind == EventChangeKind::Delete) && (op.of_occurrence() || op.remote.contains('#')) {
+        outcome.result = EventResult::Refused;
+        outcome.error = "one occurrence of a repeating event cannot be changed here yet".into();
+        return outcome;
+    }
     match op.kind {
         EventChangeKind::Create | EventChangeKind::Update => {
-            let mut event = if op.kind == EventChangeKind::Update {
-                match fetch_event(&op.remote, auth) {
-                    Ok(Some(event)) => event,
+            let mut event = Event::default();
+            let mut original = None;
+            let mut expected = op.etag.trim().to_string();
+            if op.kind == EventChangeKind::Update {
+                let Some(url) = request_url(caldav, &op.remote) else {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = "the event's address can't be used".into();
+                    return outcome;
+                };
+                match fetch_event(&url, auth) {
+                    Ok(Some(fetched)) => {
+                        if !expected.is_empty() && !fetched.etag.is_empty() && expected != fetched.etag {
+                            outcome.result = EventResult::Refused;
+                            outcome.error = "the event changed on the server since it was read here".into();
+                            return outcome;
+                        }
+                        if fetched.event.organizer.is_some() || !fetched.event.attendees.is_empty() {
+                            outcome.result = EventResult::Refused;
+                            outcome.error = "meetings are not changed through CalDAV yet".into();
+                            return outcome;
+                        }
+                        event = fetched.event;
+                        original = Some(fetched.raw);
+                        if expected.is_empty() {
+                            expected = fetched.etag;
+                        }
+                    }
                     Ok(None) => {
                         outcome.result = EventResult::Gone;
                         return outcome;
@@ -499,9 +643,11 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
                         return outcome;
                     }
                 }
-            } else {
-                Event::default()
-            };
+            } else if op.fields.attendees.as_ref().is_some_and(|people| !people.is_empty()) {
+                outcome.result = EventResult::Refused;
+                outcome.error = "meetings are not made through CalDAV yet".into();
+                return outcome;
+            }
             let uid = if op.kind == EventChangeKind::Create {
                 if op.token.trim().is_empty() { format!("mailcraft-{}", op.event) } else { op.token.trim().to_string() }
             } else {
@@ -510,9 +656,27 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
                 if event.uid.trim().is_empty() { from_path } else { event.uid.clone() }
             };
             event.uid.clone_from(&uid);
+            let before = event_text(&event);
             apply_fields(&mut event, &op.fields);
+            let after = event_text(&event);
+            let text = match &original {
+                Some(raw) => match patch(raw, &before, &after, Component::Event) {
+                    Ok(text) => text,
+                    Err(_) => {
+                        outcome.result = EventResult::Refused;
+                        outcome.error = "this event can't be changed without losing information".into();
+                        return outcome;
+                    }
+                },
+                None => after,
+            };
             let url = if op.kind == EventChangeKind::Update && !op.remote.trim().is_empty() {
-                op.remote.trim().to_string()
+                let Some(url) = request_url(caldav, &op.remote) else {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = "the event's address can't be used".into();
+                    return outcome;
+                };
+                url
             } else {
                 let base = if calendar.ends_with('/') { calendar.to_string() } else { format!("{calendar}/") };
                 format!("{base}{}.ics", http::encode(&uid))
@@ -522,23 +686,27 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
                 outcome.error = "the calendar is not known yet".into();
                 return outcome;
             }
-            let options = mailcraft_ical::WriteOptions { now: mailcraft_time::now(), ..Default::default() };
-            let text = mailcraft_ical::write_in(&[&event], &[], &options, Some(mailcraft_time::Zone::UTC));
-            match send(&url, "PUT", None, Some(&text), auth, CALENDAR, 64 * 1024) {
-                Ok(reply) if matches!(reply.status, 200 | 201 | 204) => {
+            let write_condition = condition(&expected, op.kind == EventChangeKind::Create);
+            match send_following(&url, "PUT", None, Some(&text), auth, CALENDAR, &write_condition, 64 * 1024) {
+                Ok((reply, _)) if matches!(reply.status, 200 | 201 | 204) => {
                     outcome.result = EventResult::Done;
-                    outcome.remote = url;
+                    outcome.remote = resource_path(&url);
                     outcome.uid = uid;
+                    outcome.change_key = reply.etag.unwrap_or_default();
                     outcome.modified = mailcraft_time::now();
                     outcome.status = reply.status;
                 }
-                Ok(reply) => {
+                Ok((reply, _)) => {
                     outcome.result = match reply.status {
                         403 => EventResult::Denied,
                         404 | 410 => EventResult::Gone,
-                        409 | 412 | 428 => EventResult::Failed,
+                        412 => EventResult::Refused,
+                        409 | 428 => EventResult::Failed,
                         _ => EventResult::Refused,
                     };
+                    if reply.status == 412 {
+                        outcome.error = "the event changed on the server since it was read here".into();
+                    }
                     outcome.status = reply.status;
                 }
                 Err(e) => {
@@ -553,11 +721,38 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
                 outcome.error = "the event has no address on the server".into();
                 return outcome;
             }
-            match send(op.remote.trim(), "DELETE", None, None, auth, XML, 64 * 1024) {
-                Ok(reply) if matches!(reply.status, 200 | 204) => outcome.result = EventResult::Done,
-                Ok(reply) if reply.status == 404 || reply.status == 410 => outcome.result = EventResult::Gone,
-                Ok(reply) if reply.status == 403 => outcome.result = EventResult::Denied,
-                Ok(reply) => {
+            let Some(url) = request_url(caldav, &op.remote) else {
+                outcome.result = EventResult::Failed;
+                outcome.error = "the event's address can't be used".into();
+                return outcome;
+            };
+            let fetched = match fetch_event(&url, auth) {
+                Ok(Some(fetched)) => fetched,
+                Ok(None) => {
+                    outcome.result = EventResult::Gone;
+                    return outcome;
+                }
+                Err(e) => {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = e.to_string();
+                    return outcome;
+                }
+            };
+            if !op.etag.trim().is_empty() && !fetched.etag.is_empty() && op.etag.trim() != fetched.etag {
+                outcome.result = EventResult::Refused;
+                outcome.error = "the event changed on the server since it was read here".into();
+                return outcome;
+            }
+            let write_condition = condition(&fetched.etag, false);
+            match send_following(&url, "DELETE", None, None, auth, XML, &write_condition, 64 * 1024) {
+                Ok((reply, _)) if matches!(reply.status, 200 | 204) => outcome.result = EventResult::Done,
+                Ok((reply, _)) if reply.status == 404 || reply.status == 410 => outcome.result = EventResult::Gone,
+                Ok((reply, _)) if reply.status == 403 => outcome.result = EventResult::Denied,
+                Ok((reply, _)) if reply.status == 412 => {
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "the event changed on the server since it was read here".into();
+                }
+                Ok((reply, _)) => {
                     outcome.result = EventResult::Failed;
                     outcome.status = reply.status;
                 }
@@ -578,20 +773,20 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str) -> EventOutcome {
 }
 
 /// The event a resource holds now, for a change to be merged into it.
-fn fetch_event(url: &str, auth: &str) -> Result<Option<Event>, NetError> {
+fn fetch_event(url: &str, auth: &str) -> Result<Option<FetchedEvent>, NetError> {
     if url.trim().is_empty() {
         return Ok(None);
     }
     let reply = send(url.trim(), "GET", None, None, auth, XML, MAX_BODY)?;
     match reply.status {
         200 => {
-            let text = String::from_utf8_lossy(&reply.body);
-            mailcraft_ical::parse(&text, &|_| 0)
+            let raw = String::from_utf8_lossy(&reply.body).into_owned();
+            let event = mailcraft_ical::parse(&raw, &|_| 0)
                 .events
                 .into_iter()
                 .next()
-                .map(Some)
-                .ok_or_else(|| NetError::Proto(mailcraft_proto::ProtoError::Protocol("the server's event isn't an iCalendar document".into())))
+                .ok_or_else(|| NetError::Proto(mailcraft_proto::ProtoError::Protocol("the server's event isn't an iCalendar document".into())))?;
+            Ok(Some(FetchedEvent { raw, etag: reply.etag.unwrap_or_default(), event }))
         }
         404 | 410 => Ok(None),
         status => Err(NetError::Forbidden(format!("the server answered {status} for the event"))),
@@ -613,8 +808,21 @@ fn apply_fields(event: &mut Event, fields: &EventFields) {
         event.all_day = time.all_day;
         event.start = DateTime::from_timestamp(time.start, 0);
         event.end = DateTime::from_timestamp(time.end.max(time.start), 0);
-        event.start_zone.clear();
-        event.end_zone.clear();
+        if time.all_day {
+            event.start_zone.clear();
+            event.end_zone.clear();
+        }
+    }
+    // A change that names its zones keeps them; one that doesn't leaves the event's own zone
+    // alone, so a recurring nine o'clock does not become an instant that moves at a DST change.
+    if let Some(zones) = &fields.zones {
+        if event.all_day {
+            event.start_zone.clear();
+            event.end_zone.clear();
+        } else {
+            event.start_zone.clone_from(&zones.start);
+            event.end_zone = if zones.end == zones.start { String::new() } else { zones.end.clone() };
+        }
     }
     if let Some(show) = fields.show_as {
         event.show_as = show;
