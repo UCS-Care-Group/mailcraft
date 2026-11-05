@@ -109,8 +109,8 @@ and modern sign-in (not built), a shared mailbox, and Autodiscover from an addre
 | Date | Change | Summary |
 |---|---|---|
 | 2026-11-04 | patch | #746: Exchange Server 2019 seen working for mail (Basic over TLS, 24,574 messages, exact folder counts), and taken off the not yet tried list |
+| 2026-11-04 | minor | #252: calendars, contacts and to-dos kept in step both ways, and a person's calendar or address book opened by address; tried on a Grommunio container, including the shared folders and the limits there |
 | 2026-11-01 | minor | #252: Exchange server accounts are on for everyone, for mail; the testing switch is gone |
 | 2026-10-30 | major | First version: what was seen on Grommunio (#252, E8) |
 | 2026-10-30 | minor | Sending a saved draft, the Archive folder, the folder class and the log line, fixed and tried again on Grommunio |
 | 2026-10-30 | patch | Review: a draft whose make was lost is found by its marker; the log line is left out only for the pinned certificate; the "never twice" wording; one stale stub noted |
-| 2026-11-04 | minor | #252: calendars, contacts and to-dos kept in step both ways, and a person's calendar or address book opened by address; tried on a Grommunio container, including the shared folders and the limits there |
