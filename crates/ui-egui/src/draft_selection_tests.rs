@@ -181,6 +181,26 @@ fn a_move_in_the_list_that_goes_nowhere_leaves_the_message_being_written_alone()
 }
 
 #[test]
+fn a_move_in_an_empty_list_leaves_the_message_being_written_alone() {
+    // A New Email written while a folder with no messages is in view: no move has a row to go to.
+    for id in ["mail.next", "mail.previous", "mail.first", "mail.last", "mail.pageDown", "mail.pageUp", "mail.selectAll"] {
+        let mut a = app();
+        let empty = a.execute("folder.new", json!({"name": "Nothing here"})).unwrap()["id"].as_u64().unwrap();
+        a.run("folder.select", json!({"id": empty})).unwrap();
+        assert!(a.session.rows().is_empty(), "{id}: the folder is empty");
+        a.run("mail.new", json!({})).unwrap();
+        a.execute("compose.set", json!({"to": "ada@example.org", "subject": "Written here", "body": "Words not saved yet"})).unwrap();
+        assert!(pane(&a).is_some(), "{id}: in the reading pane");
+        let compose = a.session.compose.clone();
+        let r = a.run(id, json!({}));
+        assert!(r.is_ok(), "{id}: {r:?}");
+        assert!(pane(&a).is_some(), "{id}: still in the reading pane");
+        assert_eq!(a.session.compose, compose, "{id}: and nothing was done to it");
+        assert!(draft(&a, "Written here").is_none(), "{id}: nor saved to Drafts");
+    }
+}
+
+#[test]
 fn clicking_the_conversation_row_of_the_draft_being_written_leaves_it_for_the_conversation() {
     // The draft heads a conversation in the list: its row stands for all of the conversation,
     // which Delete takes, so the reading pane shows the conversation, not the draft alone.
@@ -442,6 +462,26 @@ fn a_right_click_on_another_row_shows_it_too() {
     assert_eq!(h.state().session.sel.messages, vec![second]);
     assert!(pane(h.state()).is_none(), "the row its menu acts on is the one shown");
     assert!(draft(h.state(), "First draft").is_some_and(|d| body(h.state(), d).contains("Words not saved yet")));
+}
+
+#[test]
+fn a_right_click_on_a_row_that_cant_be_selected_opens_no_menu() {
+    // The draft being written can't be saved, so the row stays unselected, and a menu would act
+    // (Delete) on the selection as it was. Where it can be saved, the menu opens.
+    for saves in [true, false] {
+        let (mut h, first, second) = continued_in_window();
+        typed(h.state_mut());
+        if !saves {
+            let d = folder(h.state(), FolderKind::Drafts);
+            h.state_mut().session.mailbox.folders.iter_mut().find(|f| f.id == d).unwrap().kind = FolderKind::Custom;
+        }
+        let at = row(&h, second);
+        click_at(&mut h, at, egui::PointerButton::Secondary);
+        let selected = if saves { second } else { first };
+        assert_eq!(h.state().session.sel.messages, vec![selected], "saves: {saves}");
+        // (A menu entry's label ends with its shortcut's text.)
+        assert_eq!(h.query_all_by_label_contains("Open Draft").next().is_some(), saves, "saves: {saves}: the row's menu");
+    }
 }
 
 #[test]

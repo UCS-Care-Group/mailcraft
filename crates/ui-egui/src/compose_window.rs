@@ -116,10 +116,14 @@ pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -
 /// Whether the list move `id` leaves the selection as it is, as the engine moves it: Next Message
 /// or Page Down on the last row, Previous Message, Page Up or First Message on the first, Last
 /// Message on the last, each from a selection of the focused row alone; Select All with every row
-/// selected already. (A move with Shift, which the menus don't give, is taken as going somewhere.)
+/// selected already; any of them in an empty list. (A move with Shift, which the menus don't give,
+/// is taken as going somewhere.)
 fn goes_nowhere(app: &mut MailApp, id: &str, params: &Value) -> bool {
     let s = &mut app.session;
     let rows = s.rows();
+    if rows.is_empty() {
+        return true;
+    }
     if id == "mail.selectAll" {
         let all: HashSet<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).collect();
         let whole: HashSet<Id> = rows.iter().filter(|r| r.conversation() && all.contains(&r.id)).map(|r| r.id).collect();
