@@ -436,6 +436,26 @@ fn review_6_what_got_past_the_first_plain_rules_is_refused() {
     assert!(many.max_pixels <= MAX_SVG_PIXELS / 16, "{}", many.max_pixels);
 }
 
+/// Review finding 7: one path of very many segments counted as one shape. Its segments are
+/// counted, a stroke's (round ones most) weighing more, within a cap, and fewer pixels the more.
+#[test]
+fn review_7_the_segments_of_a_path_are_counted() {
+    let d = format!("M0 0{}", "h1v1".repeat(30_000));
+    // Filled: 60,000 segments are drawn, quickly, with fewer pixels than a plain drawing.
+    let few = svg::probe(&drawing(40, 40, "")).unwrap();
+    let start = Instant::now();
+    let filled = drawing(40, 40, &format!("<path d='{d}' fill='#2e8b57'/>"));
+    let long = svg::probe(&filled).unwrap();
+    assert!(long.max_pixels < few.max_pixels, "{} {}", long.max_pixels, few.max_pixels);
+    assert!(images::decode(&filled, 2048, 2048).is_some());
+    assert!(start.elapsed() < Duration::from_secs(3), "took {:?}", start.elapsed());
+    // Stroked wide, with round joins and caps, or many times over: refused, at once.
+    assert!(refused(&drawing(40, 40, &format!("<path d='{d}' fill='none' stroke='#000' stroke-width='1e4' stroke-linejoin='round'/>"))));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{d}' style='fill:none;stroke:#000;stroke-linecap:round'/>"))));
+    let short = format!("M0 0{}", "h1v1".repeat(3_000));
+    assert!(refused(&drawing(40, 40, &format!("<path d='{short}' stroke='#000'/>").repeat(10))));
+}
+
 #[test]
 fn a_damaged_svg_is_a_broken_picture() {
     for data in [

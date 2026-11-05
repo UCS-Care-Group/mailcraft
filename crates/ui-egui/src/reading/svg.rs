@@ -26,9 +26,10 @@
 //!   nothing the renderer copies but a gradient's stops for each shape painted with it: the
 //!   elements times the stops are capped. At most [`MAX_SHAPES`] shapes.
 //! - **The tree usvg made is checked** ([`counted`]): no clip, mask or filter in it, no layer in
-//!   a layer, at most `MAX_SVG_COST` nodes.
+//!   a layer, at most `MAX_SVG_COST` nodes and `MAX_SEGMENTS` segments of paths (a stroke's weighing
+//!   more, a round one most).
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
-//!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes and layers it
+//!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes, layers and segments it
 //!   has, so that drawing it is a bounded amount of work.
 //!
 //! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
@@ -297,10 +298,15 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
     (shapes <= MAX_SHAPES && elements.saturating_mul(stops) <= MAX_GRADIENT_COPIES).then_some(shapes)
 }
 
-/// The layers of the tree usvg made (shapes drawn apart for their opacity), when it has none of
-/// what is refused: no clip, mask or filter, no layer in a layer, at most `MAX_SVG_COST` nodes.
+/// The passes drawing the tree usvg made takes besides one a shape: a layer for each shape drawn
+/// apart for its opacity, and one for every [`SEGMENTS_A_PASS`] segments of its paths (filled
+/// once; stroked [`STROKE_WEIGHT`] times more, [`ROUND_WEIGHT`] with round joins or caps, which
+/// the stroker draws as many small segments). `None` when it has what is refused: a clip, mask or
+/// filter, a layer in a layer, more than `MAX_SVG_COST` nodes or [`MAX_SEGMENTS`] weighted
+/// segments. (The bytes bound them first: 256 KB of path data is at most 128,000 segments, `h1`
+/// being two bytes, so a drawing that is filled can't pass the cap, only one stroked.)
 fn counted(tree: &usvg::Tree) -> Option<u64> {
-    let (mut nodes, mut layers) = (0u64, 0u64);
+    let (mut nodes, mut layers, mut segments) = (0u64, 0u64, 0u64);
     let mut groups = vec![(tree.root(), false)];
     while let Some((group, in_layer)) = groups.pop() {
         nodes += 1;
@@ -314,16 +320,33 @@ fn counted(tree: &usvg::Tree) -> Option<u64> {
         layers += u64::from(layer);
         for child in group.children() {
             nodes += 1;
-            if let usvg::Node::Group(child) = child {
-                groups.push((child, in_layer || layer));
+            match child {
+                usvg::Node::Group(child) => groups.push((child, in_layer || layer)),
+                usvg::Node::Path(path) => {
+                    let weight = match path.stroke() {
+                        None => 1,
+                        Some(stroke) if stroke.linejoin() == usvg::LineJoin::Round || stroke.linecap() == usvg::LineCap::Round => 1 + ROUND_WEIGHT,
+                        Some(_) => 1 + STROKE_WEIGHT,
+                    };
+                    segments = segments.saturating_add((path.data().verbs().len() as u64).saturating_mul(weight));
+                }
+                _ => {}
             }
         }
-        if nodes > MAX_SVG_COST {
+        if nodes > MAX_SVG_COST || segments > MAX_SEGMENTS {
             return None;
         }
     }
-    Some(layers)
+    Some(layers.saturating_add(segments / SEGMENTS_A_PASS))
 }
+
+/// Most segments a drawing's paths may come to, weighted for what stroking them takes.
+const MAX_SEGMENTS: u64 = 200_000;
+/// How many times more a stroke's segments weigh than a fill's, and a round stroke's.
+const STROKE_WEIGHT: u64 = 4;
+const ROUND_WEIGHT: u64 = 16;
+/// The weighted segments that cost drawing as much as a pass over the pixels.
+const SEGMENTS_A_PASS: u64 = 256;
 
 /// How deep the elements of XML text nest, at most, read a byte at a time with no stack: tags
 /// counted in and out; comments, character data, processing instructions, the document type and
