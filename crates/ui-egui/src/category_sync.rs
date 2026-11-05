@@ -222,7 +222,7 @@ impl MailApp {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                log::warn!("categories, account {account}: the job ended without an answer (its thread ended early)");
+                log::warn!("categories: the job ended without an answer (its thread ended early)");
                 CategoriesResult {
                     account,
                     errors: vec![tl!("The categories couldn't be kept in step: the job stopped unexpectedly").to_string()],
@@ -261,14 +261,14 @@ impl MailApp {
             self.category_sync.perm.insert(account, Permission::Refused(said));
             writes = Some(false);
         } else if result.covered == Some(false) && settling > 0 {
-            log::info!("categories, account {account}: refused just after the owner allowed it; trying again ({settling} more)");
+            log::info!("categories: refused just after the owner allowed it; trying again ({settling} more)");
             self.category_sync.settling.insert(account, settling - 1);
             let (n, _) = self.category_sync.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.category_sync.failures.insert(account, (n.saturating_add(1), self.category_sync.clock.max(started)));
             self.category_sync.checked.remove(&account);
             settles = true;
         } else if result.covered == Some(false) {
-            log::info!("categories, account {account}: the sign-in doesn't cover changing them; the list is read-only");
+            log::info!("categories: the sign-in doesn't cover changing them; the list is read-only");
             if !matches!(self.category_sync.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
                 self.category_sync.perm.insert(account, Permission::Needed);
             }
@@ -283,7 +283,7 @@ impl MailApp {
         if let Some(allowed) = writes
             && let Err(e) = categories_remote::set_category_writes(&mut self.session, account, allowed)
         {
-            log::warn!("categories, account {account}: whether the list may be changed couldn't be noted: {e}");
+            log::warn!("categories: whether the list may be changed couldn't be noted: {e}");
         }
         // (A token the server refused part-way, after it was renewed, is tried again after a wait.)
         let mut worked = result.covered.is_some() && !result.sign_in_refused;

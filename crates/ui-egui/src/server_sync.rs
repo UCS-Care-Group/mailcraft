@@ -161,7 +161,7 @@ impl MailApp {
                         kept.refresh = tokens.refresh.clone();
                     }
                 }
-                log::info!("sync, account {account}: the owner allowed keeping it in step with Outlook; the next jobs find out");
+                log::info!("sync: the owner allowed keeping it in step with Outlook; the next jobs find out");
                 self.tasks_allowed(account);
                 self.rules_allowed(account);
                 self.auto_replies_allowed(account);
