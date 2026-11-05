@@ -136,6 +136,20 @@ fn escape_cancels_and_enter_never_sends() {
 }
 
 #[test]
+fn too_many_recipients_to_check_are_asked_about() {
+    let mut a = app();
+    let many: Vec<String> = (0..=mailcraft_model::send_warnings::MAX_RECIPIENTS).map(|i| format!("p{i}@lumen.example")).collect();
+    write(&mut a, &many.join("; "));
+    a.run("compose.send", json!({})).unwrap();
+    let (command, params, ask) = question(&a);
+    assert!(ask.text.contains("only the first 1000 were looked at"), "{}", ask.text);
+    assert!(ask.more.is_empty());
+    a.dialog = None;
+    go_ahead(&mut a, &command, answered(&params, &Value::Null, None));
+    assert_eq!(sent(&a).len(), 1);
+}
+
+#[test]
 fn ordinary_mail_is_not_asked_about() {
     let mut a = app();
     write(&mut a, "lin.zhao@harborworks.example; maya@lumen.example");

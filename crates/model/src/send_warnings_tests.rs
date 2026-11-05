@@ -230,6 +230,39 @@ fn move_to_bcc_takes_only_the_outsiders_and_keeps_their_names() {
 }
 
 #[test]
+fn duplicates_padding_the_list_dont_hide_a_lookalike() {
+    // 1,000 copies of a known address before the lookalike: each counts once.
+    let mut list = vec!["maya.okafor@lumen.example"; crate::send_warnings::MAX_RECIPIENTS + 500];
+    list.push("lin.zhao@harborwork.example");
+    assert_eq!(kinds(&list, &[], &[]), ["lookalikeRecipient"]);
+    // The same across the lines.
+    let padding = vec!["Maya.Okafor@lumen.example"; crate::send_warnings::MAX_RECIPIENTS];
+    assert_eq!(kinds(&padding, &padding, &["lin.zhao@harborwork.example"]), ["lookalikeRecipient"]);
+}
+
+#[test]
+fn duplicates_padding_the_list_dont_hide_outsiders() {
+    let mut list = vec!["maya.okafor@lumen.example"; crate::send_warnings::MAX_RECIPIENTS + 10];
+    list.extend(FIVE_AT_TWO);
+    assert_eq!(kinds(&list, &[], &[]), ["outsidersSeeEachOther"]);
+}
+
+#[test]
+fn more_recipients_than_are_checked_is_a_warning_itself() {
+    // Colleagues, every one known by domain: nothing to say about any, but they are too many to
+    // look at, and what isn't looked at isn't let through unasked.
+    let many: Vec<String> = (0..=crate::send_warnings::MAX_RECIPIENTS).map(|i| format!("person{i}@lumen.example")).collect();
+    let many: Vec<&str> = many.iter().map(String::as_str).collect();
+    assert_eq!(kinds(&many, &[], &[]), ["tooManyRecipients"]);
+    // Up to the limit, they are looked at.
+    assert!(kinds(&many[..crate::send_warnings::MAX_RECIPIENTS], &[], &[]).is_empty());
+    // And a lookalike past the first ones still makes it a warning.
+    let mut with = many[..crate::send_warnings::MAX_RECIPIENTS - 1].to_vec();
+    with.push("lin.zhao@harborwork.example");
+    assert_eq!(kinds(&with, &[], &[]), ["lookalikeRecipient"]);
+}
+
+#[test]
 fn lookalikes_said_are_bounded() {
     let many: Vec<String> = (0..100).map(|i| format!("p{i}@harborwork.example")).collect();
     let many: Vec<&str> = many.iter().map(String::as_str).collect();

@@ -165,3 +165,24 @@ fn hostile_send_params_never_panic() {
         assert!(s.run("compose.send", &junk).is_err(), "{junk}");
     }
 }
+
+#[test]
+fn padding_with_a_known_address_doesnt_get_a_lookalike_past_compose_send() {
+    let mut s = session();
+    let padding = vec!["lin.zhao@harborworks.example"; mailcraft_model::send_warnings::MAX_RECIPIENTS + 1].join("; ");
+    write(&mut s, &format!("{padding}; lin.zhao@harborwork.example"), "");
+    let e = s.run("compose.send", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("lookalikeRecipient lin.zhao@harborwork.example"), "{e}");
+    assert!(sent(&s).is_empty());
+}
+
+#[test]
+fn more_recipients_than_are_checked_need_the_owners_say() {
+    let mut s = session();
+    let many: Vec<String> = (0..=mailcraft_model::send_warnings::MAX_RECIPIENTS).map(|i| format!("p{i}@lumen.example")).collect();
+    write(&mut s, &many.join("; "), "");
+    let e = s.run("compose.send", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("tooManyRecipients"), "{e}");
+    s.run("compose.send", &json!({"confirmed": true})).unwrap();
+    assert_eq!(sent(&s).len(), 1);
+}

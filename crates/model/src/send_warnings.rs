@@ -30,8 +30,12 @@ use crate::{Address, Message};
 pub const MIN_OUTSIDERS: usize = 5;
 /// The fewest domains those people are at.
 pub const MIN_OUTSIDE_DOMAINS: usize = 2;
-/// The most recipients looked at.
+/// The most different recipients looked at. A message to more is asked about as such
+/// ([`SendWarning::TooManyRecipients`]): what isn't looked at isn't let through unasked.
 pub const MAX_RECIPIENTS: usize = 1_000;
+/// The most entries of the recipient lines read, the same address named again included; past
+/// that, too many as well.
+const MAX_NAMED: usize = 100_000;
 /// The most lookalike recipients said, and the most outsiders named.
 pub const MAX_SAID: usize = 20;
 
@@ -43,6 +47,9 @@ pub enum SendWarning {
     /// `count` people outside the organisation, at `domains` domains, would see each other's
     /// addresses in To and Cc; the first [`MAX_SAID`] of them.
     Outsiders { count: usize, domains: usize, addresses: Vec<String> },
+    /// More recipients than are looked at ([`MAX_RECIPIENTS`] different ones): those past them
+    /// weren't checked.
+    TooManyRecipients { checked: usize },
 }
 
 impl SendWarning {
@@ -51,6 +58,7 @@ impl SendWarning {
         match self {
             SendWarning::LookalikeRecipient { .. } => "lookalikeRecipient",
             SendWarning::Outsiders { .. } => "outsidersSeeEachOther",
+            SendWarning::TooManyRecipients { .. } => "tooManyRecipients",
         }
     }
 
@@ -61,8 +69,29 @@ impl SendWarning {
             SendWarning::Outsiders { count, domains, addresses } => {
                 json!({"kind": self.kind(), "count": count, "domains": domains, "addresses": addresses})
             }
+            SendWarning::TooManyRecipients { checked } => json!({"kind": self.kind(), "checked": checked}),
         }
     }
+}
+
+/// The different recipients of `lines`, each once (by [`address_key`], else as written in lower
+/// case), in the order they come; and whether there were more than are looked at.
+fn unique<'a>(lines: &[&'a [Address]]) -> (Vec<&'a Address>, bool) {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for (named, a) in lines.iter().flat_map(|line| line.iter()).enumerate() {
+        if named >= MAX_NAMED {
+            return (out, true);
+        }
+        let key = address_key(&a.email).unwrap_or_else(|| a.email.trim().to_lowercase());
+        if seen.insert(key) {
+            if out.len() >= MAX_RECIPIENTS {
+                return (out, true);
+            }
+            out.push(a);
+        }
+    }
+    (out, false)
 }
 
 /// The known correspondent `address` looks like but isn't (a domain, or an address), when it is
@@ -130,12 +159,13 @@ pub fn seen_on(m: &Message) -> HashSet<String> {
 /// The outsiders in `to` and `cc` who would see each other, when they are enough to ask about
 /// and not all of them were in `seen` already.
 pub fn outsiders(facts: &Facts, to: &[Address], cc: &[Address], seen: &HashSet<String>) -> Option<SendWarning> {
-    let mut counted = HashSet::new();
     let mut out = Vec::new();
     let mut domains = HashSet::new();
-    for a in to.iter().chain(cc).take(MAX_RECIPIENTS) {
+    // Each once, so that the same address named again doesn't take another's place; more than
+    // are looked at is a warning of its own ([`check`]).
+    for a in unique(&[to, cc]).0 {
         let Some(key) = address_key(&a.email) else { continue };
-        if !counted.insert(key.clone()) || !is_outsider(facts, &a.email) {
+        if !is_outsider(facts, &a.email) {
             continue;
         }
         if let Some((_, domain)) = key.rsplit_once('@') {
@@ -151,22 +181,20 @@ pub fn outsiders(facts: &Facts, to: &[Address], cc: &[Address], seen: &HashSet<S
 
 /// The send warnings of a message to `to`, `cc` and `bcc`, measured against `facts`; `seen`: the
 /// addresses on the message it replies to or forwards ([`seen_on`]). Lookalikes first, in the
-/// order the recipients come.
+/// order the recipients come; then [`SendWarning::TooManyRecipients`] when there were more than
+/// are looked at. Every recipient looked at is looked at once, however often it is named; at most
+/// [`MAX_SAID`] lookalikes are said, and saying no more never makes a warning none.
 pub fn check(to: &[Address], cc: &[Address], bcc: &[Address], facts: &Facts, seen: &HashSet<String>) -> Vec<SendWarning> {
-    let mut out = Vec::new();
-    let mut looked = HashSet::new();
-    for a in to.iter().chain(cc).chain(bcc).take(MAX_RECIPIENTS) {
-        if out.len() >= MAX_SAID {
-            break;
-        }
-        if !looked.insert(a.email.trim().to_lowercase()) {
-            continue;
-        }
-        if let Some(like) = lookalike(facts, &a.email) {
-            out.push(SendWarning::LookalikeRecipient { address: shown(&a.email), like });
-        }
-    }
+    let (all, too_many) = unique(&[to, cc, bcc]);
+    let mut out: Vec<SendWarning> = all
+        .into_iter()
+        .filter_map(|a| lookalike(facts, &a.email).map(|like| SendWarning::LookalikeRecipient { address: shown(&a.email), like }))
+        .take(MAX_SAID)
+        .collect();
     out.extend(outsiders(facts, to, cc, seen));
+    if too_many {
+        out.push(SendWarning::TooManyRecipients { checked: MAX_RECIPIENTS });
+    }
     out
 }
 

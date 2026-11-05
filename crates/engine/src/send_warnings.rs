@@ -93,6 +93,7 @@ pub fn describe(warnings: &[SendWarning]) -> String {
         .map(|w| match w {
             SendWarning::LookalikeRecipient { address, like } => format!("{} {address} (like {like})", w.kind()),
             SendWarning::Outsiders { count, domains, .. } => format!("{} ({count} at {domains} domains in To and Cc)", w.kind()),
+            SendWarning::TooManyRecipients { checked } => format!("{} (only the first {checked} different ones were checked)", w.kind()),
         })
         .collect::<Vec<_>>()
         .join("; ")

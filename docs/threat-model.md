@@ -161,7 +161,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (the owner's) or not sent (the agent's). An address is shown with what draws nothing left out
   and its domain as it goes over the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
   dots Gmail ignores are not lookalikes. The rules are `crates/model/src/send_warnings.rs`,
-  bounded to 1,000 recipients and 20 lookalikes said. What they don't cover: only `compose.send`
+  bounded to 1,000 different recipients (each counted once, however often it is named, so padding
+  with a known address hides nothing) and 20 lookalikes said; a message to more is a warning of its
+  own (`tooManyRecipients`), so what isn't looked at is never let through unasked. What they don't cover: only `compose.send`
   is checked (Send Again of a message held in an Outbox, and meeting requests and their answers,
   are not); the known correspondents are whatever the contacts and Sent Items hold, so an agent
   that adds a contact or moves a message into Sent Items (both safe for agents) makes that address

@@ -180,7 +180,7 @@ warning says a message may not be what it seems, never what to do about it.
 **Send warnings.** Before a message goes (#509), `compose.send` and `send_message` look for a
 recipient who looks like somebody the owner writes to but isn't (`lookalikeRecipient`) and for 5
 or more people outside the owner's organisation, at 2 or more domains, who would see each other in
-To and Cc (`outsidersSeeEachOther`) ([control protocol](control-protocol.md#commands-worth-knowing)).
+To and Cc (`outsidersSeeEachOther`), and ask about a message to more different recipients than they check (`tooManyRecipients`) ([control protocol](control-protocol.md#commands-worth-knowing)).
 Connected to the window (`--connect`), the owner is asked every time, whatever `--allow send` says:
 the question lists the warnings and offers Send Anyway, Move to Bcc for the outsiders, or not
 sending, and an agent's own `confirmed` or `moveToBcc` is dropped, since only the owner answers.
