@@ -1922,7 +1922,7 @@ impl Builder {
         let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
         let margin_below = !inline && css.margin_bottom_zero.map_or(paragraph, |zero| !zero);
         // White on what is white anyway is no background, and neither is the colour all around.
-        let background = background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
+        let background = background.filter(|bg| (!near_white(*bg) || self.tinted()) && Some(*bg) != self.backdrop());
         let outline = css.framed();
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
