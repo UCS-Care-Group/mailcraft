@@ -406,6 +406,17 @@ fn the_steps_moved_count_changes_with_every_step_and_nothing_else() {
     assert_ne!(s.undo_steps_moved(), redone);
 }
 
+#[test]
+fn an_import_kept_as_one_step_moves_the_steps_count() {
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    let before = s.undo_steps_moved();
+    let categories = s.mailbox.categories.clone();
+    s.keep_import_step("Import", &[m], &[], categories);
+    assert_eq!(s.undo_label(), Some("Import"));
+    assert_ne!(s.undo_steps_moved(), before, "a question asked before the import is about another step");
+}
+
 /// The labels and depths of the undo and redo stacks.
 fn stacks(s: &Session) -> (Option<&'static str>, Option<&'static str>, usize, usize) {
     (s.undo_label(), s.redo_label(), s.history.len(), s.redo.len())

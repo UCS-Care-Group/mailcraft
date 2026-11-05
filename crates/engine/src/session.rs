@@ -2709,6 +2709,7 @@ impl Session {
             self.history.remove(0);
         }
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         self.dirty = true;
     }
 
