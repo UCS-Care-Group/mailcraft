@@ -550,6 +550,7 @@ pub fn read<R: Read + Seek>(
                 }
                 continue;
             }
+            report.mail_seen = report.mail_seen.saturating_add(1);
             if job.dry_run {
                 row.added = row.added.saturating_add(1);
                 continue;
@@ -562,7 +563,6 @@ pub fn read<R: Read + Seek>(
                 report.note(&shown, &b.shown, n);
             }
             row.added = row.added.saturating_add(1);
-            report.mail_seen = report.mail_seen.saturating_add(1);
             batch.bytes = batch.bytes.saturating_add(item::held(&message));
             batch.messages.push((b.path.clone(), message));
             if batch.items() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
@@ -571,11 +571,11 @@ pub fn read<R: Read + Seek>(
             }
         }
         if in_deleted > 0 {
-            report.leave_out(&format!("{in_deleted} contacts and distribution lists"), &b.shown, "in Deleted Items, left out");
+            report.leave_out(&format!("contacts and distribution lists ({in_deleted})"), &b.shown, "in Deleted Items, left out");
         }
         report.push_row(row);
     }
-    if !(report.contacts_seen > 0 && report.mail_seen == 0) && !job.dry_run {
+    if (cancelled || !(report.contacts_seen > 0 && report.mail_seen == 0)) && !job.dry_run {
         batch.folders = empty_folders;
     }
     if !batch.is_empty() && !job.dry_run {
@@ -1076,7 +1076,7 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
         };
         // (Nothing came in: the folder is still found, or made, for the owner to see; a file of
         // contacts alone has no mail, so no folder.)
-        let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0;
+        let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0 && !report.cancelled;
         let top = if contacts_only && r.top.is_none() { None } else { Some(r.top(s)?) };
         run = Some(r);
         let account = s.mailbox.local_account();
@@ -1091,7 +1091,7 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
         top
     };
     // (A file of contacts alone is shown where its contacts are.)
-    let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0;
+    let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0 && !report.cancelled;
     if contacts_only {
         report.name = String::new();
     } else if let Some(id) = top {

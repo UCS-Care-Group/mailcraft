@@ -1428,7 +1428,7 @@ fn deleted_contacts_are_left_out_in_one_line_and_every_other_folders_come_in() {
     // One line for each folder in Deleted Items, not one for each contact.
     let left = texts(&answer, "leftOutItems", "what");
     assert_eq!(left.len(), 2, "{left:?}");
-    assert!(left.iter().any(|w| w.starts_with("3 contacts")) && left.iter().any(|w| w.starts_with("1 contacts")), "{left:?}");
+    assert!(left.iter().any(|w| w.ends_with("lists (3)")) && left.iter().any(|w| w.ends_with("lists (1)")), "{left:?}");
     assert!(texts(&answer, "leftOutItems", "why").iter().all(|w| w == "in Deleted Items, left out"));
     // The report names the automatic and the hidden folders the contacts came from.
     let folders = texts(&answer, "notes", "folder");
@@ -1605,4 +1605,66 @@ fn undo_does_not_warn_about_contacts_it_would_leave_alone() {
     let later = s.mailbox.contacts.values().filter(|c| !c.imported.is_empty()).map(|c| c.id).max().unwrap();
     assert!(s.undo_removes(false, made.unwrap()));
     assert!(!s.undo_removes(false, later));
+}
+
+#[test]
+fn the_file_a_contact_came_from_is_not_free_text_but_is_imported_finds_it() {
+    let mut s = session();
+    let own = s.mailbox.add_contact(mailcraft_model::Contact {
+        first: "Martin".into(),
+        emails: vec![mailcraft_model::Labeled::new("work", "martin@example.org")],
+        ..Default::default()
+    });
+    let bytes = people_file(vec![contact_item(
+        "Sam Smith",
+        vec![(0x3001, w::unicode("Sam Smith")), (lid(0x8082), w::unicode("SMTP")), (lid(0x8083), w::unicode("sam@example.org"))],
+    )]);
+    let mut params = json!({"name": "martin@example.org.pst", "data": base64_encode(&bytes)});
+    params["places"] = json!({});
+    s.run("file.importPst", &params).unwrap();
+    let imported = s.mailbox.contacts.values().find(|c| !c.imported_from.is_empty()).unwrap().id;
+    assert_eq!(s.mailbox.contact(imported).unwrap().imported_from, "martin@example.org.pst");
+    // Searching for the owner's name finds the owner's contact alone.
+    let found: Vec<u64> = s.mailbox.contacts.values().filter(|c| c.matches("martin")).map(|c| c.id).collect();
+    assert_eq!(found, [own]);
+    // Check Names still resolves "Martin" to the owner's contact.
+    s.run("mail.new", &json!({"to": "Martin", "subject": "Hello"})).unwrap();
+    assert_eq!(s.run("compose.checkNames", &json!({})).unwrap()["unresolved"], json!([]));
+    assert_eq!(s.compose.as_ref().unwrap().to, "Martin <martin@example.org>");
+    // `is:imported` finds the imported ones, alone or with other words.
+    let hits = |q: &str| s.mailbox.contacts.values().filter(|c| c.matches(q)).count();
+    assert_eq!((hits("is:imported"), hits("IS:IMPORTED smith"), hits("is:imported nobody"), hits("is:importedx")), (1, 1, 0, 0));
+}
+
+#[test]
+fn a_dry_run_of_mail_and_contacts_answers_as_the_real_one() {
+    let bytes =
+        w::build(&contacts_file(vec![folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]), folder("Contacts", "IPF.Contact", vec![ada()], vec![])]));
+    let mut s = session();
+    let dry = import(&mut s, &bytes, json!({"dryRun": true})).unwrap();
+    let real = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!(dry["name"], real["name"]);
+    assert_eq!(real["name"], "old-mail");
+}
+
+#[test]
+fn cancelling_while_in_the_contacts_folder_still_makes_the_mail_folders() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = w::build(&contacts_file(vec![
+        folder("Contacts", "IPF.Contact", names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect(), vec![]),
+        folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]),
+    ]));
+    let mut s = session();
+    let progress = Progress::default();
+    let place = Place::New("old-mail".into());
+    let outcome = read(Cursor::new(&bytes), &job(false), Limits::default(), &progress, &mut |b: Batch| {
+        apply(&mut s, &place, b)?;
+        progress.cancel();
+        Ok(())
+    })
+    .unwrap();
+    assert!(outcome.report.cancelled);
+    let answer = finish(&mut s, &place, outcome, false).unwrap();
+    assert_eq!(answer["name"], "old-mail");
+    assert!(folder_id(&s, &["old-mail"]).is_some());
 }

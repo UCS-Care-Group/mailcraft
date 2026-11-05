@@ -128,27 +128,23 @@ impl Contact {
         self.emails.iter().any(|e| e.value.trim().eq_ignore_ascii_case(email.trim()))
     }
 
-    /// Whether any name, company, address or phone contains `needle` (case-insensitive).
+    /// Whether any name, company, address or phone contains `needle` (case-insensitive). The file
+    /// a contact was imported from is not text to find it by: only `is:imported` finds those.
     pub fn matches(&self, needle: &str) -> bool {
         let n = needle.trim();
-        if n.eq_ignore_ascii_case("is:imported") {
-            return !self.imported_from.is_empty();
+        // `is:imported`, alone or before other words ("is:imported smith"): imported ones only.
+        if let Some(rest) = n
+            .get(..11)
+            .filter(|t| t.eq_ignore_ascii_case("is:imported"))
+            .and_then(|_| n.get(11..))
+            .filter(|r| r.is_empty() || r.starts_with(char::is_whitespace))
+        {
+            return !self.imported_from.is_empty() && self.matches(rest);
         }
         n.is_empty()
-            || [
-                &self.display_name,
-                &self.first,
-                &self.middle,
-                &self.last,
-                &self.nickname,
-                &self.company,
-                &self.title,
-                &self.department,
-                &self.notes,
-                &self.imported_from,
-            ]
-            .into_iter()
-            .any(|f| crate::contains_ci(f, n))
+            || [&self.display_name, &self.first, &self.middle, &self.last, &self.nickname, &self.company, &self.title, &self.department, &self.notes]
+                .into_iter()
+                .any(|f| crate::contains_ci(f, n))
             || self.emails.iter().chain(&self.phones).any(|l| crate::contains_ci(&l.value, n))
             || self.categories.iter().any(|c| crate::contains_ci(c, n))
     }
