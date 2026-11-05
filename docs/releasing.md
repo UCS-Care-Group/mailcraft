@@ -92,6 +92,48 @@ draft, run in it, and only for a pushed version tag. Without the secrets the bui
 (ad-hoc on macOS) and the scripts say so, so forks still build. None is set yet, so every
 release so far is unsigned. There is no riscv64 Linux build, and no Flathub manifest is published.
 
+## Google Desktop OAuth release readiness
+
+Desktop Google sign-in (#232) uses IMAP/SMTP XOAUTH2; it does not ship browser Gmail (#233).
+The [account guide](google-accounts.md) is the user-facing reference. Before advertising Google
+sign-in for general use, the maintainer should:
+
+1. Supply and own the official **Desktop app** registration and its matching ID/registration
+   value through the approved build configuration. Development accounts and personal test-client
+   values must not become release defaults. Verify the produced binary and its ID/secret pair;
+   the public client-ID option alone cannot configure a release. The registration secret comes
+   only from the build or process environment, never a File → Options preference. Blank, invalid
+   or mismatched registration must explain why Google sign-in is unavailable and retain
+   app-password setup.
+2. Confirm the requested scopes (`https://mail.google.com/ openid email`), audience, support and
+   privacy information. Complete the applicable [restricted-scope verification][google-verification]
+   before unrestricted public rollout; review Google's assessment requirements for the actual
+   data flow rather than assuming either that a server assessment is always required or that a
+   native client is exempt from all verification. Changing publishing status alone is not proof
+   of approval. Development/testing exceptions and test-user warnings are not public verification.
+3. Exercise OAuth-first setup, explicit app-password fallback, unchanged existing accounts,
+   canceled and successful same-primary-address conversion, rejection of Workspace aliases as
+   account identities, restart/reconnect and token renewal against the release configuration.
+   Verify that changing a public client ID cannot reuse another registration's secret. Keep
+   ordinary automated CI on synthetic accounts and stand-ins.
+   Manual real-account acceptance requires the account owner's approval and isolated saved data.
+   An SMTP AUTH/QUIT check proves authentication, not delivery; sending needs a separately
+   approved test recipient and message.
+4. Retest the final patch with an unskipped `cargo xtask ci` and the relevant platform packages.
+   Focused tests or a prior build's successful gates do not substitute for the final source tree.
+   Windows manual acceptance does not certify every platform, Workspace policy or public client.
+5. Keep review, merge and public release distinct. A development implementation can be reviewed
+   before Google verification is finished; maintainer approval, the contributor's own CLA,
+   project-owned registration and the applicable release requirements are still required.
+
+As of the November 3 desktop acceptance, developer registrations demonstrated Gmail and
+Workspace sign-in, legacy password restart/conversion, refresh and incoming synchronization;
+SMTP authentication was checked on TLS 465 and STARTTLS 587 without sending. The project's
+production registration and public verification are not claimed complete. The broader
+interoperability limits remain in [gaps](gaps.md) and [Google acceptance scope](google-accounts.md#what-has-been-verified-and-what-has-not).
+
+[google-verification]: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
+
 ## The release signature (`SHA256SUMS.txt.sig`)
 
 Besides the operating systems' signatures, every release is signed by MailCraft itself: the job

@@ -112,6 +112,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             "x-mailcraft-flag" => complete |= value.trim().eq_ignore_ascii_case("complete"),
             // MailCraft's own note of the file a message was opened from: never a sender's.
             "x-mailcraft-opened-file-sha256" => {}
+            // Nor of where in a .pst file a message was (#815).
+            "x-mailcraft-pst-item" => {}
             // Read once, below.
             "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}

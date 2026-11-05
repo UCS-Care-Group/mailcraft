@@ -1983,39 +1983,11 @@ fn calendar_color(name: &str) -> Option<Rgb> {
     COLORS.iter().find(|(known, _)| *known == name).map(|(_, color)| *color)
 }
 
-/// Our own colours for the numbered colours Graph gives a category (`preset0` to `preset24`:
-/// red, orange, brown, yellow, green, teal, olive, blue, purple, cranberry, steel, dark steel,
-/// gray, dark gray, black, then the dark ones of the first ten); grey for none or any other.
+/// Our own colours for the numbered colours Graph gives a category (`preset0` to `preset24`,
+/// [`mailcraft_model::preset_category_color`]); grey for none or any other.
 fn category_color(name: &str) -> Rgb {
-    const COLORS: [Rgb; 25] = [
-        Rgb(0xD1, 0x3B, 0x3B),
-        Rgb(0xE0, 0x7B, 0x1F),
-        Rgb(0x9C, 0x6B, 0x3F),
-        Rgb(0xD9, 0xA4, 0x0C),
-        Rgb(0x2E, 0x8B, 0x57),
-        Rgb(0x1A, 0x9B, 0xA6),
-        Rgb(0x7A, 0x8B, 0x2E),
-        Rgb(0x2F, 0x6F, 0xD0),
-        Rgb(0x7E, 0x57, 0xC2),
-        Rgb(0xB0, 0x2E, 0x6B),
-        Rgb(0x6E, 0x8A, 0xA5),
-        Rgb(0x4A, 0x5F, 0x73),
-        Rgb(0x8A, 0x8A, 0x8A),
-        Rgb(0x5A, 0x5A, 0x5A),
-        Rgb(0x2B, 0x2B, 0x2B),
-        Rgb(0x8E, 0x1F, 0x1F),
-        Rgb(0xA8, 0x52, 0x0C),
-        Rgb(0x6B, 0x45, 0x23),
-        Rgb(0x9A, 0x73, 0x00),
-        Rgb(0x1C, 0x5E, 0x38),
-        Rgb(0x0F, 0x66, 0x6E),
-        Rgb(0x52, 0x5E, 0x1A),
-        Rgb(0x1B, 0x45, 0x8A),
-        Rgb(0x52, 0x35, 0x8A),
-        Rgb(0x78, 0x1B, 0x47),
-    ];
-    let number = name.to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<usize>().ok());
-    number.and_then(|n| COLORS.get(n).copied()).unwrap_or(Rgb(0x8A, 0x8A, 0x8A))
+    let number = name.to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
+    number.and_then(mailcraft_model::preset_category_color).unwrap_or(mailcraft_model::GREY_CATEGORY)
 }
 
 /// One calendar of a list as the mailbox can take it, in the group called `group`.
@@ -2257,6 +2229,8 @@ mod rules_tests;
 mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
+#[cfg(test)]
+mod task_dates_tests;
 #[cfg(test)]
 mod tasks_tests;
 

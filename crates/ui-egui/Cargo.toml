@@ -44,3 +44,5 @@ toml = "1"
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 # Messages as they come, for the reading pane's tests.
 mailcraft-mime = { workspace = true }
+# Synthetic .pst files for Import a .pst File's tests (the writer is a dev-only feature).
+mailcraft-pst = { workspace = true, features = ["test-writer"] }
