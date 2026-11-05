@@ -15,7 +15,8 @@ mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
 mailcraft-engine = { workspace = true }
-egui = { workspace = true }
+# The emoji faces, behind a feature of their own since egui 0.37 (#832).
+egui = { workspace = true, features = ["monochrome_emoji_fonts"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

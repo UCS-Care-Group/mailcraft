@@ -992,7 +992,8 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     let system_regular = system_face("SystemRegular", &system.regular);
     let system_semibold = system_face("SystemSemibold", &system.semibold);
     let system_bold = system_face("SystemBold", &system.bold);
-    // Symbols and emoji fall back to egui's defaults (kept after our faces).
+    // Symbols and emoji fall back to egui's defaults (kept after our faces): its emoji faces come
+    // with the `monochrome_emoji_fonts` feature this crate turns on (#832).
     let mut fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     fallback.push("SourceSans".into());
     // Last, JetBrains Mono, for what only it has: U+FFFD among them, the mark of a character that
@@ -1275,6 +1276,9 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 #[path = "theme_contrast_tests.rs"]
 mod theme_contrast_tests;
 
+#[cfg(test)]
+#[path = "theme_emoji_tests.rs"]
+mod theme_emoji_tests;
 #[cfg(test)]
 #[path = "theme_font_tests.rs"]
 mod theme_font_tests;
