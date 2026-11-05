@@ -15,6 +15,8 @@ use crate::{
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
+/// [`MAX_DEPTH`], for an import that fits a deeper tree into it.
+pub const MAX_FOLDER_DEPTH: usize = MAX_DEPTH;
 /// Largest id a file may hold: 2^53, the largest integer every JSON reader keeps exactly.
 const MAX_ID: Id = 1 << 53;
 /// Most changes waiting for the mail server that a file may hold ([`Mailbox::pending`]).
@@ -691,12 +693,15 @@ pub enum OAuthProvider {
     /// Outlook.com and Microsoft 365.
     #[default]
     Microsoft,
+    /// Gmail and Google Workspace over IMAP/SMTP XOAUTH2.
+    Google,
 }
 
 impl OAuthProvider {
     pub fn parse(s: &str) -> Option<OAuthProvider> {
         match s.trim().to_ascii_lowercase().as_str() {
             "microsoft" | "outlook" | "office365" | "microsoft365" => Some(OAuthProvider::Microsoft),
+            "google" | "gmail" | "googleworkspace" => Some(OAuthProvider::Google),
             _ => None,
         }
     }
@@ -704,12 +709,14 @@ impl OAuthProvider {
     pub fn code(self) -> &'static str {
         match self {
             OAuthProvider::Microsoft => "microsoft",
+            OAuthProvider::Google => "google",
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
             OAuthProvider::Microsoft => "Microsoft",
+            OAuthProvider::Google => "Google",
         }
     }
 }
@@ -952,6 +959,41 @@ pub struct Category {
 
 /// The colour of a category with none: one a list doesn't have, or one new to the list.
 pub const GREY_CATEGORY: Rgb = Rgb(0x8A, 0x8A, 0x8A);
+
+/// Our own colours for the numbered colours Outlook gives a category (0 to 24: red, orange,
+/// brown, yellow, green, teal, olive, blue, purple, cranberry, steel, dark steel, gray, dark
+/// gray, black, then the dark ones of the first ten), as Microsoft Graph names them
+/// (`preset0`…) and a .pst file's list of categories numbers them; `None` for any other.
+pub fn preset_category_color(n: i64) -> Option<Rgb> {
+    const COLORS: [Rgb; 25] = [
+        Rgb(0xD1, 0x3B, 0x3B),
+        Rgb(0xE0, 0x7B, 0x1F),
+        Rgb(0x9C, 0x6B, 0x3F),
+        Rgb(0xD9, 0xA4, 0x0C),
+        Rgb(0x2E, 0x8B, 0x57),
+        Rgb(0x1A, 0x9B, 0xA6),
+        Rgb(0x7A, 0x8B, 0x2E),
+        Rgb(0x2F, 0x6F, 0xD0),
+        Rgb(0x7E, 0x57, 0xC2),
+        Rgb(0xB0, 0x2E, 0x6B),
+        Rgb(0x6E, 0x8A, 0xA5),
+        Rgb(0x4A, 0x5F, 0x73),
+        Rgb(0x8A, 0x8A, 0x8A),
+        Rgb(0x5A, 0x5A, 0x5A),
+        Rgb(0x2B, 0x2B, 0x2B),
+        Rgb(0x8E, 0x1F, 0x1F),
+        Rgb(0xA8, 0x52, 0x0C),
+        Rgb(0x6B, 0x45, 0x23),
+        Rgb(0x9A, 0x73, 0x00),
+        Rgb(0x1C, 0x5E, 0x38),
+        Rgb(0x0F, 0x66, 0x6E),
+        Rgb(0x52, 0x5E, 0x1A),
+        Rgb(0x1B, 0x45, 0x8A),
+        Rgb(0x52, 0x35, 0x8A),
+        Rgb(0x78, 0x1B, 0x47),
+    ];
+    usize::try_from(n).ok().and_then(|n| COLORS.get(n).copied())
+}
 
 /// The categories a new mailbox starts with (our own colours).
 fn default_categories() -> Vec<Category> {
@@ -1635,7 +1677,7 @@ impl Mailbox {
 
     /// How many folders down `id` is (1 at the top), counted by its parents: a name may hold a
     /// `/` ([`Mailbox::names_may_hold_slashes`]).
-    fn depth(&self, id: Id) -> usize {
+    pub fn depth(&self, id: Id) -> usize {
         let mut depth = 0;
         let mut cur = Some(id);
         while let Some(f) = cur.and_then(|c| self.folder(c)) {
@@ -1692,6 +1734,17 @@ impl Mailbox {
 
     /// Create a folder under `parent` (or at the account's top level).
     pub fn add_folder(&mut self, account: Id, parent: Option<Id>, name: &str) -> Result<Id, ModelError> {
+        self.add_folder_checked(account, parent, name, true)
+    }
+
+    /// [`Mailbox::add_folder`] for a caller that keeps its own index of the names under
+    /// `parent` and knows `name` is free there (an import that makes thousands of folders): the
+    /// one check that reads every folder is left out.
+    pub fn add_folder_free(&mut self, account: Id, parent: Option<Id>, name: &str) -> Result<Id, ModelError> {
+        self.add_folder_checked(account, parent, name, false)
+    }
+
+    fn add_folder_checked(&mut self, account: Id, parent: Option<Id>, name: &str, check_taken: bool) -> Result<Id, ModelError> {
         let name = clean_name(name).ok_or_else(|| invalid("a folder needs a name"))?;
         if name.contains('/') && !self.names_may_hold_slashes(account) {
             return Err(invalid("a folder name can't contain /"));
@@ -1713,7 +1766,7 @@ impl Mailbox {
                 return Err(invalid(format!("a folder can't be made in {}", pf.name)));
             }
         }
-        if self.name_taken(account, parent, &name, None) {
+        if check_taken && self.name_taken(account, parent, &name, None) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));
         }
         let id = self.alloc_id();

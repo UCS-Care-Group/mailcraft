@@ -20,10 +20,10 @@ use mailcraft_model::remote_tasks::{
     TasksUpload, TasksUploaded,
 };
 use mailcraft_model::{Importance, TaskPatch};
-use mailcraft_time::{DateTime, Timestamp};
+use mailcraft_time::{DateTime, Timestamp, Zone};
 use serde_json::{Value, json};
 
-use super::{Doing, Graph, MAX_WRITTEN, PAGE_SIZE, WRITE_TIMEOUT, instant, nonsense, text, when};
+use super::{Doing, Graph, MAX_DATE, MAX_WRITTEN, PAGE_SIZE, WRITE_TIMEOUT, graph_zone, instant, nonsense, text, when};
 use crate::NetError;
 use crate::http;
 
@@ -35,9 +35,10 @@ const MAX_TITLE: usize = 255;
 /// Longest id of a list or a task that is put into an address.
 const MAX_ID: usize = 1_024;
 
-/// The owner's to-dos, as Microsoft To Do has them.
-pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
-    tasks_at(&super::graph_base(), token)
+/// The owner's to-dos, as Microsoft To Do has them, their days read for an owner in `zone` (the
+/// zone the window shows the calendar in).
+pub fn tasks(token: &str, zone: Zone) -> Result<TasksDownload, NetError> {
+    tasks_at(&super::graph_base(), token, zone)
 }
 
 /// Tell Microsoft To Do what was done here to the owner's to-dos, one change after the other;
@@ -51,11 +52,13 @@ pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
 /// - 409 and 412 (something changed there meanwhile): [`TaskResult::Failed`], to be tried again.
 /// - any other refusal (400, 413…): [`TaskResult::Refused`], for good.
 /// - 401: nothing more is sent, and the upload says the sign-in was refused.
-pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
-    push_tasks_at(&super::graph_base(), token, upload)
+///
+/// A day (start, due) goes as the midnight that begins it in `zone`.
+pub fn push_tasks(token: &str, upload: &TasksUpload, zone: Zone) -> TasksUploaded {
+    push_tasks_at(&super::graph_base(), token, upload, zone)
 }
 
-pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetError> {
+pub(super) fn tasks_at(base: &str, token: &str, zone: Zone) -> Result<TasksDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = TasksDownload::default();
     // Each list's id, its well-known name, and whether it is shared with other people.
@@ -79,7 +82,7 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
         let read = if room == 0 {
             Ok(false)
         } else {
-            graph.list(Doing::Tasks, first, &[], most, &mut |entry| match task_of(entry, list) {
+            graph.list(Doing::Tasks, first, &[], most, &mut |entry| match task_of(entry, list, zone) {
                 Some(task) if seen.insert(task.id.clone()) => download.tasks.push(task),
                 Some(_) => {}
                 None => unread += 1,
@@ -102,13 +105,33 @@ pub(super) fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= MAX_ID && !id.chars().any(|c| c.is_control() || c.is_whitespace())
 }
 
-/// The date a `{"dateTime": "2026-10-12T00:00:00.0000000", "timeZone": "Europe/London"}` falls
-/// on, as written in the zone it was written in: nothing is converted, because the days of a
-/// task are days, not instants (a conversion to UTC moved a London midnight to the day before
-/// in summer). Instants (reminder, done) are read with their own zone by `when`.
-fn day_of(value: Option<&Value>) -> Option<mailcraft_time::Date> {
-    let written = text(value?, "dateTime");
-    mailcraft_time::Date::parse_iso(written.get(..10)?)
+/// The day a task's `{"dateTime": …, "timeZone": …}` stands for, for an owner in `owner` (#809).
+/// A task's start and due dates are days, which Graph writes as the midnight that begins them:
+///
+/// - a midnight as written is that day in the zone it was written in, and nothing is converted
+///   (`2026-07-14T00:00:00` in `Europe/London` is 14 July, though it is 23:00 UTC the day before);
+/// - Microsoft To Do gives its days as the owner's midnight turned into UTC (`2026-11-09T23:00:00`
+///   in `UTC` is 10 November for an owner on UTC+1, `2026-11-10T05:00:00` is 10 November on
+///   UTC-5): any other time is the instant it names, and the day is the one whose midnight in the
+///   owner's zone is nearest to it, so that a zone an hour or two off the owner's comes to the
+///   same day;
+/// - a time in a zone that can't be placed is the day written, as it always was.
+///
+/// Instants (reminder, done) are read with their own zone by `when`.
+fn day_of(value: Option<&Value>, owner: Zone) -> Option<mailcraft_time::Date> {
+    let value = value?;
+    let written = text(value, "dateTime");
+    let day = mailcraft_time::Date::parse_iso(written.get(..10)?)?;
+    let Some((wall, offset)) = Some(written).filter(|text| text.len() <= MAX_DATE).and_then(mailcraft_time::parse_iso) else {
+        return Some(day);
+    };
+    if offset.is_none() && wall.seconds_of_day() == 0 {
+        return Some(day);
+    }
+    let Some(at) = when(Some(value)) else { return Some(day) };
+    let there = owner.wall(at);
+    // The nearest midnight: the next one from noon on.
+    Some(if there.hour >= 12 { there.date.add_days(1) } else { there.date })
 }
 
 /// Words from HTML: tags dropped, the few entities that matter read.
@@ -126,7 +149,7 @@ fn plain(html: &str) -> String {
     out.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
 }
 
-pub(super) fn task_of(entry: &Value, list: &str) -> Option<RemoteTask> {
+pub(super) fn task_of(entry: &Value, list: &str, zone: Zone) -> Option<RemoteTask> {
     let id = text(entry, "id");
     if !valid_id(id) {
         return None;
@@ -150,8 +173,8 @@ pub(super) fn task_of(entry: &Value, list: &str) -> Option<RemoteTask> {
         change_key: text(entry, "@odata.etag").to_string(),
         title: text(entry, "title").to_string(),
         notes,
-        start: day_of(entry.get("startDateTime")),
-        due: day_of(entry.get("dueDateTime")),
+        start: day_of(entry.get("startDateTime"), zone),
+        due: day_of(entry.get("dueDateTime"), zone),
         completed,
         importance: Importance::parse(text(entry, "importance")).unwrap_or_default(),
         categories: categories.unwrap_or_default(),
@@ -161,8 +184,17 @@ pub(super) fn task_of(entry: &Value, list: &str) -> Option<RemoteTask> {
     Some(task)
 }
 
-fn date_time(day: mailcraft_time::Date) -> Value {
-    json!({"dateTime": format!("{}T00:00:00.0000000", day.iso()), "timeZone": "UTC"})
+/// A day as Graph is to have it: the midnight that begins it in the owner's zone, named as Graph
+/// knows it, so that Microsoft To Do shows the same day whichever zone it shows it in (#809); for a
+/// zone Graph has no name for (an offset, the system's when it has no name), and for a day whose
+/// midnight the clocks skip there (a wall time that never is), that midnight in UTC.
+fn date_time(day: mailcraft_time::Date, owner: Zone) -> Value {
+    let midnight = DateTime::at_midnight(day);
+    let at = owner.instant(midnight);
+    match graph_zone(&owner.id()) {
+        Some((_, name)) if owner.wall(at) == midnight => json!({"dateTime": format!("{}.0000000", midnight.iso()), "timeZone": name}),
+        _ => instant_value(at),
+    }
 }
 
 fn instant_value(at: Timestamp) -> Value {
@@ -170,7 +202,7 @@ fn instant_value(at: Timestamp) -> Value {
 }
 
 /// The body of a creation or a change: only the fields of `patch`.
-pub(super) fn task_body(patch: &TaskPatch) -> Value {
+pub(super) fn task_body(patch: &TaskPatch, zone: Zone) -> Value {
     let mut body = serde_json::Map::new();
     if let Some(title) = &patch.title {
         body.insert("title".into(), json!(title.chars().take(MAX_TITLE).collect::<String>()));
@@ -179,10 +211,10 @@ pub(super) fn task_body(patch: &TaskPatch) -> Value {
         body.insert("body".into(), json!({"content": notes, "contentType": "text"}));
     }
     if let Some(start) = patch.start {
-        body.insert("startDateTime".into(), start.map_or(Value::Null, date_time));
+        body.insert("startDateTime".into(), start.map_or(Value::Null, |day| date_time(day, zone)));
     }
     if let Some(due) = patch.due {
-        body.insert("dueDateTime".into(), due.map_or(Value::Null, date_time));
+        body.insert("dueDateTime".into(), due.map_or(Value::Null, |day| date_time(day, zone)));
     }
     if let Some(done) = patch.completed {
         body.insert("status".into(), json!(if done.is_some() { "completed" } else { "notStarted" }));
@@ -205,7 +237,7 @@ pub(super) fn task_body(patch: &TaskPatch) -> Value {
     Value::Object(body)
 }
 
-pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> TasksUploaded {
+pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload, zone: Zone) -> TasksUploaded {
     let mut uploaded = TasksUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     let Ok(graph) = Graph::at(base, token) else {
         uploaded.token_refused = true;
@@ -253,8 +285,8 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
         };
         let lists = format!("{LISTS}/{}/tasks", http::encode(&list));
         let (method, path, body) = match op.kind {
-            TaskOpKind::Create => ("POST", lists, Some(task_body(&op.patch).to_string())),
-            TaskOpKind::Update => ("PATCH", format!("{lists}/{}", http::encode(&op.id)), Some(task_body(&op.patch).to_string())),
+            TaskOpKind::Create => ("POST", lists, Some(task_body(&op.patch, zone).to_string())),
+            TaskOpKind::Update => ("PATCH", format!("{lists}/{}", http::encode(&op.id)), Some(task_body(&op.patch, zone).to_string())),
             TaskOpKind::Delete => ("DELETE", format!("{lists}/{}", http::encode(&op.id)), None),
         };
         let headers: &[(&str, &str)] = if body.is_some() { &[("Content-Type", "application/json")] } else { &[] };
