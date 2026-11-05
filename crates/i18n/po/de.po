@@ -2127,6 +2127,12 @@ msgid "Check Now"
 msgstr "Jetzt prüfen"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check Recipients"
+msgstr "Empfänger prüfen"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -2154,6 +2160,12 @@ msgstr "Nach neuen Versionen suchen"
 #, fuzzy
 msgid "Check the account's settings"
 msgstr "Kontoeinstellungen überprüfen"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check the recipients before this message goes:"
+msgstr "Prüfen Sie die Empfänger, bevor diese Nachricht gesendet wird:"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -6464,6 +6476,12 @@ msgid "Move this rule up: it runs earlier"
 msgstr "Diese Regel nach oben verschieben: Sie läuft früher"
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Move to Bcc"
+msgstr "In Bcc verschieben"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
@@ -9629,6 +9647,12 @@ msgstr "Senden/Empfangen"
 #, fuzzy
 msgid "Send Again"
 msgstr "Erneut senden"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Send Anyway"
+msgstr "Trotzdem senden"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14931,6 +14955,12 @@ msgid "not known until the first Send/Receive"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr "nicht gesendet: {why}. Senden Sie mit \"confirmed\": true, um sie trotzdem zu senden, oder mit \"moveToBcc\": true, um die Personen außerhalb der Organisation zuerst in Bcc zu verschieben"
+
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing is selected in the message"
@@ -15910,6 +15940,12 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{address} looks like {like}, which you write to, but isn't the same address."
+msgstr "{address} sieht aus wie {like}, wohin Sie schreiben, ist aber eine andere Adresse."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. It will try again at the next Send/Receive."
 msgstr ""
@@ -16772,6 +16808,14 @@ msgid "{n} person is invited to this meeting."
 msgid_plural "{n} people are invited to this meeting."
 msgstr[0] "{n} Person ist zu dieser Besprechung eingeladen."
 msgstr[1] "{n} Personen sind zu dieser Besprechung eingeladen."
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
+msgstr[0] "{n} Person außerhalb Ihrer Organisation, bei {domains} Domänen, würde die Adressen der anderen unter „An“ und „Cc“ sehen."
+msgstr[1] "{n} Personen außerhalb Ihrer Organisation, bei {domains} Domänen, würden die Adressen der anderen unter „An“ und „Cc“ sehen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

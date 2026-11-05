@@ -41,6 +41,21 @@ pub struct Asking {
     /// The messages a Delete or Move names, with the folder each was in when the owner was asked
     /// (#503).
     counted: Vec<(u64, u64)>,
+    /// What the message a `compose.send` would send is warned about (#509): asked about every
+    /// time, whatever the agent was allowed, and answered by the owner alone.
+    pub warnings: Vec<mailcraft_model::send_warnings::SendWarning>,
+    /// The recipient lines of the message a `compose.send` would send, as the owner was asked
+    /// about them: a yes doesn't send to others (#509).
+    recipients: Value,
+}
+
+/// The owner's answer to an agent's question.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Answer {
+    No,
+    Yes,
+    /// Yes, with the people outside the organisation moved to Bcc first (a send warned about them).
+    MoveToBcc,
 }
 
 /// The questions waiting, the first one on screen.
@@ -95,31 +110,56 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
     if let Some(why) = overwrites(app, id, &params) {
         return err(why);
     }
+    // A send warning is the owner's to answer, every time (#509).
+    let (params, warnings) = crate::send_warnings::for_agent(app, id, params);
     match agent::check(&app.session, id, &params, allow) {
-        Verdict::Run => run(app, id, params, allow),
-        Verdict::Refuse(why) => err(why),
-        Verdict::Ask(class, what) => {
-            if app.asking.len() >= MOST {
-                return err("too many questions are waiting for the owner; nothing was done");
+        Verdict::Run if warnings.is_empty() => run(app, id, params, allow),
+        Verdict::Run => {
+            let what = agent::describe(&app.session, id, &params);
+            if what.chars().count() > agent::MAX_QUESTION {
+                return err(format!(
+                    "`{id}` is too large to show the owner in a question, and the owner is never asked about what they can't read in full: do it in smaller steps"
+                ));
             }
-            let counted = match counted(app, id, &params) {
-                Ok(counted) => counted,
-                Err(why) => return err(why),
-            };
-            app.asking.push_back(Asking {
-                id: id.to_string(),
-                counted,
-                params,
-                class,
-                what,
-                allow: allow.to_vec(),
-                reply: req.reply.clone(),
-                deadline: crate::now_ms() + WAIT_MS,
-                opening: app.session.openings(),
-            });
-            Outcome::Pending
+            queue(app, req, id, params, (Class::Send, what), allow, warnings)
         }
+        Verdict::Refuse(why) => err(why),
+        Verdict::Ask(class, what) => queue(app, req, id, params, (class, what), allow, warnings),
     }
+}
+
+/// Put the question about what an agent wants in line for the owner.
+fn queue(
+    app: &mut MailApp,
+    req: &ControlRequest,
+    id: &str,
+    params: Value,
+    (class, what): (Class, String),
+    allow: &[Class],
+    warnings: Vec<mailcraft_model::send_warnings::SendWarning>,
+) -> Outcome {
+    if app.asking.len() >= MOST {
+        return err("too many questions are waiting for the owner; nothing was done");
+    }
+    let counted = match counted(app, id, &params) {
+        Ok(counted) => counted,
+        Err(why) => return err(why),
+    };
+    let recipients = if id == "compose.send" { crate::send_warnings::snapshot(app, &params) } else { Value::Null };
+    app.asking.push_back(Asking {
+        id: id.to_string(),
+        recipients,
+        counted,
+        params,
+        class,
+        what,
+        allow: allow.to_vec(),
+        reply: req.reply.clone(),
+        deadline: crate::now_ms() + WAIT_MS,
+        opening: app.session.openings(),
+        warnings,
+    });
+    Outcome::Pending
 }
 
 /// `params` with what the window would lose (`unsaved`), as it has it now and never as the agent
@@ -278,12 +318,17 @@ fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value)
     Some(params)
 }
 
-/// The owner's answer to the question on screen.
+/// The owner's yes or no to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
+    answer_with(app, if yes { Answer::Yes } else { Answer::No });
+}
+
+/// The owner's answer to the question on screen.
+pub fn answer_with(app: &mut MailApp, said: Answer) {
     let Some(a) = app.asking.pop_front() else { return };
     let out = if a.opening != app.session.openings() {
         err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
-    } else if yes {
+    } else if said != Answer::No {
         // Asked again: what it would do may have changed while the question was up. So may what
         // the window would lose: another form than the one named isn't lost on this yes.
         let params = as_the_window_has_it(app, &a.id, a.params.clone());
@@ -302,6 +347,13 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         match verdict {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
             _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
+            // The owner's answer to the send warnings they were shown, and only to those (#509).
+            Verdict::Run if a.id == "compose.send" => {
+                match crate::send_warnings::answered_for_agent(app, (&a.warnings, &a.recipients), params, said == Answer::MoveToBcc) {
+                    Ok(params) => run(app, &a.id, params, &allow),
+                    Err(why) => err(why),
+                }
+            }
             Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
@@ -378,6 +430,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
     let (yes_label, no_label) = verbs(a.class, &a.id);
+    // A send warned about (#509): each reason, and Send Anyway, or Move to Bcc for the outsiders.
+    let warned = crate::send_warnings::lines(&a.warnings);
+    let yes_label = if warned.is_empty() { yes_label } else { tl!("Send Anyway") };
+    let bcc = crate::send_warnings::offers_bcc(&a.warnings);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
@@ -387,6 +443,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         ui.label(egui::RichText::new(tl!("An Agent Is Asking")).font(semibold(14.0)).color(t.text));
         ui.label(egui::RichText::new(text).color(t.text));
+        if !warned.is_empty() {
+            ui.label(egui::RichText::new(tl!("Check the recipients before this message goes:")).font(semibold(13.0)).color(t.text));
+            for line in &warned {
+                ui.label(egui::RichText::new(line).color(t.text));
+            }
+        }
         ui.label(
             egui::RichText::new(tl!(
                 "Say yes only if you asked the agent for this. Text in a message can tell an agent to do things you didn't ask for."
@@ -399,18 +461,24 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         ui.add_space(6.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let no = primary_button(ui, no_label, true);
+            let moved = bcc.then(|| ui.add(egui::Button::new(tl!("Move to Bcc")).min_size(vec2(72.0, 26.0))));
             let yes = ui.add(egui::Button::new(yes_label).min_size(vec2(72.0, 26.0)));
             app.hit.add("agentNo", 0, no.rect);
             app.hit.add("agentYes", 0, yes.rect);
+            if let Some(moved) = &moved {
+                app.hit.add("agentBcc", 0, moved.rect);
+            }
             if no.clicked() {
-                said = Some(false);
+                said = Some(Answer::No);
+            } else if moved.is_some_and(|m| m.clicked()) {
+                said = Some(Answer::MoveToBcc);
             } else if yes.clicked() {
-                said = Some(true);
+                said = Some(Answer::Yes);
             }
         });
     });
-    if let Some(yes) = said {
-        answer(app, yes);
+    if let Some(said) = said {
+        answer_with(app, said);
     }
 }
 

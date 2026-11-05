@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -144,6 +144,28 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
+  for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
+  @ is one edit or one skeleton from a known address at the same domain (five characters or
+  more), and for 5 or more people outside the owner's organisation, at 2 or more registrable
+  domains, in To and Cc (not when all of them were on the message replied to or forwarded). The
+  known correspondents are the same contacts and Sent Items, never somebody who only wrote to the
+  owner, so a lookalike that wrote first is still asked about when the owner replies. A message
+  with a warning is refused unless the call says `"confirmed": true` (or `"moveToBcc": true`
+  moves the outsiders first); the window asks its owner, and an agent's send through the window
+  is asked about every time, whatever `--allow` says, with its own `confirmed` and `moveToBcc`
+  dropped. The yes holds only for the warnings shown: what would send more is refused. Headless,
+  nobody can be asked, so the call's own `confirmed` is honoured, as for any script; sending at
+  all still needs `--allow send`. The yes, the owner's or an agent's question's, holds for the
+  recipient lines asked about: a message changed while the question was up is asked about again
+  (the owner's) or not sent (the agent's). An address is shown with what draws nothing left out
+  and its domain as it goes over the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
+  dots Gmail ignores are not lookalikes. The rules are `crates/model/src/send_warnings.rs`,
+  bounded to 1,000 recipients and 20 lookalikes said. What they don't cover: only `compose.send`
+  is checked (Send Again of a message held in an Outbox, and meeting requests and their answers,
+  are not); the known correspondents are whatever the contacts and Sent Items hold, so an agent
+  that adds a contact or moves a message into Sent Items (both safe for agents) makes that address
+  known; and an agent allowed input (`--allow input`) can press any button, a question's included.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the

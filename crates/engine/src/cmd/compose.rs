@@ -80,7 +80,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_compose),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
-        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
+        CommandSpec::new("compose.send", "Send", "Message", send)
+            .key("Mod+Enter / Alt+S")
+            .params(r#"{"confirmed"?: true, "moveToBcc"?: true} — a message with a send warning (#509: a recipient one character from somebody the owner writes to, or 5 or more people outside the organisation, at 2 or more domains, who would see each other in To and Cc) is refused, and stays as it is being written, unless `confirmed` sends it anyway or `moveToBcc` moves those people to Bcc first. The window asks the owner which; an agent's send is asked about in the window, whatever it says"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
@@ -1270,13 +1273,30 @@ fn answers_of(s: &Session, c: &Compose) -> Option<Answers> {
     Some(Answers { also: originals.collect(), ..first })
 }
 
-fn send(s: &mut Session, _: &Value) -> CmdResult {
-    let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
+fn send(s: &mut Session, params: &Value) -> CmdResult {
+    use crate::send_warnings::{CONFIRMED, Lines, MOVE_TO_BCC, describe, said};
+    let mut c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
+    // Move to Bcc (#509): the people outside the organisation go from To and Cc to Bcc first.
+    let lines = Lines::of(s).unwrap_or_default();
+    let lines = if said(params, MOVE_TO_BCC) { s.outsiders_to_bcc(&lines) } else { lines };
+    (c.to, c.cc, c.bcc) = (lines.to.clone(), lines.cc.clone(), lines.bcc.clone());
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
     let saved =
         c.draft.and_then(|d| s.mailbox.message(d).cloned()).filter(|d| d.server_draft.is_some() && s.mailbox.keeps_drafts_on_server(d.account));
     let mut m = build_as(s, &c, true, saved.as_ref().map(|d| d.message_id.as_str()).filter(|id| !id.is_empty()))?;
+    // Asked first (#509): a recipient who looks like somebody the owner writes to but isn't, or
+    // people outside the organisation who would see each other, unless the owner said to send
+    // anyway. Nothing changes: the message stays as it is being written.
+    if !said(params, CONFIRMED) {
+        let warnings = s.send_warnings_of(&lines);
+        if !warnings.is_empty() {
+            return Err(failed!(
+                "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first",
+                why = describe(&warnings)
+            ));
+        }
+    }
     if let Some(d) = saved.as_ref().filter(|d| d.account == m.account) {
         (m.server, m.server_draft) = (d.server.clone(), d.server_draft.clone());
         if let Some(sd) = m.server_draft.as_mut() {
