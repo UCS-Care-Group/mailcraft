@@ -171,6 +171,9 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     (server.flag_start, server.flag_due, server.flag_completed) = (None, None, None);
     server.change_key.clear();
     server.gone = false;
+    // (Its thread, as an opaque id or none, #795; it is never asked for by itself.)
+    server.thread = mailcraft_model::sync::thread_id(&server.thread);
+    (server.thread_asked, server.thread_tries) = (false, 0);
     m.message_id = line(&m.message_id, MAX_TEXT);
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
@@ -257,6 +260,7 @@ pub(crate) fn bounded(mut result: JmapMailResult) -> JmapMailResult {
     }
     result.errors = lines(&result.errors);
     result.busy_for = result.busy_for.map(|seconds| seconds.min(MAX_BUSY));
+    super::thread_ids::bounded(&mut result.threads, is_id);
     if let Some(progress) = result.progress.as_mut().filter(|progress| !is_id(&progress.folder)) {
         progress.folder.clear();
     }

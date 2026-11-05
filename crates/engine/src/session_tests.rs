@@ -108,15 +108,15 @@ fn the_clock_and_the_week_follow_the_language_unless_chosen() {
 
 #[test]
 fn the_list_is_kept_under_a_short_key_however_many_conversations_are_open() {
-    // A thousand open conversations with long subjects (#503).
+    // A thousand open conversations (#503).
     let mut s = Session::new(crate::sample::mailbox(1_791_993_600, 0));
     let closed = s.shown_key();
-    s.view.open = (0..1_000).map(|i| (1, format!("{i} {}", "a long subject ".repeat(20)))).collect();
+    s.view.open = (0..1_000).map(|i| (1, mailcraft_model::ThreadKey(i))).collect();
     let open = s.shown_key();
     assert!(open.len() < closed.len() + 40, "{} characters", open.len());
     s.view.open.pop();
     assert_ne!(s.shown_key(), open);
-    s.view.open.push((1, format!("999 {}", "a long subject ".repeat(20))));
+    s.view.open.push((1, mailcraft_model::ThreadKey(999)));
     assert_eq!(s.shown_key(), open);
     s.view.open.clear();
     assert_eq!(s.shown_key(), closed);

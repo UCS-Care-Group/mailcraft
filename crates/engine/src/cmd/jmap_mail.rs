@@ -130,6 +130,8 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
         list_folders: !light || !listed || s.graph_listed_short.contains(&account),
         scope,
         known: jmap_down::known(mb, account, read.as_deref(), usize::try_from(window).unwrap_or(usize::MAX)),
+        // The thread ids of mail listed before they were asked for, in a run of every mailbox (#795).
+        threads: if light { Vec::new() } else { super::thread_ids::to_ask(mb, account) },
         ..Default::default()
     })
 }
@@ -252,7 +254,9 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
             jmap_down::sweep(&mut s.mailbox, account, &read, &mut down);
         }
     }
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() {
+    // The threads of mail listed before they were asked for (#795).
+    let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

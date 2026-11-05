@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -14,7 +14,8 @@ public specifications; every reader is fed arbitrary bytes by property tests and
 | **`.mbox`** (RFC 4155, mboxrd-tolerant) | yes | yes | `Content-Length` variants not honoured. A whole folder tree of them imports at once (`file.importFolderTree`, #420): a file is an mbox by its first bytes (a `From ` line, then a header), `X.sbd` folders hold the subfolders of `X`, links are not followed, and depth (12), entries (20,000), folders (5,000), messages (200,000 a file, 500,000 in all) and bytes (4 GB) are capped, what was left out being listed |
 | **`.ics`** (iCalendar, RFC 5545) | yes | yes | Events, to-dos, attendees, alarms, recurrence (the common rules), skipped days, changed instances read as separate events. Time zones: `TZID` by the file's own `VTIMEZONE` (which decides the moment), by IANA and Windows names, UTC and floating times; an item with a zone is written with its `VTIMEZONE`, a calendar export in the calendar's zone. A zone nobody knows is kept at the offset the file gives, else at its clock time, and reported. No `RDATE`, recurring to-dos |
 | **`.vcf`** (vCard 2.1 / 3.0 / 4.0) | yes | 3.0 | Names, organisation, e-mails, phones, addresses, URLs, birthday, notes, categories. No photos, groups, name prefixes/suffixes |
-| `.msg`, `.pst`, `.ost`, `.olm`, `.oft` | no | no | Gap #12 |
+| **`.pst`** (Outlook data file, [MS-PST]) | mail (preview) | no | `file.importPst` (#815), ANSI and Unicode files, with or without a password (a wrong one or none imports nothing). The mail goes into a new folder on this computer named after the file (one of that name that isn't this file's is left alone: `name (2)` is made), or under a folder on this computer the owner picks; never into an account on a server. Folders nested deeper than a mailbox here allows (32 levels) have their mail put in the deepest that fits, and the report says so. Headers, read and flag state, importance, categories (with the file's own colours), HTML or plain body (an ANSI file's text by its code page), files, inline pictures by content id, attached messages as `.eml`, OLE objects under a plain name; linked attachments are named and not fetched; a body that is rich text alone (no text, no HTML) and S/MIME are kept whole as attachments and noted. Calendar items, contacts, tasks, notes and journal entries are counted as left for a later part; the file's internal and search folders are named and not brought. Cancel keeps what is in, and a second import brings only what isn't there yet (each item is known by the file's identity and its node; the identity is the file's record key, which a copy that has since gone its own way keeps too, so only its new items come in). A report (per folder: found, brought in, already here, left out, later; and the damage the reader met) is shown and written as a text file beside the mailbox; every item is accounted for or the import fails. `dryRun` reads and counts without importing. The whole import is one step to undo. Not in the browser yet |
+| `.msg`, `.ost`, `.olm`, `.oft` | no | no | Gap #12 |
 | `.html`, `.pdf` (save a message as) | no | no | With printing (gap #15) |
 
 Text encodings: a message's bodies, encoded-word headers and RFC 2231 parameters are read in every
@@ -44,19 +45,19 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 | Date | Change | Summary |
 |---|---|---|
 | 2026-11-03 | minor | #702: the order the owner put their accounts in (`accountOrder`), and what an older build does with it |
+| 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |
 | 2026-10-26 | minor | #501: TLS certificates are checked by the operating system's verifier, not a built-in Mozilla root set |
+| 2026-10-25 | patch | #402: POP3 is "not yet" (#437), not "no"; Add Account names a POP server before connecting |
+| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once, found by their bytes, into one new local folder |
 | 2026-10-24 | minor | Password IMAP authentication prefers advertised PLAIN; current capabilities are queried only when unknown (#375) |
-| 2026-10-11 | major | First version |
-| 2026-10-12 | minor | Time zones (M3.5): the mailbox file's `zone` and an event's own zones; `VTIMEZONE` read and written |
-| 2026-10-15 | minor | The mailbox file in format 3, a log of records a save appends to (R6); formats 1 and 2 migrated with the old file kept; damage stops the reading at its save, or costs one item of the first; older builds and newer forms |
-| 2026-10-17 | patch | Files kept aside are never removed; 0.4.3 and earlier read the kept file |
+| 2026-10-23 | minor | #300: `notDownloaded`, the size on the server of a message too large to download; a file from before opens as it is, one with something other than a size there reads as none, and an older build drops the field from a message it writes again |
+| 2026-10-20 | minor | Protocols brought up to date with the code: IMAP two-way (UID STORE, MOVE, UIDPLUS, APPEND), XOAUTH2 for IMAP and SMTP, Microsoft Graph as the protocol of Microsoft accounts (mail, calendars, contacts, search, Favorites), Exchange Web Services gone, POP not planned |
+| 2026-10-20 | minor | Microsoft Graph: shared mailboxes out of testing; mail moved or copied between a shared mailbox and its owner's mailbox is made at the destination's own address (#70) |
 | 2026-10-18 | minor | The word index beside the mailbox file (`<file>.words`), R6.2 |
 | 2026-10-18 | minor | Mail in every character set of the WHATWG Encoding Standard (Windows-1250, ISO-8859-2, KOI8-R, Shift_JIS…), #178 |
 | 2026-10-18 | minor | vCard files in every character set of the WHATWG Encoding Standard, through mail's decoder, #180 |
 | 2026-10-18 | minor | vCard 2.1's raw 8-bit values read in their own `CHARSET`, #185 |
-| 2026-10-20 | minor | Protocols brought up to date with the code: IMAP two-way (UID STORE, MOVE, UIDPLUS, APPEND), XOAUTH2 for IMAP and SMTP, Microsoft Graph as the protocol of Microsoft accounts (mail, calendars, contacts, search, Favorites), Exchange Web Services gone, POP not planned |
-| 2026-10-20 | minor | Microsoft Graph: shared mailboxes out of testing; mail moved or copied between a shared mailbox and its owner's mailbox is made at the destination's own address (#70) |
-| 2026-10-23 | minor | #300: `notDownloaded`, the size on the server of a message too large to download; a file from before opens as it is, one with something other than a size there reads as none, and an older build drops the field from a message it writes again |
-| 2026-10-25 | patch | #402: POP3 is "not yet" (#437), not "no"; Add Account names a POP server before connecting |
-| 2026-10-25 | minor | #420: a folder tree of mbox files imports at once, found by their bytes, into one new local folder |
-| 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |
+| 2026-10-17 | patch | Files kept aside are never removed; 0.4.3 and earlier read the kept file |
+| 2026-10-15 | minor | The mailbox file in format 3, a log of records a save appends to (R6); formats 1 and 2 migrated with the old file kept; damage stops the reading at its save, or costs one item of the first; older builds and newer forms |
+| 2026-10-12 | minor | Time zones (M3.5): the mailbox file's `zone` and an event's own zones; `VTIMEZONE` read and written |
+| 2026-10-11 | major | First version |

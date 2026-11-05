@@ -236,6 +236,10 @@ item's original zone when another program made the item.
 | 2026-10-24 | #70: a shared mailbox's calendar listed twice (also under Shared Calendars) is offered once to be hidden, `calendar.hideListedCopy` |
 | 2026-10-24 | #70 calendars 5: an appointment moves between your calendar and a shared mailbox's or one opened by address, copy first and the original deleted once the copy is seen; a meeting stays |
 | 2026-10-24 | #70 calendars 4: Open Shared Calendar by address, `calendar.openShared` and `calendar.removeShared` |
+| 2026-10-24 | #70 calendars 2: a shared mailbox's calendars are read at its own address, with free/busy-only ones as blocks; the permission is asked for by itself; no reminders from them |
+| 2026-10-24 | #70 calendars 3: a shared mailbox's calendars are written to where the owner may edit, its meeting requests answered from its address, refused changes put back, shrunken rights hold what waits |
+| 2026-10-24 | #70 calendars 1: a calendar has an owner and rights (free/busy only, read, edit) in place of read-only, an older file's read-only reads as read or edit; calendars the server lists for other people are under Shared Calendars |
+| 2026-10-19 | The calendar's View tab has the four views in Arrangement, and no longer the messages' sorting and preview (#239) |
 | 2026-10-12 | First version, when the owner made the calendar the top priority |
 | 2026-10-12 | After a change of time made here didn't show in the owner's Outlook: sent changes are checked against what comes down, nothing is dropped silently, items that are only on this computer say so and can be moved, events of other calendars go through their calendar, and the owner can check the connection on the real account |
 | 2026-10-12 | The first wave is in: rows marked Done, and rows corrected where the code does something else than the list said (server series, deleting meetings, the calendar list) |
@@ -244,7 +248,3 @@ item's original zone when another program made the item.
 | 2026-10-12 | Of the third wave: the calendar list by group, calendars side by side and overlaid, working hours from the mailbox, a reminder opening its occurrence; calendars other than the account's own arrive unticked |
 | 2026-10-12 | The fourth wave is in (M3.4): Teams meetings, importance, response options, Propose New Time, forwarding, moving appointments between calendars; the known differences that came with them |
 | 2026-10-12 | Time zones (M3.5): the calendar's zone and a second one, zones of an item's own in its window, on Microsoft 365 and in `.ics`, working hours in the mailbox's zone, a computer that travels; the known differences that came with them |
-| 2026-10-24 | #70 calendars 2: a shared mailbox's calendars are read at its own address, with free/busy-only ones as blocks; the permission is asked for by itself; no reminders from them |
-| 2026-10-24 | #70 calendars 3: a shared mailbox's calendars are written to where the owner may edit, its meeting requests answered from its address, refused changes put back, shrunken rights hold what waits |
-| 2026-10-24 | #70 calendars 1: a calendar has an owner and rights (free/busy only, read, edit) in place of read-only, an older file's read-only reads as read or edit; calendars the server lists for other people are under Shared Calendars |
-| 2026-10-19 | The calendar's View tab has the four views in Arrangement, and no longer the messages' sorting and preview (#239) |

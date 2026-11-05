@@ -5,6 +5,7 @@
 //! Pure Rust (std + serde_json). `cargo` and `git` are invoked through `std::process::Command`.
 
 mod assets;
+mod docs_log;
 mod i18n;
 mod ico;
 mod icon;
@@ -31,7 +32,7 @@ commands:
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
   ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check,
-                  release-notes (the fragments join)
+                  release-notes and docs-log (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -44,6 +45,9 @@ commands:
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
+  docs-log [--check | --write]
+                  print each document with the table-row fragments in docs/log.d/ joined in; --check
+                  only checks they join; --write (in the release's pull request) joins them and removes them
   release-key new <dir>
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
@@ -68,6 +72,7 @@ fn main() -> ExitCode {
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
+        Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -241,6 +246,7 @@ fn cmd_ci() -> Result<(), String> {
         ("deny", Box::new(cmd_deny)),
         ("i18n", Box::new(|| i18n::run(&root(), true))),
         ("release-notes", Box::new(|| release_notes::check(&root()))),
+        ("docs-log", Box::new(|| docs_log::check(&root()))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();

@@ -86,6 +86,8 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,
         inbox_pass: None,
         full: full_sweep_due(s, account),
+        // The conversation ids of mail listed before they were asked for (#795).
+        threads: super::thread_ids::to_ask(&s.mailbox, account),
     })
 }
 
@@ -404,6 +406,8 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // The conversations of mail listed before they were asked for (#795).
+    let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
     // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
     // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
@@ -422,7 +426,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named {
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

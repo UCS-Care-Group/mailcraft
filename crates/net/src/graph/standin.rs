@@ -430,6 +430,9 @@ pub struct State {
     pub broken_lists: Vec<String>,
     /// A server that won't take a `$batch` at all (400): a client asks one request at a time.
     pub refuse_batches: bool,
+    /// Every request of a batch for a message's `conversationId` alone is answered with this
+    /// status (403 for a mailbox that may not be read so, 429 for a busy one; #795).
+    pub conversations_answer: Option<u16>,
     /// The prefixes the document writes its two namespaces with (`a` and `b` unless said).
     pub prefixes: (String, String),
     /// The messages of every folder, and the rounds of their delta ([`messages`]).
@@ -2473,7 +2476,12 @@ impl State {
             let body = request.get("body").map(Value::to_string).unwrap_or_default();
             let target = format!("/v1.0/{}", url.trim_start_matches('/'));
             let mut one = parse_target(method, &target, headers, body);
-            let (status, body) = match self.answer(&one) {
+            let conversation = one.query.iter().any(|(k, v)| k == "$select" && v == "conversationId");
+            let answered = match self.conversations_answer.filter(|_| conversation) {
+                Some(status) => Err(refuse(status, "ErrorAccessDenied", "Not now.")),
+                None => self.answer(&one),
+            };
+            let (status, body) = match answered {
                 Ok((status, body)) => (status, body),
                 Err(refusal) => (refusal.0, Some(error_body(&refusal))),
             };
