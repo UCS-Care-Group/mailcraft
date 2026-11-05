@@ -129,7 +129,7 @@ fn a_page_deeper_than_the_format_allows_is_refused() {
     let root = h.nbt.ib as usize;
     b[root + 488 + 3] = 9;
     fix_page(&mut b, Format::Unicode, root);
-    assert_eq!(open(&b).err(), Some(Error::Cap(crate::Cap::BTreeDepth)));
+    assert_eq!(open(&b).err(), Some(Error::Corrupt("a B-tree page's level")));
 }
 
 #[test]

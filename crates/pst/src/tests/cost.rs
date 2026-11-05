@@ -505,3 +505,68 @@ fn what_a_call_keeps_is_within_its_budget() {
     let mut pst = open(&bytes, Limits { max_item_bytes: budget, ..Default::default() });
     assert_eq!(pst.message(&MessageRef::item(item)).err(), Some(Error::Cap(Cap::ItemSize)));
 }
+
+#[test]
+fn a_list_value_holds_no_more_than_its_cap() {
+    // 100,000 empty binaries: 400 KB in the file, each a vector of its own in memory. And
+    // 100,000 two-byte numbers, which hold just their bytes.
+    let count = 100_000u32;
+    let mut empties = count.to_le_bytes().to_vec();
+    for _ in 0..count {
+        empties.extend_from_slice(&(4 + 4 * count).to_le_bytes());
+    }
+    let numbers: Vec<u8> = (0..count).flat_map(|i| (i as u16).to_le_bytes()).collect();
+    let (binaries, int16s) = (crate::prop::types::BINARY | 0x1000, crate::prop::types::INT16 | 0x1000);
+    let props =
+        vec![(0x6900u16, writer::Value { ty: binaries, bytes: empties.clone() }), (0x6901, writer::Value { ty: int16s, bytes: numbers.clone() })];
+    let spec = sample(unicode_layout(), None);
+    let mut all = nodes(&spec);
+    let mut spill = Spill::new();
+    let message = all.iter_mut().find(|n| n.nid & 0x1F == 4).unwrap();
+    let item = MessageRef::item(Nid(message.nid));
+    message.data = Data::Blocks(pc(&spec.layout, &props, &mut spill));
+    message.subnodes = spill.subnodes;
+    let bytes = raw(&spec.layout, &all);
+    let mut pst = open(&bytes, Limits::default());
+    // Within a cap of twice its bytes: refused before it is made.
+    let max = 2 * empties.len() as u64;
+    assert_eq!(pst.read_property(&item, 0x6900, max).err(), Some(Error::Cap(Cap::ItemSize)));
+    let whole = pst.read_property(&item, 0x6900, 64 << 20).unwrap().unwrap();
+    let PropValue::MultiBinary(v) = &whole else { panic!() };
+    assert_eq!(v.len(), count as usize);
+    assert!(whole.held() as u64 <= 64 << 20);
+    // What is checked before it is made covers what making it holds.
+    assert!(crate::prop::building_cost(binaries, &empties) >= whole.held(), "{}", whole.held());
+    assert_eq!(crate::prop::building_cost(int16s, &numbers), 0);
+    // The numbers fit a cap of exactly their bytes.
+    let Some(PropValue::MultiInt16(n)) = pst.read_property(&item, 0x6901, numbers.len() as u64).unwrap() else { panic!() };
+    assert_eq!((n.len(), n[7]), (count as usize, 7));
+    // And in a message the list is refused within the item's cap, not made.
+    let mut pst = open(&bytes, Limits { max_item_bytes: 1 << 20, max_inline_value: 1 << 20, ..Default::default() });
+    let m = pst.message(&item);
+    assert_eq!(m.err(), Some(Error::Cap(Cap::ItemSize)));
+}
+
+#[test]
+fn a_named_entry_that_names_no_id_is_left_out_alone() {
+    // Three numeric names; the middle one's index (0x8000) names no id.
+    let mut entries = Vec::new();
+    for (value, index) in [(0x10u32, 0u16), (0x11, 0x8000), (0x12, 1)] {
+        entries.extend_from_slice(&value.to_le_bytes());
+        entries.extend_from_slice(&(1u16 << 1).to_le_bytes());
+        entries.extend_from_slice(&index.to_le_bytes());
+    }
+    let spec = sample(unicode_layout(), None);
+    let mut all = nodes(&spec);
+    let mut spill = Spill::new();
+    let blocks = pc(&spec.layout, &[(0x0001, int32(251)), (0x0002, binary(&[])), (0x0003, binary(&entries)), (0x0004, binary(&[]))], &mut spill);
+    let map = all.iter_mut().find(|n| n.nid == 0x61).unwrap();
+    map.data = Data::Blocks(blocks);
+    map.subnodes = spill.subnodes;
+    let bytes = raw(&spec.layout, &all);
+    let mut pst = open(&bytes, Limits::default());
+    let named = pst.named_properties().unwrap();
+    assert_eq!(named.len(), 2);
+    assert_eq!(named.get(0x8001).unwrap().name, PropName::Id(0x12));
+    assert_eq!(named.left_out(), &[(0x8000, Error::Corrupt("a named property's index"))]);
+}

@@ -191,8 +191,9 @@ impl<R: Read + Seek> Ndb<R> {
         let count = usize::from(u8_at(&data, meta)?);
         let entry_size = usize::from(u8_at(&data, meta.saturating_add(2))?);
         let level = u8_at(&data, meta.saturating_add(3))?;
+        // A level the format doesn't have is damage to that page, like a bad count.
         if level > MAX_LEVEL {
-            return Err(Error::Cap(Cap::BTreeDepth));
+            return Err(Error::Corrupt("a B-tree page's level"));
         }
         let id = f.id_size();
         let needed = match (level, ptype) {

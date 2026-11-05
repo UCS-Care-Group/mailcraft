@@ -386,6 +386,20 @@ fn entry_id_nid(b: &[u8]) -> Option<Nid> {
     Some(Nid(u32::from_le_bytes([tail.first().copied()?, tail.get(1).copied()?, tail.get(2).copied()?, tail.get(3).copied()?])))
 }
 
+/// What ends a call rather than leaving one part of it out: the reader under the file failing,
+/// the file's read allowance ([`Cap::TotalRead`]) spent, or the call's own budget (`own`:
+/// [`Cap::ItemSize`] for a message; a walk names each folder past its budget and a listing
+/// counts the items past it). Anything else is damage to that part, or a cap on that part
+/// alone (its recipients, attachments, rows, depth, blocks or size), and is named in
+/// `left_out` while the rest is read.
+fn ends_call(e: &Error, own: Option<Cap>) -> bool {
+    match e {
+        Error::Io(_) | Error::Cap(Cap::TotalRead) => true,
+        Error::Cap(c) => Some(*c) == own,
+        _ => false,
+    }
+}
+
 impl<R: Read + Seek> Pst<R> {
     /// Opens a file with the import's caps. The header and the message store are read; a file
     /// with a password then waits for [`Pst::unlock`].
@@ -544,7 +558,8 @@ impl<R: Read + Seek> Pst<R> {
     /// reads a folder whole).
     pub fn walk_folders(&mut self) -> Result<FolderTree> {
         self.gate()?;
-        let ipm = self.store()?.ipm_subtree;
+        // The store's own properties, read for the one entry id (not a copy of them all).
+        let ipm = self.store.binary(0x35E0).and_then(entry_id_nid);
         let limits = self.ndb.limits.clone();
         let mut budget = self.listing_budget();
         let mut tree = FolderTree::default();
@@ -554,7 +569,7 @@ impl<R: Read + Seek> Pst<R> {
         while let Some((id, parent, depth, under_ipm)) = stack.pop() {
             // What this folder adds to what is kept: its notes of what was left out too.
             let noted = tree.left_out.len();
-            self.walk_one(&mut tree, &mut stack, &mut seen, &mut scheduled, &mut budget, (id, parent, depth, under_ipm), ipm, &limits);
+            self.walk_one(&mut tree, &mut stack, &mut seen, &mut scheduled, &mut budget, (id, parent, depth, under_ipm), ipm, &limits)?;
             budget.note(tree.left_out.len().saturating_sub(noted).saturating_mul(size_of::<LeftOut>()));
         }
         Ok(tree)
@@ -571,21 +586,22 @@ impl<R: Read + Seek> Pst<R> {
         (id, parent, depth, under_ipm): (Nid, Option<Nid>, usize, bool),
         ipm: Option<Nid>,
         limits: &Limits,
-    ) {
+    ) -> Result<()> {
         {
             if !seen.insert(id) {
                 tree.left_out.push(LeftOut::new(id, parent, Error::Cycle("the folder hierarchy")));
-                return;
+                return Ok(());
             }
             if depth > limits.max_folder_depth {
                 tree.left_out.push(LeftOut::new(id, parent, Error::Cap(Cap::FolderDepth)));
-                return;
+                return Ok(());
             }
             let folder = match self.folder_in(id, budget) {
                 Ok(f) => f,
+                Err(reason) if ends_call(&reason, None) => return Err(reason),
                 Err(reason) => {
                     tree.left_out.push(LeftOut::new(id, parent, reason));
-                    return;
+                    return Ok(());
                 }
             };
             let kept = size_of::<FolderEntry>()
@@ -593,7 +609,7 @@ impl<R: Read + Seek> Pst<R> {
                 .saturating_add(folder.container_class.as_ref().map_or(0, String::capacity));
             if let Err(reason) = budget.keep(kept) {
                 tree.left_out.push(LeftOut::new(id, parent, reason));
-                return;
+                return Ok(());
             }
             tree.left_out.extend(LeftOut::damaged(id, parent, &folder.properties));
             let in_ipm = under_ipm || Some(id) == ipm;
@@ -611,9 +627,11 @@ impl<R: Read + Seek> Pst<R> {
                         stack.push((child, Some(id), depth.saturating_add(1), in_ipm));
                     }
                 }
+                Err(reason) if ends_call(&reason, None) => return Err(reason),
                 Err(reason) => tree.left_out.push(LeftOut::new(id, parent, reason)),
             }
         }
+        Ok(())
     }
 
     /// The items of a folder (its contents table), in the table's order: all of the listing
@@ -664,6 +682,7 @@ impl<R: Read + Seek> Pst<R> {
             let properties = match table.row(&mut self.ndb, rowid, index, &mut budget) {
                 Ok(p) => Some(p),
                 Err(Error::Cap(Cap::ListingSize)) => None,
+                Err(reason) if ends_call(&reason, None) => return Err(reason),
                 Err(reason) => {
                     left_out.push(LeftOut::new(id, Some(folder), reason));
                     Some(Properties::default())
@@ -785,12 +804,12 @@ impl<R: Read + Seek> Pst<R> {
                                 );
                                 recipients.push(Recipient { properties });
                             }
-                            Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
+                            Err(reason) if ends_call(&reason, Some(Cap::ItemSize)) => return Err(reason),
                             Err(reason) => left_out.push(LeftOutPart { part: Part::Recipient { row: index }, reason }),
                         }
                     }
                 }
-                Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
+                Err(reason) if ends_call(&reason, Some(Cap::ItemSize)) => return Err(reason),
                 Err(reason) => left_out.push(LeftOutPart { part: Part::RecipientTable, reason }),
             }
         }
@@ -827,12 +846,12 @@ impl<R: Read + Seek> Pst<R> {
                                 }));
                                 attachments.push(a);
                             }
-                            Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
+                            Err(reason) if ends_call(&reason, Some(Cap::ItemSize)) => return Err(reason),
                             Err(reason) => left_out.push(LeftOutPart { part: Part::Attachment { id: att }, reason }),
                         }
                     }
                 }
-                Err(reason @ Error::Cap(Cap::ItemSize)) => return Err(reason),
+                Err(reason) if ends_call(&reason, Some(Cap::ItemSize)) => return Err(reason),
                 Err(reason) => left_out.push(LeftOutPart { part: Part::AttachmentTable, reason }),
             }
         }
@@ -953,7 +972,11 @@ impl<R: Read + Seek> Pst<R> {
         };
         let max = max.min(self.ndb.limits.max_item_bytes);
         let mut budget = Budget::new(max, max, Cap::ItemSize);
-        pc_value(&mut self.ndb, &n, ty, raw, &mut budget).map(Some)
+        let value = pc_value(&mut self.ndb, &n, ty, raw, &mut budget)?;
+        // What the value holds beyond the bytes it was made from is within `max` too.
+        let read = max.saturating_sub(budget.left) as usize;
+        budget.keep(value.held().saturating_sub(read))?;
+        Ok(Some(value))
     }
 
     /// The file's named properties (what the ids from 0x8000 stand for).

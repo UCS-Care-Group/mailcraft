@@ -98,6 +98,10 @@ impl NodeData {
         }
         budget.take(size)?;
         let b = self.hnid_bytes(ndb, hnid, inline, budget.cap)?;
+        // What making the value holds must fit in what is left, before it is made.
+        if prop::building_cost(ty, &b) as u64 > budget.left {
+            return Err(Error::Cap(budget.cap));
+        }
         prop::stored(ty, &b)
     }
 }

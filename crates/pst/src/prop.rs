@@ -238,6 +238,19 @@ pub(crate) fn fixed(ty: u16, b: &[u8]) -> Result<PropValue> {
     })
 }
 
+/// What building a value from its `b` bytes holds beyond them, at most: for a list of
+/// strings or binaries, each item's own vector and its place while the list is made (an
+/// empty item is four bytes in the file and far more in memory). Other values hold no more
+/// than their bytes.
+pub(crate) fn building_cost(ty: u16, b: &[u8]) -> usize {
+    let variable = matches!(ty, t if t == STRING | MULTIPLE || t == STRING8 | MULTIPLE || t == BINARY | MULTIPLE);
+    if !variable {
+        return 0;
+    }
+    let count = u32_at(b, 0).map_or(0, |c| (c as usize).min(b.len() / 4));
+    count.saturating_mul(std::mem::size_of::<Vec<u8>>().saturating_add(std::mem::size_of::<&[u8]>()))
+}
+
 /// A value stored apart (in the heap or a subnode), from all its bytes.
 pub(crate) fn stored(ty: u16, b: &[u8]) -> Result<PropValue> {
     if ty & MULTIPLE != 0 {
@@ -266,19 +279,17 @@ fn multi(base: u16, b: &[u8]) -> Result<PropValue> {
         if !b.len().is_multiple_of(size) {
             return Err(Error::Corrupt("a multi-valued property's size"));
         }
-        let values: Vec<PropValue> = b.chunks_exact(size).map(|c| fixed(base, c)).collect::<Result<_>>()?;
+        // Each value straight into its own type: no value is held twice on the way.
         return Ok(match base {
-            INT16 => PropValue::MultiInt16(values.iter().filter_map(|v| if let PropValue::Int16(x) = v { Some(*x) } else { None }).collect()),
-            INT32 => PropValue::MultiInt32(values.iter().filter_map(|v| if let PropValue::Int32(x) = v { Some(*x) } else { None }).collect()),
-            FLOAT32 => PropValue::MultiFloat32(values.iter().filter_map(|v| if let PropValue::Float32(x) = v { Some(*x) } else { None }).collect()),
-            FLOAT64 => PropValue::MultiFloat64(values.iter().filter_map(|v| if let PropValue::Float64(x) = v { Some(*x) } else { None }).collect()),
-            CURRENCY => {
-                PropValue::MultiCurrency(values.iter().filter_map(|v| if let PropValue::Currency(x) = v { Some(*x) } else { None }).collect())
-            }
-            APP_TIME => PropValue::MultiAppTime(values.iter().filter_map(|v| if let PropValue::AppTime(x) = v { Some(*x) } else { None }).collect()),
-            INT64 => PropValue::MultiInt64(values.iter().filter_map(|v| if let PropValue::Int64(x) = v { Some(*x) } else { None }).collect()),
-            TIME => PropValue::MultiTime(values.iter().filter_map(|v| if let PropValue::Time(x) = v { Some(*x) } else { None }).collect()),
-            GUID => PropValue::MultiGuid(values.iter().filter_map(|v| if let PropValue::Guid(x) = v { Some(*x) } else { None }).collect()),
+            INT16 => PropValue::MultiInt16(values(b, size, |c| Ok(u16_at(c, 0)? as i16))?),
+            INT32 => PropValue::MultiInt32(values(b, size, |c| Ok(u32_at(c, 0)? as i32))?),
+            FLOAT32 => PropValue::MultiFloat32(values(b, size, |c| Ok(f32::from_bits(u32_at(c, 0)?)))?),
+            FLOAT64 => PropValue::MultiFloat64(values(b, size, |c| Ok(f64::from_bits(u64_at(c, 0)?)))?),
+            CURRENCY => PropValue::MultiCurrency(values(b, size, |c| Ok(u64_at(c, 0)? as i64))?),
+            APP_TIME => PropValue::MultiAppTime(values(b, size, |c| Ok(f64::from_bits(u64_at(c, 0)?)))?),
+            INT64 => PropValue::MultiInt64(values(b, size, |c| Ok(u64_at(c, 0)? as i64))?),
+            TIME => PropValue::MultiTime(values(b, size, |c| u64_at(c, 0))?),
+            GUID => PropValue::MultiGuid(values(b, size, |c| crate::bytes::array16(c, 0))?),
             _ => PropValue::Unknown { ty: base | MULTIPLE, data: b.to_vec() },
         });
     }
@@ -292,6 +303,11 @@ fn multi(base: u16, b: &[u8]) -> Result<PropValue> {
 }
 
 /// The items of a multi-valued property of a variable-size type (2.3.3.4.2).
+/// Each `size` bytes of `b` straight into a value of its own type: none is held twice.
+fn values<T>(b: &[u8], size: usize, f: impl Fn(&[u8]) -> Result<T>) -> Result<Vec<T>> {
+    b.chunks_exact(size).map(f).collect()
+}
+
 fn variable_items(b: &[u8]) -> Result<Vec<&[u8]>> {
     if b.is_empty() {
         return Ok(Vec::new());
@@ -302,13 +318,15 @@ fn variable_items(b: &[u8]) -> Result<Vec<&[u8]>> {
         return Err(Error::Corrupt("a multi-valued property's count"));
     }
     let table_end = count.saturating_mul(4).saturating_add(4);
-    let mut offsets = Vec::with_capacity(count);
-    for i in 0..count {
-        offsets.push(u32_at(b, i.saturating_mul(4).saturating_add(4))? as usize);
-    }
+    let offset = |i: usize| -> Result<usize> {
+        if i >= count {
+            return Ok(b.len());
+        }
+        Ok(u32_at(b, i.saturating_mul(4).saturating_add(4))? as usize)
+    };
     let mut items = Vec::with_capacity(count);
-    for (i, &start) in offsets.iter().enumerate() {
-        let end = offsets.get(i.saturating_add(1)).copied().unwrap_or(b.len());
+    for i in 0..count {
+        let (start, end) = (offset(i)?, offset(i.saturating_add(1))?);
         if start < table_end || end < start || end > b.len() {
             return Err(Error::Corrupt("a multi-valued property's offsets"));
         }

@@ -187,3 +187,98 @@ fn a_walk_of_the_nodes_that_reaches_a_cap_says_so() {
     }
     assert!(capped > 0);
 }
+
+/// A file whose reader fails once, on its `fail`th read.
+struct Flaky<'a> {
+    inner: Cursor<&'a [u8]>,
+    reads: usize,
+    fail: usize,
+}
+
+impl std::io::Read for Flaky<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.reads += 1;
+        if self.reads == self.fail {
+            return Err(std::io::Error::other("the disk"));
+        }
+        self.inner.read(buf)
+    }
+}
+
+impl std::io::Seek for Flaky<'_> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+/// Each answer of a walk, every listing and every message, as text, and how many reads it took.
+fn answers<R: std::io::Read + std::io::Seek>(pst: &mut Pst<R>, folders: &[Nid], items: &[Nid]) -> Vec<Result<String, Error>> {
+    let mut out = vec![pst.walk_folders().map(|t| format!("{t:?}"))];
+    out.extend(folders.iter().map(|&f| pst.items(f).map(|l| format!("{l:?}"))));
+    out.extend(items.iter().map(|&i| pst.message(&MessageRef::item(i)).map(|m| format!("{m:?}"))));
+    out
+}
+
+/// Whatever goes wrong with the reader under the file, or however little it may read, each
+/// call is either the whole answer or that error: never an answer with parts missing.
+#[test]
+fn a_reader_that_fails_or_runs_out_ends_the_call() {
+    let bytes = base();
+    let mut pst = Pst::open(Cursor::new(&bytes[..])).unwrap();
+    let tree = pst.walk_folders().unwrap();
+    let folders: Vec<Nid> = tree.folders.iter().map(|f| f.folder.id).collect();
+    let mut items = Vec::new();
+    for &f in &folders {
+        items.extend(pst.items(f).unwrap().items.iter().map(|i| i.id));
+    }
+    assert!(items.len() >= 3);
+    let whole = answers(&mut pst, &folders, &items);
+    assert!(whole.iter().all(Result::is_ok));
+    let mut flaky = Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail: 0 };
+    let mut fresh = Pst::open(&mut flaky).unwrap();
+    answers(&mut fresh, &folders, &items);
+    drop(fresh);
+    let reads = flaky.reads;
+    let check = |got: Vec<Result<String, Error>>, expected: fn(&Error) -> bool, at: &str| {
+        for (n, (got, whole)) in got.iter().zip(&whole).enumerate() {
+            match got {
+                Ok(s) => assert_eq!(Some(s), whole.as_ref().ok(), "call {n} {at}"),
+                Err(e) => assert!(expected(e), "call {n} {at}: {e:?}"),
+            }
+        }
+    };
+    let mut failed = 0;
+    for fail in 1..=reads {
+        let Ok(mut pst) = Pst::open(Flaky { inner: Cursor::new(&bytes[..]), reads: 0, fail }) else { continue };
+        let got = answers(&mut pst, &folders, &items);
+        failed += got.iter().filter(|r| r.is_err()).count();
+        check(got, |e| matches!(e, Error::Io(_)), &format!("failing read {fail}"));
+        assert!(pst.damage().is_empty());
+    }
+    assert!(failed > 0);
+    let mut capped = 0;
+    for floor in (0..bytes.len() as u64 * 4).step_by(256) {
+        let limits = Limits { read_multiple: 0, read_floor: floor, ..Default::default() };
+        let Ok(mut pst) = Pst::open_with(Cursor::new(&bytes[..]), limits) else { continue };
+        let got = answers(&mut pst, &folders, &items);
+        capped += got.iter().filter(|r| r.is_err()).count();
+        check(got, |e| *e == Error::Cap(crate::Cap::TotalRead), &format!("allowed {floor}"));
+    }
+    assert!(capped > 0);
+}
+
+#[test]
+fn a_page_below_the_root_with_a_level_the_format_lacks_is_damage() {
+    let mut bytes = base();
+    let &(ib, first) = leaves(&bytes, 0x81).iter().max_by_key(|l| l.1).unwrap();
+    assert_eq!(first & 0x1F, 4, "a leaf of items");
+    bytes[ib + 488 + 3] = 9;
+    let t = 512 - Format::Unicode.trailer_size();
+    let crc = crate::crc32(&bytes[ib..ib + t]);
+    bytes[ib + t + 4..ib + t + 8].copy_from_slice(&crc.to_le_bytes());
+    let mut pst = Pst::open(Cursor::new(&bytes[..])).unwrap();
+    pst.for_each_node(|_| true).unwrap();
+    assert_eq!(pst.damage().len(), 1);
+    assert_eq!((pst.damage()[0].offset, &pst.damage()[0].reason), (ib as u64, &Error::Corrupt("a B-tree page's level")));
+    assert_eq!(pst.walk_folders().unwrap().folders.len(), 7, "every folder still read");
+}
