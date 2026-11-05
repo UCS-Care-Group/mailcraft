@@ -93,6 +93,8 @@ mod frame_bench_tests;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
+#[cfg(test)]
+mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
@@ -178,6 +180,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 pub mod unconfirmed;
+#[cfg(test)]
+mod update_switches_tests;
 pub mod updates;
 mod view_source;
 #[cfg(test)]
@@ -319,7 +323,8 @@ pub struct Services {
     pub microsoft_client_id: String,
     /// MailCraft's own Google Desktop OAuth registration, not an account credential.
     pub google_client_id: String,
-    /// Desktop registration's public installed-app secret (never an owner access/refresh token).
+    /// Desktop registration supplied by the host's build or process environment. Kept in
+    /// memory, never in UI preferences; not an owner access or refresh token.
     pub google_client_secret: String,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
@@ -874,7 +879,10 @@ pub struct UiState {
     pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
-    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
+    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]). Settings
+    /// saved without them (an older install's) are read back on the engine's own, not on a new
+    /// install's: an owner who never chose is not moved onto what a new install turns on (#755).
+    #[serde(default = "mailcraft_engine::Prefs::default")]
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
@@ -899,9 +907,6 @@ pub struct UiState {
     pub microsoft_client_id: String,
     /// Override MailCraft's Google Desktop client ID from File > Options; empty uses build's.
     pub google_client_id: String,
-    /// Override the Google Desktop installed-app registration value. This is NOT an owner
-    /// access or refresh token; those are held in memory or the OS credential store only.
-    pub google_client_secret: String,
     /// Keep passwords and sign-ins in the operating system's credential store between runs.
     pub remember_sign_in: bool,
     /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
@@ -972,7 +977,7 @@ impl Default for UiState {
             window: None,
             window_places: Default::default(),
             language: i18n::AUTO.into(),
-            options: mailcraft_engine::Prefs::default(),
+            options: fresh_options(),
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
@@ -984,7 +989,6 @@ impl Default for UiState {
             recent: Vec::new(),
             microsoft_client_id: String::new(),
             google_client_id: String::new(),
-            google_client_secret: String::new(),
             remember_sign_in: true,
             sign_ins_bound: false,
             remembered_keys: Vec::new(),
@@ -1007,6 +1011,14 @@ impl Default for UiState {
             alert_reminders: true,
         }
     }
+}
+
+/// The engine's preferences in the window's settings for a new install: the engine's own, but
+/// for what the window turns on that a session without its settings (`mailcraft-cli run`,
+/// headless `mcp`) leaves off. An answered meeting request goes from the Inbox to Deleted Items,
+/// as in Outlook (#755); a saved choice, on or off, is read back as it was.
+fn fresh_options() -> mailcraft_engine::Prefs {
+    mailcraft_engine::Prefs { delete_answered_requests: true, ..Default::default() }
 }
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
@@ -1216,12 +1228,6 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ),
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
-    (
-        "ui.googleClientSecret",
-        "Google Desktop Registration Secret",
-        "File › Options",
-        r#"{"value": string (empty: the build's own)} — a public native-app registration value, NOT an owner token; only returns whether it is configured"#,
-    ),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.desktopAlerts",
@@ -1328,13 +1334,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "ui.updateCheck",
         "Check for New Versions",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "downloaded": version|null}}"#,
     ),
     (
         "ui.updateInstall",
         "Install Updates Automatically",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether a copy that updates itself (the Windows .msi, the macOS app, a Linux AppImage) downloads a newer release by itself while the daily check is on, and checks it by the release's own signature (on unless the owner turns it off). Refused when the organisation has turned it off ("Turned off by your organisation") and for a copy that doesn't update itself. Agents and scripts can't start a download. Answers what `ui.updateCheck` answers"#,
     ),
     (
@@ -1918,6 +1924,14 @@ impl MailApp {
         self.windows.monitors = Some(monitors);
     }
 
+    /// Start on the window's settings for a new install, for a run that has none saved (no
+    /// settings file, one set aside, or a run that keeps none): the engine's preferences become
+    /// the ones of [`UiState::default`], which turn on what a session without the window leaves
+    /// off (#755). The hosts call this where they would otherwise [`MailApp::apply_prefs`].
+    pub fn fresh_prefs(&mut self) {
+        self.session.prefs = fresh_options();
+    }
+
     /// Restore preferences saved by [`MailApp::prefs`].
     pub fn apply_prefs(&mut self, ui: UiState) {
         self.ui = ui;
@@ -2477,15 +2491,6 @@ impl MailApp {
                 self.ui.google_client_id = id.to_string();
                 Ok(json!({"configured": !id.is_empty()}))
             }
-            "ui.googleClientSecret" => {
-                let secret = s("value").unwrap_or_default();
-                if secret.len() > 512 || !secret.bytes().all(|b| b.is_ascii_graphic()) {
-                    return Some(Err(tl!("The Google Desktop registration value must be printable ASCII").to_string()));
-                }
-                self.ui.google_client_secret = secret.to_string();
-                // Never echo even a public installed-app registration value in a command result.
-                Ok(json!({"configured": !secret.is_empty()}))
-            }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
                 self.ui.remember_sign_in = on;
@@ -2913,9 +2918,9 @@ impl MailApp {
         oauth
     }
 
-    /// The public installed-app registration value; it is not a user's password or token.
+    /// The host's Desktop registration value. UI preferences never supply or retain it.
     pub(crate) fn google_client_secret(&self) -> &str {
-        if self.ui.google_client_secret.is_empty() { &self.services.google_client_secret } else { &self.ui.google_client_secret }
+        &self.services.google_client_secret
     }
 
     pub(crate) fn google_registration_ready(&self) -> bool {
@@ -5000,6 +5005,35 @@ fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::
 /// What the owner is told when part of the mailbox file was damaged and left out as it opened.
 pub fn damaged_mailbox_notice() -> String {
     tl!("Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved.").to_string()
+}
+
+/// What the owner is told of the messages a mailbox just opened marked to be fetched again
+/// (`mailcraft_engine::cmd::file::after_opening`): those kept with characters that couldn't be
+/// read (#185, #650), and those an earlier version put back empty after a refused delete for
+/// good (#793). Nothing for none.
+pub fn fetched_again_notices(unreadable: usize, hollow: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    if unreadable > 0 {
+        out.push(
+            tln!(
+                unreadable,
+                "{n} message with characters that couldn't be read is being downloaded again.",
+                "{n} messages with characters that couldn't be read are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    if hollow > 0 {
+        out.push(
+            tln!(
+                hollow,
+                "{n} message that came back empty after a refused delete is being downloaded again.",
+                "{n} messages that came back empty after a refused delete are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    out
 }
 
 /// What the status bar says after a command the user ran, when it is worth saying.

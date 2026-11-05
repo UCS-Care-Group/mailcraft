@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-03 · **Change:** minor
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -211,9 +211,12 @@ egui, eframe, winit or rfd.
   the host with sockets does the authorization and passes session tokens in. New Google accounts
   prefer OAuth when the application's registration is configured. A legacy account changes only
   through a successful, explicit same-address conversion; canceled/failed conversion retains its
-  credential and mail. The Desktop registration is application configuration, not a user password
-  or refresh token. Override precedence, persistence and fallback are documented in
-  [Google account setup](google-accounts.md#development-registration).
+  credential and mail. The Google identity token's email must match the account's primary address;
+  Workspace aliases are not resolved and never cause an automatic account rebind. The Desktop
+  registration is application configuration, not a user password or refresh token: its secret
+  comes only from the build or process environment and is paired with the effective client ID.
+  Only the public client ID has a File → Options override. Registration precedence and the
+  app-password alternative are documented in [Google account setup](google-accounts.md#development-registration).
 - **Plain-text composing.** Rich text needs an editor component the project does not have yet.
 
 ## Start-up
@@ -274,38 +277,8 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-03 | minor | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-01 | minor | #376: portable DAV model, document and XML foundation; DAV fuzz targets; 19 library crates |
-| 2026-10-11 | major | First architecture doc |
-| 2026-10-26 | minor | #519: start-up: the window first, the mailbox read on a thread of its own behind the opening screen; File › Open reads in the background |
-| 2026-10-23 | minor | `jmap`, L3: JMAP requests and answers without I/O (M6); 15 crates |
-| 2026-10-15 | minor | Supply-chain gates: cargo-deny in `cargo xtask ci` and CI, pinned actions, zizmor, Scorecard; link to the threat model |
-| 2026-10-12 | patch | `html` also makes the line a message list shows (`preview`, `text_preview`) |
-| 2026-10-12 | minor | Calendar changes are checked against what comes down; the strict Graph stand-in |
-| 2026-10-12 | minor | Time zones (M3.5): `time::Zone`, the mailbox's zone stamp and how stored times are read |
-| 2026-10-13 | minor | The Favorites of Outlook (M4.2): `graph::favorites` in `net`, the server's list in the mailbox, `favorites_sync` in the front end |
-| 2026-10-13 | minor | The owner chooses how they are read (M4.3): `ews` in `net` (Exchange Web Services, until 1 April 2027), `Account::favorites_source`, the choice and its job in the front end |
-| 2026-10-15 | minor | Sign-ins remembered on Linux and FreeBSD (R5): the Secret Service behind `Services::secrets`, and `SecretStore::take_trouble` for a store that can't be used |
-| 2026-10-15 | minor | Exchange Web Services removed (R2): Graph is the one way of reading the Favorites; a mailbox that chose the other opens and says so once |
-| 2026-10-16 | minor | Quitting on macOS through `craft-quit` (craft-libs, a git dependency pinned by `rev`), for the apps alone (`cargo xtask layers`); Rust 1.95 |
-| 2026-10-15 | minor | R3.1: `AccountKind::Microsoft` behind the switch for testing; server ids (`ServerFolder`, `ServerMessage`, `Mailbox::queued`); Graph's own sync types; `graph::mail` and `graph::pace` in `net`; `cmd/graph_mail.rs` in the engine |
-| 2026-10-15 | minor | R6 (prerequisite of R6.1): the mailbox file in format 3, a log of records a save appends to (`store_index.rs`), crash-safe, formats 1 and 2 migrated with the old file kept; a damaged later save stops the reading there, a damaged item of the first save costs only itself and the mail is fetched again (`Opened::notice`, `file.open`'s `lostSaves`, `lostRecords`); a file another writer changed kept aside; kept-aside files protected from the sweep |
-| 2026-10-17 | minor | R6.1 review: files kept aside are never removed by MailCraft; a file whose time changed but whose bytes didn't is still this program's (`Stamp::sum`); a damaged commit of the first save loses no item |
-| 2026-10-23 | minor | Quitting on macOS is MailCraft's own code (`quit_macos.rs`); the `craft-quit` git dependency is gone, and `dispatch2` is the app-only crate in `cargo xtask layers` |
-| 2026-10-16 | patch | The Graph-only account described without citing private decision records |
-| 2026-10-16 | minor | R3.7: the switch from IMAP to Graph (`cmd/graph_switch.rs`, `Account::graph_switch`, `Folder::awaiting_listing`); the switch for testing is gone |
-| 2026-10-18 | minor | `charset` (L0): the decoder of character sets moved out of `mime` so that `vcard` reads `CHARSET=` by the same rules, #180 |
-| 2026-10-19 | minor | Fuzz targets (`fuzz/`, cargo-fuzz) for every reader, run by `fuzz.yml` |
-| 2026-10-20 | minor | An account of a kind this program doesn't know (`AccountKind::Unknown`, one a newer MailCraft added) is kept as its file has it (`Account::as_written`), written back so, and never sent from, received for or changed here |
-| 2026-10-20 | minor | `i18n` (L0): interface text, a `.po` reader with plural rules and the languages moved out of `ui-egui`, which keeps `tl!` and gains `tln!`, i18n-1 |
-| 2026-10-21 | minor | #253: the macOS menu bar: a table of command ids in `crates/ui-egui/src/menubar.rs`, made native with `muda` in `apps/mailcraft/src/menubar.rs` |
-| 2026-10-25 | minor | #350: `link` (L0): MailCraft's own reader of web addresses and Punycode replaces the `url` and `webbrowser` crates; pages are opened by `rundll32`, `open` or the desktops' openers as programs, never through a shell |
-| 2026-10-27 | minor | #454: `names` (L0): one list of Unicode's format characters, and the two steps a name takes, coming in and being shown, which also remove the other characters that show nothing; the count of crates is 17 |
-| 2026-10-27 | minor | #454 part 2: `link` and `html` use `names`' list of format characters instead of copies of their own; `link` depends on `names`, the second exception to the layers |
-| 2026-10-27 | minor | #519 slice 2: opening for the window: the whole-file sum in the background, bodies of the opening rows only, content files looked for afterwards, the word index after the first frames |
-| 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
-| 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |
-| 2026-10-28 | minor | M6: the browser build runs `jmap` over `fetch`; a JMAP account's Send/Receive in the data flow |
+| 2026-11-01 | minor | #252: the `MAILCRAFT_EWS` switch and `Session::ews` are gone; Exchange server accounts are on for everyone |
 | 2026-10-29 | minor | #252: Exchange server accounts, first step: `AccountKind::Exchange`, `Account::ews`, the request and result shapes, three registered commands, the `MAILCRAFT_EWS` switch in the data flow |
 | 2026-10-29 | minor | #252 E8: `ews`, L3: Exchange Web Services requests and answers without I/O, a hostile XML reader and a strict stand-in; 18 crates |
 | 2026-10-29 | minor | #252 E3: `ews` finds a server by Autodiscover (state machine, no I/O) and builds Basic credentials; `net` looks up the Autodiscover SRV record and makes one HTTPS exchange that trusts the system's certificates or one chosen by fingerprint (never an expired or wrong-name one); nothing drives them yet |
@@ -316,4 +289,33 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-29 | patch | #252 E3 review: `ews` depends on `model` (L1) for the providers table; Autodiscover asks for the sign-in only on a challenge |
 | 2026-10-29 | minor | #252 E6: `ews` signs in with NTLMv2 (`ntlm`, from MS-NLMP; RustCrypto `md4`, `md-5`, `hmac`) and chooses NTLM or Basic from the server's offer (`auth`); `net`'s `https::Connection` holds one TLS connection across the legs and gives the hash of the server's certificate; nothing drives them yet |
 | 2026-10-29 | minor | #252 E7: setting up an Exchange server account (Add Account's explicit choice, the host's `ews_setup` job, the owner's questions, File › Info) |
-| 2026-11-01 | minor | #252: the `MAILCRAFT_EWS` switch and `Session::ews` are gone; Exchange server accounts are on for everyone |
+| 2026-10-28 | minor | M6: the browser build runs `jmap` over `fetch`; a JMAP account's Send/Receive in the data flow |
+| 2026-10-27 | minor | #454: `names` (L0): one list of Unicode's format characters, and the two steps a name takes, coming in and being shown, which also remove the other characters that show nothing; the count of crates is 17 |
+| 2026-10-27 | minor | #454 part 2: `link` and `html` use `names`' list of format characters instead of copies of their own; `link` depends on `names`, the second exception to the layers |
+| 2026-10-27 | minor | #519 slice 2: opening for the window: the whole-file sum in the background, bodies of the opening rows only, content files looked for afterwards, the word index after the first frames |
+| 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
+| 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |
+| 2026-10-26 | minor | #519: start-up: the window first, the mailbox read on a thread of its own behind the opening screen; File › Open reads in the background |
+| 2026-10-25 | minor | #350: `link` (L0): MailCraft's own reader of web addresses and Punycode replaces the `url` and `webbrowser` crates; pages are opened by `rundll32`, `open` or the desktops' openers as programs, never through a shell |
+| 2026-10-23 | minor | `jmap`, L3: JMAP requests and answers without I/O (M6); 15 crates |
+| 2026-10-23 | minor | Quitting on macOS is MailCraft's own code (`quit_macos.rs`); the `craft-quit` git dependency is gone, and `dispatch2` is the app-only crate in `cargo xtask layers` |
+| 2026-10-21 | minor | #253: the macOS menu bar: a table of command ids in `crates/ui-egui/src/menubar.rs`, made native with `muda` in `apps/mailcraft/src/menubar.rs` |
+| 2026-10-20 | minor | An account of a kind this program doesn't know (`AccountKind::Unknown`, one a newer MailCraft added) is kept as its file has it (`Account::as_written`), written back so, and never sent from, received for or changed here |
+| 2026-10-20 | minor | `i18n` (L0): interface text, a `.po` reader with plural rules and the languages moved out of `ui-egui`, which keeps `tl!` and gains `tln!`, i18n-1 |
+| 2026-10-19 | minor | Fuzz targets (`fuzz/`, cargo-fuzz) for every reader, run by `fuzz.yml` |
+| 2026-10-18 | minor | `charset` (L0): the decoder of character sets moved out of `mime` so that `vcard` reads `CHARSET=` by the same rules, #180 |
+| 2026-10-17 | minor | R6.1 review: files kept aside are never removed by MailCraft; a file whose time changed but whose bytes didn't is still this program's (`Stamp::sum`); a damaged commit of the first save loses no item |
+| 2026-10-16 | minor | Quitting on macOS through `craft-quit` (craft-libs, a git dependency pinned by `rev`), for the apps alone (`cargo xtask layers`); Rust 1.95 |
+| 2026-10-16 | patch | The Graph-only account described without citing private decision records |
+| 2026-10-16 | minor | R3.7: the switch from IMAP to Graph (`cmd/graph_switch.rs`, `Account::graph_switch`, `Folder::awaiting_listing`); the switch for testing is gone |
+| 2026-10-15 | minor | Supply-chain gates: cargo-deny in `cargo xtask ci` and CI, pinned actions, zizmor, Scorecard; link to the threat model |
+| 2026-10-15 | minor | Sign-ins remembered on Linux and FreeBSD (R5): the Secret Service behind `Services::secrets`, and `SecretStore::take_trouble` for a store that can't be used |
+| 2026-10-15 | minor | Exchange Web Services removed (R2): Graph is the one way of reading the Favorites; a mailbox that chose the other opens and says so once |
+| 2026-10-15 | minor | R3.1: `AccountKind::Microsoft` behind the switch for testing; server ids (`ServerFolder`, `ServerMessage`, `Mailbox::queued`); Graph's own sync types; `graph::mail` and `graph::pace` in `net`; `cmd/graph_mail.rs` in the engine |
+| 2026-10-15 | minor | R6 (prerequisite of R6.1): the mailbox file in format 3, a log of records a save appends to (`store_index.rs`), crash-safe, formats 1 and 2 migrated with the old file kept; a damaged later save stops the reading there, a damaged item of the first save costs only itself and the mail is fetched again (`Opened::notice`, `file.open`'s `lostSaves`, `lostRecords`); a file another writer changed kept aside; kept-aside files protected from the sweep |
+| 2026-10-13 | minor | The Favorites of Outlook (M4.2): `graph::favorites` in `net`, the server's list in the mailbox, `favorites_sync` in the front end |
+| 2026-10-13 | minor | The owner chooses how they are read (M4.3): `ews` in `net` (Exchange Web Services, until 1 April 2027), `Account::favorites_source`, the choice and its job in the front end |
+| 2026-10-12 | patch | `html` also makes the line a message list shows (`preview`, `text_preview`) |
+| 2026-10-12 | minor | Calendar changes are checked against what comes down; the strict Graph stand-in |
+| 2026-10-12 | minor | Time zones (M3.5): `time::Zone`, the mailbox's zone stamp and how stored times are read |
+| 2026-10-11 | major | First architecture doc |

@@ -1,8 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-03 · **Change:** minor
->
-> **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-04 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -39,6 +37,14 @@ WordCraft does.
    fragments' lines at the top of their sections and removes the fragments, in the release's own
    pull request: what is tagged is what is released, and `release.yml` reads the file as before.
    **In short** and the closing paragraphs are written in the file itself.
+
+   The documents' tables are joined the same way: a pull request adds its row of a document's
+   **Revision history** (or of `ROADMAP.md`'s **Progress log**) as a file of its own,
+   `docs/log.d/<document without .md>/revisions/<name>.md` (`progress/` for the progress log;
+   [`docs/log.d/README.md`](log.d/README.md)). `cargo xtask docs-log` prints the documents with
+   the rows joined in and changes nothing; `cargo xtask ci` checks them. In the same release
+   pull request, `cargo xtask docs-log --write` puts the rows into their tables by date,
+   newest first, and removes the fragments.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.
@@ -94,9 +100,11 @@ sign-in for general use, the maintainer should:
 
 1. Supply and own the official **Desktop app** registration and its matching ID/registration
    value through the approved build configuration. Development accounts and personal test-client
-   values must not become release defaults. Verify the produced binary, not just a developer's
-   File → Options overrides. Blank or invalid registration must still explain the app-password
-   fallback rather than present a sign-in button that cannot work.
+   values must not become release defaults. Verify the produced binary and its ID/secret pair;
+   the public client-ID option alone cannot configure a release. The registration secret comes
+   only from the build or process environment, never a File → Options preference. Blank, invalid
+   or mismatched registration must explain why Google sign-in is unavailable and retain
+   app-password setup.
 2. Confirm the requested scopes (`https://mail.google.com/ openid email`), audience, support and
    privacy information. Complete the applicable [restricted-scope verification][google-verification]
    before unrestricted public rollout; review Google's assessment requirements for the actual
@@ -104,8 +112,10 @@ sign-in for general use, the maintainer should:
    native client is exempt from all verification. Changing publishing status alone is not proof
    of approval. Development/testing exceptions and test-user warnings are not public verification.
 3. Exercise OAuth-first setup, explicit app-password fallback, unchanged existing accounts,
-   canceled and successful same-address conversion, restart/reconnect and token renewal against
-   the release configuration. Keep ordinary automated CI on synthetic accounts and stand-ins.
+   canceled and successful same-primary-address conversion, rejection of Workspace aliases as
+   account identities, restart/reconnect and token renewal against the release configuration.
+   Verify that changing a public client ID cannot reuse another registration's secret. Keep
+   ordinary automated CI on synthetic accounts and stand-ins.
    Manual real-account acceptance requires the account owner's approval and isolated saved data.
    An SMTP AUTH/QUIT check proves authentication, not delivery; sending needs a separately
    approved test recipient and message.
@@ -336,7 +346,6 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
-| 2026-11-03 | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-02 | The merge commit of an up-to-date pull request is tagged at once, on its pull request's `ci-ok`, without waiting for CI on `main` |
 | 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
 | 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |

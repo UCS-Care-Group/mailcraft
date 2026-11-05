@@ -609,10 +609,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
-    if app.services.update_check.is_some() {
-        section(ui, tl!("Updates"), t);
-        crate::updates::options(app, ui, t);
-    }
     let prefs = app.session.prefs.clone();
     let set = |app: &mut MailApp, params: serde_json::Value| {
         let _ = app.run("file.options", params);
@@ -699,23 +695,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         };
         if ui.add(egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0)).changed() {
             let _ = app.execute("ui.googleClientId", json!({"value": id.trim()}));
-        }
-    });
-    row(ui, tl!("Google Desktop client secret"), |ui| {
-        // The installed-app registration value is public to native apps, not a Google account
-        // password or refresh token. Mask it anyway so it cannot be read over the shoulder.
-        let mut secret = app.ui.google_client_secret.clone();
-        let hint = if app.services.google_client_secret.is_empty() {
-            tl!("Waiting for MailCraft's Google registration")
-        } else {
-            tl!("The one this build came with")
-        };
-        if ui
-            .add(egui::TextEdit::singleline(&mut secret).password(true).hint_text(hint).desired_width(300.0))
-            .on_hover_text(tl!("Use only MailCraft's Desktop OAuth registration, not a Google password or another app's credentials"))
-            .changed()
-        {
-            let _ = app.execute("ui.googleClientSecret", json!({"value": secret}));
         }
     });
     row(ui, tl!("Send and receive automatically"), |ui| {

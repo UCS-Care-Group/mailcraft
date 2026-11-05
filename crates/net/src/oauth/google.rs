@@ -11,8 +11,8 @@ const GOOGLE_DESKTOP_ID: &str = match option_env!("MAILCRAFT_GOOGLE_CLIENT_ID") 
     None => "",
 };
 
-/// The OS registration's desktop "secret" is public to installed clients. It is not a user's
-/// credential. Pass it explicitly for File > Options overrides and synthetic tests.
+/// The Desktop registration comes from the host's build or process environment, not UI
+/// preferences. It is not a user's credential and is passed explicitly in synthetic tests too.
 fn registration<'a>(oauth: &'a OAuth, secret: &'a str) -> Result<(&'a str, &'a str), NetError> {
     if oauth.provider != OAuthProvider::Google {
         return Err(NetError::Config("this isn't a Google account".into()));

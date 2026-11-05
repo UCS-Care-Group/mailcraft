@@ -248,3 +248,39 @@ fn concurrent_account_edit_during_reconnect_cannot_replace_its_tokens() {
     assert_eq!(serde_json::to_value(h.state().session.mailbox.account(id).unwrap()).unwrap(), edited);
     assert_eq!(h.state().tokens.get(&id).map(|tokens| tokens.refresh.as_str()), Some("fake-refresh-old"));
 }
+
+#[test]
+fn google_wizard_hides_microsoft_approval_and_returns_to_app_password_without_data_loss() {
+    let mut a = app(false);
+    a.services.google_client_id = "fake-desktop-client.apps.googleusercontent.com".into();
+    a.services.google_client_secret = "fake-desktop-registration".into();
+    sign_ins(&mut a, None); // The user is still on Google's simulated sign-in page.
+    let mut h = open(a, json!({"email": "one@gmail.com"}));
+    click(&mut h, "Connect");
+    assert_eq!(page(&h), Some(Page::Password));
+    click(&mut h, "Sign in with Google");
+    assert_eq!(page(&h), Some(Page::SignIn));
+    assert!(says(&h, "Google's sign-in page is open"));
+    assert!(says(&h, "restrict sign-in to approved test users"));
+    assert!(!says(&h, "If that page says you need admin approval"));
+    assert!(h.state().signing_in());
+    click(&mut h, "Cancel");
+    assert!(!h.state().signing_in());
+
+    let mut b = app(false);
+    b.services.google_client_id = "fake-desktop-client.apps.googleusercontent.com".into();
+    b.services.google_client_secret = "fake-desktop-registration".into();
+    sign_ins(&mut b, Some(Err(crate::approval::SIGN_IN_DECLINED.into())));
+    let mut h = open(b, json!({"email": "one@gmail.com"}));
+    click(&mut h, "Connect");
+    click(&mut h, "Sign in with Google");
+    h.run_steps(4);
+    assert_eq!(page(&h), Some(Page::SignIn));
+    assert!(says(&h, "Google sign-in was declined"));
+    assert!(!says(&h, "My organisation has to approve MailCraft"));
+    click(&mut h, "Use an app password");
+    assert_eq!(page(&h), Some(Page::Password));
+    assert_eq!(wizard(&h).unwrap().email, "one@gmail.com");
+    assert!(wizard(&h).unwrap().oauth.is_none());
+    assert!(says(&h, "Use a Google app password"));
+}

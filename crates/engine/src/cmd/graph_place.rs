@@ -45,8 +45,9 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         if *a != account {
             continue;
         }
-        // (Not one whose text couldn't be read here: the original is all there is of it.)
-        let readable = |m: &Message| !m.kept.as_deref().is_some_and(|k| k.failed);
+        // (Not one whose text couldn't be read here, nor one not here whole: the original is all
+        // there is of it, #793.)
+        let readable = |m: &Message| !m.kept.as_deref().is_some_and(|k| k.failed) && !m.unfetched && !m.incomplete && m.not_downloaded == 0;
         let Some(m) = mb.message(*message).filter(|m| m.account == account && m.server.is_none() && Some(m.folder) != outbox && readable(m)) else {
             continue;
         };

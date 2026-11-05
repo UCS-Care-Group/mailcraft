@@ -444,7 +444,10 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
         }
     }
-    let (id, custom, favorite, kind) = (f.id, f.kind == FolderKind::Custom, f.favorite, f.kind);
+    // (One of the server's own, Conversation History say, is left as it is, and takes no new
+    // folder either: #756.)
+    let (id, custom, favorite, kind) = (f.id, f.kind == FolderKind::Custom && !f.server_owned(), f.favorite, f.kind);
+    let takes_folders = !(f.kind == FolderKind::Custom && f.server_owned());
     // An account whose Favorites are Outlook's has them changed in Outlook: nothing to do here.
     let from_outlook = mailcraft_engine::cmd::folder::favorites_from_server(&app.session, f.account);
     resp.context_menu(|ui| {
@@ -455,7 +458,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
                 ui.close();
             }
         };
-        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), true);
+        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
         // (Not one that is or holds what a JMAP account's server has, which stays for now.)
         let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
         item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);

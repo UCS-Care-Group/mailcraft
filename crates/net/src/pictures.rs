@@ -239,7 +239,8 @@ fn is_public_v6(ip: Ipv6Addr) -> bool {
     // What is handed out to the internet at large is 2000::/3 (so not ::1, fc00::/7, fe80::/10,
     // ff00::/8), less what is set aside inside it.
     let handed_out = a & 0xe000 == 0x2000;
-    let set_aside = (a == 0x2001 && (b < 0x0200 || b == 0x0db8)) // protocol assignments and documentation
+    let set_aside = (a == 0x2001 && b < 0x0200) // Teredo, benchmarks and other protocol assignments
+        || (a == 0x2001 && b == 0x0db8) // documentation
         || a == 0x2002 // 6to4: an IPv4 address in disguise
         || (a == 0x3fff && b < 0x1000); // documentation
     handed_out && !set_aside

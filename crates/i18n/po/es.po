@@ -4433,20 +4433,10 @@ msgstr "Google"
 msgid "Google Desktop Application ID"
 msgstr "ID de aplicación de escritorio de Google"
 
-#. command label
-#: crates/ui-egui/src/lib.rs
-msgid "Google Desktop Registration Secret"
-msgstr "Secreto del registro de escritorio de Google"
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Google Desktop application ID"
 msgstr "ID de aplicación de escritorio de Google"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Google Desktop client secret"
-msgstr "Secreto de cliente de escritorio de Google"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -4496,23 +4486,17 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is not configured for this build. Use an app password, or configure MailCraft's Google Desktop registration in File > Options."
-msgstr "El inicio de sesión con Google no está configurado en esta versión. Use una contraseña de aplicación o configure el registro de Google Desktop de MailCraft en Archivo > Opciones."
+msgid "Google sign-in is not configured for this build"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured in File > Options"
-msgstr "El inicio de sesión con Google no está configurado en Archivo > Opciones"
+msgid "Google sign-in is not configured for this build."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured in File > Options."
-msgstr "El inicio de sesión con Google no está configurado en Archivo > Opciones."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured. Use an app password or set up MailCraft's Google Desktop registration in File > Options."
+msgid "Google sign-in is not configured for this build. Use an app password instead."
 msgstr ""
 
 #. interface
@@ -5806,12 +5790,6 @@ msgstr "MailCraft no encontró la configuración para esta dirección. Revise lo
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft no pudo abrir su navegador para la página de aprobación de Microsoft. Copie el mensaje en su lugar: el vínculo que contiene abre la misma página."
 
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
-msgstr "MailCraft no busca nuevas versiones por sí solo; en Archivo › Opciones puede hacer que las busque una vez al día."
-
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
@@ -5858,12 +5836,6 @@ msgid "MailCraft keeps this account's rules on this computer: the rule runs whil
 msgstr "MailCraft guarda las reglas de esta cuenta en este equipo: la regla se ejecuta mientras MailCraft está abierto."
 
 #. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
-msgstr "MailCraft busca una nueva versión una vez al día (Archivo › Opciones). Solo se consulta a GitHub."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
 msgstr ""
@@ -5881,8 +5853,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
-msgstr "MailCraft ahora instala sus actualizaciones por sí mismo. Puede desactivarlo en Archivo › Opciones."
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
+msgstr "MailCraft ahora instala sus actualizaciones por sí mismo. Puede desactivarlo en Archivo › Acerca de."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -5945,7 +5917,7 @@ msgstr "MailCraft {version} no se instaló: sigue instalada esta versión."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "MailCraft's Google Desktop registration is not yet configured in File > Options."
+msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr ""
 
 #. interface
@@ -11202,11 +11174,6 @@ msgid "The Entire Series"
 msgstr "Toda la serie"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
-msgid "The Google Desktop registration value must be printable ASCII"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
 msgstr ""
@@ -12449,7 +12416,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
-msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+msgid "This is a development build: it checks only when you press Check for Updates."
 msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones en Archivo › Acerca de."
 
 #. interface
@@ -13321,11 +13288,6 @@ msgstr "Usar una contraseña de aplicación en su lugar"
 #, fuzzy
 msgid "Use my own working hours"
 msgstr "Usar mi propio horario laboral"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Use only MailCraft's Desktop OAuth registration, not a Google password or another app's credentials"
-msgstr ""
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -15515,6 +15477,12 @@ msgstr "el servidor no permite mover la regla contigua"
 msgid "the server doesn't let this rule be changed"
 msgstr "el servidor no permite cambiar esta regla"
 
+#. why a command can't run
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the server keeps this folder: it can't be renamed, moved or deleted"
+msgstr "el servidor conserva esta carpeta: no se puede cambiar de nombre, mover ni eliminar"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -16670,12 +16638,26 @@ msgstr[0] "{n} mensaje quitado"
 msgstr[1] "{n} mensajes quitados"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message that came back empty after a refused delete is being downloaded again."
+msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} mensaje se eliminará de forma definitiva."
 msgstr[1] "{n} mensajes se eliminarán de forma definitiva."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message with characters that couldn't be read is being downloaded again."
+msgid_plural "{n} messages with characters that couldn't be read are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17136,6 +17118,38 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#~ msgid "Google Desktop Registration Secret"
+#~ msgstr "Secreto del registro de escritorio de Google"
+
+#~ msgid "Google Desktop client secret"
+#~ msgstr "Secreto de cliente de escritorio de Google"
+
+#, fuzzy
+#~ msgid "Google sign-in is not configured for this build. Use an app password, or configure MailCraft's Google Desktop registration in File > Options."
+#~ msgstr "El inicio de sesión con Google no está configurado en esta versión. Use una contraseña de aplicación o configure el registro de Google Desktop de MailCraft en Archivo > Opciones."
+
+#~ msgid "Google sign-in is not configured in File > Options"
+#~ msgstr "El inicio de sesión con Google no está configurado en Archivo > Opciones"
+
+#~ msgid "Google sign-in is not configured in File > Options."
+#~ msgstr "El inicio de sesión con Google no está configurado en Archivo > Opciones."
+
+#, fuzzy
+#~ msgid "MailCraft doesn't look for new versions by itself; File › Options can have it look once a day."
+#~ msgstr "MailCraft no busca nuevas versiones por sí solo; en Archivo › Opciones puede hacer que las busque una vez al día."
+
+#, fuzzy
+#~ msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+#~ msgstr "MailCraft busca una nueva versión una vez al día (Archivo › Opciones). Solo se consulta a GitHub."
+
+#, fuzzy
+#~ msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
+#~ msgstr "MailCraft ahora instala sus actualizaciones por sí mismo. Puede desactivarlo en Archivo › Opciones."
+
+#, fuzzy
+#~ msgid "This is a development build: it checks only when you press Check for Updates in File › About."
+#~ msgstr "Esta es una compilación de desarrollo: solo busca cuando presiona Buscar actualizaciones en Archivo › Acerca de."
 
 #, fuzzy
 #~ msgid "This account has no contacts"

@@ -960,12 +960,15 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     if kept_by(s, &before).is_some() {
         writable(s, before.calendar)?;
     }
-    let e = s.mailbox.event_mut(id)?;
-    let has = e.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
+    let has = before.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
     let on = p::bool(v, "value").unwrap_or(!has);
+    // The event takes the spelling of its calendar's account's list; a new name joins that list.
+    let account = s.mailbox.event_account(&before);
+    let spelling = super::category::spelled(s, account, &name, on)?;
+    let e = s.mailbox.event_mut(id)?;
     e.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
     if on {
-        e.categories.push(name);
+        e.categories.push(spelling);
     }
     let categories = e.categories.clone();
     // The account's server keeps an event's categories with it (and tells nobody else).

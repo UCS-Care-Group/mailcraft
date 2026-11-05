@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-03 · **Change:** major (first user and developer guide for #232)
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-04 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -16,7 +16,7 @@ SMTP. It does not add Google Calendar or Contacts, nor Gmail access in the brows
 1. Open **Send / Receive → Add Account**, enter your email address and continue. For a custom
    Workspace domain that is not recognised, select **Google — Gmail and Google Workspace** as
    the provider. The wizard may still be headed **Gmail account** for a Workspace address.
-2. Choose **Sign in with Google**. MailCraft opens your system browser. Choose the same Google
+2. Choose **Sign in with Google**. MailCraft opens your system browser. Choose the same primary Google
    address you entered and review Google's consent screen there. Your ordinary Google password
    belongs only on Google's page, never in MailCraft.
 3. Return to MailCraft after Google finishes. Finish the wizard, then use Send/Receive to
@@ -31,6 +31,20 @@ MailCraft requests `https://mail.google.com/ openid email`: mail access for IMAP
 identity needed to check which account signed in. The mail scope is broad, **not read-only**;
 the application can send and apply your mail changes. A read-only acceptance test does not
 reduce the granted permission. Google's [XOAUTH2 specification][xoauth] describes the mail scope.
+
+### Primary addresses and Workspace aliases
+
+Use the primary email address of the Google account for MailCraft's account identity. Google
+returns that address when you sign in. MailCraft compares it with the account address you
+entered, ignoring letter case and surrounding spaces, and refuses a different address.
+
+A Workspace alias is not supported as the OAuth account identity in this version, even if mail
+sent to it reaches the same inbox. This applies to new accounts, conversion and reconnect.
+MailCraft does not discover aliases, substitute Google's returned address, or silently attach
+another account's sign-in to existing mail. If an existing app-password account is configured
+with an alias, leave it on that method until you have deliberately configured the account with
+its primary address; a refused conversion keeps the existing credential and mail intact.
+This sign-in flow does not configure sending from aliases.
 
 ### App-password alternative
 
@@ -74,7 +88,8 @@ remembering, sign in again after restarting. A locked or unavailable system stor
 not replaced by a plaintext mailbox credential file.
 
 The application registration discussed below is different from your account credential. Its
-settings are not covered by a promise that every value called a “secret” is an account token.
+Desktop registration value comes from the build or process environment; MailCraft does not
+provide a client-secret preference or write that value to `ui.json`.
 
 ## Google restrictions and useful error distinctions
 
@@ -89,7 +104,7 @@ only after the relevant restriction is addressed.
 | Your organisation blocks this app, or `admin_policy_enforced` | Ask your Google Workspace administrator to review the client and requested data access. Microsoft's administrator-consent page is not applicable. |
 | `org_internal` | The registration is restricted to its own organisation; an external account is outside that audience. |
 | `invalid_client` or `redirect_uri_mismatch` | The developer should check the matching Desktop client ID/secret and client type, not your mail-account password. |
-| A different account was selected | Retry and select the address that matches the MailCraft account. |
+| A different account was selected, including the primary address of an account entered as an alias | Use the primary Google address as the MailCraft account identity and select that same address in the browser. Workspace aliases are not accepted as OAuth identities. |
 | Browser did not open, was closed, or no callback arrived | Check that the system browser can open and return to the same computer; retry in MailCraft. Do not paste a browser authorization code into a password field. |
 | A sign-in expires after several days in a test build | Check the registration's testing status before assuming token storage is broken. |
 
@@ -148,17 +163,23 @@ account, or Workspace domain-wide delegation. No fixed public callback server is
 
 | Value | Purpose and destination |
 |---|---|
-| Google Desktop client ID | Identifies the application. Enter in **File → Options → Accounts → Google Desktop application ID**. |
-| Matching Google Desktop client secret | The same Desktop registration's value. Enter in **Google Desktop client secret**, below the ID. It is not an account password. |
+| Google Desktop client ID | Identifies the application. Supply it at build time or in `MAILCRAFT_GOOGLE_CLIENT_ID`. **File → Options → Accounts → Google Desktop application ID** can override the public ID, but must match the registration paired with the host's configured secret. |
+| Matching Google Desktop client secret | Supply the same Desktop registration's value at build time or in `MAILCRAFT_GOOGLE_CLIENT_SECRET`. There is no client-secret field in File → Options. It is not an account password. |
 | Google account password | Enter only on Google's browser sign-in page. |
 | Google app password | Enter only after choosing the explicit app-password account route. It is not an OAuth registration value. |
 
 Desktop clients cannot keep a distributed application secret confidential; PKCE protects the
 code exchange. This implementation still requires Google's matching Desktop registration
-value when exchanging and refreshing tokens. The options field is masked, but its override
-is an application preference in `ui.json`, **not encrypted account-secret storage**. Never put
-an account password, access token or refresh token there. Keep development registration
-values and credential downloads out of commits, screenshots, diagnostics and support reports.
+value when exchanging and refreshing tokens. It is supplied by the host, and is not saved as
+an application preference. Keep development registration values and credential downloads out
+of commits, screenshots, diagnostics and support reports.
+
+An earlier development build offered a client-secret field in File → Options. A value stored
+there as `googleClientSecret` in `ui.json` is now ignored and omitted the next time preferences
+are saved normally; startup alone does not rewrite the file. If your test setup relied on that
+field, configure the matching ID and secret through the build or process environment before
+signing in or renewing a grant. This change does not replace any account's identity or stored
+refresh credential.
 
 ### Overrides and precedence
 
@@ -168,14 +189,16 @@ Both registration values can be supplied when building or launching the desktop 
 |---|---|
 | `MAILCRAFT_GOOGLE_CLIENT_ID` | Build-time default or process-environment override for the Desktop client ID. |
 | `MAILCRAFT_GOOGLE_CLIENT_SECRET` | Build-time default or process-environment override for its matching registration value. |
-| Google Desktop fields in File → Options | Nonempty local overrides of the host defaults above. |
+| Google Desktop application ID in File → Options | A nonempty local override of the public client ID; it cannot supply or change the host's registration secret. |
 
 The host takes a present process-environment value before its compiled default. Unset an
-unwanted environment variable instead of leaving it empty. Nonempty File → Options overrides
-win over those host defaults. An existing account with its own explicit application ID keeps
-that ID; changing the global default does not rewrite it. The registration's secret must
-match the ID actually used for that account. Clearing an options override returns to the
-host default; it does not erase an account's explicit ID.
+unwanted environment variable instead of leaving it empty. A nonempty File → Options client-ID
+override wins over the host's default ID. An existing account with its own explicit application
+ID keeps that ID; changing the global default does not rewrite it. The host's registration
+secret can be used only with its matching client ID, including when an account has an explicit
+ID or File → Options overrides the default. Changing the ID alone does not pair the secret with
+a different registration. Clearing the client-ID option returns to the host default; it does
+not erase an account's explicit ID.
 
 Supply a matching pair using your local development environment or a private launcher; this
 guide deliberately includes no real values or secret-bearing command lines. A build without
@@ -209,7 +232,6 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-03 | major | Desktop Google sign-in, app-password alternative, explicit conversion, registration overrides, restrictions and verified acceptance scope (#232) |
 
 [desktop]: https://developers.google.com/identity/protocols/oauth2/native-app
 [clients]: https://support.google.com/cloud/answer/15549257

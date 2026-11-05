@@ -48,8 +48,11 @@ Google Desktop registration explains the missing configuration and retains the f
 The [Gmail and Google Workspace guide](docs/google-accounts.md) covers normal setup, conversion,
 reconnection, development registration overrides and common restrictions. It distinguishes
 Google's application client ID/secret from your account password, and test-user access from
-Workspace administrator policy. The official MailCraft registration and public Google
-verification remain release requirements; this desktop work does not add browser Gmail.
+Workspace administrator policy. Use the primary Google address for the account; Workspace
+aliases are not supported as OAuth account identities. Development registration secrets come
+from the build or process environment; File → Options offers only the public client ID. The
+official MailCraft registration and public Google verification remain release requirements;
+this desktop work does not add browser Gmail.
 
 ## What it looks like
 

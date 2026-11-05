@@ -79,8 +79,9 @@ fn missing_google_registration_shows_app_password_and_no_dead_sign_in_button() {
     assert_eq!(page(&h), Some(Page::Password));
     assert!(!h.state().google_registration_ready());
     assert!(says(&h, "Google sign-in is not configured"));
-    assert!(!says(&h, "Use an app password instead"));
-    assert!(!says(&h, "Sign in with Google"));
+    // Check controls separately from the explanatory notice.
+    assert!(h.query_by_role_and_label(Role::Button, "Use an app password instead").is_none());
+    assert!(h.query_by_role_and_label(Role::Button, "Sign in with Google").is_none());
     h.get_by_role(Role::PasswordInput).focus();
     h.run_steps(2);
     type_text(&mut h, TYPED);
@@ -224,4 +225,44 @@ fn configured_google_oauth_still_allows_an_explicit_successful_app_password_acco
     assert!(account.oauth.is_none(), "explicitly selected password account must not silently migrate");
     assert_eq!(h.state().passwords.get(&account.id).map(String::as_str), Some(TYPED));
     assert!(!h.state().tokens.contains_key(&account.id));
+}
+
+/// An owner must choose Google explicitly. Without MailCraft's desktop registration the
+/// existing app-password page remains usable, and no provider page is opened.
+#[test]
+fn google_desktop_requires_registration_and_keeps_password_as_default() {
+    let mut app = app(false);
+    let seen: Log<(String, OAuthProvider, String, String, bool)> = Default::default();
+    let written = seen.clone();
+    app.services.sign_in = Some(Box::new(move |request: SignInRequest| {
+        written.lock().unwrap().push((request.email, request.oauth.provider, request.oauth.client_id, request.google_client_secret, request.graph));
+        mpsc::channel().1
+    }));
+    let mut wizard = AccountSetup::open(&app, &json!({"email": "one@gmail.com"})).unwrap();
+    let (command, params) = wizard.preset_command(None, None).unwrap();
+    wizard.take(Preset::read(&app.execute(command, params).unwrap()));
+    wizard.page = Page::Password;
+    assert!(wizard.oauth.is_none());
+    assert_eq!(wizard.incoming.host, "imap.gmail.com");
+    assert!(!app.google_registration_ready());
+    assert!(!wizard.act(&mut app, Action::GoogleSignIn));
+    assert!(wizard.page == Page::Password && wizard.error.contains("not configured"));
+    assert!(seen.lock().unwrap().is_empty());
+    assert!(app.ui.google_client_id.is_empty() && app.services.google_client_secret.is_empty());
+
+    let desktop_id = "synthetic-client.apps.googleusercontent.com";
+    let desktop_registration = "fake-public-native-client-secret";
+    assert_eq!(app.execute("ui.googleClientId", json!({"value": desktop_id})).unwrap()["configured"], true);
+    assert!(!app.google_registration_ready());
+    app.services.google_client_secret = desktop_registration.into();
+    assert!(app.google_registration_ready());
+    wizard.password.0 = "fake-app-password-never-used".into();
+    assert!(!wizard.act(&mut app, Action::GoogleSignIn));
+    assert_eq!(wizard.page, Page::SignIn);
+    assert!(wizard.password.0.is_empty());
+    assert_eq!(
+        seen.lock().unwrap().as_slice(),
+        [("one@gmail.com".into(), OAuthProvider::Google, desktop_id.into(), desktop_registration.into(), false,)]
+    );
+    assert!(app.session.mailbox.accounts.iter().all(|account| account.email != "one@gmail.com"));
 }

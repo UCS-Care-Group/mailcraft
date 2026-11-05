@@ -791,7 +791,7 @@ impl AccountSetup {
                 Some(OAuthProvider::Microsoft) if !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) => {
                     return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
                 }
-                // Google's desktop registration normally lives in File > Options. A
+                // The desktop host supplies Google's registration; Options can override its public ID. A
                 // saved Google account need not have its own client ID or a tenant.
                 Some(OAuthProvider::Google) if !self.client_id.trim().is_empty() && !is_identifier(self.client_id.trim(), 200) => {
                     return Some(tl!("An application ID is letters, digits, dots and dashes").to_string());
@@ -960,10 +960,7 @@ impl AccountSetup {
                 if !self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com") {
                     self.error = tl!("Google sign-in needs Google's IMAP server").to_string();
                 } else if !app.google_registration_ready() {
-                    self.error = tl!(
-                        "Google sign-in is not configured. Use an app password or set up MailCraft's Google Desktop registration in File > Options."
-                    )
-                    .to_string();
+                    self.error = tl!("Google sign-in is not configured for this build. Use an app password instead.").to_string();
                 } else {
                     self.forget_password();
                     self.oauth = Some(OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
@@ -1134,7 +1131,7 @@ impl AccountSetup {
             // A switch must not silently save unrelated edits or drop a newly typed password.
             self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
         } else if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured in File > Options").to_string();
+            self.error = tl!("Google sign-in is not configured for this build").to_string();
         } else {
             self.reconnecting_google = false;
             self.oauth = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
@@ -1154,7 +1151,7 @@ impl AccountSetup {
             return;
         };
         if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured in File > Options").to_string();
+            self.error = tl!("Google sign-in is not configured for this build").to_string();
         } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
             self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
         } else {
@@ -1739,13 +1736,7 @@ impl AccountSetup {
             } else {
                 if google {
                     if !configured {
-                        note(
-                            ui,
-                            tl!(
-                                "Google sign-in is not configured for this build. Use an app password, or configure MailCraft's Google Desktop registration in File > Options."
-                            ),
-                            t.orange,
-                        );
+                        note(ui, tl!("Google sign-in is not configured for this build. Use an app password instead."), t.orange);
                     } else if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
                         change_method = Some(Action::GooglePreferSignIn);
                     }
@@ -1934,7 +1925,7 @@ impl AccountSetup {
                     t.text_dim,
                 );
                 if !configured {
-                    note(ui, tl!("Google sign-in is not configured in File > Options."), t.orange);
+                    note(ui, tl!("Google sign-in is not configured for this build."), t.orange);
                 } else if !unchanged {
                     note(ui, tl!("Save or discard changes here before reconnecting."), t.orange);
                 }
@@ -1956,7 +1947,7 @@ impl AccountSetup {
                 } else if !unchanged {
                     note(ui, tl!("Save or discard changes here before switching sign-in methods."), t.orange);
                 } else if !configured {
-                    note(ui, tl!("MailCraft's Google Desktop registration is not yet configured in File > Options."), t.orange);
+                    note(ui, tl!("MailCraft's Google Desktop registration is not yet configured for this build."), t.orange);
                 }
             }
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
@@ -2340,159 +2331,6 @@ mod tests {
     const MICROSOFT_MX: &str = "example-org.mail.protection.outlook.com";
 
     type Log<T> = Arc<Mutex<Vec<T>>>;
-
-    /// An owner must choose Google explicitly. Without MailCraft's desktop registration the
-    /// existing app-password page remains usable, and no provider page is opened.
-    #[test]
-    fn google_desktop_requires_registration_and_keeps_password_as_default() {
-        let mut app = app(false);
-        let seen: Log<(String, OAuthProvider, String, String, bool)> = Default::default();
-        let written = seen.clone();
-        app.services.sign_in = Some(Box::new(move |request: SignInRequest| {
-            written.lock().unwrap().push((
-                request.email,
-                request.oauth.provider,
-                request.oauth.client_id,
-                request.google_client_secret,
-                request.graph,
-            ));
-            mpsc::channel().1
-        }));
-        let mut wizard = AccountSetup::open(&app, &json!({"email": "one@gmail.com"})).unwrap();
-        let (command, params) = wizard.preset_command(None, None).unwrap();
-        wizard.take(Preset::read(&app.execute(command, params).unwrap()));
-        wizard.page = Page::Password;
-        assert!(wizard.oauth.is_none());
-        assert_eq!(wizard.incoming.host, "imap.gmail.com");
-        assert!(!app.google_registration_ready());
-        assert!(!wizard.act(&mut app, Action::GoogleSignIn));
-        assert!(wizard.page == Page::Password && wizard.error.contains("not configured"));
-        assert!(seen.lock().unwrap().is_empty());
-        assert!(app.ui.google_client_id.is_empty() && app.ui.google_client_secret.is_empty());
-
-        let desktop_id = "synthetic-client.apps.googleusercontent.com";
-        let desktop_registration = "fake-public-native-client-secret";
-        assert_eq!(app.execute("ui.googleClientId", json!({"value": desktop_id})).unwrap()["configured"], true);
-        assert!(!app.google_registration_ready());
-        assert!(app.execute("ui.googleClientSecret", json!({"value": desktop_registration})).is_ok());
-        assert!(app.google_registration_ready());
-        assert!(app.execute("ui.googleClientSecret", json!({"value": "invalid\nsecret"})).is_err());
-        wizard.password.0 = "fake-app-password-never-used".into();
-        assert!(!wizard.act(&mut app, Action::GoogleSignIn));
-        assert_eq!(wizard.page, Page::SignIn);
-        assert!(wizard.password.0.is_empty());
-        assert_eq!(
-            seen.lock().unwrap().as_slice(),
-            [("one@gmail.com".into(), OAuthProvider::Google, desktop_id.into(), desktop_registration.into(), false,)]
-        );
-        assert!(app.session.mailbox.accounts.iter().all(|account| account.email != "one@gmail.com"));
-    }
-
-    #[test]
-    fn google_wizard_hides_microsoft_approval_and_returns_to_app_password_without_data_loss() {
-        let mut a = app(false);
-        a.services.google_client_id = "fake-desktop-client.apps.googleusercontent.com".into();
-        a.services.google_client_secret = "fake-desktop-registration".into();
-        sign_ins(&mut a, None); // The user is still on Google's simulated sign-in page.
-        let mut h = open(a, json!({"email": "one@gmail.com"}));
-        click(&mut h, "Connect");
-        assert_eq!(page(&h), Some(Page::Password));
-        click(&mut h, "Sign in with Google");
-        assert_eq!(page(&h), Some(Page::SignIn));
-        assert!(says(&h, "Google's sign-in page is open"));
-        assert!(says(&h, "restrict sign-in to approved test users"));
-        assert!(!says(&h, "If that page says you need admin approval"));
-        assert!(h.state().signing_in());
-        click(&mut h, "Cancel");
-        assert!(!h.state().signing_in());
-
-        let mut b = app(false);
-        b.services.google_client_id = "fake-desktop-client.apps.googleusercontent.com".into();
-        b.services.google_client_secret = "fake-desktop-registration".into();
-        sign_ins(&mut b, Some(Err(crate::approval::SIGN_IN_DECLINED.into())));
-        let mut h = open(b, json!({"email": "one@gmail.com"}));
-        click(&mut h, "Connect");
-        click(&mut h, "Sign in with Google");
-        h.run_steps(4);
-        assert_eq!(page(&h), Some(Page::SignIn));
-        assert!(says(&h, "Google sign-in was declined"));
-        assert!(!says(&h, "My organisation has to approve MailCraft"));
-        click(&mut h, "Use an app password");
-        assert_eq!(page(&h), Some(Page::Password));
-        assert_eq!(wizard(&h).unwrap().email, "one@gmail.com");
-        assert!(wizard(&h).unwrap().oauth.is_none());
-        assert!(says(&h, "Use a Google app password"));
-    }
-
-    #[test]
-    fn existing_gmail_account_converts_only_after_explicit_same_identity_sign_in() {
-        let add = |app: &mut MailApp| {
-            app.execute(
-                "account.add",
-                json!({
-                    "email":"one@gmail.com", "auth":"password",
-                    "incoming":{"host":"imap.gmail.com","port":993,"security":"tls"},
-                    "outgoing":{"host":"smtp.gmail.com","port":465,"security":"tls"}
-                }),
-            )
-            .unwrap()["id"]
-                .as_u64()
-                .unwrap()
-        };
-        let set_up = || {
-            let mut app = app(false);
-            app.services.google_client_id = "example-desktop.apps.googleusercontent.com".into();
-            app.services.google_client_secret = "example-public-desktop-registration".into();
-            app
-        };
-
-        let mut app = set_up();
-        let id = add(&mut app);
-        app.passwords.insert(id, "existing-app-password".into());
-        sign_ins(&mut app, Some(Ok(SignedIn { email: "one@gmail.com".into(), ..signed_in("One") })));
-        let mut w = AccountSetup::open(&app, &json!({"id":id})).unwrap();
-        assert_eq!(w.page, Page::Settings);
-        assert!(w.oauth.is_none());
-        assert!(!w.act(&mut app, Action::ConvertToGoogle));
-        assert!(w.page == Page::SignIn && w.waiting);
-        // No changes while Google's page is open, even if the owner has an app password.
-        assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
-        assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
-        app.poll_sign_in();
-        w.poll_sign_in(&mut app);
-        assert!(w.done);
-        let owner = app.session.mailbox.account(id).unwrap();
-        assert_eq!(owner.kind, AccountKind::Imap);
-        assert_eq!(owner.oauth.as_ref().map(|o| o.provider), Some(OAuthProvider::Google));
-        assert_eq!(app.tokens.get(&id).map(|t| t.email.as_str()), Some("one@gmail.com"));
-        assert!(!app.passwords.contains_key(&id));
-
-        // A different Google account's tokens cannot convert this one.
-        let mut app = set_up();
-        let id = add(&mut app);
-        app.passwords.insert(id, "existing-app-password".into());
-        sign_ins(&mut app, Some(Ok(SignedIn { email: "two@gmail.com".into(), ..signed_in("Wrong account") })));
-        let mut w = AccountSetup::open(&app, &json!({"id": id})).unwrap();
-        assert!(!w.act(&mut app, Action::ConvertToGoogle));
-        app.poll_sign_in();
-        w.poll_sign_in(&mut app);
-        assert!(w.page == Page::Settings && w.error.contains("was not changed"));
-        assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
-        assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
-        assert!(!app.tokens.contains_key(&id));
-
-        // Cancellation leaves the old account and password untouched too.
-        let mut app = set_up();
-        let id = add(&mut app);
-        app.passwords.insert(id, "existing-app-password".into());
-        sign_ins(&mut app, None);
-        let mut w = AccountSetup::open(&app, &json!({"id": id})).unwrap();
-        assert!(!w.act(&mut app, Action::ConvertToGoogle));
-        assert!(!w.act(&mut app, Action::Back));
-        assert!(w.page == Page::Settings && w.oauth.is_none());
-        assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
-        assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
-    }
 
     /// The app over the sample mailbox, or over the empty one of a first run.
     fn app(sample: bool) -> MailApp {

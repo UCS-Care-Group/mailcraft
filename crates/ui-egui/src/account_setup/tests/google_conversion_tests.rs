@@ -330,3 +330,73 @@ fn existing_google_oauth_settings_do_not_offer_app_password_conversion() {
     click(&mut h, "Cancel");
     assert_eq!(page(&h), None);
 }
+
+#[test]
+fn existing_gmail_account_converts_only_after_explicit_same_identity_sign_in() {
+    let add = |app: &mut MailApp| {
+        app.execute(
+            "account.add",
+            json!({
+                "email":"one@gmail.com", "auth":"password",
+                "incoming":{"host":"imap.gmail.com","port":993,"security":"tls"},
+                "outgoing":{"host":"smtp.gmail.com","port":465,"security":"tls"}
+            }),
+        )
+        .unwrap()["id"]
+            .as_u64()
+            .unwrap()
+    };
+    let set_up = || {
+        let mut app = app(false);
+        app.services.google_client_id = "example-desktop.apps.googleusercontent.com".into();
+        app.services.google_client_secret = "example-public-desktop-registration".into();
+        app
+    };
+
+    let mut app = set_up();
+    let id = add(&mut app);
+    app.passwords.insert(id, "existing-app-password".into());
+    sign_ins(&mut app, Some(Ok(SignedIn { email: "one@gmail.com".into(), ..signed_in("One") })));
+    let mut w = AccountSetup::open(&app, &json!({"id":id})).unwrap();
+    assert_eq!(w.page, Page::Settings);
+    assert!(w.oauth.is_none());
+    assert!(!w.act(&mut app, Action::ConvertToGoogle));
+    assert!(w.page == Page::SignIn && w.waiting);
+    // No changes while Google's page is open, even if the owner has an app password.
+    assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
+    assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
+    app.poll_sign_in();
+    w.poll_sign_in(&mut app);
+    assert!(w.done);
+    let owner = app.session.mailbox.account(id).unwrap();
+    assert_eq!(owner.kind, AccountKind::Imap);
+    assert_eq!(owner.oauth.as_ref().map(|o| o.provider), Some(OAuthProvider::Google));
+    assert_eq!(app.tokens.get(&id).map(|t| t.email.as_str()), Some("one@gmail.com"));
+    assert!(!app.passwords.contains_key(&id));
+
+    // A different Google account's tokens cannot convert this one.
+    let mut app = set_up();
+    let id = add(&mut app);
+    app.passwords.insert(id, "existing-app-password".into());
+    sign_ins(&mut app, Some(Ok(SignedIn { email: "two@gmail.com".into(), ..signed_in("Wrong account") })));
+    let mut w = AccountSetup::open(&app, &json!({"id": id})).unwrap();
+    assert!(!w.act(&mut app, Action::ConvertToGoogle));
+    app.poll_sign_in();
+    w.poll_sign_in(&mut app);
+    assert!(w.page == Page::Settings && w.error.contains("was not changed"));
+    assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
+    assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
+    assert!(!app.tokens.contains_key(&id));
+
+    // Cancellation leaves the old account and password untouched too.
+    let mut app = set_up();
+    let id = add(&mut app);
+    app.passwords.insert(id, "existing-app-password".into());
+    sign_ins(&mut app, None);
+    let mut w = AccountSetup::open(&app, &json!({"id": id})).unwrap();
+    assert!(!w.act(&mut app, Action::ConvertToGoogle));
+    assert!(!w.act(&mut app, Action::Back));
+    assert!(w.page == Page::Settings && w.oauth.is_none());
+    assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
+    assert_eq!(app.passwords.get(&id).map(String::as_str), Some("existing-app-password"));
+}
