@@ -8,7 +8,7 @@
 //! only on the owner's yes; nobody's answer within [`WAIT_MS`] is a no. While a question is up,
 //! no input from the control channel reaches the window.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::mpsc::Sender;
 
 use egui::vec2;
@@ -35,11 +35,11 @@ pub struct Asking {
     also: Vec<Class>,
     /// The messages an undo or redo would take away, which the question names, and the steps
     /// as they were when it was asked ([`mailcraft_engine::Session::undo_steps_moved`], #473).
-    taken: Vec<u64>,
+    taken: HashSet<u64>,
     steps: u64,
     /// The contacts, events, tasks, calendars and categories it would take away
-    /// ([`mailcraft_engine::Session::undo_removed_items`]): a yes reaches none that came since.
-    items: Vec<String>,
+    /// ([`mailcraft_engine::Session::undo_takes`]): a yes reaches none that came since.
+    items: HashSet<String>,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -116,9 +116,8 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Err(why) => return err(why),
             };
             let also = agent::also(&app.session, id, &params, class);
-            let taken = undo_taken(app, id);
+            let (taken, items) = undo_takes(app, id);
             let steps = app.session.undo_steps_moved();
-            let items = undo_items(app, id);
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
@@ -295,19 +294,15 @@ fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value)
     Some(params)
 }
 
-/// The messages an agent's undo or redo would take away (none for any other command).
-fn undo_taken(app: &MailApp, id: &str) -> Vec<u64> {
+/// The messages, and the contacts and the like, an agent's undo or redo would take away (none
+/// for any other command), as sets: an undo of a large import is looked up in, not walked.
+fn undo_takes(app: &MailApp, id: &str) -> (HashSet<u64>, HashSet<String>) {
     match id {
-        "edit.undo" | "edit.redo" => app.session.undo_taken(id == "edit.redo"),
-        _ => Vec::new(),
-    }
-}
-
-/// The contacts and the like an agent's undo or redo would take away (none for any other command).
-fn undo_items(app: &MailApp, id: &str) -> Vec<String> {
-    match id {
-        "edit.undo" | "edit.redo" => app.session.undo_removed_items(id == "edit.redo"),
-        _ => Vec::new(),
+        "edit.undo" | "edit.redo" => {
+            let (taken, items) = app.session.undo_takes(id == "edit.redo");
+            (taken.into_iter().collect(), items.into_iter().collect())
+        }
+        _ => (HashSet::new(), HashSet::new()),
     }
 }
 
@@ -336,8 +331,10 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         // contacts and the like than the question named.
         let undoing = matches!(a.id.as_str(), "edit.undo" | "edit.redo");
         let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c))
-            || undo_taken(app, &a.id).iter().any(|m| !a.taken.contains(m))
-            || undo_items(app, &a.id).iter().any(|i| !a.items.contains(i))
+            || {
+                let (taken, items) = undo_takes(app, &a.id);
+                !taken.is_subset(&a.taken) || !items.is_subset(&a.items)
+            }
             || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
         let mut allow = a.allow.clone();
         allow.push(a.class);

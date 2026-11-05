@@ -2773,9 +2773,33 @@ impl Session {
     /// among them, as [`Session::undo_takes_mail`] finds them: for the owner's question, which
     /// names them.
     pub fn undo_taken(&self, redo: bool) -> Vec<Id> {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        self.undo_takes(redo).0
+    }
+
+    /// What undoing the last step (or redoing, `redo`) would take away: the messages, drafts
+    /// among them, and the contacts, events, tasks, calendars and categories, each of those
+    /// named by its kind and id (a category by its name). Read off the mailbox the undo itself
+    /// makes, by the merge it runs (on a copy, O(n), once for both).
+    pub fn undo_takes(&self, redo: bool) -> (Vec<Id>, Vec<String>) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (Vec::new(), Vec::new()) };
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
-        self.mailbox.messages.keys().filter(|k| !back.messages.contains_key(k)).copied().collect()
+        let now = &self.mailbox;
+        let taken = now.messages.keys().filter(|k| !back.messages.contains_key(k)).copied().collect();
+        let categories_gone = |now: &[Category], to: &[Category]| -> Vec<String> {
+            now.iter().filter(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase())).map(|c| c.name.to_lowercase()).collect()
+        };
+        let mut gone: Vec<String> = Vec::new();
+        gone.extend(now.contacts.keys().filter(|k| !back.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
+        gone.extend(now.events.keys().filter(|k| !back.events.contains_key(*k)).map(|k| format!("event {k}")));
+        gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
+        gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
+        // An account's own list the undo doesn't keep is taken away whole.
+        for (id, list) in &now.account_categories {
+            let to = back.account_categories.get(id).map(Vec::as_slice).unwrap_or_default();
+            gone.extend(categories_gone(list, to).into_iter().map(|n| format!("category {id} {n}")));
+        }
+        (taken, gone)
     }
 
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
@@ -2814,37 +2838,24 @@ impl Session {
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,
     /// calendars or categories made since: things that go for good (they don't go to Deleted
-    /// Items) and that the step lacks.
+    /// Items) and that the mailbox the undo makes lacks.
     pub fn undo_removes_items(&self, redo: bool) -> bool {
         !self.undo_removed_items(redo).is_empty()
     }
 
-    /// What [`Session::undo_removes_items`] finds, each named by its kind and id (a category by
-    /// its name): for the owner's question, whose yes holds for exactly these (#473).
+    /// The contacts and the like of [`Session::undo_takes`].
     pub fn undo_removed_items(&self, redo: bool) -> Vec<String> {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
-        let (to, now) = (&step.mailbox, &self.mailbox);
-        let categories_gone = |now: &[Category], to: &[Category]| -> Vec<String> {
-            now.iter().filter(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase())).map(|c| c.name.to_lowercase()).collect()
-        };
-        let mut gone: Vec<String> = Vec::new();
-        gone.extend(now.contacts.keys().filter(|k| !to.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
-        gone.extend(now.events.keys().filter(|k| !to.events.contains_key(*k)).map(|k| format!("event {k}")));
-        gone.extend(now.tasks.keys().filter(|k| !to.tasks.contains_key(*k)).map(|k| format!("task {k}")));
-        gone.extend(now.calendars.iter().filter(|c| !to.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
-        gone.extend(categories_gone(&now.categories, &to.categories).into_iter().map(|n| format!("category {n}")));
-        for (id, list) in &now.account_categories {
-            if let Some(to) = to.account_categories.get(id) {
-                gone.extend(categories_gone(list, to).into_iter().map(|n| format!("category {id} {n}")));
-            }
-        }
-        gone
+        self.undo_takes(redo).1
     }
 
     /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
     /// the like, a draft (or puts back an earlier version of one), or another message.
     pub fn undo_deletes(&self, redo: bool) -> bool {
-        self.undo_removes_items(redo) || !self.undo_drafts(redo).is_empty() || self.undo_takes_mail(redo)
+        if !self.undo_drafts(redo).is_empty() {
+            return true;
+        }
+        let (taken, items) = self.undo_takes(redo);
+        !taken.is_empty() || !items.is_empty()
     }
 
     /// The stacks as they were before an undo (`redo`: a redo) that failed (#767): what it pushed

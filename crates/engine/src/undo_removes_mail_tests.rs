@@ -486,3 +486,24 @@ fn a_redo_refused_for_an_appointment_the_owner_is_changing_leaves_the_stacks() {
     assert!(s.redo());
     assert!(s.mailbox.event(event).is_none());
 }
+
+#[test]
+fn an_account_list_of_categories_the_step_lacks_is_taken_away_and_asked_about() {
+    // An account's own list of categories that came since the step: the undo takes the whole
+    // list away (the step has none for it), so it asks for Delete, and with the accounts it
+    // asks for Delete too.
+    let mut s = sample();
+    let (m, _) = message_and_other_folder(&s);
+    let account = s.mailbox.message(m).unwrap().account;
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    assert!(!s.mailbox.account_categories.contains_key(&account));
+    let fresh = mailcraft_model::Category { name: "Fresh".into(), color: mailcraft_model::GREY_CATEGORY };
+    s.mailbox.account_categories.insert(account, vec![fresh]);
+    assert!(s.undo_removes_items(false));
+    assert!(asks_delete(&s, "edit.undo"));
+    accounts_changed_since(&mut s);
+    assert_eq!(also(&s, "edit.undo", &json!({}), Class::Accounts), vec![Class::Delete]);
+    // What the gate says is what the undo does.
+    assert!(s.undo());
+    assert!(!s.mailbox.account_categories.get(&account).is_some_and(|l| l.iter().any(|c| c.name == "Fresh")));
+}
