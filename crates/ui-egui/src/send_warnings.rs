@@ -39,7 +39,7 @@ pub(crate) fn lines(warnings: &[SendWarning]) -> Vec<String> {
             ),
             SendWarning::TooManyRecipients { checked } => tln!(
                 *checked,
-                "This message has more recipients than MailCraft checks: only the first {n} were looked at.",
+                "This message has more recipients than MailCraft checks: only the first one was looked at.",
                 "This message has more recipients than MailCraft checks: only the first {n} were looked at."
             ),
         })

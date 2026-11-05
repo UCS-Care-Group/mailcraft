@@ -186,6 +186,19 @@ fn too_many_recipients_to_check_are_asked_about() {
 }
 
 #[test]
+fn one_recipient_looked_at_is_said_in_the_singular() {
+    use mailcraft_model::send_warnings::SendWarning;
+    let lines = crate::send_warnings::lines(&[SendWarning::TooManyRecipients { checked: 1 }, SendWarning::TooManyRecipients { checked: 2 }]);
+    assert_eq!(
+        lines,
+        [
+            "This message has more recipients than MailCraft checks: only the first one was looked at.",
+            "This message has more recipients than MailCraft checks: only the first 2 were looked at."
+        ]
+    );
+}
+
+#[test]
 fn ordinary_mail_is_not_asked_about() {
     let mut a = app();
     write(&mut a, "lin.zhao@harborworks.example; maya@lumen.example");

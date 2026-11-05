@@ -11138,7 +11138,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
-msgid "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
 msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
 msgstr[0] ""
 msgstr[1] ""
