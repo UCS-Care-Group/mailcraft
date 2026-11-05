@@ -33,6 +33,23 @@ mod ndb;
 mod prop;
 mod pst;
 mod source;
+/// The test writer: synthetic .pst files from invented folders and messages, for this crate's
+/// tests and, through the `test-writer` feature (a dev-dependency only, never in a build that
+/// ships), for the tests of the import that reads them.
+#[cfg(any(test, feature = "test-writer"))]
+#[doc(hidden)]
+#[path = "tests/writer.rs"]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::new_without_default,
+    clippy::too_many_arguments,
+    dead_code
+)]
+pub mod test_writer;
 #[cfg(test)]
 mod tests;
 

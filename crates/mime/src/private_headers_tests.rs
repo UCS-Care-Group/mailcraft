@@ -8,7 +8,7 @@
 
 use mailcraft_model::{Address, FlagStatus, Message};
 
-use crate::{OPENED_FILE_HEADER, PLACE_HEADER, WriteOptions, carries_place, parse, write, write_mbox, write_placed};
+use crate::{OPENED_FILE_HEADER, PLACE_HEADER, PST_ITEM_HEADER, WriteOptions, carries_place, parse, write, write_mbox, write_placed};
 
 fn message() -> Message {
     Message {
@@ -50,6 +50,19 @@ fn a_message_cant_bring_in_the_opened_file_note() {
     let m = parse(text.as_bytes());
     assert!(!m.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(OPENED_FILE_HEADER)), "{:?}", m.headers);
     assert!(m.headers.iter().any(|(k, v)| k == "X-Other" && v == "kept"));
+}
+
+/// Where in a .pst file a message was (#815) is the import's note alone: a message that says it
+/// can't make the import take an item for one already here, and the note is never written out.
+#[test]
+fn a_message_cant_bring_in_the_pst_note_and_it_is_never_written() {
+    let text = format!("From: a@lumen.example\r\n{PST_ITEM_HEADER}: 00:00000044\r\nX-Other: kept\r\n\r\nHi\r\n");
+    let m = parse(text.as_bytes());
+    assert!(!m.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(PST_ITEM_HEADER)), "{:?}", m.headers);
+    let mut m = message();
+    m.headers.push((PST_ITEM_HEADER.into(), "5a110e93:00200024".into()));
+    let out = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+    assert!(!out.to_ascii_lowercase().contains("pst-item"), "{out}");
 }
 
 #[test]

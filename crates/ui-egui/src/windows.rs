@@ -1221,9 +1221,13 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 .resizable(false)
                 .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
                 .show(ui, |ui| close = actions(app, ui, &m, own_keys));
+            // What the message draws (its attachments' chips and `▾`, #785) is recorded as in this
+            // window, apart from the same message in the reading pane.
+            let scope = app.hit.scope(id);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
+            app.hit.scope(scope);
             if close { Verdict::Close } else { Verdict::Stay }
         }
         What::File { message, bytes } => {
@@ -1233,9 +1237,11 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 .resizable(false)
                 .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
                 .show(ui, |ui| asked = crate::opened_message::bar(app, ui));
+            let scope = app.hit.scope(id);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_file_message(app, ui, &m, Place::Window(id));
             });
+            app.hit.scope(scope);
             if asked.save {
                 crate::files::save_opened(app, id, &m, bytes);
             }

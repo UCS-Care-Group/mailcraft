@@ -292,8 +292,16 @@ fn read(source: &Source) -> Option<Vec<u8>> {
 
 /// The folder under `parent` called `name` (any case), made when `create` and it isn't there.
 /// A folder that is an Outbox, or kept by a server, is never the one: its name is then made
-/// different (`name (2)`).
-fn child(mb: &mut Mailbox, account: Id, parent: Option<Id>, name: &str, create: bool, made: &mut usize) -> Result<Option<Id>, CmdError> {
+/// different (`name (2)`). At most `max` folders are made (`made` counts them).
+pub(crate) fn child_within(
+    mb: &mut Mailbox,
+    account: Id,
+    parent: Option<Id>,
+    name: &str,
+    create: bool,
+    made: &mut usize,
+    max: usize,
+) -> Result<Option<Id>, CmdError> {
     let usable = |mb: &Mailbox, n: &str| -> Result<Option<Option<Id>>, ()> {
         match mb.folders.iter().find(|f| f.account == account && f.parent == parent && f.name.to_lowercase() == n.to_lowercase()) {
             None => Ok(None),
@@ -309,8 +317,8 @@ fn child(mb: &mut Mailbox, account: Id, parent: Option<Id>, name: &str, create: 
                 if !create {
                     return Ok(None);
                 }
-                if *made >= MAX_TREE_FOLDERS {
-                    return Err(fail(format!("more than {MAX_TREE_FOLDERS} folders")));
+                if *made >= max {
+                    return Err(fail(format!("more than {max} folders")));
                 }
                 *made += 1;
                 return mb.add_folder(account, parent, &candidate).map(Some).map_err(|e| fail(e.to_string()));
@@ -319,6 +327,10 @@ fn child(mb: &mut Mailbox, account: Id, parent: Option<Id>, name: &str, create: 
         }
     }
     Err(fail(format!("no free name for the folder {name}")))
+}
+
+fn child(mb: &mut Mailbox, account: Id, parent: Option<Id>, name: &str, create: bool, made: &mut usize) -> Result<Option<Id>, CmdError> {
+    child_within(mb, account, parent, name, create, made, MAX_TREE_FOLDERS)
 }
 
 /// Read and parse what the walk found. This is the heavy part (every file is read and every

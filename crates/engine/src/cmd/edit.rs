@@ -15,12 +15,29 @@ use super::format::{edit, needs_doc, needs_html, reach};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
+/// Why Undo and Redo wait while a .pst file comes in a batch at a time (#815).
+const IMPORTING: &str = "Undo waits until the .pst file is imported";
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("edit.undo", "Undo", "Quick Access", undo).key("Mod+Z").when(|s| if s.can_undo() { None } else { Some("nothing to undo") }),
-        CommandSpec::new("edit.redo", "Redo", "Quick Access", redo)
-            .key("Mod+Y / Mod+Shift+Z")
-            .when(|s| if s.can_redo() { None } else { Some("nothing to redo") }),
+        CommandSpec::new("edit.undo", "Undo", "Quick Access", undo).key("Mod+Z").when(|s| {
+            if s.pst_running.is_some() {
+                Some(IMPORTING)
+            } else if s.can_undo() {
+                None
+            } else {
+                Some("nothing to undo")
+            }
+        }),
+        CommandSpec::new("edit.redo", "Redo", "Quick Access", redo).key("Mod+Y / Mod+Shift+Z").when(|s| {
+            if s.pst_running.is_some() {
+                Some(IMPORTING)
+            } else if s.can_redo() {
+                None
+            } else {
+                Some("nothing to redo")
+            }
+        }),
         CommandSpec::new("edit.formatPainter", "Format Painter", "Message › Clipboard", format_painter)
             .pure()
             .params(r#"{"apply"?: bool, "from"?: number, "to"?: number} — copies the look of the selection (or puts away a look copied before); apply: puts the copied look on the selection, or on from–to, as one step, and puts it away. Answers {"copied", "look"}"#)
