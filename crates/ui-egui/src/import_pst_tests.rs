@@ -131,6 +131,7 @@ fn a_pst_files_mail_comes_in_through_the_dialog_once() {
     assert_eq!(messages(&h), before + 2);
     assert!(says(&h, "2 messages brought in, of 2 items found."), "the report is shown");
     assert!(says(&h, "The full report is in"));
+    assert!(says(&h, "In garden"), "the folder is named");
     click(&mut h, "Close");
     assert!(!shown(&h));
 
@@ -190,10 +191,21 @@ fn batches_come_in_as_they_arrive_and_cancel_keeps_them() {
     h.run_steps(4);
     assert!(messages(&h) > before, "a batch is in before the end");
     assert!(says(&h, "of 5 items"));
+    let steps = h.state().session.undo_label();
+    assert!(h.state_mut().session.run("edit.undo", &json!({})).is_err(), "Undo waits while it runs");
+    // Closing the window while it reads stops the reading; the window stays for the report.
+    if let Some(Dialog::ImportPst(d)) = h.state_mut().dialog.as_mut() {
+        assert!(d.stop());
+    }
     click(&mut h, "Cancel");
     assert!(job.progress.is_cancelled());
     tx.send(done).unwrap();
     h.run_steps(4);
     assert_eq!(messages(&h), before + 5);
     assert!(says(&h, "5 messages brought in"));
+    // The whole import is one step to undo.
+    assert_ne!(h.state().session.undo_label(), steps);
+    assert_eq!(h.state().session.undo_label(), Some("Import a .pst File"));
+    h.state_mut().session.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(messages(&h), before);
 }

@@ -24,7 +24,7 @@ USAGE:
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
-                                                preview: the mail of an Outlook data file (.pst)
+                                                preview: the mail of a .pst file
                                                 into a new folder named after the file on this
                                                 computer (or under the local folder PATH); the
                                                 file's password, when it has one, is read from

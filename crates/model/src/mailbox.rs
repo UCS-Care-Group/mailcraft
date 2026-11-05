@@ -15,6 +15,8 @@ use crate::{
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
+/// [`MAX_DEPTH`], for an import that fits a deeper tree into it.
+pub const MAX_FOLDER_DEPTH: usize = MAX_DEPTH;
 /// Largest id a file may hold: 2^53, the largest integer every JSON reader keeps exactly.
 const MAX_ID: Id = 1 << 53;
 /// Most changes waiting for the mail server that a file may hold ([`Mailbox::pending`]).
@@ -1675,7 +1677,7 @@ impl Mailbox {
 
     /// How many folders down `id` is (1 at the top), counted by its parents: a name may hold a
     /// `/` ([`Mailbox::names_may_hold_slashes`]).
-    fn depth(&self, id: Id) -> usize {
+    pub fn depth(&self, id: Id) -> usize {
         let mut depth = 0;
         let mut cur = Some(id);
         while let Some(f) = cur.and_then(|c| self.folder(c)) {
@@ -1732,6 +1734,17 @@ impl Mailbox {
 
     /// Create a folder under `parent` (or at the account's top level).
     pub fn add_folder(&mut self, account: Id, parent: Option<Id>, name: &str) -> Result<Id, ModelError> {
+        self.add_folder_checked(account, parent, name, true)
+    }
+
+    /// [`Mailbox::add_folder`] for a caller that keeps its own index of the names under
+    /// `parent` and knows `name` is free there (an import that makes thousands of folders): the
+    /// one check that reads every folder is left out.
+    pub fn add_folder_free(&mut self, account: Id, parent: Option<Id>, name: &str) -> Result<Id, ModelError> {
+        self.add_folder_checked(account, parent, name, false)
+    }
+
+    fn add_folder_checked(&mut self, account: Id, parent: Option<Id>, name: &str, check_taken: bool) -> Result<Id, ModelError> {
         let name = clean_name(name).ok_or_else(|| invalid("a folder needs a name"))?;
         if name.contains('/') && !self.names_may_hold_slashes(account) {
             return Err(invalid("a folder name can't contain /"));
@@ -1753,7 +1766,7 @@ impl Mailbox {
                 return Err(invalid(format!("a folder can't be made in {}", pf.name)));
             }
         }
-        if self.name_taken(account, parent, &name, None) {
+        if check_taken && self.name_taken(account, parent, &name, None) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));
         }
         let id = self.alloc_id();

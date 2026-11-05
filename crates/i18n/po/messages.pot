@@ -12970,6 +12970,11 @@ msgstr ""
 msgid "month"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "more than {max} folders"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "never"
@@ -13053,6 +13058,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 msgid "no folder with id {id}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "no free name for the folder {name}"
 msgstr ""
 
 #. interface
@@ -13480,11 +13490,6 @@ msgstr ""
 msgid "the event is gone"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the folder for the import couldn't be made"
-msgstr ""
-
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 msgid "the folder is already empty"
@@ -13506,13 +13511,18 @@ msgid "the folder it moves mail to isn't on the server"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/search_server.rs
-msgid "the folder this message is in isn't on this computer any more"
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into is gone: the import stopped"
 msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
-msgid "the folder {name} couldn't be made"
+msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "the folder this message is in isn't on this computer any more"
 msgstr ""
 
 #. what a command says
@@ -15116,6 +15126,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "{who} was added by a newer version of MailCraft, {then}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{why} What came in before stays; import the file again for the rest."
 msgstr ""
 
 #. interface

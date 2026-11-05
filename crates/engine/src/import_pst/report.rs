@@ -15,6 +15,8 @@ use serde_json::{Value, json};
 pub const MAX_LISTED: usize = 2000;
 /// Most notes listed (the rest are counted).
 pub const MAX_NOTES: usize = 2000;
+/// Most folders with a row of their own (the rest are added up in one).
+pub const MAX_ROWS: usize = 2000;
 /// Most damaged parts of the file listed.
 const MAX_DAMAGE: usize = 200;
 /// Most characters of a subject or a folder's path in the report.
@@ -31,9 +33,19 @@ pub struct Row {
     pub left_out: usize,
     /// Calendar items, contacts, tasks, notes and journal entries: a later part brings them.
     pub later: usize,
+    /// The folder its mail went into instead, when it is nested deeper than folders here may be.
+    pub into: Option<String>,
 }
 
 impl Row {
+    fn add(&mut self, r: &Row) {
+        self.found = self.found.saturating_add(r.found);
+        self.added = self.added.saturating_add(r.added);
+        self.already = self.already.saturating_add(r.already);
+        self.left_out = self.left_out.saturating_add(r.left_out);
+        self.later = self.later.saturating_add(r.later);
+    }
+
     /// Whether every item found is accounted for.
     pub fn adds_up(&self) -> bool {
         self.added.saturating_add(self.already).saturating_add(self.left_out).saturating_add(self.later) == self.found
@@ -58,7 +70,11 @@ pub struct Report {
     pub dry_run: bool,
     /// "Unicode" or "ANSI".
     pub format: String,
+    /// A row for each folder, as many as [`MAX_ROWS`]; the rest added up in `rows_more`.
     pub rows: Vec<Row>,
+    pub rows_more: Row,
+    /// How many folders `rows_more` adds up.
+    pub folders_more: usize,
     /// Items left out, one by one, as many as [`MAX_LISTED`].
     pub left_out: Vec<Entry>,
     pub left_out_more: usize,
@@ -68,6 +84,7 @@ pub struct Report {
     pub notes_more: usize,
     /// The file's own folders (the root, searches, views), not brought.
     pub not_brought: Vec<Entry>,
+    pub not_brought_more: usize,
     /// What the reader couldn't read of the file's structure.
     pub damage: Vec<String>,
     /// Items not yet brought in, by kind.
@@ -89,17 +106,49 @@ pub fn short(s: &str) -> String {
     out
 }
 
+/// A folder's path cut as [`short`] does, but keeping its end, where the folder is named.
+pub fn short_path(s: &str) -> String {
+    let count = s.chars().count();
+    let tail: String = s.chars().skip(count.saturating_sub(MAX_TEXT)).map(|c| if c.is_control() { ' ' } else { c }).collect();
+    if count > MAX_TEXT { format!("…{tail}") } else { tail }
+}
+
 impl Report {
     pub fn total(&self) -> Row {
-        let mut t = Row::default();
+        let mut t = self.rows_more.clone();
         for r in &self.rows {
-            t.found = t.found.saturating_add(r.found);
-            t.added = t.added.saturating_add(r.added);
-            t.already = t.already.saturating_add(r.already);
-            t.left_out = t.left_out.saturating_add(r.left_out);
-            t.later = t.later.saturating_add(r.later);
+            t.add(r);
         }
+        t.path = String::new();
         t
+    }
+
+    /// The row of a folder: its own while there is room, else added to `rows_more`.
+    pub fn push_row(&mut self, mut row: Row) {
+        if self.rows.len() < MAX_ROWS {
+            row.path = short_path(&row.path);
+            row.into = row.into.map(|i| short_path(&i));
+            self.rows.push(row);
+        } else {
+            self.rows_more.add(&row);
+            self.folders_more = self.folders_more.saturating_add(1);
+        }
+    }
+
+    /// Whether every row adds up (the summed one too).
+    pub fn first_short(&self) -> Option<String> {
+        if let Some(r) = self.rows.iter().find(|r| !r.adds_up()) {
+            return Some(r.path.clone());
+        }
+        (!self.rows_more.adds_up()).then(|| format!("the {} folders past the report's list", self.folders_more))
+    }
+
+    pub fn not_brought(&mut self, what: &str, why: &str) {
+        if self.not_brought.len() < MAX_LISTED {
+            self.not_brought.push(Entry { what: short(what), folder: String::new(), why: short(why) });
+        } else {
+            self.not_brought_more = self.not_brought_more.saturating_add(1);
+        }
     }
 
     pub fn leave_out(&mut self, what: &str, folder: &str, why: &str) {
@@ -148,13 +197,15 @@ impl Report {
             "later": t.later,
             "laterKinds": self.later.iter().map(|(k, n)| json!({"kind": k, "count": n})).collect::<Vec<_>>(),
             "folders": self.rows.iter().map(|r| json!({
-                "path": r.path, "found": r.found, "added": r.added, "already": r.already, "leftOut": r.left_out, "later": r.later,
+                "path": r.path, "found": r.found, "added": r.added, "already": r.already, "leftOut": r.left_out, "later": r.later, "into": r.into,
             })).collect::<Vec<_>>(),
+            "foldersMore": self.folders_more,
             "leftOutItems": entries(&self.left_out),
             "leftOutMore": self.left_out_more,
             "notes": entries(&self.notes),
             "notesMore": self.notes_more,
             "notBrought": entries(&self.not_brought),
+            "notBroughtMore": self.not_brought_more,
             "damage": self.damage,
             "cancelled": self.cancelled,
             "categoriesAdded": self.categories_added,
@@ -176,7 +227,7 @@ impl Report {
         line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
         line(format!("File: {} .pst file", self.format));
         if self.dry_run {
-            line("A look only (dry run): nothing was imported.".to_string());
+            line("A look only (dry run): nothing was imported; \"brought in\" says what would be.".to_string());
         }
         if self.cancelled {
             line("Cancelled: what was brought in stays; import the file again to bring in the rest.".to_string());
@@ -198,6 +249,14 @@ impl Report {
         for r in &self.rows {
             let path = if r.path.is_empty() { "(the top of the file)".to_string() } else { r.path.clone() };
             line(format!("  {path}: {} / {} / {} / {} / {}", r.found, r.added, r.already, r.left_out, r.later));
+            if let Some(into) = &r.into {
+                let into = if into.is_empty() { "the folder it was imported into" } else { into.as_str() };
+                line(format!("    nested deeper than folders here may be: its mail is in {into}"));
+            }
+        }
+        if self.folders_more > 0 {
+            let r = &self.rows_more;
+            line(format!("  and {} more folders: {} / {} / {} / {} / {}", self.folders_more, r.found, r.added, r.already, r.left_out, r.later));
         }
         let mut list = |title: &str, entries: &[Entry], more: usize| {
             if entries.is_empty() && more == 0 {
@@ -213,7 +272,7 @@ impl Report {
                 line(format!("  and {more} more"));
             }
         };
-        list("Not brought (the file's own folders)", &self.not_brought, 0);
+        list("Not brought (the file's own folders)", &self.not_brought, self.not_brought_more);
         list("Left out", &self.left_out, self.left_out_more);
         list("Brought in, with notes", &self.notes, self.notes_more);
         if !self.damage.is_empty() {

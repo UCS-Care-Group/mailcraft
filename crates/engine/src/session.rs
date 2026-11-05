@@ -1085,6 +1085,12 @@ pub struct Session {
     /// `file.importPst` with `staged` to put it in, a batch at a time, and then the report (#815).
     /// Never saved.
     pub staged_pst: Option<crate::import_pst::Staged>,
+    /// A .pst import under way, batch by batch: what it has put in, kept as one step to undo when
+    /// it ends; Undo waits meanwhile. Never saved.
+    pub(crate) pst_running: Option<crate::import_pst::Running>,
+    /// The folder named after a file that an import of it made (by the file's identity), in
+    /// this session: found again by another run while it is still empty. Never saved.
+    pub(crate) pst_tops: HashMap<String, Id>,
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
@@ -1235,6 +1241,8 @@ impl Session {
             graph_switch_backup: None,
             staged_tree: None,
             staged_pst: None,
+            pst_running: None,
+            pst_tops: HashMap::new(),
             server_search: Default::default(),
             auto_replies: Default::default(),
             history: Vec::new(),
@@ -2624,6 +2632,8 @@ impl Session {
         self.jmap_read.clear();
         self.auto_replies.clear();
         self.openings = self.openings.wrapping_add(1);
+        self.pst_running = None;
+        self.pst_tops.clear();
         self.history.clear();
         self.redo.clear();
         self.sel = Selection::default();
@@ -2651,6 +2661,29 @@ impl Session {
     /// ([`Session::run`]): never kept as a step of the history.
     fn snapshot_light(&self, label: &'static str) -> Undo {
         Undo { label, mailbox: Mailbox::default(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
+    }
+
+    /// A .pst import that came in a batch at a time, kept as one step to undo: the mailbox as it
+    /// is without the messages `added` and the folders `made`, and with the categories as they
+    /// were (#815). What the owner did meanwhile stays as it is.
+    pub(crate) fn keep_import_step(&mut self, label: &'static str, added: &[Id], made: &[Id], categories: Vec<mailcraft_model::Category>) {
+        if added.is_empty() && made.is_empty() && categories == self.mailbox.categories {
+            return;
+        }
+        let mut before = self.snapshot(label);
+        for id in added {
+            before.mailbox.messages.remove(id);
+        }
+        before.mailbox.remove_folders(made);
+        before.mailbox.categories = categories;
+        before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
+        before.mail = true;
+        self.history.push(before);
+        if self.history.len() > MAX_HISTORY {
+            self.history.remove(0);
+        }
+        self.redo.clear();
+        self.dirty = true;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -2884,7 +2917,11 @@ impl Session {
         }
         // Undo and redo manage the history themselves; a save in the background is no step.
         let background = self.saving == Saving::Background;
-        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background;
+        // A batch of a .pst import the window hands over (#815) is no step of its own, and no
+        // copy of the mailbox is taken for it: the import is one step, kept when it ends
+        // ([`crate::import_pst::finish`]), and a batch that fails takes itself out again.
+        let staged = id == "file.importPst" && self.agent.is_none() && params.get("staged").and_then(Value::as_bool) == Some(true);
+        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background && !staged;
         // The computer may have been carried to another zone since the last command: the
         // mailbox is put by that zone's clock first, and that is not this command's to undo.
         self.settle_zone();
@@ -2895,7 +2932,7 @@ impl Session {
         // one, and needn't: it changes nothing of it (in tests that claim is checked against a
         // copy of its own, `claimed`, so that the tests run the path the program runs). An
         // agent's command is copied whatever it is: what it did is checked against the copy.
-        let light = spec.reads && self.agent.is_none();
+        let light = (spec.reads || staged) && self.agent.is_none();
         let before = if light { self.snapshot_light(spec.label) } else { self.snapshot(spec.label) };
         #[cfg(test)]
         let claimed = spec.reads.then(|| self.mailbox.clone());
@@ -3012,6 +3049,10 @@ impl Session {
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {
                     crate::cmd::calendar_settings::forget_gone_hours(self);
+                }
+                if staged {
+                    self.rev += 1;
+                    self.dirty = true;
                 }
                 if !light && self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);

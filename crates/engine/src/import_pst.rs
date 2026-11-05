@@ -27,15 +27,15 @@ use std::io::{Read, Seek};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use mailcraft_model::{AccountKind, Id, Mailbox, Message, Rgb};
+use mailcraft_model::{AccountKind, Id, MAX_FOLDER_DEPTH, Mailbox, Message, Rgb};
 use mailcraft_pst::{Error as PstError, FolderKind, Limits, Nid, PS_PUBLIC_STRINGS, PropName, PropValue, Pst, node_types};
 use serde_json::{Value, json};
 
 use crate::cmd::{base64_decode, fail};
-use crate::import_tree::{child_within, tidy_name};
+use crate::import_tree::tidy_name;
 use crate::{CmdError, Session, p};
 use item::{Named, Text, ends_import, item_ref, later_kind};
-use report::{Entry, Report, Row};
+use report::{Report, Row};
 
 pub use mailcraft_mime::PST_ITEM_HEADER;
 
@@ -93,7 +93,9 @@ impl Progress {
     }
 
     fn step(&self) {
-        self.done.fetch_add(1, Ordering::Relaxed);
+        // (An item a folder's list names that the node tree doesn't is one more than was counted.)
+        let done = self.done.fetch_add(1, Ordering::Relaxed).saturating_add(1);
+        self.total.fetch_max(done, Ordering::Relaxed);
         self.folder_done.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -115,6 +117,9 @@ pub struct Job {
     pub name: String,
     /// The items already brought in from .pst files ([`known_keys`]).
     pub known: HashSet<String>,
+    /// How many levels of the file's folders fit below the place ([`room`]): a folder nested
+    /// deeper has its mail put in its ancestor at the last level, and its row says so.
+    pub room: usize,
 }
 
 impl std::fmt::Debug for Job {
@@ -130,6 +135,8 @@ pub struct Batch {
     /// Folders to make even when nothing lands in them (the file's empty mail folders).
     pub folders: Vec<Vec<String>>,
     pub messages: Vec<(Vec<String>, Message)>,
+    /// The file's identity: a batch of another file starts an import of its own.
+    pub identity: String,
     bytes: u64,
 }
 
@@ -143,6 +150,7 @@ impl Batch {
 pub struct Outcome {
     pub report: Report,
     pub categories: Vec<(String, Rgb)>,
+    pub identity: String,
 }
 
 /// What the window has waiting for `file.importPst` with `staged`.
@@ -178,14 +186,17 @@ pub fn known_keys(mb: &Mailbox) -> HashSet<String> {
     mb.messages.values().filter_map(|m| m.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(PST_ITEM_HEADER)).map(|(_, v)| v.clone())).collect()
 }
 
-/// The identity of a file: its provider's id (PidTagRecordKey), which every copy of it keeps;
-/// for a file without one, its size and its name inside.
-fn identity<R: Read + Seek>(pst: &Pst<R>, store: &mailcraft_pst::Store) -> String {
+/// The identity of a file: its provider's id (PidTagRecordKey), which every copy of it keeps.
+/// So does a copy that has gone its own way since (kept on another computer, added to): its
+/// items of the same node ids count as already here, and only its new ones come in. A file
+/// without a record key is known by its size, its name inside and the start of the file (its
+/// header, `head`), which changes when the file does: a changed copy of such a file is another.
+fn identity<R: Read + Seek>(pst: &Pst<R>, store: &mailcraft_pst::Store, head: &[u8]) -> String {
     match &store.record_key {
         Some(k) if !k.is_empty() => k.iter().take(32).map(|b| format!("{b:02x}")).collect(),
         _ => {
             let name = store.display_name.clone().unwrap_or_default();
-            format!("size{}-{:08x}", pst.sizes().1, mailcraft_pst::crc32(name.as_bytes()))
+            format!("size{}-{:08x}-{:08x}", pst.sizes().1, mailcraft_pst::crc32(name.as_bytes()), mailcraft_pst::crc32(head))
         }
     }
 }
@@ -247,25 +258,34 @@ struct Brought {
     /// Made even when empty: a folder of mail (not of calendar items or contacts, which come
     /// with a later part).
     mail: bool,
+    /// Nested deeper than the room there is: its mail goes into its ancestor at `path`.
+    merged: bool,
 }
+
+/// Most bytes of the start of a file its identity is worked out from when it has no record key.
+const HEAD_BYTES: u64 = 4096;
 
 /// Read a .pst file over `reader` and hand over its mail in batches through `sink` (nothing,
 /// for a dry run): see the module. `limits` are the reader's caps ([`Limits::default`] for an
 /// import).
 pub fn read<R: Read + Seek>(
-    reader: R,
+    mut reader: R,
     job: &Job,
     limits: Limits,
     progress: &Progress,
     sink: &mut dyn FnMut(Batch) -> Result<(), CmdError>,
 ) -> Result<Outcome, CmdError> {
+    // The start of the file, for its identity when it has no record key.
+    let mut head = Vec::new();
+    let read_head = (&mut reader).take(HEAD_BYTES).read_to_end(&mut head).and_then(|_| reader.seek(std::io::SeekFrom::Start(0)));
+    read_head.map_err(|e| failed!("the .pst file couldn't be read: {why}", why = e.to_string()))?;
     let mut pst = Pst::open_with(reader, limits.clone()).map_err(|e| pst_error(&e))?;
     if pst.password_required() {
         let Some(password) = job.password.as_deref() else { return Err(pst_error(&PstError::PasswordRequired)) };
         pst.unlock(password).map_err(|e| pst_error(&e))?;
     }
     let store = pst.store().map_err(|e| pst_error(&e))?;
-    let identity = identity(&pst, &store);
+    let identity = identity(&pst, &store, &head);
     let mut report = Report {
         file: job.file.clone(),
         name: job.name.clone(),
@@ -279,13 +299,14 @@ pub fn read<R: Read + Seek>(
     let named = named(&mut pst, store_charset, &mut report)?;
 
     // Every item of the node tree, by its folder: what the folders' lists are checked against.
+    // The one cut of the number of items: what is past it here is past it everywhere.
     let mut nodes: HashMap<u32, Vec<u32>> = HashMap::new();
-    let mut counted = 0usize;
+    let mut within: HashSet<u32> = HashSet::new();
     let mut past = 0usize;
     let walked = pst.for_each_node(|n| {
         if n.id.kind() == node_types::NORMAL_MESSAGE {
-            if counted < limits.max_items {
-                counted += 1;
+            if within.len() < limits.max_items {
+                within.insert(n.id.0);
                 nodes.entry(n.parent.0).or_default().push(n.id.0);
             } else {
                 past += 1;
@@ -303,51 +324,65 @@ pub fn read<R: Read + Seek>(
     let ipm = store.ipm_subtree;
     let mut brought: Vec<Brought> = Vec::new();
     let mut paths: HashMap<Nid, Vec<String>> = HashMap::new();
-    let mut internal: HashMap<u32, String> = HashMap::new();
+    let mut internal: HashSet<u32> = HashSet::new();
     let mut used: HashSet<(Vec<String>, String)> = HashSet::new();
+    // The next number to try for a name already used side by side, so that a file of thousands
+    // of folders of one name is not tried from (2) up each time.
+    let mut next: HashMap<(Vec<String>, String), u32> = HashMap::new();
+    // Folders nested deeper than the room there is: what they are below their place, as shown.
+    let mut deep: HashMap<Nid, String> = HashMap::new();
     for entry in &tree.folders {
         let f = &entry.folder;
         if !entry.in_ipm_subtree {
-            let name = if f.name.trim().is_empty() { "(the root)".to_string() } else { report::short(&f.name) };
-            report.not_brought.push(Entry {
-                what: name.clone(),
-                folder: String::new(),
-                why: "the file's own folder (its root, searches or views)".into(),
-            });
-            internal.insert(f.id.0, name);
+            let name = if f.name.trim().is_empty() { "(the root)".to_string() } else { f.name.clone() };
+            report.not_brought(&name, "the file's own folder (its root, searches or views)");
+            internal.insert(f.id.0);
             continue;
         }
         if f.kind == FolderKind::Search {
-            let name = report::short(&f.name);
-            report.not_brought.push(Entry {
-                what: name.clone(),
-                folder: String::new(),
-                why: "a search folder: its items are in other folders".into(),
-            });
-            internal.insert(f.id.0, name);
+            report.not_brought(&f.name, "a search folder: its items are in other folders");
+            internal.insert(f.id.0);
             continue;
         }
-        let path = if Some(f.id) == ipm {
-            Vec::new()
+        let (path, shown, merged) = if Some(f.id) == ipm {
+            (Vec::new(), String::new(), false)
         } else {
-            let Some(mut path) = f.parent.and_then(|p| paths.get(&p)).cloned() else {
-                internal.insert(f.id.0, report::short(&f.name));
+            let Some(path) = f.parent.and_then(|p| paths.get(&p)).cloned() else {
+                internal.insert(f.id.0);
                 continue;
             };
-            // Two folders of one name side by side stay two.
-            let base = tidy_name(&f.name);
-            let mut name = base.clone();
-            let mut n = 1u32;
-            while !used.insert((path.clone(), name.to_lowercase())) {
-                n = n.saturating_add(1);
-                name = format!("{base} ({n})");
+            let parent_deep = f.parent.and_then(|p| deep.get(&p)).cloned();
+            if path.len() >= job.room {
+                // No room for it here: its mail goes into its ancestor at the deepest level there is.
+                let base = parent_deep.unwrap_or_else(|| path.join("/"));
+                let shown = report::short_path(&format!("{base}/{}", tidy_name(&f.name)));
+                deep.insert(f.id, shown.clone());
+                (path, shown, true)
+            } else {
+                // Two folders of one name side by side stay two.
+                let base = tidy_name(&f.name);
+                let lower = base.to_lowercase();
+                let mut path = path;
+                let name = if used.insert((path.clone(), lower.clone())) {
+                    base
+                } else {
+                    let n = next.entry((path.clone(), lower)).or_insert(1);
+                    loop {
+                        *n = n.saturating_add(1);
+                        let name = format!("{base} ({n})");
+                        if used.insert((path.clone(), name.to_lowercase())) || *n == u32::MAX {
+                            break name;
+                        }
+                    }
+                };
+                path.push(name);
+                let shown = path.join("/");
+                (path, shown, false)
             }
-            path.push(name);
-            path
         };
         paths.insert(f.id, path.clone());
         let mail = matches!(f.kind, FolderKind::Mail | FolderKind::Other(_));
-        brought.push(Brought { id: f.id, shown: path.join("/"), path, mail });
+        brought.push(Brought { id: f.id, shown, path, mail, merged });
     }
     for l in &tree.left_out {
         if l.property.is_some() {
@@ -361,13 +396,18 @@ pub fn read<R: Read + Seek>(
     progress.total.store(total, Ordering::Relaxed);
     progress.folders_total.store(brought.len(), Ordering::Relaxed);
 
-    let mut batch = Batch { folders: brought.iter().filter(|b| b.mail).map(|b| b.path.clone()).collect(), ..Default::default() };
+    let mut batch = Batch {
+        folders: brought.iter().filter(|b| b.mail && !b.merged).map(|b| b.path.clone()).collect(),
+        identity: identity.clone(),
+        ..Default::default()
+    };
     let categories = if job.dry_run { Vec::new() } else { category_list(&mut pst, &tree, &mut report)? };
     let mut claimed: HashSet<u32> = HashSet::new();
     let mut cancelled = false;
 
     'folders: for b in &brought {
-        let mut row = Row { path: b.shown.clone(), ..Default::default() };
+        let into = b.merged.then(|| b.path.join("/"));
+        let mut row = Row { path: b.shown.clone(), into, ..Default::default() };
         let listed = match pst.items(b.id) {
             Ok(l) => l,
             Err(e) if ends_import(&e) => return Err(pst_error(&e)),
@@ -377,12 +417,13 @@ pub fn read<R: Read + Seek>(
             }
         };
         // Its items: those its list names, and those the node tree puts in it that the list
-        // doesn't (a damaged list).
+        // doesn't (a damaged list, or one longer than the reader lists). An item past the one
+        // cut of the node tree is counted there, not here.
         let mut queue: Vec<(u32, Option<String>, String)> = Vec::new();
-        for i in &listed.items {
-            if claimed.insert(i.id.0) {
+        for i in listed.items {
+            if (past == 0 || within.contains(&i.id.0)) && claimed.insert(i.id.0) {
                 let subject = i.properties.get(0x0037).map(|v| summary_text(v, &named)).unwrap_or_default();
-                queue.push((i.id.0, i.class.clone(), subject));
+                queue.push((i.id.0, i.class, subject));
             }
         }
         for &nid in nodes.get(&b.id.0).into_iter().flatten() {
@@ -390,17 +431,13 @@ pub fn read<R: Read + Seek>(
                 queue.push((nid, None, String::new()));
             }
         }
-        row.found = queue.len().saturating_add(listed.past_cap);
-        if listed.past_cap > 0 {
-            row.left_out = listed.past_cap;
-            report.leave_out(&format!("{} items", listed.past_cap), &b.shown, "past the number of items one import takes");
-        }
+        row.found = queue.len();
         progress.set_folder(&b.shown, queue.len());
 
         for (nid, class, subject) in queue {
             if progress.is_cancelled() {
                 cancelled = true;
-                report.rows.push(row);
+                report.push_row(row);
                 break 'folders;
             }
             progress.step();
@@ -414,10 +451,7 @@ pub fn read<R: Read + Seek>(
                 report.count_later(kind);
                 continue;
             }
-            if job.dry_run && class.is_some() {
-                row.added = row.added.saturating_add(1);
-                continue;
-            }
+            // (A dry run reads each item too, so that what it says would be brought in would be.)
             let m = match pst.message(&item_ref(nid)) {
                 Ok(m) => m,
                 Err(e) if ends_import(&e) => return Err(pst_error(&e)),
@@ -444,43 +478,56 @@ pub fn read<R: Read + Seek>(
                 report.note(&shown, &b.shown, n);
             }
             row.added = row.added.saturating_add(1);
-            batch.bytes = batch.bytes.saturating_add(built.bytes);
+            batch.bytes = batch.bytes.saturating_add(item::held(&message));
             batch.messages.push((b.path.clone(), message));
             if batch.messages.len() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
-                sink(std::mem::take(&mut batch))?;
+                let identity = batch.identity.clone();
+                sink(std::mem::replace(&mut batch, Batch { identity, ..Default::default() }))?;
             }
         }
-        report.rows.push(row);
+        report.push_row(row);
     }
     if !batch.is_empty() && !job.dry_run {
         sink(std::mem::take(&mut batch))?;
     }
 
     if !cancelled {
-        // Items of the node tree in no folder that was brought: in the file's own folders, in
-        // folders that couldn't be read, or in none.
+        // Items of the node tree in no folder that was brought, one row for each reason: in the
+        // file's own folders, in folders that couldn't be read, or in none.
         let unreadable: HashMap<u32, String> =
             tree.left_out.iter().filter(|l| l.property.is_none()).map(|l| (l.id.0, l.reason.to_string())).collect();
         let mut rest: Vec<(&u32, &Vec<u32>)> = nodes.iter().collect();
         rest.sort_unstable_by_key(|(parent, _)| **parent);
+        let mut orphans = [
+            Row { path: "(the file's own folders)".into(), ..Default::default() },
+            Row { path: "(folders that couldn't be read)".into(), ..Default::default() },
+            Row { path: "(no folder)".into(), ..Default::default() },
+        ];
         for (parent, items) in rest {
             let left: Vec<u32> = items.iter().copied().filter(|n| !claimed.contains(n)).collect();
             if left.is_empty() {
                 continue;
             }
-            let (path, why) = match (internal.get(parent), unreadable.get(parent)) {
-                (Some(name), _) => (format!("({name})"), format!("in the file's own folder {name}, which isn't brought")),
-                (None, Some(reason)) => ("(a folder that couldn't be read)".to_string(), format!("its folder couldn't be read: {reason}")),
-                (None, None) => ("(no folder)".to_string(), "its folder isn't in the file".to_string()),
+            let (at, why) = if internal.contains(parent) {
+                (0, "in the file's own folder, which isn't brought".to_string())
+            } else if let Some(reason) = unreadable.get(parent) {
+                (1, format!("its folder couldn't be read: {reason}"))
+            } else {
+                (2, "its folder isn't in the file".to_string())
             };
+            let Some(row) = orphans.get_mut(at) else { continue };
             for nid in &left {
-                report.leave_out(&format!("item {nid:#x}"), &path, &why);
+                report.leave_out(&format!("item {nid:#x}"), &row.path, &why);
             }
-            report.rows.push(Row { path, found: left.len(), left_out: left.len(), ..Default::default() });
+            row.found = row.found.saturating_add(left.len());
+            row.left_out = row.left_out.saturating_add(left.len());
+        }
+        for row in orphans.into_iter().filter(|r| r.found > 0) {
+            report.push_row(row);
         }
         if past > 0 {
             report.leave_out(&format!("{past} items"), "", "past the number of items one import takes");
-            report.rows.push(Row { path: "(past the limit)".into(), found: past, left_out: past, ..Default::default() });
+            report.push_row(Row { path: "(past the limit)".into(), found: past, left_out: past, ..Default::default() });
         }
     }
     for d in pst.damage() {
@@ -489,10 +536,10 @@ pub fn read<R: Read + Seek>(
     }
     report.cancelled = cancelled;
     // Every item found is accounted for, or the import fails.
-    if !cancelled && let Some(row) = report.rows.iter().find(|r| !r.adds_up()) {
-        return Err(failed!("the import couldn't account for every item of {path}", path = row.path.clone()));
+    if !cancelled && let Some(path) = report.first_short() {
+        return Err(failed!("the import couldn't account for every item of {path}", path = path));
     }
-    Ok(Outcome { report, categories })
+    Ok(Outcome { report, categories, identity })
 }
 
 /// A value of an item's summary as text (the subject a list gives).
@@ -654,46 +701,216 @@ pub fn place_of(s: &Session, v: &Value, name: &str) -> Result<Place, CmdError> {
     }
 }
 
-/// Put a batch of read messages into the mailbox, under the place asked for. Quick: no file is
-/// read here.
-pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdError> {
-    let account = match place {
-        Place::Under(id) => s.mailbox.folder(*id).map(|f| f.account).ok_or_else(|| failed!("no folder with id {id}", id = *id))?,
-        Place::New(_) => s.mailbox.local_account(),
-    };
-    let mut made = 0usize;
-    let top = match place {
-        Place::New(name) => child_within(&mut s.mailbox, account, None, name, true, &mut made, MAX_FOLDERS)?,
-        Place::Under(id) => Some(*id),
+/// How many levels of the file's folders fit below `place`: folders here nest at most
+/// [`MAX_FOLDER_DEPTH`] deep, and a new folder for the file is one of them.
+pub fn room(s: &Session, place: &Place) -> usize {
+    match place {
+        Place::New(_) => MAX_FOLDER_DEPTH.saturating_sub(1),
+        Place::Under(id) => MAX_FOLDER_DEPTH.saturating_sub(s.mailbox.depth(*id)),
     }
-    .ok_or_else(|| fail("the folder for the import couldn't be made"))?;
-    let mut cache: HashMap<Vec<String>, Id> = HashMap::new();
-    let mut folder_of = |mb: &mut Mailbox, path: &[String]| -> Result<Id, CmdError> {
-        if let Some(id) = cache.get(path) {
+}
+
+/// The job of importing `file` (its name or its path) with the place `v`'s `places` asks for.
+pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: &Value) -> Result<(Job, Place), CmdError> {
+    let file = file.rsplit(['/', '\\']).next().unwrap_or(file);
+    let name = folder_name(file);
+    let place = place_of(s, v, &name)?;
+    let room = room(s, &place);
+    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room }, place))
+}
+
+/// An import under way: where it puts what it reads, and what it has put in, so that the whole
+/// import is one step to undo, a batch that fails is taken out again, and the names of the
+/// folders it makes are looked up in an index of its own rather than by reading every folder.
+pub struct Running {
+    identity: String,
+    account: Id,
+    top: Id,
+    paths: HashMap<Vec<String>, Id>,
+    /// The names under each folder of the account (lowercase), with the folder when mail may go
+    /// into it (a folder of its own kind, an Outbox or a server's isn't the one).
+    names: HashMap<Option<Id>, HashMap<String, Option<Id>>>,
+    /// The next number to try for a name taken by a folder mail may not go into.
+    next: HashMap<(Id, String), u32>,
+    made: Vec<Id>,
+    added: Vec<Id>,
+}
+
+impl Running {
+    fn start(s: &mut Session, place: &Place, identity: &str) -> Result<Running, CmdError> {
+        let account = match place {
+            Place::Under(id) => s.mailbox.folder(*id).map(|f| f.account).ok_or_else(|| failed!("no folder with id {id}", id = *id))?,
+            Place::New(_) => s.mailbox.local_account(),
+        };
+        let mb = &s.mailbox;
+        let mut names: HashMap<Option<Id>, HashMap<String, Option<Id>>> = HashMap::new();
+        for f in mb.folders.iter().filter(|f| f.account == account) {
+            let usable = f.kind == mailcraft_model::FolderKind::Custom && !mb.is_send_queue(f.id) && f.remote.is_empty();
+            names.entry(f.parent).or_default().insert(f.name.to_lowercase(), usable.then_some(f.id));
+        }
+        let mut run = Running {
+            identity: identity.to_string(),
+            account,
+            top: 0,
+            paths: HashMap::new(),
+            names,
+            next: HashMap::new(),
+            made: Vec::new(),
+            added: Vec::new(),
+        };
+        run.top = match place {
+            Place::Under(id) => *id,
+            Place::New(name) => run.own_folder(s, name)?,
+        };
+        if matches!(place, Place::New(_)) {
+            s.pst_tops.insert(identity.to_string(), run.top);
+        }
+        Ok(run)
+    }
+
+    /// The folder on this computer named after the file: one of that name (any case) only when it
+    /// is this file's (it holds mail of this file, or an earlier run of this import made it and it
+    /// is still empty); else a new one, `name (2)` and on when the name is taken.
+    fn own_folder(&mut self, s: &mut Session, name: &str) -> Result<Id, CmdError> {
+        let mb = &s.mailbox;
+        let prefix = format!("{}:", self.identity);
+        let holding: HashSet<Id> = mb
+            .messages
+            .values()
+            .filter(|m| m.headers.iter().any(|(k, v)| k.eq_ignore_ascii_case(PST_ITEM_HEADER) && v.starts_with(&prefix)))
+            .map(|m| m.folder)
+            .collect();
+        let made_before = s.pst_tops.get(&self.identity).copied();
+        for n in 1..100u32 {
+            let candidate = if n == 1 { name.to_string() } else { format!("{name} ({n})") };
+            match self.names.get(&None).and_then(|names| names.get(&candidate.to_lowercase())).copied() {
+                None => return self.make(s, None, &candidate),
+                Some(Some(id)) => {
+                    let tree = mb.subtree(id);
+                    let ours = tree.iter().any(|f| holding.contains(f))
+                        || (made_before == Some(id) && !mb.messages.values().any(|m| tree.contains(&m.folder)));
+                    if ours {
+                        return Ok(id);
+                    }
+                }
+                Some(None) => {}
+            }
+        }
+        Err(failed!("no free name for the folder {name}", name = name.to_string()))
+    }
+
+    fn make(&mut self, s: &mut Session, parent: Option<Id>, name: &str) -> Result<Id, CmdError> {
+        if self.made.len() >= MAX_FOLDERS {
+            return Err(failed!("more than {max} folders", max = MAX_FOLDERS));
+        }
+        let id = s.mailbox.add_folder_free(self.account, parent, name).map_err(|e| fail(e.to_string()))?;
+        let lower = s.mailbox.folders.last().map_or_else(|| name.to_lowercase(), |f| f.name.to_lowercase());
+        self.names.entry(parent).or_default().insert(lower, Some(id));
+        self.made.push(id);
+        Ok(id)
+    }
+
+    /// The folder `name` under `parent` that mail may go into, made when there is none.
+    fn child(&mut self, s: &mut Session, parent: Id, name: &str) -> Result<Id, CmdError> {
+        let lower = name.to_lowercase();
+        match self.names.get(&Some(parent)).and_then(|names| names.get(&lower)).copied() {
+            Some(Some(id)) => return Ok(id),
+            None => return self.make(s, Some(parent), name),
+            Some(None) => {}
+        }
+        let start = self.next.get(&(parent, lower.clone())).copied().unwrap_or(1);
+        for n in start.saturating_add(1)..start.saturating_add(100) {
+            self.next.insert((parent, lower.clone()), n);
+            let candidate = format!("{name} ({n})");
+            match self.names.get(&Some(parent)).and_then(|names| names.get(&candidate.to_lowercase())).copied() {
+                Some(Some(id)) => return Ok(id),
+                None => return self.make(s, Some(parent), &candidate),
+                Some(None) => {}
+            }
+        }
+        Err(failed!("no free name for the folder {name}", name = name.to_string()))
+    }
+
+    fn folder(&mut self, s: &mut Session, path: &[String]) -> Result<Id, CmdError> {
+        if let Some(id) = self.paths.get(path) {
             return Ok(*id);
         }
-        let mut at = top;
-        for (i, name) in path.iter().enumerate() {
-            let prefix = path.get(..=i).unwrap_or_default().to_vec();
-            at = match cache.get(&prefix) {
+        let mut at = self.top;
+        for i in 0..path.len() {
+            let prefix = path.get(..=i).unwrap_or_default();
+            at = match self.paths.get(prefix) {
                 Some(id) => *id,
                 None => {
-                    let id = child_within(mb, account, Some(at), name, true, &mut made, MAX_FOLDERS)?
-                        .ok_or_else(|| failed!("the folder {name} couldn't be made", name = name.clone()))?;
-                    cache.insert(prefix, id);
+                    let name = prefix.last().map(String::as_str).unwrap_or_default();
+                    let id = self.child(s, at, name)?;
+                    self.paths.insert(prefix.to_vec(), id);
                     id
                 }
             };
         }
         Ok(at)
+    }
+
+    /// Take out what was put in since `made` folders and `added` messages.
+    fn roll_back(&mut self, s: &mut Session, made: usize, added: usize) {
+        for id in self.added.drain(added.min(self.added.len())..) {
+            s.mailbox.messages.remove(&id);
+        }
+        let gone: Vec<Id> = self.made.drain(made.min(self.made.len())..).collect();
+        s.mailbox.remove_folders(&gone);
+        let gone: HashSet<Id> = gone.into_iter().collect();
+        self.paths.retain(|_, id| !gone.contains(id));
+        for names in self.names.values_mut() {
+            names.retain(|_, id| !id.is_some_and(|id| gone.contains(&id)));
+        }
+        self.names.retain(|parent, _| !parent.is_some_and(|p| gone.contains(&p)));
+    }
+}
+
+/// Whether the folder an import puts mail into is still there, and not in Deleted Items.
+fn check_top(s: &Session, top: Id) -> Result<(), CmdError> {
+    let mut cur = Some(top);
+    let mut steps = 0usize;
+    let mut found = false;
+    while let Some(f) = cur.and_then(|c| s.mailbox.folder(c)) {
+        found = true;
+        if f.kind == mailcraft_model::FolderKind::Deleted {
+            return Err(fail("the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"));
+        }
+        cur = f.parent;
+        steps = steps.saturating_add(1);
+        if steps > MAX_FOLDER_DEPTH {
+            break;
+        }
+    }
+    if found { Ok(()) } else { Err(fail("the folder the .pst file was being imported into is gone: the import stopped")) }
+}
+
+/// Put a batch of read messages into the mailbox, under the place asked for. Quick: no file is
+/// read here. A batch that can't all go in is taken out again.
+pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdError> {
+    let mut run = match s.pst_running.take() {
+        Some(r) if r.identity == batch.identity => r,
+        _ => Running::start(s, place, &batch.identity)?,
     };
+    let (made, added) = (run.made.len(), run.added.len());
+    let r = put(s, &mut run, batch);
+    if r.is_err() {
+        run.roll_back(s, made, added);
+    }
+    s.pst_running = Some(run);
+    r
+}
+
+fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdError> {
+    check_top(s, run.top)?;
     for path in &batch.folders {
-        folder_of(&mut s.mailbox, path)?;
+        run.folder(s, path)?;
     }
     let now = s.now();
     let mut n = 0usize;
     for (path, mut m) in batch.messages {
-        let folder = folder_of(&mut s.mailbox, &path)?;
+        let folder = run.folder(s, &path)?;
         m.id = 0;
         m.uid = 0;
         m.folder = folder;
@@ -701,7 +918,8 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
         if m.received == 0 {
             m.received = if m.date != 0 { m.date } else { now };
         }
-        s.mailbox.add_message(m).map_err(|e| fail(e.to_string()))?;
+        let id = s.mailbox.add_message(m).map_err(|e| fail(e.to_string()))?;
+        run.added.push(id);
         n = n.saturating_add(1);
     }
     Ok(n)
@@ -709,12 +927,23 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
 
 /// After the last batch: the file's categories added where this computer has no category of
 /// that name, the report written beside the mailbox, the folder shown, and the report answered.
-pub fn finish(s: &mut Session, place: &Place, outcome: Outcome) -> Result<Value, CmdError> {
-    let Outcome { mut report, categories } = outcome;
+/// An import that came in a batch at a time (`staged`) is kept here as one step to undo; one
+/// run as a single command is one already.
+pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) -> Result<Value, CmdError> {
+    let Outcome { mut report, categories, identity } = outcome;
     let dry = report.dry_run;
+    let mut run = s.pst_running.take().filter(|r| r.identity == identity);
+    let categories_before = s.mailbox.categories.clone();
     let top = if dry {
         None
     } else {
+        // (Nothing came in: the folder is still found, or made, for the owner to see.)
+        let r = match run.take() {
+            Some(r) => r,
+            None => Running::start(s, place, &identity)?,
+        };
+        let top = r.top;
+        run = Some(r);
         let account = s.mailbox.local_account();
         for (name, color) in categories {
             if s.mailbox.category_of(account, &name).is_none()
@@ -724,19 +953,16 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome) -> Result<Value,
                 report.categories_added = report.categories_added.saturating_add(1);
             }
         }
-        match place {
-            Place::New(name) => {
-                let mut made = 0;
-                child_within(&mut s.mailbox, account, None, name, true, &mut made, MAX_FOLDERS)?
-            }
-            Place::Under(id) => Some(*id),
-        }
+        Some(top)
     };
     if let Some(id) = top {
         report.name = s.mailbox.folder(id).map(|f| f.name.clone()).unwrap_or_default();
         s.view.folder = id;
         s.view.module = crate::Module::Mail;
         s.view.search.clear();
+    }
+    if staged && let Some(r) = run {
+        s.keep_import_step(IMPORT_LABEL, &r.added, &r.made, categories_before);
     }
     if !dry {
         report.written = write_report(s, &report);
@@ -748,16 +974,50 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome) -> Result<Value,
     Ok(answer)
 }
 
-/// The report as a text file beside the mailbox file, when there is one: its path.
+/// The label of an import's step to undo (the command's own).
+pub const IMPORT_LABEL: &str = "Import a .pst File";
+
+/// An import that came in a batch at a time and ended without its last word (its reader
+/// stopped, or the window went): what came in is kept as one step to undo, and Undo is free
+/// again.
+pub fn end_staged(s: &mut Session) {
+    if let Some(r) = s.pst_running.take() {
+        let categories = s.mailbox.categories.clone();
+        s.keep_import_step(IMPORT_LABEL, &r.added, &r.made, categories);
+    }
+}
+
+/// The report as a text file beside the mailbox file, when there is one: its path. The name is
+/// the file's (cut short), "import report" and the time; one that is there already, or a link,
+/// is never written over: the next free `(2)`, `(3)` is taken.
 #[cfg(not(target_arch = "wasm32"))]
 fn write_report(s: &Session, report: &Report) -> Option<String> {
+    use std::io::Write;
     let dir = s.path.as_ref()?.parent()?.to_path_buf();
     let when = mailcraft_time::format_iso_utc(s.now());
-    let stem = format!("{} import report {}", folder_name(&report.file), when.replace(':', "-"));
-    let path = dir.join(crate::opening::export_name_or(&stem, "txt", "pst import report"));
-    std::fs::write(&path, report.to_text(&when)).ok()?;
-    Some(path.display().to_string())
+    let stem: String = folder_name(&report.file).chars().take(REPORT_NAME_CHARS).collect();
+    let text = report.to_text(&when);
+    for n in 1..=100u32 {
+        let more = if n == 1 { String::new() } else { format!(" ({n})") };
+        let name = crate::opening::export_name_or(&format!("{stem} import report {}{more}", when.replace(':', "-")), "txt", "pst import report");
+        let path = dir.join(name);
+        // (`create_new` makes the file or fails: it never follows a link that is there.)
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                f.write_all(text.as_bytes()).ok()?;
+                return Some(path.display().to_string());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(_) => return None,
+        }
+    }
+    None
 }
+
+/// Most characters of the file's name in its report's name, so that "import report" and the
+/// time always fit.
+#[cfg(not(target_arch = "wasm32"))]
+const REPORT_NAME_CHARS: usize = 36;
 
 #[cfg(target_arch = "wasm32")]
 fn write_report(_: &Session, _: &Report) -> Option<String> {
@@ -772,41 +1032,44 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         let place = place_of(s, v, &name)?;
         return match s.staged_pst.take().ok_or_else(|| fail("nothing is waiting to be imported"))? {
             Staged::Batch(batch) => Ok(json!({"staged": apply(s, &place, batch)?})),
-            Staged::Done(outcome) => finish(s, &place, *outcome),
+            Staged::Done(outcome) => finish(s, &place, *outcome, true),
         };
     }
     #[cfg(target_arch = "wasm32")]
     {
-        let _ = (base64_decode, Limits::default);
+        let _ = (base64_decode, Limits::default, job);
         Err(fail("importing a .pst file isn't supported in the browser yet"))
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let dry_run = p::bool(v, "dryRun").unwrap_or(false);
-        let password = p::str(v, "password").map(str::to_string);
-        let file = match (p::str(v, "path"), p::str(v, "name")) {
-            (Some(path), _) => path.rsplit(['/', '\\']).next().unwrap_or(path).to_string(),
-            (None, Some(name)) => name.to_string(),
-            (None, None) => String::new(),
-        };
-        let name = folder_name(&file);
-        let place = place_of(s, v, &name)?;
-        let job = Job { password, dry_run, file: report::short(&file), name, known: known_keys(&s.mailbox) };
-        let progress = Progress::default();
-        let mut sink = |batch: Batch| -> Result<(), CmdError> {
-            if !dry_run {
-                apply(s, &place, batch)?;
-            }
-            Ok(())
-        };
-        let outcome = if let Some(data) = p::str(v, "data") {
-            let bytes = base64_decode(data)?;
-            read(std::io::Cursor::new(bytes), &job, Limits::default(), &progress, &mut sink)?
-        } else if let Some(path) = p::str(v, "path") {
-            read(open_path(path)?, &job, Limits::default(), &progress, &mut sink)?
-        } else {
-            return Err(crate::cmd::bad("name the .pst file (`path`), or hand it over as `name` and base64 `data`"));
-        };
-        finish(s, &place, outcome)
+        // One command, one step to undo: the session's own.
+        s.pst_running = None;
+        let r = run_whole(s, v);
+        s.pst_running = None;
+        r
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn run_whole(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
+    let dry_run = p::bool(v, "dryRun").unwrap_or(false);
+    let password = p::str(v, "password").map(str::to_string);
+    let file = p::str(v, "path").or_else(|| p::str(v, "name")).unwrap_or_default().to_string();
+    let (job, place) = job(s, &file, password, dry_run, v)?;
+    let progress = Progress::default();
+    let mut sink = |batch: Batch| -> Result<(), CmdError> {
+        if !dry_run {
+            apply(s, &place, batch)?;
+        }
+        Ok(())
+    };
+    let outcome = if let Some(data) = p::str(v, "data") {
+        let bytes = base64_decode(data)?;
+        read(std::io::Cursor::new(bytes), &job, Limits::default(), &progress, &mut sink)?
+    } else if let Some(path) = p::str(v, "path") {
+        read(open_path(path)?, &job, Limits::default(), &progress, &mut sink)?
+    } else {
+        return Err(crate::cmd::bad("name the .pst file (`path`), or hand it over as `name` and base64 `data`"));
+    };
+    finish(s, &place, outcome, false)
 }

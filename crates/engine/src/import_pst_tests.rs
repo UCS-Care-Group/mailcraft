@@ -130,7 +130,7 @@ fn folder_list(folders: Vec<FolderSpec>) -> FileSpec {
 }
 
 fn job(dry_run: bool) -> Job {
-    Job { password: None, dry_run, file: "old-mail.pst".into(), name: "old-mail".into(), known: HashSet::new() }
+    Job { password: None, dry_run, file: "old-mail.pst".into(), name: "old-mail".into(), known: HashSet::new(), room: 31 }
 }
 
 /// Run the command over `bytes` handed over as data.
@@ -307,7 +307,7 @@ fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
 }
 
 #[test]
-fn rich_text_without_html_is_kept_as_an_attachment_and_named() {
+fn rich_text_alone_is_kept_as_an_attachment_and_named() {
     let rtf = b"{\\rtf1 Hello}";
     let mut stored = Vec::new();
     stored.extend_from_slice(&((rtf.len() + 12) as u32).to_le_bytes());
@@ -315,15 +315,24 @@ fn rich_text_without_html_is_kept_as_an_attachment_and_named() {
     stored.extend_from_slice(b"MELA");
     stored.extend_from_slice(&0u32.to_le_bytes());
     stored.extend_from_slice(rtf);
+    // Rich text alone (no text, no HTML): kept, and said.
     let mut m = note("Rich");
+    m.body = String::new();
     m.extra = vec![(0x1009, w::binary(&stored))];
+    // Rich text beside a text, as Outlook keeps most mail: the text, and no file.
+    let mut plain = note("Plain");
+    plain.extra = vec![(0x1009, w::binary(&stored))];
     let mut s = session();
-    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m], vec![])])), json!({})).unwrap();
-    let m = messages_in(&s, &["old-mail", "Inbox"])[0];
-    assert!(m.body.text.starts_with("Rich"));
-    let file = m.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m, plain], vec![])])), json!({})).unwrap();
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let rich = inbox.iter().find(|m| m.subject == "Rich").unwrap();
+    let file = rich.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
     assert_eq!(file.data.as_slice(), rtf);
-    assert!(answer["notes"][0]["why"].as_str().unwrap().contains("rich text"), "{answer}");
+    let plain = inbox.iter().find(|m| m.subject == "Plain").unwrap();
+    assert!(plain.body.text.starts_with("Plain") && plain.attachments.is_empty(), "{:?}", plain.attachments);
+    let notes = answer["notes"].as_array().unwrap();
+    assert_eq!(notes.len(), 1, "{answer}");
+    assert!(notes[0]["why"].as_str().unwrap().contains("rich text") && notes[0]["what"].as_str().unwrap().contains("Rich"), "{answer}");
 }
 
 #[test]
@@ -421,7 +430,7 @@ fn cancelling_keeps_what_is_in_and_another_run_brings_the_rest() {
     };
     let outcome = read(Cursor::new(&bytes), &job(false), Limits::default(), &progress, &mut sink).unwrap();
     assert!(outcome.report.cancelled);
-    let answer = finish(&mut s, &place, outcome).unwrap();
+    let answer = finish(&mut s, &place, outcome, false).unwrap();
     assert_eq!(answer["cancelled"], true);
     let first = messages_in(&s, &["old-mail", "Inbox"]).len();
     assert!(first > 0 && first < 10, "{first}");
@@ -573,4 +582,229 @@ proptest! {
         let mut sink = |_: Batch| Ok(());
         let _ = read(Cursor::new(bytes), &job(true), Limits::default(), &Progress::default(), &mut sink);
     }
+}
+
+/// A chain of `depth` folders, `Level 1` to `Level n`, with one message in the deepest.
+fn chain(depth: usize) -> FolderSpec {
+    let mut f = folder(&format!("Level {depth}"), "IPF.Note", vec![note("At the bottom")], vec![]);
+    for n in (1..depth).rev() {
+        f = folder(&format!("Level {n}"), "IPF.Note", vec![], vec![f]);
+    }
+    f
+}
+
+/// Folders nested deeper than a mailbox here may be (P2-1): the deep ones' mail goes into the
+/// deepest that fits, and their rows say so; under a deep folder of the owner's too.
+#[test]
+fn folders_nested_too_deeply_go_into_the_deepest_that_fits() {
+    let bytes = w::build(&folder_list(vec![chain(40)]));
+    let mut s = session();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(answer["added"], 1, "{answer}");
+    assert_eq!(s.mailbox.messages.len(), 1);
+    let m = s.mailbox.messages.values().next().unwrap();
+    assert_eq!(s.mailbox.depth(m.folder), mailcraft_model::MAX_FOLDER_DEPTH);
+    let deep = answer["folders"].as_array().unwrap().iter().find(|r| r["path"].as_str().unwrap().ends_with("Level 40")).unwrap();
+    assert!(deep["into"].as_str().unwrap().ends_with("Level 31"), "{deep}");
+
+    // Under a folder of the owner's that is already 30 deep: two levels fit below it.
+    let mut s = session();
+    let account = s.mailbox.local_account();
+    let mut parent = None;
+    for n in 0..30 {
+        parent = Some(s.mailbox.add_folder(account, parent, &format!("Mine {n}")).unwrap());
+    }
+    let answer = import(&mut s, &bytes, json!({"places": {"mail": parent.unwrap()}})).unwrap();
+    adds_up(&answer);
+    assert_eq!(answer["added"], 1, "{answer}");
+    let m = s.mailbox.messages.values().next().unwrap();
+    assert_eq!(s.mailbox.depth(m.folder), mailcraft_model::MAX_FOLDER_DEPTH);
+}
+
+/// The batches of an import the window hands over are one step to undo (P2-2), which takes the
+/// whole import out; Undo waits while it runs. One command is one step too.
+#[test]
+fn an_import_is_one_step_to_undo() {
+    let messages: Vec<MessageSpec> = (0..10).map(|i| note(&format!("Letter {i}"))).collect();
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", messages, vec![])]));
+    let mut s = session();
+    s.run("folder.new", &json!({"name": "Mine"})).unwrap();
+    let steps = s.history.len();
+    let mut batches = Vec::new();
+    let outcome = read(Cursor::new(&bytes), &job(false), Limits::default(), &Progress::default(), &mut |b: Batch| {
+        batches.push(b);
+        Ok(())
+    })
+    .unwrap();
+    assert!(batches.len() >= 3, "{}", batches.len());
+    for b in batches {
+        s.staged_pst = Some(crate::import_pst::Staged::Batch(b));
+        s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
+        assert_eq!(s.history.len(), steps, "a batch is no step of its own");
+        assert!(s.run("edit.undo", &json!({})).is_err(), "Undo waits while it runs");
+    }
+    s.staged_pst = Some(crate::import_pst::Staged::Done(Box::new(outcome)));
+    s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
+    assert_eq!(s.history.len(), steps + 1);
+    assert_eq!(s.undo_label(), Some("Import a .pst File"));
+    assert_eq!(s.mailbox.messages.len(), 10);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.messages.is_empty());
+    assert!(folder_id(&s, &["old-mail"]).is_none());
+    assert!(s.mailbox.folders.iter().any(|f| f.name == "Mine"), "what came before stays");
+
+    // One command: one step.
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((s.history.len(), s.undo_label()), (1, Some("Import a .pst File")));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.messages.is_empty());
+}
+
+/// An import that ends without its last word keeps what came in as one step, and Undo is free.
+#[test]
+fn an_import_ended_early_is_one_step_too() {
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", (0..5).map(|i| note(&format!("N {i}"))).collect(), vec![])]));
+    let mut s = session();
+    let mut batches = Vec::new();
+    read(Cursor::new(&bytes), &job(false), Limits::default(), &Progress::default(), &mut |b: Batch| {
+        batches.push(b);
+        Ok(())
+    })
+    .unwrap();
+    s.staged_pst = Some(crate::import_pst::Staged::Batch(batches.remove(0)));
+    s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
+    crate::import_pst::end_staged(&mut s);
+    assert_eq!(s.undo_label(), Some("Import a .pst File"));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.messages.is_empty());
+}
+
+/// A batch is measured by all a message holds (P2-3): recipients and headers too.
+#[test]
+fn a_message_is_measured_by_all_it_holds() {
+    let mut m = Message::default();
+    let small = crate::import_pst::item::held(&m);
+    m.to = (0..1000).map(|i| mailcraft_model::Address { name: "x".repeat(100), email: format!("p{i}@example.org") }).collect();
+    m.headers = (0..1000).map(|i| (format!("X-H{i}"), "v".repeat(100))).collect();
+    m.references = vec!["<r@example.org>".repeat(10); 100];
+    assert!(crate::import_pst::item::held(&m) > small + 200_000, "{}", crate::import_pst::item::held(&m));
+}
+
+/// The report's name keeps "import report" and the time whatever the file is called, and an
+/// existing file (or a link) beside the mailbox is never written over (P2-4).
+#[test]
+fn the_report_never_writes_over_a_file() {
+    let dir = std::env::temp_dir().join(format!("mc-pst-report-name-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut s = session();
+    s.path = Some(dir.join("mail.mailcraft"));
+    let long = format!("{}.pst", "a".repeat(120));
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![note("One")], vec![])]));
+    let mut params = json!({"name": long, "data": base64_encode(&bytes)});
+    let first = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
+    assert!(first.contains("import report 2026-11-05T10-00-00"), "{first}");
+    // A link where the next report would go: not followed, the next free name is taken.
+    params["dryRun"] = json!(false);
+    let target = dir.join("target.txt");
+    std::fs::write(&target, "the owner's").unwrap();
+    let name = std::path::Path::new(&first).file_name().unwrap().to_string_lossy().replace(".txt", " (2).txt");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&target, dir.join(&name)).unwrap();
+    let second = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
+    let third = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
+    assert_ne!(first, second);
+    assert_ne!(second, third);
+    assert!(std::fs::read_to_string(&first).unwrap().contains("Found 1 items: 1 brought in"));
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "the owner's");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// A new folder for the file is never one of the owner's that only shares its name (P2-6): the
+/// import makes `name (2)`, and a second run of the same file finds that one again.
+#[test]
+fn the_new_folder_is_never_somebody_elses() {
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![note("Theirs")], vec![])]));
+    let mut s = session();
+    let account = s.mailbox.local_account();
+    let own = s.mailbox.add_folder(account, None, "OLD-MAIL").unwrap();
+    s.mailbox.add_message(Message { folder: own, subject: "the owner's".into(), ..Default::default() }).unwrap();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!(answer["name"], "old-mail (2)", "{answer}");
+    assert_eq!(s.mailbox.messages_in(own).count(), 1);
+    let again = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((again["name"].as_str(), again["already"].as_u64()), (Some("old-mail (2)"), Some(1)), "{again}");
+    // An empty folder this session's import made is its own too.
+    let empty = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![], vec![])]));
+    let mut s = session();
+    let first = import(&mut s, &empty, json!({})).unwrap();
+    let second = import(&mut s, &empty, json!({})).unwrap();
+    assert_eq!(first["name"], second["name"]);
+}
+
+/// The report has a row for each of at most so many folders and adds up the rest (P2-7); items
+/// of no folder are one row.
+#[test]
+fn the_reports_rows_are_capped_and_still_add_up() {
+    let mut r = crate::import_pst::report::Report::default();
+    for i in 0..2500 {
+        r.push_row(crate::import_pst::report::Row { path: format!("F{i}{}", "x".repeat(300)), found: 2, added: 2, ..Default::default() });
+    }
+    assert_eq!(r.rows.len(), crate::import_pst::report::MAX_ROWS);
+    assert_eq!(r.folders_more, 500);
+    assert!(r.rows.iter().all(|row| row.path.chars().count() <= 201 && row.path.starts_with('…')));
+    assert_eq!((r.total().found, r.total().added), (5000, 5000));
+    assert!(r.first_short().is_none());
+    assert_eq!(r.to_json()["foldersMore"], 500);
+    assert!(r.to_text("now").contains("and 500 more folders"));
+}
+
+/// Thousands of folders of one name side by side stay apart, each once.
+#[test]
+fn many_folders_of_one_name_stay_apart() {
+    let children: Vec<FolderSpec> = (0..300).map(|_| folder("Same", "IPF.Note", vec![], vec![])).collect();
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![], children)]));
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    let inbox = folder_id(&s, &["old-mail", "Inbox"]).unwrap();
+    let names: HashSet<String> = s.mailbox.folders.iter().filter(|f| f.parent == Some(inbox)).map(|f| f.name.to_lowercase()).collect();
+    assert_eq!(names.len(), 300);
+    assert!(names.contains("same (300)"));
+}
+
+/// A folder the import puts mail under that is moved to Deleted Items meanwhile stops it.
+#[test]
+fn a_place_moved_to_deleted_items_stops_the_import() {
+    let bytes = w::build(&folder_list(vec![folder("Inbox", "IPF.Note", (0..6).map(|i| note(&format!("N {i}"))).collect(), vec![])]));
+    let mut s = session();
+    let account = s.mailbox.local_account();
+    let under = s.mailbox.add_folder(account, None, "Archives").unwrap();
+    let mut batches = Vec::new();
+    read(Cursor::new(&bytes), &job(false), Limits::default(), &Progress::default(), &mut |b: Batch| {
+        batches.push(b);
+        Ok(())
+    })
+    .unwrap();
+    let params = json!({"staged": true, "name": "old-mail", "places": {"mail": under}});
+    s.staged_pst = Some(crate::import_pst::Staged::Batch(batches.remove(0)));
+    s.run("file.importPst", &params).unwrap();
+    let before = s.mailbox.messages.len();
+    let deleted = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Deleted).unwrap();
+    s.mailbox.folders.iter_mut().find(|f| f.id == under).unwrap().parent = Some(deleted);
+    s.staged_pst = Some(crate::import_pst::Staged::Batch(batches.remove(0)));
+    let e = s.run("file.importPst", &params).unwrap_err().to_string();
+    assert!(e.contains("Deleted Items"), "{e}");
+    assert_eq!(s.mailbox.messages.len(), before);
+}
+
+/// A dry run reads every item, so that one that can't be read is not said to come in.
+#[test]
+fn a_dry_run_reads_what_it_counts() {
+    let bytes = w::build(&mailbox_file());
+    let mut s = session();
+    let dry = import(&mut s, &bytes, json!({"dryRun": true})).unwrap();
+    let real = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((dry["added"].clone(), dry["leftOut"].clone()), (real["added"].clone(), real["leftOut"].clone()));
 }

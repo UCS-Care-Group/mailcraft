@@ -14854,6 +14854,11 @@ msgstr ""
 msgid "month"
 msgstr "mois"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "more than {max} folders"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -14951,6 +14956,11 @@ msgstr "aucun dossier « {path} »"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "aucun dossier avec l'id {id}"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "no free name for the folder {name}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15438,11 +15448,6 @@ msgstr ""
 msgid "the event is gone"
 msgstr "l'événement n'existe plus"
 
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the folder for the import couldn't be made"
-msgstr ""
-
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -15468,15 +15473,20 @@ msgid "the folder it moves mail to isn't on the server"
 msgstr "le dossier vers lequel elle déplace le courrier n'est pas sur le serveur"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into is gone: the import stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "le dossier contenant ce message n'est plus sur cet ordinateur"
-
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the folder {name} couldn't be made"
-msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -17290,6 +17300,11 @@ msgstr "{weekday} {day} {month} {year}"
 #, fuzzy
 msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} a été ajouté par une version plus récente de MailCraft, {then}"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{why} What came in before stays; import the file again for the rest."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs

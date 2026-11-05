@@ -9,6 +9,7 @@
 //! attached to it) is within [`MAX_ITEM_BYTES`]. What can't be brought is said in the item's
 //! notes, which the import report lists; the item itself still comes in.
 
+use std::collections::HashSet;
 use std::io::{Read, Seek};
 
 use mailcraft_model::{Address, Attachment, FlagStatus, Importance, Message};
@@ -158,8 +159,41 @@ pub fn ends_import(e: &PstError) -> bool {
 pub struct Built {
     pub message: Message,
     pub notes: Vec<String>,
-    /// The bytes it holds (text, HTML, attachments), for the import's batches.
-    pub bytes: u64,
+}
+
+/// Bytes counted for each text, list entry and attachment besides what it holds.
+const OVERHEAD: u64 = 32;
+
+/// About how much memory `m` holds: every text, list and attachment of it, for the import's
+/// batches (a message of a few bytes of body may carry thousands of recipients or headers).
+pub fn held(m: &Message) -> u64 {
+    let text = |s: &str| (s.len() as u64).saturating_add(OVERHEAD);
+    let address = |a: &mailcraft_model::Address| text(&a.name).saturating_add(text(&a.email));
+    let addresses = |list: &[mailcraft_model::Address]| list.iter().map(address).fold(0u64, u64::saturating_add);
+    let texts = |list: &[String]| list.iter().map(|s| text(s)).fold(0u64, u64::saturating_add);
+    [
+        text(&m.message_id),
+        text(&m.in_reply_to),
+        texts(&m.references),
+        address(&m.from),
+        addresses(&m.reply_to),
+        addresses(&m.to),
+        addresses(&m.cc),
+        addresses(&m.bcc),
+        text(&m.subject),
+        text(&m.body.text),
+        m.body.html.as_deref().map_or(0, text),
+        text(&m.hidden_text),
+        texts(&m.categories),
+        texts(&m.warnings_dismissed),
+        m.headers.iter().map(|(k, v)| text(k).saturating_add(text(v))).fold(0u64, u64::saturating_add),
+        m.attachments
+            .iter()
+            .map(|a| text(&a.name).saturating_add(text(&a.mime)).saturating_add(text(&a.content_id)).saturating_add(a.data.len() as u64))
+            .fold(0u64, u64::saturating_add),
+    ]
+    .into_iter()
+    .fold(OVERHEAD, u64::saturating_add)
 }
 
 /// What reading one item has left: bytes it may still bring, and its notes.
@@ -199,7 +233,7 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
     if item.more_notes > 0 {
         item.notes.push(format!("and {} more notes", item.more_notes));
     }
-    Ok(Built { message, notes: item.notes, bytes: MAX_ITEM_BYTES.saturating_sub(item.left) })
+    Ok(Built { message, notes: item.notes })
 }
 
 fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item: &mut Item, depth: usize) -> Result<Message, PstError> {
@@ -352,9 +386,10 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
     // The body.
     body(pst, m, &text, item, &mut out)?;
 
-    // Attachments.
+    // Attachments, and the pictures the HTML shows by content id (looked for once).
+    let cids = out.body.html.as_deref().map(content_ids).unwrap_or_default();
     for a in &m.attachments {
-        attachment(pst, a, &text, item, depth, &mut out)?;
+        attachment(pst, a, &text, item, depth, &cids, &mut out)?;
     }
     if class.to_ascii_lowercase().starts_with("ipm.note.smime") {
         item.note("signed or encrypted (S/MIME): kept as it was, can't be read yet".to_string());
@@ -492,9 +527,10 @@ fn body<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, text: &Tex
         (None, Some(h)) => h,
         (None, None) => String::new(),
     };
-    // Rich text (compressed RTF, [MS-OXRTFCP]) is read by a later part: until then, without
-    // HTML, it is kept as an attachment as it is in the file and the text is used.
-    if html.is_none() {
+    // Rich text (compressed RTF, [MS-OXRTFCP]) is read by a later part: until then, a body that
+    // is rich text alone (no HTML, no text) is kept as an attachment as it is in the file. One
+    // with a text as well (as Outlook keeps most) has its text, and its rich text is let be.
+    if html.is_none() && out.body.text.trim().is_empty() {
         match p.get(0x1009) {
             Some(PropValue::Large { .. }) | Some(PropValue::Binary(_)) => {
                 if let Some(PropValue::Binary(rtf)) = body_value(pst, m, 0x1009, item, "rich text")? {
@@ -528,12 +564,31 @@ fn file_name(raw: &str) -> String {
     s.trim().to_string()
 }
 
+/// The content ids an HTML body shows (`cid:` addresses), read once for all its attachments.
+fn content_ids(html: &str) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut rest = html;
+    while let Some(at) = rest.find("cid:") {
+        let after = rest.get(at.saturating_add(4)..).unwrap_or_default();
+        let end = after.find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ')' | '>' | '<')).unwrap_or(after.len());
+        if out.len() < MAX_CONTENT_IDS {
+            out.insert(after.get(..end).unwrap_or_default().to_string());
+        }
+        rest = after.get(end..).unwrap_or_default();
+    }
+    out
+}
+
+/// Most content ids looked for in one body.
+const MAX_CONTENT_IDS: usize = 4096;
+
 fn attachment<R: Read + Seek>(
     pst: &mut Pst<R>,
     a: &mailcraft_pst::Attachment,
     text: &Text,
     item: &mut Item,
     depth: usize,
+    cids: &HashSet<String>,
     out: &mut Message,
 ) -> Result<(), PstError> {
     let p = &a.properties;
@@ -552,7 +607,11 @@ fn attachment<R: Read + Seek>(
                     return Ok(());
                 }
             };
+            // What the attached message reads is charged while it is read, then given back: the
+            // message as a file is what this item brings, and is charged once.
+            let left = item.left;
             let attached = message_of(pst, &read, item, depth.saturating_add(1))?;
+            item.left = left;
             let bytes = mailcraft_mime::write(&attached, &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: 0 });
             if !item.take(bytes.len() as u64) {
                 item.note(format!("{shown}, an attached message, is larger than what one item may bring and is left out"));
@@ -586,7 +645,7 @@ fn attachment<R: Read + Seek>(
             };
             let mut file = Attachment::new(name, mime, data);
             if !content_id.is_empty() {
-                file.inline = hidden || out.body.html.as_deref().is_some_and(|h| h.contains(&format!("cid:{content_id}")));
+                file.inline = hidden || cids.contains(&content_id);
                 file.content_id = content_id;
             }
             out.attachments.push(file);

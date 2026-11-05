@@ -2073,7 +2073,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::ImportPst(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Import a .pst File (preview)"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
-            close |= !open || done;
+            // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
+            // the report is shown first.)
+            let asked = close || !open;
+            close = done || (asked && !dialog.stop());
         }
         // (Enter is the date and time fields' to say OK with; the replies have lines of their own.)
         Dialog::AutomaticReplies(dialog) => {

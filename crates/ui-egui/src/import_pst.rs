@@ -56,6 +56,8 @@ pub struct ImportPst {
     opening: u64,
     /// A batch that couldn't go in: the import is stopped and this is said.
     failed: Option<String>,
+    /// Batches that went in.
+    batches: usize,
 }
 
 impl Drop for ImportPst {
@@ -87,7 +89,18 @@ impl ImportPst {
             progress: Arc::default(),
             opening: app.session.openings(),
             failed: None,
+            batches: 0,
         }
+    }
+
+    /// Whether it is reading: closing the window then stops the reading, and the window stays
+    /// until what was read is in and the report is shown.
+    pub fn stop(&mut self) -> bool {
+        let importing = matches!(self.phase, Phase::Importing(_));
+        if importing {
+            self.progress.cancel();
+        }
+        importing
     }
 
     fn file(&self) -> String {
@@ -126,12 +139,13 @@ impl ImportPst {
         }
         self.wrong_password = false;
         self.progress = Arc::default();
-        let job = Job {
-            password: needs.then(|| self.password.clone()),
-            dry_run: false,
-            file: self.file(),
-            name: mailcraft_engine::import_pst::folder_name(&self.path),
-            known: mailcraft_engine::import_pst::known_keys(&app.session.mailbox),
+        let places = json!({"places": self.places()});
+        let job = match mailcraft_engine::import_pst::job(&app.session, &self.path, needs.then(|| self.password.clone()), false, &places) {
+            Ok((job, _)) => job,
+            Err(e) => {
+                self.phase = Phase::Done(Err(e.in_lang(crate::i18n::current())));
+                return;
+            }
         };
         if let Some(spawn) = &app.services.import_pst {
             self.phase = Phase::Importing(spawn(PstJob { path: self.path.clone(), job, progress: self.progress.clone() }));
@@ -158,6 +172,7 @@ impl ImportPst {
                 Ok(e) => e,
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
+                    mailcraft_engine::import_pst::end_staged(&mut app.session);
                     self.phase =
                         Phase::Done(Err(tl!("The import stopped unexpectedly. What came in stays; import the file again for the rest.").to_string()));
                     return;
@@ -170,13 +185,24 @@ impl ImportPst {
                         continue;
                     }
                     app.session.staged_pst = Some(Staged::Batch(batch));
-                    if let Err(e) = app.run("file.importPst", params) {
-                        self.progress.cancel();
-                        self.failed = Some(e);
+                    match app.run("file.importPst", params) {
+                        Ok(_) => self.batches = self.batches.saturating_add(1),
+                        Err(e) => {
+                            self.progress.cancel();
+                            self.failed = Some(e);
+                        }
                     }
                     app.session.staged_pst = None;
                 }
-                Event::Done(Err(e)) => self.phase = Phase::Done(Err(self.failed.take().unwrap_or_else(|| e.in_lang(crate::i18n::current())))),
+                Event::Done(Err(e)) => {
+                    mailcraft_engine::import_pst::end_staged(&mut app.session);
+                    let why = self.failed.take().unwrap_or_else(|| e.in_lang(crate::i18n::current()));
+                    self.phase = Phase::Done(Err(if self.batches > 0 {
+                        crate::i18n::fmt(tl!("{why} What came in before stays; import the file again for the rest."), &[("why", &why)])
+                    } else {
+                        why
+                    }));
+                }
                 Event::Done(Ok(outcome)) => {
                     app.session.staged_pst = Some(Staged::Done(outcome));
                     let done = app.run("file.importPst", params);
@@ -318,7 +344,7 @@ impl ImportPst {
 /// What the import came to, from its report.
 fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     let n = |k: &str| r.get(k).and_then(Value::as_u64).unwrap_or(0);
-    let folder = r.get("folder").and_then(Value::as_str).unwrap_or_default();
+    let folder = r.get("name").and_then(Value::as_str).unwrap_or_default();
     if r.get("cancelled").and_then(Value::as_bool) == Some(true) {
         ui.label(RichText::new(tl!("Stopped before the end. Import the file again to bring the rest.")).strong());
     }

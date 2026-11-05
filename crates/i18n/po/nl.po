@@ -15614,6 +15614,11 @@ msgstr "komt niet overeen"
 msgid "month"
 msgstr "maand"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "more than {max} folders"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -15715,6 +15720,11 @@ msgstr "geen map „{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "geen map met id {id}"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "no free name for the folder {name}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16223,11 +16233,6 @@ msgstr "het einde van de periode moet na het begin liggen"
 msgid "the event is gone"
 msgstr "de gebeurtenis is verdwenen"
 
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the folder for the import couldn't be made"
-msgstr ""
-
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -16253,15 +16258,20 @@ msgid "the folder it moves mail to isn't on the server"
 msgstr "de map waarnaar hij e-mail verplaatst, staat niet op de server"
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into is gone: the import stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
-
-#. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "the folder {name} couldn't be made"
-msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -18146,6 +18156,11 @@ msgstr "{weekday} {day} {month} {year}"
 #, fuzzy
 msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} is toegevoegd door een nieuwere versie van MailCraft, {then}"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{why} What came in before stays; import the file again for the rest."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
