@@ -323,12 +323,13 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
 
 /// The carried original as a message to show: the original's sender, date and place (what its
 /// pictures are allowed by), with the quote's HTML for a body and the pictures the quote takes
-/// along. Kept from frame to frame while the quote stays the same.
+/// along. Kept from frame to frame while the quote stays the same, for each message being
+/// written (the windows of several share the context), and let go of with it.
 fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let c = app.session.compose.as_ref()?;
     let quote = c.quote.as_ref()?;
     let key = egui::Id::unique("mailcraft-compose-quote");
-    let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
+    let mut kept: Vec<(u64, Arc<Message>)> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
     // The quote's own pictures (those the original showed, for an answer; those written into it,
     // #602), and for a forward the message's attachments: it carries the original's itself, its
@@ -336,13 +337,18 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let forward = c.mode == mailcraft_engine::ComposeMode::Forward || quote.pictures.is_empty();
     let attached: &[mailcraft_model::Attachment] = if forward { &c.attachments } else { &[] };
     let pictures = || quote.pictures.iter().chain(attached);
+    // The same pictures: the same parts, by their ids and their very bytes, in the same order.
+    let same_part = |a: &mailcraft_model::Attachment, b: &mailcraft_model::Attachment| {
+        a.content_id == b.content_id && a.name == b.name && Arc::ptr_eq(&a.data, &b.data)
+    };
     let same = |m: &Arc<Message>| {
         m.body.html.as_deref() == Some(quote.html.as_str())
             && m.id == source.map_or(0, |s| s.id)
             && m.attachments.len() == quote.pictures.len().saturating_add(attached.len())
+            && m.attachments.iter().zip(pictures()).all(|(a, b)| same_part(a, b))
     };
-    if let Some(m) = kept.filter(same) {
-        return Some(m);
+    if let Some((_, m)) = kept.iter().find(|(id, m)| *id == c.id && same(m)) {
+        return Some(m.clone());
     }
     let mut m = source.map(|s| (**s).clone()).unwrap_or_default();
     m.body = mailcraft_model::Body { text: quote.text.clone(), html: Some(quote.html.clone()) };
@@ -350,7 +356,10 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     // Its body is the quote's, whole: nothing of it waits on disk.
     m.kept = None;
     let m = Arc::new(m);
-    ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+    // What is kept for a message no longer being written goes, and so does this one's old quote.
+    kept.retain(|(id, _)| *id != c.id && app.session.all_composing().any(|open| open.id == *id));
+    kept.push((c.id, m.clone()));
+    ctx.data_mut(|d| d.insert_temp(key, kept));
     Some(m)
 }
 

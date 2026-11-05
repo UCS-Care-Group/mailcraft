@@ -174,3 +174,53 @@ fn the_original_under_a_reply_or_forward_still_shows_its_written_pictures() {
         assert_eq!(stats, Some((true, 3, 0, 0)), "{command}");
     }
 }
+
+/// Two forwards of one message being written at once, each with a picture of its own: the
+/// original quoted under each carries that one's picture, not the other's, though they have as
+/// many (the windows of both share one context), and is kept while it stays the same.
+#[test]
+fn each_message_being_written_has_its_own_quoted_original() {
+    use super::{MailApp, NOW, Services};
+    let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    app.autosave = false;
+    let (account, inbox) = (app.session.mailbox.accounts[0].id, app.session.mailbox.inbox().unwrap());
+    let picture = |name: &str, side: u32| mailcraft_model::Attachment {
+        content_id: "chart@example.org".into(),
+        inline: true,
+        ..mailcraft_model::Attachment::new(name, "image/png", png(side, side))
+    };
+    let m = mailcraft_model::Message {
+        account,
+        folder: inbox,
+        message_id: "chart@example.org".into(),
+        from: mailcraft_model::Address::new("Rowan Ash", "rowan@example.org"),
+        subject: "The chart".into(),
+        body: mailcraft_model::Body { text: "The chart.".into(), html: Some("<p>The chart:</p><img src=\"cid:chart@example.org\">".into()) },
+        attachments: vec![picture("chart.png", 20)],
+        ..Default::default()
+    };
+    let id = app.session.mailbox.add_message(m).unwrap();
+    for _ in 0..2 {
+        app.execute("mail.select", serde_json::json!({"id": id})).unwrap();
+        app.execute("mail.forward", serde_json::json!({"id": id})).unwrap();
+    }
+    assert_eq!(app.session.all_composing().count(), 2);
+    // The second forward's picture is another of the same name and count.
+    app.session.compose.as_mut().unwrap().attachments = vec![picture("chart.png", 30)];
+    let ctx = egui::Context::default();
+    let switch = |app: &mut MailApp| std::mem::swap(app.session.compose.as_mut().unwrap(), &mut app.session.composing[0]);
+    let carried = |app: &MailApp| crate::reading::quote_message(app, &ctx).unwrap();
+    let second = carried(&app);
+    switch(&mut app);
+    let first = carried(&app);
+    let bytes = |m: &mailcraft_model::Message| m.attachments.iter().map(|a| a.data.clone()).collect::<Vec<_>>();
+    assert_eq!(bytes(&first), vec![std::sync::Arc::new(png(20, 20))]);
+    assert_eq!(bytes(&second), vec![std::sync::Arc::new(png(30, 30))]);
+    // Each is kept for its own message while it stays the same.
+    assert!(std::sync::Arc::ptr_eq(&carried(&app), &first));
+    switch(&mut app);
+    assert!(std::sync::Arc::ptr_eq(&carried(&app), &second));
+    // Its picture changed for one of the same count: the original is made again.
+    app.session.compose.as_mut().unwrap().attachments = vec![picture("chart.png", 40)];
+    assert_eq!(bytes(&carried(&app)), vec![std::sync::Arc::new(png(40, 40))]);
+}
