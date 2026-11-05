@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-01 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-19 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+20 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -27,6 +27,7 @@ egui, eframe, winit or rfd.
 | L2 | `mime` | RFC 5322 / MIME reader and writer (`.eml`), encoded words, RFC 2231 parameters, charsets, mbox |
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
+| L2 | `pst` | Reader of Outlook personal folders files (`.pst`, ANSI and Unicode) from [MS-PST]: over any `Read + Seek`, a block at a time, never the whole file in memory; offsets checked; items, folders, recipients, attachments and attached messages counted against caps; what one item, one folder walk or one listing reads and keeps held to a budget for the whole call, and all that is read to a multiple of the file's size; trees that lead back to themselves, blocks named twice and keys out of order refused; damaged pages named, to a cap; what is left out named with its reason; no I/O of its own, builds for wasm |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
@@ -203,9 +204,20 @@ egui, eframe, winit or rfd.
   the operating system's credential store when the owner wants it remembered (`Services::secrets`;
   Windows, macOS, and the Secret Service on Linux and FreeBSD; a store that can't be used is
   `StoreTrouble`, said once a session). The mailbox file, `ui.json` and logs never hold one.
-- **Signing in on the provider's page.** Microsoft accounts use OAuth 2.0 (authorization code with
-  PKCE, a loopback redirect, the system's browser) and XOAUTH2. The engine only knows that an
-  account signs in that way (`Account::oauth`); the host with sockets does it and hands tokens in.
+- **Signing in on the provider's page.** Microsoft and Google desktop accounts use OAuth 2.0
+  (authorization code with PKCE, a loopback redirect and the system's browser) and XOAUTH2.
+  `OAuthProvider` selects provider-specific endpoints, scopes and refresh handling. Google's
+  implementation is in `crates/net/src/oauth/google.rs`; it does not add browser Gmail or Google
+  calendar/contact synchronization. The engine records the account's method (`Account::oauth`);
+  the host with sockets does the authorization and passes session tokens in. New Google accounts
+  prefer OAuth when the application's registration is configured. A legacy account changes only
+  through a successful, explicit same-address conversion; canceled/failed conversion retains its
+  credential and mail. The Google identity token's email must match the account's primary address;
+  Workspace aliases are not resolved and never cause an automatic account rebind. The Desktop
+  registration is application configuration, not a user password or refresh token: its secret
+  comes only from the build or process environment and is paired with the effective client ID.
+  Only the public client ID has a File → Options override. Registration precedence and the
+  app-password alternative are documented in [Google account setup](google-accounts.md#development-registration).
 - **Plain-text composing.** Rich text needs an editor component the project does not have yet.
 
 ## Start-up
@@ -246,9 +258,9 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
+  `ical`, `vcard`, `pst`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, `dav_xml`, `dav_document`, IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
