@@ -1645,12 +1645,7 @@ impl Builder {
         let stands = table.outer_align.is_some()
             && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
                 || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
-        if layout
-            && plain
-            && !slices
-            && !stands
-            && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(bare))
-        {
+        if layout && plain && !slices && !stands && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(bare)) {
             let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
                 for mut cell in row.cells {

@@ -131,9 +131,11 @@ pub struct Progress {
 pub struct RemotePictures {
     /// Messages the owner said "Download pictures" for.
     asked: VecDeque<Mark>,
-    /// Addresses that messages on screen are waiting for. Gathered while they are laid out and
-    /// taken up at the next frame: what is no longer on screen is no longer asked for.
-    waiting: Vec<(Id, Arc<str>)>,
+    /// Addresses that messages on screen are waiting for, each with whether only a picture behind
+    /// a box uses it ([`Doc::behind_only`]). Gathered while they are laid out and taken up at the
+    /// next frame: what is no longer on screen is no longer asked for, and with high contrast
+    /// turned on in between, no picture that only a box's background uses.
+    waiting: Vec<(Id, Arc<str>, bool)>,
     flying: Vec<Flight>,
     spent: VecDeque<(Id, Spent)>,
     /// The frame arrivals were last looked for in.
@@ -289,7 +291,12 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     // that was taken back in between is taken back for these too.
     let waiting = std::mem::take(&mut state.waiting);
     let allowed = |message: &Id| app.session.mailbox.messages.get(message).is_some_and(|m| access(app, m) == Access::Allowed);
-    let waiting: Vec<(Id, Arc<str>)> = waiting.into_iter().filter(|(message, _)| allowed(message)).collect();
+    let high_contrast = Tokens::get(ctx).high_contrast;
+    let waiting: Vec<(Id, Arc<str>)> = waiting
+        .into_iter()
+        .filter(|(message, _, behind)| allowed(message) && !(high_contrast && *behind))
+        .map(|(message, url, _)| (message, url))
+        .collect();
     let state = &mut app.remote_pictures;
     if let Some(download) = &app.services.pictures
         && !waiting.is_empty()
@@ -319,8 +326,12 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
 /// `m` is on screen and may show its pictures: note which of them are still to come, so that
 /// they are asked for, and say how they are coming along.
 pub fn want(app: &mut MailApp, ctx: &egui::Context, m: &Message, doc: &Doc) -> Progress {
-    let mut progress = Progress { total: doc.remote.len().saturating_add(doc.remote_left_out), left_out: doc.remote_left_out, ..Progress::default() };
-    if doc.remote.is_empty() {
+    // With high contrast no picture behind a box is painted, so none that only a box uses is
+    // asked for (one that an `<img>` shows too still is).
+    let high_contrast = Tokens::get(ctx).high_contrast;
+    let wanted = doc.wanted(high_contrast).count();
+    let mut progress = Progress { total: wanted.saturating_add(doc.remote_left_out), left_out: doc.remote_left_out, ..Progress::default() };
+    if wanted == 0 {
         return progress;
     }
     let frame = images::frame(ctx);
@@ -331,7 +342,7 @@ pub fn want(app: &mut MailApp, ctx: &egui::Context, m: &Message, doc: &Doc) -> P
     if let Some(at) = app.remote_pictures.retry.iter().position(|id| *id == m.id) {
         app.remote_pictures.retry.swap_remove(at);
         let mut again = 0;
-        for url in &doc.remote {
+        for url in doc.wanted(high_contrast) {
             if pictures.forget_failure(url) {
                 again += 1;
                 if let Some(kept) = &app.services.picture_cache {
@@ -343,7 +354,7 @@ pub fn want(app: &mut MailApp, ctx: &egui::Context, m: &Message, doc: &Doc) -> P
     }
     let state = &mut app.remote_pictures;
     let out = state.spent(m.id).out();
-    for url in &doc.remote {
+    for url in doc.wanted(high_contrast) {
         match pictures.remote(url, frame) {
             Some(Remote::Ready(_)) => progress.ready += 1,
             Some(Remote::Failed(_)) => progress.failed += 1,
@@ -351,8 +362,8 @@ pub fn want(app: &mut MailApp, ctx: &egui::Context, m: &Message, doc: &Doc) -> P
             None if out => progress.left_out += 1,
             None => {
                 progress.waiting += 1;
-                if state.waiting.len() < MAX_WAITING && !state.waiting.iter().any(|(_, waiting)| waiting == url) {
-                    state.waiting.push((m.id, url.clone()));
+                if state.waiting.len() < MAX_WAITING && !state.waiting.iter().any(|(_, waiting, _)| waiting == url) {
+                    state.waiting.push((m.id, url.clone(), doc.behind_only.contains(url)));
                 }
             }
         }
@@ -380,7 +391,7 @@ pub(crate) fn notice(hue: Color32, t: &Tokens) -> egui::Frame {
 /// glance says which: a tinted strip the width of the header, a mark, a few words in bold, the
 /// rest after them.
 pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Access, progress: Progress, place: Place, t: &Tokens) {
-    if doc.remote.is_empty() {
+    if doc.wanted(t.high_contrast).next().is_none() {
         return;
     }
     let missing = progress.failed + progress.left_out;

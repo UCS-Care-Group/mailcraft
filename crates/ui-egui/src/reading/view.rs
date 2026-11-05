@@ -59,6 +59,9 @@ pub struct Doc {
     pub remote: Vec<Arc<str>>,
     /// How many more such addresses the message has than may be asked for.
     pub remote_left_out: usize,
+    /// Those of `remote` that only a picture behind a box uses (#601): with high contrast no
+    /// such picture is painted, so none of these is asked for ([`Doc::wanted`]).
+    pub behind_only: HashSet<Arc<str>>,
     /// Per block: `Some` when it goes on in the paragraph of the block before, which was cut for
     /// its length, with what was dropped at the cut. Empty when nothing was cut.
     pub cuts: Arc<[Option<Glue>]>,
@@ -144,7 +147,9 @@ impl Doc {
                 continue;
             }
             if doc.remote.len() < super::remote::MAX_PER_MESSAGE {
-                doc.remote.push(Arc::from(src));
+                let src: Arc<str> = Arc::from(src);
+                doc.behind_only.insert(src.clone());
+                doc.remote.push(src);
             } else {
                 doc.remote_left_out += 1;
             }
@@ -153,6 +158,12 @@ impl Doc {
         doc.blocks = blocks;
         doc.cuts = cuts.into();
         doc
+    }
+
+    /// The addresses of [`Doc::remote`] that are asked for: all of them, but with high contrast
+    /// none that only a picture behind a box uses, as that is not painted then.
+    pub fn wanted(&self, high_contrast: bool) -> impl Iterator<Item = &Arc<str>> {
+        self.remote.iter().filter(move |url| !(high_contrast && self.behind_only.contains(*url)))
     }
 }
 

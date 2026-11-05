@@ -151,3 +151,71 @@ fn a_picture_that_is_missing_or_not_a_picture_leaves_the_colour() {
         assert!(laid.items.iter().any(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == Color32::from_rgb(0x20, 0x30, 0x40))));
     });
 }
+
+#[test]
+fn an_address_an_img_shows_too_is_not_behind_only() {
+    let url = "https://img.example.org/2026/hero.png";
+    let only = "https://img.example.org/2026/paper.png";
+    let html = format!(
+        "<table width=600 style=\"background-image:url('{only}')\"><tr><td style=\"background-image:url('{url}')\">\
+         <img src=\"{url}\" width=60 height=20 alt=\"Hero\"><p>Autumn sale</p></td></tr></table>"
+    );
+    let m = html_message(0, ("Rowan Ash", "rowan@example.org"), "Autumn", &html);
+    let doc = Doc::of(&m);
+    assert_eq!(doc.remote.iter().map(|u| &**u).collect::<Vec<_>>(), [url, only]);
+    assert_eq!(doc.behind_only.iter().map(|u| &**u).collect::<Vec<_>>(), [only]);
+    // With high contrast no picture behind a box is painted: the one the `<img>` shows is still asked for.
+    assert_eq!(doc.wanted(false).count(), 2);
+    assert_eq!(doc.wanted(true).map(|u| &**u).collect::<Vec<_>>(), [url]);
+}
+
+#[test]
+fn with_high_contrast_a_picture_only_behind_a_box_is_not_asked_for() {
+    use serde_json::json;
+    let (mut app, ids) = super::corpus_app(false);
+    app.execute("ui.highContrast", json!({"on": true})).unwrap();
+    // The host holds its answers: the newsletter's pictures wait their turn, a few at a time.
+    let host = super::Host::holding(&mut app);
+    let id = super::id_of(&ids, "newsletter");
+    let mut harness = super::window(app, (1280.0, 1000.0));
+    super::select(&mut harness, id);
+    let download = harness.state().hit.rect("downloadPictures", id).expect("no way to ask for the pictures");
+    super::click_at(&mut harness, download.center());
+    for _ in 0..12 {
+        host.release(usize::MAX, || Ok(png(32, 32)));
+        harness.run_steps(2);
+    }
+    // Its eight `<img>`s, and not the picture behind the whole message, which is not painted.
+    assert_eq!(host.asked(), super::NEWSLETTER_PICTURES[..8]);
+    assert!(!super::says(&harness, "Downloading pictures"));
+
+    // High contrast off: it is painted again, so it is asked for.
+    harness.state_mut().execute("ui.highContrast", json!({"on": false})).unwrap();
+    for _ in 0..4 {
+        host.release(usize::MAX, || Ok(png(32, 32)));
+        harness.run_steps(2);
+    }
+    assert_eq!(host.asked(), super::NEWSLETTER_PICTURES);
+
+    // Turned on while it waits its turn, it is not asked for after all: four `<img>`s on their
+    // way, the picture behind the message waiting for one of them to come.
+    let pictures = super::web_pictures("img.example.org", 4);
+    let behind = "https://img.example.org/bg/paper.png";
+    let imgs: String = pictures.iter().map(|src| format!("<p>Picture:</p><img src=\"{src}\" width=40 height=30 alt=\"A picture\">")).collect();
+    let html = format!("<body style=\"background-image:url('{behind}')\">{imgs}</body>");
+    let m = html_message(0, ("Rowan Ash", "rowan@example.org"), "Paper", &html);
+    let (mut app, ids) = super::app_with(vec![m]);
+    let host = super::Host::holding(&mut app);
+    let mut harness = super::window(app, (1280.0, 1000.0));
+    super::select(&mut harness, ids[0]);
+    let download = harness.state().hit.rect("downloadPictures", ids[0]).expect("no way to ask for the pictures");
+    super::click_at(&mut harness, download.center());
+    harness.run_steps(2);
+    assert_eq!(host.asked(), pictures);
+    // The four come, and high contrast is turned on before the next frame takes up what waits.
+    host.release(usize::MAX, || Ok(png(32, 32)));
+    harness.state_mut().execute("ui.highContrast", json!({"on": true})).unwrap();
+    harness.run_steps(6);
+    assert_eq!(host.asked(), pictures);
+    assert!(!super::says(&harness, "Downloading pictures"));
+}
