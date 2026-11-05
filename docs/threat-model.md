@@ -54,8 +54,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
-  a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
-  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+  a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
+  `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
+  tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a

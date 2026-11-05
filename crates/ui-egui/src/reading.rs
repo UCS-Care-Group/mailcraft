@@ -331,13 +331,15 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
     // The quote's own pictures (those the original showed, for an answer; those written into it,
-    // #602), then the message's attachments: a forward carries the original's itself, its
+    // #602), and for a forward the message's attachments: it carries the original's itself, its
     // pictures among them.
-    let pictures = || quote.pictures.iter().chain(&c.attachments);
+    let forward = c.mode == mailcraft_engine::ComposeMode::Forward || quote.pictures.is_empty();
+    let attached: &[mailcraft_model::Attachment] = if forward { &c.attachments } else { &[] };
+    let pictures = || quote.pictures.iter().chain(attached);
     let same = |m: &Arc<Message>| {
         m.body.html.as_deref() == Some(quote.html.as_str())
             && m.id == source.map_or(0, |s| s.id)
-            && m.attachments.len() == quote.pictures.len().saturating_add(c.attachments.len())
+            && m.attachments.len() == quote.pictures.len().saturating_add(attached.len())
     };
     if let Some(m) = kept.filter(same) {
         return Some(m);

@@ -294,3 +294,83 @@ fn an_exchange_server_account_sends_the_pictures_in_its_mime() {
     let wire = wire(m);
     assert!(wire.contains("multipart/related") && wire.contains(&format!("Content-ID: <{}>", pic.content_id)));
 }
+
+#[test]
+fn a_picture_the_quote_left_out_never_goes_though_its_content_id_is_written_in_the_text() {
+    let mut s = session();
+    // A picture before a `<body>` that comes later is left out of the quote. The sender, who
+    // knows the Content-ID it would get, writes that in the words of the message.
+    let head = data(&png(8, 5));
+    let id = in_inbox(&mut s, "<p>x</p>".to_string());
+    s.mailbox.message_mut(id).unwrap().body.html = Some(format!("<img src=\"{head}\"><body><p>Hello</p></body>"));
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let handed = mailcraft_model::sync::fingerprint(&png(8, 5));
+    let cid = format!("quote-1.{handed:016x}@mailcraft.invalid");
+    run(&mut s, "compose.close", json!({"discard": true}));
+    s.mailbox.message_mut(id).unwrap().body.html = Some(format!("<img src=\"{head}\"><body><p>Hello cid:{cid}</p></body>"));
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let c = compose(&s).clone();
+    assert!(written(&c).is_empty(), "{:?}", c.quote.as_ref().map(|q| &q.pictures));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    assert!(s.mailbox.message(sent).unwrap().attachments.iter().all(|a| !a.content_id.starts_with("quote-")));
+}
+
+#[test]
+fn two_pictures_of_one_length_are_two_parts_and_each_goes_as_what_its_bytes_say() {
+    let mut s = session();
+    // Of one length, differing in their last byte; the second says it is a GIF but is a PNG.
+    let (a, b) = (png(30, 1), {
+        let mut b = png(30, 1);
+        *b.last_mut().unwrap() = 2;
+        b
+    });
+    let as_gif = format!("data:image/gif;base64,{}", mailcraft_charset::base64::STANDARD.encode(&b));
+    let id = in_inbox(&mut s, format!("<img src=\"{}\"><img src=\"{as_gif}\">", data(&a)));
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let pics = written(compose(&s));
+    assert_eq!(pics.len(), 2);
+    assert_ne!(pics[0].content_id, pics[1].content_id);
+    assert!(pics.iter().all(|p| p.mime == "image/png" && p.name.ends_with(".png")), "{pics:?}");
+}
+
+#[test]
+fn a_draft_of_the_forward_reopens_with_each_part_once() {
+    let mut s = session();
+    let id = in_inbox(&mut s, chart_html());
+    run(&mut s, "mail.forward", json!({"id": id}));
+    run(&mut s, "compose.set", json!({"to": "maya@lumen.example"}));
+    let pic = written(compose(&s))[0].clone();
+    let d = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": d}));
+    let c = compose(&s).clone();
+    let q = c.quote.clone().unwrap();
+    let all: Vec<&str> = q.pictures.iter().chain(&c.attachments).map(|a| a.name.as_str()).collect();
+    let mut sorted = all.clone();
+    sorted.sort();
+    assert_eq!(sorted, ["figures.pdf", "logo.png", pic.name.as_str()], "{all:?}");
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(sent).unwrap();
+    assert_eq!(m.attachments.len(), 3, "{:?}", m.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
+    assert_eq!(m.attachments.iter().filter(|a| a.content_id == pic.content_id).count(), 1);
+}
+
+#[test]
+fn a_reply_to_the_reply_carries_the_pictures_again_once_each() {
+    let mut s = session();
+    let id = in_inbox(&mut s, chart_html());
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let pic = written(compose(&s))[0].clone();
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    // The answer comes back: its pictures are attached ones now, which its HTML shows.
+    let mut back = s.mailbox.message(sent).unwrap().clone();
+    back.folder = s.mailbox.inbox().unwrap();
+    back.message_id = "back@lumen.example".into();
+    let back = s.mailbox.add_message(back).unwrap();
+    run(&mut s, "mail.reply", json!({"id": back}));
+    let q = compose(&s).quote.clone().unwrap();
+    let ids: Vec<&str> = q.pictures.iter().map(|a| a.content_id.as_str()).collect();
+    assert_eq!(ids.iter().filter(|c| **c == pic.content_id).count(), 1, "{ids:?}");
+    assert_eq!(ids.iter().filter(|c| **c == "logo@rowan.example").count(), 1, "{ids:?}");
+    assert_eq!(ids.len(), 2, "{ids:?}");
+}

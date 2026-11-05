@@ -221,7 +221,8 @@ pub fn quotable(html: &str) -> String {
 /// others are left out. As in the reading pane, the pictures' text is not counted against
 /// [`MAX_INPUT`]: the rest of the message is read as far as it would be without them. A picture
 /// given to `written` may still be left out of what is written (one before a `<body>` that comes
-/// later): the caller keeps only those the result refers to.
+/// later, which counts against the caps all the same, as in the reading pane): the caller keeps
+/// only those the result refers to.
 pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>) -> String {
     quote(html, Some(written))
 }
