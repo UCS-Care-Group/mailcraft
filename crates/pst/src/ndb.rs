@@ -16,7 +16,7 @@ use std::io::{Read, Seek};
 use crate::bytes::{slice, u8_at, u16_at, u32_at};
 use crate::crc::crc32;
 use crate::crypt::{Encryption, decode};
-use crate::error::{Cap, Damage, Error, Limits, Result};
+use crate::error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
 use crate::header::{Bref, Format, Header};
 use crate::source::Source;
 
@@ -30,6 +30,9 @@ const MIN_AVERAGE_BLOCK: u64 = 64;
 /// B-tree pages kept once read (512 bytes each), so that the upper pages, which every lookup
 /// passes through, are read from the file once.
 const CACHED_PAGES: usize = 256;
+/// Damaged pages told apart (so that one met again is not counted again); past them the
+/// count of [`Damage::pages`] stops, and is a lower bound.
+const MAX_NOTED: usize = 1 << 16;
 
 /// A leaf of the node B-tree (`NBTENTRY`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +82,12 @@ pub(crate) fn is_internal(bid: u64) -> bool {
     bid & 2 != 0
 }
 
+/// Whether an error is damage to the file (noted and skipped) rather than a cap reached or
+/// the reader under the file failing (which end what is being done).
+fn is_damage(e: &Error) -> bool {
+    !matches!(e, Error::Cap(_) | Error::Io(_))
+}
+
 /// The id a block is looked up by: the reserved low bit is ignored (2.2.2.2).
 fn key(bid: u64) -> u64 {
     bid & !1
@@ -92,21 +101,42 @@ pub(crate) struct Ndb<R> {
     pages: HashMap<u64, Vec<u8>>,
     /// Pages below a tree's root that could not be read, each once.
     pub damage: Vec<Damage>,
+    noted: HashSet<u64>,
 }
 
 impl<R: Read + Seek> Ndb<R> {
     pub(crate) fn new(src: Source<R>, header: Header, limits: Limits) -> Self {
-        Ndb { src, header, limits, pages: HashMap::new(), damage: Vec::new() }
+        Ndb { src, header, limits, pages: HashMap::new(), damage: Vec::new(), noted: HashSet::new() }
     }
 
     /// Notes a page below a root that could not be read. A cap or a failure of the reader
     /// under the file is not damage to the file, and is not noted.
-    fn note(&mut self, ib: u64, ptype: u8, e: &Error) {
-        if matches!(e, Error::Cap(_) | Error::Io(_)) || self.damage.iter().any(|d| d.offset == ib) {
+    pub(crate) fn note(&mut self, ib: u64, ptype: u8, e: &Error) {
+        if !is_damage(e) {
+            return;
+        }
+        if self.damage.len() >= MAX_DAMAGE {
+            // Past the cap the pages are counted (once each, to the same cap as the walk's).
+            if self.noted.len() < MAX_NOTED
+                && self.noted.insert(ib)
+                && let Some(last) = self.damage.last_mut()
+            {
+                last.pages = last.pages.saturating_add(1);
+            }
+            return;
+        }
+        if !self.noted.insert(ib) {
             return;
         }
         let what = if ptype == PTYPE_NBT { "a page of the node tree" } else { "a page of the block tree" };
-        self.damage.push(Damage { offset: ib, what, reason: e.clone() });
+        let pages = 1;
+        self.damage.push(Damage { offset: ib, what, reason: e.clone(), pages });
+        if self.damage.len() == MAX_DAMAGE {
+            // The last entry is the one that counts the rest.
+            if let Some(last) = self.damage.last_mut() {
+                last.what = if ptype == PTYPE_NBT { "pages of the node tree, from this one" } else { "pages of the block tree, from this one" };
+            }
+        }
     }
 
     /// The page at `bref`, at the level `expect` when one is expected.
@@ -479,7 +509,9 @@ impl<R: Read + Seek> Ndb<R> {
             }
             let page = match self.page_at(bref, PTYPE_NBT, expect) {
                 Ok(p) => p,
-                Err(e) if bref != root => {
+                // Skipped only when it is damage, and named; a cap or the reader under the
+                // file failing ends the walk.
+                Err(e) if bref != root && is_damage(&e) => {
                     self.note(bref.ib, PTYPE_NBT, &e);
                     continue;
                 }

@@ -730,7 +730,7 @@ pub fn tc(layout: &Layout, columns: &[u32], rows: &[(u32, Vec<(u32, Value)>)]) -
             r
         })
         .collect();
-    index.sort();
+    index.sort_by_key(|r| u32::from_le_bytes([r[0], r[1], r[2], r[3]]));
     let ent = if f == Format::Unicode { 4 } else { 2 };
     let row_index = bth(&mut heap, 4, ent, &index, layout.bth_leaf);
     let matrix_bytes: usize = matrix.iter().map(Vec::len).sum();

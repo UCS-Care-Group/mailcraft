@@ -38,7 +38,7 @@ mod tests;
 
 pub use crc::crc32;
 pub use crypt::Encryption;
-pub use error::{Cap, Damage, Error, Limits, Result};
+pub use error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
 pub use header::Format;
 pub use named::{NamedMap, NamedProperty, PS_MAPI, PS_PUBLIC_STRINGS, PropName};
 pub use prop::{PropValue, Properties, Property, types};

@@ -99,7 +99,34 @@ pub struct Property {
     pub value: PropValue,
 }
 
+impl PropValue {
+    /// The bytes it holds outside itself (its text, bytes or values).
+    pub(crate) fn held(&self) -> usize {
+        use std::mem::size_of_val;
+        let vecs = |v: &[Vec<u8>]| v.iter().map(|b| size_of_val(b).saturating_add(b.capacity())).sum::<usize>();
+        match self {
+            PropValue::String(s) => s.capacity(),
+            PropValue::String8(b) | PropValue::Binary(b) | PropValue::Unknown { data: b, .. } => b.capacity(),
+            PropValue::MultiInt16(v) => size_of_val(v.as_slice()),
+            PropValue::MultiInt32(v) => size_of_val(v.as_slice()),
+            PropValue::MultiFloat32(v) => size_of_val(v.as_slice()),
+            PropValue::MultiFloat64(v) | PropValue::MultiAppTime(v) => size_of_val(v.as_slice()),
+            PropValue::MultiCurrency(v) | PropValue::MultiInt64(v) => size_of_val(v.as_slice()),
+            PropValue::MultiTime(v) => size_of_val(v.as_slice()),
+            PropValue::MultiGuid(v) => size_of_val(v.as_slice()),
+            PropValue::MultiString(v) => v.iter().map(|s| size_of_val(s).saturating_add(s.capacity())).sum(),
+            PropValue::MultiString8(v) | PropValue::MultiBinary(v) => vecs(v),
+            _ => 0,
+        }
+    }
+}
+
 impl Property {
+    /// What keeping it costs: itself, and what it holds.
+    pub(crate) fn kept(&self) -> u64 {
+        std::mem::size_of::<Property>().saturating_add(self.value.held()) as u64
+    }
+
     /// The 32-bit property tag (id in the high half, type in the low).
     pub fn tag(&self) -> u32 {
         (u32::from(self.id) << 16) | u32::from(self.ty)

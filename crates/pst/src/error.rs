@@ -136,7 +136,13 @@ pub struct Damage {
     /// "a page of the node tree" or "a page of the block tree".
     pub what: &'static str,
     pub reason: Error,
+    /// 1; or, for the last entry once [`MAX_DAMAGE`] pages have been named, how many pages
+    /// from it on could not be read (at least: past 65,536 they are no longer counted).
+    pub pages: u64,
 }
+
+/// Damaged pages named one by one; past them they are counted in one entry.
+pub const MAX_DAMAGE: usize = 1000;
 
 /// The caps, checked before anything is read or allocated. [`Limits::default`] is the import's
 /// (the file at most 100 GB, 2,000,000 items, 10,000 folders nested at most 64 deep, 256 MB an

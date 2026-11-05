@@ -139,3 +139,51 @@ fn a_damaged_folder_is_left_out_and_the_rest_read() {
     let (read, lost) = read_all(&mut pst);
     assert_eq!((read, lost.len()), (3, 0), "the items of the other folders");
 }
+
+#[test]
+fn damaged_pages_are_named_to_a_cap_and_counted_past_it() {
+    // Each named once, and quickly (a set, not a scan): 200,000 notes, 50,000 pages.
+    let bytes = base();
+    let mut ndb = ndb(&bytes);
+    let e = Error::BadChecksum("a B-tree page");
+    for i in 0..200_000u64 {
+        ndb.note((i % 50_000) * 512, 0x81, &e);
+    }
+    // A cap reached, or the reader failing, is not damage.
+    ndb.note(1 << 40, 0x81, &Error::Cap(crate::Cap::TotalRead));
+    assert_eq!(ndb.damage.len(), crate::MAX_DAMAGE);
+    let last = ndb.damage.last().unwrap();
+    assert_eq!(last.pages, 50_000 - crate::MAX_DAMAGE as u64 + 1);
+    assert_eq!(last.what, "pages of the node tree, from this one");
+    assert!(ndb.damage[..crate::MAX_DAMAGE - 1].iter().all(|d| d.pages == 1));
+}
+
+#[test]
+fn a_walk_of_the_nodes_that_reaches_a_cap_says_so() {
+    // At every allowance a walk either meets every node or ends with the cap: never fewer
+    // nodes and Ok.
+    let bytes = base();
+    let count = |pst: &mut Pst<Cursor<&[u8]>>| {
+        let mut nodes = 0usize;
+        pst.for_each_node(|_| {
+            nodes += 1;
+            true
+        })
+        .map(|()| nodes)
+    };
+    let all = count(&mut Pst::open(Cursor::new(&bytes[..])).unwrap()).unwrap();
+    let mut capped = 0;
+    for floor in (0..bytes.len() as u64).step_by(512) {
+        let limits = Limits { read_multiple: 0, read_floor: floor, ..Default::default() };
+        let Ok(mut pst) = Pst::open_with(Cursor::new(&bytes[..]), limits) else { continue };
+        match count(&mut pst) {
+            Ok(n) => assert_eq!(n, all, "at {floor}"),
+            Err(e) => {
+                assert_eq!(e, Error::Cap(crate::Cap::TotalRead), "at {floor}");
+                capped += 1;
+            }
+        }
+        assert!(pst.damage().is_empty(), "a cap is not damage, at {floor}");
+    }
+    assert!(capped > 0);
+}

@@ -57,7 +57,17 @@ pub(crate) fn read(heap: &Heap, header_hid: u32, max_records: usize, cap: Error)
             if item.len().checked_div(size).unwrap_or(0) > max_records.saturating_sub(records.len()) {
                 return Err(cap);
             }
-            records.extend(item.chunks_exact(size));
+            // A BTH's keys are unique and in order: each must be greater than the one before
+            // (as a little-endian number), so no record is named twice.
+            for r in item.chunks_exact(size) {
+                let key = r.get(..key_size).unwrap_or(&[]);
+                if let Some(prev) = records.last().and_then(|p: &&[u8]| p.get(..key_size))
+                    && key.iter().rev().cmp(prev.iter().rev()) != std::cmp::Ordering::Greater
+                {
+                    return Err(Error::Corrupt("a B-tree-on-heap's keys out of order"));
+                }
+                records.push(r);
+            }
             continue;
         }
         let size = key_size.saturating_add(4);

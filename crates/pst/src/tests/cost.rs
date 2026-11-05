@@ -134,12 +134,14 @@ fn a_listing_of_items_reads_within_one_budget() {
     let mut pst = open(&bytes, Limits { max_listing_bytes: limit, ..Default::default() });
     let folder = inbox(&mut pst);
     let list = pst.items(folder).unwrap();
-    assert_eq!(list.items.len(), 200, "every item is listed, read or not");
+    // Listed until the budget is spent; the rest are counted, and the folder named once.
+    assert!(!list.items.is_empty() && list.items.len() < 200, "{}", list.items.len());
+    assert_eq!(list.past_cap, 200 - list.items.len());
     let kept: usize = list.items.iter().map(|i| binary_bytes(i.properties.iter())).sum();
     assert!(kept as u64 <= limit, "{kept}");
     let short: Vec<&crate::LeftOut> = list.left_out.iter().filter(|l| l.reason == Error::Cap(Cap::ListingSize)).collect();
-    assert!(!short.is_empty() && short.len() < 200, "{}", short.len());
-    assert!(short.iter().all(|l| list.items.iter().any(|i| i.id == l.id && i.properties.is_empty())));
+    assert_eq!(short.len(), 1);
+    assert_eq!((short[0].id, short[0].parent), (folder, None));
 }
 
 #[test]
@@ -239,7 +241,7 @@ fn an_attached_message_that_is_the_message_it_is_attached_to_is_a_cycle() {
 }
 
 #[test]
-fn an_attachment_listed_twice_is_read_once() {
+fn an_attachment_table_naming_a_row_twice_is_refused() {
     let mut spec = sample(unicode_layout(), None);
     let mut m = note("Twice");
     m.attachments = vec![
@@ -257,10 +259,11 @@ fn an_attachment_listed_twice_is_read_once() {
     let bytes = raw(&spec.layout, &all);
     let mut pst = open(&bytes, Limits::default());
     let item = first_item(&mut pst);
+    // A table's row ids are the keys of its row index, which must strictly increase.
     let m = pst.message(&MessageRef::item(item)).unwrap();
-    assert_eq!(m.attachments.len(), 1);
-    assert_eq!(m.left_out[0].part, Part::Attachment { id: Nid(ATTACHMENT) });
-    assert_eq!(m.left_out[0].reason, Error::Cycle("an attachment listed twice"));
+    assert!(m.attachments.is_empty());
+    assert_eq!(m.left_out[0].part, Part::AttachmentTable);
+    assert_eq!(m.left_out[0].reason, Error::Corrupt("a B-tree-on-heap's keys out of order"));
 }
 
 #[test]
@@ -370,7 +373,8 @@ fn heap_items_that_share_bytes_are_refused() {
 }
 
 #[test]
-fn a_property_context_of_more_records_than_ids_is_refused() {
+fn a_property_context_naming_an_id_twice_is_refused() {
+    // 65,537 records: one id is named twice, whatever the order.
     let spec = sample(unicode_layout(), None);
     let mut all = nodes(&spec);
     let props: Vec<(u16, writer::Value)> = (0..=65_536u32).map(|i| (i as u16, int32(1))).collect();
@@ -378,7 +382,7 @@ fn a_property_context_of_more_records_than_ids_is_refused() {
     let store = all.iter_mut().find(|n| n.nid == 0x21).unwrap();
     store.data = Data::Blocks(pc(&spec.layout, &props, &mut spill));
     let bytes = raw(&spec.layout, &all);
-    assert_eq!(Pst::open(Cursor::new(&bytes[..])).err(), Some(Error::Corrupt("a property context with more records than ids")));
+    assert_eq!(Pst::open(Cursor::new(&bytes[..])).err(), Some(Error::Corrupt("a B-tree-on-heap's keys out of order")));
 }
 
 #[test]
@@ -422,8 +426,8 @@ fn an_item_and_its_attached_messages_share_one_budget() {
     let mut spec = sample(unicode_layout(), None);
     spec.folders[0].messages = vec![top];
     let bytes = build_spec(&spec);
-    // Each message is about 70 KB: one fits in 100 KB, the two together don't.
-    let mut pst = open(&bytes, Limits { max_item_bytes: 100_000, ..Default::default() });
+    // Each message costs about 105 KB, read and kept: one fits in 150 KB, the two together don't.
+    let mut pst = open(&bytes, Limits { max_item_bytes: 150_000, ..Default::default() });
     let item = first_item(&mut pst);
     let m = pst.message(&MessageRef::item(item)).unwrap();
     let AttachmentContent::Message(inner) = m.attachments[0].content.clone() else { panic!() };
@@ -433,4 +437,71 @@ fn an_item_and_its_attached_messages_share_one_budget() {
     let mut pst = open(&bytes, Limits::default());
     pst.message(&MessageRef::item(item)).unwrap();
     pst.message(&inner).unwrap();
+}
+
+/// What a call's answer keeps, as the reader charges it: each structure, its strings, and
+/// each property with what it holds. (A vector's spare room, at most as much again, is not.)
+fn kept_props(p: &crate::Properties) -> usize {
+    p.iter().map(|p| p.kept() as usize).sum()
+}
+
+fn kept_text(s: &Option<String>) -> usize {
+    s.as_ref().map_or(0, String::capacity)
+}
+
+#[test]
+fn what_a_call_keeps_is_within_its_budget() {
+    use std::mem::size_of;
+    // One byte on file becomes a whole property kept: 250 one-byte columns in 2,000 rows,
+    // 8,000 one-byte properties in a message, 300 folders.
+    let mut spec = sample(unicode_layout(), None);
+    spec.folders[0].children = (0..300).map(|i| FolderSpec { name: format!("Folder {i}"), ..Default::default() }).collect();
+    let mut all = nodes(&spec);
+    let columns: Vec<u32> = (0..250u32).map(|i| ((0x6800 + i) << 16) | 0x000B).collect();
+    let rows: Vec<(u32, Vec<(u32, writer::Value)>)> =
+        (0..2000u32).map(|i| (((0x20000 + i) << 5) | 4, columns.iter().map(|&c| (c, writer::boolean(true))).collect())).collect();
+    let (blocks, subs) = tc(&spec.layout, &columns, &rows);
+    let table = all.iter_mut().find(|n| n.nid == (0x403 << 5) | 0x0E).unwrap();
+    table.data = Data::Blocks(blocks);
+    table.subnodes = subs;
+    let props: Vec<(u16, writer::Value)> = (0..8000u16).map(|i| (0x8000 + i, writer::boolean(true))).collect();
+    let mut spill = Spill::new();
+    let message = all.iter_mut().find(|n| n.nid & 0x1F == 4).unwrap();
+    let item = Nid(message.nid);
+    message.data = Data::Blocks(pc(&spec.layout, &props, &mut spill));
+    message.subnodes = spill.subnodes;
+    let bytes = raw(&spec.layout, &all);
+    assert!(bytes.len() < 1_500_000, "{}", bytes.len());
+
+    // A walk of the folders.
+    let budget = 64 * 1024;
+    let mut pst = open(&bytes, Limits { max_listing_bytes: budget, ..Default::default() });
+    let tree = pst.walk_folders().unwrap();
+    let kept: usize = tree
+        .folders
+        .iter()
+        .map(|f| size_of::<crate::FolderEntry>() + f.folder.name.capacity() + kept_text(&f.folder.container_class) + kept_props(&f.folder.properties))
+        .sum::<usize>()
+        + tree.left_out.len() * size_of::<crate::LeftOut>();
+    assert!(kept <= budget as usize, "{kept}");
+    assert!(tree.left_out.iter().any(|l| l.reason == Error::Cap(Cap::ListingSize)));
+
+    // A listing of items.
+    let inbox = Nid((0x403 << 5) | 2);
+    let budget = 256 * 1024;
+    let mut pst = open(&bytes, Limits { max_listing_bytes: budget, ..Default::default() });
+    let list = pst.items(inbox).unwrap();
+    let kept: usize = list.items.iter().map(|i| size_of::<crate::ItemSummary>() + kept_text(&i.class) + kept_props(&i.properties)).sum::<usize>()
+        + list.left_out.len() * size_of::<crate::LeftOut>();
+    assert!(kept <= budget as usize, "{kept}");
+    assert!(list.past_cap > 0 && list.items.len() + list.past_cap == 2000);
+
+    // A message: what it keeps is far more than what it reads, and is refused past the cap.
+    let mut pst = open(&bytes, Limits::default());
+    let m = pst.message(&MessageRef::item(item)).unwrap();
+    let kept = size_of::<crate::Message>() + kept_text(&m.class) + kept_props(&m.properties);
+    let budget = 128 * 1024;
+    assert!(kept > budget as usize, "{kept}");
+    let mut pst = open(&bytes, Limits { max_item_bytes: budget, ..Default::default() });
+    assert_eq!(pst.message(&MessageRef::item(item)).err(), Some(Error::Cap(Cap::ItemSize)));
 }

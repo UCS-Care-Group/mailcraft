@@ -38,6 +38,17 @@ impl Budget {
         self.left = self.left.checked_sub(n).ok_or(Error::Cap(self.cap))?;
         Ok(())
     }
+
+    /// Charges what is kept of a value or a structure: refused past what is left.
+    pub(crate) fn keep(&mut self, n: usize) -> Result<()> {
+        self.take(n as u64)
+    }
+
+    /// Charges what is kept of a note of something left out: never refused (each is one per
+    /// part already charged, so they are bounded), but what is left goes down.
+    pub(crate) fn note(&mut self, n: usize) {
+        self.left = self.left.saturating_sub(n as u64);
+    }
 }
 
 impl NodeData {
@@ -92,11 +103,12 @@ impl NodeData {
 }
 
 /// A value that failed to read becomes [`PropValue::Damaged`] with its reason, so that one
-/// damaged property doesn't cost the rest; a cap is passed on.
+/// damaged property doesn't cost the rest; a cap, or the reader under the file failing, is
+/// passed on.
 fn salvage(ty: u16, r: Result<PropValue>) -> Result<PropValue> {
     match r {
         Ok(v) => Ok(v),
-        Err(e @ Error::Cap(_)) => Err(e),
+        Err(e @ (Error::Cap(_) | Error::Io(_))) => Err(e),
         Err(reason) => Ok(PropValue::Damaged { ty, reason }),
     }
 }
@@ -140,7 +152,9 @@ pub(crate) fn pc_properties<R: Read + Seek>(ndb: &mut Ndb<R>, node: &NodeData, b
         } else {
             pc_value(ndb, node, ty, raw, budget)?
         };
-        out.push(Property { id, ty, value });
+        let p = Property { id, ty, value };
+        budget.keep(p.kept() as usize)?;
+        out.push(p);
     }
     out.sort_by_key(|p| p.id);
     Ok(Properties(out))
@@ -299,7 +313,9 @@ impl Table {
                 }
                 None => PropValue::Unknown { ty: col.ty, data: cell.to_vec() },
             };
-            out.push(Property { id: col.id, ty: col.ty, value });
+            let p = Property { id: col.id, ty: col.ty, value };
+            budget.keep(p.kept() as usize)?;
+            out.push(p);
         }
         out.sort_by_key(|p| p.id);
         Ok(Properties(out))

@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Seek};
+use std::mem::size_of;
 
 use crate::crc::crc32;
 use crate::crypt::Encryption;
@@ -186,10 +187,11 @@ pub struct ItemSummary {
 pub struct ItemList {
     pub items: Vec<ItemSummary>,
     /// Items whose row, or a property of it, could not be read (listed all the same); and,
-    /// once, the folder itself when items were past [`Limits::max_items`].
+    /// once each, the folder itself when items were past [`Limits::max_items`] or past the
+    /// listing's budget ([`Limits::max_listing_bytes`]).
     pub left_out: Vec<LeftOut>,
-    /// How many items were past [`Limits::max_items`] (counted across the folders listed so
-    /// far): not listed.
+    /// How many items were not listed: past [`Limits::max_items`] (counted across the
+    /// folders listed so far), or past the listing's budget.
     pub past_cap: usize,
 }
 
@@ -550,33 +552,61 @@ impl<R: Read + Seek> Pst<R> {
         let mut scheduled = 1usize;
         let mut stack = vec![(Nid(NID_ROOT_FOLDER), None::<Nid>, 0usize, false)];
         while let Some((id, parent, depth, under_ipm)) = stack.pop() {
+            // What this folder adds to what is kept: its notes of what was left out too.
+            let noted = tree.left_out.len();
+            self.walk_one(&mut tree, &mut stack, &mut seen, &mut scheduled, &mut budget, (id, parent, depth, under_ipm), ipm, &limits);
+            budget.note(tree.left_out.len().saturating_sub(noted).saturating_mul(size_of::<LeftOut>()));
+        }
+        Ok(tree)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn walk_one(
+        &mut self,
+        tree: &mut FolderTree,
+        stack: &mut Vec<(Nid, Option<Nid>, usize, bool)>,
+        seen: &mut HashSet<Nid>,
+        scheduled: &mut usize,
+        budget: &mut Budget,
+        (id, parent, depth, under_ipm): (Nid, Option<Nid>, usize, bool),
+        ipm: Option<Nid>,
+        limits: &Limits,
+    ) {
+        {
             if !seen.insert(id) {
                 tree.left_out.push(LeftOut::new(id, parent, Error::Cycle("the folder hierarchy")));
-                continue;
+                return;
             }
             if depth > limits.max_folder_depth {
                 tree.left_out.push(LeftOut::new(id, parent, Error::Cap(Cap::FolderDepth)));
-                continue;
+                return;
             }
-            let folder = match self.folder_in(id, &mut budget) {
+            let folder = match self.folder_in(id, budget) {
                 Ok(f) => f,
                 Err(reason) => {
                     tree.left_out.push(LeftOut::new(id, parent, reason));
-                    continue;
+                    return;
                 }
             };
+            let kept = size_of::<FolderEntry>()
+                .saturating_add(folder.name.capacity())
+                .saturating_add(folder.container_class.as_ref().map_or(0, String::capacity));
+            if let Err(reason) = budget.keep(kept) {
+                tree.left_out.push(LeftOut::new(id, parent, reason));
+                return;
+            }
             tree.left_out.extend(LeftOut::damaged(id, parent, &folder.properties));
             let in_ipm = under_ipm || Some(id) == ipm;
-            let children = if id.kind() == SEARCH_FOLDER { Ok(Vec::new()) } else { self.subfolders_in(id, &mut budget) };
+            let children = if id.kind() == SEARCH_FOLDER { Ok(Vec::new()) } else { self.subfolders_in(id, budget) };
             tree.folders.push(FolderEntry { folder, depth, in_ipm_subtree: in_ipm });
             match children {
                 Ok(children) => {
-                    let room = limits.max_folders.saturating_sub(scheduled);
+                    let room = limits.max_folders.saturating_sub(*scheduled);
                     if children.len() > room {
                         tree.left_out.push(LeftOut::new(id, parent, Error::Cap(Cap::Folders)));
                     }
                     let take: Vec<Nid> = children.into_iter().take(room).collect();
-                    scheduled = scheduled.saturating_add(take.len());
+                    *scheduled = scheduled.saturating_add(take.len());
                     for child in take.into_iter().rev() {
                         stack.push((child, Some(id), depth.saturating_add(1), in_ipm));
                     }
@@ -584,7 +614,6 @@ impl<R: Read + Seek> Pst<R> {
                 Err(reason) => tree.left_out.push(LeftOut::new(id, parent, reason)),
             }
         }
-        Ok(tree)
     }
 
     /// The items of a folder (its contents table), in the table's order: all of the listing
@@ -617,7 +646,7 @@ impl<R: Read + Seek> Pst<R> {
             Some(&n) => n,
             None => self.ndb.limits.max_items.saturating_sub(self.listed_total),
         };
-        let past_cap = rows.len().saturating_sub(room);
+        let mut past_cap = rows.len().saturating_sub(room);
         let mut left_out = Vec::new();
         if past_cap > 0 {
             left_out.push(LeftOut::new(folder, None, Error::Cap(Cap::Items)));
@@ -627,18 +656,34 @@ impl<R: Read + Seek> Pst<R> {
             e.insert(rows.len());
             self.listed_total = self.listed_total.saturating_add(rows.len());
         }
-        let mut items = Vec::with_capacity(rows.len());
-        for (rowid, index) in rows {
+        let total = rows.len();
+        let mut items = Vec::new();
+        for (n, (rowid, index)) in rows.into_iter().enumerate() {
             let id = Nid(rowid);
+            let noted = left_out.len();
             let properties = match table.row(&mut self.ndb, rowid, index, &mut budget) {
-                Ok(p) => p,
+                Ok(p) => Some(p),
+                Err(Error::Cap(Cap::ListingSize)) => None,
                 Err(reason) => {
                     left_out.push(LeftOut::new(id, Some(folder), reason));
-                    Properties::default()
+                    Some(Properties::default())
                 }
             };
-            left_out.extend(LeftOut::damaged(id, Some(folder), &properties));
-            items.push(ItemSummary { id, class: properties.text(0x001A), properties });
+            let item = properties.map(|properties| {
+                left_out.extend(LeftOut::damaged(id, Some(folder), &properties));
+                ItemSummary { id, class: properties.text(0x001A), properties }
+            });
+            budget.note(left_out.len().saturating_sub(noted).saturating_mul(size_of::<LeftOut>()));
+            let kept = item.as_ref().map(|i| size_of::<ItemSummary>().saturating_add(i.class.as_ref().map_or(0, String::capacity)));
+            match (item, kept.map(|k| budget.keep(k))) {
+                (Some(item), Some(Ok(()))) => items.push(item),
+                // The budget is spent: the rest are counted, and the folder named once.
+                _ => {
+                    left_out.push(LeftOut::new(folder, None, Error::Cap(Cap::ListingSize)));
+                    past_cap = past_cap.saturating_add(total.saturating_sub(n));
+                    break;
+                }
+            }
         }
         Ok(ItemList { items, left_out, past_cap })
     }
@@ -671,10 +716,12 @@ impl<R: Read + Seek> Pst<R> {
     /// than [`Limits::max_inline_value`] come back as [`PropValue::Large`]; what could not be
     /// read is named in `left_out`.
     ///
-    /// An item and the messages attached to it share one budget: reading the item (a call
-    /// with an empty path) starts it at [`Limits::max_item_bytes`], and the messages attached
-    /// to it, read after it, take from what is left, as many as
-    /// [`Limits::max_embedded_messages`]. So the whole of an item's tree is within the cap.
+    /// An item and the messages attached to it share one budget, for what is read and what
+    /// is kept: reading the item (a call with an empty path) starts it at
+    /// [`Limits::max_item_bytes`], and the messages attached to it, read straight after it,
+    /// take from what is left, as many as [`Limits::max_embedded_messages`]. So the whole of
+    /// an item's tree is within the cap. Reading another item in between starts the budget
+    /// for that one: an import reads an item and its attached messages together.
     pub fn message(&mut self, id: &MessageRef) -> Result<Message> {
         self.gate()?;
         let limits = self.ndb.limits.clone();
@@ -729,6 +776,7 @@ impl<R: Read + Seek> Pst<R> {
                     for (rowid, index) in rows {
                         match table.row(&mut self.ndb, rowid, index, budget) {
                             Ok(properties) => {
+                                budget.keep(size_of::<Recipient>())?;
                                 let row = index;
                                 left_out.extend(
                                     properties
@@ -765,15 +813,14 @@ impl<R: Read + Seek> Pst<R> {
                         });
                         rows.truncate(limits.max_attachments);
                     }
-                    let mut seen = HashSet::new();
+                    // Row ids are unique: the row index's keys strictly increase (bth::read).
                     for (rowid, _) in rows {
                         let att = Nid(rowid);
-                        if !seen.insert(rowid) {
-                            left_out.push(LeftOutPart { part: Part::Attachment { id: att }, reason: Error::Cycle("an attachment listed twice") });
-                            continue;
-                        }
                         match self.attachment_from(&node, id, &chain, att, budget) {
                             Ok(a) => {
+                                let strings =
+                                    [&a.file_name, &a.mime_type, &a.content_id].iter().map(|s| s.as_ref().map_or(0, String::capacity)).sum::<usize>();
+                                budget.keep(size_of::<Attachment>().saturating_add(strings))?;
                                 left_out.extend(a.properties.damaged().map(|(p, reason)| LeftOutPart {
                                     part: Part::AttachmentProperty { attachment: att, id: p },
                                     reason: reason.clone(),
@@ -790,7 +837,10 @@ impl<R: Read + Seek> Pst<R> {
             }
         }
 
-        Ok(Message { id: id.clone(), class: properties.text(0x001A), properties, recipients, attachments, left_out })
+        budget.note(left_out.len().saturating_mul(size_of::<LeftOutPart>()));
+        let class = properties.text(0x001A);
+        budget.keep(size_of::<Message>().saturating_add(class.as_ref().map_or(0, String::capacity)))?;
+        Ok(Message { id: id.clone(), class, properties, recipients, attachments, left_out })
     }
 
     fn attachment_from(&mut self, message: &NodeData, id: &MessageRef, chain: &[(u64, u64)], att: Nid, budget: &mut Budget) -> Result<Attachment> {

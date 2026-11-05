@@ -37,13 +37,14 @@ impl<R: Read + Seek> Source<R> {
         if len > MAX_READ {
             return Err(Error::Corrupt("a read larger than a block"));
         }
-        let end = offset.checked_add(len as u64).ok_or(Error::OutOfBounds)?;
-        if end > self.size {
-            return Err(Error::OutOfBounds);
-        }
+        // Counted before it is checked, so that reads past the end aren't free either.
         self.read = self.read.saturating_add(len as u64);
         if self.read > self.allowed {
             return Err(Error::Cap(Cap::TotalRead));
+        }
+        let end = offset.checked_add(len as u64).ok_or(Error::OutOfBounds)?;
+        if end > self.size {
+            return Err(Error::OutOfBounds);
         }
         self.inner.seek(SeekFrom::Start(offset))?;
         let mut buf = vec![0u8; len];
