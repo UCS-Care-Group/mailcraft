@@ -22,6 +22,7 @@ log = { workspace = true }
 # the crates that already read both, and written as the model's own events and contacts.
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
+mailcraft-dav = { workspace = true }
 rustls = { workspace = true }
 rustls-platform-verifier = { workspace = true }
 # A picture that a web server sends packed although nobody asked it to (`Content-Encoding: gzip`)

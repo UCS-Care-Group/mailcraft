@@ -1405,11 +1405,18 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
         let proposes = change.kind == EventChangeKind::Respond && change.send && matches!(change.response, Response::Tentative | Response::Declined);
+        let etag = change
+            .base
+            .as_deref()
+            .map(|base| base.origin.change_key.clone())
+            .or_else(|| event.map(|event| event.origin.change_key.clone()))
+            .unwrap_or_default();
         ops.push(EventOp {
             kind: change.kind,
             event: change.event,
             remote: change.remote.clone(),
             token: change.token.clone(),
+            etag,
             fields,
             series: if change.of_occurrence() { change.series.clone() } else { String::new() },
             occurrence: if change.of_occurrence() { change.occurrence } else { 0 },
@@ -3613,6 +3620,7 @@ pub fn contact_upload(s: &Session, account: Id) -> Option<ContactsUpload> {
             remote: change.remote.clone(),
             uid: change.uid.clone(),
             card: change.card.clone(),
+            etag: change.etag.clone(),
             token: change.token.clone(),
         })
         .collect();
@@ -3638,6 +3646,7 @@ pub fn contact_upload(s: &Session, account: Id) -> Option<ContactsUpload> {
             remote: String::new(),
             uid: uid.clone(),
             card: text,
+            etag: String::new(),
             token: uid,
         });
     }
@@ -3669,6 +3678,7 @@ pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: Cont
             remote: contact.origin.id.clone(),
             uid: contact.uid.clone(),
             card: String::new(),
+            etag: contact.origin.change_key.clone(),
             name: contact.name(),
             token,
         });
@@ -3686,6 +3696,7 @@ pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: Cont
             remote: contact.origin.id.clone(),
             uid: card.uid.clone(),
             card: card_text,
+            etag: contact.origin.change_key.clone(),
             name: contact.name(),
             token,
         });
@@ -3709,7 +3720,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
         let remote = resource_key(address);
         // Done and Gone are settled. A refusal is settled too: asking again would meet the same
         // permission, and dropping the note lets the next read put back what the server has.
-        let settled = matches!(outcome.result, EventResult::Done | EventResult::Gone | EventResult::Denied);
+        let settled = matches!(outcome.result, EventResult::Done | EventResult::Gone | EventResult::Denied | EventResult::Refused);
         match outcome.op.kind {
             ContactChangeKind::Delete if settled => {
                 s.mailbox.contact_changes.retain(|change| {
@@ -3718,7 +3729,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
                         && resource_key(&change.remote) == remote
                         && settles(change, &outcome.op.token))
                 });
-                saved += usize::from(outcome.result != EventResult::Denied);
+                saved += usize::from(!matches!(outcome.result, EventResult::Denied | EventResult::Refused));
             }
             ContactChangeKind::Update if settled => {
                 s.mailbox.contact_changes.retain(|change| {
@@ -3765,6 +3776,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
                             remote: address.to_string(),
                             uid,
                             card,
+                            etag: String::new(),
                             name,
                             token: new_token(outcome.op.contact, s.rev() ^ s.now().unsigned_abs().rotate_left(56)),
                         });
@@ -3785,6 +3797,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
                                 remote: address.to_string(),
                                 uid: outcome.op.uid.clone(),
                                 card: String::new(),
+                                etag: String::new(),
                                 name: String::new(),
                                 token: new_token(outcome.op.contact, s.rev() ^ s.now().unsigned_abs().rotate_left(48)),
                             });

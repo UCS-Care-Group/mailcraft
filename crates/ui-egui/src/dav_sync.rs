@@ -215,7 +215,7 @@ impl MailApp {
             // A refused or vanished card is settled by dropping its queued change. Read the
             // server again at once so its copy replaces a local edit, or comes back after a
             // deletion the server did not make.
-            if uploaded.outcomes.iter().any(|outcome| matches!(outcome.result, EventResult::Denied | EventResult::Gone)) {
+            if uploaded.outcomes.iter().any(|outcome| matches!(outcome.result, EventResult::Denied | EventResult::Gone | EventResult::Refused)) {
                 self.dav.requested.insert(account);
             }
         }

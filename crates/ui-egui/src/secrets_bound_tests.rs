@@ -105,6 +105,37 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
 }
 
 #[test]
+fn adding_dav_moves_the_remembered_password_to_the_new_name() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    let before = a.session.mailbox.account(id).unwrap().clone();
+    let old = MailApp::secret_key("password", &before);
+    store.set(&old, "pw").unwrap();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
+
+    a.execute(
+        "account.edit",
+        json!({
+            "id": id,
+            "dav": {
+                "caldav": "https://mail.example.org/caldav/",
+                "carddav": "https://mail.example.org/carddav/"
+            }
+        }),
+    )
+    .unwrap();
+
+    let after = a.session.mailbox.account(id).unwrap().clone();
+    let new = MailApp::secret_key("password", &after);
+    assert_ne!(old, new);
+    assert_eq!(store.get(&new).as_deref(), Some("pw"));
+    assert!(store.get(&old).is_none(), "the old name goes when the secret is moved");
+    assert_eq!(a.remembered("password", &after.email).as_deref(), Some("pw"));
+}
+
+#[test]
 fn undo_of_a_server_change_drops_what_was_typed_for_the_new_one() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);

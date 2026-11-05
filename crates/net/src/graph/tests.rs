@@ -1276,6 +1276,7 @@ proptest! {
             event: 7,
             remote: if flags.0 { remote.clone() } else { String::new() },
             token: mark.clone(),
+            etag: String::new(),
             fields: EventFields {
                 title: Some(title.clone()),
                 time: Some(EventTime { start, end, all_day }),

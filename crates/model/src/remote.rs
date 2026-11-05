@@ -501,6 +501,10 @@ pub struct ContactOp {
     pub remote: String,
     pub uid: String,
     pub card: String,
+    /// The server's `ETag` for the card this edit was made from. A change is sent only if the
+    /// server still has that version.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub etag: String,
     /// The generation of the change this was made from: an answer settles only that one, so an
     /// older answer cannot clear a newer edit of the same card.
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -520,6 +524,9 @@ pub struct ContactChange {
     pub remote: String,
     pub uid: String,
     pub card: String,
+    /// The server's `ETag` for the card this change was made from; empty for a creation.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub etag: String,
     /// The contact's name when it was changed, for a line to the owner.
     pub name: String,
     /// The generation of this change; an answer names the one it settles.
@@ -928,6 +935,9 @@ pub struct EventOp {
     /// The mark a new event is made with ([`EventChange::token`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub token: String,
+    /// The server's `ETag` for the event this change was made from; empty for a creation.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub etag: String,
     /// A new event whole, or what changed of one the server has; nothing for a deletion.
     pub fields: EventFields,
     /// For one occurrence of a series that has no name of its own here ([`EventChange::series`]):
@@ -965,6 +975,7 @@ impl EventOp {
     pub fn tidy(&mut self) {
         self.remote = key(&self.remote);
         self.token = mark(&self.token);
+        self.etag = key(&self.etag);
         self.series = key(&self.series);
         self.calendar = key(&self.calendar);
         self.comment = text(&self.comment, MAX_COMMENT);
