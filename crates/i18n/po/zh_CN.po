@@ -5853,6 +5853,11 @@ msgstr "高重要性"
 msgid "High on top"
 msgstr "高重要性在上"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
