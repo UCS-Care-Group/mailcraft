@@ -155,7 +155,7 @@ fn cmd_layers() -> Result<(), String> {
 /// the egui shell.
 fn wasm_set() -> Result<Vec<String>, String> {
     let crates = layers::from_metadata(&metadata()?)?;
-    Ok(crates
+    let mut set: Vec<String> = crates
         .into_iter()
         .filter(|c| match layers::classify(&c.name) {
             Some(layers::Class::Layer(l)) => l <= 5 || layers::short_name(&c.name) == "ui-egui",
@@ -163,7 +163,10 @@ fn wasm_set() -> Result<Vec<String>, String> {
             _ => false,
         })
         .map(|c| c.name)
-        .collect())
+        .collect();
+    // The browser app too: a crate that builds is not the page that uses it.
+    set.push("mailcraft-web".to_string());
+    Ok(set)
 }
 
 fn cmd_wasm() -> Result<(), String> {
