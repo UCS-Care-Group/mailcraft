@@ -337,6 +337,10 @@ fn a_link_written_as_a_block_is_a_button_as_wide_as_its_line() {
     assert_eq!(dump(r#"<span style="display:block;border:1px solid #cccccc;padding:4px">note</span>"#), ["layout+outline w=100%[(p|note)]"]);
     // Without a look of its own, a block link is a link as before; so is one in a heading or hidden.
     assert_eq!(dump(r#"<a href="https://example.org" style="display:block">plain</a>"#), ["p|[:plain→https://example.org]"]);
+    // The whole line (`width:100%`) is a look, though a box on a line asks for nothing by it: a
+    // button written so and nothing else takes a line of its own, with its words where it puts them.
+    let wide = r#"<a href="https://example.org" style="display:block;width:100%;text-align:center">wide</a>"#;
+    assert_eq!(dump(&format!("before {wide} after")), ["p|before", "p.c|[:wide→https://example.org]", "p|after"]);
     assert_eq!(dump(r#"<h2><a href="https://example.org" style="display:block;background:#000">head</a></h2>"#).len(), 1);
     assert_eq!(dump(r#"<a href="https://example.org" style="display:block;background:#000;visibility:hidden">x</a>y"#), ["p|y"]);
     // Its end tag doubled, another link opened inside it, or its cell ended first: it ends, and

@@ -661,6 +661,7 @@ fn what_column_builders_write_keeps_its_boxes() {
         "<table><tr><td>".repeat(15) + "<table><tr>",
         "</tr></table>".to_string() + &"</td></tr></table>".repeat(15)
     );
+    /// Whether a box on a line is among `blocks`, at any depth of tables.
     fn find_box(blocks: &[Block]) -> bool {
         blocks.iter().any(|b| match &b.kind {
             BlockKind::Table(t) => t.inline || t.rows.iter().flat_map(|r| &r.cells).any(|c| find_box(&c.blocks)),

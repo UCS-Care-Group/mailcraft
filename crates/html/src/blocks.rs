@@ -2038,15 +2038,17 @@ impl Builder {
     }
 
     /// A link or a span that asks to be a block (`display: block`) and has a look of its own (a
-    /// background, a frame, padding or a width): a block as wide as its line, as a button written
-    /// so is drawn, with `delta` (the link it opens) over what is in it. Whether it was opened as
-    /// one; when it isn't, the element is opened inline as before. Its end tag is
+    /// background, a frame, padding or a width, the whole line too: `width: 100%` on a link is
+    /// what a button written so asks for, though a block has it anyway): a block as wide as its
+    /// line, as such a button is drawn, with `delta` (the link it opens) over what is in it. Whether
+    /// it was opened as one; when it isn't, the element is opened inline as before. Its end tag is
     /// [`Builder::end_block_box`].
     fn open_block_box(&mut self, name: &'static str, tag: &Tag<'_>, delta: &Delta) -> bool {
         let css = css_of(tag);
         // (While an inline element's end tag is owed to the overflow count, a link or a span is
         // opened inline, so that its end tag is counted the same way and nothing stays open.)
-        if !css.block || !has_box_look(&css) || left_out(tag, &css) || self.hidden > 0 || self.inline_overflow > 0 {
+        let look = has_box_look(&css) || line_box_width(&css).is_some();
+        if !css.block || !look || left_out(tag, &css) || self.hidden > 0 || self.inline_overflow > 0 {
             return false;
         }
         // (A list item's marker, a heading and preformatted text are kept as they are.)
