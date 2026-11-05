@@ -128,6 +128,8 @@ pub mod writing_tools;
 #[cfg(test)]
 mod writing_tools_tests;
 #[cfg(test)]
+mod written_quote_tests;
+#[cfg(test)]
 mod zone_tests;
 pub mod zones;
 

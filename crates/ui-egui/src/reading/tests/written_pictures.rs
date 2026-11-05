@@ -131,3 +131,46 @@ fn a_message_of_pictures_alone_shows_them_rather_than_its_text() {
         assert!(!laid.items.iter().any(|i| super::text_of(i).contains("HTML version")));
     });
 }
+
+/// #602: under a reply, a reply to all and a forward, the original quoted in the message being
+/// written still shows the pictures written into it, and the one attached to it (`cid:`) beside
+/// them; nothing is fetched for either.
+#[test]
+fn the_original_under_a_reply_or_forward_still_shows_its_written_pictures() {
+    use super::{MailApp, NOW, Place, Services, window};
+    for command in ["mail.reply", "mail.replyAll", "mail.forward"] {
+        let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+        app.autosave = false;
+        let (account, inbox) = (app.session.mailbox.accounts[0].id, app.session.mailbox.inbox().unwrap());
+        let logo = mailcraft_model::Attachment {
+            content_id: "logo@example.org".into(),
+            inline: true,
+            ..mailcraft_model::Attachment::new("logo.png", "image/png", png(20, 20))
+        };
+        let html = format!(
+            "<html><body><p>The figures:</p><img src=\"{}\" alt=\"Chart\"><img src=\"{}\" alt=\"Map\">\
+             <img src=\"cid:logo@example.org\"><p>Regards, Rowan</p></body></html>",
+            data_png(64, 40),
+            data_png(32, 32)
+        );
+        let m = mailcraft_model::Message {
+            account,
+            folder: inbox,
+            message_id: "q3@example.org".into(),
+            from: mailcraft_model::Address::new("Rowan Ash", "rowan@example.org"),
+            subject: "Quarter figures".into(),
+            body: mailcraft_model::Body { text: "The figures.".into(), html: Some(html) },
+            attachments: vec![logo],
+            ..Default::default()
+        };
+        let id = app.session.mailbox.add_message(m).unwrap();
+        app.execute("mail.select", serde_json::json!({"id": id})).unwrap();
+        app.execute(command, serde_json::json!({"id": id})).unwrap();
+        let mut harness = window(app, (1280.0, 900.0));
+        harness.run_steps(6);
+        let stats = super::super::view::kept_at(&harness.ctx, Place::Quote, id, |laid, _| {
+            (laid.done, laid.stats.pictures, laid.stats.placeholders, laid.stats.remote)
+        });
+        assert_eq!(stats, Some((true, 3, 0, 0)), "{command}");
+    }
+}

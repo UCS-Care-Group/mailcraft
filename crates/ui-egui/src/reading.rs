@@ -330,17 +330,21 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let key = egui::Id::unique("mailcraft-compose-quote");
     let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
-    let pictures = if quote.pictures.is_empty() { &c.attachments } else { &quote.pictures };
+    // The quote's own pictures (those the original showed, for an answer; those written into it,
+    // #602), then the message's attachments: a forward carries the original's itself, its
+    // pictures among them.
+    let pictures = || quote.pictures.iter().chain(&c.attachments);
     let same = |m: &Arc<Message>| {
-        m.body.html.as_deref() == Some(quote.html.as_str()) && m.id == source.map_or(0, |s| s.id) && m.attachments.len() == pictures.len()
+        m.body.html.as_deref() == Some(quote.html.as_str())
+            && m.id == source.map_or(0, |s| s.id)
+            && m.attachments.len() == quote.pictures.len().saturating_add(c.attachments.len())
     };
     if let Some(m) = kept.filter(same) {
         return Some(m);
     }
     let mut m = source.map(|s| (**s).clone()).unwrap_or_default();
     m.body = mailcraft_model::Body { text: quote.text.clone(), html: Some(quote.html.clone()) };
-    // A forward carries the original's attachments itself, its pictures among them.
-    m.attachments = pictures.clone();
+    m.attachments = pictures().cloned().collect();
     // Its body is the quote's, whole: nothing of it waits on disk.
     m.kept = None;
     let m = Arc::new(m);
