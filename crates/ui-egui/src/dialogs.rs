@@ -1304,7 +1304,8 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
         .registry
         .all()
         .iter()
-        // Commands only scripts use stay out of the list people search.
+        // Commands only scripts use stay out of the list people search, and so does Align Text,
+        // which the list would run with no way to say which way to align.
         .filter(|c| {
             !matches!(
                 c.id,
@@ -1320,6 +1321,7 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
                     | "sync.eventChanges"
                     | "sync.applyEventChanges"
                     | "compose.set"
+                    | "format.align"
                     | "compose.suggest"
                     | "view.searchSuggestions"
                     | "account.preset"

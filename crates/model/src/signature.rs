@@ -24,7 +24,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::ModelError;
-use crate::rich::{Paragraph, RichText, Run, Style, safe_link};
+use crate::rich::{Align, Paragraph, RichText, Run, Style, safe_link};
 
 /// Most bytes one picture may have.
 pub const MAX_PICTURE_BYTES: usize = 256 * 1024;
@@ -206,7 +206,8 @@ fn tel(number: &str) -> Option<String> {
 
 /// A fingerprint of a text that stays the same from one version of the program to the next
 /// (FNV-1a over its paragraphs, runs and their formatting, written out), for telling whether the
-/// owner has edited what the details made.
+/// owner has edited what the details made. A paragraph's alignment counts only when it isn't
+/// left, so a text from before alignment keeps the fingerprint it was stored with.
 pub fn text_hash(text: &RichText) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325_u64;
     let mut eat = |part: &str| {
@@ -216,6 +217,9 @@ pub fn text_hash(text: &RichText) -> u64 {
     };
     for p in text.paragraphs() {
         eat(&format!("p{:?}{}", p.list, p.level));
+        if p.align != Align::Left {
+            eat(&format!("a{:?}", p.align));
+        }
         for r in &p.runs {
             let st = &r.style;
             eat(&r.text);
@@ -497,12 +501,8 @@ impl Signature {
         if self.picture(id).is_none() {
             return Err(ModelError::Invalid(format!("no picture {id} in this signature")));
         }
-        let paragraphs = self
-            .body
-            .paragraphs()
-            .iter()
-            .map(|p| Paragraph::new(p.runs.iter().filter(|r| r.picture != Some(id)).cloned().collect(), p.list).at_level(p.level))
-            .collect();
+        let paragraphs =
+            self.body.paragraphs().iter().map(|p| p.with_runs(p.runs.iter().filter(|r| r.picture != Some(id)).cloned().collect())).collect();
         self.body = RichText::from_paragraphs(paragraphs);
         self.tidy();
         Ok(())
@@ -517,10 +517,7 @@ impl Signature {
                 .body
                 .paragraphs()
                 .iter()
-                .map(|p| {
-                    let runs = p.runs.iter().filter(|r| r.picture.is_none_or(|id| held.contains(&id))).cloned().collect();
-                    Paragraph::new(runs, p.list).at_level(p.level)
-                })
+                .map(|p| p.with_runs(p.runs.iter().filter(|r| r.picture.is_none_or(|id| held.contains(&id))).cloned().collect()))
                 .collect();
             self.body = RichText::from_paragraphs(paragraphs);
         }
