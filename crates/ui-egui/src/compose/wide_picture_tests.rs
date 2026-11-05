@@ -108,7 +108,8 @@ fn a_picture_after_text_that_wraps_starts_its_own_row_at_the_left_margin() {
 #[test]
 fn a_picture_right_after_a_word_that_wraps_starts_its_own_row_too() {
     let ctx = ctx();
-    // Narrow enough to go down with "there", or just too wide for that, whatever the font.
+    // Narrow enough to go after "there" on a row of their own, or just too wide for that, whatever
+    // the font.
     let there = text_width(&ctx, "there");
     let (with_word, alone) = ((400.0 - there - 20.0) as u16, (400.0 - there + 20.0) as u16);
     for own in [with_word, alone, 400, 1200] {
@@ -117,12 +118,10 @@ fn a_picture_right_after_a_word_that_wraps_starts_its_own_row_too() {
             let b = p.pictures.first().expect("laid out");
             assert_inside(b, 400.0);
             assert!(b.rect.min.y >= char_at(&p, 0).max.y - 0.5, "{own} {after:?}: {:?}", b.rect);
-            // The narrow one goes down with "there", and fits after it; wider ones go by themselves.
-            if own == with_word {
-                assert!(b.rect.min.x > 30.0, "{own} {after:?}: {:?}", b.rect);
-            } else {
-                assert!(b.rect.min.x < 0.5, "{own} {after:?}: {:?}", b.rect);
-            }
+            // The line breaks before the picture, as by a picture in Word, so even the narrow one
+            // goes down by itself and "there" stays on the first row.
+            assert!(b.rect.min.x < 0.5, "{own} {after:?}: {:?}", b.rect);
+            assert!(char_at(&p, 6).max.y <= b.rect.min.y + 0.5, "{own} {after:?}: {:?}", char_at(&p, 6));
             if !after.is_empty() {
                 let next = char_at(&p, 12);
                 assert!(next.min.x >= b.rect.max.x - 0.5 || next.min.y >= b.rect.max.y - 0.5, "{own} {after:?}: {next:?} over {:?}", b.rect);
@@ -331,4 +330,77 @@ fn a_signature_picture_wider_than_its_body_is_drawn_inside_it() {
     h.run_steps(4);
     let id = Which::Signature.id(h.state());
     assert_eq!(assert_drawn_inside(&h, id), 1);
+}
+
+/// Every picture of `p` drawn from the left margin on and within `room` (each is shown at most
+/// `room` wide), and no two drawn over each other.
+fn assert_all_inside(p: &Para, room: f32, what: &str) {
+    for (i, b) in p.pictures.iter().enumerate() {
+        assert!(b.rect.min.x >= -0.01, "{what}: picture {i} left of the margin: {:?}", b.rect);
+        assert!(b.rect.max.x <= room + 0.5, "{what}: picture {i} past the right edge of {room}: {:?}", b.rect);
+        for (j, c) in p.pictures.iter().enumerate().skip(i + 1) {
+            assert!(!b.rect.shrink(0.5).intersects(c.rect.shrink(0.5)), "{what}: pictures {i} and {j} overlap: {:?} {:?}", b.rect, c.rect);
+        }
+    }
+}
+
+#[test]
+fn two_pictures_side_by_side_with_no_space_between_them_stay_inside_the_body() {
+    let ctx = ctx();
+    let pictures = [picture(1, 260), picture(2, 90), picture(3, 150), picture(4, 260)];
+    let cases = [
+        (331.0, vec![Run::plain("word "), pic(1), pic(2), Run::plain("longer ")]),
+        (278.0, vec![Run::plain(" "), pic(1), pic(3), Run::plain(" ")]),
+        (316.0, vec![Run::plain("x"), Run::plain("word "), pic(1), pic(4)]),
+    ];
+    for (width, runs) in cases {
+        let p = laid(&ctx, &para(runs), &pictures, width);
+        assert_eq!(p.pictures.len(), 2);
+        assert_all_inside(&p, width, &format!("{width}"));
+        // The second picture does not fit after the first, so it starts a row of its own.
+        let [a, b] = [&p.pictures[0], &p.pictures[1]];
+        assert!(b.rect.min.x < 0.5 && b.rect.min.y >= a.rect.max.y - 0.5, "{width}: {:?} {:?}", a.rect, b.rect);
+    }
+}
+
+/// A small random number generator with a fixed seed, so that the paragraphs below are the same
+/// at every run.
+struct Dice(u64);
+
+impl Dice {
+    fn below(&mut self, n: u64) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0 % n.max(1)
+    }
+}
+
+#[test]
+fn pictures_among_words_in_bodies_of_any_width_are_drawn_inside_them() {
+    let ctx = ctx();
+    let mut dice = Dice(0x5EED_0792_0796);
+    let pictures: Vec<Picture> = (1..=6).map(|id| picture(id, 0)).collect();
+    for n in 0..1500 {
+        let width = 100.0 + dice.below(401) as f32;
+        let mut pictures = pictures.clone();
+        let mut runs = Vec::new();
+        for _ in 0..1 + dice.below(8) {
+            match dice.below(5) {
+                0 | 1 => {
+                    let id = 1 + dice.below(6) as u32;
+                    if let Some(x) = pictures.get_mut(id as usize - 1) {
+                        x.width = Some(8 + dice.below(600) as u16);
+                    }
+                    runs.push(pic(id));
+                }
+                k => {
+                    let word: String = (0..1 + dice.below(9)).map(|_| char::from(b'a' + dice.below(26) as u8)).collect();
+                    runs.push(Run::plain(if k == 2 { word } else { format!("{word} ") }));
+                }
+            }
+        }
+        let p = laid(&ctx, &para(runs.clone()), &pictures, width);
+        assert_all_inside(&p, width, &format!("{n}: {width} {runs:?}"));
+    }
 }

@@ -262,27 +262,34 @@ impl Layout {
         let object = TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, ..Default::default() };
         let known = ctx.fonts(|f| f.families());
         let has = |family: &FontFamily| known.contains(family);
-        // Each picture shown: its run, its place in the paragraph, its id and its size.
+        // Each picture shown: its run, its place in the paragraph, its id, its size and whether it
+        // comes right after a character egui does not break a line after (a word, or another
+        // picture).
         let mut sized = Vec::new();
-        let mut local = 0;
+        let (mut local, mut last) = (0, None::<char>);
         for (r, run) in p.runs.iter().enumerate() {
             if let Some((id, size)) =
                 run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
             {
-                sized.push((r, local, id, size));
+                let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
+                sized.push((r, local, id, size, glued));
             }
             local += run.text.chars().count();
+            last = run.text.chars().last().or(last);
         }
         // But egui drops a gap that starts a wrapped row, and a gap at the start of a paragraph
         // makes it put an empty row first when the line is too narrow: the picture was then drawn
         // left of the body (#792). A picture that starts a row stands right of its character
         // instead, and its gap goes before what follows it. That is every picture at the start of
         // its paragraph, and those found to wrap once laid out. egui breaks a line only after a
-        // space (or by a CJK letter), so a picture right after a word would go along with the word
-        // and stand past the right edge: such a picture is laid out as a kana letter instead,
-        // which egui may break before. Marking one changes nothing before it, so this ends.
+        // space (or by a CJK letter), so a picture right after a word or another picture would go
+        // along with it and stand past the right edge: such a picture is laid out as a kana letter
+        // instead, which egui may break before. That is settled before the first layout, so only
+        // the gaps change from one layout to the next: and only the first picture found to start
+        // a row is marked each time, as the gap it moves shifts everything after it but nothing
+        // before it. So this ends, after at most one layout more than there are pictures.
         let mut wrapped: Vec<bool> = sized.iter().map(|(_, local, ..)| *local == 0).collect();
-        let mut glued = vec![false; sized.len()];
+        let starts_row = |glyph: Rect, size: Vec2| glyph.min.x < size.x - 0.5;
         let mut galley;
         loop {
             let mut job = LayoutJob::default();
@@ -290,9 +297,9 @@ impl Layout {
             let (mut k, mut carry) = (0, 0.0);
             for (r, run) in p.runs.iter().enumerate() {
                 match sized.get(k).filter(|(at, ..)| *at == r) {
-                    Some((_, local, _, size)) => {
+                    Some((_, local, _, size, glued)) => {
                         let before = if *local == 0 { 0.0 } else { size.x };
-                        let mark = if glued.get(k).copied().unwrap_or(false) { BREAKS_BEFORE } else { OBJECT };
+                        let mark = if *glued { BREAKS_BEFORE } else { OBJECT };
                         job.append(&mark.to_string(), carry + before, TextFormat { line_height: Some(size.y), ..object.clone() });
                         carry = if wrapped.get(k).copied().unwrap_or(false) { size.x } else { 0.0 };
                         k += 1;
@@ -307,35 +314,23 @@ impl Layout {
                 job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
             }
             galley = ctx.fonts_mut(|f| f.layout_job(job));
-            let mut more = false;
-            for (i, (_, local, _, size)) in sized.iter().enumerate() {
-                let glyph = galley.pos_from_cursor(CCursor { index: (*local).into(), prefer_next_row: true });
-                if let Some(w) = wrapped.get_mut(i)
-                    && !*w
-                {
-                    if glyph.min.x < size.x - 0.5 {
-                        *w = true;
-                        more = true;
-                    } else if glyph.min.x > room + 0.5
-                        && let Some(g) = glued.get_mut(i)
-                        && !*g
-                    {
-                        *g = true;
-                        more = true;
-                    }
-                }
-            }
-            if !more {
-                break;
+            let found = sized.iter().zip(&wrapped).position(|((_, local, _, size, _), w)| {
+                !*w && starts_row(galley.pos_from_cursor(CCursor { index: (*local).into(), prefer_next_row: true }), *size)
+            });
+            match found.and_then(|i| wrapped.get_mut(i)) {
+                Some(w) => *w = true,
+                None => break,
             }
         }
         self.laid += 1;
+        // Each picture is drawn where its gap is: in the gap before its character, or right of
+        // its character when it starts its row (whether or not it was marked, so a picture is
+        // never drawn away from its gap).
         let pictures = sized
             .into_iter()
-            .zip(wrapped)
-            .filter_map(|((_, local, id, size), wrapped)| {
+            .filter_map(|(_, local, id, size, _)| {
                 let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
-                let left = if wrapped { glyph.min.x } else { glyph.min.x - size.x };
+                let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
                 let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
                 rect.is_finite().then_some(PictureBox { local, id, rect })
             })
