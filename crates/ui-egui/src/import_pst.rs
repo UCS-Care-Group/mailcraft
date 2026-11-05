@@ -50,9 +50,6 @@ pub struct ImportPst {
     wrong_password: bool,
     /// `None`: a new folder named after the file; else under this folder on this computer.
     under: Option<u64>,
-    /// Whether the contacts are given a category named after the file (the model keeps one list
-    /// of contacts on this computer, so that is how they stay together).
-    tag_contacts: bool,
     phase: Phase,
     progress: Arc<Progress>,
     /// The mailbox this was opened over: another one opened since stops the import.
@@ -88,7 +85,6 @@ impl ImportPst {
             password: String::new(),
             wrong_password: false,
             under: None,
-            tag_contacts: true,
             phase: Phase::Choose,
             progress: Arc::default(),
             opening: app.session.openings(),
@@ -117,10 +113,9 @@ impl ImportPst {
     }
 
     fn places(&self) -> Value {
-        let contacts = if self.tag_contacts { "new" } else { "here" };
         match self.under {
-            Some(id) => json!({"mail": id, "contacts": contacts}),
-            None => json!({"mail": "new", "contacts": contacts}),
+            Some(id) => json!({"mail": id}),
+            None => json!({"mail": "new"}),
         }
     }
 
@@ -299,8 +294,7 @@ impl ImportPst {
         });
         ui.add_space(6.0);
         ui.label(RichText::new(tl!("Put the contacts")).strong());
-        ui.label(tl!("Into your contacts on this computer."));
-        ui.checkbox(&mut self.tag_contacts, crate::i18n::fmt(tl!("Give them a category called {name}"), &[("name", &name)]));
+        ui.label(tl!("Into your contacts on this computer, each marked as imported from the file."));
         ui.add_space(6.0);
         ui.label(
             RichText::new(tl!(

@@ -520,6 +520,9 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         }
     }
     out.imported = keys.join(" ");
+    if out.imported_from.is_empty() {
+        out.imported_from = contacts.iter().map(|c| c.imported_from.as_str()).find(|f| !f.is_empty()).unwrap_or_default().to_string();
+    }
     if out.uid.trim().is_empty() {
         out.uid = contacts.iter().map(|c| c.uid.trim()).find(|u| !u.is_empty()).unwrap_or_default().to_string();
     }

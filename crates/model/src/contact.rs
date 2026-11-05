@@ -79,6 +79,11 @@ pub struct Contact {
     /// exported or handed to an agent.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub imported: String,
+    /// The name of the .pst file the contact was imported from (empty for any other). Shown on
+    /// the contact's card, found by a search for `is:imported`, kept by an edit and a merge, and
+    /// never set by a command's params. Not written to a vCard.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub imported_from: String,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
@@ -126,10 +131,24 @@ impl Contact {
     /// Whether any name, company, address or phone contains `needle` (case-insensitive).
     pub fn matches(&self, needle: &str) -> bool {
         let n = needle.trim();
+        if n.eq_ignore_ascii_case("is:imported") {
+            return !self.imported_from.is_empty();
+        }
         n.is_empty()
-            || [&self.display_name, &self.first, &self.middle, &self.last, &self.nickname, &self.company, &self.title, &self.department, &self.notes]
-                .into_iter()
-                .any(|f| crate::contains_ci(f, n))
+            || [
+                &self.display_name,
+                &self.first,
+                &self.middle,
+                &self.last,
+                &self.nickname,
+                &self.company,
+                &self.title,
+                &self.department,
+                &self.notes,
+                &self.imported_from,
+            ]
+            .into_iter()
+            .any(|f| crate::contains_ci(f, n))
             || self.emails.iter().chain(&self.phones).any(|l| crate::contains_ci(&l.value, n))
             || self.categories.iter().any(|c| crate::contains_ci(c, n))
     }

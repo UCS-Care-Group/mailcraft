@@ -330,8 +330,12 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         _ => None,
     };
     if let Some(b) = body {
-        // (A list's notes share the room with its members.)
-        let (text, cut) = fit(b.trim_end_matches('\0').replace("\r\n", "\n").as_str(), if list { room() / 2 } else { room() });
+        // (A list's notes share the room with its members, when it has any.)
+        let has_members = ids.id(LIST_ONE_OFF).and_then(|id| m.properties.get(id)).is_some_and(|v| match v {
+            PropValue::MultiBinary(v) => !v.is_empty(),
+            _ => true,
+        });
+        let (text, cut) = fit(b.trim_end_matches('\0').replace("\r\n", "\n").as_str(), if list && has_members { room() / 2 } else { room() });
         c.notes = text;
         if cut {
             notes.push("its notes were longer than a contact's notes can be and are cut".to_string());
@@ -434,11 +438,14 @@ fn members_text<R: Read + Seek>(
     let streamed = ids.id(LIST_STREAM).is_some_and(|id| m.properties.get(id).is_some());
     if streamed && entries.is_empty() {
         notes.push("the members are kept in a form (the list's stream) this version doesn't read, and are left out".to_string());
+    } else if streamed {
+        notes.push("some members are kept in a form (the list's stream) this version doesn't read, and are left out".to_string());
     }
     let count = lines.len();
     let text = if !lines.is_empty() {
-        format!("Members:\n{}", lines.join("\n"))
-    } else if streamed && entries.is_empty() {
+        let more = if streamed { "\nSome members are kept in a form this version doesn't read." } else { "" };
+        format!("Members:\n{}{more}", lines.join("\n"))
+    } else if streamed {
         "Members: kept in a form this version doesn't read.".to_string()
     } else {
         String::new()

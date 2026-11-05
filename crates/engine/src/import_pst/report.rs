@@ -94,6 +94,10 @@ pub struct Report {
     /// Contacts and distribution lists (kept as contacts) brought in, of the items added.
     pub contacts_added: usize,
     pub lists_added: usize,
+    /// What the file holds besides: mail items, and contacts (brought, already here or left out),
+    /// as far as the run read them: a file of contacts alone makes no mail folder.
+    pub mail_seen: usize,
+    pub contacts_seen: usize,
     /// Categories of the file's list added to this computer's.
     pub categories_added: usize,
     /// Where the text of the report was written, when it was.

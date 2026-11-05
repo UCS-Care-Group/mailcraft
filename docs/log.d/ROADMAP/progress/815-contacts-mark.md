@@ -1,0 +1,1 @@
+| 2026-11-05 | #815 part 3: imported contacts are marked "Imported from" their .pst file on the contact's card, found by `is:imported` and kept by an edit and a merge; contacts in hidden and automatic folders come in too; only Deleted Items is left out |

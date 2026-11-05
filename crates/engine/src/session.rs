@@ -2797,7 +2797,12 @@ impl Session {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
         let uid = |m: &mailcraft_model::Mailbox| m.event(item).map(|e| e.uid.clone());
         let event = uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox);
-        event || gone_in(&self.mailbox, &step.mailbox, item)
+        // (A contact the step didn't touch stays, as undo leaves it: the step's snapshot may
+        // hold fewer, or other, contacts than there are now.)
+        let there = |m: &mailcraft_model::Mailbox| m.event(item).is_some() || m.task(item).is_some();
+        let other = there(&self.mailbox) && !there(&step.mailbox);
+        let contact = self.mailbox.contact(item).is_some() && step.mailbox.contact(item).is_none() && step.touched.changed_contact(item);
+        event || other || contact
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would put back another version of the

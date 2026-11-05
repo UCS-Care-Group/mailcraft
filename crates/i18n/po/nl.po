@@ -4600,11 +4600,6 @@ msgstr "De pagina van GitHub is open: voeg daar het diagnosebestand toe en dien 
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. MailCraft heeft niets verzonden."
 
-#. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Give them a category called {name}"
-msgstr ""
-
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -5133,6 +5128,11 @@ msgid "Imported"
 msgstr "Geïmporteerd"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Imported from {file}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what}"
@@ -5370,7 +5370,7 @@ msgstr "Thema van de interface"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "Into your contacts on this computer."
+msgid "Into your contacts on this computer, each marked as imported from the file."
 msgstr ""
 
 #. interface

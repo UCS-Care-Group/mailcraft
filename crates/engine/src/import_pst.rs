@@ -121,10 +121,9 @@ pub struct Job {
     /// How many levels of the file's folders fit below the place ([`room`]): a folder nested
     /// deeper has its mail put in its ancestor at the last level, and its row says so.
     pub room: usize,
-    /// The category the contacts brought in are given, named after the file (`places.contacts`
-    /// "new", the default); none for "here". The model keeps one list of contacts on this
-    /// computer, so a category is how the file's contacts stay together.
-    pub contact_tag: Option<String>,
+    /// The contacts already brought in from .pst files ([`known_keys`] holds them too), to tell
+    /// them from mail.
+    pub known_contacts: HashSet<String>,
 }
 
 impl std::fmt::Debug for Job {
@@ -276,8 +275,11 @@ struct Brought {
     mail: bool,
     /// Nested deeper than the room there is: its mail goes into its ancestor at `path`.
     merged: bool,
-    /// Why a contact in it is left out, when it is.
-    no_contacts: Option<&'static str>,
+    /// In Deleted Items or below it: its contacts are left out.
+    deleted: bool,
+    /// Hidden, or one Outlook fills by itself (a contacts folder of a class of its own): its
+    /// contacts come in, and the report says where they came from.
+    automatic: bool,
 }
 
 /// Most bytes of the start of a file its identity is worked out from when it has no record key.
@@ -402,25 +404,15 @@ pub fn read<R: Read + Seek>(
         };
         paths.insert(f.id, path.clone());
         let mail = matches!(f.kind, FolderKind::Mail | FolderKind::Other(_));
-        // Contacts brought are the owner's own: not those in Deleted Items, in a folder
-        // Outlook fills by itself or hides (recipient cache, suggested contacts), or in a
-        // folder that holds no contacts.
+        // Contacts in Deleted Items, and below it, are left out; every other folder's come in.
         let in_deleted = Some(f.id) == store.deleted_items || f.parent.is_some_and(|p| deleted.contains(&p));
         if in_deleted {
             deleted.insert(f.id);
         }
         let own_contacts =
             f.kind == FolderKind::Contacts && f.container_class.as_deref().is_some_and(|c| c.trim().eq_ignore_ascii_case("IPF.Contact"));
-        let no_contacts = if in_deleted {
-            Some("in Deleted Items, left out")
-        } else if f.properties.bool(0x10F4).unwrap_or(false) || (f.kind == FolderKind::Contacts && !own_contacts) {
-            Some("in an automatic or hidden contacts folder, left out")
-        } else if f.kind != FolderKind::Contacts {
-            Some("in a folder that isn't a contacts folder, left out")
-        } else {
-            None
-        };
-        brought.push(Brought { id: f.id, shown, path, mail, merged, no_contacts });
+        let automatic = f.properties.bool(0x10F4).unwrap_or(false) || (f.kind == FolderKind::Contacts && !own_contacts);
+        brought.push(Brought { id: f.id, shown, path, mail, merged, deleted: in_deleted, automatic });
     }
     for l in &tree.left_out {
         if l.property.is_some() {
@@ -434,12 +426,10 @@ pub fn read<R: Read + Seek>(
     progress.total.store(total, Ordering::Relaxed);
     progress.folders_total.store(brought.len(), Ordering::Relaxed);
 
-    let mut batch = Batch {
-        // (The top itself is made when mail lands in it.)
-        folders: brought.iter().filter(|b| b.mail && !b.merged && !b.path.is_empty()).map(|b| b.path.clone()).collect(),
-        identity: identity.clone(),
-        ..Default::default()
-    };
+    let mut batch = Batch { identity: identity.clone(), ..Default::default() };
+    // The file's empty mail folders, made at the end unless the file holds contacts and no mail (a file of
+    // contacts alone, with an empty Inbox and Deleted Items, makes none).
+    let empty_folders: Vec<Vec<String>> = brought.iter().filter(|b| b.mail && !b.merged && !b.path.is_empty()).map(|b| b.path.clone()).collect();
     let categories = if job.dry_run { Vec::new() } else { category_list(&mut pst, &tree, &mut report)? };
     let mut claimed: HashSet<u32> = HashSet::new();
     let mut cancelled = false;
@@ -447,6 +437,7 @@ pub fn read<R: Read + Seek>(
     'folders: for b in &brought {
         let into = b.merged.then(|| b.path.join("/"));
         let mut row = Row { path: b.shown.clone(), into, ..Default::default() };
+        let (mut in_deleted, mut told) = (0usize, false);
         let listed = match pst.items(b.id) {
             Ok(l) => l,
             Err(e) if ends_import(&e) => return Err(pst_error(&e)),
@@ -483,6 +474,11 @@ pub fn read<R: Read + Seek>(
             let what = |kind: &str| if subject.is_empty() { kind.to_string() } else { format!("{kind} \"{subject}\"") };
             if job.known.contains(&key(&identity, nid)) {
                 row.already = row.already.saturating_add(1);
+                if job.known_contacts.contains(&key(&identity, nid)) {
+                    report.contacts_seen = report.contacts_seen.saturating_add(1);
+                } else {
+                    report.mail_seen = report.mail_seen.saturating_add(1);
+                }
                 continue;
             }
             if let Some(kind) = class.as_deref().and_then(later_kind) {
@@ -497,6 +493,9 @@ pub fn read<R: Read + Seek>(
                 Err(e) => {
                     row.left_out = row.left_out.saturating_add(1);
                     report.leave_out(&what("item"), &b.shown, &e.to_string());
+                    if class.as_deref().and_then(contact::kind).is_none() {
+                        report.mail_seen = report.mail_seen.saturating_add(1);
+                    }
                     continue;
                 }
             };
@@ -507,10 +506,20 @@ pub fn read<R: Read + Seek>(
             }
             // A contact, or a distribution list kept as a contact.
             if let Some(list) = m.class.as_deref().and_then(contact::kind) {
-                if let Some(why) = b.no_contacts {
+                report.contacts_seen = report.contacts_seen.saturating_add(1);
+                if b.deleted {
+                    // (One line for the folder, not one for each.)
                     row.left_out = row.left_out.saturating_add(1);
-                    report.leave_out(&what(if list { "distribution list" } else { "contact" }), &b.shown, why);
+                    in_deleted = in_deleted.saturating_add(1);
                     continue;
+                }
+                if b.automatic && !told {
+                    told = true;
+                    report.note(
+                        &b.shown,
+                        &b.shown,
+                        "a hidden or automatic contacts folder (recipient cache, suggested contacts): its contacts are brought in",
+                    );
                 }
                 // (A dry run reads it too, so that what it says would come in does.)
                 let built = contact::build(&mut pst, &m, &named, list).map_err(|e| pst_error(&e))?;
@@ -522,11 +531,7 @@ pub fn read<R: Read + Seek>(
                 }
                 let mut c = built.contact;
                 c.imported = key(&identity, nid);
-                if let Some(tag) = &job.contact_tag
-                    && !c.categories.iter().any(|t| t.eq_ignore_ascii_case(tag))
-                {
-                    c.categories.push(tag.clone());
-                }
+                c.imported_from = job.file.chars().take(mailcraft_model::MAX_NAME).collect();
                 let shown = if c.name().is_empty() { "contact".to_string() } else { format!("contact \"{}\"", c.name()) };
                 if let Some(n) = built.members {
                     report.note(&shown, &b.shown, &format!("a distribution list, kept as a contact listing its members ({n})"));
@@ -557,6 +562,7 @@ pub fn read<R: Read + Seek>(
                 report.note(&shown, &b.shown, n);
             }
             row.added = row.added.saturating_add(1);
+            report.mail_seen = report.mail_seen.saturating_add(1);
             batch.bytes = batch.bytes.saturating_add(item::held(&message));
             batch.messages.push((b.path.clone(), message));
             if batch.items() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
@@ -564,7 +570,13 @@ pub fn read<R: Read + Seek>(
                 sink(std::mem::replace(&mut batch, Batch { identity, ..Default::default() }))?;
             }
         }
+        if in_deleted > 0 {
+            report.leave_out(&format!("{in_deleted} contacts and distribution lists"), &b.shown, "in Deleted Items, left out");
+        }
         report.push_row(row);
+    }
+    if !(report.contacts_seen > 0 && report.mail_seen == 0) && !job.dry_run {
+        batch.folders = empty_folders;
     }
     if !batch.is_empty() && !job.dry_run {
         sink(std::mem::take(&mut batch))?;
@@ -781,18 +793,6 @@ pub fn place_of(s: &Session, v: &Value, name: &str) -> Result<Place, CmdError> {
     }
 }
 
-/// The category the contacts get, from `places.contacts` ("new": one named after the file, the
-/// default; "here": none). The model keeps one list of contacts, on this computer, so there is
-/// no other place to choose; an account on a server is never one.
-pub fn contact_tag_of(v: &Value, name: &str) -> Result<Option<String>, CmdError> {
-    match v.get("places").and_then(|p| p.get("contacts")) {
-        None | Some(Value::Null) => Ok(mailcraft_model::clean_name(name)),
-        Some(Value::String(t)) if t == "new" => Ok(mailcraft_model::clean_name(name)),
-        Some(Value::String(t)) if t == "here" => Ok(None),
-        Some(_) => Err(crate::cmd::bad("`places.contacts` is \"new\" (tagged with the file's name) or \"here\" (no tag)")),
-    }
-}
-
 /// How many levels of the file's folders fit below `place`: folders here nest at most
 /// [`MAX_FOLDER_DEPTH`] deep, and a new folder for the file is one of them.
 pub fn room(s: &Session, place: &Place) -> usize {
@@ -808,8 +808,8 @@ pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: 
     let name = folder_name(file);
     let place = place_of(s, v, &name)?;
     let room = room(s, &place);
-    let contact_tag = contact_tag_of(v, &name)?;
-    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room, contact_tag }, place))
+    let known_contacts = s.mailbox.contacts.values().flat_map(|c| c.imported.split_whitespace().map(str::to_string)).collect();
+    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room, known_contacts }, place))
 }
 
 /// An import under way: where it puts what it reads, and what it has put in, so that the whole
@@ -1076,8 +1076,7 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
         };
         // (Nothing came in: the folder is still found, or made, for the owner to see; a file of
         // contacts alone has no mail, so no folder.)
-        let kept = report.contacts_added.saturating_add(report.lists_added);
-        let contacts_only = kept > 0 && report.total().added == kept;
+        let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0;
         let top = if contacts_only && r.top.is_none() { None } else { Some(r.top(s)?) };
         run = Some(r);
         let account = s.mailbox.local_account();
@@ -1092,8 +1091,7 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
         top
     };
     // (A file of contacts alone is shown where its contacts are.)
-    let kept = report.contacts_added.saturating_add(report.lists_added);
-    let contacts_only = kept > 0 && report.total().added == kept;
+    let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0;
     if contacts_only {
         report.name = String::new();
     } else if let Some(id) = top {

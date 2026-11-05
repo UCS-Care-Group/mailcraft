@@ -50,6 +50,13 @@ pub(crate) struct Touched {
     pending_removed: HashSet<String>,
 }
 
+impl Touched {
+    /// Whether the change added, changed or took away the contact `id`.
+    pub(crate) fn changed_contact(&self, id: Id) -> bool {
+        self.changed_contacts.contains(&id)
+    }
+}
+
 /// The accounts of `mb` kept in step through Graph.
 fn graph_accounts(mb: &Mailbox) -> BTreeSet<Id> {
     mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)).map(|a| a.id).collect()
@@ -115,13 +122,31 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
             }
         }
     }
-    for id in before.contacts.keys().chain(after.contacts.keys()) {
-        let same = match (before.contacts.get(id), after.contacts.get(id)) {
-            (Some(b), Some(a)) => Arc::ptr_eq(a, b) || a == b,
-            _ => false,
-        };
-        if !same {
-            t.changed_contacts.insert(*id);
+    // (One walk of both maps, as for the messages.)
+    let mut was = before.contacts.iter().peekable();
+    let mut is = after.contacts.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !(Arc::ptr_eq(a, b) || a == b) {
+                    t.changed_contacts.insert(**id);
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                t.changed_contacts.insert(**id);
+                was.next();
+            }
+            (Some((id, _)), None) => {
+                t.changed_contacts.insert(**id);
+                was.next();
+            }
+            (_, Some((id, _))) => {
+                t.changed_contacts.insert(**id);
+                is.next();
+            }
         }
     }
     for b in &before.folders {
