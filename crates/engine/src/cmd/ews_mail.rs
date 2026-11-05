@@ -331,12 +331,14 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     errors.extend(refused.iter().cloned());
     s.graph_said.extend(refused);
     if let Some(deltas) = &result.folders {
-        down.removed = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
-        // The folder list goes on from here (with the folders it brought, in one step).
-        if !result.hierarchy.is_empty()
+        let lost;
+        (down.removed, lost) = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
+        // The folder list goes on from here (with the folders it brought, in one step), or from
+        // its start when one of the server's own folders is missing here (#779).
+        if (lost || !result.hierarchy.is_empty())
             && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
         {
-            server.hierarchy = result.hierarchy.clone();
+            server.hierarchy = if lost { String::new() } else { result.hierarchy.clone() };
         }
     }
     let mut index = std::mem::take(&mut s.graph_index);
@@ -479,3 +481,7 @@ mod tests;
 #[cfg(test)]
 #[path = "ews_up_tests.rs"]
 mod up_tests;
+
+#[cfg(test)]
+#[path = "ews_well_known_tests.rs"]
+mod well_known_tests;

@@ -286,3 +286,38 @@ fn an_account_whose_server_cannot_be_reached_says_so_and_asks_nothing_of_the_own
     assert!(app.session.sync_status.contains("Couldn't reach the server"), "{}", app.session.sync_status);
     assert!(app.dialog.is_none());
 }
+
+#[test]
+fn the_servers_own_folders_come_down_marked_and_cannot_be_deleted_moved_or_renamed() {
+    let server = serve();
+    let (history, mine) = {
+        let mut state = server.standin.state();
+        (
+            state.add_own_folder("conversationhistory", "Conversation History", "msgfolderroot"),
+            state.add_own_folder("", "Conversation History", "inbox"),
+        )
+    };
+    let (mut app, account) = window(&server);
+    send_receive(&mut app, json!({"account": account, "password": PASSWORD}));
+    assert!(app.session.sync_status.starts_with("Up to date"), "{}", app.session.sync_status);
+    let at = |app: &MailApp, id: &str| app.session.mailbox.folder_by_server(account, id).unwrap();
+    let (history, mine) = (at(&app, &history), at(&app, &mine));
+    assert!(app.session.mailbox.folder(history).unwrap().server_owned(), "the server's own, by its id (#779)");
+    assert!(!app.session.mailbox.folder(mine).unwrap().server_owned(), "the owner's folder of the same name is the owner's");
+    app.session.view.folder = history;
+    for id in ["folder.rename", "folder.move", "folder.delete"] {
+        assert!(!app.enabled(id), "{id} is greyed out");
+    }
+    assert!(app.execute("folder.delete", json!({"id": history})).is_err());
+    app.session.view.folder = mine;
+    assert!(app.enabled("folder.delete"));
+    // A second run, from the state the first gave, whose server now refuses to say which are its
+    // own: the run goes well, the mark stays, and nothing was asked that would change the folder.
+    server.standin.state().refuse_names = Some((vec!["conversationhistory".into()], 403));
+    send_receive(&mut app, json!({"account": account}));
+    assert!(app.session.sync_status.starts_with("Up to date"), "{}", app.session.sync_status);
+    assert!(app.session.mailbox.folder(history).unwrap().server_owned(), "a mark once set is kept");
+    let state = server.standin.state();
+    assert!(state.writes.is_empty());
+    assert!(state.requests.iter().any(|r| r.operation.is_empty() && r.status == 403), "the lookup was refused");
+}

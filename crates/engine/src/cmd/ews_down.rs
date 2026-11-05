@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::sync::{
     EwsFolderDeltas, EwsMailResult, EwsMessagePage, FolderListing, GraphFetchResult, GraphFolder, GraphMessage, MAX_LISTED_FOLDERS, MessagePage,
 };
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::{FolderKind, Id, Mailbox, Queued};
 
 use super::graph_down::{self, Down, ServerIndex};
 use super::jmap_down::{MAX_BATCH, MAX_BUSY, MAX_FETCHED, MAX_MESSAGE, MAX_PREVIEW, MAX_TEXT, line, lines, people, person};
@@ -112,6 +112,9 @@ fn bounded_deltas(deltas: &mut EwsFolderDeltas) -> bool {
     deltas.changed.retain_mut(bounded_folder);
     whole &= deltas.changed.len() == before;
     deltas.deleted.retain(|id| is_id(id));
+    // (The server's own folders, #779: a mark, never a cut that matters.)
+    deltas.well_known.truncate(MAX_LISTED_FOLDERS);
+    deltas.well_known.retain(|id| is_id(id));
     // (An afresh read that lists no folder is not a listing: an account always has an Inbox.)
     deltas.afresh &= whole && !deltas.changed.is_empty();
     whole
@@ -214,7 +217,19 @@ fn parents_first(folders: &mut [GraphFolder]) {
 /// were, so that the listing is a complete one (a folder that isn't in it is gone, with the mail in
 /// it, but for the folders and mail that are only here: [`super::jmap_down::keep_what_is_only_here`]).
 /// Where each folder goes on from is kept ([`super::graph_mail::take_listing`] leaves it).
-pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> usize {
+///
+/// The server's own folders ([`EwsFolderDeltas::well_known`], #779) are marked whether the delta
+/// brings them or not: a mailbox read before the mark existed has them among the folders the delta
+/// doesn't mention. A folder not named keeps the mark it had (`take_listing` keeps it).
+///
+/// How many folders went, and whether the folder list has to be read afresh next time: a deletion
+/// an earlier version queued of one of the server's own that this mailbox no longer has was
+/// dropped, and a delta would never bring the folder back.
+pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> (usize, bool) {
+    let own: HashSet<String> = deltas.well_known.iter().cloned().collect();
+    let have = |id: &str| deltas.changed.iter().any(|f| f.id == id) || mb.folder_by_server(account, id).is_some();
+    let lost = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id) && !have(id)));
+    super::graph_mail::drop_own_deletes(mb, account, &own);
     let mut folders: Vec<GraphFolder> = deltas.changed.clone();
     if !deltas.afresh {
         let named: HashSet<&str> = deltas.changed.iter().map(|f| f.id.as_str()).chain(deltas.deleted.iter().map(String::as_str)).collect();
@@ -234,11 +249,14 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
             .collect();
         folders.extend(stubs);
     }
+    for f in &mut folders {
+        f.well_known |= own.contains(&f.id);
+    }
     parents_first(&mut folders);
     let listing = FolderListing { folders, complete: true };
     let removed = super::jmap_down::keep_what_is_only_here(mb, account, &listing);
     super::graph_mail::take_listing(mb, account, &listing, taken);
-    removed
+    (removed, lost)
 }
 
 /// Take in one page of a folder's changes with the sync state that goes on from it, when the page
