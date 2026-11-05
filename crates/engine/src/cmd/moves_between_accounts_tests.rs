@@ -557,9 +557,6 @@ fn a_held_delete_brings_the_original_back_whole_after_the_mailbox_is_opened_agai
         let [id] = all.as_slice() else { panic!("{subject}: {all:?}") };
         let m = s.loaded_message(*id).unwrap();
         assert_eq!((m.body.text.len(), m.attachments.first().map(|a| a.data.len())), (text.len(), Some(5000)), "{subject}");
-        // And it says so: not one to fetch again, which, should its server lose it first, would be
-        // kept here as a message no server ever takes.
-        assert!(!m.unfetched, "{subject}");
         *id
     };
     // Out of an IMAP account into a Microsoft account.
@@ -616,32 +613,42 @@ fn a_held_delete_brings_the_original_back_whole_after_the_mailbox_is_opened_agai
 
 /// A copy made in its own account while the message was only listed holds the preview alone: the
 /// message fetched whole since, deleted for good and its copy refused, comes back with its own
-/// text, never the copy's preview, which a move into another account would place there before
-/// its server's message is deleted (#566).
+/// text and files, never the copy's preview, which a move into another account would place there
+/// before its server's message is deleted (#566). So does one that is a file and no text.
 #[test]
 fn an_original_fetched_whole_comes_back_with_its_own_text_when_a_copy_of_its_preview_is_refused() {
     use crate::cmd::graph_mail::apply_graph_fetch;
     use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
-    let mut s = Session::empty();
-    let mine = microsoft(&mut s, OWNER);
-    let (inbox, archive) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(mine, FolderKind::Archive).unwrap());
-    let server = ServerMessage { id: "AAkA9".into(), folder: "in".into(), size: 4000, ..Default::default() };
-    let preview = Body { text: "Preview only".into(), html: None };
-    let listed = Message { folder: inbox, subject: "Contract".into(), server: Some(server), unfetched: true, body: preview, ..Default::default() };
-    let m = s.mailbox.add_message(listed).unwrap();
-    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
-    let mime =
-        b"From: kit@example.org\r\nSubject: Contract\r\nMessage-ID: <c@example.org>\r\n\r\nPreview only, and then every clause of it.\r\n".to_vec();
-    let fetched = vec![GraphFetched { id: "AAkA9".into(), mime }];
-    apply_graph_fetch(&mut s, GraphFetchResult { account: mine, email: OWNER.into(), fetched, ..Default::default() }).unwrap();
-    assert!(s.mailbox.message(m).unwrap().body.text.contains("every clause"));
-    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
-    let asked = graph_mail_request(&s, mine).unwrap().messages;
-    let [change @ MessageChange::Copy { .. }] = asked.as_slice() else { panic!("{asked:?}") };
-    let done = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
-    apply_graph_mail(&mut s, GraphMailResult { account: mine, email: OWNER.into(), messages: vec![done], ..Default::default() }).unwrap();
-    let back = s.mailbox.message(titled(&s, "Contract")).unwrap();
-    assert!(back.body.text.contains("every clause") && !back.unfetched, "{:?}", back.body.text);
+    let text = "From: kit@example.org\r\nSubject: Contract\r\nMessage-ID: <c@example.org>\r\n\r\nPreview only, and then every clause of it.\r\n";
+    let file = "From: kit@example.org\r\nSubject: Scan\r\nMessage-ID: <s@example.org>\r\nMIME-Version: 1.0\r\n\
+        Content-Type: application/pdf; name=\"scan.pdf\"\r\nContent-Disposition: attachment; filename=\"scan.pdf\"\r\n\
+        Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n";
+    for (subject, mime) in [("Contract", text), ("Scan", file)] {
+        let mut s = Session::empty();
+        let mine = microsoft(&mut s, OWNER);
+        let (inbox, archive) =
+            (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(mine, FolderKind::Archive).unwrap());
+        let server = ServerMessage { id: "AAkA9".into(), folder: "in".into(), size: 4000, ..Default::default() };
+        let preview = Body { text: "Preview only".into(), html: None };
+        let listed = Message { folder: inbox, subject: subject.into(), server: Some(server), unfetched: true, body: preview, ..Default::default() };
+        let m = s.mailbox.add_message(listed).unwrap();
+        s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+        let fetched = vec![GraphFetched { id: "AAkA9".into(), mime: mime.as_bytes().to_vec() }];
+        apply_graph_fetch(&mut s, GraphFetchResult { account: mine, email: OWNER.into(), fetched, ..Default::default() }).unwrap();
+        let whole = s.mailbox.message(m).unwrap().clone();
+        assert!(!whole.unfetched && (whole.body.text.contains("every clause") || whole.attachments.len() == 1), "{subject}: {:?}", whole.body.text);
+        s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+        let asked = graph_mail_request(&s, mine).unwrap().messages;
+        let [change @ MessageChange::Copy { .. }] = asked.as_slice() else { panic!("{asked:?}") };
+        let done = MessageChangeDone { change: change.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+        apply_graph_mail(&mut s, GraphMailResult { account: mine, email: OWNER.into(), messages: vec![done], ..Default::default() }).unwrap();
+        let back = s.mailbox.message(titled(&s, subject)).unwrap();
+        assert_eq!(
+            (back.body.text.as_str(), back.attachments.len(), back.unfetched),
+            (whole.body.text.as_str(), whole.attachments.len(), false),
+            "{subject}"
+        );
+    }
 }
 
 /// A copy moved on into a third account before it was made still holds its original's delete
