@@ -23,6 +23,14 @@ USAGE:
   mailcraft-cli import <mailbox> <file>... [--folder PATH]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
+  mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
+                                                preview: the mail of a .pst file
+                                                into a new folder named after the file on this
+                                                computer (or under the local folder PATH); the
+                                                file's password, when it has one, is read from
+                                                MAILCRAFT_PST_PASSWORD. Prints the import report
+                                                (JSON) and saves the mailbox (not with --dry-run);
+                                                a second import skips what is already there
   mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
@@ -339,6 +347,28 @@ fn run(args: &[String]) -> Result<(), Failure> {
             }
             s.run("file.save", &json!({"path": mailbox}))?;
             eprintln!("wrote {mailbox}");
+            Ok(())
+        }
+        "import-pst" => {
+            let pos = positionals("import-pst", &rest, &[flag("--dry-run"), value("--under")])?;
+            let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
+            let dry = rest.iter().any(|a| a == "--dry-run");
+            let mut s = open_or_new(mailbox)?;
+            let mut params = json!({"path": file, "dryRun": dry});
+            if let Some(under) = arg_value(&rest, "--under") {
+                s.run("folder.select", &json!({"path": under}))?;
+                params["places"] = json!({"mail": s.view.folder});
+            }
+            // The file's password from the environment, never the command line.
+            if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {
+                params["password"] = json!(password);
+            }
+            let report = s.run("file.importPst", &params).map_err(|e| format!("{file}: {e}"))?;
+            print_json(&report)?;
+            if !dry {
+                s.run("file.save", &json!({"path": mailbox}))?;
+                eprintln!("wrote {mailbox}");
+            }
             Ok(())
         }
         "export" => {

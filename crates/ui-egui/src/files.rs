@@ -38,6 +38,8 @@ pub(crate) enum AfterPick {
     Export { command: String, params: Value },
     /// Show what is in the picked folder, ready to import ([`crate::import_tree`]).
     Tree,
+    /// Ask for the picked .pst file's password and place, then import it ([`crate::import_pst`]).
+    Pst,
 }
 
 impl FileDialogRequest {
@@ -92,6 +94,12 @@ pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<R
         // A host that can't ask for a folder lets the command say what it needs.
         app.services.file_dialog.as_ref()?;
         return Some(ask(app, FileDialogRequest::Folder, AfterPick::Tree));
+    }
+    // (A host without file dialogs, the browser among them, lets the command say what it needs:
+    // in the browser, that it isn't supported there yet.)
+    if id == "file.importPst" && params.get("path").is_none() && params.get("data").is_none() && params.get("staged").is_none() {
+        app.services.file_dialog.as_ref()?;
+        return Some(ask(app, FileDialogRequest::Open { purpose: "pst".into() }, AfterPick::Pst));
     }
     if params.get("path").is_none() && params.get("data").is_none() {
         let purpose = match id {
@@ -210,6 +218,7 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     let r = match d.after {
         AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),
+        AfterPick::Pst => app.run("ui.dialog", json!({"name": "importPst", "path": path})),
         AfterPick::Export { command, mut params } => {
             if let Some(o) = params.as_object_mut() {
                 o.insert("path".into(), json!(path));
