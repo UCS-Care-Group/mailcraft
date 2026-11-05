@@ -29,10 +29,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
+        CommandSpec::new("account.move", "Move Account", "Folder Pane", move_account).params(r#"{"id": number, "before"?: number | null} — puts the account in another place in the folder pane, as dragging its name there does (#702): right before the account `before` names, or last without one. The shared mailboxes opened through it move with it; a shared mailbox can't be moved by itself, nor named as `before`. The order is kept in the mailbox and followed by the folder pane, File › Info, the From list of a new message, the list of calendars, Junk E-mail Options, Signatures, Rules and Alerts, the accounts of Tasks, account.list, folder.list, file.account and file.info (Send/Receive keeps the order the accounts were added in); the default account, which new mail is written from, stays the one it was. Answers {"moved": bool, "order": [id] (the accounts as the folder pane lists them, shared mailboxes included)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -42,7 +43,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -98,7 +99,7 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(_) => return Err(bad("`auth` is password or oauth2")),
     }
     let provider = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
@@ -139,7 +140,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         _ => return Err(bad(format!("\"{email}\" isn't an e-mail address"))),
     };
     let asked = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
         None => None,
     };
     // The owner says whose the account is: that settles it.
@@ -153,6 +154,9 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let exchangers = v.get("mx").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     let by_mx = || exchangers.iter().take(20).filter_map(Value::as_str).find_map(provider::by_mx);
     let (found, via) = match (asked, own) {
+        // Explicitly choosing Google OAuth beats an app-password provider preset.
+        // Ordinary discovery without that choice keeps the password flow.
+        (Some(OAuthProvider::Google), own) => (Some(provider::google(own.is_some_and(|p| p.service == "Gmail"))), "asked"),
         _ if named.is_some() => (named, "asked"),
         // Said to be Microsoft's: Outlook.com when the domain is, work or school mail otherwise.
         (Some(OAuthProvider::Microsoft), own) => {
@@ -545,6 +549,7 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("there is no account to remove"));
     }
     let left = remove_with_content(s, id)?;
+    super::people::forget_here(s);
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }
@@ -636,11 +641,24 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     Ok(left)
 }
 
+/// Put an account in another place of the folder pane (#702).
+fn move_account(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let before = match v.get("before") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(p::req_id(v, "before")?),
+    };
+    let moved = s.mailbox.move_account(id, before)?;
+    let order: Vec<Id> = s.mailbox.accounts_in_order().iter().map(|a| a.id).collect();
+    Ok(json!({"moved": moved, "order": order}))
+}
+
+/// The accounts as the folder pane lists them (#702).
 fn list(s: &mut Session, _: &Value) -> CmdResult {
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts
-        .iter()
+        .accounts_in_order()
+        .into_iter()
         .map(|a| {
             json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })

@@ -217,9 +217,13 @@ impl MailApp {
         }
         let Ok(upload) = tasks_remote::task_upload(&self.session.mailbox, account) else { return false };
         let given = fingerprint(&refresh);
+        let deletes = tasks_remote::carries_delete(&upload);
         let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, cancel: Default::default() };
         let Some(graph) = self.services.graph_tasks.as_ref().filter(|_| !self.offline()) else { return false };
-        self.tasks.rx = Some((account, now, given, graph(job)));
+        let rx = graph(job);
+        // A delete that goes out can't be undone: the task would come back here, gone there (#706).
+        tasks_remote::mark_sent(&mut self.session, deletes);
+        self.tasks.rx = Some((account, now, given, rx));
         self.tasks.checked.insert(account, now);
         true
     }
@@ -364,9 +368,11 @@ impl MailApp {
         !matches!(self.tasks.perm.get(&account), None | Some(Permission::Given))
     }
 
-    /// The first account whose To Do works: File › Info says what is local under it.
+    /// The first account added whose To Do works, wherever the owner moved it (#702): File › Info
+    /// says what is local under it, and the question offers it first.
     pub(crate) fn tasks_working_first(&self) -> Option<Id> {
-        self.tasks_working().first().copied()
+        let working = self.tasks_working();
+        self.session.mailbox.accounts.iter().map(|a| a.id).find(|id| working.contains(id))
     }
 
     /// How many to-dos exist only on this computer and could be offered to an account's To Do;
@@ -384,7 +390,7 @@ impl MailApp {
             return false;
         }
         let address = |id: Id| self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default();
-        let Some(first) = accounts.first().copied() else { return false };
+        let Some(first) = self.tasks_working_first() else { return false };
         let how_many = tln!(count, "Send your {n} local task to {address}'s To Do?", "Send your {n} local tasks to {address}'s To Do?");
         let title = crate::i18n::fmt(&how_many, &[("n", &count.to_string()), ("address", &address(first))]);
         let more_than_one = accounts.len() > 1;
@@ -409,7 +415,7 @@ impl MailApp {
             cancel: Some(tl!("Not now").to_string()),
             tick: None,
         };
-        for id in accounts.iter().skip(1) {
+        for id in accounts.iter().filter(|id| **id != first) {
             ask.more.push((label(*id), json!({"account": id})));
         }
         self.tasks.offer_open = true;

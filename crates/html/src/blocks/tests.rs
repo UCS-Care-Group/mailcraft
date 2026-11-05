@@ -699,27 +699,40 @@ fn layout_tables() {
 }
 
 #[test]
-fn alignment_positions_tables_and_starts_again_inside_them() {
-    // The centred cell centres the table in it; what is in the table's own cells is at the left
-    // unless they say otherwise, as Outlook shows it.
+fn a_column_that_only_makes_room_in_some_rows_keeps_its_place() {
+    // A notice's frame drawn with the borders of cells, its picture spanning two columns: the
+    // empty corner cells keep their column, so that the heading stays inside the frame.
+    let line = "2px solid #7f7f7f";
+    let frame = format!(
+        "<table width='100%' align='right' cellpadding=0 cellspacing=0>\
+         <tr><td width=20 height=5></td><td style='border-left:{line};border-top:{line}' width=20></td><td style='border-right:{line};border-top:{line}'></td></tr>\
+         <tr><td colspan=2 align=center><img src='cid:shield@example.org' width=17></td><td style='border-right:{line}'>Stay safe</td></tr>\
+         <tr><td width=10>&nbsp;</td><td style='border-left:{line};border-bottom:{line}'>&nbsp;</td><td style='border-right:{line};border-bottom:{line}'>Check the sender.</td></tr></table>"
+    );
+    assert_eq!(
+        dump(&frame),
+        ["layout.r w=100%[()(+tl )(+tr )][(x2 img(cid:shield@example.org 17x).c|)(+r p|Stay safe)][()(+bl )(+rb p|Check the sender.)]"]
+    );
+    // A column empty in every row still makes none, and an empty cell that spans it gives it up.
+    let spacer = "<table><tr><td><ul><li>a</li></ul></td><td width=10></td><td><ul><li>b</li></ul></td></tr>\
+                  <tr><td><ul><li>c</li></ul></td><td colspan=2></td></tr></table>";
+    assert_eq!(dump(spacer), ["layout[(ul0|a)(ul0|b)][(ul0|c)()]"]);
+    // Gutters beside a column that a heading above spans are the heading's room too.
+    let gutters = "<table><tr><td colspan=3><h2>News</h2></td></tr><tr><td width=20>&nbsp;</td><td><p>One</p><p>Two</p></td><td width=20>&nbsp;</td></tr></table>";
+    assert_eq!(dump(gutters), ["layout[(x3 h2|[B:News])][()(p|One ; p|Two)()]"]);
+    // A cell above that spans rows is minded: the empty cell under the heading is in its third column.
+    let tall = "<table><tr><td rowspan=2><p>Side</p><p>bar</p></td><td>&nbsp;</td><td><p>Top</p><p>right</p></td></tr>\
+                <tr><td>&nbsp;</td><td><p>Low</p><p>right</p></td></tr></table>";
+    let Some(BlockKind::Table(t)) = parse(tall).into_iter().next().map(|b| b.kind) else { panic!("no table") };
+    assert_eq!(t.rows.iter().map(|r| r.cells.len()).collect::<Vec<_>>(), [2, 1], "{t:?}");
+}
+
+#[test]
+fn a_cells_align_positions_a_nested_table_but_not_its_text() {
+    // A cell's `align` stands the table in the middle, and the table's text starts again at the
+    // left, as in a browser (a style's `text-align` would reach into it: `nested_align_tests`).
     let html = "<table width='100%'><tr><td align=center><table width=300><tr><td>a</td><td align=right><p>b</p><p>c</p></td></tr></table></td></tr></table>";
     assert_eq!(dump(html), ["layout.c w=300[(p|a)(p.r|b ; p.r|c)]"]);
-    // A table that asks for an alignment of its own gives it to its cells.
-    let own =
-        "<table width='100%'><tr><td align=center><table width=300 style='text-align:center'><tr><td>a</td><td>b</td></tr></table></td></tr></table>";
-    assert_eq!(dump(own), ["layout.c w=300[(p.c|a)(p.c|b)]"]);
-    // A one-cell wrapper with no width, read as its contents, keeps the centring around it: the
-    // logo in `<td align="center"><table><tr><td><img>` (or a `<table align="center">`) stays
-    // centred.
-    for wrapper in ["<table cellpadding=0 cellspacing=0>", "<table align=center cellpadding=0 cellspacing=0>"] {
-        let logo = format!("<table width='100%'><tr><td align=center>{wrapper}<tr><td><img src='cid:logo'></td></tr></table></td></tr></table>");
-        assert_eq!(dump(&logo), ["img(cid:logo).c|"], "{wrapper}");
-    }
-    // Other alignment around a table is inherited, as before: right-aligned cells stay right.
-    let right = "<table width='100%'><tr><td align=right><table width=300><tr><td>a</td></tr></table></td></tr></table>";
-    assert_eq!(dump(right), ["layout.r w=300[(p.r|a)]"]);
-    // Text in the centred cell itself, beside no table, is centred as before.
-    assert_eq!(dump("<table width='100%'><tr><td align=center>mid</td><td>x</td></tr></table>"), ["layout w=100%[(p.c|mid)(p|x)]"]);
     assert_eq!(
         dump("<table><tr align=right><td>a</td><td style='text-align:left'>b</td></tr><tr><td>c</td><td>d</td></tr></table>"),
         ["data[(p.r|a)(p|b)][(p|c)(p|d)]"]

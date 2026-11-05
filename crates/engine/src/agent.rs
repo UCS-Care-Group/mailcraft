@@ -114,6 +114,7 @@ const SAFE: &[&str] = &[
     // File: content goes in and out as `data`; a path is refused separately.
     "file.import",
     "file.importFolderTree",
+    "file.importPst",
     "file.exportMessage",
     "file.exportFolder",
     "file.exportCalendar",
@@ -224,6 +225,10 @@ const SAFE: &[&str] = &[
     "folder.rename",
     "folder.move",
     "folder.favorite",
+    // An account's place in the folder pane (#702): as moving a folder, nothing leaves this
+    // computer, nothing is removed, no setting of the account changes (the default account
+    // stays the one it was), and Undo puts it back.
+    "account.move",
     // View.
     "view.favorites",
     "view.reminders",
@@ -253,6 +258,7 @@ const SAFE: &[&str] = &[
     "view.goToDate",
     "view.taskFilter",
     "view.taskAccount",
+    "view.peopleAccount",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -572,6 +578,10 @@ const NEVER: &[&str] = &[
     "ui.openDataFolder",
     // The redacted log tail, and the clipboard overwritten with it.
     "ui.copyDiagnostics",
+    // Only the owner may configure an OAuth registration; an agent has no route to its
+    // installed-app registration value, even when granted account/settings commands.
+    "ui.googleClientId",
+    "ui.googleClientSecret",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
@@ -617,6 +627,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.open", "path", FileUse::Reads { name_key: "name" }),
     ("file.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.importFolderTree", "path", FileUse::Reads { name_key: "name" }),
+    ("file.importPst", "path", FileUse::Reads { name_key: "name" }),
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
@@ -1363,6 +1374,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Send) => {
                     "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
                 }
+                // Accounts and Send above are the stronger effects and say so first; this is
+                // the Delete class, whose cause here is mail the undo takes away (#473).
+                Some(Class::Delete) if s.undo_takes_mail(redo) => {
+                    return format!("{verb} {}, which also takes away messages", quoted(label.unwrap_or("the last change")));
+                }
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };
@@ -1746,6 +1762,7 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
         }
     }
     if !allow.contains(&Class::Delete) {
+        // Drafts are left out here: `edit.undo` and `edit.redo` refuse earlier, drafts too (#473).
         let gone = before.messages.iter().any(|(id, m)| !m.draft && !after.messages.contains_key(id));
         if gone {
             return Some(Class::Delete);
