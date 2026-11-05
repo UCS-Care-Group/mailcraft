@@ -184,7 +184,7 @@ fn the_faces_are_given_again_when_egui_s_fonts_are_set_anew() {
     ctx.set_fonts(crate::theme::font_definitions_with(&crate::theme::SystemFont::none()));
     pass(&ctx, |_| {});
     assert_eq!(families(&ctx, html), vec![FontFamily::Proportional]);
-    pass(&ctx, |ctx| super::tick(ctx));
+    pass(&ctx, super::tick);
     pass(&ctx, |_| {});
     assert_eq!(families(&ctx, html), vec![family_of("inter", false)]);
     assert_eq!(Store::counts(&ctx).0, 1);

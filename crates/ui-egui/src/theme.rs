@@ -914,7 +914,7 @@ pub(crate) fn read_face(path: &std::path::Path, cap: u64, index: u32) -> Option<
 /// them inside the file, or as a collection of faces (`ttcf`) whose first face is; and that the
 /// font reader egui uses opens its first face. egui panics on font data it cannot open, so
 /// nothing read from a disk goes to it unchecked.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 fn is_font(bytes: &[u8]) -> bool {
     is_face(bytes, 0)
 }

@@ -144,7 +144,7 @@ fn what_is_not_a_font_is_left_out() {
     let faces: Vec<_> = index.families.values().flatten().collect();
     assert!(faces.iter().all(|f| f.path.ends_with("huge.ttc") && f.index == 0), "{:?}", index.families);
     assert!(index.has("inter"));
-    assert!(MAX_COLLECTION <= 64);
+    const { assert!(MAX_COLLECTION <= 64) };
 }
 
 #[test]

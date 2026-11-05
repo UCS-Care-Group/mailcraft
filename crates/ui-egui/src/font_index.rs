@@ -108,6 +108,7 @@ impl FontIndex {
     }
 
     /// Whether no font was found.
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.families.is_empty()
     }
