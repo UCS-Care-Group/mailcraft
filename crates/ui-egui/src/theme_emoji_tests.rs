@@ -23,3 +23,37 @@ fn every_family_draws_emoji() {
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&id, EMOJI)), "{family:?} lacks emoji");
     }
 }
+
+/// The system's colour emoji face, found in a fonts folder however its name is cased, goes in
+/// front of egui's black-and-white emoji in every family, and nothing else moves.
+#[test]
+fn the_colour_emoji_face_goes_in_front_of_the_black_and_white() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-emoji-fonts-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("noto")).unwrap();
+    // The bundled Inter stands in for a colour emoji face.
+    std::fs::write(dir.join("noto/NOTOCOLOREMOJI.TTF"), include_bytes!("../../../assets/fonts/Inter-Regular.ttf")).unwrap();
+    let system = SystemFont::none().with_emoji_from(std::slice::from_ref(&dir), &["missing.ttf", "NotoColorEmoji.ttf"]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(system.has_emoji());
+    let fonts = font_definitions_with(&system);
+    let without = font_definitions_with(&SystemFont::none());
+    for (family, faces) in &fonts.families {
+        let at = faces.iter().position(|name| name == "SystemEmoji").unwrap_or_else(|| panic!("{family:?} has no colour emoji"));
+        assert_eq!(faces[at + 1], "NotoEmoji-Regular", "{family:?}");
+        let mut rest = faces.clone();
+        rest.remove(at);
+        assert_eq!(rest, without.families[family], "{family:?}");
+    }
+}
+
+/// No colour emoji face in the folders: none is used, and the families are as without one.
+#[test]
+fn no_colour_emoji_face_leaves_the_families_alone() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-no-emoji-fonts-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let system = SystemFont::none().with_emoji_from(std::slice::from_ref(&dir), &["NotoColorEmoji.ttf"]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!system.has_emoji());
+    assert_eq!(font_definitions_with(&system).families, font_definitions_with(&SystemFont::none()).families);
+}
