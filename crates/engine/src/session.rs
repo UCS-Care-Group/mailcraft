@@ -2988,11 +2988,19 @@ impl Session {
     /// Whether undoing (`redo`: redoing) would take away contacts and the like for good besides
     /// the categories it has deleted in Outlook, which the owner's question names on their own
     /// (#661). Those are known by the label [`Session::undo_takes`] gives a category of an
-    /// account's own list; anything else, a category of another spelling too, is said as it is.
+    /// account's own list, each deletion standing for one item at most, so that two the label
+    /// can't tell apart still leave one to be said; anything else, a category of another spelling
+    /// too, is said as it is.
     pub fn undo_removes_more_than_outlooks(&self, redo: bool) -> bool {
-        let outlook: Vec<String> =
+        let mut outlook: Vec<String> =
             self.undo_category_deletes(redo).into_iter().map(|(owner, name)| format!("category {owner} {}", name.to_lowercase())).collect();
-        self.undo_removed_items(redo).iter().any(|item| !outlook.contains(item))
+        self.undo_removed_items(redo).iter().any(|item| match outlook.iter().position(|o| o == item) {
+            Some(i) => {
+                outlook.swap_remove(i);
+                false
+            }
+            None => true,
+        })
     }
 
     /// [`Session::undo_deletes_categories`], each with the account whose server it is deleted on.

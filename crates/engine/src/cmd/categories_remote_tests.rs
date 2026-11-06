@@ -1510,6 +1510,26 @@ fn a_category_an_undo_deletes_in_two_accounts_is_named_once() {
     }
 }
 
+#[test]
+fn an_undo_that_also_takes_away_a_category_kept_on_this_computer_still_says_so() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let local = s.run("account.add", &json!({"email": "kit@example.org", "kind": "local"})).unwrap()["id"].as_u64().unwrap();
+    let (ma, ml) = (message_of(&mut s, a, &[]), message_of(&mut s, local, &[]));
+    // One step puts "Brand new" on Outlook's list and on the one kept on this computer.
+    s.run("mail.categorize", &json!({"ids": [ma, ml], "category": "Brand new"})).unwrap();
+    assert!(s.mailbox.category_of(local, "Brand new").is_some());
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    assert_eq!(s.undo_deletes_categories(false), ["Brand new"]);
+    // The undo deletes one in Outlook and takes the other away here for good: both are said.
+    match check(&s, "edit.undo", &json!({}), &[]) {
+        Verdict::Ask(Class::Delete, text) => {
+            assert!(text.contains("deletes the category \u{201c}Brand new\u{201d} in Outlook") && text.contains("made since"), "{text}");
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
 /// Every name the jobs delete in Outlook, each job taken whole, until nothing is left to send; a
 /// deletion that the same job makes again in other letters is left out.
 fn deleted_by_the_jobs(s: &mut Session, a: Id) -> Vec<String> {
