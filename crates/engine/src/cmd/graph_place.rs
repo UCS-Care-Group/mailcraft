@@ -371,6 +371,9 @@ fn original_back_on_imap(mb: &mut Mailbox, source: Id, copied: &Message) -> bool
         mb.pending.remove(at);
     }
     let mut m = *kept;
+    // Always the copy's: an IMAP delete keeps the message without its content
+    // ([`Message::without_content`]) and still marked whole, so [`Message::fill_content_from`]
+    // would put it back empty.
     m.take_content_of(copied);
     let synced = m.synced.take().map(|flags| flags.at(uid));
     m.lies_in(folder, account, uid, synced);
