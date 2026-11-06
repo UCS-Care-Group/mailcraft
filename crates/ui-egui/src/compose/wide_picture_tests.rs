@@ -36,12 +36,18 @@ fn pic(id: u32) -> Run {
 
 /// `paragraph` laid out `width` wide with `pictures`.
 fn laid(ctx: &egui::Context, paragraph: &Paragraph, pictures: &[Picture], width: f32) -> Para {
+    laid_counted(ctx, paragraph, pictures, width).0
+}
+
+/// `paragraph` laid out `width` wide with `pictures`, and how many times egui laid out its text
+/// for that.
+fn laid_counted(ctx: &egui::Context, paragraph: &Paragraph, pictures: &[Picture], width: f32) -> (Para, usize) {
     let mut layout = Layout::default();
     let mut out = None;
     ctx.run_ui(egui::RawInput::default(), |ui| out = Some(layout.lay(ui.ctx(), paragraph, 0, false, pictures, &Tokens::light(), width)))
         .textures_delta
         .clear();
-    out.expect("laid out in the frame")
+    (out.expect("laid out in the frame"), layout.layouts)
 }
 
 /// How wide `text` is laid out on its own.
@@ -333,13 +339,22 @@ fn a_signature_picture_wider_than_its_body_is_drawn_inside_it() {
 }
 
 /// Every picture of `p` drawn from the left margin on and within `room` (each is shown at most
-/// `room` wide), and no two drawn over each other.
+/// `room` wide), no two drawn over each other, and none over a letter of the text.
 fn assert_all_inside(p: &Para, room: f32, what: &str) {
     for (i, b) in p.pictures.iter().enumerate() {
         assert!(b.rect.min.x >= -0.01, "{what}: picture {i} left of the margin: {:?}", b.rect);
         assert!(b.rect.max.x <= room + 0.5, "{what}: picture {i} past the right edge of {room}: {:?}", b.rect);
         for (j, c) in p.pictures.iter().enumerate().skip(i + 1) {
             assert!(!b.rect.shrink(0.5).intersects(c.rect.shrink(0.5)), "{what}: pictures {i} and {j} overlap: {:?} {:?}", b.rect, c.rect);
+        }
+    }
+    for row in &p.galley.rows {
+        // The letters, not the characters pictures are laid out as or the spaces.
+        for g in row.glyphs.iter().filter(|g| g.chr != OBJECT && g.chr != BREAKS_BEFORE && !g.chr.is_whitespace()) {
+            let letter = g.logical_rect().translate(row.pos.to_vec2());
+            for (i, b) in p.pictures.iter().enumerate() {
+                assert!(!b.rect.shrink(0.5).intersects(letter.shrink(0.5)), "{what}: picture {i} over {:?}: {:?} {letter:?}", g.chr, b.rect);
+            }
         }
     }
 }
@@ -400,7 +415,59 @@ fn pictures_among_words_in_bodies_of_any_width_are_drawn_inside_them() {
                 }
             }
         }
-        let p = laid(&ctx, &para(runs.clone()), &pictures, width);
+        let (p, layouts) = laid_counted(&ctx, &para(runs.clone()), &pictures, width);
+        assert_all_inside(&p, width, &format!("{n}: {width} {runs:?}"));
+        // So few pictures are found one by one, never all at once.
+        assert!(layouts <= MOST_LAYOUTS, "{n}: {layouts}");
+    }
+}
+
+#[test]
+fn a_picture_repeated_a_thousand_times_in_a_paragraph_is_laid_out_a_bounded_number_of_times() {
+    let ctx = ctx();
+    let pictures = [picture(1, 240)];
+    // Each on a row of its own, alone and among words.
+    let alone: Vec<Run> = (0..1000).map(|_| pic(1)).collect();
+    let among: Vec<Run> = (0..1000).flat_map(|i| [Run::plain(if i % 2 == 0 { "word " } else { "word" }), pic(1)]).collect();
+    for (what, runs) in [("alone", alone), ("among words", among)] {
+        let (p, layouts) = laid_counted(&ctx, &para(runs), &pictures, 400.0);
+        assert_eq!(p.pictures.len(), 1000, "{what}");
+        // A few dozen times, not once for each picture.
+        assert!(layouts <= 40, "{what}: laid out {layouts} times");
+        assert_all_inside(&p, 400.0, what);
+    }
+}
+
+#[test]
+fn many_pictures_among_words_laid_out_all_at_once_are_drawn_inside_and_over_nothing() {
+    let ctx = ctx();
+    let mut dice = Dice(0x0796_CA9F_A11B);
+    let pictures: Vec<Picture> = (1..=6).map(|id| picture(id, 0)).collect();
+    let mut at_once = 0;
+    for n in 0..200 {
+        let width = 100.0 + dice.below(401) as f32;
+        let mut pictures = pictures.clone();
+        let mut runs = Vec::new();
+        for _ in 0..40 + dice.below(80) {
+            match dice.below(5) {
+                0..=2 => {
+                    let id = 1 + dice.below(6) as u32;
+                    if let Some(x) = pictures.get_mut(id as usize - 1) {
+                        x.width = Some(8 + dice.below(600) as u16);
+                    }
+                    runs.push(pic(id));
+                }
+                k => {
+                    let word: String = (0..1 + dice.below(9)).map(|_| char::from(b'a' + dice.below(26) as u8)).collect();
+                    runs.push(Run::plain(if k == 3 { word } else { format!("{word} ") }));
+                }
+            }
+        }
+        let (p, layouts) = laid_counted(&ctx, &para(runs.clone()), &pictures, width);
+        assert!(layouts <= MOST_LAYOUTS + 1, "{n}: {layouts}");
+        at_once += usize::from(layouts == MOST_LAYOUTS + 1);
         assert_all_inside(&p, width, &format!("{n}: {width} {runs:?}"));
     }
+    // (The pictures left were marked all at once in most of them.)
+    assert!(at_once >= 50, "{at_once}");
 }

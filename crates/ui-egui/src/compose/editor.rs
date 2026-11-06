@@ -54,6 +54,10 @@ const MAX_PREEDIT: usize = 256;
 /// letter, never shown (a picture is laid out as [`OBJECT`] otherwise).
 const BREAKS_BEFORE: char = '\u{30A2}';
 
+/// The most times a paragraph's text is laid out to find the pictures that start a row
+/// ([`Layout::lay`]), with one more after that.
+const MOST_LAYOUTS: usize = 32;
+
 /// Which text the editor shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
@@ -218,6 +222,8 @@ pub(crate) struct Layout {
     atlas: f32,
     /// How many paragraphs were laid out so far, for tests.
     laid: usize,
+    /// How many times egui laid out a paragraph's text so far, for tests.
+    layouts: usize,
 }
 
 impl Layout {
@@ -287,10 +293,16 @@ impl Layout {
         // instead, which egui may break before. That is settled before the first layout, so only
         // the gaps change from one layout to the next: and only the first picture found to start
         // a row is marked each time, as the gap it moves shifts everything after it but nothing
-        // before it. So this ends, after at most one layout more than there are pictures.
+        // before it. That is one layout more for each picture that starts a row, and a draft can
+        // repeat a picture any number of times in a paragraph: after [`MOST_LAYOUTS`], every
+        // picture not marked yet is marked, and laid out once more. A marked picture keeps both
+        // gaps, the one before its character (which egui drops at the start of a row) and the
+        // one after it, and is drawn in whichever its row has: one marked that needn't be only
+        // leaves a blank as wide as itself, and nothing is ever drawn over it.
         let mut wrapped: Vec<bool> = sized.iter().map(|(_, local, ..)| *local == 0).collect();
         let starts_row = |glyph: Rect, size: Vec2| glyph.min.x < size.x - 0.5;
         let mut galley;
+        let mut passes = 0;
         loop {
             let mut job = LayoutJob::default();
             job.wrap.max_width = room;
@@ -314,6 +326,15 @@ impl Layout {
                 job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
             }
             galley = ctx.fonts_mut(|f| f.layout_job(job));
+            passes += 1;
+            self.layouts += 1;
+            if wrapped.iter().all(|w| *w) {
+                break;
+            }
+            if passes >= MOST_LAYOUTS {
+                wrapped.iter_mut().for_each(|w| *w = true);
+                continue;
+            }
             let found = sized.iter().zip(&wrapped).position(|((_, local, _, size, _), w)| {
                 !*w && starts_row(galley.pos_from_cursor(CCursor { index: (*local).into(), prefer_next_row: true }), *size)
             });
