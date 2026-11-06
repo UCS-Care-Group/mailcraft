@@ -409,6 +409,8 @@ mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
+mod import_pst_memory_tests;
+#[cfg(test)]
 mod import_pst_tests;
 #[cfg(test)]
 mod import_tests;

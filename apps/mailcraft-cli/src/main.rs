@@ -356,16 +356,16 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
             let dry = rest.iter().any(|a| a == "--dry-run");
             let mut s = open_or_new(mailbox)?;
-            let mut params = json!({"path": file, "dryRun": dry});
+            let mut params = json!({});
             if let Some(under) = arg_value(&rest, "--under") {
                 s.run("folder.select", &json!({"path": under}))?;
                 params["places"] = json!({"mail": s.view.folder});
             }
             // The file's password from the environment, never the command line.
-            if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {
-                params["password"] = json!(password);
-            }
-            let report = s.run("file.importPst", &params).map_err(|e| format!("{file}: {e}"))?;
+            let password = std::env::var("MAILCRAFT_PST_PASSWORD").ok();
+            // A batch at a time, as the window does (#815): attachments go to the mailbox's
+            // content folder as they are read, so a large file doesn't fill the memory.
+            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| format!("{file}: {e}"))?;
             print_json(&report)?;
             if !dry {
                 s.run("file.save", &json!({"path": mailbox}))?;

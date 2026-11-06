@@ -212,6 +212,11 @@ impl Digest {
     }
 
     /// 64 lowercase hex digits.
+    /// The 32 bytes of it.
+    pub fn bytes(&self) -> [u8; 32] {
+        self.0
+    }
+
     pub fn hex(&self) -> String {
         let digit = |n: u8| char::from_digit(u32::from(n), 16).unwrap_or('0');
         self.0.iter().flat_map(|b| [digit(b >> 4), digit(b & 15)]).collect()
@@ -1170,6 +1175,24 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
         }
     }
     Err(last.unwrap_or_else(|| std::io::Error::other("the content folder keeps going away")))
+}
+
+/// Write `bytes` into the content folder of the mailbox file at `path` ahead of a save, and give
+/// the name to keep them by (#815: a .pst import puts each attachment here as its batch comes in,
+/// rather than holding it in memory until the save). The file is safe from a sweep for [`GRACE`]
+/// as any content written is; for longer, whoever names it on a message must hold that message
+/// ([`keep_held`]) until a saved mailbox file names it. Content already there is not written again.
+pub fn stash(path: &Path, bytes: &[u8]) -> Result<ContentRef, String> {
+    let r = Ref::of(bytes);
+    let dir = blob_dir(&resolve(path));
+    // The folder beside the mailbox file, and no more: nothing is written where there is no place.
+    if let Err(e) = make_dir(&dir)
+        && !dir.is_dir()
+    {
+        return Err(format!("{}: {e}", dir.display()));
+    }
+    put(&dir, &r, bytes).map_err(|e| format!("{}: {e}", dir.display()))?;
+    Ok(r.to_model())
 }
 
 /// Which of the 256 folders of two digits are folders of their own (not links to somewhere

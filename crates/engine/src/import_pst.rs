@@ -44,6 +44,14 @@ pub use mailcraft_mime::PST_ITEM_HEADER;
 pub const BATCH_MESSAGES: usize = if cfg!(test) { 3 } else { 500 };
 /// Most bytes (text and attachments) of one batch.
 pub const BATCH_BYTES: u64 = 64 << 20;
+/// Most bytes of attachments an import holds in memory at once, over all its batches (#815). With
+/// a mailbox file beside it every attachment goes to the content folder as its batch comes in
+/// and none stays here; without one (or when the disk refuses), the distinct bytes held count
+/// against this, and an import that would pass it stops with an error rather than run the
+/// computer out of memory.
+pub const MEMORY_BUDGET: u64 = if cfg!(test) { 1 << 20 } else { 256 << 20 };
+/// Attachments this small stay in their message (the size the mailbox file keeps inline).
+const SPILL_MIN: usize = 1024;
 /// Most folders one import makes.
 pub const MAX_FOLDERS: usize = 10_001;
 /// Most categories of the file's list taken in.
@@ -832,6 +840,14 @@ pub struct Running {
     added: Vec<Id>,
     /// The contacts it put in.
     contacts: Vec<Id>,
+    /// Bytes of attachments held in memory, each distinct file once ([`MEMORY_BUDGET`]).
+    resident: u64,
+    /// The attachments held in memory, by content, so that a file carried by many messages is one
+    /// copy (#815).
+    shared: HashMap<[u8; 32], std::sync::Arc<Vec<u8>>>,
+    /// The content already written to the content folder by this import.
+    #[cfg(not(target_arch = "wasm32"))]
+    written: HashSet<[u8; 32]>,
 }
 
 impl Running {
@@ -857,6 +873,10 @@ impl Running {
             made: Vec::new(),
             added: Vec::new(),
             contacts: Vec::new(),
+            resident: 0,
+            shared: HashMap::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            written: HashSet::new(),
         };
         if let Place::Under(id) = place {
             run.top = Some(*id);
@@ -959,6 +979,73 @@ impl Running {
         Ok(at)
     }
 
+    /// Take the bytes of `m`'s attachments out of memory (#815): into the content folder beside
+    /// the mailbox file when there is one, each distinct file written once, and the message then
+    /// names it (`kept`) and holds nothing; else, or when the disk refuses, held once per distinct
+    /// content however many messages carry it, against [`MEMORY_BUDGET`].
+    fn spill(&mut self, path: Option<&std::path::Path>, m: &mut Message) -> Result<(), CmdError> {
+        for a in &mut m.attachments {
+            if a.kept.is_some() || a.data.len() <= SPILL_MIN {
+                continue;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            let digest = crate::store::Digest::of(&a.data).bytes();
+            // (The browser has no content folder, and no hashing to share by.)
+            #[cfg(target_arch = "wasm32")]
+            let digest = {
+                let _ = path;
+                [0u8; 32]
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = path {
+                let kept = if self.written.contains(&digest) {
+                    Some(mailcraft_model::ContentRef { sha256: digest, len: a.data.len() as u64 })
+                } else {
+                    match crate::store::stash(path, &a.data) {
+                        Ok(r) => {
+                            self.written.insert(digest);
+                            Some(r)
+                        }
+                        Err(e) => {
+                            log::warn!("a .pst import couldn't write an attachment ahead: {e}; it is held in memory");
+                            None
+                        }
+                    }
+                };
+                if let Some(r) = kept {
+                    a.kept = Some(r);
+                    a.data = std::sync::Arc::default();
+                    continue;
+                }
+            }
+            let shared = cfg!(not(target_arch = "wasm32"));
+            match self.shared.get(&digest).filter(|_| shared) {
+                Some(have) => a.data = have.clone(),
+                None => {
+                    let len = a.data.len() as u64;
+                    if self.resident.saturating_add(len) > MEMORY_BUDGET {
+                        return Err(fail(
+                            "the attachments of this .pst file are more than fit in memory: save the mailbox to a file first, then import again",
+                        ));
+                    }
+                    self.resident = self.resident.saturating_add(len);
+                    if shared {
+                        self.shared.insert(digest, a.data.clone());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Let go of what only a batch taken out again held.
+    fn forget_unused(&mut self) {
+        self.shared.retain(|_, bytes| std::sync::Arc::strong_count(bytes) > 1);
+        if cfg!(not(target_arch = "wasm32")) {
+            self.resident = self.shared.values().map(|b| b.len() as u64).fold(0, u64::saturating_add);
+        }
+    }
+
     /// Take out what was put in since `made` folders and `added` messages.
     fn roll_back(&mut self, s: &mut Session, made: usize, added: usize, contacts: usize) {
         for id in self.added.drain(added.min(self.added.len())..) {
@@ -1017,6 +1104,7 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
     let r = put(s, &mut run, batch);
     if r.is_err() {
         run.roll_back(s, made, added, contacts);
+        run.forget_unused();
     }
     s.pst_running = Some(run);
     r
@@ -1035,8 +1123,11 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
     }
     let now = s.now();
     let mut n = 0usize;
+    let first = run.added.len();
+    let kept_at = s.path.clone();
     for (path, mut m) in batch.messages {
         let folder = run.folder(s, &path)?;
+        run.spill(kept_at.as_deref(), &mut m)?;
         m.id = 0;
         m.uid = 0;
         m.folder = folder;
@@ -1055,6 +1146,9 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
         run.contacts.push(id);
         n = n.saturating_add(1);
     }
+    // What was written ahead is named by no saved file yet: the messages that name it are held,
+    // so that no sweep takes it before a save does (`store::keep_held`).
+    s.hold(run.added.get(first..).unwrap_or_default().iter().filter_map(|id| s.mailbox.messages.get(id)));
     Ok(n)
 }
 
@@ -1205,6 +1299,66 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         s.pst_running = None;
         r
     }
+}
+
+/// Import the .pst file at `path` the way the window does (#815): the file is read on a thread of
+/// its own and its mail comes in a batch at a time, through `file.importPst` with `staged`, so
+/// that what is read is put into the mailbox (and its attachments out to the content folder)
+/// before more is read, and the read waits for the mailbox rather than holding the file. `v`
+/// carries the `places` and the `name` as the command's params do; the answer is the report. An
+/// import that fails part-way keeps what came in as one step to undo, as the window's does.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run_staged(s: &mut Session, path: &str, password: Option<String>, dry_run: bool, v: &Value) -> Result<Value, CmdError> {
+    if s.pst_running.is_some() {
+        return Err(fail(PST_BUSY));
+    }
+    let (job, _) = job(s, path, password, dry_run, v)?;
+    let mut params = json!({"staged": true, "name": folder_name(path)});
+    if let (Some(p), Some(places)) = (params.as_object_mut(), v.get("places")) {
+        p.insert("places".to_string(), places.clone());
+    }
+    let progress = Progress::default();
+    // A small channel: the reader waits for the mailbox.
+    let (tx, rx) = std::sync::mpsc::sync_channel(2);
+    std::thread::scope(|scope| {
+        let (job, progress) = (&job, &progress);
+        scope.spawn(move || read_path(path, job, progress, &mut |event| tx.send(event).is_ok()));
+        // (Dropping the receiver ends the read: its next `send` fails.)
+        let rx = rx;
+        loop {
+            let answer = match rx.recv() {
+                Ok(Event::Batch(batch)) => {
+                    s.staged_pst = Some(Staged::Batch(batch));
+                    let r = s.run("file.importPst", &params);
+                    s.staged_pst = None;
+                    if r.is_err() {
+                        progress.cancel();
+                        end_staged(s);
+                    }
+                    r.map(|_| None)
+                }
+                Ok(Event::Done(Ok(outcome))) => {
+                    s.staged_pst = Some(Staged::Done(outcome));
+                    let r = s.run("file.importPst", &params);
+                    s.staged_pst = None;
+                    r.map(Some)
+                }
+                Ok(Event::Done(Err(e))) => {
+                    end_staged(s);
+                    Err(e)
+                }
+                Err(_) => {
+                    end_staged(s);
+                    Err(fail("the .pst file's reader stopped before it was done"))
+                }
+            };
+            match answer {
+                Ok(None) => {}
+                Ok(Some(report)) => return Ok(report),
+                Err(e) => return Err(e),
+            }
+        }
+    })
 }
 
 #[cfg(not(target_arch = "wasm32"))]
