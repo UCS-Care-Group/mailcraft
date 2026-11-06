@@ -662,4 +662,10 @@ fn a_message_the_server_wouldnt_give_is_passed_over_in_the_background_but_still_
     // Opened, it is.
     assert_eq!(graph_fetch_request(&s, account, Some(m), 1).unwrap().ids, ["M-1"]);
     assert!(s.mailbox.message(m).unwrap().unfetched);
+    // Given at last, in its own account: Exchange's stamp is its server's word, read here (#781).
+    let mime = b"From: boss@example.org\r\nX-MS-Exchange-Organization-AuthAs: Internal\r\n\r\nAll of it.\r\n".to_vec();
+    let fetched = vec![mailcraft_model::sync::GraphFetched { id: "M-1".into(), mime }];
+    apply_graph_fetch(&mut s, GraphFetchResult { account, email: "owner@example.org".into(), fetched, ..Default::default() }).unwrap();
+    let here = s.mailbox.message(m).unwrap();
+    assert!(!here.unfetched && here.fresh_stamps && here.headers.len() == 1, "{:?}", here.headers);
 }

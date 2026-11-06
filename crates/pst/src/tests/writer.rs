@@ -791,6 +791,11 @@ pub enum AttachSpec {
     Message(Box<MessageSpec>),
     /// An attached message (method 5) whose object is this subnode, as it is.
     Object(SubNode),
+    /// An attachment with exactly these properties (a linked file, an inline picture with its
+    /// content id, a hidden one).
+    Props(Vec<(u16, Value)>),
+    /// An OLE object (method 6): these bytes in a subnode of its own.
+    Ole(Vec<u8>),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -822,6 +827,15 @@ pub fn entry_id(nid: u32) -> Vec<u8> {
     e.extend_from_slice(&RECORD_KEY);
     e.extend_from_slice(&nid.to_le_bytes());
     e
+}
+
+/// A container class written `hidden:IPF.Contact` is a hidden folder (PidTagAttributeHidden) of
+/// that class.
+fn hidden_class(class: &str) -> (&str, bool) {
+    match class.strip_prefix("hidden:") {
+        Some(rest) => (rest, true),
+        None => (class, false),
+    }
 }
 
 pub struct Ids {
@@ -871,6 +885,8 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
         (0x0E06, time(m.delivered)),
         (0x0017, int32(1)),
     ];
+    // A property in `extra` takes the place of the one given above.
+    props.retain(|(id, _)| !m.extra.iter().any(|(e, _)| e == id));
     props.extend(m.extra.iter().cloned());
     let mut spill = Spill::new();
     let pc_blocks = pc(l, &props, &mut spill);
@@ -941,6 +957,17 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
                     let props = vec![(0x3705, int32(5)), (0x3704, text(l, "object")), (0x3701, Value { ty: OBJECT, bytes: obj })];
                     (props, 0, 5)
                 }
+                AttachSpec::Props(props) => {
+                    let method = props.iter().find(|(id, _)| *id == 0x3705).map_or(1, |(_, v)| i32::from_le_bytes(v.bytes[..4].try_into().unwrap()));
+                    (props.clone(), 0, method)
+                }
+                AttachSpec::Ole(data) => {
+                    let onid = aspill.put(0x01, data.clone());
+                    let mut obj = onid.to_le_bytes().to_vec();
+                    obj.extend_from_slice(&(data.len() as u32).to_le_bytes());
+                    let props = vec![(0x3705, int32(6)), (0x3704, text(l, "Picture (Metafile)")), (0x3701, Value { ty: OBJECT, bytes: obj })];
+                    (props, data.len(), 6)
+                }
             };
             let ablocks = pc(l, &aprops, &mut aspill);
             subs.push(SubNode { nid, data: Data::Blocks(ablocks), subnodes: aspill.subnodes });
@@ -948,6 +975,8 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
                 AttachSpec::File { name, .. } => name.clone(),
                 AttachSpec::Message(inner) => inner.subject.clone(),
                 AttachSpec::Object(_) => "object".into(),
+                AttachSpec::Props(_) => "attachment".into(),
+                AttachSpec::Ole(_) => "Picture (Metafile)".into(),
             };
             arows.push((
                 nid,
@@ -979,7 +1008,7 @@ fn folder(l: &Layout, ids: &mut Ids, nid: u32, parent: u32, spec: &FolderSpec, n
             (0x360A_000B, boolean(!c.children.is_empty())),
         ];
         if let Some(class) = &c.class {
-            vals.push((text_tag(l, 0x3613), text(l, class)));
+            vals.push((text_tag(l, 0x3613), text(l, hidden_class(class).0)));
         }
         child_rows.push((cid, vals));
     }
@@ -990,7 +1019,11 @@ fn folder(l: &Layout, ids: &mut Ids, nid: u32, parent: u32, spec: &FolderSpec, n
         (0x360A, boolean(!spec.children.is_empty())),
     ];
     if let Some(class) = &spec.class {
+        let (class, hidden) = hidden_class(class);
         props.push((0x3613, text(l, class)));
+        if hidden {
+            props.push((0x10F4, boolean(true)));
+        }
     }
     let mut spill = Spill::new();
     let blocks = pc(l, &props, &mut spill);
@@ -1084,6 +1117,10 @@ pub fn nodes(spec: &FileSpec) -> Vec<Node> {
         (0x35E0, binary(&entry_id(IPM_SUBTREE))),
         (0x35E7, binary(&entry_id(SEARCH_ROOT))),
     ];
+    // A top-level folder named Deleted Items is the store's (its ids run from 0x403).
+    if let Some(i) = spec.folders.iter().position(|f| f.name == "Deleted Items") {
+        store.push((0x35E3, binary(&entry_id(((0x403 + i as u32) << 5) | 0x02))));
+    }
     if let Some(p) = &spec.password {
         let bytes: Vec<u8> = if spec.password_ansi { p.chars().map(|c| c as u8).collect() } else { p.as_bytes().to_vec() };
         store.push((0x67FF, int32(crc32(&bytes) as i32)));

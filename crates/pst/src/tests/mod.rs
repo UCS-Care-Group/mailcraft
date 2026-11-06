@@ -10,9 +10,10 @@ mod cost;
 mod hostile;
 mod properties;
 mod roundtrip;
+mod rtf;
 mod salvage;
 mod spec_samples;
-pub mod writer;
+pub use crate::test_writer as writer;
 
 use std::io::{Cursor, Read};
 

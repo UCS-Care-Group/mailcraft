@@ -22,6 +22,7 @@
 
 mod bth;
 mod bytes;
+mod codepage;
 mod crc;
 mod crypt;
 mod error;
@@ -32,10 +33,29 @@ mod named;
 mod ndb;
 mod prop;
 mod pst;
+mod rtf;
 mod source;
+/// The test writer: synthetic .pst files from invented folders and messages, for this crate's
+/// tests and, through the `test-writer` feature (a dev-dependency only, never in a build that
+/// ships), for the tests of the import that reads them.
+#[cfg(any(test, feature = "test-writer"))]
+#[doc(hidden)]
+#[path = "tests/writer.rs"]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::new_without_default,
+    clippy::too_many_arguments,
+    dead_code
+)]
+pub mod test_writer;
 #[cfg(test)]
 mod tests;
 
+pub use codepage::code_page_label;
 pub use crc::crc32;
 pub use crypt::Encryption;
 pub use error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
@@ -46,3 +66,4 @@ pub use pst::{
     Attachment, AttachmentContent, AttachmentReader, AttachmentRef, Folder, FolderEntry, FolderKind, FolderTree, ItemList, ItemSummary, LeftOut,
     LeftOutPart, Message, MessageRef, Nid, NodeInfo, Part, Pst, Recipient, RecipientKind, Store, node_types,
 };
+pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_text};

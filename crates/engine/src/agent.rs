@@ -114,6 +114,7 @@ const SAFE: &[&str] = &[
     // File: content goes in and out as `data`; a path is refused separately.
     "file.import",
     "file.importFolderTree",
+    "file.importPst",
     "file.exportMessage",
     "file.exportFolder",
     "file.exportCalendar",
@@ -626,6 +627,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.open", "path", FileUse::Reads { name_key: "name" }),
     ("file.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.importFolderTree", "path", FileUse::Reads { name_key: "name" }),
+    ("file.importPst", "path", FileUse::Reads { name_key: "name" }),
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),

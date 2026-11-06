@@ -50,6 +50,14 @@ fn indent_of(p: &Paragraph) -> f32 {
 /// Longest text an input method is shown composing.
 const MAX_PREEDIT: usize = 256;
 
+/// What a picture is laid out as when egui must be able to break the line before it: a kana
+/// letter, never shown (a picture is laid out as [`OBJECT`] otherwise).
+const BREAKS_BEFORE: char = '\u{30A2}';
+
+/// The most times a paragraph's text is laid out to find the pictures that start a row
+/// ([`Layout::lay`]), with one more after that.
+const MOST_LAYOUTS: usize = 32;
+
 /// Which text the editor shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
@@ -214,6 +222,8 @@ pub(crate) struct Layout {
     atlas: f32,
     /// How many paragraphs were laid out so far, for tests.
     laid: usize,
+    /// How many times egui laid out a paragraph's text so far, for tests.
+    layouts: usize,
 }
 
 impl Layout {
@@ -253,36 +263,96 @@ impl Layout {
     fn lay(&mut self, ctx: &egui::Context, p: &Paragraph, number: u32, plain: bool, pictures: &[Picture], t: &Tokens, width: f32) -> Para {
         let indent = indent_of(p);
         let room = (width - indent).max(24.0);
-        let mut job = LayoutJob::default();
-        job.wrap.max_width = room;
         // A picture is a gap in the line as wide as the picture before an unseen character, in a
         // line as tall as the picture; it is painted into the gap.
-        let mut sized = Vec::new();
-        let mut local = 0;
+        let object = TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, ..Default::default() };
         let known = ctx.fonts(|f| f.families());
         let has = |family: &FontFamily| known.contains(family);
-        for run in &p.runs {
-            match run.picture.and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room)))) {
-                Some((id, size)) if !plain => {
-                    let format =
-                        TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, line_height: Some(size.y), ..Default::default() };
-                    job.append(&OBJECT.to_string(), size.x, format);
-                    sized.push((local, id, size));
-                }
-                _ => job.append(&run.text, 0.0, text_format(&run.style, plain, t, &has)),
+        // Each picture shown: its run, its place in the paragraph, its id, its size and whether it
+        // comes right after a character egui does not break a line after (a word, or another
+        // picture).
+        let mut sized = Vec::new();
+        let (mut local, mut last) = (0, None::<char>);
+        for (r, run) in p.runs.iter().enumerate() {
+            if let Some((id, size)) =
+                run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
+            {
+                let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
+                sized.push((r, local, id, size, glued));
             }
             local += run.text.chars().count();
+            last = run.text.chars().last().or(last);
         }
-        if job.sections.is_empty() {
-            job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
+        // But egui drops a gap that starts a wrapped row, and a gap at the start of a paragraph
+        // makes it put an empty row first when the line is too narrow: the picture was then drawn
+        // left of the body (#792). A picture that starts a row stands right of its character
+        // instead, and its gap goes before what follows it. That is every picture at the start of
+        // its paragraph, and those found to wrap once laid out. egui breaks a line only after a
+        // space (or by a CJK letter), so a picture right after a word or another picture would go
+        // along with it and stand past the right edge: such a picture is laid out as a kana letter
+        // instead, which egui may break before. That is settled before the first layout, so only
+        // the gaps change from one layout to the next: and only the first picture found to start
+        // a row is marked each time, as the gap it moves shifts everything after it but nothing
+        // before it. That is one layout more for each picture that starts a row, and a draft can
+        // repeat a picture any number of times in a paragraph: after [`MOST_LAYOUTS`], every
+        // picture not marked yet is marked, and laid out once more. A marked picture keeps both
+        // gaps, the one before its character (which egui drops at the start of a row) and the
+        // one after it, and is drawn in whichever its row has: one marked that needn't be only
+        // leaves a blank as wide as itself, and nothing is ever drawn over it.
+        let mut wrapped: Vec<bool> = sized.iter().map(|(_, local, ..)| *local == 0).collect();
+        let starts_row = |glyph: Rect, size: Vec2| glyph.min.x < size.x - 0.5;
+        let mut galley;
+        let mut passes = 0;
+        loop {
+            let mut job = LayoutJob::default();
+            job.wrap.max_width = room;
+            let (mut k, mut carry) = (0, 0.0);
+            for (r, run) in p.runs.iter().enumerate() {
+                match sized.get(k).filter(|(at, ..)| *at == r) {
+                    Some((_, local, _, size, glued)) => {
+                        let before = if *local == 0 { 0.0 } else { size.x };
+                        let mark = if *glued { BREAKS_BEFORE } else { OBJECT };
+                        job.append(&mark.to_string(), carry + before, TextFormat { line_height: Some(size.y), ..object.clone() });
+                        carry = if wrapped.get(k).copied().unwrap_or(false) { size.x } else { 0.0 };
+                        k += 1;
+                    }
+                    None => {
+                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
+                        carry = 0.0;
+                    }
+                }
+            }
+            if job.sections.is_empty() {
+                job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
+            }
+            galley = ctx.fonts_mut(|f| f.layout_job(job));
+            passes += 1;
+            self.layouts += 1;
+            if wrapped.iter().all(|w| *w) {
+                break;
+            }
+            if passes >= MOST_LAYOUTS {
+                wrapped.iter_mut().for_each(|w| *w = true);
+                continue;
+            }
+            let found = sized.iter().zip(&wrapped).position(|((_, local, _, size, _), w)| {
+                !*w && starts_row(galley.pos_from_cursor(CCursor { index: (*local).into(), prefer_next_row: true }), *size)
+            });
+            match found.and_then(|i| wrapped.get_mut(i)) {
+                Some(w) => *w = true,
+                None => break,
+            }
         }
         self.laid += 1;
-        let galley = ctx.fonts_mut(|f| f.layout_job(job));
+        // Each picture is drawn where its gap is: in the gap before its character, or right of
+        // its character when it starts its row (whether or not it was marked, so a picture is
+        // never drawn away from its gap).
         let pictures = sized
             .into_iter()
-            .filter_map(|(local, id, size)| {
-                let glyph = galley.pos_from_cursor(CCursor::new(local));
-                let rect = Rect::from_min_max(pos2(glyph.min.x - size.x, glyph.max.y - size.y), pos2(glyph.min.x, glyph.max.y));
+            .filter_map(|(_, local, id, size, _)| {
+                let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
+                let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
+                let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
                 rect.is_finite().then_some(PictureBox { local, id, rect })
             })
             .collect();
@@ -370,6 +440,10 @@ impl Layout {
         if let Some(b) = p.picture_at(local) {
             // Before a picture is at its left, not after its gap.
             return Rect::from_min_max(pos2(b.rect.min.x, b.rect.min.y), pos2(b.rect.min.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        }
+        if let Some(b) = local.checked_sub(1).and_then(|l| p.picture_at(l)) {
+            // After a picture is at its right, wherever its character stands.
+            return Rect::from_min_max(pos2(b.rect.max.x, b.rect.min.y), pos2(b.rect.max.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
         }
         let r = p.galley.pos_from_cursor(CCursor::new(local)).translate(vec2(p.indent(), p.top));
         if r.height() < 1.0 { Rect::from_min_size(pos2(p.indent(), p.top), vec2(0.0, p.height())) } else { r }
@@ -1124,3 +1198,7 @@ mod tests {
         assert_eq!([class(' '), class(','), class('é'), class('7')], [0, 1, 2, 2]);
     }
 }
+
+#[cfg(test)]
+#[path = "wide_picture_tests.rs"]
+mod wide_picture_tests;

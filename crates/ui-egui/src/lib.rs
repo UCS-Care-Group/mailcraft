@@ -47,6 +47,8 @@ mod agent_leaves_tests;
 mod agent_names_tests;
 pub mod alerts;
 pub mod approval;
+#[cfg(test)]
+mod attachment_menu_tests;
 mod attachment_open;
 pub mod auto_replies;
 #[cfg(test)]
@@ -99,6 +101,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
@@ -344,6 +347,11 @@ pub struct Services {
     /// import holds the window up (#420). The job carries the folder and a shared progress the
     /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
     pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
+    /// Desktop: read a .pst file on a background thread (`mailcraft_engine::import_pst::read_path`,
+    /// #815), sending its mail a batch at a time and then the outcome; the window puts each batch
+    /// in as it comes and shows and cancels through the job's progress. Without one (tests,
+    /// scripts) the window reads the file in place.
+    pub import_pst: Option<Box<dyn Fn(import_pst::PstJob) -> Receiver<mailcraft_engine::import_pst::Event>>>,
     /// Desktop: read a mailbox file on a background thread ahead of its taking the place of the
     /// one open (File › Open, a mailbox file dropped or handed over; [`opening`]), counting what
     /// it reads in the progress it is given and stopping when that is cancelled
@@ -4307,6 +4315,20 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // A .pst import whose window went while it read (closed, or another dialog put in its
+        // place) has stopped: what came in is one step to undo, and Undo is free again.
+        if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
+            mailcraft_engine::import_pst::end_staged(&mut self.session);
+        }
+        // A .pst import takes in what its reader has sent here, in the logic and not in the
+        // dialog's frame: the toolkit runs the logic when the window is hidden or minimised and
+        // paints nothing, and a batch waiting for a frame would stop the reader (#815).
+        if let Some(dialogs::Dialog::ImportPst(mut d)) = self.dialog.take_if(|d| matches!(d, dialogs::Dialog::ImportPst(d) if d.is_importing())) {
+            d.pump(self, ctx);
+            if self.dialog.is_none() {
+                self.dialog = Some(dialogs::Dialog::ImportPst(d));
+            }
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
@@ -5143,6 +5165,15 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
         }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
+        // (A batch handed over by the import's window, `staged`, says nothing: the window does.)
+        "file.importPst" if v.get("staged").is_none() => {
+            let what = tln!(n("added")?, "{n} message", "{n} messages");
+            Some(if v.get("dryRun").and_then(Value::as_bool) == Some(true) {
+                i18n::fmt(tl!("The .pst file has {what} to import; nothing was imported"), &[("what", &what)])
+            } else {
+                i18n::fmt(tl!("Imported {what} from the .pst file"), &[("what", &what)])
+            })
+        }
         "file.importFolderTree" => {
             let messages = n("messages")?;
             let what = tln!(messages, "{n} message", "{n} messages");

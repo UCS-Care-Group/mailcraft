@@ -25,13 +25,13 @@
 //!
 //! **The lines of trouble** name no folder, no address and nothing a server said.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, GraphFetchResult, GraphFetched, GraphFolder,
-    GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
+    GraphFolder, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -130,6 +130,12 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) flag_lacking: bool,
     /// A read-state change that said no state was passed over: said once a run, with no id.
     pub(crate) read_unsaid: bool,
+    /// The ids of the server's other own folders ([`OWN`]) it has, as far as it said (#779): a
+    /// change of one is never sent.
+    pub(crate) own: HashSet<String>,
+    /// A folder deleted here is still on the server (it refused, or it is one of its own): the
+    /// folder list is read afresh, as a delta wouldn't bring it back.
+    pub(crate) reread_folders: bool,
 }
 
 impl<E: HttpExchange> Run<'_, E> {
@@ -202,6 +208,26 @@ const KNOWN: [(DistinguishedFolder, Option<FolderKind>); 7] = [
     (DistinguishedFolder::Outbox, None),
 ];
 
+/// The server's own folders that are no kind of MailCraft's (#779), and its Outbox, which isn't
+/// either (AU2-V2): asked for in a request of their own, so that a server that doesn't know one of
+/// the names loses nothing else. They are never renamed, moved or deleted (the server refuses it,
+/// or should). These are the mail folders among the schema's `DistinguishedFolderIdNameType` names
+/// that lie under the top of the mail; Graph's `clutter` and `scheduled` have no such name, and
+/// what lies under the top of the mailbox (`searchfolders`, `recoverableitems…`) is never listed.
+const OWN: [DistinguishedFolder; 6] = [
+    DistinguishedFolder::Outbox,
+    DistinguishedFolder::ConversationHistory,
+    DistinguishedFolder::SyncIssues,
+    DistinguishedFolder::Conflicts,
+    DistinguishedFolder::LocalFailures,
+    DistinguishedFolder::ServerFailures,
+];
+
+/// How [`OWN`] is asked for when a server won't take the names together: the Outbox, which every
+/// server knows, Conversation History, and Sync Issues with the three folders in it (a group that
+/// fails too is asked name by name).
+const OWN_GROUPS: [std::ops::Range<usize>; 3] = [0..1, 1..2, 2..6];
+
 /// What the server calls its special folders.
 #[derive(Default)]
 struct Specials {
@@ -243,7 +269,59 @@ fn server_outbox(deltas: &mut EwsFolderDeltas, specials: &Specials) -> Option<St
     None
 }
 
+impl Specials {
+    /// The ids of the server's own folders: these, and `own` (not the top of the mail, which is
+    /// no folder here). Sorted, so that a run says them the same way each time.
+    fn own(&self, own: &HashSet<String>) -> Vec<String> {
+        let mut ids: Vec<String> = own.iter().chain(self.kinds.keys()).cloned().chain(self.outbox.iter().map(|o| o.id.as_str().to_owned())).collect();
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+}
+
+/// Whether a request that failed with `asked` ends the run even when it was only for the server's
+/// own folders (#779): it was called off, the sign-in was refused, or the server asked to be left
+/// alone (a 429, a 503 or `ErrorServerBusy`, which the next request would meet as well).
+/// Anything else of theirs is taken as "not there", so that Send/Receive never fails over them
+/// (and a mark once set stays).
+fn ends_the_run(asked: &Asked) -> bool {
+    matches!(asked, Asked::Stop(Stop::Cancelled | Stop::Auth | Stop::Busy(_)))
+}
+
 impl<E: HttpExchange> Run<'_, E> {
+    /// The ids of the folders of [`OWN`] the server has: one request for them all, and, when the
+    /// server won't take it (a schema that lacks one of the names), one for each of
+    /// [`OWN_GROUPS`], and name by name for a group it won't take either. Whatever it says of one,
+    /// but for what [`ends_the_run`], is "not there".
+    async fn own_folders(&mut self) -> Result<HashSet<String>, Asked> {
+        let mut found = HashSet::new();
+        let mut asks: Vec<&[DistinguishedFolder]> = vec![&OWN];
+        let mut at = 0usize;
+        // (At most the whole list, its groups and each name: 1 + 3 + 6 requests.)
+        while let Some(names) = asks.get(at).copied() {
+            at = at.saturating_add(1);
+            let get = GetFolder::new(names);
+            match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+                Ok(answers) => found.extend(answers.into_iter().flatten().map(|info| info.id.as_str().to_owned())),
+                Err(stop) if ends_the_run(&stop) => return Err(stop),
+                // (Unreachable, refused, no secure connection: nothing more is asked of them. A
+                // change of one is then refused by the engine's mark, once a run has set it.)
+                Err(Asked::Stop(_)) => {
+                    log::info!("ews folders: the server's own folders couldn't be asked for; those not answered are taken as not there");
+                    break;
+                }
+                Err(_) if names.len() == OWN.len() => {
+                    log::info!("ews folders: the server didn't take the names of its own folders together; asking them in groups");
+                    asks.extend(OWN_GROUPS.iter().filter_map(|group| OWN.get(group.clone())));
+                }
+                Err(_) if names.len() > 1 => asks.extend(names.chunks(1)),
+                Err(_) => {}
+            }
+        }
+        Ok(found)
+    }
+
     async fn specials(&mut self) -> Result<Specials, Asked> {
         let get = GetFolder::new(&KNOWN.map(|(folder, _)| folder));
         let found = self.ask(&get.element(), &|reply| get.answer(reply)).await?;
@@ -320,7 +398,17 @@ pub async fn sync_mail<E: HttpExchange>(
     wait: &mut dyn FnMut(u32) -> bool,
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
-    let mut run = Run { client, exchange, cancel, wait, shape: Shape::Full, flag_lacking: false, read_unsaid: false };
+    let mut run = Run {
+        client,
+        exchange,
+        cancel,
+        wait,
+        shape: Shape::Full,
+        flag_lacking: false,
+        read_unsaid: false,
+        own: HashSet::new(),
+        reread_folders: false,
+    };
     let mut out = Outcome::default();
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
@@ -395,6 +483,11 @@ impl<E: HttpExchange> Run<'_, E> {
 
 impl<E: HttpExchange> Run<'_, E> {
     async fn all(&mut self, request: &EwsMailRequest, out: &mut Outcome, emit: &mut dyn FnMut(EwsMailResult)) -> Result<(), Asked> {
+        // The server's own folders (#779), before anything goes up: a change of one is never sent.
+        let changes_existing = request.changes.iter().any(|c| !matches!(c, FolderChange::Create { .. }));
+        if !request.inbox_pass && (request.list_folders || changes_existing) {
+            self.own = self.own_folders().await?;
+        }
         // What was changed, written and sent here goes first (not in the Inbox pass).
         if !request.inbox_pass {
             self.push(request, emit).await?;
@@ -408,8 +501,11 @@ impl<E: HttpExchange> Run<'_, E> {
         let mut order: Vec<String> = Vec::new();
         // (The server's Outbox, when the list leaves it out: there is nothing in it to read.)
         let mut left_out: Option<String> = None;
-        if request.list_folders && !request.inbox_pass {
-            let (mut deltas, state) = match self.folders(&request.hierarchy, &specials).await {
+        // (A run that lists no folders still reads them afresh when a folder deleted here is kept there.)
+        if (request.list_folders || self.reread_folders) && !request.inbox_pass {
+            // (A folder deleted here that the server keeps comes back only in a read afresh.)
+            let from = if self.reread_folders { "" } else { request.hierarchy.as_str() };
+            let (mut deltas, state) = match self.folders(from, &specials).await {
                 Ok(found) => found,
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
                 Err(_) => {
@@ -419,6 +515,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
             };
             left_out = server_outbox(&mut deltas, &specials);
+            deltas.well_known = specials.own(&self.own);
             order.extend(deltas.changed.iter().map(|f| f.id.clone()));
             emit(EwsMailResult { folders: Some(deltas), hierarchy: state, partial: true, ..base(request) });
         }
@@ -555,7 +652,17 @@ pub async fn fetch_messages<E: HttpExchange>(
     cancel: &AtomicBool,
     wait: &mut dyn FnMut(u32) -> bool,
 ) -> GraphFetchResult {
-    let mut run = Run { client, exchange, cancel, wait, shape: Shape::Full, flag_lacking: false, read_unsaid: false };
+    let mut run = Run {
+        client,
+        exchange,
+        cancel,
+        wait,
+        shape: Shape::Full,
+        flag_lacking: false,
+        read_unsaid: false,
+        own: HashSet::new(),
+        reread_folders: false,
+    };
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let mut outcome = Outcome::default();
     for id in request.ids.iter().take(MAX_FETCH) {

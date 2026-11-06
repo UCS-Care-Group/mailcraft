@@ -2304,6 +2304,7 @@ dependencies = [
  "mailcraft-mcp",
  "mailcraft-model",
  "mailcraft-net",
+ "mailcraft-pst",
  "mailcraft-time",
  "serde_json",
 ]
@@ -2341,6 +2342,7 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
+ "mailcraft-pst",
  "mailcraft-time",
  "mailcraft-vcard",
  "proptest",
@@ -2442,6 +2444,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-link",
+ "mailcraft-names",
  "mailcraft-time",
  "proptest",
  "serde",
@@ -2491,6 +2494,7 @@ dependencies = [
 name = "mailcraft-pst"
 version = "0.10.0"
 dependencies = [
+ "mailcraft-charset",
  "proptest",
 ]
 
@@ -2520,6 +2524,7 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
+ "mailcraft-pst",
  "mailcraft-time",
  "serde",
  "serde_json",

@@ -606,6 +606,12 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
     }
 }
 
+/// Drops the deletions queued of `account`'s folders whose server ids are in `own`, the server's
+/// own folders (#756, #779): the server keeps them, and would be asked every run.
+pub(super) fn drop_own_deletes(mb: &mut Mailbox, account: Id, own: &HashSet<String>) {
+    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id)));
+}
+
 /// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
 /// known by their ids as Graph's folders are).
 pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
@@ -614,8 +620,8 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
     // keeps it, and would be asked every run (#756).
     // (Marked by the listing, or earlier: `update` keeps the mark whatever one listing says.)
     let kept = mb.folders.iter().filter(|f| f.account == account).filter_map(|f| f.server.as_ref()).filter(|s| s.well_known).map(|s| s.id.as_str());
-    let own: HashSet<&str> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).chain(kept).collect();
-    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id.as_str())));
+    let own: HashSet<String> = listing.folders.iter().filter(|l| l.well_known).map(|l| l.id.as_str()).chain(kept).map(str::to_owned).collect();
+    drop_own_deletes(mb, account, &own);
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
