@@ -17,7 +17,7 @@
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
 //! | alignment | `text-align` |
 //! | font size | `font-size`, the size in `font` |
-//! | font family | `font-family`, `<font face>`: the first family's name only, for pasting into the composer (the reading pane draws in its own font) |
+//! | font family | `font-family`, `<font face>`, the families after the size in `font`: the list of names (at most [`MAX_FAMILIES`]), for the reading pane to draw in the first that is installed on this computer and for pasting into the composer; a font is never fetched (`@font-face` is ignored) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
 //! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one) when the message has no style sheet to say otherwise |
 //! | margins | `margin` and its sides: a size in `px`, `pt`, `em` or `%` (of 600 px), 0 to 64 pixels a side, negative is 0; `auto` is read for centring only |
@@ -117,7 +117,7 @@ pub(crate) struct Css {
     pub strike: Option<bool>,
     pub align: Option<Align>,
     pub size: Option<Size>,
-    /// The first family of `font-family` ([`family`]).
+    /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
     pub hidden: bool,
     /// Whether the margin above (below) is given, and given as none to speak of: zero, or a
@@ -198,11 +198,13 @@ impl Css {
                         } else if let Some(italic) = slant(token).filter(|_| token != "normal") {
                             css.italic = Some(italic);
                         } else if let Some(size) = font_size(token.split('/').next().unwrap_or("")) {
-                            // The size comes before the family; what follows is not looked at.
+                            // The size comes before the family, which is all that follows it.
                             css.size = Some(size);
                             if let Some((_, height)) = token.split_once('/') {
                                 css.line_height = line_height(height).or(css.line_height);
                             }
+                            let rest = value.find(token).and_then(|at| value.get(at.saturating_add(token.len())..));
+                            css.font = rest.and_then(family).or(css.font.take());
                             break;
                         }
                     }
@@ -816,12 +818,29 @@ fn is_slight(value: &str) -> Option<bool> {
     })
 }
 
-/// The first family of a `font-family` list (or `<font face>`), lower case and unquoted, when it
-/// is a plain name (letters, digits, spaces and hyphens, at most 32 of them).
+/// The most families of a `font-family` list that are kept: the first that is installed is used,
+/// and a list rarely names more than four.
+pub const MAX_FAMILIES: usize = 8;
+
+/// The families of a `font-family` list (or `<font face>`), lower case, unquoted and joined by
+/// commas, in their order: each a plain name (letters of any script, digits, spaces and hyphens,
+/// at most 32 characters), at most [`MAX_FAMILIES`] of them. A name that is not plain is left out
+/// and the rest are kept; `None` when none is left. `inherit` and the other keywords for every
+/// property are no names: the text keeps the fonts of what it is in.
 pub(crate) fn family(value: &str) -> Option<String> {
-    let first = value.split(',').next()?.trim().trim_matches(['\'', '"']).trim().to_ascii_lowercase();
-    let plain = !first.is_empty() && first.len() <= 32 && first.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-');
-    plain.then_some(first)
+    let mut names: Vec<String> = Vec::new();
+    for name in value.split(',') {
+        if names.len() >= MAX_FAMILIES {
+            break;
+        }
+        let name = name.trim().trim_matches(['\'', '"']).trim().to_lowercase();
+        let count = name.chars().count();
+        let keyword = matches!(name.as_str(), "inherit" | "initial" | "unset" | "revert" | "revert-layer");
+        if !keyword && count > 0 && count <= 32 && name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-') {
+            names.push(name);
+        }
+    }
+    (!names.is_empty()).then(|| names.join(","))
 }
 
 fn weight(value: &str) -> Option<bool> {
@@ -1145,6 +1164,10 @@ const NAMED: [(&str, u32); 148] = [
 ];
 
 #[cfg(test)]
+#[path = "style_family_tests.rs"]
+mod style_family_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1283,14 +1306,6 @@ mod tests {
     }
 
     #[test]
-    fn a_font_family_is_its_first_name_alone() {
-        assert_eq!(Css::parse("font-family:'Comic Sans MS', cursive").font.as_deref(), Some("comic sans ms"));
-        assert_eq!(Css::parse("font-family:\"Calibri\",sans-serif").font.as_deref(), Some("calibri"));
-        assert_eq!(Css::parse("font-family:url(x);").font, None);
-        assert_eq!(Css::parse(&format!("font-family:{}", "a".repeat(40))).font, None);
-    }
-
-    #[test]
     fn the_background_shorthand_gives_only_its_colour() {
         assert_eq!(Css::parse("background:#f4f4f4 url(https://example.org/bg.png) no-repeat top left").background, Some(Rgb(0xf4, 0xf4, 0xf4)));
         assert_eq!(Css::parse("background:url('data:image/png;base64,AAAA') rgb(0, 102, 204)").background, Some(Rgb(0, 102, 204)));
@@ -1314,7 +1329,7 @@ mod tests {
         assert_eq!(size("font-size:99999999999999999999pt", None), None);
         assert_eq!(size("font-size:-4px", None), None);
         assert_eq!(size("font-size:big", None), None);
-        // The shorthand: weight, slant and size; the family is not read.
+        // The shorthand: weight, slant and size (its families: `style_family_tests.rs`).
         let css = Css::parse("font: italic bold 7.0pt/1.2 \"Times New Roman\"");
         assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None))), (Some(true), Some(true), Some(MIN_FONT_PX)));
         assert_eq!(Css::parse("font: 12px bold").bold, None);

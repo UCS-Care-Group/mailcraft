@@ -54,6 +54,9 @@ pub struct TasksJob {
     pub refresh: String,
     /// What the server is to be told first.
     pub upload: TasksUpload,
+    /// The zone the calendar is shown in ([`mailcraft_engine::Session::zone`]): a to-do's start
+    /// and due dates are days there, read from and sent to the server as its midnights (#809).
+    pub zone: mailcraft_time::Zone,
     pub cancel: Arc<AtomicBool>,
 }
 
@@ -218,7 +221,8 @@ impl MailApp {
         let Ok(upload) = tasks_remote::task_upload(&self.session.mailbox, account) else { return false };
         let given = fingerprint(&refresh);
         let deletes = tasks_remote::carries_delete(&upload);
-        let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, cancel: Default::default() };
+        let zone = self.session.zone();
+        let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, zone, cancel: Default::default() };
         let Some(graph) = self.services.graph_tasks.as_ref().filter(|_| !self.offline()) else { return false };
         let rx = graph(job);
         // A delete that goes out can't be undone: the task would come back here, gone there (#706).
