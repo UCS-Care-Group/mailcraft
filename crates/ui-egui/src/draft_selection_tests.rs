@@ -12,7 +12,7 @@ use egui::Key;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 use mailcraft_engine::Session;
-use mailcraft_model::{FolderKind, Id};
+use mailcraft_model::{FlagStatus, FolderKind, Id};
 use serde_json::json;
 
 use crate::{MailApp, Services};
@@ -335,6 +335,66 @@ fn a_draft_that_cant_be_saved_stays_with_the_selection_as_it_was() {
     assert!(pane(&a).is_some(), "in the reading pane");
     assert_eq!(a.session.sel.messages, vec![first], "the selection is the draft shown");
     assert!(a.status_msg.as_ref().is_some_and(|(said, _)| said.contains("Drafts")), "{:?}", a.status_msg);
+}
+
+/// A message of the Inbox flagged, as something done before the click that Undo is meant for.
+fn flagged(a: &mut MailApp) -> Id {
+    let inbox = folder(a, FolderKind::Inbox);
+    let other = a.session.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft && m.flag == FlagStatus::None).unwrap().id;
+    a.run("mail.flag", json!({"id": other})).unwrap();
+    assert_eq!(a.session.mailbox.message(other).unwrap().flag, FlagStatus::Flagged);
+    other
+}
+
+#[test]
+fn a_click_then_undo_keeps_what_was_written_in_a_new_message() {
+    // The click is no step to undo: Undo undoes what was done before it, and what was written
+    // stays in Drafts, as nothing holds it any more in the reading pane.
+    let (mut a, first, _) = two_drafts();
+    let marked = flagged(&mut a);
+    let label = a.session.undo_label();
+    a.run("mail.new", json!({})).unwrap();
+    a.execute("compose.set", json!({"subject": "Brand new", "body": "Words not saved yet"})).unwrap();
+    a.run("mail.select", json!({"id": first})).unwrap();
+    assert!(pane(&a).is_none(), "the draft clicked is shown");
+    assert_eq!(a.session.undo_label(), label, "the click made no step of its own");
+    a.run("edit.undo", json!({})).unwrap();
+    assert_eq!(a.session.mailbox.message(marked).unwrap().flag, FlagStatus::None, "Undo undid the flag");
+    assert!(draft(&a, "Brand new").is_some_and(|d| body(&a, d).contains("Words not saved yet")), "what was written is still in Drafts");
+}
+
+#[test]
+fn a_click_then_undo_keeps_what_was_written_in_a_draft_continued() {
+    let (mut a, first, second) = two_drafts();
+    let marked = flagged(&mut a);
+    a.run("folder.select", json!({"kind": "drafts"})).unwrap();
+    a.run("mail.select", json!({"id": first})).unwrap();
+    a.run("mail.editDraft", json!({})).unwrap();
+    typed(&mut a);
+    let label = a.session.undo_label();
+    a.run("mail.select", json!({"id": second})).unwrap();
+    assert!(pane(&a).is_none(), "the draft clicked is shown");
+    assert_eq!(a.session.undo_label(), label, "the click made no step of its own");
+    a.run("edit.undo", json!({})).unwrap();
+    assert_eq!(a.session.mailbox.message(marked).unwrap().flag, FlagStatus::None, "Undo undid the flag");
+    assert!(body(&a, first).contains("Words not saved yet"), "what was written is still in Drafts");
+}
+
+#[test]
+fn a_selection_that_is_refused_lets_go_of_nothing() {
+    // A message that isn't there, or a row the list doesn't show: the select is refused, and the
+    // message being written stays as it was, unsaved, with the selection.
+    for params in [json!({"id": 999_999_999}), json!({"ids": [999_999_999]}), json!({"id": 0}), json!({"id": "x"}), json!({"copy": 7})] {
+        let (mut a, first, second) = continued();
+        typed(&mut a);
+        let params = if params.get("copy").is_some() { json!({"id": second, "copy": 7}) } else { params };
+        let (before, compose) = (a.session.mailbox.clone(), a.session.compose.clone());
+        assert!(a.run("mail.select", params.clone()).is_err(), "{params}");
+        assert_eq!(a.session.compose, compose, "{params}: still being written");
+        assert!(pane(&a).is_some(), "{params}: in the reading pane");
+        assert!(a.session.mailbox == before, "{params}: nothing was saved");
+        assert_eq!(a.session.sel.messages, vec![first], "{params}");
+    }
 }
 
 #[test]

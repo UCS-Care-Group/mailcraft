@@ -75,16 +75,19 @@ pub(crate) fn settle_pane(app: &mut MailApp) {
 /// Before the owner moves the selection in the message list (a click on a row, Next Message,
 /// Select All…): the messages being written in the reading pane are let go of, so that what is
 /// selected is what the reading pane shows, and what acts on the selection (Delete, Reply) acts on
-/// what is in view (#727). Each is saved to Drafts as Save Draft saves it when it has changes (or
-/// its draft is gone), a draft with none is not saved again, and then it is closed; one put aside
-/// for another in the reading pane goes too, as it would come back there. One in a window of its
-/// own stays where it is, and so does the reading pane's when the selection asked for is its own
+/// what is in view (#727). Each is saved to Drafts when it has changes (or its draft is gone), as
+/// the five-minute timer saves it: no step to undo, since the click is none, so that Undo after it
+/// undoes what was done before it rather than the save, with no message left open to hold what
+/// was written. A draft with none is not saved again, and then it is closed; one put aside for
+/// another in the reading pane goes too, as it would come back there. One in a window of its own
+/// stays where it is, and so does the reading pane's when the selection asked for is its own
 /// draft alone (a click on its row). Every one is saved before any is closed: a draft that can't
-/// be saved leaves them all open, the selection as it was, and the error says why.
+/// be saved leaves them all open, the selection as it was, and the error says why. A selection
+/// that would be refused (a message that isn't there) lets go of nothing.
 pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -> Result<(), String> {
     let moving = crate::keys::MOVES_IN_LIST.contains(&id) || id == "mail.selectAll";
     // (A move that can't be made, or that goes nowhere, moves nothing.)
-    if !(id == "mail.select" || moving && app.enabled(id) && !goes_nowhere(app, id, params)) {
+    if !(id == "mail.select" && selectable(app, params) || moving && app.enabled(id) && !goes_nowhere(app, id, params)) {
         return Ok(());
     }
     settle_pane(app);
@@ -99,7 +102,7 @@ pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -
         .map(|c| c.id)
         .collect();
     for c in unsaved {
-        app.execute("compose.saveDraft", json!({"compose": c}))?;
+        app.session.save_in_background(c).map_err(|e| e.to_string())?;
     }
     for _ in 0..mailcraft_engine::composing::MAX_COMPOSING {
         settle_pane(app);
@@ -111,6 +114,27 @@ pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -
     }
     settle_pane(app);
     Ok(())
+}
+
+/// Whether `mail.select` takes `params`, read as it reads them (#553): each message named is in
+/// the mailbox, and a row named by `copy` is one the list shows. (What it refuses changes nothing,
+/// so nothing is let go of for it.)
+fn selectable(app: &mut MailApp, params: &Value) -> bool {
+    let none = params.get("id").is_none() && params.get("ids").and_then(Value::as_array).is_some_and(Vec::is_empty);
+    if none {
+        return true;
+    }
+    let Ok(Some(ids)) = mailcraft_engine::p::ids_strict(params) else { return false };
+    if !ids.iter().all(|id| app.session.mailbox.message(*id).is_some()) {
+        return false;
+    }
+    match params.get("copy") {
+        None => true,
+        Some(copy) => copy.as_u64().and_then(|c| u16::try_from(c).ok()).is_some_and(|copy| {
+            let last = ids.last().copied();
+            copy == 0 || app.session.rows().iter().any(|r| Some(r.id) == last && r.copy == copy)
+        }),
+    }
 }
 
 /// Whether the list move `id` leaves the selection as it is, as the engine moves it: Next Message
