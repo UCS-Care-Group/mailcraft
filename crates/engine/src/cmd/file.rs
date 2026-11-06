@@ -198,9 +198,58 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     }))
 }
 
+/// Most bytes of content a self-contained copy of a mailbox may hold: it is built whole in memory,
+/// so a mailbox past this is saved to another folder instead (its content linked, not read).
+const SINGLE_FILE_MAX: u64 = if cfg!(test) { 1 << 20 } else { 1 << 30 };
+
+/// What a self-contained copy of the mailbox would hold in memory, counted without reading any
+/// content kept outside it: the text, HTML and attachments in memory, and the lengths of the
+/// parts kept in the content folder.
+fn single_file_bytes(mb: &mailcraft_model::Mailbox) -> u64 {
+    let mut total = 0u64;
+    let mut add = |n: u64| total = total.saturating_add(n);
+    for m in mb.messages.values() {
+        add(m.body.text.len() as u64);
+        add(m.body.html.as_ref().map_or(0, String::len) as u64);
+        add(m.hidden_text.len() as u64);
+        if let Some(k) = m.kept.as_deref() {
+            for r in [&k.text, &k.html, &k.hidden].into_iter().flatten() {
+                add(r.len);
+            }
+        }
+        for a in &m.attachments {
+            add(a.size() as u64);
+        }
+    }
+    total
+}
+
+/// A .pst import writes its content beside the mailbox file it started with, so the mailbox is
+/// not moved to another file until the import is over.
+#[cfg(not(target_arch = "wasm32"))]
+fn refuse_while_importing(s: &Session) -> Result<(), crate::CmdError> {
+    if s.importing_pst() {
+        return Err(failed!("a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"));
+    }
+    Ok(())
+}
+
+/// Refuse, before anything is read or allocated, a self-contained copy that would not fit.
+fn check_single_file(s: &Session) -> Result<(), crate::CmdError> {
+    let bytes = single_file_bytes(&s.mailbox);
+    if bytes > SINGLE_FILE_MAX {
+        return Err(failed!(
+            "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file",
+            mb = bytes >> 20
+        ));
+    }
+    Ok(())
+}
+
 /// The mailbox as one self-contained file: what a caller without a place for files gets. Every
 /// byte of it: what the mailbox keeps outside memory is fetched first.
 fn single_file(s: &Session) -> Result<Vec<u8>, crate::CmdError> {
+    check_single_file(s)?;
     crate::io::write_mailbox(&s.loaded_mailbox()?).map_err(fail)
 }
 
@@ -217,8 +266,16 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
         // Saved somewhere else than where it is kept, the mailbox takes everything along: the
         // content folder there has none of what this one keeps.
         let elsewhere = s.path.as_ref().is_none_or(|kept| kept.as_path() != std::path::Path::new(&path));
+        if elsewhere {
+            refuse_while_importing(s)?;
+        }
         let saved = if elsewhere {
-            crate::store::save(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?
+            // The content the mailbox keeps outside memory is copied (or linked) beside the new
+            // file, one file at a time, rather than every part of every message read in at once.
+            if let Some(from) = s.path.as_deref() {
+                crate::store::copy_content(from, std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
+            }
+            crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?
         } else {
             let saved = crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
             // What mail outside its window let go of goes from disk now (#143).
@@ -252,6 +309,8 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     }
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
+        refuse_while_importing(s)?;
+        check_single_file(s)?;
         let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
         json!({"path": path, "bytes": bytes})
     };

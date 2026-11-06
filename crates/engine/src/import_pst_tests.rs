@@ -138,6 +138,7 @@ fn job(dry_run: bool) -> Job {
         known: HashSet::new(),
         room: 31,
         known_contacts: HashSet::new(),
+        keep_at: None,
     }
 }
 

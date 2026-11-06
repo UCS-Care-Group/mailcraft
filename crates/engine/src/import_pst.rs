@@ -44,6 +44,17 @@ pub use mailcraft_mime::PST_ITEM_HEADER;
 pub const BATCH_MESSAGES: usize = if cfg!(test) { 3 } else { 500 };
 /// Most bytes (text and attachments) of one batch.
 pub const BATCH_BYTES: u64 = 64 << 20;
+/// Most bytes an import may add to memory at once, over all its batches (#815). With a mailbox
+/// file beside it, every attachment over 1 KB goes to the content folder as its batch is read
+/// (by the reader's thread) and only what stays in memory counts: attachments the disk refused
+/// and the small ones. Without a file, everything an import adds counts (the text, HTML and
+/// hidden words of each message and every attachment, a file carried by many messages once), and
+/// an import that would pass this stops with an error saying the file is too large to import
+/// without a mailbox file, rather than run the computer out of memory.
+pub const MEMORY_BUDGET: u64 = if cfg!(test) { 1 << 20 } else { 256 << 20 };
+/// Attachments this small stay in their message (the size the mailbox file keeps inline).
+#[cfg(not(target_arch = "wasm32"))]
+const SPILL_MIN: usize = 1024;
 /// Most folders one import makes.
 pub const MAX_FOLDERS: usize = 10_001;
 /// Most categories of the file's list taken in.
@@ -124,6 +135,9 @@ pub struct Job {
     /// The contacts already brought in from .pst files ([`known_keys`] holds them too), to tell
     /// them from mail.
     pub known_contacts: HashSet<String>,
+    /// The mailbox file the mail is going to, when it has one: the reader writes each batch's
+    /// attachments to the content folder beside it before it hands the batch over (#815).
+    pub keep_at: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Job {
@@ -180,8 +194,17 @@ pub enum Event {
 /// outcome, to `send`; a `send` that answers `false` (the window has gone) ends the read.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn read_path(path: &str, job: &Job, progress: &Progress, send: &mut dyn FnMut(Event) -> bool) {
-    let mut sink = |batch: Batch| if send(Event::Batch(batch)) { Ok(()) } else { Err(fail("the import was stopped")) };
-    let done = open_path(path).and_then(|f| read(f, job, Limits::default(), progress, &mut sink));
+    // A panic on the way is an import that couldn't go on, said to whoever reads the events,
+    // not a crash of whatever thread this is (#815).
+    let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        #[cfg(test)]
+        if path.ends_with("panic-in-reader.pst") {
+            std::panic::resume_unwind(Box::new("a reader that fell over"));
+        }
+        let mut sink = |batch: Batch| if send(Event::Batch(batch)) { Ok(()) } else { Err(fail("the import was stopped")) };
+        open_path(path).and_then(|f| read(f, job, Limits::default(), progress, &mut sink))
+    }))
+    .unwrap_or_else(|_| Err(fail("MailCraft stopped reading the .pst file before it was done: what came in is kept")));
     let _ = send(Event::Done(done.map(Box::new)));
 }
 
@@ -285,6 +308,53 @@ struct Brought {
 /// Most bytes of the start of a file its identity is worked out from when it has no record key.
 const HEAD_BYTES: u64 = 4096;
 
+/// Writes each batch's attachments to the content folder beside the mailbox file before the
+/// batch is handed over (#815), on the reader's thread: the window's thread only takes the batch
+/// in. Each file is looked at and written (or its time renewed) once per carrier, so content
+/// that went missing between batches is written again. A disk that refuses is left alone for the
+/// rest of the batch (what is left stays in memory, against [`MEMORY_BUDGET`]) and said once.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct Spiller {
+    path: Option<std::path::PathBuf>,
+    said: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Spiller {
+    pub(crate) fn new(path: Option<std::path::PathBuf>) -> Spiller {
+        Spiller { path, said: false }
+    }
+
+    pub(crate) fn spill(&mut self, batch: &mut Batch) {
+        let Some(path) = self.path.as_deref() else { return };
+        let mut refused = false;
+        for (_, m) in &mut batch.messages {
+            for a in &mut m.attachments {
+                if refused {
+                    return;
+                }
+                if a.kept.is_some() || a.data.len() <= SPILL_MIN {
+                    continue;
+                }
+                let digest = crate::store::Digest::of(&a.data);
+                match crate::store::stash(path, &digest, &a.data) {
+                    Ok(r) => {
+                        a.kept = Some(r);
+                        a.data = std::sync::Arc::default();
+                    }
+                    Err(e) => {
+                        refused = true;
+                        if !self.said {
+                            self.said = true;
+                            log::warn!("a .pst import couldn't write attachments ahead: {e}; they are held in memory");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Read a .pst file over `reader` and hand over its mail in batches through `sink` (nothing,
 /// for a dry run): see the module. `limits` are the reader's caps ([`Limits::default`] for an
 /// import).
@@ -295,6 +365,19 @@ pub fn read<R: Read + Seek>(
     progress: &Progress,
     sink: &mut dyn FnMut(Batch) -> Result<(), CmdError>,
 ) -> Result<Outcome, CmdError> {
+    // (With a mailbox file, the attachments of each batch are written beside it on the way.)
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut spiller = Spiller::new(job.keep_at.clone());
+    let mut written_ahead = |batch: Batch| {
+        #[cfg(not(target_arch = "wasm32"))]
+        let batch = {
+            let mut batch = batch;
+            spiller.spill(&mut batch);
+            batch
+        };
+        sink(batch)
+    };
+    let sink = &mut written_ahead;
     // The start of the file, for its identity when it has no record key.
     let mut head = Vec::new();
     let read_head = (&mut reader).take(HEAD_BYTES).read_to_end(&mut head).and_then(|_| reader.seek(std::io::SeekFrom::Start(0)));
@@ -809,7 +892,19 @@ pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: 
     let place = place_of(s, v, &name)?;
     let room = room(s, &place);
     let known_contacts = s.mailbox.contacts.values().flat_map(|c| c.imported.split_whitespace().map(str::to_string)).collect();
-    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room, known_contacts }, place))
+    Ok((
+        Job {
+            password,
+            dry_run,
+            file: report::short(file),
+            name,
+            known: known_keys(&s.mailbox),
+            room,
+            known_contacts,
+            keep_at: if cfg!(target_arch = "wasm32") { None } else { s.path.clone() },
+        },
+        place,
+    ))
 }
 
 /// An import under way: where it puts what it reads, and what it has put in, so that the whole
@@ -832,6 +927,11 @@ pub struct Running {
     added: Vec<Id>,
     /// The contacts it put in.
     contacts: Vec<Id>,
+    /// Bytes this import has added to memory ([`MEMORY_BUDGET`]).
+    resident: u64,
+    /// The attachments held in memory, by content, so that a file carried by many messages is one
+    /// copy (#815).
+    shared: HashMap<[u8; 32], std::sync::Arc<Vec<u8>>>,
 }
 
 impl Running {
@@ -857,6 +957,8 @@ impl Running {
             made: Vec::new(),
             added: Vec::new(),
             contacts: Vec::new(),
+            resident: 0,
+            shared: HashMap::new(),
         };
         if let Place::Under(id) = place {
             run.top = Some(*id);
@@ -959,6 +1061,46 @@ impl Running {
         Ok(at)
     }
 
+    /// Count what `m` adds to memory against [`MEMORY_BUDGET`] (#815). Its attachments are in the
+    /// content folder already when there is a mailbox file (the reader wrote them: `kept`); what
+    /// is held is counted, a file carried by many messages once, and shared among them. Without
+    /// a mailbox file the text, HTML and hidden words count too.
+    fn account(&mut self, with_file: bool, m: &mut Message) -> Result<(), CmdError> {
+        let mut cost: u64 = 0;
+        if !with_file {
+            let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
+            cost = cost.saturating_add(body as u64);
+        }
+        for a in &mut m.attachments {
+            if a.kept.is_some() {
+                continue;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if a.data.len() > SPILL_MIN {
+                let digest = crate::store::Digest::of(&a.data).bytes();
+                if let Some(have) = self.shared.get(&digest) {
+                    a.data = have.clone();
+                    continue;
+                }
+                self.shared.insert(digest, a.data.clone());
+            }
+            cost = cost.saturating_add(a.data.len() as u64);
+        }
+        if self.resident.saturating_add(cost) > MEMORY_BUDGET {
+            return Err(failed!(
+                "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
+            ));
+        }
+        self.resident = self.resident.saturating_add(cost);
+        Ok(())
+    }
+
+    /// Let go of what only a batch taken out again held.
+    fn forget_unused(&mut self, resident: u64) {
+        self.shared.retain(|_, bytes| std::sync::Arc::strong_count(bytes) > 1);
+        self.resident = resident;
+    }
+
     /// Take out what was put in since `made` folders and `added` messages.
     fn roll_back(&mut self, s: &mut Session, made: usize, added: usize, contacts: usize) {
         for id in self.added.drain(added.min(self.added.len())..) {
@@ -1003,7 +1145,8 @@ fn check_top(s: &Session, top: Id) -> Result<(), CmdError> {
 }
 
 /// Put a batch of read messages into the mailbox, under the place asked for. Quick: no file is
-/// read here. A batch that can't all go in is taken out again.
+/// read or written here (the reader's thread has written the attachments to the content folder,
+/// and they come in named by their content). A batch that can't all go in is taken out again.
 pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdError> {
     let mut run = match s.pst_running.take() {
         Some(r) if r.identity == batch.identity => r,
@@ -1013,10 +1156,11 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
         }
         None => Running::start(s, place, &batch.identity)?,
     };
-    let (made, added, contacts) = (run.made.len(), run.added.len(), run.contacts.len());
+    let (made, added, contacts, resident) = (run.made.len(), run.added.len(), run.contacts.len(), run.resident);
     let r = put(s, &mut run, batch);
     if r.is_err() {
         run.roll_back(s, made, added, contacts);
+        run.forget_unused(resident);
     }
     s.pst_running = Some(run);
     r
@@ -1035,14 +1179,24 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
     }
     let now = s.now();
     let mut n = 0usize;
+    let with_file = s.path.is_some() && cfg!(not(target_arch = "wasm32"));
     for (path, mut m) in batch.messages {
         let folder = run.folder(s, &path)?;
+        run.account(with_file, &mut m)?;
         m.id = 0;
         m.uid = 0;
         m.folder = folder;
         m.draft = false;
         if m.received == 0 {
             m.received = if m.date != 0 { m.date } else { now };
+        }
+        // The content the message names is asked for again as the message comes in, so that a
+        // save taken before this moment doesn't end its protection (`store::protect`).
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = s.path.as_deref() {
+            for r in m.attachments.iter().filter_map(|a| a.kept.as_ref()) {
+                crate::store::protect_ref(path, r);
+            }
         }
         let id = s.mailbox.add_message(m).map_err(|e| fail(e.to_string()))?;
         run.added.push(id);
@@ -1207,6 +1361,71 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
     }
 }
 
+/// Import the .pst file at `path` the way the window does (#815): the file is read on a thread of
+/// its own and its mail comes in a batch at a time, through `file.importPst` with `staged`, so
+/// that what is read is put into the mailbox (and its attachments out to the content folder)
+/// before more is read, and the read waits for the mailbox rather than holding the file. `v`
+/// carries the `places` and the `name` as the command's params do; the answer is the report. An
+/// import that fails part-way keeps what came in as one step to undo, as the window's does.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run_staged(s: &mut Session, path: &str, password: Option<String>, dry_run: bool, v: &Value) -> Result<Value, CmdError> {
+    if s.pst_running.is_some() {
+        return Err(fail(PST_BUSY));
+    }
+    let (job, _) = job(s, path, password, dry_run, v)?;
+    let mut params = json!({"staged": true, "name": folder_name(path)});
+    if let (Some(p), Some(places)) = (params.as_object_mut(), v.get("places")) {
+        p.insert("places".to_string(), places.clone());
+    }
+    let progress = Progress::default();
+    // A small channel: the reader waits for the mailbox.
+    let (tx, rx) = std::sync::mpsc::sync_channel(2);
+    std::thread::scope(|scope| {
+        let (job, progress) = (&job, &progress);
+        let reader = std::thread::Builder::new()
+            .name("pst import".into())
+            .spawn_scoped(scope, move || read_path(path, job, progress, &mut |event| tx.send(event).is_ok()));
+        if let Err(e) = reader {
+            return Err(failed!("the .pst file couldn't be read: {why}", why = e.to_string()));
+        }
+        // (Dropping the receiver ends the read: its next `send` fails.)
+        let rx = rx;
+        loop {
+            let answer = match rx.recv() {
+                Ok(Event::Batch(batch)) => {
+                    s.staged_pst = Some(Staged::Batch(batch));
+                    let r = s.run("file.importPst", &params);
+                    s.staged_pst = None;
+                    if r.is_err() {
+                        progress.cancel();
+                        end_staged(s);
+                    }
+                    r.map(|_| None)
+                }
+                Ok(Event::Done(Ok(outcome))) => {
+                    s.staged_pst = Some(Staged::Done(outcome));
+                    let r = s.run("file.importPst", &params);
+                    s.staged_pst = None;
+                    r.map(Some)
+                }
+                Ok(Event::Done(Err(e))) => {
+                    end_staged(s);
+                    Err(e)
+                }
+                Err(_) => {
+                    end_staged(s);
+                    Err(fail("the .pst file's reader stopped before it was done"))
+                }
+            };
+            match answer {
+                Ok(None) => {}
+                Ok(Some(report)) => return Ok(report),
+                Err(e) => return Err(e),
+            }
+        }
+    })
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn run_whole(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
     let dry_run = p::bool(v, "dryRun").unwrap_or(false);
@@ -1229,4 +1448,10 @@ fn run_whole(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         return Err(crate::cmd::bad("name the .pst file (`path`), or hand it over as `name` and base64 `data`"));
     };
     finish(s, &place, outcome, false)
+}
+
+/// How many bytes the import under way has added to memory (for the tests).
+#[cfg(test)]
+pub(crate) fn resident_of(s: &Session) -> Option<u64> {
+    s.pst_running.as_ref().map(|r| r.resident)
 }
