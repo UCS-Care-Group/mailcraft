@@ -211,12 +211,12 @@ impl Digest {
         Digest(out)
     }
 
-    /// 64 lowercase hex digits.
     /// The 32 bytes of it.
     pub fn bytes(&self) -> [u8; 32] {
         self.0
     }
 
+    /// 64 lowercase hex digits.
     pub fn hex(&self) -> String {
         let digit = |n: u8| char::from_digit(u32::from(n), 16).unwrap_or('0');
         self.0.iter().flat_map(|b| [digit(b >> 4), digit(b & 15)]).collect()
@@ -855,6 +855,9 @@ struct Shared {
     /// with the state of the session that let go of it: removed once a state at least that new
     /// is saved, unless something else still names it ([`forget_when_saved`]).
     forgetting: Mutex<Vec<(u64, Digest)>>,
+    /// Content written ahead of the messages that name it (`stash`, a .pst import): left alone by
+    /// every sweep until a saved mailbox file names it.
+    ahead: Mutex<HashSet<Digest>>,
 }
 
 /// Most content names waiting to be forgotten ([`forget_when_saved`]); past this the sweep
@@ -1177,13 +1180,13 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
     Err(last.unwrap_or_else(|| std::io::Error::other("the content folder keeps going away")))
 }
 
-/// Write `bytes` into the content folder of the mailbox file at `path` ahead of a save, and give
-/// the name to keep them by (#815: a .pst import puts each attachment here as its batch comes in,
-/// rather than holding it in memory until the save). The file is safe from a sweep for [`GRACE`]
-/// as any content written is; for longer, whoever names it on a message must hold that message
-/// ([`keep_held`]) until a saved mailbox file names it. Content already there is not written again.
-pub fn stash(path: &Path, bytes: &[u8]) -> Result<ContentRef, String> {
-    let r = Ref::of(bytes);
+/// Write `bytes`, whose SHA-256 is `hash`, into the content folder of the mailbox file at `path`
+/// ahead of a save, and give the name to keep them by (#815: a .pst import puts each attachment
+/// here as its batch is read, rather than holding it in memory until the save). Content already
+/// there is not written again, and its time is renewed. The file is protected from every sweep
+/// until a saved mailbox file names it ([`protect`], done here), or the program ends.
+pub fn stash(path: &Path, hash: &Digest, bytes: &[u8]) -> Result<ContentRef, String> {
+    let r = Ref { hash: *hash, len: bytes.len() as u64 };
     let dir = blob_dir(&resolve(path));
     // The folder beside the mailbox file, and no more: nothing is written where there is no place.
     if let Err(e) = make_dir(&dir)
@@ -1191,8 +1194,103 @@ pub fn stash(path: &Path, bytes: &[u8]) -> Result<ContentRef, String> {
     {
         return Err(format!("{}: {e}", dir.display()));
     }
+    // (Even for content that is there: its time is renewed, and its presence is looked at.)
+    protect(path, hash);
     put(&dir, &r, bytes).map_err(|e| format!("{}: {e}", dir.display()))?;
     Ok(r.to_model())
+}
+
+/// Keep the content `hash` of the mailbox file at `path` from every sweep until a mailbox file
+/// that names it is saved there, or the program ends: it was written ahead of a message that
+/// names it, and the message may be replaced, changed or let go of before the save, which no
+/// handle to the message could outlast.
+pub fn protect(path: &Path, hash: &Digest) {
+    lock(&shared(path).ahead).insert(*hash);
+}
+
+/// Copy (or link, where the disk allows) the content files that `mailbox` keeps outside memory
+/// from beside the mailbox file `from` to beside `to`, so that a save to `to` names them without
+/// reading any of them into memory (Save As of a large mailbox). Each file is looked at once.
+pub fn copy_content(from: &Path, to: &Path, mailbox: &Mailbox) -> Result<usize, String> {
+    let (src, dst) = (blob_dir(&resolve(from)), blob_dir(&resolve(to)));
+    if src == dst {
+        return Ok(0);
+    }
+    let mut wanted: HashSet<Ref> = HashSet::new();
+    for m in mailbox.messages.values() {
+        if let Some(k) = m.kept.as_deref() {
+            wanted.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(Ref::from_model));
+        }
+        wanted.extend(m.attachments.iter().filter(|a| a.data.is_empty()).filter_map(|a| a.kept.as_ref()).map(Ref::from_model));
+    }
+    if wanted.is_empty() {
+        return Ok(0);
+    }
+    if let Err(e) = make_dir(&dst)
+        && !dst.is_dir()
+    {
+        return Err(format!("{}: {e}", dst.display()));
+    }
+    let mut copied = 0usize;
+    for r in wanted {
+        let (Some((_, from_file)), Some((sub, to_file))) = (blob_path(&src, &r.hash), blob_path(&dst, &r.hash)) else { continue };
+        let there = |f: &Path| fs::symlink_metadata(f).is_ok_and(|m| m.file_type().is_file() && m.len() == r.len);
+        // Only a plain file of the right length is content of ours; a link is never followed.
+        if !there(&from_file) {
+            continue;
+        }
+        if there(&to_file) {
+            continue;
+        }
+        own_dir(&sub).map_err(|e| format!("{}: {e}", sub.display()))?;
+        if fs::hard_link(&from_file, &to_file).is_err() {
+            let mut out = AtomicFile::create(&to_file).map_err(|e| format!("{}: {e}", to_file.display()))?;
+            let mut input = fs::File::open(&from_file).map_err(|e| format!("{}: {e}", from_file.display()))?;
+            std::io::copy(&mut input, &mut out).map_err(|e| format!("{}: {e}", to_file.display()))?;
+            out.commit().map_err(|e| format!("{}: {e}", to_file.display()))?;
+        }
+        copied += 1;
+    }
+    Ok(copied)
+}
+
+/// Take away what a run wrote ahead of a mailbox file that was never saved: the content folder
+/// of `path`, when there is no mailbox file there (a failed or called-off import into a new
+/// file). Only folders of two hex digits with files of our names in them go; anything else
+/// stays, and so does everything when the mailbox file exists.
+pub fn remove_unwritten(path: &Path) -> usize {
+    let file = resolve(path);
+    if fs::symlink_metadata(&file).is_ok() {
+        return 0;
+    }
+    let dir = blob_dir(&file);
+    let mut removed = 0usize;
+    for sub in fs::read_dir(&dir).into_iter().flatten().flatten().take(MAX_ENTRIES) {
+        let name = sub.file_name();
+        let Some(folder) = name.to_str().filter(|n| n.len() == 2 && is_hex(n)) else { continue };
+        if !sub.file_type().is_ok_and(|t| t.is_dir()) {
+            continue;
+        }
+        for entry in fs::read_dir(sub.path()).into_iter().flatten().flatten().take(MAX_ENTRIES) {
+            let name = entry.file_name();
+            let ours = name.to_str().is_some_and(|n| {
+                Digest::parse(n).is_some_and(|_| n.starts_with(folder))
+                    || n.get(..64).is_some_and(|stem| Digest::parse(stem).is_some() && is_temp_of(n, stem))
+            });
+            if ours && entry.file_type().is_ok_and(|t| t.is_file()) && fs::remove_file(entry.path()).is_ok() {
+                removed += 1;
+            }
+        }
+        let _ = fs::remove_dir(sub.path());
+    }
+    let _ = fs::remove_dir(&dir);
+    lock(&shared(path).ahead).clear();
+    removed
+}
+
+#[cfg(test)]
+pub(crate) fn end_session_for_test(path: &Path) {
+    lock(&shared(path).ahead).clear();
 }
 
 /// Which of the 256 folders of two digits are folders of their own (not links to somewhere
@@ -2546,6 +2644,12 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
     }
     let saved = write_index(&mut st, &resolve(path), mailbox, &shared.progress).map_err(|e| format!("{}: {e}", path.display()))?;
     st.newest = seq;
+    // What the file names now needs no other protection.
+    let mut ahead = lock(&shared.ahead);
+    if !ahead.is_empty() {
+        ahead.retain(|d| !st.live.contains_key(d));
+    }
+    drop(ahead);
     Ok(saved)
 }
 
@@ -3478,6 +3582,7 @@ pub fn forget_due(path: &Path, rev: u64) -> Swept {
     let own = |m: &Message| !m.server.as_ref().is_some_and(|s| !s.id.is_empty()) || m.moving_out.is_some();
     named.extend(st.pins.kept_where(own));
     named.extend(lock(&shared.held).kept_where(own));
+    named.extend(lock(&shared.ahead).iter().copied());
     let dir = blob_dir(&file);
     for hash in due.difference(&named) {
         let Some((_, stale)) = blob_path(&dir, hash) else { continue };
@@ -3531,6 +3636,7 @@ pub fn sweep(path: &Path, grace: Duration) -> Result<Swept, String> {
     // What a message still in memory keeps on disk stays, though the file no longer names it.
     named.extend(st.pins.kept());
     named.extend(lock(&shared.held).kept());
+    named.extend(lock(&shared.ahead).iter().copied());
     let now = SystemTime::now();
     // A time in the future is no age at all.
     let old = |meta: &fs::Metadata| meta.modified().ok().and_then(|t| now.duration_since(t).ok()).is_some_and(|age| age >= grace);

@@ -218,7 +218,12 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
         // content folder there has none of what this one keeps.
         let elsewhere = s.path.as_ref().is_none_or(|kept| kept.as_path() != std::path::Path::new(&path));
         let saved = if elsewhere {
-            crate::store::save(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?
+            // The content the mailbox keeps outside memory is copied (or linked) beside the new
+            // file, one file at a time, rather than every part of every message read in at once.
+            if let Some(from) = s.path.as_deref() {
+                crate::store::copy_content(from, std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
+            }
+            crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?
         } else {
             let saved = crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
             // What mail outside its window let go of goes from disk now (#143).

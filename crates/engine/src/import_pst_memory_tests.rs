@@ -21,28 +21,28 @@ use crate::store::{self, GRACE};
 use crate::{Part, Session};
 
 /// A folder of its own under the system's temporary one, removed when the test is over.
-struct Temp(PathBuf);
+pub(crate) struct Temp(pub(crate) PathBuf);
 
 impl Temp {
-    fn new(name: &str) -> Temp {
+    pub(crate) fn new(name: &str) -> Temp {
         let dir = std::env::temp_dir().join(format!("mailcraft-pstmem-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         Temp(dir)
     }
 
-    fn mailbox(&self) -> PathBuf {
+    pub(crate) fn mailbox(&self) -> PathBuf {
         self.0.join("mailbox.mailcraft")
     }
 
-    fn pst(&self, bytes: &[u8]) -> String {
+    pub(crate) fn pst(&self, bytes: &[u8]) -> String {
         let path = self.0.join("old-mail.pst");
         std::fs::write(&path, bytes).unwrap();
         path.display().to_string()
     }
 
     /// How many content files there are beside the mailbox file.
-    fn blobs(&self) -> usize {
+    pub(crate) fn blobs(&self) -> usize {
         let dir = store::blob_dir(&self.mailbox());
         std::fs::read_dir(dir)
             .into_iter()
@@ -59,12 +59,12 @@ impl Drop for Temp {
     }
 }
 
-fn now() -> Timestamp {
+pub(crate) fn now() -> Timestamp {
     DateTime::new(Date::new(2026, 11, 5).unwrap(), 10, 0, 0).unwrap().to_timestamp(0)
 }
 
 /// Bytes that are the same for the same seed and look like nothing in particular.
-fn noise(seed: u64, len: usize) -> Vec<u8> {
+pub(crate) fn noise(seed: u64, len: usize) -> Vec<u8> {
     let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
     let mut out = Vec::with_capacity(len + 8);
     while out.len() < len {
@@ -77,7 +77,7 @@ fn noise(seed: u64, len: usize) -> Vec<u8> {
     out
 }
 
-fn mail(subject: &str, files: Vec<(String, Vec<u8>)>) -> MessageSpec {
+pub(crate) fn mail(subject: &str, files: Vec<(String, Vec<u8>)>) -> MessageSpec {
     MessageSpec {
         class: "IPM.Note".into(),
         subject: subject.into(),
@@ -88,7 +88,7 @@ fn mail(subject: &str, files: Vec<(String, Vec<u8>)>) -> MessageSpec {
     }
 }
 
-fn file_of(messages: Vec<MessageSpec>) -> Vec<u8> {
+pub(crate) fn file_of(messages: Vec<MessageSpec>) -> Vec<u8> {
     w::build(&FileSpec {
         layout: Layout::new(Format::Unicode, Encryption::Permute),
         password: None,
@@ -101,11 +101,11 @@ fn file_of(messages: Vec<MessageSpec>) -> Vec<u8> {
 }
 
 /// Distinct attachments of `each` bytes on `n` messages: `n` distinct files, then `(seed, i)`.
-fn distinct(n: usize, each: usize) -> Vec<u8> {
+pub(crate) fn distinct(n: usize, each: usize) -> Vec<u8> {
     file_of((0..n).map(|i| mail(&format!("Letter {i}"), vec![(format!("file{i}.bin"), noise(i as u64 + 1, each))])).collect())
 }
 
-fn kept_session(dir: &Temp) -> Session {
+pub(crate) fn kept_session(dir: &Temp) -> Session {
     let mut s = Session::at(Mailbox::with_local_account("", ""), now(), 0);
     // A mailbox that is a file already (as an opened one is): a sweep can read what it names.
     store::save(&dir.mailbox(), &s.mailbox).unwrap();
@@ -113,15 +113,15 @@ fn kept_session(dir: &Temp) -> Session {
     s
 }
 
-fn import(s: &mut Session, pst: &str) -> Result<Json, crate::CmdError> {
+pub(crate) fn import(s: &mut Session, pst: &str) -> Result<Json, crate::CmdError> {
     run_staged(s, pst, None, false, &json!({}))
 }
 
-fn messages(s: &Session) -> Vec<&Arc<Message>> {
+pub(crate) fn messages(s: &Session) -> Vec<&Arc<Message>> {
     s.mailbox.messages.values().collect()
 }
 
-fn in_memory(s: &Session) -> usize {
+pub(crate) fn in_memory(s: &Session) -> usize {
     s.mailbox.messages.values().flat_map(|m| m.attachments.iter()).map(|a| a.data.len()).sum()
 }
 
@@ -224,7 +224,7 @@ fn attachments_past_the_budget_stay_within_it() {
     // Without one: the import stops at the budget with its words, and what is in is within it.
     let mut bare = Session::at(Mailbox::with_local_account("", ""), now(), 0);
     let err = import(&mut bare, &pst).unwrap_err().to_string();
-    assert!(err.contains("more than fit in memory"), "{err}");
+    assert!(err.contains("too large to import"), "{err}");
     assert!(in_memory(&bare) as u64 <= MEMORY_BUDGET, "{}", in_memory(&bare));
 }
 

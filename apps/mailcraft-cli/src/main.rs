@@ -365,10 +365,19 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let password = std::env::var("MAILCRAFT_PST_PASSWORD").ok();
             // A batch at a time, as the window does (#815): attachments go to the mailbox's
             // content folder as they are read, so a large file doesn't fill the memory.
-            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| format!("{file}: {e}"))?;
+            // An import into a mailbox file that isn't there yet, and doesn't end in a saved one,
+            // leaves no content folder behind.
+            let new_file = !std::path::Path::new(mailbox).exists();
+            let undo = |e: String| {
+                if new_file {
+                    mailcraft_engine::store::remove_unwritten(std::path::Path::new(mailbox));
+                }
+                e
+            };
+            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| undo(format!("{file}: {e}")))?;
             print_json(&report)?;
             if !dry {
-                s.run("file.save", &json!({"path": mailbox}))?;
+                s.run("file.save", &json!({"path": mailbox})).map_err(|e| undo(e.to_string()))?;
                 eprintln!("wrote {mailbox}");
             }
             Ok(())

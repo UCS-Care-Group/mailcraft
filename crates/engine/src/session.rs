@@ -2218,7 +2218,7 @@ impl Session {
     }
 
     /// Keep what `messages` keep on disk from the sweep while something holds them.
-    pub(crate) fn hold<'a>(&self, messages: impl IntoIterator<Item = &'a Arc<Message>>) {
+    fn hold<'a>(&self, messages: impl IntoIterator<Item = &'a Arc<Message>>) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = &self.path {
             crate::store::keep_held(path, messages);

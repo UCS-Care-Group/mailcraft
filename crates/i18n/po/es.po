@@ -5947,6 +5947,11 @@ msgstr ""
 msgid "MailCraft stopped reading it before it was done."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone"
@@ -15388,6 +15393,11 @@ msgid "the .pst file couldn't be read: {why}"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the .pst file's reader stopped before it was done"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "the Inbox of this account hasn't been read yet"
 msgstr ""
@@ -15845,6 +15855,11 @@ msgstr "esta configuración es para otra cuenta, no para {who}"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this .pst file has a password: give it to import the file"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
 msgstr ""
 
 #. what a command says
