@@ -1032,3 +1032,20 @@ fn the_beginning_of_a_long_name_the_item_carries_given_with_it_is_a_name_of_its_
     assert_eq!(carried_by(&s, "calendar.edit", event), [long.as_str(), start.as_str()]);
     assert_eq!(names(&s, a), [start.as_str()]);
 }
+
+/// Many copies of a long name the item carries, against many copies of its beginning, are
+/// matched in one read of each list, not each given name against each one carried.
+#[test]
+fn many_copies_of_a_long_name_and_its_beginning_are_quick() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let start = format!("Project {}", "a".repeat(112));
+    let long = format!("{start} north");
+    let event = event_of(&mut s, a);
+    s.mailbox.event_mut(event).unwrap().categories = vec![long.clone(); 500];
+    let mut given = vec![start.clone(); 999];
+    given.push(long.clone());
+    s.run("calendar.edit", &json!({"id": event, "categories": given})).unwrap();
+    assert_eq!(carried_by(&s, "calendar.edit", event), [start.as_str(), long.as_str()]);
+    assert_eq!(names(&s, a), [start.as_str()]);
+}

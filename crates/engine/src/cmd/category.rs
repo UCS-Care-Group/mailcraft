@@ -72,11 +72,26 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
 /// first looked for by its whole spelling, so that two the item carries that differ only past
 /// the cut stay two.
 pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
-    let same = |c: &str, name: &str| clean_name(c).is_some_and(|c| c.eq_ignore_ascii_case(name));
-    let had: Vec<&str> = had.iter().map(|c| c.trim()).collect();
+    use std::collections::{HashMap, HashSet};
+    // Names are compared in ASCII capitals as `eq_ignore_ascii_case` does, through maps made once,
+    // so that a long list given against a long list had is no slower than the two read once.
+    let fold = |c: &str| c.to_ascii_lowercase();
+    let given_whole: HashSet<String> = given.iter().map(|g| fold(g.trim())).collect();
+    // What the item had, by its whole spelling and by its cleaned name; for the cleaned name,
+    // not a long one that is given whole as well (that is then a name of its own).
+    let mut had_whole: HashMap<String, &str> = HashMap::new();
+    let mut had_clean: HashMap<String, &str> = HashMap::new();
+    for c in had.iter().map(|c| c.trim()) {
+        had_whole.entry(fold(c)).or_insert(c);
+        if let Some(clean) = clean_name(c)
+            && !given_whole.contains(&fold(c))
+        {
+            had_clean.entry(fold(&clean)).or_insert(c);
+        }
+    }
     // What each name carried is known by: the item's own spelling of one it had, whole, and the
     // cleaned name of any other.
-    let mut keys: Vec<String> = Vec::new();
+    let mut keys: HashSet<String> = HashSet::new();
     let mut carried: Vec<String> = Vec::new();
     for raw in given {
         let Some(name) = clean_name(raw) else { continue };
@@ -84,18 +99,11 @@ pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &
         // A name that wasn't cut may be the cut beginning of a long one the item had, as given
         // back; one that was cut is the item's only by its whole spelling.
         let cut = whole.chars().filter(|c| !c.is_control()).nth(MAX_NAME).is_some();
-        // (Not a long one that is given whole as well: this is then a name of its own.)
-        let given_whole = |c: &str| given.iter().any(|g| g.trim().eq_ignore_ascii_case(c));
-        let had_as = had
-            .iter()
-            .copied()
-            .find(|c| c.eq_ignore_ascii_case(whole))
-            .or_else(|| (!cut).then(|| had.iter().copied().find(|c| same(c, &name) && !given_whole(c))).flatten());
+        let had_as = had_whole.get(&fold(whole)).copied().or_else(|| (!cut).then(|| had_clean.get(&fold(&name)).copied()).flatten());
         let key = had_as.unwrap_or(&name);
-        if keys.iter().any(|k| k.eq_ignore_ascii_case(key)) {
+        if !keys.insert(fold(key)) {
             continue;
         }
-        keys.push(key.to_string());
         // A name the item had is looked for on a list by its whole spelling: a long one is on
         // none, and its cut beginning (another name) is not it.
         let listed = |s: &Session, list: Id| s.mailbox.category_of(list, key).is_some();
