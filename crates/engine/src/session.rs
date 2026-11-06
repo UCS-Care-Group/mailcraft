@@ -993,7 +993,7 @@ pub(crate) struct Undo {
     pub(crate) mailbox: Mailbox,
     /// What the step did to the Microsoft accounts' mail, for keeping them in step when it is
     /// undone ([`crate::undo`]).
-    touched: crate::undo::Touched,
+    pub(crate) touched: crate::undo::Touched,
     sel: Selection,
     folder: Id,
     /// Whether the step changed mail (a message, a folder), and not only tasks, the calendar or

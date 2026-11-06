@@ -380,6 +380,7 @@ fn a_step_that_removes_a_contact_and_takes_mail_names_both() {
     // The same step made the contact too.
     if let Some(step) = s.history.last_mut() {
         step.mailbox.contacts.remove(&made);
+        step.touched = crate::undo::touched(&step.mailbox, &s.mailbox);
     }
     assert!(asks_delete(&s, "edit.undo"));
     let d = describe(&s, "edit.undo", &json!({}));
@@ -412,7 +413,7 @@ fn an_import_kept_as_one_step_moves_the_steps_count() {
     let (m, _) = message_and_other_folder(&s);
     let before = s.undo_steps_moved();
     let categories = s.mailbox.categories.clone();
-    s.keep_import_step("Import", &[m], &[], categories);
+    s.keep_import_step("Import", &[m], &[], &[], categories);
     assert_eq!(s.undo_label(), Some("Import"));
     assert_ne!(s.undo_steps_moved(), before, "a question asked before the import is about another step");
 }
