@@ -208,3 +208,38 @@ fn mail_that_came_as_its_start_is_kept_as_its_headers_and_preview() {
     let id = m.id;
     assert_eq!(s.run("sync.imapFetchRequest", &json!({"account": account, "message": id})).unwrap()["ids"], json!([key(9)]));
 }
+
+#[test]
+fn mail_of_a_mailbox_the_server_no_longer_lists_keeps_its_text() {
+    use mailcraft_model::sync::{ListedFolder, SyncResult};
+    let (mut s, account, ids) = aged("1m", &[400]);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    // A mailbox another program deletes or renames on the server.
+    let projects = s.mailbox.add_folder(account, None, "Projects").unwrap();
+    s.mailbox.folder_mut(projects).unwrap().remote = "Projects".into();
+    let body = Body { text: "Received 400 days ago. ".repeat(100), html: None };
+    let old = Message { account, folder: projects, uid: 3, received: NOW - 400 * DAY, subject: "Kept".into(), body, ..Default::default() };
+    let kept = s.mailbox.add_message(old).unwrap();
+    let listing = |names: &[&str], all: bool| SyncResult {
+        account,
+        email: "ada@mail.example".into(),
+        listed: names.iter().map(|n| ListedFolder { remote: (*n).into(), name: (*n).into(), ..Default::default() }).collect(),
+        listed_all: all,
+        ..Default::default()
+    };
+    // Listed to its end without it: not the server's any more.
+    super::account::apply_sync(&mut s, listing(&["INBOX"], true)).unwrap();
+    assert!(s.mailbox.folder(projects).unwrap().unlisted && !s.mailbox.folder(inbox).unwrap().unlisted);
+    s.run("account.thinOffline", &json!({"account": account})).unwrap();
+    assert!(s.mailbox.message(ids[0]).unwrap().unfetched, "the Inbox's old mail goes back to its preview");
+    let m = s.mailbox.message(kept).unwrap();
+    assert!(!m.unfetched && m.body.text.len() > 1_000, "what is here may be all there is of it");
+    // A listing cut short says nothing of what it leaves out.
+    super::account::apply_sync(&mut s, listing(&["INBOX"], false)).unwrap();
+    assert!(s.mailbox.folder(projects).unwrap().unlisted);
+    // Named again: the server's, as before.
+    super::account::apply_sync(&mut s, listing(&["INBOX", "Projects"], false)).unwrap();
+    assert!(!s.mailbox.folder(projects).unwrap().unlisted);
+    s.run("account.thinOffline", &json!({"account": account})).unwrap();
+    assert!(s.mailbox.message(kept).unwrap().unfetched);
+}

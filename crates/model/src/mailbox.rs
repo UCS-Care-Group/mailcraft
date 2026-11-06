@@ -126,6 +126,12 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// An IMAP account's folder whose mailbox (`remote`) the server's last complete listing
+    /// didn't name: deleted or renamed there by another program (#653). Its mail is not taken
+    /// for the server's, and keeps its text here, which may be all there is of it. `false` again
+    /// once a listing names it.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub unlisted: bool,
 }
 
 /// Whether a list of category names has `name`.

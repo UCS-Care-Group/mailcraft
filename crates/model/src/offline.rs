@@ -185,8 +185,8 @@ impl OfflineWindow {
     fn with(mb: &Mailbox, since: HashMap<Id, Timestamp>) -> OfflineWindow {
         let imap: HashSet<Id> = mb.accounts.iter().filter(|a| a.kind == AccountKind::Imap && since.contains_key(&a.id)).map(|a| a.id).collect();
         // A folder the server has: by its server id for a Microsoft account, by its path for an
-        // IMAP account's.
-        let on_server = |f: &crate::Folder| if imap.contains(&f.account) { !f.remote.is_empty() } else { f.server.is_some() };
+        // IMAP account's, which the server's last listing named.
+        let on_server = |f: &crate::Folder| if imap.contains(&f.account) { !f.remote.is_empty() && !f.unlisted } else { f.server.is_some() };
         let always = mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Outbox) || !on_server(f)).map(|f| f.id).collect();
         let mut by_server: HashMap<Id, HashMap<String, Id>> = HashMap::new();
         for f in &mb.folders {

@@ -603,6 +603,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     }
     // The whole tree first: the folders are there to see before their mail is.
     run.out.listed = listed(&plan);
+    run.out.listed_all = !run.out.listed.is_empty() && plan.len() <= MAX_FOLDERS;
     if !run.out.listed.is_empty() {
         let found = if run.out.listed.len() == 1 { 1 } else { plan.len().min(MAX_FOLDERS) };
         run.hand_over_in(&imap, SyncStep::new(SyncStage::Listed, "", 0, found));

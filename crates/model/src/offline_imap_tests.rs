@@ -47,10 +47,13 @@ fn what_an_imap_server_lacks_is_always_within() {
     mb.folder_mut(drafts).unwrap().remote = "Drafts".into();
     let here_only = mb.alloc_id();
     mb.folders.push(Folder { id: here_only, account, name: "Here only".into(), ..Default::default() });
+    // Deleted or renamed on the server by another program: its last listing didn't name it.
+    let unlisted = mb.alloc_id();
+    mb.folders.push(Folder { id: unlisted, account, name: "Gone there".into(), remote: "Gone there".into(), unlisted: true, ..Default::default() });
     let w = OfflineWindow::of(&mb, NOW);
     let base = message(account, inbox, 5, OLD);
     assert!(!w.within(&base), "the plain case is outside");
-    for folder in [drafts, outbox, here_only] {
+    for folder in [drafts, outbox, here_only, unlisted] {
         assert!(w.within(&Message { folder, ..base.clone() }), "folder {folder}");
     }
     assert!(w.within(&Message { uid: 0, ..base.clone() }), "no UID: moved here, not there yet");

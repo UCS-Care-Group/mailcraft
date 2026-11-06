@@ -1124,6 +1124,9 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
+    if !result.listed.is_empty() {
+        mark_unlisted(mb, account, result);
+    }
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
@@ -1714,6 +1717,22 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                     on_server.by_remote.insert(f.remote.clone(), id);
                 }
             }
+        }
+    }
+}
+
+/// Which folders of `account` follow a mailbox the server's listing in `result` named (#653): a
+/// listing that went to its end and leaves one out has it deleted or renamed there by another
+/// program, and its mail is no longer taken for the server's. A listing cut short only says
+/// which are there. A mailbox made in the run is there, though it was made after the listing.
+fn mark_unlisted(mb: &mut Mailbox, account: Id, result: &SyncResult) {
+    let named: HashSet<&str> = result.listed.iter().map(|f| f.remote.as_str()).chain(result.created.iter().map(|c| c.remote.as_str())).collect();
+    for f in mb.folders.iter_mut().filter(|f| f.account == account && !f.remote.is_empty()) {
+        let there = named.contains(f.remote.as_str());
+        if there {
+            f.unlisted = false;
+        } else if result.listed_all {
+            f.unlisted = true;
         }
     }
 }

@@ -656,6 +656,11 @@ pub struct SyncResult {
     /// run: the tree is there to see before its mail is.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub listed: Vec<ListedFolder>,
+    /// `listed` is every mailbox of mail the server named, not the first of them: a folder here
+    /// that follows a mailbox it leaves out is one the server no longer has under that name
+    /// ([`crate::Folder::unlisted`], #653).
+    #[serde(skip_serializing_if = "is_false")]
+    pub listed_all: bool,
     /// Ids of Outbox messages that were sent.
     pub sent: Vec<Id>,
     /// Those of `sent` that have a copy in the server's mailbox for sent mail, or will have: put
@@ -739,7 +744,7 @@ impl SyncResult {
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
         self.timings.absorb(&later.timings);
         if !later.listed.is_empty() {
-            self.listed = later.listed;
+            (self.listed, self.listed_all) = (later.listed, later.listed_all);
         }
         self.sent.extend(later.sent);
         // A copy that didn't get there after all is one that was never said to.
