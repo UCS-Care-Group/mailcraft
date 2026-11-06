@@ -114,13 +114,19 @@ fn a_person_taken_finds_that_address_alone() {
     assert!(Query::parse(&q).matches(&from("\"Ada Smith\"@example.org"), 0), "{q}");
 }
 
-/// A name from mail is shown plainly: no control characters, its spaces run together, cut short.
+/// A name from mail is shown plainly, as a name is shown (#454): no control characters or
+/// characters that show nothing, its spaces run together, cut short with an ellipsis; by its
+/// address when nothing of it shows.
 #[test]
 fn names_are_shown_plainly() {
     let shown = |name: &str| offered_from("from:a", vec![Address { name: name.to_string(), email: "ada@example.org".into() }]).remove(0).label;
     assert_eq!(shown("Ada\r\n  Lovelace\u{0}\t"), "Ada Lovelace");
     assert_eq!(shown(" \u{7} "), "ada@example.org");
-    assert_eq!(shown(&"é".repeat(5_000)).chars().count(), 256);
+    assert_eq!(shown(&"é".repeat(5_000)), format!("{}…", "é".repeat(255)));
+    assert_eq!(shown(&"é".repeat(256)), "é".repeat(256));
+    assert_eq!(shown("Ada\u{202e} \u{3164}Lovelace\u{200b}\u{e0041}"), "Ada Lovelace");
+    assert_eq!(shown("Ada 👩\u{200d}💻 ❤\u{fe0f}\u{fe0f}"), "Ada 👩\u{200d}💻 ❤\u{fe0f}");
+    assert_eq!(shown("\u{3164}\u{200b}\u{2066}\u{2800}"), "ada@example.org");
 }
 
 /// At most eight, and an address typed whole isn't offered again.
