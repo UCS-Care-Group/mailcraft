@@ -345,7 +345,7 @@ fn swept(m: &Message, account: Id, read: &HashSet<String>) -> bool {
 
 /// A draft that is here whole: it may have been changed here, and nothing goes up yet, so what the
 /// server does with its copy doesn't take it away.
-fn draft_here(m: &Message) -> bool {
+pub(super) fn draft_here(m: &Message) -> bool {
     m.draft && !m.unfetched
 }
 
