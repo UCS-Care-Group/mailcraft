@@ -15936,6 +15936,11 @@ msgid "this mailbox can't be reached through Microsoft Graph (MailboxNotEnabledF
 msgstr "questa cassetta postale non è raggiungibile tramite Microsoft Graph (MailboxNotEnabledForRESTAPI)"
 
 #. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "this meeting has no organizer to write to"
 msgstr ""
