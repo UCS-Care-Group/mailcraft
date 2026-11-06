@@ -1131,10 +1131,14 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// to it covers: an undo or redo that puts back the accounts (or a change that writes to people)
 /// and takes away messages, drafts, contacts or the like needs Delete too, as `edit.undo` refuses
 /// to take messages without it (#473), and so does one that leaves a rule switched on that deletes
-/// mail for good (#566). Asked about as one question, so that the owner's yes lets it run.
-pub fn also(s: &Session, id: &str, _params: &Value, class: Class) -> Vec<Class> {
+/// mail for good (#566). Asked about as one question, so that the owner's yes lets it run. A rule
+/// that files mail onto another server (`send`) and deletes it for good needs Delete too (#566);
+/// until Delete is allowed it is asked as Delete instead (`verdict`), so a yes to Send never makes
+/// it, and `--allow` names both.
+pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        _ if id.starts_with("rules.") && class == Class::Send && rules_delete_for_good(s, id, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
 }

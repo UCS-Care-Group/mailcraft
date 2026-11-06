@@ -403,3 +403,35 @@ fn an_undo_that_reverts_the_accounts_and_takes_mail_names_both_grants_headless()
     assert_eq!(err(&mut h, &pol, "execute", undo), None);
     assert_eq!(h.session.mailbox.messages.len(), n - 1);
 }
+
+/// A session with two Microsoft accounts, and the params of a rule of the first's that copies its
+/// mail onto the second's server and deletes it for good (#566).
+fn onto_another_server_and_for_good() -> (Session, Value) {
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let b = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let params = json!({
+        "name": "Both", "account": a, "conditions": [{"type": "toMe"}],
+        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}],
+    });
+    (s, params)
+}
+
+#[test]
+fn a_rule_onto_another_server_that_deletes_for_good_names_both_grants_headless() {
+    // It needs Send and Delete: whichever is missing, the refusal names both, so that following
+    // it makes the rule; before, it named Send alone, again with Send allowed.
+    let pol = Policy::default();
+    for allow in [vec![], vec![Class::Send], vec![Class::Delete]] {
+        let (s, params) = onto_another_server_and_for_good();
+        let mut h = Headless::new(s, allow.clone());
+        let e = err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params}));
+        assert!(e.as_deref().is_some_and(|e| e.contains("--allow send,delete")), "{allow:?}: {e:?}");
+        assert!(h.session.mailbox.rules.is_empty(), "{allow:?}: nothing was made");
+    }
+    let (s, params) = onto_another_server_and_for_good();
+    let mut h = Headless::new(s, vec![Class::Send, Class::Delete]);
+    assert_eq!(err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params})), None);
+    assert_eq!(h.session.mailbox.rules.len(), 1);
+}
