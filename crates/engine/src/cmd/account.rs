@@ -1878,7 +1878,7 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             // them as any mail arriving in the Inbox does.
             let sorted = sorting && uid > old_seen && mb.sort_junk(id);
             if inbox != sorted {
-                mb.apply_rules(id);
+                counts.notes.extend(mb.apply_rules_told(id).1);
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {

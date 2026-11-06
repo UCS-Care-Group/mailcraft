@@ -2879,8 +2879,19 @@ impl Mailbox {
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does).
     pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
-        let mut ran = Vec::new();
-        let Some(account) = self.message(id).map(|m| m.account) else { return ran };
+        self.run_rules_told(id, now).0
+    }
+
+    /// [`Mailbox::apply_rules`], and what the owner is to be told of: a rule that couldn't move
+    /// the message where it says (one of which only the headers and a preview are here can't go
+    /// to another account or a local folder, #653).
+    pub fn apply_rules_told(&mut self, id: Id) -> (Vec<String>, Vec<String>) {
+        self.run_rules_told(id, false)
+    }
+
+    fn run_rules_told(&mut self, id: Id, now: bool) -> (Vec<String>, Vec<String>) {
+        let (mut ran, mut problems) = (Vec::new(), Vec::new());
+        let Some(account) = self.message(id).map(|m| m.account) else { return (ran, problems) };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
@@ -2893,14 +2904,16 @@ impl Mailbox {
                 continue;
             }
             if now || !rule.on_server() {
-                self.act(id, &rule.actions);
+                if let Some(why) = self.act(id, &rule.actions) {
+                    problems.push(format!("The rule \"{}\" couldn't move a message: {why}", rule.name));
+                }
                 ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;
             }
         }
-        ran
+        (ran, problems)
     }
 
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
@@ -2911,19 +2924,25 @@ impl Mailbox {
         if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
             return false;
         }
-        self.act(id, &rule.actions);
+        // Run by hand: a message that can't go where the rule says stays where it is.
+        let _ = self.act(id, &rule.actions);
         true
     }
 
-    /// Do what a rule says to a message.
-    fn act(&mut self, id: Id, actions: &[Action]) {
+    /// Do what a rule says to a message: why it couldn't be moved where the rule says, when it
+    /// couldn't.
+    fn act(&mut self, id: Id, actions: &[Action]) -> Option<String> {
+        let mut problem = None;
         for action in actions {
             match action {
                 Action::MoveTo(folder) => {
                     // A rule pointing at a folder that is gone does nothing, and none puts
                     // mail into a send queue (the next Send/Receive would send it).
-                    if !self.is_send_queue(*folder) {
-                        let _ = self.move_message(id, *folder);
+                    if !self.is_send_queue(*folder)
+                        && let Err(e) = self.move_message(id, *folder)
+                        && self.folder(*folder).is_some()
+                    {
+                        problem = Some(e.to_string());
                     }
                 }
                 Action::Delete => {
@@ -2945,6 +2964,7 @@ impl Mailbox {
                 }
             }
         }
+        problem
     }
 
     // ---- contacts, events, tasks ----
