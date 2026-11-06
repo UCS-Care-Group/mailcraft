@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -51,8 +51,12 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
   placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
-  Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
-  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+  Under a reply or forward, each one the reading pane would show goes as a part of its own beside
+  the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
+  `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
+  a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
+  `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
+  tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
