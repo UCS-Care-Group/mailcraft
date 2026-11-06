@@ -175,6 +175,56 @@ fn the_original_under_a_reply_or_forward_still_shows_its_written_pictures() {
     }
 }
 
+/// A forward saved as a draft and opened again carries the original's pictures as its own files,
+/// and the picture written into the original in its quote: the original quoted under it shows
+/// both, also one its HTML calls by a Content-ID written otherwise (`cid:logo%40…`), which stays
+/// among the files.
+#[test]
+fn a_reopened_forward_still_shows_both_kinds_of_picture_in_its_original() {
+    use super::{MailApp, NOW, Place, Services, window};
+    let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    app.autosave = false;
+    let (account, inbox) = (app.session.mailbox.accounts[0].id, app.session.mailbox.inbox().unwrap());
+    let logo = mailcraft_model::Attachment {
+        content_id: "logo@rowan.example".into(),
+        inline: true,
+        ..mailcraft_model::Attachment::new("logo.png", "image/png", png(20, 20))
+    };
+    let html = format!(
+        "<html><body><p>The figures:</p><img src=\"{}\" alt=\"Chart\">\
+         <img src=\"cid:logo%40rowan.example\"><p>Regards, Rowan</p></body></html>",
+        data_png(64, 40)
+    );
+    let m = mailcraft_model::Message {
+        account,
+        folder: inbox,
+        message_id: "q4@rowan.example".into(),
+        from: mailcraft_model::Address::new("Rowan Ash", "rowan@rowan.example"),
+        subject: "Quarter figures".into(),
+        body: mailcraft_model::Body { text: "The figures.".into(), html: Some(html) },
+        attachments: vec![logo],
+        ..Default::default()
+    };
+    let id = app.session.mailbox.add_message(m).unwrap();
+    app.execute("mail.select", serde_json::json!({"id": id})).unwrap();
+    app.execute("mail.forward", serde_json::json!({"id": id})).unwrap();
+    app.execute("compose.set", serde_json::json!({"to": "avery@example.org"})).unwrap();
+    let draft = app.execute("compose.saveDraft", serde_json::json!({})).unwrap()["draft"].as_u64().unwrap();
+    app.execute("compose.close", serde_json::json!({})).unwrap();
+    app.execute("mail.editDraft", serde_json::json!({"id": draft})).unwrap();
+    let c = app.session.compose.as_ref().unwrap();
+    assert_eq!(c.mode, mailcraft_engine::ComposeMode::Draft);
+    assert_eq!(c.quote.as_ref().map(|q| q.pictures.len()), Some(1), "the written picture is the quote's");
+    assert!(c.attachments.iter().any(|a| a.content_id == "logo@rowan.example"), "the logo stays among the files");
+    let shown_as = c.source.and_then(|s| app.session.mailbox.messages.get(&s)).map_or(0, |s| s.id);
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(6);
+    let stats = super::super::view::kept_at(&harness.ctx, Place::Quote, shown_as, |laid, _| {
+        (laid.done, laid.stats.pictures, laid.stats.placeholders, laid.stats.remote)
+    });
+    assert_eq!(stats, Some((true, 2, 0, 0)));
+}
+
 /// Two forwards of one message being written at once, each with a picture of its own: the
 /// original quoted under each carries that one's picture, not the other's, though they have as
 /// many (the windows of both share one context), and is kept while it stays the same.

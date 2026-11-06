@@ -333,9 +333,11 @@ fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let mut kept: Vec<(u64, Arc<Message>)> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
     // The quote's own pictures (those the original showed, for an answer; those written into it,
-    // #602), and for a forward the message's attachments: it carries the original's itself, its
-    // pictures among them.
-    let forward = c.mode == mailcraft_engine::ComposeMode::Forward || quote.pictures.is_empty();
+    // #602), and, but for an answer, the message's attachments: a forward carries the original's
+    // itself, its pictures among them, and so does one opened again as a draft (a picture its
+    // HTML calls by a Content-ID written otherwise, `cid:logo%40…`, stays among them).
+    let answer = matches!(c.mode, mailcraft_engine::ComposeMode::Reply | mailcraft_engine::ComposeMode::ReplyAll);
+    let forward = !answer || quote.pictures.is_empty();
     let attached: &[mailcraft_model::Attachment] = if forward { &c.attachments } else { &[] };
     let pictures = || quote.pictures.iter().chain(attached);
     // The same pictures: the same parts, by their ids and their very bytes, in the same order.
