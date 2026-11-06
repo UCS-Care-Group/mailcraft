@@ -557,6 +557,8 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 return Some(c.clone());
             };
             let source = mailcraft_model::sync::fingerprint(placed.id.as_bytes());
+            // The stamps of the server it leaves stay behind (#781).
+            mailcraft_model::auth_results::forget_stamps(&mut m);
             said.queued.push(Queued::PlaceMessage {
                 account: t.account,
                 message: c.id,
