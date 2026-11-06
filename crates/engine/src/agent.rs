@@ -1448,7 +1448,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
-            if s.undo_removes_items(redo) {
+            // The categories it deletes in Outlook are named below, and not said twice (#661).
+            if s.undo_removes_more_than_outlooks(redo) {
                 // Gone for good: they don't go to Deleted Items.
                 does.push("takes away contacts, events, tasks, calendars or categories made since, for good".to_string());
             }

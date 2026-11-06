@@ -2982,6 +2982,21 @@ impl Session {
     /// here or kept here alone after it. Worked out as the undo would, on a copy, as for
     /// [`Session::undo_takes_mail`].
     pub fn undo_deletes_categories(&self, redo: bool) -> Vec<String> {
+        self.undo_category_deletes(redo).into_iter().map(|(_, name)| name).collect()
+    }
+
+    /// Whether undoing (`redo`: redoing) would take away contacts and the like for good besides
+    /// the categories it has deleted in Outlook, which the owner's question names on their own
+    /// (#661). Those are known by the label [`Session::undo_takes`] gives a category of an
+    /// account's own list; anything else, a category of another spelling too, is said as it is.
+    pub fn undo_removes_more_than_outlooks(&self, redo: bool) -> bool {
+        let outlook: Vec<String> =
+            self.undo_category_deletes(redo).into_iter().map(|(owner, name)| format!("category {owner} {}", name.to_lowercase())).collect();
+        self.undo_removed_items(redo).iter().any(|item| !outlook.contains(item))
+    }
+
+    /// [`Session::undo_deletes_categories`], each with the account whose server it is deleted on.
+    fn undo_category_deletes(&self, redo: bool) -> Vec<(Id, String)> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
         // What a job is to delete there: known there, not on the list here (or kept here alone).
@@ -2994,7 +3009,7 @@ impl Session {
         for owner in back.category_writes.iter().filter(|id| back.synced_categories.contains_key(id)) {
             let already = to_delete(&self.mailbox, *owner);
             let is_new = |n: &String| !already.iter().any(|a| mailcraft_model::sync::same_category(a, n));
-            names.extend(to_delete(&back, *owner).into_iter().filter(is_new));
+            names.extend(to_delete(&back, *owner).into_iter().filter(is_new).map(|name| (*owner, name)));
         }
         names
     }

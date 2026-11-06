@@ -1503,6 +1503,8 @@ fn a_category_an_undo_deletes_in_two_accounts_is_named_once() {
     match check(&s, "edit.undo", &json!({}), &[]) {
         Verdict::Ask(Class::Delete, text) => {
             assert!(text.contains("deletes the category \u{201c}Brand new\u{201d} in Outlook") && text.matches("Brand new").count() == 1, "{text}");
+            // Said once: not also as categories taken away (#801's list).
+            assert!(!text.contains("made since"), "{text}");
         }
         other => panic!("{other:?}"),
     }
