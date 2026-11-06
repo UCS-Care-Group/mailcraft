@@ -459,7 +459,7 @@ fn a_piece_that_had_to_be_cut_removes_nothing() {
 fn what_a_window_says_of_marks_alone_keeps_what_was_known_of_the_rest() {
     let (mut s, account) = session();
     let mut files = email("E1", "Files", 1);
-    files.has_attachments = true;
+    files.has_attachments = Some(true);
     run(&mut s, account, vec![window("M1", vec![files], true)], true);
     assert!(here(&s, account, "E1").is_some_and(|m| m.unfetched && m.has_attachments()));
     run(&mut s, account, vec![window("M1", vec![marks("E1", true, false)], true)], true);
