@@ -153,11 +153,12 @@ fn a_yes_is_about_the_step_asked_about_and_no_other_said_the_same_way() {
 }
 
 #[test]
-fn a_yes_doesnt_reach_a_contact_that_came_down_while_it_was_asked() {
-    // A contact downloaded while the question is up isn't in the step, so the undo would take it
-    // away too, and the question reads the same: the yes is refused, and both contacts stay.
+fn a_contact_that_came_down_while_it_was_asked_stays_after_the_yes() {
+    // A contact downloaded while the question is up isn't in the step, and the undo keeps what
+    // the step didn't touch: the yes takes away only the contact the step made.
     let mut a = app();
     a.execute("people.new", json!({"first": "Noor", "email": "noor@example.org"})).unwrap();
+    let made = *a.session.mailbox.contacts.keys().max().unwrap();
     let (now, rx) = agent(&mut a, "edit.undo");
     assert!(now.is_none(), "asked first");
     let mb = &mut a.session.mailbox;
@@ -165,11 +166,10 @@ fn a_yes_doesnt_reach_a_contact_that_came_down_while_it_was_asked() {
     came.id = mb.contacts.keys().max().unwrap() + 1_000;
     let came_id = came.id;
     mb.contacts.insert(came_id, std::sync::Arc::new(came));
-    let before = a.session.mailbox.clone();
     answer(&mut a, true);
     let reply = rx.try_recv().unwrap();
-    assert_eq!(reply["ok"], false, "{reply}");
-    assert!(a.session.mailbox == before);
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert!(!a.session.mailbox.contacts.contains_key(&made));
     assert!(a.session.mailbox.contacts.contains_key(&came_id));
 }
 
