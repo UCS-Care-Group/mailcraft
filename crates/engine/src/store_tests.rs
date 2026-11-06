@@ -2106,3 +2106,46 @@ fn the_order_of_the_accounts_is_saved_with_the_mailbox() {
     assert_eq!(back.default_account().map(|x| x.id), Some(a));
     assert!(back == s.mailbox);
 }
+
+/// #815: content written ahead stays protected through a save taken before it was asked for again
+/// (a batch taken in since), and is let go of by the first save from a state after that.
+#[test]
+fn protection_of_content_written_ahead_ends_only_with_a_later_save() {
+    let tmp = Temp::new("ahead-seq");
+    let path = tmp.file();
+    let mut mb = mailbox(1);
+    let inbox = mb.inbox().unwrap();
+    let bytes = noise(77, 5_000);
+    let file = Attachment::new("a.bin", "application/octet-stream", bytes.clone());
+    mb.add_message(Message { folder: inbox, subject: "Has it".into(), attachments: vec![file], ..Default::default() }).unwrap();
+    let digest = Digest::of(&bytes);
+    let still = |path: &Path| lock(&shared(path).ahead).contains_key(&digest);
+    // Asked for again after the state was taken: the save that names it doesn't end the protection.
+    let seq = next_seq();
+    protect(&path, &digest);
+    save_as_of(&path, &mb, seq).unwrap();
+    assert!(still(&path));
+    // A save from a state taken after does.
+    save(&path, &mb).unwrap();
+    assert!(!still(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_content_folder_that_is_a_link_is_never_written_through_or_emptied() {
+    let tmp = Temp::new("link");
+    let path = tmp.file();
+    let elsewhere = tmp.0.join("somebody-elses");
+    let sub = elsewhere.join("ab");
+    fs::create_dir_all(&sub).unwrap();
+    let name = "ab".to_string() + &"0".repeat(62);
+    let theirs = sub.join(&name);
+    fs::write(&theirs, b"theirs").unwrap();
+    std::os::unix::fs::symlink(&elsewhere, blob_dir(&path)).unwrap();
+    // (No mailbox file: the case `remove_unwritten` is for.)
+    assert_eq!(remove_unwritten(&path), 0);
+    assert!(theirs.exists());
+    let bytes = noise(5, 3000);
+    assert!(stash(&path, &Digest::of(&bytes), &bytes).is_err());
+    assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 1);
+}

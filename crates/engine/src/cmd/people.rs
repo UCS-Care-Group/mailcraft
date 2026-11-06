@@ -296,7 +296,7 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
-        "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
     })
 }
 
@@ -318,7 +318,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     }
     let row = |c: &Contact| {
         let kept_at = kept_at(&s.mailbox, &c.origin);
-        json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "account": c.origin.account, "keptAt": kept_at})
+        json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at})
     };
     let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
