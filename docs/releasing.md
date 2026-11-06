@@ -44,7 +44,9 @@ WordCraft does.
    [`docs/log.d/README.md`](log.d/README.md)). `cargo xtask docs-log` prints the documents with
    the rows joined in and changes nothing; `cargo xtask ci` checks them. In the same release
    pull request, `cargo xtask docs-log --write` puts the rows into their tables by date,
-   newest first, and removes the fragments.
+   newest first, and removes the fragments. Then set the status line of each document that got
+   rows: **Last updated** is its newest row's date, and **Change** is the largest kind among
+   them. Pull requests don't touch status lines, so this is the only place they change.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.

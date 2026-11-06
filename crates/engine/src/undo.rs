@@ -86,40 +86,26 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
     let mut g = graph_accounts(before);
     g.extend(graph_accounts(after));
     let mut t = Touched::default();
-    // One walk of both maps, in order of id (a lookup for each of a few hundred thousand
-    // messages took longer than the command it followed).
-    let mut was = before.messages.iter().peekable();
-    let mut is = after.messages.iter().peekable();
-    loop {
-        match (was.peek(), is.peek()) {
-            (None, None) => break,
-            (Some((id, b)), Some((n, a))) if id == n => {
-                if !(Arc::ptr_eq(a, b) || a == b) {
-                    t.changed_messages.insert(**id);
-                    if relevant(b, &g) || relevant(a, &g) {
-                        t.messages.insert(**id, Some((*a).clone()));
-                    }
+    // Only the messages the two differ in: the chunks of the map the two share aren't looked
+    // into (a walk of every message took longer than the command it followed).
+    for (id, b, a) in after.messages.changes(&before.messages) {
+        match (b, a) {
+            (Some(b), Some(a)) if a != b => {
+                t.changed_messages.insert(id);
+                if relevant(b, &g) || relevant(a, &g) {
+                    t.messages.insert(id, Some(a.clone()));
                 }
-                was.next();
-                is.next();
             }
             // Gone since: `before` has it and `after` has none of its id.
-            (Some((id, b)), Some((n, _))) if id < n => {
-                gone(&mut t, **id, b, &g);
-                was.next();
-            }
-            (Some((id, b)), None) => {
-                gone(&mut t, **id, b, &g);
-                was.next();
-            }
+            (Some(b), None) => gone(&mut t, id, b, &g),
             // Come since.
-            (_, Some((id, a))) => {
-                t.changed_messages.insert(**id);
+            (None, Some(a)) => {
+                t.changed_messages.insert(id);
                 if relevant(a, &g) {
-                    t.messages.insert(**id, Some((*a).clone()));
+                    t.messages.insert(id, Some(a.clone()));
                 }
-                is.next();
             }
+            _ => {}
         }
     }
     // (One walk of both maps, as for the messages.)
@@ -308,7 +294,8 @@ fn returned(out: &mut Mailbox, now: &Mailbox) {
 fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
     // Accounts that the undo takes away again (one the change added): nothing of theirs stays.
     let gone: BTreeSet<Id> = now.accounts.iter().map(|a| a.id).filter(|id| !out.accounts.iter().any(|a| a.id == *id)).collect();
-    let ids: BTreeSet<Id> = out.messages.keys().chain(now.messages.keys()).copied().collect();
+    // Only the messages the two differ in: one that is the same in both is as now already.
+    let ids: Vec<Id> = now.messages.changes(&out.messages).into_iter().map(|(id, _, _)| id).collect();
     for id in ids {
         let (t, c) = (out.messages.get(&id), now.messages.get(&id));
         if t.is_some_and(|m| relevant(m, g)) || c.is_some_and(|m| relevant(m, g)) || touched.changed_messages.contains(&id) {
@@ -364,7 +351,9 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     }
     out.folders = kept;
     out.folders.retain(|f| !gone.contains(&f.account));
-    out.messages.retain(|_, m| !gone.contains(&m.account));
+    if !gone.is_empty() {
+        out.messages.retain(|_, m| !gone.contains(&m.account));
+    }
     // A folder the change made that something still lies in stays.
     for f in made.into_iter().filter(|f| !gone.contains(&f.account)) {
         if out.messages.values().any(|m| m.folder == f.id) || out.folders.iter().any(|o| o.parent == Some(f.id)) {
@@ -452,9 +441,10 @@ fn in_outbox(m: &Message, now: &Mailbox, g: &BTreeSet<Id>) -> bool {
 
 /// The messages of the Microsoft accounts.
 fn messages(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) {
+    // Those the change touched, and those the two differ in: one the same in both and not the
+    // change's is as now already.
     let mut ids: BTreeSet<Id> = touched.messages.keys().copied().collect();
-    ids.extend(out.messages.iter().filter(|(_, m)| relevant(m, g)).map(|(id, _)| *id));
-    ids.extend(now.messages.iter().filter(|(_, m)| relevant(m, g)).map(|(id, _)| *id));
+    ids.extend(now.messages.changes(&out.messages).into_iter().map(|(id, _, _)| id));
     // The messages the change put in an Outbox: the drafts they were are sent, not undone.
     let sent: Vec<&Message> = touched.messages.values().flatten().map(AsRef::as_ref).filter(|m| in_outbox(m, now, g)).collect();
     for id in ids {
@@ -664,7 +654,15 @@ fn tidy(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
             f.parent = now.folder(f.id).and_then(|c| c.parent).filter(|p| folders.contains(p));
         }
     }
-    let homeless: Vec<Id> = out.messages.values().filter(|m| relevant(m, g) && !folders.contains(&m.folder)).map(|m| m.id).collect();
+    let lies_nowhere = |m: &Message| relevant(m, g) && !folders.contains(&m.folder);
+    // A message as it is now lies in a folder there is now: while every folder there is now is
+    // here too, only the others can lie in none (one walk of a few hundred thousand messages
+    // fewer at each undo).
+    let homeless: Vec<Id> = if now.folders.iter().all(|f| folders.contains(&f.id)) {
+        out.messages.changes(&now.messages).into_iter().filter_map(|(_, _, m)| m).filter(|m| lies_nowhere(m)).map(|m| m.id).collect()
+    } else {
+        out.messages.values().filter(|m| lies_nowhere(m)).map(|m| m.id).collect()
+    };
     for id in homeless {
         let Some(m) = out.messages.get(&id) else { continue };
         let home = now
