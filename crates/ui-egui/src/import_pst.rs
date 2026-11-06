@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
 
 use egui::{RichText, Ui, vec2};
 use mailcraft_engine::import_pst::{Event, Job, Progress, Staged};
@@ -21,8 +22,15 @@ pub const WIDTH: f32 = 520.0;
 /// Most folders offered to import under, and most left-out items listed.
 const LISTED: usize = 500;
 const LEFT_OUT_SHOWN: usize = 50;
-/// Most events taken in a frame, so that a fast reader doesn't hold the window.
-const EVENTS_PER_FRAME: usize = 4;
+/// How long a turn of the window's logic may spend putting batches in while the window is being
+/// painted, so that a fast reader doesn't hold it (at least one batch goes in a turn).
+const BUDGET_SHOWN: Duration = Duration::from_millis(8);
+/// And while it isn't (hidden, minimised, on another desktop): nothing is painted then, so a turn
+/// may take longer, and each is a quarter of a second or more apart.
+const BUDGET_HIDDEN: Duration = Duration::from_millis(150);
+/// Most events taken in a turn where there is no clock (the browser).
+#[cfg(target_arch = "wasm32")]
+const EVENTS_NO_CLOCK: usize = 4;
 
 /// What the host is asked to do off the window's thread: read the file at `path`
 /// ([`mailcraft_engine::import_pst::read_path`]) and send what it reads. The window shows
@@ -58,6 +66,9 @@ pub struct ImportPst {
     failed: Option<String>,
     /// Batches that went in.
     batches: usize,
+    /// Whether the window was painted since the last turn of `pump`: when it wasn't, nothing is
+    /// shown and the turn may be longer.
+    painted: bool,
 }
 
 impl Drop for ImportPst {
@@ -90,6 +101,7 @@ impl ImportPst {
             opening: app.session.openings(),
             failed: None,
             batches: 0,
+            painted: true,
         }
     }
 
@@ -164,14 +176,42 @@ impl ImportPst {
         self.phase = Phase::Importing(rx);
     }
 
-    /// Hand what has arrived to the engine, a batch at a time.
-    fn poll(&mut self, app: &mut MailApp) {
+    /// Hand what has arrived to the engine, a batch at a time, for as long as the turn's budget
+    /// allows. Called from the window's logic, which the toolkit runs even when no frame is painted
+    /// (the window hidden, minimised or on another desktop: #815), so the reading goes on there.
+    pub fn pump(&mut self, app: &mut MailApp, ctx: &egui::Context) {
+        if !self.is_importing() {
+            return;
+        }
+        let budget = if self.painted { BUDGET_SHOWN } else { BUDGET_HIDDEN };
+        self.painted = false;
+        self.poll(app, budget);
+        if self.is_importing() {
+            // A turn with nothing painted asks for the next one itself.
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+    }
+
+    fn poll(&mut self, app: &mut MailApp, budget: Duration) {
         if self.opening != app.session.openings() {
             self.progress.cancel();
             self.phase = Phase::Done(Err(tl!("Another mailbox was opened: the import stopped.").to_string()));
             return;
         }
-        for _ in 0..EVENTS_PER_FRAME {
+        #[cfg(not(target_arch = "wasm32"))]
+        let started = std::time::Instant::now();
+        #[cfg(target_arch = "wasm32")]
+        let _ = budget;
+        let mut taken = 0usize;
+        loop {
+            #[cfg(not(target_arch = "wasm32"))]
+            let over = taken > 0 && started.elapsed() >= budget;
+            #[cfg(target_arch = "wasm32")]
+            let over = taken >= EVENTS_NO_CLOCK;
+            if over {
+                return;
+            }
+            taken += 1;
             let Phase::Importing(rx) = &self.phase else { return };
             let event = match rx.try_recv() {
                 Ok(e) => e,
@@ -227,7 +267,7 @@ impl ImportPst {
 
     fn contents(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
-        self.poll(app);
+        self.painted = true;
         match &self.phase {
             Phase::Choose => self.choose(app, ui, enter, &t),
             Phase::Importing(_) => {
