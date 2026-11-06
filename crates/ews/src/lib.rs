@@ -105,6 +105,8 @@ mod items_tests;
 #[cfg(test)]
 mod mail_tests;
 #[cfg(test)]
+mod own_folders_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod threads_tests;
