@@ -234,13 +234,15 @@ fn carried_v4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
     ([a, b, c, d, e, f] == [0x64, 0xff9b, 0, 0, 0, 0]).then(|| Ipv4Addr::new(g1, g2, h1, h2))
 }
 
+/// Whether an IPv6 address is in the public ranges accepted for pictures: `2000::/3`
+/// except the protocol, documentation and 6to4 ranges excluded below. [`is_public`]
+/// checks IPv4-mapped and well-known NAT64 addresses by their carried IPv4 address first.
 fn is_public_v6(ip: Ipv6Addr) -> bool {
     let [a, b, ..] = ip.segments();
     // What is handed out to the internet at large is 2000::/3 (so not ::1, fc00::/7, fe80::/10,
     // ff00::/8), less what is set aside inside it.
     let handed_out = a & 0xe000 == 0x2000;
-    let set_aside = (a == 0x2001 && b < 0x0200) // Teredo, benchmarks and other protocol assignments
-        || (a == 0x2001 && b == 0x0db8) // documentation
+    let set_aside = (a == 0x2001 && (b < 0x0200 || b == 0x0db8)) // protocol assignments and documentation
         || a == 0x2002 // 6to4: an IPv4 address in disguise
         || (a == 0x3fff && b < 0x1000); // documentation
     handed_out && !set_aside

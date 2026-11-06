@@ -290,30 +290,44 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
     Ok(tcp)
 }
 
-/// A TCP connection to the first of `addresses` that answers, all of them within `connect`, or why
+/// Connect using the bounded fallback loop shared with the deterministic regressions.
+fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, &'static str> {
+    let started = Instant::now();
+    connect_resolved(addresses, connect, TcpStream::connect_timeout, || started.elapsed())
+}
+
+/// A connection to the first of `addresses` that answers, all of them within `connect`, or why
 /// there is none. Each address gets an equal share of the time left, so one that never answers
 /// (an IPv6 address that goes nowhere, say) can't keep the next from being tried, and one that
-/// fails at once hands its time on.
-fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, &'static str> {
-    let deadline = Instant::now() + connect;
+/// fails at once hands its time on. Separated from DNS and socket setup so the bounded deadline
+/// can be tested without public servers, real credentials, or wall-clock sleeps.
+fn connect_resolved<T>(
+    addresses: &[SocketAddr],
+    connect: Duration,
+    mut connector: impl FnMut(&SocketAddr, Duration) -> std::io::Result<T>,
+    elapsed: impl Fn() -> Duration,
+) -> Result<T, &'static str> {
     let mut reason = "no address was found for the name";
-    for (tried, address) in addresses.iter().enumerate() {
-        let left = deadline.saturating_duration_since(Instant::now());
+    let count = addresses.len().min(MAX_ADDRESSES);
+    for (index, address) in addresses.iter().take(count).enumerate() {
+        let left = connect.saturating_sub(elapsed());
         if left.is_zero() {
             reason = "the server didn't answer";
             break;
         }
-        let to_try = u32::try_from(addresses.len().saturating_sub(tried)).unwrap_or(u32::MAX).max(1);
-        // No time at all would be refused rather than tried.
-        let share = (left / to_try).max(Duration::from_millis(1));
-        match TcpStream::connect_timeout(address, share) {
-            Ok(tcp) => return Ok(tcp),
-            Err(e) => {
-                reason = match e.kind() {
+        // One unreachable DNS result must not consume the entire connection deadline. Divide
+        // the remaining budget among the remaining bounded attempts. Fast failures leave their
+        // unused time for the next address; the final address gets all remaining time.
+        let remaining = u32::try_from(count.saturating_sub(index)).unwrap_or(1).max(1);
+        let attempt = (left / remaining).max(Duration::from_nanos(1));
+        match connector(address, attempt) {
+            Ok(connection) => return Ok(connection),
+            Err(error) => {
+                reason = match error.kind() {
                     ErrorKind::ConnectionRefused => "the server refused the connection",
                     ErrorKind::TimedOut | ErrorKind::WouldBlock => "the server didn't answer",
                     _ => "the network couldn't get there",
-                }
+                };
             }
         }
     }
@@ -614,3 +628,7 @@ mod tests {
         assert!(!reason.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "transport_connect_tests.rs"]
+mod connect_tests;
