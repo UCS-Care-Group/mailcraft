@@ -4320,6 +4320,15 @@ impl MailApp {
         if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
             mailcraft_engine::import_pst::end_staged(&mut self.session);
         }
+        // A .pst import takes in what its reader has sent here, in the logic and not in the
+        // dialog's frame: the toolkit runs the logic when the window is hidden or minimised and
+        // paints nothing, and a batch waiting for a frame would stop the reader (#815).
+        if let Some(dialogs::Dialog::ImportPst(mut d)) = self.dialog.take_if(|d| matches!(d, dialogs::Dialog::ImportPst(d) if d.is_importing())) {
+            d.pump(self, ctx);
+            if self.dialog.is_none() {
+                self.dialog = Some(dialogs::Dialog::ImportPst(d));
+            }
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
