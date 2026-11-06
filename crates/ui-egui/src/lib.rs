@@ -45,6 +45,8 @@ mod agent_gate_tests;
 mod agent_leaves_tests;
 #[cfg(test)]
 mod agent_names_tests;
+#[cfg(test)]
+mod agent_undo_tests;
 pub mod alerts;
 pub mod approval;
 #[cfg(test)]
@@ -86,6 +88,7 @@ mod field_drag_tests;
 pub mod files;
 mod find_replace;
 mod folder_properties;
+mod font_index;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -1435,7 +1438,7 @@ pub struct MailApp {
     /// The rows the message list was last drawn from, the selection then (its messages, and those
     /// picked as their conversation) and what the rows drew selected: worked out again only when
     /// one of them changes, not at every frame (#503).
-    pub(crate) drawn: Option<(std::sync::Arc<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
+    pub(crate) drawn: Option<(std::sync::Weak<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
     /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
     /// by (#426).
     pub(crate) list_page_rows: usize,
@@ -4321,6 +4324,15 @@ impl MailApp {
         if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
             mailcraft_engine::import_pst::end_staged(&mut self.session);
         }
+        // A .pst import takes in what its reader has sent here, in the logic and not in the
+        // dialog's frame: the toolkit runs the logic when the window is hidden or minimised and
+        // paints nothing, and a batch waiting for a frame would stop the reader (#815).
+        if let Some(dialogs::Dialog::ImportPst(mut d)) = self.dialog.take_if(|d| matches!(d, dialogs::Dialog::ImportPst(d) if d.is_importing())) {
+            d.pump(self, ctx);
+            if self.dialog.is_none() {
+                self.dialog = Some(dialogs::Dialog::ImportPst(d));
+            }
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
@@ -4351,6 +4363,13 @@ impl MailApp {
             return;
         }
         opening::after(self, ctx);
+        // The conversations (#795), which the message list and the reading pane look a message's
+        // up in: worked out on the first frame over the mailbox, rather than at the first click
+        // or the first list in conversation view, and kept through the changes that don't
+        // regroup them (`mailcraft_engine::conversations`).
+        if self.session.prepare_conversations() {
+            ctx.request_repaint();
+        }
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);

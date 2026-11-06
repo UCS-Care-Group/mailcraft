@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -63,7 +63,29 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
   suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
-  is not IMAP or Microsoft is asked about one message at a time. Mail the server does not hold
+  is not IMAP or Microsoft is asked about one message at a time. On Exchange Online, mail from
+  inside the owner's own organisation counts too, though it gets no DMARC verdict (`dmarc=none`, or
+  no `Authentication-Results` at all): every `X-MS-Exchange-Organization-AuthAs` header of it (at
+  least one, and fewer than 16, which the message reader keeps apart from its cap on headers so
+  that padding can't push Exchange's own out) says `Internal`, a header Exchange's header
+  firewall removes from mail arriving from outside and writes itself (as observed on a tenant:
+  Microsoft documents the firewall, not this header's every path), and the sender's domain is
+  the account's own or a name under it, never a consumer domain such as `outlook.com`
+  (`internal`); the cross-tenant header, which the sending tenant writes, is not read. A
+  connector the organisation set up may call a partner's mail internal, so a failed check in the
+  server's own `Authentication-Results` still wins, and so does one too long to be read whole. A colleague on another of the
+  organisation's domains is not vouched for this way. A message moved or copied onto the
+  server from another account or from this computer leaves the stamp behind (`forget_stamps`),
+  and the reader keeps room for it past its caps on header fields and header bytes too; an undo
+  that moves mail back from a shared mailbox leaves it behind as well. Versions from before kept
+  it on such a move, so a stamp is believed only when this version read it from the message
+  (`Message::fresh_stamps`): one already in a mailbox file vouches for nothing. The firewall does not
+  guard mail that another program puts on the server (Outlook dragging mail in from another
+  account, a migration tool, a Graph upload or an IMAP `APPEND`): Exchange keeps its headers as
+  written, a forged `Internal` with them (observed on a tenant for a Graph upload; `APPEND` not
+  tried), so such mail from the owner's own domain is vouched for unless a failed check wins,
+  as a forged topmost `Authentication-Results` on such mail already is.
+  Mail the server does not hold
   (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
   headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or
   `compauth`) clause whose own result is `pass` counts, with the `header.from` of that same clause,
@@ -288,7 +310,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
-  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
+  A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
+  server account has made goes to Deleted Items on undo and is not counted as a removal; on any
+  other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
+  that puts back the accounts (or a change that writes to people) and also takes away messages,
+  drafts, contacts or the like is asked about once: the question names those too, and a yes
+  covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
+  what it would take away when asked: another step meanwhile, or a message or contact that came
+  down since, and the yes is refused.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
@@ -492,6 +521,10 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
+| 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
+| 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
+| 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |

@@ -10,8 +10,9 @@
 //!
 //! Two answers come of it:
 //!
-//! - [`vouched`]: the server says the sender's domain passed DMARC. What the window lets a
-//!   remembered sender's pictures come by, and a sender's own picture.
+//! - [`vouched`]: the server says the sender's domain passed DMARC, or, on Exchange Online, that
+//!   the mail came from inside the owner's own organisation. What the window lets a remembered
+//!   sender's pictures come by, and a sender's own picture.
 //! - [`failed_check`]: the server says it failed DMARC, or, when the server gives no DMARC
 //!   verdict at all, SPF for the sender's domain. A **sender warning**.
 //!
@@ -25,6 +26,20 @@ use crate::{Account, AccountKind, Message, provider, sender_warnings};
 pub(crate) const MAX_HEADERS_READ: usize = 2_000;
 const MAX_TOKENS: usize = 200;
 const MAX_HEADER_CHARS: usize = 4_000;
+/// The header Exchange writes on every message it delivers, saying whether the sender signed in
+/// inside the organisation (`Internal`) or came from outside (`Anonymous`).
+pub const AUTH_AS: &str = "X-MS-Exchange-Organization-AuthAs";
+/// Most [`AUTH_AS`] headers a message keeps (`mailcraft_mime` keeps them apart from its cap on
+/// headers, so that a message padded with others can't push Exchange's own out): one with this
+/// many may have had more.
+pub const MAX_AUTH_AS: usize = 16;
+/// Forget `m`'s [`AUTH_AS`] stamps as it goes onto another account's server: they are the word of
+/// the server it came from, or a sender's own where no Exchange removed them, and the copy there
+/// would be vouched for by them ([`internal`]).
+pub fn forget_stamps(m: &mut Message) {
+    m.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(AUTH_AS));
+}
+
 /// Longest address of a sender that is read, and the longest domain.
 const MAX_SENDER_LEN: usize = 320;
 const MAX_DOMAIN_LEN: usize = 253;
@@ -78,16 +93,52 @@ fn authserv_id(value: &str) -> Option<String> {
 /// Anything else is not known to be the account's server's.
 fn from_own_server(account: Option<&Account>, value: &str) -> bool {
     let Some(account) = account else { return false };
-    let host = account.incoming.as_ref().map(|server| server.host.trim().trim_end_matches('.').to_ascii_lowercase());
-    if account.kind == AccountKind::Microsoft || host.as_deref().is_some_and(provider::is_microsoft_imap_host) {
+    if on_exchange_online(account) {
         return true;
     }
-    let (Some(host), Some(id)) = (host, authserv_id(value)) else { return false };
+    let (Some(host), Some(id)) = (incoming_host(account), authserv_id(value)) else { return false };
     if provider::authserv_ids(&host).contains(&id.as_str()) {
         return true;
     }
     let Some((_, rest)) = host.split_once('.') else { return false };
     rest.split('.').count() >= 2 && !provider::is_public_suffix(rest) && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
+}
+
+/// Whether `account`'s mail is on Exchange Online: a Microsoft account, or one whose IMAP host is
+/// Microsoft's.
+fn on_exchange_online(account: &Account) -> bool {
+    account.kind == AccountKind::Microsoft || incoming_host(account).as_deref().is_some_and(provider::is_microsoft_imap_host)
+}
+
+/// `account`'s incoming server's host, in lower case and without a trailing dot.
+fn incoming_host(account: &Account) -> Option<String> {
+    account.incoming.as_ref().map(|server| server.host.trim().trim_end_matches('.').to_ascii_lowercase())
+}
+
+/// Whether Exchange Online says `m` came from inside the owner's own organisation: the account is
+/// on Exchange Online and has its own domain (not a consumer one such as `outlook.com`), `m` is on
+/// the server, every [`AUTH_AS`] header of it says `Internal` (there is at least one, and fewer
+/// than [`MAX_AUTH_AS`]) and was read by this version ([`Message::fresh_stamps`]), and the sender's
+/// domain is the account's or under it ([`judged_for`]). Exchange's header firewall removes that header from mail arriving from outside and Exchange
+/// writes its own, so a sender can't write it; mail between colleagues gets no DMARC verdict (`dmarc=none`), and often no
+/// `Authentication-Results` at all. The cross-tenant header is not read: the sending tenant
+/// writes it, and it travels on to other organisations.
+fn internal(account: Option<&Account>, m: &Message) -> bool {
+    let Some(account) = account.filter(|account| on_exchange_online(account)) else { return false };
+    let Some(own) = domain(&account.email).filter(|own| !provider::is_mail_provider(own)) else { return false };
+    if !m.fresh_stamps || (m.uid == 0 && m.server.is_none()) {
+        return false;
+    }
+    let mut stamps = 0usize;
+    for (_, value) in m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case(AUTH_AS)) {
+        if !value.trim().eq_ignore_ascii_case("Internal") {
+            return false;
+        }
+        stamps += 1;
+    }
+    // As many as are kept may mean one was left out, and it may have been Exchange's.
+    (1..MAX_AUTH_AS).contains(&stamps)
+        && sender(&m.from.email).and_then(|address| domain(&address)).is_some_and(|sender_domain| judged_for(&own, &sender_domain))
 }
 
 /// The clauses of an `Authentication-Results` value (RFC 8601), each as its words: split at the
@@ -216,7 +267,14 @@ fn result(words: &[String]) -> Option<(String, String)> {
 /// 3.1.1 and 4.2). A verdict the server gave, `fail` included, is never overruled by a signature.
 /// Only the clause's own words are read, not what a comment or quoted string in the header says.
 /// A header the sender could have written is not read. The sender's address must be plain ASCII.
+/// Mail Exchange Online says came from inside the owner's own organisation ([`internal`]) is
+/// vouched for too, unless the server says it failed its checks ([`failed_check`]).
 pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
+    if internal(account, m) {
+        // An organisation's connector may call a partner's mail internal: the server's word wins,
+        // and a word cut short may have hidden a failure.
+        return failed_check(account, m).is_none() && own_results(account, m).is_none_or(|results| results.first().is_none_or(|v| clauses(v).1));
+    }
     let Some(results) = own_results(account, m) else { return false };
     let Some((value, below)) = results.split_first() else { return false };
     let Some(sender_domain) = sender(&m.from.email).and_then(|address| domain(&address)) else { return false };

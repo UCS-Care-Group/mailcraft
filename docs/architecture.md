@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-04 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -20,7 +20,7 @@ egui, eframe, winit or rfd.
 | L0 | `control-key` | Per-window control-port key files shared by the app and the MCP bridge |
 | L0 | `charset` | Bytes to text in any character set of the WHATWG Encoding Standard (`encoding_rs`), one decoder for `mime` and `vcard`, which may not use each other |
 | L0 | `link` | Links: a strict reader of `http` and `https` addresses (RFC 3986) that writes the host a browser would reach (lower-case ASCII, international labels as Punycode per RFC 3492, numbers as dotted decimal, IPv6 in brackets) and the address as it is shown and launched; percent-encoding. Its one dependency is `names`, for the list of format characters, which it refuses in a host but for the joiners IDNA2008 allows (#454); replaces the `url` crate (#350) |
-| L0 | `names` | Names (people, folders, categories, calendars, accounts, signatures, rules): one list of Unicode's format characters (general category Cf, Unicode 17.0) and the zero-width joiner and non-joiner among them, and the two steps a name takes, coming in (`incoming`: one line, without control characters, format characters and Unicode's other default-ignorable code points (the Hangul fillers and the like, which show nothing), but with a joiner inside a word and one variation selector after a character that shows; trimmed, at most a given length, nothing when nothing is left) and being shown (`shown`: the same, cut with an ellipsis). No dependencies (#454) |
+| L0 | `names` | Names (people, folders, categories, calendars, accounts, signatures, rules): one list of Unicode's format characters (general category Cf, Unicode 17.0) and the zero-width joiner and non-joiner among them, and the two steps a name takes, coming in (`incoming`: one line, without control characters, format characters and Unicode's other default-ignorable code points (the Hangul fillers and the like, which show nothing), but with a joiner inside a word and one variation selector after a character that shows; trimmed, at most a given length, nothing when nothing is left) and being shown (`shown`: the same, cut with an ellipsis), which the window's labels, People, desktop alerts and the search box's suggestions (`model`) use. No dependencies (#454) |
 | L0 | `i18n` | Interface text in other languages: the languages (`Lang`), a reader of gettext `.po` catalogues (hostile input: sizes capped, never a panic) with plural rules, the catalogues compiled in from `crates/i18n/po/`, named `{placeholders}` (`fmt`), and the pseudo language that shows text not yet marked for translation. `cargo xtask i18n` writes `po/messages.pot` from every `tl!`/`tln!` and the engine's labels |
 | L1 | `model` | The mailbox: accounts, folders, messages, contacts, calendars, events with recurrence, tasks, categories, rules, signatures; edit primitives (`move_message`, `delete_folder`…), conversations, the search query language, `repair()` for whatever a file held, and the sync data types |
 | L1 | `html` | Hostile HTML mail → display blocks (`parse`), plain text (`to_text`) and the line a message list shows (`preview`, `text_preview`); plain text → blocks and HTML; entities; the safe-URL rule |
@@ -278,6 +278,10 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | minor | #454 part 3: `model` and the window show names through `names::shown` (the window's labels, People, desktop alerts, the search box's suggestions) |
+| 2026-11-04 | minor | #815: `pst`, L2: a reader of `.pst` files from [MS-PST], capped and without I/O of its own; a `pst` fuzz target; 20 crates |
+| 2026-11-04 | minor | #232: describe registration-secret configuration and client-ID pairing, primary-address identity checks and unsupported Workspace aliases |
+| 2026-11-03 | minor | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-01 | minor | #376: portable DAV model, document and XML foundation; DAV fuzz targets; 19 library crates |
 | 2026-11-01 | minor | #252: the `MAILCRAFT_EWS` switch and `Session::ews` are gone; Exchange server accounts are on for everyone |
 | 2026-10-29 | minor | #252: Exchange server accounts, first step: `AccountKind::Exchange`, `Account::ews`, the request and result shapes, three registered commands, the `MAILCRAFT_EWS` switch in the data flow |

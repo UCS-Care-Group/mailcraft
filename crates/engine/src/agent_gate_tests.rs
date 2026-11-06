@@ -29,7 +29,10 @@ fn undo_that_would_delete_asks_for_delete() {
         s.run(cmd, &params).unwrap();
         assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)), "{cmd}");
         assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Delete]), Verdict::Run, "{cmd}");
-        assert!(describe(&s, "edit.undo", &json!({})).contains("deleted"), "{cmd}");
+        assert!(
+            describe(&s, "edit.undo", &json!({})).contains("takes away contacts, events, tasks, calendars or categories made since, for good"),
+            "{cmd}"
+        );
     }
     // Redo of an undone deletion.
     let mut s = sample();

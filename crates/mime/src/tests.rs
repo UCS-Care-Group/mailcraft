@@ -520,6 +520,7 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
+            fresh_stamps: false,
             id: 7,
             account: 3,
             folder: 5,
@@ -738,4 +739,33 @@ fn the_message_id_said_to_be_written_is_the_one_written() {
         let field = out.lines().find_map(|line| line.strip_prefix("Message-ID: ")).map(str::to_string);
         assert_eq!(written_message_id(raw), field, "{raw:?}");
     }
+}
+
+/// A sender who pads a message with headers can't push Exchange's own stamp of where it came from
+/// out of what is kept, and a flood of stamps is itself capped.
+#[test]
+fn exchange_stamps_are_kept_past_the_header_cap() {
+    use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+    let stamps = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(AUTH_AS)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
+    let padded = format!(
+        "{}{AUTH_AS}: Internal\r\n{}x-ms-exchange-organization-authas: Anonymous\r\n\r\n",
+        "X-Pad: 1\r\n".repeat(150),
+        "X-Pad: 1\r\n".repeat(150)
+    );
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // Read here, so believed (#781): a stamp saved by a build from before is not.
+    assert!(parse(padded.as_bytes()).fresh_stamps);
+    let flood = format!("{AUTH_AS}: Internal\r\n").repeat(MAX_AUTH_AS + 10);
+    assert_eq!(stamps(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
+    // Past the cap on header fields too.
+    let padded = format!("{AUTH_AS}: Internal\r\n{}{AUTH_AS}: Anonymous\r\n\r\n", "X-Pad: 1\r\n".repeat(2_500));
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // Past the cap on header bytes too.
+    let padded = format!("{AUTH_AS}: Internal\r\n{}{AUTH_AS}: Anonymous\r\n\r\n", format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20));
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // A long value is cut, and never cut down to `Internal`.
+    let long = format!("{AUTH_AS}: Internal{}x\r\n\r\n", " ".repeat(10_000));
+    let cut = stamps(&parse(long.as_bytes()));
+    assert_eq!(cut[0].chars().count(), 65);
+    assert_ne!(cut[0].trim(), "Internal");
 }
