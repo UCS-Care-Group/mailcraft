@@ -19,6 +19,7 @@
 //! The import fails unless every item found is accounted for: brought in, already here, left
 //! out (with what it is, its folder and why) or not yet brought in.
 
+pub mod contact;
 pub mod item;
 pub mod report;
 
@@ -27,7 +28,7 @@ use std::io::{Read, Seek};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use mailcraft_model::{AccountKind, Id, MAX_FOLDER_DEPTH, Mailbox, Message, Rgb};
+use mailcraft_model::{AccountKind, Contact, Id, MAX_FOLDER_DEPTH, Mailbox, Message, Rgb};
 use mailcraft_pst::{Error as PstError, FolderKind, Limits, Nid, PS_PUBLIC_STRINGS, PropName, PropValue, Pst, node_types};
 use serde_json::{Value, json};
 
@@ -120,6 +121,9 @@ pub struct Job {
     /// How many levels of the file's folders fit below the place ([`room`]): a folder nested
     /// deeper has its mail put in its ancestor at the last level, and its row says so.
     pub room: usize,
+    /// The contacts already brought in from .pst files ([`known_keys`] holds them too), to tell
+    /// them from mail.
+    pub known_contacts: HashSet<String>,
 }
 
 impl std::fmt::Debug for Job {
@@ -135,6 +139,8 @@ pub struct Batch {
     /// Folders to make even when nothing lands in them (the file's empty mail folders).
     pub folders: Vec<Vec<String>>,
     pub messages: Vec<(Vec<String>, Message)>,
+    /// Contacts and distribution lists (as contacts), read the same way.
+    pub contacts: Vec<Contact>,
     /// The file's identity: a batch of another file starts an import of its own.
     pub identity: String,
     bytes: u64,
@@ -142,7 +148,12 @@ pub struct Batch {
 
 impl Batch {
     fn is_empty(&self) -> bool {
-        self.folders.is_empty() && self.messages.is_empty()
+        self.folders.is_empty() && self.messages.is_empty() && self.contacts.is_empty()
+    }
+
+    /// Items in it, for the size of a batch.
+    fn items(&self) -> usize {
+        self.messages.len().saturating_add(self.contacts.len())
     }
 }
 
@@ -181,9 +192,13 @@ fn open_path(path: &str) -> Result<std::io::BufReader<std::fs::File>, CmdError> 
         .map_err(|e| failed!("the .pst file couldn't be opened: {e}", e = e.to_string()))
 }
 
-/// The keys of every message brought in from a .pst file ([`PST_ITEM_HEADER`]).
+/// The keys of every message and contact brought in from a .pst file ([`PST_ITEM_HEADER`],
+/// [`Contact::imported`]).
 pub fn known_keys(mb: &Mailbox) -> HashSet<String> {
-    mb.messages.values().filter_map(|m| m.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(PST_ITEM_HEADER)).map(|(_, v)| v.clone())).collect()
+    let messages =
+        mb.messages.values().filter_map(|m| m.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(PST_ITEM_HEADER)).map(|(_, v)| v.clone()));
+    let contacts = mb.contacts.values().flat_map(|c| c.imported.split_whitespace().map(str::to_string));
+    messages.chain(contacts).collect()
 }
 
 /// The identity of a file: its provider's id (PidTagRecordKey), which every copy of it keeps.
@@ -260,6 +275,11 @@ struct Brought {
     mail: bool,
     /// Nested deeper than the room there is: its mail goes into its ancestor at `path`.
     merged: bool,
+    /// In Deleted Items or below it: its contacts are left out.
+    deleted: bool,
+    /// Hidden, or one Outlook fills by itself (a contacts folder of a class of its own): its
+    /// contacts come in, and the report says where they came from.
+    automatic: bool,
 }
 
 /// Most bytes of the start of a file its identity is worked out from when it has no record key.
@@ -325,6 +345,8 @@ pub fn read<R: Read + Seek>(
     let mut brought: Vec<Brought> = Vec::new();
     let mut paths: HashMap<Nid, Vec<String>> = HashMap::new();
     let mut internal: HashSet<u32> = HashSet::new();
+    // Deleted Items (by the store's own word) and the folders below it.
+    let mut deleted: HashSet<Nid> = HashSet::new();
     let mut used: HashSet<(Vec<String>, String)> = HashSet::new();
     // The next number to try for a name already used side by side, so that a file of thousands
     // of folders of one name is not tried from (2) up each time.
@@ -382,7 +404,15 @@ pub fn read<R: Read + Seek>(
         };
         paths.insert(f.id, path.clone());
         let mail = matches!(f.kind, FolderKind::Mail | FolderKind::Other(_));
-        brought.push(Brought { id: f.id, shown, path, mail, merged });
+        // Contacts in Deleted Items, and below it, are left out; every other folder's come in.
+        let in_deleted = Some(f.id) == store.deleted_items || f.parent.is_some_and(|p| deleted.contains(&p));
+        if in_deleted {
+            deleted.insert(f.id);
+        }
+        let own_contacts =
+            f.kind == FolderKind::Contacts && f.container_class.as_deref().is_some_and(|c| c.trim().eq_ignore_ascii_case("IPF.Contact"));
+        let automatic = f.properties.bool(0x10F4).unwrap_or(false) || (f.kind == FolderKind::Contacts && !own_contacts);
+        brought.push(Brought { id: f.id, shown, path, mail, merged, deleted: in_deleted, automatic });
     }
     for l in &tree.left_out {
         if l.property.is_some() {
@@ -396,11 +426,10 @@ pub fn read<R: Read + Seek>(
     progress.total.store(total, Ordering::Relaxed);
     progress.folders_total.store(brought.len(), Ordering::Relaxed);
 
-    let mut batch = Batch {
-        folders: brought.iter().filter(|b| b.mail && !b.merged).map(|b| b.path.clone()).collect(),
-        identity: identity.clone(),
-        ..Default::default()
-    };
+    let mut batch = Batch { identity: identity.clone(), ..Default::default() };
+    // The file's empty mail folders, made at the end unless the file holds contacts and no mail (a file of
+    // contacts alone, with an empty Inbox and Deleted Items, makes none).
+    let empty_folders: Vec<Vec<String>> = brought.iter().filter(|b| b.mail && !b.merged && !b.path.is_empty()).map(|b| b.path.clone()).collect();
     let categories = if job.dry_run { Vec::new() } else { category_list(&mut pst, &tree, &mut report)? };
     let mut claimed: HashSet<u32> = HashSet::new();
     let mut cancelled = false;
@@ -408,6 +437,7 @@ pub fn read<R: Read + Seek>(
     'folders: for b in &brought {
         let into = b.merged.then(|| b.path.join("/"));
         let mut row = Row { path: b.shown.clone(), into, ..Default::default() };
+        let (mut in_deleted, mut told) = (0usize, false);
         let listed = match pst.items(b.id) {
             Ok(l) => l,
             Err(e) if ends_import(&e) => return Err(pst_error(&e)),
@@ -444,6 +474,11 @@ pub fn read<R: Read + Seek>(
             let what = |kind: &str| if subject.is_empty() { kind.to_string() } else { format!("{kind} \"{subject}\"") };
             if job.known.contains(&key(&identity, nid)) {
                 row.already = row.already.saturating_add(1);
+                if job.known_contacts.contains(&key(&identity, nid)) {
+                    report.contacts_seen = report.contacts_seen.saturating_add(1);
+                } else {
+                    report.mail_seen = report.mail_seen.saturating_add(1);
+                }
                 continue;
             }
             if let Some(kind) = class.as_deref().and_then(later_kind) {
@@ -458,6 +493,9 @@ pub fn read<R: Read + Seek>(
                 Err(e) => {
                     row.left_out = row.left_out.saturating_add(1);
                     report.leave_out(&what("item"), &b.shown, &e.to_string());
+                    if class.as_deref().and_then(contact::kind).is_none() {
+                        report.mail_seen = report.mail_seen.saturating_add(1);
+                    }
                     continue;
                 }
             };
@@ -466,6 +504,53 @@ pub fn read<R: Read + Seek>(
                 report.count_later(kind);
                 continue;
             }
+            // A contact, or a distribution list kept as a contact.
+            if let Some(list) = m.class.as_deref().and_then(contact::kind) {
+                report.contacts_seen = report.contacts_seen.saturating_add(1);
+                if b.deleted {
+                    // (One line for the folder, not one for each.)
+                    row.left_out = row.left_out.saturating_add(1);
+                    in_deleted = in_deleted.saturating_add(1);
+                    continue;
+                }
+                if b.automatic && !told {
+                    told = true;
+                    report.note(
+                        &b.shown,
+                        &b.shown,
+                        "a hidden or automatic contacts folder (recipient cache, suggested contacts): its contacts are brought in",
+                    );
+                }
+                // (A dry run reads it too, so that what it says would come in does.)
+                let built = contact::build(&mut pst, &m, &named, list).map_err(|e| pst_error(&e))?;
+                row.added = row.added.saturating_add(1);
+                if list {
+                    report.lists_added = report.lists_added.saturating_add(1);
+                } else {
+                    report.contacts_added = report.contacts_added.saturating_add(1);
+                }
+                let mut c = built.contact;
+                c.imported = key(&identity, nid);
+                c.imported_from = job.file.chars().take(mailcraft_model::MAX_NAME).collect();
+                let shown = if c.name().is_empty() { "contact".to_string() } else { format!("contact \"{}\"", c.name()) };
+                if let Some(n) = built.members {
+                    report.note(&shown, &b.shown, &format!("a distribution list, kept as a contact listing its members ({n})"));
+                }
+                for n in &built.notes {
+                    report.note(&shown, &b.shown, n);
+                }
+                if job.dry_run {
+                    continue;
+                }
+                batch.bytes = batch.bytes.saturating_add(item::held_contact(&c));
+                batch.contacts.push(c);
+                if batch.items() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
+                    let identity = batch.identity.clone();
+                    sink(std::mem::replace(&mut batch, Batch { identity, ..Default::default() }))?;
+                }
+                continue;
+            }
+            report.mail_seen = report.mail_seen.saturating_add(1);
             if job.dry_run {
                 row.added = row.added.saturating_add(1);
                 continue;
@@ -480,12 +565,18 @@ pub fn read<R: Read + Seek>(
             row.added = row.added.saturating_add(1);
             batch.bytes = batch.bytes.saturating_add(item::held(&message));
             batch.messages.push((b.path.clone(), message));
-            if batch.messages.len() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
+            if batch.items() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
                 let identity = batch.identity.clone();
                 sink(std::mem::replace(&mut batch, Batch { identity, ..Default::default() }))?;
             }
         }
+        if in_deleted > 0 {
+            report.leave_out(&format!("contacts and distribution lists ({in_deleted})"), &b.shown, "in Deleted Items, left out");
+        }
         report.push_row(row);
+    }
+    if (cancelled || !(report.contacts_seen > 0 && report.mail_seen == 0)) && !job.dry_run {
+        batch.folders = empty_folders;
     }
     if !batch.is_empty() && !job.dry_run {
         sink(std::mem::take(&mut batch))?;
@@ -559,6 +650,7 @@ fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report
             keywords: map.find(&PS_PUBLIC_STRINGS, &PropName::Name("Keywords".into())),
             due: map.find(&item::PSETID_TASK, &PropName::Id(0x8105)),
             charset,
+            contact: contact::ContactIds::find(map),
         }),
         Err(e) if ends_import(&e) => Err(pst_error(&e)),
         Err(e) => {
@@ -716,7 +808,8 @@ pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: 
     let name = folder_name(file);
     let place = place_of(s, v, &name)?;
     let room = room(s, &place);
-    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room }, place))
+    let known_contacts = s.mailbox.contacts.values().flat_map(|c| c.imported.split_whitespace().map(str::to_string)).collect();
+    Ok((Job { password, dry_run, file: report::short(file), name, known: known_keys(&s.mailbox), room, known_contacts }, place))
 }
 
 /// An import under way: where it puts what it reads, and what it has put in, so that the whole
@@ -725,7 +818,10 @@ pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: 
 pub struct Running {
     identity: String,
     account: Id,
-    top: Id,
+    place: Place,
+    /// The folder the mail goes into: found or made when mail first lands (a file of contacts
+    /// alone makes none).
+    top: Option<Id>,
     paths: HashMap<Vec<String>, Id>,
     /// The names under each folder of the account (lowercase), with the folder when mail may go
     /// into it (a folder of its own kind, an Outbox or a server's isn't the one).
@@ -734,6 +830,8 @@ pub struct Running {
     next: HashMap<(Id, String), u32>,
     made: Vec<Id>,
     added: Vec<Id>,
+    /// The contacts it put in.
+    contacts: Vec<Id>,
 }
 
 impl Running {
@@ -751,21 +849,31 @@ impl Running {
         let mut run = Running {
             identity: identity.to_string(),
             account,
-            top: 0,
+            place: place.clone(),
+            top: None,
             paths: HashMap::new(),
             names,
             next: HashMap::new(),
             made: Vec::new(),
             added: Vec::new(),
+            contacts: Vec::new(),
         };
-        run.top = match place {
-            Place::Under(id) => *id,
-            Place::New(name) => run.own_folder(s, name)?,
-        };
-        if matches!(place, Place::New(_)) {
-            s.pst_tops.insert(identity.to_string(), run.top);
+        if let Place::Under(id) = place {
+            run.top = Some(*id);
         }
         Ok(run)
+    }
+
+    /// The folder the mail goes into, found or made.
+    fn top(&mut self, s: &mut Session) -> Result<Id, CmdError> {
+        if let Some(top) = self.top {
+            return Ok(top);
+        }
+        let Place::New(name) = self.place.clone() else { return Err(fail("the import has no folder to put mail in")) };
+        let top = self.own_folder(s, &name)?;
+        s.pst_tops.insert(self.identity.clone(), top);
+        self.top = Some(top);
+        Ok(top)
     }
 
     /// The folder on this computer named after the file: one of that name (any case) only when it
@@ -835,7 +943,7 @@ impl Running {
         if let Some(id) = self.paths.get(path) {
             return Ok(*id);
         }
-        let mut at = self.top;
+        let mut at = self.top(s)?;
         for i in 0..path.len() {
             let prefix = path.get(..=i).unwrap_or_default();
             at = match self.paths.get(prefix) {
@@ -852,15 +960,21 @@ impl Running {
     }
 
     /// Take out what was put in since `made` folders and `added` messages.
-    fn roll_back(&mut self, s: &mut Session, made: usize, added: usize) {
+    fn roll_back(&mut self, s: &mut Session, made: usize, added: usize, contacts: usize) {
         for id in self.added.drain(added.min(self.added.len())..) {
             s.mailbox.messages.remove(&id);
+        }
+        for id in self.contacts.drain(contacts.min(self.contacts.len())..) {
+            s.mailbox.contacts.remove(&id);
         }
         let gone: Vec<Id> = self.made.drain(made.min(self.made.len())..).collect();
         s.mailbox.remove_folders(&gone);
         let gone: HashSet<Id> = gone.into_iter().collect();
         // (The folder named after the file, made by this batch, is gone with it.)
         s.pst_tops.retain(|_, top| !gone.contains(top));
+        if self.top.is_some_and(|t| gone.contains(&t)) {
+            self.top = None;
+        }
         self.paths.retain(|_, id| !gone.contains(id));
         for names in self.names.values_mut() {
             names.retain(|_, id| !id.is_some_and(|id| gone.contains(&id)));
@@ -899,17 +1013,23 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
         }
         None => Running::start(s, place, &batch.identity)?,
     };
-    let (made, added) = (run.made.len(), run.added.len());
+    let (made, added, contacts) = (run.made.len(), run.added.len(), run.contacts.len());
     let r = put(s, &mut run, batch);
     if r.is_err() {
-        run.roll_back(s, made, added);
+        run.roll_back(s, made, added, contacts);
     }
     s.pst_running = Some(run);
     r
 }
 
 fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdError> {
-    check_top(s, run.top)?;
+    if let Some(top) = run.top {
+        check_top(s, top)?;
+    }
+    if !batch.folders.is_empty() || !batch.messages.is_empty() {
+        let top = run.top(s)?;
+        check_top(s, top)?;
+    }
     for path in &batch.folders {
         run.folder(s, path)?;
     }
@@ -928,6 +1048,13 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
         run.added.push(id);
         n = n.saturating_add(1);
     }
+    for mut c in batch.contacts {
+        c.id = 0;
+        c.origin = Default::default();
+        let id = s.mailbox.add_contact(c);
+        run.contacts.push(id);
+        n = n.saturating_add(1);
+    }
     Ok(n)
 }
 
@@ -943,12 +1070,14 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
     let top = if dry {
         None
     } else {
-        // (Nothing came in: the folder is still found, or made, for the owner to see.)
-        let r = match run.take() {
+        let mut r = match run.take() {
             Some(r) => r,
             None => Running::start(s, place, &identity)?,
         };
-        let top = r.top;
+        // (Nothing came in: the folder is still found, or made, for the owner to see; a file of
+        // contacts alone has no mail, so no folder.)
+        let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0 && !report.cancelled;
+        let top = if contacts_only && r.top.is_none() { None } else { Some(r.top(s)?) };
         run = Some(r);
         let account = s.mailbox.local_account();
         for (name, color) in categories {
@@ -959,16 +1088,23 @@ pub fn finish(s: &mut Session, place: &Place, outcome: Outcome, staged: bool) ->
                 report.categories_added = report.categories_added.saturating_add(1);
             }
         }
-        Some(top)
+        top
     };
-    if let Some(id) = top {
+    // (A file of contacts alone is shown where its contacts are.)
+    let contacts_only = report.contacts_seen > 0 && report.mail_seen == 0 && !report.cancelled;
+    if contacts_only {
+        report.name = String::new();
+    } else if let Some(id) = top {
         report.name = s.mailbox.folder(id).map(|f| f.name.clone()).unwrap_or_default();
         s.view.folder = id;
         s.view.module = crate::Module::Mail;
         s.view.search.clear();
     }
+    if !dry && contacts_only {
+        s.view.module = crate::Module::People;
+    }
     if staged && let Some(r) = run {
-        s.keep_import_step(IMPORT_LABEL, &r.added, &r.made, categories_before);
+        s.keep_import_step(IMPORT_LABEL, &r.added, &r.contacts, &r.made, categories_before);
     }
     if !dry {
         report.written = write_report(s, &report);
@@ -992,7 +1128,7 @@ pub const IMPORT_LABEL: &str = "Import a .pst File";
 pub fn end_staged(s: &mut Session) {
     if let Some(r) = s.pst_running.take() {
         let categories = s.mailbox.categories.clone();
-        s.keep_import_step(IMPORT_LABEL, &r.added, &r.made, categories);
+        s.keep_import_step(IMPORT_LABEL, &r.added, &r.contacts, &r.made, categories);
     }
 }
 

@@ -333,9 +333,12 @@ impl ImportPst {
             });
         });
         ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Put the contacts")).strong());
+        ui.label(tl!("Into your contacts on this computer, each marked as imported from the file."));
+        ui.add_space(6.0);
         ui.label(
             RichText::new(tl!(
-                "Preview: only the mail is brought in for now. Calendar items, contacts, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+                "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
             ))
             .color(t.text_dim),
         );
@@ -396,19 +399,43 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     ui.label(
         RichText::new(crate::i18n::fmt(
             tl!("{added} brought in, of {found} found."),
-            &[("added", &tln!(n("added"), "{n} message", "{n} messages")), ("found", &tln!(n("found"), "{n} item", "{n} items"))],
+            &[
+                (
+                    "added",
+                    &if n("contacts") + n("lists") == 0 {
+                        tln!(n("added"), "{n} message", "{n} messages")
+                    } else {
+                        tln!(n("added"), "{n} item", "{n} items")
+                    },
+                ),
+                ("found", &tln!(n("found"), "{n} item", "{n} items")),
+            ],
         ))
         .strong(),
     );
+    // (With contacts among them, what the items are is said line by line.)
+    for (count, line) in [
+        (if n("contacts") + n("lists") == 0 { 0 } else { n("messages") }, tln!(n("messages"), "{n} message", "{n} messages")),
+        (n("contacts"), tln!(n("contacts"), "{n} contact", "{n} contacts")),
+        (
+            n("lists"),
+            tln!(
+                n("lists"),
+                "{n} distribution list, kept as a contact listing its members",
+                "{n} distribution lists, kept as contacts listing their members"
+            ),
+        ),
+    ] {
+        if count > 0 {
+            ui.label(line);
+        }
+    }
     if !folder.is_empty() {
         ui.label(crate::i18n::fmt(tl!("In {folder}"), &[("folder", folder)]));
     }
     for (count, line) in [
         (n("already"), tln!(n("already"), "{n} was here already", "{n} were here already")),
-        (
-            n("later"),
-            tln!(n("later"), "{n} item isn't mail and is left for a later version", "{n} items aren't mail and are left for a later version"),
-        ),
+        (n("later"), tln!(n("later"), "{n} item is left for a later version", "{n} items are left for a later version")),
         (n("leftOut"), tln!(n("leftOut"), "{n} item couldn't be read and is left out", "{n} items couldn't be read and are left out")),
     ] {
         if count > 0 {

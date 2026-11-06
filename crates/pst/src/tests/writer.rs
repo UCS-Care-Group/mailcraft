@@ -829,6 +829,15 @@ pub fn entry_id(nid: u32) -> Vec<u8> {
     e
 }
 
+/// A container class written `hidden:IPF.Contact` is a hidden folder (PidTagAttributeHidden) of
+/// that class.
+fn hidden_class(class: &str) -> (&str, bool) {
+    match class.strip_prefix("hidden:") {
+        Some(rest) => (rest, true),
+        None => (class, false),
+    }
+}
+
 pub struct Ids {
     folder: u32,
     message: u32,
@@ -999,7 +1008,7 @@ fn folder(l: &Layout, ids: &mut Ids, nid: u32, parent: u32, spec: &FolderSpec, n
             (0x360A_000B, boolean(!c.children.is_empty())),
         ];
         if let Some(class) = &c.class {
-            vals.push((text_tag(l, 0x3613), text(l, class)));
+            vals.push((text_tag(l, 0x3613), text(l, hidden_class(class).0)));
         }
         child_rows.push((cid, vals));
     }
@@ -1010,7 +1019,11 @@ fn folder(l: &Layout, ids: &mut Ids, nid: u32, parent: u32, spec: &FolderSpec, n
         (0x360A, boolean(!spec.children.is_empty())),
     ];
     if let Some(class) = &spec.class {
+        let (class, hidden) = hidden_class(class);
         props.push((0x3613, text(l, class)));
+        if hidden {
+            props.push((0x10F4, boolean(true)));
+        }
     }
     let mut spill = Spill::new();
     let blocks = pc(l, &props, &mut spill);
@@ -1104,6 +1117,10 @@ pub fn nodes(spec: &FileSpec) -> Vec<Node> {
         (0x35E0, binary(&entry_id(IPM_SUBTREE))),
         (0x35E7, binary(&entry_id(SEARCH_ROOT))),
     ];
+    // A top-level folder named Deleted Items is the store's (its ids run from 0x403).
+    if let Some(i) = spec.folders.iter().position(|f| f.name == "Deleted Items") {
+        store.push((0x35E3, binary(&entry_id(((0x403 + i as u32) << 5) | 0x02))));
+    }
     if let Some(p) = &spec.password {
         let bytes: Vec<u8> = if spec.password_ansi { p.chars().map(|c| c as u8).collect() } else { p.as_bytes().to_vec() };
         store.push((0x67FF, int32(crc32(&bytes) as i32)));

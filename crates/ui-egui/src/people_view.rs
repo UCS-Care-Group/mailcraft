@@ -763,6 +763,16 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
                 section(ui, tl!("Notes"));
                 ui.add(egui::Label::new(RichText::new(clip_chars(c.notes.trim(), NOTES_MAX)).font(regular(13.0)).color(t.text)).wrap());
             }
+            if !c.imported_from.is_empty() {
+                ui.add_space(8.0);
+                let from = one_line(&c.imported_from, 200);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(crate::i18n::fmt(tl!("Imported from {file}"), &[("file", &from)])).font(regular(12.0)).color(t.text_dim),
+                    )
+                    .wrap(),
+                );
+            }
             card_recent(app, ui, &c);
         });
     });

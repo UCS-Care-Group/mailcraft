@@ -5138,6 +5138,11 @@ msgid "Imported"
 msgstr "Geïmporteerd"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Imported from {file}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what}"
@@ -5372,6 +5377,11 @@ msgstr "Grootte van de interface"
 #, fuzzy
 msgid "Interface theme"
 msgstr "Thema van de interface"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your contacts on this computer, each marked as imported from the file."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8716,7 +8726,7 @@ msgstr "Voorbeeldregels in de berichtenlijst"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "Preview: only the mail is brought in for now. Calendar items, contacts, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
 msgstr ""
 
 #. interface
@@ -8814,6 +8824,11 @@ msgstr "Voorgesteld begin"
 #, fuzzy
 msgid "Proposed time"
 msgstr "Voorgestelde tijd"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -16295,6 +16310,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+msgid "the import has no folder to put mail in"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
 msgid "the import was stopped"
 msgstr ""
 
@@ -17472,7 +17492,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "{n} wijzigingen van de agenda „{name}” worden hier aangehouden, niet verzonden: dit account mag die niet meer wijzigen. Ze worden verzonden als dat weer mag."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"
@@ -17502,6 +17522,13 @@ msgid "{n} declined"
 msgid_plural "{n} declined"
 msgstr[0] "{n} afgewezen"
 msgstr[1] "{n} afgewezen"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} distribution list, kept as a contact listing its members"
+msgid_plural "{n} distribution lists, kept as contacts listing their members"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -17591,19 +17618,19 @@ msgstr[0] "{n} item hier staat alleen op deze computer: niet in uw Outlook-agend
 msgstr[1] "{n} items hier staan alleen op deze computer: niet in uw Outlook-agenda. Een wijziging van een ervan blijft hier."
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} item is left for a later version"
+msgid_plural "{n} items are left for a later version"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} item is only on this computer, and not in your Outlook calendar."
 msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
 msgstr[0] "{n} item staat alleen op deze computer, en niet in uw Outlook-agenda."
 msgstr[1] "{n} items staan alleen op deze computer, en niet in uw Outlook-agenda."
-
-#. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "{n} item isn't mail and is left for a later version"
-msgid_plural "{n} items aren't mail and are left for a later version"
-msgstr[0] ""
-msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
