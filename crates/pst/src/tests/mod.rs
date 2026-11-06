@@ -10,6 +10,7 @@ mod cost;
 mod hostile;
 mod properties;
 mod roundtrip;
+mod rtf;
 mod salvage;
 mod spec_samples;
 pub use crate::test_writer as writer;

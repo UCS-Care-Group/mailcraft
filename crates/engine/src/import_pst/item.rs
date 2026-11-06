@@ -40,50 +40,7 @@ pub fn filetime(ft: u64) -> Option<i64> {
     (seconds > 0 && seconds < 253_402_300_800).then_some(seconds)
 }
 
-/// The character set a Windows code page stands for (PidTagMessageCodepage,
-/// PidTagInternetCodepage), as `mailcraft-charset` names it.
-pub fn code_page(cp: i64) -> Option<&'static str> {
-    Some(match cp {
-        65001 => "utf-8",
-        1200 => "utf-16le",
-        1201 => "utf-16be",
-        874 => "windows-874",
-        1250 => "windows-1250",
-        1251 => "windows-1251",
-        1252 | 28591 => "windows-1252",
-        1253 => "windows-1253",
-        1254 => "windows-1254",
-        1255 => "windows-1255",
-        1256 => "windows-1256",
-        1257 => "windows-1257",
-        1258 => "windows-1258",
-        932 => "shift_jis",
-        936 => "gbk",
-        54936 => "gb18030",
-        949 | 51949 => "euc-kr",
-        950 => "big5",
-        51932 => "euc-jp",
-        50220..=50222 => "iso-2022-jp",
-        866 => "ibm866",
-        20866 => "koi8-r",
-        21866 => "koi8-u",
-        10000 => "macintosh",
-        10007 => "x-mac-cyrillic",
-        28592 => "iso-8859-2",
-        28593 => "iso-8859-3",
-        28594 => "iso-8859-4",
-        28595 => "iso-8859-5",
-        28596 => "iso-8859-6",
-        28597 => "iso-8859-7",
-        28598 => "iso-8859-8",
-        38598 => "iso-8859-8-i",
-        28599 => "iso-8859-9",
-        28603 => "iso-8859-13",
-        28605 => "iso-8859-15",
-        20127 => "us-ascii",
-        _ => return None,
-    })
-}
+pub use mailcraft_pst::code_page_label as code_page;
 
 /// How the 8-bit text of one item is read: its own code page, else the file's, else
 /// Windows-1252 (what an ANSI file in Western Europe and America holds).
@@ -124,7 +81,7 @@ impl Text {
     }
 
     /// The values of a multi-valued text property.
-    fn list(&self, p: &Properties, id: u16) -> Vec<String> {
+    pub fn list(&self, p: &Properties, id: u16) -> Vec<String> {
         match p.get(id) {
             Some(PropValue::MultiString(v)) => v.clone(),
             Some(PropValue::MultiString8(v)) => v.iter().map(|b| self.decode(b)).collect(),
@@ -136,7 +93,7 @@ impl Text {
 }
 
 /// What every item of a file is read with: the ids its named properties have in that file.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Named {
     /// PidNameKeywords: the categories.
     pub keywords: Option<u16>,
@@ -144,6 +101,8 @@ pub struct Named {
     pub due: Option<u16>,
     /// The file's own code page, for an item without one.
     pub charset: Option<&'static str>,
+    /// The ids of the named properties of contacts.
+    pub contact: super::contact::ContactIds,
 }
 
 /// PSETID_Task, as a .pst file keeps a property set (the first three fields little-endian).
@@ -191,6 +150,33 @@ pub fn held(m: &Message) -> u64 {
             .iter()
             .map(|a| text(&a.name).saturating_add(text(&a.mime)).saturating_add(text(&a.content_id)).saturating_add(a.data.len() as u64))
             .fold(0u64, u64::saturating_add),
+    ]
+    .into_iter()
+    .fold(OVERHEAD, u64::saturating_add)
+}
+
+/// About how much memory a contact holds: its texts and lists.
+pub fn held_contact(c: &mailcraft_model::Contact) -> u64 {
+    let text = |s: &str| (s.len() as u64).saturating_add(OVERHEAD);
+    let labeled = |l: &[mailcraft_model::Labeled]| l.iter().map(|l| text(&l.label).saturating_add(text(&l.value))).fold(0u64, u64::saturating_add);
+    let texts = |l: &[String]| l.iter().map(|s| text(s)).fold(0u64, u64::saturating_add);
+    let places = c.addresses.iter().map(|a| (a.one_line().len() as u64).saturating_add(6 * OVERHEAD)).fold(0u64, u64::saturating_add);
+    [
+        text(&c.display_name),
+        text(&c.first),
+        text(&c.middle),
+        text(&c.last),
+        text(&c.nickname),
+        text(&c.company),
+        text(&c.title),
+        text(&c.department),
+        text(&c.notes),
+        text(&c.imported),
+        labeled(&c.emails),
+        labeled(&c.phones),
+        texts(&c.websites),
+        texts(&c.categories),
+        places,
     ]
     .into_iter()
     .fold(OVERHEAD, u64::saturating_add)
@@ -680,16 +666,13 @@ fn part_name(part: &mailcraft_pst::Part) -> String {
 }
 
 /// What an item is, by its message class: `None` for mail (a message, a report, a post, a
-/// meeting request); otherwise the kind a later part brings in.
+/// meeting request, a contact or a distribution list, which [`super::contact`] reads);
+/// otherwise the kind a later part brings in.
 pub fn later_kind(class: &str) -> Option<&'static str> {
     let c = class.to_ascii_lowercase();
     let family = |prefix: &str| c == prefix || c.strip_prefix(prefix).is_some_and(|rest| rest.starts_with('.'));
     if family("ipm.appointment") {
         Some("appointment")
-    } else if family("ipm.contact") {
-        Some("contact")
-    } else if family("ipm.distlist") {
-        Some("contact group")
     } else if family("ipm.task") || family("ipm.taskrequest") {
         Some("task")
     } else if family("ipm.stickynote") {

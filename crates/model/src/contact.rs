@@ -73,6 +73,17 @@ pub struct Contact {
     /// vCard `UID`, kept so an exported card updates the same contact elsewhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub uid: String,
+    /// Where in imported .pst files the contact was, each as the file's identity and the item's
+    /// node id, separated by spaces (a merge keeps those of every contact it joins): how a second
+    /// import of the file knows it is here already. Private: never shown,
+    /// exported or handed to an agent.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub imported: String,
+    /// The name of the .pst file the contact was imported from (empty for any other). Shown on
+    /// the contact's card, found by a search for `is:imported`, kept by an edit and a merge, and
+    /// never set by a command's params. Not written to a vCard.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub imported_from: String,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
@@ -117,9 +128,23 @@ impl Contact {
         self.emails.iter().any(|e| e.value.trim().eq_ignore_ascii_case(email.trim()))
     }
 
-    /// Whether any name, company, address or phone contains `needle` (case-insensitive).
+    /// Whether any name, company, address or phone contains `needle` (case-insensitive). The file
+    /// a contact was imported from is not text to find it by: only `is:imported` finds those.
     pub fn matches(&self, needle: &str) -> bool {
-        let n = needle.trim();
+        let mut n = needle.trim();
+        // `is:imported`, alone or before other words ("is:imported smith"): imported ones only.
+        // A loop, not a call of itself: a query of the term many times over can't use up the stack.
+        while let Some(rest) = n
+            .get(..11)
+            .filter(|t| t.eq_ignore_ascii_case("is:imported"))
+            .and_then(|_| n.get(11..))
+            .filter(|r| r.is_empty() || r.starts_with(char::is_whitespace))
+        {
+            if self.imported_from.is_empty() {
+                return false;
+            }
+            n = rest.trim();
+        }
         n.is_empty()
             || [&self.display_name, &self.first, &self.middle, &self.last, &self.nickname, &self.company, &self.title, &self.department, &self.notes]
                 .into_iter()

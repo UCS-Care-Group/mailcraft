@@ -223,6 +223,11 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
+    // Its categories take the spelling of the list its account's items use (one made here is
+    // this computer's: the shared list); a new name joins it.
+    if p::strings(v, "categories").is_some() {
+        c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &[], c.origin.account)?;
+    }
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
     reveal(s, id);
@@ -232,9 +237,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = own_target(s, v)?;
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
+    let had = c.categories.clone();
     apply(&mut c, v)?;
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
+    }
+    if p::strings(v, "categories").is_some() {
+        c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &had, c.origin.account)?;
     }
     *s.mailbox.contact_mut(id)? = c;
     Ok(json!({"id": id}))
@@ -296,7 +305,7 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
-        "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
     })
 }
 
@@ -318,7 +327,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     }
     let row = |c: &Contact| {
         let kept_at = kept_at(&s.mailbox, &c.origin);
-        json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "account": c.origin.account, "keptAt": kept_at})
+        json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at})
     };
     let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
