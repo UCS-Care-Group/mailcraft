@@ -103,6 +103,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | minor | A row of a document's revision history or of the progress log is a fragment, `docs/log.d/…`, joined in at release like a release-notes line |
 | 2026-11-03 | minor | Claim an issue by commenting on it: no waiting for an assignee; `claimed` stays as a maintainer's marker; the first claim stands and lapses after 14 quiet days |
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |

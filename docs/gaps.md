@@ -72,7 +72,14 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | minor | #815 part 3: gap 12: a `.pst` file's contacts and distribution lists import too; calendar, tasks and notes left for a later part |
+| 2026-11-05 | minor | #815 part 2: gap 12: a `.pst` file's mail imports (preview), with its report; calendar, contacts, tasks and notes left for a later part |
+| 2026-11-05 | minor | #745: gap 8: selecting copies nothing, a change to the mailbox costs what it changed (chunked messages) and the conversations are kept through it: a click 1.3–3.9 ms, a Shift+click 0.1 ms, Undo of 1,000 deletes 30 + 14 ms at 326,000 messages |
+| 2026-11-05 | minor | #600: gap 6: a message is drawn in the first of its fonts installed on this computer; no font is fetched |
+| 2026-11-04 | minor | #232: state the primary-address limit for Workspace OAuth while retaining public release requirements |
 | 2026-11-04 | patch | #795: conversations are threads, not subjects; legacy mail fills its server's thread id a run at a time |
+| 2026-11-03 | minor | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
+| 2026-11-03 | minor | #757: gap 6: tables floated left and right that are all their holder holds stand side by side; an empty column of a layout table is dropped only when it is empty in every row, a cell spanning columns counted; tables laid out as boxes by `inline-block` stand in one line; the `align` of a cell, a row, a `<div>` or a `<p>` and a `<center>` stop at a table inside them |
 | 2026-11-03 | patch | #488: the update switches are in File › About, not File › Options |
 | 2026-11-02 | patch | Correct punctuation in the DAV foundation note |
 | 2026-11-01 | minor | #376: DAV model/document foundation; server discovery and sync remain unavailable |

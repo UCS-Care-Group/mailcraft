@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-04 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-06 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -348,6 +348,10 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-06 | Pull requests leave status lines alone; the release pull request sets each one from the rows it joins in |
+| 2026-11-04 | The rows of the documents' revision histories and of the progress log are fragments, `docs/log.d/<document>/{revisions,progress}/<name>.md`, joined into their tables by `cargo xtask docs-log --write` in the release's pull request, beside the release notes' |
+| 2026-11-04 | #232: require a matching release registration pair, retain only a public client-ID option, and check primary-address and alias behavior |
+| 2026-11-03 | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-02 | The merge commit of an up-to-date pull request is tagged at once, on its pull request's `ci-ok`, without waiting for CI on `main` |
 | 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
 | 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |

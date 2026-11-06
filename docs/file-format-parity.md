@@ -44,6 +44,11 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-06 | minor | #815 part 3: `.pst` contacts: notes kept only as compressed rich text ([MS-OXRTFCP]) are read as text |
+| 2026-11-05 | minor | #815 part 3 review: `.pst` contacts: Deleted Items, hidden and automatic contact folders left out; notes cut to a vCard line; lists kept in a stream named |
+| 2026-11-05 | minor | #815 part 3: `.pst` contacts are marked as imported from the file (no category); only Deleted Items is left out; a file of contacts alone makes no mail folder |
+| 2026-11-05 | minor | #815 part 3: `.pst` files: their contacts import (preview) |
+| 2026-11-05 | minor | #815 part 2: `.pst` files: their mail imports (preview) |
 | 2026-11-03 | minor | #702: the order the owner put their accounts in (`accountOrder`), and what an older build does with it |
 | 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |
 | 2026-10-26 | minor | #501: TLS certificates are checked by the operating system's verifier, not a built-in Mozilla root set |
