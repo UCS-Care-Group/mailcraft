@@ -180,6 +180,29 @@ fn the_header_sensitivity_size_and_kind_of_a_message_are_read() {
 }
 
 #[test]
+fn a_header_rule_reads_the_headers_mail_came_with_and_not_mailcrafts_own() {
+    // As a .pst import and a copy put on a server leave them: lines the mail wasn't sent with,
+    // which the server's own rule never sees.
+    let m = Message {
+        headers: vec![
+            ("X-MailCraft-Pst-Item".into(), "5a110e93c0ffee00c0ffee00c0ffee00:00200024".into()),
+            ("x-mailcraft-place".into(), "pst-marker".into()),
+            ("X-Mailer".into(), "Harbor Mail 3".into()),
+        ],
+        ..Default::default()
+    };
+    for word in ["pst", "mailcraft", "00200024", "marker"] {
+        assert!(!Condition::HeaderContains(words(&[word])).matches(&m), "{word}");
+        assert!(!m.header_contains(word), "{word}");
+    }
+    assert!(Condition::HeaderContains(words(&["harbor"])).matches(&m));
+    // A name too short to be one of ours, or with a letter outside ASCII where ours has its
+    // dash, is read as it came.
+    let odd = Message { headers: vec![("X-MailCraft".into(), "plain".into()), ("X-MailCraft\u{e9}x".into(), "accent".into())], ..Default::default() };
+    assert!(odd.header_contains("plain") && odd.header_contains("accent"));
+}
+
+#[test]
 fn received_between_reads_the_day_by_the_calendars_clock() {
     use crate::time::{Date, DateTime, Zone};
     let berlin = Zone::named("Europe/Berlin").unwrap();

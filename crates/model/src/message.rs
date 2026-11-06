@@ -653,7 +653,8 @@ impl Message {
     }
 
     /// Whether a line of its header holds `word`, whatever the letters' case: those MailCraft
-    /// models, written as a message has them, and those it keeps as they came.
+    /// models, written as a message has them, and those it keeps as they came, but not MailCraft's
+    /// own (`X-MailCraft-…`, such as where a .pst import found it), which it wasn't sent with.
     pub fn header_contains(&self, word: &str) -> bool {
         let word = word.to_lowercase();
         self.header_lines_lowered().iter().any(|line| line.contains(&word))
@@ -674,7 +675,9 @@ impl Message {
         ];
         let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
-        modelled.chain(self.headers.iter().map(|(name, value)| line(name, value))).collect()
+        let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
+        let kept = self.headers.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
+        modelled.chain(kept).collect()
     }
 }
 
