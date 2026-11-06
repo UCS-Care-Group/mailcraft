@@ -603,6 +603,10 @@ impl StoreTrouble {
     }
 }
 
+/// Whether bytes are an SVG drawing by how they begin, as the reading pane tells one that it
+/// draws (#565): for the host, whose picture cache keeps what the reading pane shows.
+pub use mailcraft_html::looks_like_svg;
+
 /// The pictures from the web that the host keeps on disk between runs
 /// ([`Services::picture_cache`]). The window calls these itself, so they are quick: saying how
 /// much is kept reads nothing, and forgetting takes as long as removing the files takes.

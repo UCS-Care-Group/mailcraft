@@ -2528,6 +2528,7 @@ dependencies = [
  "mailcraft-names",
  "mailcraft-pst",
  "mailcraft-time",
+ "resvg",
  "serde",
  "serde_json",
  "skrifa 0.48.0",

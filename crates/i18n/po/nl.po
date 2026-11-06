@@ -15606,9 +15606,8 @@ msgstr "hij heeft twee voorwaarden van dezelfde soort, en de server zou een van 
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-#, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -18318,6 +18317,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
 
 #, fuzzy
 #~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."

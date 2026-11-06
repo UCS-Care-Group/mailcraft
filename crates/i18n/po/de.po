@@ -14780,9 +14780,8 @@ msgstr "sie hat zwei Bedingungen derselben Art, und der Server würde eine von b
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-#, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "es ist eine Zeichnung eines Typs, der nicht angezeigt wird (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -17392,6 +17391,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "es ist eine Zeichnung eines Typs, der nicht angezeigt wird (SVG)"
 
 #~ msgid "Google Desktop Registration Secret"
 #~ msgstr "Google Desktop-Registrierungsgeheimnis"
