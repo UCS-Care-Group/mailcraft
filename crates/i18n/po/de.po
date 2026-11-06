@@ -327,7 +327,7 @@ msgstr "Eine Besprechung kann nicht in einen anderen Kalender verschoben werden:
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar."
-msgstr "Eine Besprechung kann nicht in den Kalender eines anderen Postfachs verschoben werden: Allen Eingeladenen würde eine Absage gesendet, und ihre Antworten würden sie nicht mehr erreichen. Leiten Sie die Besprechung weiter oder legen Sie sie in jenem Kalender neu an."
+msgstr "Eine Besprechung kann nicht in den Kalender eines anderen Postfachs verschoben werden: Allen Eingeladenen würde eine Absage gesendet, und Ihre Antworten würden sie nicht mehr erreichen. Leiten Sie die Besprechung weiter oder legen Sie sie in jenem Kalender neu an."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -2590,7 +2590,7 @@ msgstr "Mitwirkende"
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
-msgstr "Mitwirkende wählen ihre Namen selbst; siehe docs/contributors.md."
+msgstr "Mitwirkende wählen Ihre Namen selbst; siehe docs/contributors.md."
 
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
@@ -5869,7 +5869,7 @@ msgstr "MailCraft kann die Regeln dieses Kontos nicht auf seinem Server speicher
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
-msgstr "MailCraft kann sich derzeit auf diesem Weg noch nicht bei diesem Server anmelden (er verlangt Kerberos). Fragen Sie ihren Administrator, ob eine Anmeldung mit Benutzername und Passwort über eine verschlüsselte Verbindung möglich ist."
+msgstr "MailCraft kann sich derzeit auf diesem Weg noch nicht bei diesem Server anmelden (er verlangt Kerberos). Fragen Sie Ihren Administrator, ob eine Anmeldung mit Benutzername und Passwort über eine verschlüsselte Verbindung möglich ist."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -6280,7 +6280,7 @@ msgstr "Nachrichten im Ordner selbst"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
-msgstr "Nachrichten behalten die Farben, die ihre Absender gewählt haben, auf einer weißen Seite, während der Rest des Fensters dunkel bleibt."
+msgstr "Nachrichten behalten die Farben, die Ihre Absender gewählt haben, auf einer weißen Seite, während der Rest des Fensters dunkel bleibt."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -6309,7 +6309,7 @@ msgstr "Microsoft 365"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Microsoft 365 mail is added as a Microsoft account: you sign in on Microsoft's own page in your browser, and MailCraft never sees your password."
-msgstr "Microsoft 365-E-Mail wird als Microsoft-Konto hinzugefügt: Sie melden sich auf der offiziellen Microsoft-Seite in ihrem Browser an, und MailCraft bekommt ihr Passwort niemals zu sehen."
+msgstr "Microsoft 365-E-Mail wird als Microsoft-Konto hinzugefügt: Sie melden sich auf der offiziellen Microsoft-Seite in Ihrem Browser an, und MailCraft bekommt Ihr Passwort niemals zu sehen."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -7670,7 +7670,7 @@ msgstr "Hier ist nur der Anfang dieser Nachricht. Der Rest wird beim nächsten S
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Only the meeting's organizer can change its time."
-msgstr "Nur der Organisator der Besprechung kann ihre Zeit ändern."
+msgstr "Nur der Organisator der Besprechung kann Ihre Zeit ändern."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9521,7 +9521,7 @@ msgstr "Geben Sie an, welches Konto ausgelassen werden soll"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Say which group of calendars (`group`: its heading)"
-msgstr "Geben Sie die Kalendergruppe an (`group`: ihre Überschrift)"
+msgstr "Geben Sie die Kalendergruppe an (`group`: Ihre Überschrift)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10041,7 +10041,7 @@ msgstr "Gesendete Elemente"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Wird unverändert versendet, ohne ausführbare oder nachverfolgende Elemente. Bilder werden über ihre Webadresse geladen. Die E-Mail-Programme der Empfänger entscheiden, ob sie die Bilder anzeigen. Beim Verfassen einer Nachricht wird eine vereinfachte Version dieser Signatur angezeigt. Wenn Sie diese dort bearbeiten, wird stattdessen diese Version versendet."
+msgstr "Wird unverändert versendet, ohne ausführbare oder nachverfolgende Elemente. Bilder werden über Ihre Webadresse geladen. Die E-Mail-Programme der Empfänger entscheiden, ob sie die Bilder anzeigen. Beim Verfassen einer Nachricht wird eine vereinfachte Version dieser Signatur angezeigt. Wenn Sie diese dort bearbeiten, wird stattdessen diese Version versendet."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -10729,7 +10729,7 @@ msgstr "Erinnerungen zurückstellen"
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Some characters in this message couldn't be read: the sender's program didn't say properly how they were written."
-msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Programm des Absenders hat ihre Codierung nicht korrekt angegeben."
+msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Programm des Absenders hat Ihre Codierung nicht korrekt angegeben."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10758,7 +10758,7 @@ msgstr "Jemand anderes"
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "Somebody else organizes this meeting: it stays in the calendar its invitation came to."
-msgstr "Diese Besprechung organisiert jemand anderes: Sie bleibt in dem Kalender, in den ihre Einladung kam."
+msgstr "Diese Besprechung organisiert jemand anderes: Sie bleibt in dem Kalender, in den Ihre Einladung kam."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -11627,7 +11627,7 @@ msgstr ""
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "The forward of several messages that was waiting was called off: another download took its place."
-msgstr "Die wartende Weiterleitung mehrerer Nachrichten wurde abgebrochen: Ein anderer Download ist an ihre Stelle getreten."
+msgstr "Die wartende Weiterleitung mehrerer Nachrichten wurde abgebrochen: Ein anderer Download ist an Ihre Stelle getreten."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -12495,8 +12495,8 @@ msgstr ""
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
 msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
-msgstr[0] "Damit wird die Unterhaltung aus {folder} gelöscht: ihre {n} Nachricht dort kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit wird die Unterhaltung aus {folder} gelöscht: ihre {n} Nachrichten dort kommen in „Gelöschte Elemente“."
+msgstr[0] "Damit wird die Unterhaltung aus {folder} gelöscht: Ihre {n} Nachricht dort kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit wird die Unterhaltung aus {folder} gelöscht: Ihre {n} Nachrichten dort kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
