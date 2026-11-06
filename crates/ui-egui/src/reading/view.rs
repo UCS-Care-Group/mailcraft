@@ -59,6 +59,9 @@ pub struct Doc {
     pub remote: Vec<Arc<str>>,
     /// How many more such addresses the message has than may be asked for.
     pub remote_left_out: usize,
+    /// Those of `remote` that only a picture behind a box uses (#601): with high contrast no
+    /// such picture is painted, so none of these is asked for ([`Doc::wanted`]).
+    pub behind_only: HashSet<Arc<str>>,
     /// Per block: `Some` when it goes on in the paragraph of the block before, which was cut for
     /// its length, with what was dropped at the cut. Empty when nothing was cut.
     pub cuts: Arc<[Option<Glue>]>,
@@ -133,10 +136,34 @@ impl Doc {
                 doc.remote_left_out += 1;
             }
         }
+        // The pictures behind boxes (#601) are pictures like the others: asked for with them.
+        for behind in mailcraft_html::bg_pictures(&blocks) {
+            let src = behind.src.trim();
+            if mailcraft_html::is_embedded(src) {
+                continue;
+            }
+            doc.remote_pictures += 1;
+            if !images::is_remote(src) || !seen.insert(src) {
+                continue;
+            }
+            if doc.remote.len() < super::remote::MAX_PER_MESSAGE {
+                let src: Arc<str> = Arc::from(src);
+                doc.behind_only.insert(src.clone());
+                doc.remote.push(src);
+            } else {
+                doc.remote_left_out += 1;
+            }
+        }
         let (blocks, cuts) = in_pieces(blocks);
         doc.blocks = blocks;
         doc.cuts = cuts.into();
         doc
+    }
+
+    /// The addresses of [`Doc::remote`] that are asked for: all of them, but with high contrast
+    /// none that only a picture behind a box uses, as that is not painted then.
+    pub fn wanted(&self, high_contrast: bool) -> impl Iterator<Item = &Arc<str>> {
+        self.remote.iter().filter(move |url| !(high_contrast && self.behind_only.contains(*url)))
     }
 }
 
@@ -225,6 +252,9 @@ struct Key {
     /// `dark` (the page's) stays as it was. In the light theme the page is the window's own, and
     /// turning the switch lays nothing out again.
     light: bool,
+    /// High contrast, which the colours of the text are worked out for and which leaves out the
+    /// pictures behind boxes ([`super::backdrop::tint`]): turning it on or off lays out again.
+    high_contrast: bool,
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
     line: u32,
@@ -486,6 +516,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         zoom: zoom.to_bits(),
         dark: t.dark,
         light: light && Tokens::get(&ctx).dark,
+        high_contrast: t.high_contrast,
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
@@ -698,6 +729,8 @@ pub fn paint(
     let mut hover = None;
     let mut on_picture = false;
     let mut pictures = None;
+    // What is left of the copies of pictures behind boxes this frame may paint.
+    let mut copies_left = super::backdrop::MAX_FRAME_TILES;
     for item in &laid.items {
         let rect = item.rect.translate(origin);
         if !clip.intersects(rect) {
@@ -759,6 +792,18 @@ pub fn paint(
                 on_picture |= over.is_some();
                 if over.is_some() && (picture.link.is_some() || !picture.alt.is_empty()) {
                     hover = Some(Hover { link: picture.link.clone(), note: (!picture.alt.is_empty()).then(|| picture.alt.clone()) });
+                }
+            }
+            ItemKind::Backdrop(behind) => {
+                let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
+                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &behind.data, behind.tile);
+                match state {
+                    Picture::Ready(texture) => {
+                        let painted = super::backdrop::paint(&painter, rect, clip, behind, texture.id(), copies_left.max(16));
+                        copies_left = copies_left.saturating_sub(painted);
+                    }
+                    Picture::Pending => ctx.request_repaint(),
+                    Picture::Failed => {}
                 }
             }
             ItemKind::Placeholder(placeholder) => {

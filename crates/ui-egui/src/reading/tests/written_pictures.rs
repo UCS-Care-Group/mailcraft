@@ -10,7 +10,7 @@ use super::{in_frame, lay_out, png, shown_pictures, stand_ins};
 use crate::reading::images::Pictures;
 
 /// Base64 (RFC 4648), as a mail program writes it into HTML.
-fn b64(bytes: &[u8]) -> String {
+pub(super) fn b64(bytes: &[u8]) -> String {
     const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
     for group in bytes.chunks(3) {
