@@ -310,7 +310,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
-  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
+  A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
+  server account has made goes to Deleted Items on undo and is not counted as a removal; on any
+  other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
+  that puts back the accounts (or a change that writes to people) and also takes away messages,
+  drafts, contacts or the like is asked about once: the question names those too, and a yes
+  covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
+  what it would take away when asked: another step meanwhile, or a message or contact that came
+  down since, and the yes is refused.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the

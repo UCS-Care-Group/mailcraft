@@ -115,7 +115,7 @@ fn an_answer_stays_in_its_conversation_and_a_forward_carries_the_attachments() {
     let (status, reply) = send(&server, "POST", &format!("/v1.0/me/messages/{source}/createReply"), Some(&body));
     assert_eq!(status, 201, "{reply}");
     let state = server.state();
-    let (orig, made) = (state.mailbox.messages[&source].clone(), state.mailbox.messages[reply["id"].as_str().unwrap()].clone());
+    let (orig, made) = (state.mailbox.messages.get(&source).unwrap().clone(), state.mailbox.messages[reply["id"].as_str().unwrap()].clone());
     drop(state);
     assert_eq!(made.conversation_id(), orig.conversation_id());
     assert_eq!((made.subject.as_str(), made.in_reply_to.as_str()), ("RE: Invoice 42", orig.internet_id.as_str()));
@@ -150,7 +150,7 @@ fn a_draft_changes_in_place_and_a_received_message_doesnt() {
     assert_eq!(status, 200, "{changed}");
     assert_eq!(changed["id"], json!(id), "changed in place");
     assert_ne!(changed["changeKey"], made["changeKey"]);
-    let m = server.state().mailbox.messages[&id].clone();
+    let m = server.state().mailbox.messages.get(&id).unwrap().clone();
     assert!(m.subject == "Second" && m.body == "Now with words." && !m.html && m.cc == ["lee@example.org"]);
     // Headers are written when a draft is made only.
     let headers = json!({"internetMessageHeaders": [{"name": "x-a", "value": "1"}]});
@@ -205,7 +205,7 @@ fn attachments_are_added_listed_and_deleted_and_large_ones_go_by_upload_session(
     let (status, headers, answer) = piece(half, big.len() - 1, false);
     assert_eq!(status, 201, "{answer}");
     assert!(headers.iter().any(|(n, v)| n == "location" && v.contains("/attachments('")));
-    let m = server.state().mailbox.messages[&id].clone();
+    let m = server.state().mailbox.messages.get(&id).unwrap().clone();
     assert_eq!((m.attachments.len(), m.attachments[0].bytes.len()), (1, big.len()));
     assert!(m.attachments[0].bytes == big);
 }

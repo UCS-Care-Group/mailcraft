@@ -1056,6 +1056,18 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
     verdict(s, id, params, allow, Some(yes))
 }
 
+/// What a call classed `class` needs besides it, which the question about `class` names and a yes
+/// to it covers: an undo or redo that puts back the accounts (or a change that writes to people)
+/// and takes away messages, drafts, contacts or the like needs Delete too, as `edit.undo` refuses
+/// to take messages without it (#473). Asked about as one question, so that the owner's yes lets
+/// it run.
+pub fn also(s: &Session, id: &str, _params: &Value, class: Class) -> Vec<Class> {
+    match id {
+        "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        _ => Vec::new(),
+    }
+}
+
 fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<Class>) -> Verdict {
     if access(id).is_none() {
         return Verdict::Refuse(format!("`{id}` isn't available to agents"));
@@ -1092,12 +1104,25 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
-    match classify(s, id, params) {
+    let access = classify(s, id, params);
+    // What else the call needs besides its class (#473); a yes to the question about the class
+    // covers it, since the question names it.
+    let more: Vec<Class> = match access {
+        Access::Owner(c) | Access::Asked(c) => also(s, id, params, c),
+        _ => Vec::new(),
+    };
+    let rest = |c: Class| yes == Some(c) || more.iter().all(|m| allow.contains(m) || yes == Some(*m));
+    match access {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
-        Access::Owner(c) if allow.contains(&c) || yes == Some(c) => Verdict::Run,
+        Access::Owner(c) if (allow.contains(&c) || yes == Some(c)) && rest(c) => Verdict::Run,
         Access::Asked(c) if yes == Some(c) => Verdict::Run,
         Access::Owner(c) | Access::Asked(c) => {
+            // The class allowed already, the question is about what else it needs.
+            let c = match access {
+                Access::Owner(_) if allow.contains(&c) => more.iter().copied().find(|m| !allow.contains(m)).unwrap_or(c),
+                _ => c,
+            };
             let what = describe(s, id, params);
             if what.chars().count() > MAX_QUESTION {
                 return Verdict::Refuse(format!(
@@ -1116,16 +1141,21 @@ pub const MAX_QUESTION: usize = 900;
 /// The refusal when nobody can be asked (headless); `asked`: the owner is asked every time
 /// ([`Access::Asked`]), and no `--allow` covers it.
 pub fn needs_owner(id: &str, class: Class, asked: bool, what: &str) -> String {
-    if asked || !Class::ALL.contains(&class) {
+    needs_owner_for(id, &[class], asked, what)
+}
+
+/// [`needs_owner`] for a call that needs more than one class ([`also`]): all of them are named,
+/// so that one start of the server with `--allow` covers it.
+pub fn needs_owner_for(id: &str, classes: &[Class], asked: bool, what: &str) -> String {
+    let why = classes.iter().map(|c| c.what()).collect::<Vec<_>>().join("; ");
+    if asked || classes.iter().any(|c| !Class::ALL.contains(c)) {
         return format!(
-            "`{id}` needs the owner ({}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it",
-            class.what()
+            "`{id}` needs the owner ({why}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it"
         );
     }
+    let names = classes.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(",");
     format!(
-        "`{id}` needs the owner ({}): it would {what}. Only the owner can let an agent do this, by starting the server with `mailcraft-cli mcp --allow {}`",
-        class.what(),
-        class.as_str()
+        "`{id}` needs the owner ({why}): it would {what}. Only the owner can let an agent do this, by starting the server with `mailcraft-cli mcp --allow {names}`"
     )
 }
 
@@ -1395,7 +1425,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };
             let verb = if redo { "redo" } else { "undo" };
-            // The categories it has deleted in Outlook (#661), by name, whatever else it does.
+            // Everything the step does that is asked about, in one sentence (#473): what it puts
+            // back, the messages it takes away, the drafts, and the categories it has deleted in
+            // Outlook (#661).
+            let drafts = s.undo_drafts(redo);
+            let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             // A name it deletes in several accounts is named once.
             let mut names: Vec<String> = Vec::new();
             for name in s.undo_deletes_categories(redo) {
@@ -1404,44 +1438,41 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 }
             }
             let names: Vec<String> = names.iter().map(|n| quoted(n)).collect();
-            let in_outlook = match names.as_slice() {
-                [] => String::new(),
-                [one] => format!("deletes the category {one} in Outlook"),
-                many => format!("deletes the categories {} in Outlook", some(many, 3)),
-            };
-            let also = if in_outlook.is_empty() { String::new() } else { format!("; it also {in_outlook}") };
-            let drafts = s.undo_drafts(redo);
-            if let Some(first) = drafts.first().and_then(|d| s.mailbox.message(*d)) {
-                let which = match drafts.len() {
-                    1 if !first.subject.trim().is_empty() => format!("the draft {}", quoted(&first.subject)),
-                    1 => "a draft".to_string(),
-                    n => format!("{n} drafts"),
-                };
-                return format!(
-                    "{verb} {}, which also takes away {which} in Drafts or puts back an earlier version, and anything written in it since may be lost{also}",
-                    quoted(label.unwrap_or("the last change"))
-                );
-            }
             let what = match s.undo_reverts(redo) {
-                Some(Class::Accounts) => "the accounts",
+                Some(Class::Accounts) => Some("the accounts"),
                 Some(Class::Send) => {
-                    "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
+                    Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
-                // Accounts and Send above are the stronger effects and say so first; this is
-                // the Delete class, whose causes here are mail the undo takes away (#473) and
-                // the categories it has deleted in Outlook.
-                Some(Class::Delete) if !in_outlook.is_empty() || s.undo_takes_mail(redo) => {
-                    let what = match (s.undo_takes_mail(redo), in_outlook.is_empty()) {
-                        (true, true) => "takes away messages".to_string(),
-                        (true, false) => format!("takes away messages and {in_outlook}"),
-                        (false, _) => in_outlook,
-                    };
-                    return format!("{verb} {}, which also {what}", quoted(label.unwrap_or("the last change")));
-                }
-                Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
-                _ => "the rules, signatures or Safe and Blocked Senders",
+                // What Delete is for is said below.
+                Some(Class::Delete) => None,
+                _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
-            format!("{verb} {}, which also puts {what} back as they were{also}", quoted(label.unwrap_or("the last change")))
+            let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
+            if s.undo_removes_items(redo) {
+                // Gone for good: they don't go to Deleted Items.
+                does.push("takes away contacts, events, tasks, calendars or categories made since, for good".to_string());
+            }
+            if !others.is_empty() {
+                does.push(format!("takes away {}", messages_text(s, &others)));
+            }
+            if !drafts.is_empty() {
+                let subject = drafts.first().and_then(|d| s.mailbox.message(*d)).map(|m| m.subject.as_str()).filter(|t| !t.trim().is_empty());
+                let which = match (drafts.len(), subject) {
+                    (1, Some(t)) => format!("the draft {}", quoted(t)),
+                    (1, None) => "a draft".to_string(),
+                    (n, _) => format!("{n} drafts"),
+                };
+                does.push(format!("takes away {which} in Drafts or puts back an earlier version, and anything written in it since may be lost"));
+            }
+            match names.as_slice() {
+                [] => {}
+                [one] => does.push(format!("deletes the category {one} in Outlook")),
+                many => does.push(format!("deletes the categories {} in Outlook", some(many, 3))),
+            }
+            if does.is_empty() {
+                does.push("puts the rules, signatures or Safe and Blocked Senders back as they were".to_string());
+            }
+            format!("{verb} {}, which also {}", quoted(label.unwrap_or("the last change")), does.join("; it also "))
         }
         "rules.add" => rule_text(s, params),
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {

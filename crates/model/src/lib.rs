@@ -21,6 +21,9 @@ mod junk;
 mod load_limit;
 mod mailbox;
 mod message;
+pub mod messages;
+#[cfg(test)]
+mod messages_tests;
 mod offline;
 pub mod outlook_colors;
 pub mod pictures;
@@ -64,6 +67,7 @@ pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
     PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
+pub use messages::Messages;
 pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};

@@ -731,7 +731,7 @@ impl Loaded {
     /// Everything but the messages, as the model writes it.
     fn rest(mailbox: &Mailbox) -> Option<Digest> {
         let mut shell = mailbox.clone();
-        shell.messages = BTreeMap::new();
+        shell.messages = Default::default();
         serde_json::to_vec(&shell).ok().map(|bytes| Digest::of(&bytes))
     }
 
@@ -1824,7 +1824,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
     drop(rest);
     // Items are their own records: whatever the rest says of them is no part of the mailbox.
-    mailbox.messages = BTreeMap::new();
+    mailbox.messages = Default::default();
     mailbox.contacts = BTreeMap::new();
     mailbox.events = BTreeMap::new();
     mailbox.tasks = BTreeMap::new();
@@ -1904,8 +1904,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     let mut disk = Disk::new(rest_fp);
     (disk.len, disk.tail) = (replayed.good_len, replayed.tail);
     let trusted = fixed.is_empty();
-    fn of<T>(map: &BTreeMap<Id, Arc<T>>, id: Id, trusted: bool) -> Weak<T> {
-        map.get(&id).filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
+    fn of<T>(item: Option<&Arc<T>>, trusted: bool) -> Weak<T> {
+        item.filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
     }
     for (key, fp, size) in records {
         disk.live = disk.live.saturating_add(size);
@@ -1913,16 +1913,16 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
         match key.0 {
             Coll::Message => {
                 let parts = parts.remove(&id).unwrap_or_default();
-                disk.messages.insert(id, Msg { entry: Entry { of: of(&mailbox.messages, id, trusted), fp, size }, parts });
+                disk.messages.insert(id, Msg { entry: Entry { of: of(mailbox.messages.get(&id), trusted), fp, size }, parts });
             }
             Coll::Contact => {
-                disk.contacts.insert(id, Entry { of: of(&mailbox.contacts, id, trusted), fp, size });
+                disk.contacts.insert(id, Entry { of: of(mailbox.contacts.get(&id), trusted), fp, size });
             }
             Coll::Event => {
-                disk.events.insert(id, Entry { of: of(&mailbox.events, id, trusted), fp, size });
+                disk.events.insert(id, Entry { of: of(mailbox.events.get(&id), trusted), fp, size });
             }
             Coll::Task => {
-                disk.tasks.insert(id, Entry { of: of(&mailbox.tasks, id, trusted), fp, size });
+                disk.tasks.insert(id, Entry { of: of(mailbox.tasks.get(&id), trusted), fp, size });
             }
         }
     }
@@ -2947,8 +2947,8 @@ fn io_error(e: std::io::Error) -> String {
 
 /// Walk `now` and `was` side by side, both in the order of their ids: `each` is given every item
 /// of `now` with what `was` has under its id. Returns the ids only `was` has, in order.
-fn walk<'a, 'b, A, B>(
-    now: &'a BTreeMap<Id, A>,
+fn walk<'a, 'b, A: 'a, B>(
+    now: impl IntoIterator<Item = (&'a Id, &'a A)>,
     was: &'b BTreeMap<Id, B>,
     mut each: impl FnMut(&'a Id, &'a A, Option<&'b B>) -> Result<(), String>,
 ) -> Result<Vec<Id>, String> {

@@ -131,7 +131,7 @@ fn cautions_are_amber_and_external_alone_is_only_a_tag() {
     let link = open(&mut harness, "Link");
     assert!(says(&harness, "A link goes somewhere else."));
     assert!(says(&harness, "goes to parcel-track.example"));
-    let m = harness.state().session.mailbox.messages[&link].clone();
+    let m = harness.state().session.mailbox.messages.get(&link).unwrap().clone();
     let flagged = super::warnings::mismatched(harness.state_mut(), &m);
     assert_eq!(flagged, ["https://parcel-track.example/x"]);
     assert!(super::warnings::is_mismatched(" https://Parcel-Track.example/x", &flagged));
@@ -161,7 +161,7 @@ fn a_caution_is_dismissed_with_its_cross_and_stays_gone() {
     assert!(harness.state().hit.rect("senderWarnings", odd).is_none());
     assert!(harness.state().hit.rect("senderWarningsCollapsed", odd).is_none());
     assert!(!says(&harness, "Be careful with this message."));
-    assert_eq!(harness.state().session.mailbox.messages[&odd].warnings_dismissed, ["external", "lookalikeSender"]);
+    assert_eq!(harness.state().session.mailbox.messages.get(&odd).unwrap().warnings_dismissed, ["external", "lookalikeSender"]);
     assert!(harness.state().hit.rect("externalTag", odd).is_some());
     // Another message still has its banner.
     let link = open(&mut harness, "Link");
