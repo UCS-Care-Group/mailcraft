@@ -368,8 +368,10 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     let mut written = Written::of(m);
     out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
-    // (One the quote left out after all, past a `<body>` that came later, doesn't go: only those
-    // a picture of the quote shows.)
+    // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
+    // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
+    // refer to one from before the `<body>` with a picture of his own in it: what goes then is
+    // still a picture of his own message, within the caps.)
     let mut pictures = written.pictures;
     pictures.retain(|a: &Attachment| out.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))));
     (out, pictures)
@@ -443,9 +445,14 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// The original's pictures that its HTML shows in place.
+/// The original's pictures that its HTML, as quoted, shows in place: those a picture of it refers
+/// to by the whole of their Content-ID (one of `quote-1` is not shown by `cid:quote-1.…`).
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
-    m.attachments.iter().filter(|a| !a.content_id.is_empty() && html.contains(&format!("cid:{}", a.content_id))).cloned().collect()
+    m.attachments
+        .iter()
+        .filter(|a| !a.content_id.is_empty() && html.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))))
+        .cloned()
+        .collect()
 }
 
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {

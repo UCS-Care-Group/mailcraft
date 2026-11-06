@@ -95,6 +95,25 @@ fn what_is_not_a_picture_or_was_hidden_is_left_out_and_never_handed_over() {
 }
 
 #[test]
+fn a_picture_too_small_to_see_is_left_out_and_takes_nothing_of_the_caps() {
+    for tiny in [
+        format!("<img src=\"{}\" width=\"1\" height=\"1\">", png()),
+        format!("<img src=\"{}\" width=\"1\">", png()),
+        format!("<img src=\"{}\" style=\"width:1px\">", png()),
+        format!("<img src=\"{}\" style=\"height:2px\">", png()),
+        format!("<style>.x{{width:1px}}</style><img class=\"x\" src=\"{}\">", png()),
+    ] {
+        let (out, handed) = quoted(&tiny);
+        assert!(!out.contains("<img") && handed.is_empty(), "{tiny}: {out}");
+    }
+    // As many as the reading pane shows at most, then a picture to see: that one still goes.
+    let tiny: String = (0..MAX_DATA_PICTURES).map(|_| format!("<img src=\"{}\" width=\"1\" height=\"1\">", png())).collect();
+    let (out, handed) = quoted(&format!("{tiny}<img src=\"{}\" alt=\"Chart\">", png()));
+    assert_eq!(out, "<img src=\"cid:p1@mailcraft.invalid\" alt=\"Chart\">");
+    assert_eq!(handed.len(), 1);
+}
+
+#[test]
 fn a_picture_refused_by_the_caller_is_left_out() {
     let out = quotable_with_pictures(&format!("<p>a</p><img src=\"{}\" alt=\"Chart\">", png()), &mut |_: &str, _: &Picture| None);
     assert_eq!(out, "<p>a</p>");

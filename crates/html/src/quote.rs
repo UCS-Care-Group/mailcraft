@@ -12,7 +12,7 @@
 //! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
 //! part of its own, and refers to it by the Content-ID the caller gives it (#602).
 
-use crate::blocks::{css_of, picture_url};
+use crate::blocks::{css_of, left_out, picture_url};
 use crate::data::{self, Budget, MAX_DATA_TEXT, Picture};
 use crate::entities::{escape, unescape};
 use crate::sheet::Sheet;
@@ -407,10 +407,14 @@ impl Quoter<'_, '_> {
 
     /// A picture's address as it is carried, when it is carried at all: [`picture_kept`]'s, or for
     /// a picture written into the message that the reading pane would show, the Content-ID it
-    /// goes out under, when there is somewhere for it to go.
+    /// goes out under, when there is somewhere for it to go. One too small to see is left out
+    /// before it is read, as in the reading pane, and takes nothing of the caps.
     fn picture(&mut self, tag: &Tag<'_>) -> Option<String> {
         let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_kept(tag) };
         let written = self.written.as_mut()?;
+        if left_out(tag, &css_of(tag)) {
+            return None;
+        }
         let (kept, bytes) = data::picture(&src, true, &mut self.budget);
         let bytes = bytes?;
         let mime = kept.strip_prefix("data:").unwrap_or_default();

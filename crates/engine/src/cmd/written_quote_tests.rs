@@ -316,6 +316,33 @@ fn a_picture_the_quote_left_out_never_goes_though_its_content_id_is_written_in_t
 }
 
 #[test]
+fn a_part_whose_content_id_begins_one_of_ours_goes_only_when_the_original_shows_it() {
+    // The original's own parts `quote-1` and `q`, which its HTML never shows, are not shown by
+    // the Content-ID its written picture goes out under (`quote-1.…`).
+    for planted in ["quote-1", "q", "quote-1.", "quote"] {
+        let mut s = session();
+        let id = in_inbox(&mut s, format!("<p>a</p><img src=\"{}\">", data(&png(8, 6))));
+        let part = Attachment { content_id: planted.into(), inline: true, ..Attachment::new("unseen.png", "image/png", png(8, 7)) };
+        s.mailbox.message_mut(id).unwrap().attachments.push(part);
+        run(&mut s, "mail.reply", json!({"id": id}));
+        let c = compose(&s).clone();
+        let q = c.quote.clone().unwrap();
+        assert_eq!(written(&c).len(), 1, "{planted}: {:?}", q.pictures);
+        assert!(q.pictures.iter().all(|a| a.content_id != planted), "{planted}: {:?}", q.pictures);
+        let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+        assert!(s.mailbox.message(sent).unwrap().attachments.iter().all(|a| a.content_id != planted), "{planted}");
+    }
+    // One the HTML shows goes as before.
+    let mut s = session();
+    let id = in_inbox(&mut s, format!("<img src=\"{}\"><img src=\"cid:quote-1\">", data(&png(8, 6))));
+    let part = Attachment { content_id: "quote-1".into(), inline: true, ..Attachment::new("shown.png", "image/png", png(8, 7)) };
+    s.mailbox.message_mut(id).unwrap().attachments.push(part);
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let q = compose(&s).quote.clone().unwrap();
+    assert!(q.pictures.iter().any(|a| a.content_id == "quote-1"), "{:?}", q.pictures);
+}
+
+#[test]
 fn two_pictures_of_one_length_are_two_parts_and_each_goes_as_what_its_bytes_say() {
     let mut s = session();
     // Of one length, differing in their last byte; the second says it is a GIF but is a PNG.
