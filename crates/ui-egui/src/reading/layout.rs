@@ -974,7 +974,8 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     {
         bytes = Some(data);
     }
-    let bytes = bytes.filter(|_| cx.stats.pictures < images::MAX_PICTURES_PER_MESSAGE);
+    // (The pictures behind boxes count against the same cap: one message's pictures in all.)
+    let bytes = bytes.filter(|_| cx.stats.pictures.saturating_add(cx.stats.behind) < images::MAX_PICTURES_PER_MESSAGE);
     let natural = bytes.and_then(|data| cx.pictures.size(&data, cx.frame).map(|size| (data, size)));
     let asked = |v: &Option<u16>| v.map(f32::from).filter(|v| *v >= 1.0);
     if let Some((data, [w, h])) = natural {

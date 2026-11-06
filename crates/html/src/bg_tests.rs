@@ -224,3 +224,29 @@ fn a_picture_that_may_not_be_shown_makes_no_box_on_a_line() {
         assert!(!blocks.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)), "{bad}: {blocks:?}");
     }
 }
+
+#[test]
+fn a_size_of_two_pixels_or_less_in_a_style_wins_over_a_larger_attribute() {
+    // Any of the sizes given, as for an `<img>`: the style's pixel is the size it is drawn at.
+    for tiny in [
+        "<table><tr><td width=100 style=\"width:1px;height:1px\" background=\"https://t.example/px.gif\">x</td><td>y</td></tr></table>",
+        "<table><tr><td height=50 style=\"height:2px\" background=\"https://t.example/px.gif\">x</td><td>y</td></tr></table>",
+        "<table><tr><td width=1 style=\"width:300px\" background=\"https://t.example/px.gif\">x</td><td>y</td></tr></table>",
+    ] {
+        assert!(srcs(tiny).is_empty(), "{tiny}");
+    }
+}
+
+#[test]
+fn the_empty_cell_of_a_table_of_one_has_no_picture_behind_it() {
+    for empty in [
+        "<table><tr><td background=\"https://t.example/e.png\"></td></tr></table>",
+        "<table><tr><td style=\"background-image:url(https://t.example/e.png)\" width=600 height=300>&nbsp;</td></tr></table>",
+        "<table border=1><tr><td background=\"https://t.example/e.png\"></td></tr></table>",
+    ] {
+        assert!(srcs(empty).is_empty(), "{empty}");
+    }
+    // One that holds something keeps it, and so does an empty cell beside others.
+    assert_eq!(srcs("<table><tr><td background=\"https://t.example/f.png\">Hello</td></tr></table>"), ["https://t.example/f.png"]);
+    assert_eq!(srcs("<table><tr><td background=\"cid:s\" width=200></td><td>Text</td></tr></table>"), ["cid:s"]);
+}

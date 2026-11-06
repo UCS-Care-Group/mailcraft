@@ -219,3 +219,38 @@ fn with_high_contrast_a_picture_only_behind_a_box_is_not_asked_for() {
     assert_eq!(host.asked(), pictures);
     assert!(!super::says(&harness, "Downloading pictures"));
 }
+
+#[test]
+fn high_contrast_takes_the_pictures_behind_boxes_away_at_once() {
+    use serde_json::json;
+    let mut m = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#f4efe6\">");
+    m.attachments =
+        vec![Attachment { content_id: "hero@example.org".into(), inline: true, ..Attachment::new("hero.png", "image/png", png(300, 100)) }];
+    let (app, ids) = super::app_with(vec![m]);
+    let mut harness = super::window(app, (1280.0, 1000.0));
+    super::select(&mut harness, ids[0]);
+    let backdrops = |harness: &super::Window| crate::reading::view::kept(&harness.ctx, ids[0], |laid, _| behind(laid).len()).unwrap();
+    assert_eq!(backdrops(&harness), 1);
+    // Nothing else changes, not the width, the zoom or the message: the picture goes all the same,
+    // and comes back when high contrast is turned off.
+    harness.state_mut().execute("ui.highContrast", json!({"on": true})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(backdrops(&harness), 0);
+    harness.state_mut().execute("ui.highContrast", json!({"on": false})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(backdrops(&harness), 1);
+}
+
+#[test]
+fn the_pictures_behind_boxes_and_the_others_share_one_cap() {
+    use crate::reading::images::MAX_PICTURES_PER_MESSAGE;
+    let cells = "<table><tr><td background=\"cid:tile@example.org\">x</td></tr></table>".repeat(MAX_PICTURES_PER_MESSAGE);
+    let html = format!("{cells}<p><img src=\"cid:tile@example.org\" alt=\"A picture\"></p>");
+    let mut m = html_message(0, ("Rowan Ash", "rowan@example.org"), "Tiles", &html);
+    m.attachments = vec![Attachment { content_id: "tile@example.org".into(), inline: true, ..Attachment::new("tile.png", "image/png", png(8, 8)) }];
+    in_frame(false, |ctx| {
+        let laid = laid(ctx, &m, false);
+        // Every one behind a box, and none past them: the `<img>` after them is a stand-in.
+        assert_eq!((laid.stats.behind, laid.stats.pictures), (MAX_PICTURES_PER_MESSAGE, 0), "{:?}", laid.stats);
+    });
+}

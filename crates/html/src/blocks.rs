@@ -1078,8 +1078,11 @@ impl Builder {
         if self.hidden > 0 || css.hidden || tag.has("hidden") {
             return None;
         }
-        let tiny = |attr: &str, style: Option<f32>| tag.attr(attr).and_then(|v| style::attr_px(&v)).or(style).is_some_and(|px| px <= 2.0);
-        if tiny("width", css.width) || tiny("height", css.height) {
+        // (Any size it is given, by an attribute or a style, as for an `<img>`: a style of 1 px
+        // beside an attribute of 100 still says it is a pixel.)
+        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+        let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
+        if tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height) {
             return None;
         }
         let raw = match &css.bg.image {
@@ -1575,6 +1578,15 @@ impl Builder {
             return;
         }
         let mut rows = table.rows;
+        // The one cell of a table that holds nothing has no picture behind it: there is nothing
+        // to read against it, and a picture on the web would only tell its server the message
+        // was read. (An empty cell beside others keeps its own: it is a part of their layout.)
+        if let [row] = &mut rows[..]
+            && let [cell] = &mut row.cells[..]
+            && cell.blocks.is_empty()
+        {
+            cell.bg_picture = None;
+        }
         let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
         rows.retain(|r| !r.cells.iter().all(empty));
