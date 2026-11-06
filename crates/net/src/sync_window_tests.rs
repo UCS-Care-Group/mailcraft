@@ -127,3 +127,35 @@ fn without_a_window_everything_comes_whole() {
     assert!(inbox.new.iter().all(|m| !m.unfetched));
     assert!(!imap.world().log.iter().any(|line| line.contains("<0.") || line.contains("INTERNALDATE)")));
 }
+
+#[test]
+fn a_size_said_too_small_does_not_make_a_cut_message_whole() {
+    // Exchange says a guess for a message's size, and other servers can say too little: a
+    // message of 48,000 bytes said to be 10,000.
+    let text = "Words of a long letter. ".repeat(2_000);
+    let body = eml("Said small", &text);
+    assert!(body.len() > 48_000);
+    let short = eml("Short and said large", "Short.");
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: PASSWORD.into(),
+        mailboxes: vec![mailbox(
+            "INBOX",
+            "\\HasNoChildren",
+            vec![
+                FakeMessage { claimed_size: Some(10_000), ..message(1, "", OLD, body) },
+                FakeMessage { claimed_size: Some(60_000), ..message(2, "", OLD, short) },
+            ],
+        )],
+        ..Default::default()
+    });
+    let since = internal_date(NEW).unwrap() - 365 * 86_400;
+    let result = crate::sync(&request(&imap, Some(since)));
+    assert_eq!(result.errors, Vec::<String>::new());
+    let inbox = result.folders.iter().find(|f| f.remote == "INBOX").unwrap();
+    let cut = by_subject(&inbox.new, "Said small");
+    assert!(cut.unfetched, "only its start came: {}", cut.body.text.len());
+    assert!(cut.body.text.len() < START_BYTES as usize);
+    // The server ended it before the bytes asked for: all of it came, whatever size was said.
+    assert!(!by_subject(&inbox.new, "Short and said large").unfetched);
+}

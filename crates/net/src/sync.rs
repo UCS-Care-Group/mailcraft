@@ -722,21 +722,30 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
 const START_BYTES: u32 = 16 * 1024;
 
 /// What is kept of a message older than the mail to keep offline (#653), of which the start
-/// came (`size` bytes on the server): read as far as it goes, and marked not fetched, for the
-/// mailbox to keep its headers and a preview of its text. Its attachments, when its header
-/// says it has any (`multipart/mixed`) or the start shows one, are on the server.
-fn only_the_start(start: Fetched, size: u64) -> Message {
-    // All of it came: as long as its size, or shorter than was asked for (a server that didn't
-    // say its size).
-    let whole = start.body.as_ref().is_some_and(|b| (size > 0 && b.len() as u64 >= size) || b.len() < START_BYTES as usize);
-    let mixed = start.body.as_deref().is_some_and(is_mixed);
-    let mut message = message_from(start);
+/// came: read as far as it goes, and marked not fetched, for the mailbox to keep its headers and
+/// a preview of its text. Its attachments, when its header says it has any (`multipart/mixed`)
+/// or the start shows one, are on the server.
+fn only_the_start(start: Start) -> Message {
+    // All of it came only when the server ended it before the bytes asked for. The size the
+    // server says is not taken for it: some (Exchange's) say a guess, and one said too small
+    // would have a message cut short here kept as whole, and its server's copy deleted when it
+    // is moved out of its account.
+    let whole = !start.header_alone && start.fetched.body.as_ref().is_some_and(|b| b.len() < START_BYTES as usize);
+    let mixed = start.fetched.body.as_deref().is_some_and(is_mixed);
+    let mut message = message_from(start.fetched);
     if whole {
         return message;
     }
     message.attachments_on_server = mixed || message.has_attachments();
     message.unfetched = true;
     message
+}
+
+/// The start of a message ([`start_of`]).
+struct Start {
+    fetched: Fetched,
+    /// Its header alone came, which ran on past the start: none of its text is here.
+    header_alone: bool,
 }
 
 /// Where the header of a message whose first bytes are `raw` ends (after the empty line), if it
@@ -747,13 +756,13 @@ fn header_end(raw: &[u8]) -> Option<usize> {
 
 /// The start of message `uid` ([`START_BYTES`]); when its header runs on past that, the header
 /// alone, whose fields are all there.
-fn start_of(imap: &mut Imap<Stream<'_>>, uid: u32) -> Result<Option<Fetched>, ProtoError> {
+fn start_of(imap: &mut Imap<Stream<'_>>, uid: u32) -> Result<Option<Start>, ProtoError> {
     let start = imap.uid_fetch_start(uid, START_BYTES)?;
     let cut = start.as_ref().and_then(|f| f.body.as_deref()).is_some_and(|b| b.len() >= START_BYTES as usize && header_end(b).is_none());
-    if cut {
-        return Ok(imap.uid_fetch_header(uid)?.or(start));
+    if cut && let Some(header) = imap.uid_fetch_header(uid)? {
+        return Ok(Some(Start { fetched: header, header_alone: true }));
     }
-    Ok(start)
+    Ok(start.map(|fetched| Start { fetched, header_alone: cut }))
 }
 
 /// Whether the message whose first bytes are `raw` says in its header that it is
@@ -903,23 +912,22 @@ impl FolderSync<'_> {
             }
             let fetched = if old {
                 start_of(imap, uid)
-            } else if large {
-                imap.uid_fetch_header(uid)
             } else {
-                imap.uid_fetch_message(uid)
+                let whole = if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) };
+                whole.map(|f| f.map(|fetched| Start { fetched, header_alone: large }))
             };
             match fetched {
-                Ok(Some(fetched)) => {
-                    let bytes = fetched.body.as_ref().map_or(0, Vec::len);
+                Ok(Some(start)) => {
+                    let bytes = start.fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
                     waiting = waiting.saturating_add(bytes);
                     delta.new.push(if old {
-                        only_the_start(fetched, size)
+                        only_the_start(start)
                     } else if large {
-                        too_large(fetched, size, run.limits.largest)
+                        too_large(start.fetched, size, run.limits.largest)
                     } else {
-                        message_from(fetched)
+                        message_from(start.fetched)
                     });
                 }
                 // Gone between the listing and now, as a rule (looked into below).

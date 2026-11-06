@@ -141,6 +141,15 @@ fn a_preview_only_imap_message_is_neither_moved_nor_copied_out_of_its_account() 
     assert!(moved.unwrap_err().to_string().contains("isn't downloaded yet"));
     let copied = s.run("mail.copy", &json!({"id": ids[0], "folder": local_inbox}));
     assert!(copied.unwrap_err().to_string().contains("isn't downloaded yet"));
+    // Nor into another IMAP account: the server's copy, the whole of it, is not to be deleted.
+    let other =
+        s.run("account.add", &json!({"email": "bea@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let other_inbox = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
+    let moved = s.run("mail.move", &json!({"id": ids[0], "folder": other_inbox}));
+    assert!(moved.unwrap_err().to_string().contains("isn't downloaded yet"));
+    assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty());
+    assert_eq!(s.mailbox.message(ids[0]).unwrap().folder, s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap());
     // Within its account it moves, as the server is told.
     let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
     s.mailbox.folder_mut(archive).unwrap().remote = "Archive".into();
