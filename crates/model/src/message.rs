@@ -229,6 +229,11 @@ pub struct Message {
     /// Headers MailCraft doesn't model, kept so a saved message round-trips.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
+    /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
+    /// that leaves them behind when mail goes to another account (#781). Only then are they
+    /// believed: one saved before may be a sender's own, carried in from another account.
+    #[serde(skip_serializing_if = "is_false")]
+    pub fresh_stamps: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message
     /// that isn't on the server there (yet).
     #[serde(skip_serializing_if = "is_zero")]

@@ -52,6 +52,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
+pub use style::MAX_FAMILIES;
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
@@ -254,8 +255,11 @@ pub struct Span {
     /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
-    /// The first font family asked for, lower case (`calibri`), for pasting into the composer,
-    /// which keeps the few it knows. The reading pane draws in its own font.
+    /// The font families asked for, lower case and joined by commas in their order
+    /// (`georgia,times new roman,serif`; at most eight): the reading pane draws the text in the
+    /// first that is installed on this computer (a generic family, `serif`, `sans-serif` or
+    /// `monospace`, in a font of its kind), else in its own font; nothing is ever fetched. A paste
+    /// into the composer keeps the first, when it is one of the few the composer knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<String>,
 }
@@ -428,6 +432,13 @@ pub struct Table {
     /// A box on a line: the room its margins keep free left and right of it, in pixels.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub box_margin: [u8; 2],
+    /// A box on a line that the source floats to a side: a table with `align="left"` or
+    /// `"right"` among two or more such tables that are all its holder holds. Its block's `align`
+    /// is the side. The boxes that float left stand from the left edge of the line in their order,
+    /// those that float right from the right edge, the first of them outermost; a box that has no
+    /// room left goes on in a line below. No white space parts them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub float: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -562,7 +573,11 @@ pub(crate) fn is_blank(c: char) -> bool {
 #[cfg(test)]
 mod data_tests;
 #[cfg(test)]
+mod float_tests;
+#[cfg(test)]
 mod inline_tests;
+#[cfg(test)]
+mod nested_align_tests;
 #[cfg(test)]
 mod text_link_tests;
 

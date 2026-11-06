@@ -41,11 +41,13 @@ fn arrival(message: Id, sender: &str, subject: &str) -> Arrival {
 #[test]
 fn text_is_one_plain_line_without_control_or_format_characters() {
     assert_eq!(clean("  Rowan\tPike\r\n", NAME_CHARS), "Rowan Pike");
-    assert_eq!(clean("Line one\nLine two\u{0}\u{7}\u{1b}[31mred", SUBJECT_CHARS), "Line one Line two [31mred");
+    // A control character that is not white space goes without parting words, as in a name (#454).
+    assert_eq!(clean("Line one\nLine two\u{0}\u{7}\u{1b}[31mred", SUBJECT_CHARS), "Line one Line two[31mred");
     // A right-to-left override would show "gpj.exe" as "exe.jpg"; zero-width marks, the byte-order
     // mark, isolates and tags are gone.
     assert_eq!(clean("invoice\u{202e}gpj.exe", SUBJECT_CHARS), "invoicegpj.exe");
-    assert_eq!(clean("\u{feff}Pay\u{200b}Pal\u{200d}\u{2066}x\u{2069}\u{e0041}", SUBJECT_CHARS), "PayPalx");
+    // A joiner between two characters that show stays, as in a name (#454).
+    assert_eq!(clean("\u{feff}Pay\u{200b}Pal\u{200d}\u{2066}x\u{2069}\u{e0041}", SUBJECT_CHARS), "PayPal\u{200d}x");
     assert_eq!(clean("\u{202e}\u{200b}\n\t ", SUBJECT_CHARS), "");
     assert_eq!(clean("", NAME_CHARS), "");
     // Markup is text: it is shown as it is, never read (the host escapes it where it must).
@@ -118,6 +120,28 @@ fn reminders_say_what_when_and_where() {
     let one = plan_reminders(&many, true, false);
     assert_eq!((one.len(), one[0].body.as_str()), (1, "5 reminders are due"));
     assert_eq!(plan_reminders(&[reminder("", "")], true, true)[0].title, "(no title)");
+}
+
+/// An alert says the sender, the subject, a meeting's title and its place as a name is shown in
+/// the window (#454): what shows nothing is gone, an emoji made with a joiner and one variation
+/// selector after a character stay, and text of nothing that shows is no text.
+#[test]
+fn an_alert_shows_names_as_the_window_does() {
+    let found = [
+        arrival(10, "Rowan\u{200b} \u{3164}Pike\u{e0041}\u{e0042}", "Lunch ☕\u{fe0f}\u{fe0f}\u{fe0f} \u{1f469}\u{200d}\u{1f4bb}\u{115f}"),
+        arrival(11, "\u{3164}\u{200b}\u{2066}", "\u{2800}\u{feff}"),
+    ];
+    let shown = plan_mail(&found, true, false);
+    assert_eq!((shown[0].title.as_str(), shown[0].body.as_str()), ("Rowan Pike", "Lunch ☕\u{fe0f} \u{1f469}\u{200d}\u{1f4bb}"));
+    assert_eq!((shown[1].title.as_str(), shown[1].body.as_str()), ("New message", "(no subject)"));
+    let due = [reminder("\u{202e}Board\u{2069} review\u{200b}", "\u{2800}\u{e0041}")];
+    let shown = plan_reminders(&due, true, false);
+    assert_eq!(shown[0].title, "Board review");
+    assert!(!shown[0].body.contains('·'), "no place: {}", shown[0].body);
+    let long = [arrival(12, &"n".repeat(500), &"s".repeat(500))];
+    let shown = plan_mail(&long, true, false);
+    assert_eq!(shown[0].title, format!("{}…", "n".repeat(NAME_CHARS - 1)));
+    assert_eq!(shown[0].body, format!("{}…", "s".repeat(SUBJECT_CHARS - 1)));
 }
 
 // ---- the window ----

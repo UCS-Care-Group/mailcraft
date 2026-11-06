@@ -173,6 +173,10 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
             s.mailbox.task_place = Some(place);
         }
     }
+    // Its categories take the spelling of its account's list; a new name joins it.
+    if p::strings(v, "categories").is_some() {
+        t.categories = super::category::spelled_all(s, t.origin.account, &t.categories, &[], t.origin.account)?;
+    }
     reveal(s, &t.origin);
     let (account, kept_at) = (t.origin.account, kept_at(&s.mailbox, &t.origin));
     let id = s.mailbox.add_task(t);
@@ -186,9 +190,13 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if v.get("account").is_some_and(|account| account.as_u64() != Some(t.origin.account)) {
         return Err(bad("a task stays in its account"));
     }
+    let had = t.categories.clone();
     apply(s, &mut t, v)?;
     if t.title.is_empty() {
         return Err(fail("a task needs a title"));
+    }
+    if p::strings(v, "categories").is_some() {
+        t.categories = super::category::spelled_all(s, t.origin.account, &t.categories, &had, t.origin.account)?;
     }
     // Changed again: a change the server refused is tried again (one kept here stays so: `put`).
     t.local_only = t.kept_here;

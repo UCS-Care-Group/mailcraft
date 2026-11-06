@@ -2234,6 +2234,8 @@ mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
 #[cfg(test)]
+mod task_dates_tests;
+#[cfg(test)]
 mod tasks_tests;
 
 #[cfg(test)]

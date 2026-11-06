@@ -900,7 +900,7 @@ mod tests {
         assert_eq!(shown_title(&Task { title: " \n\t ".into(), ..Default::default() }), "(no title)");
         assert_eq!(shown_title(&Task { title: "Call\nLin\u{0}".into(), ..Default::default() }), "Call Lin");
         // However long a title in a file is, a row lays out a bounded piece of it.
-        assert_eq!(shown_title(&Task { title: "t".repeat(1_000_000), ..Default::default() }).chars().count(), 301);
+        assert_eq!(shown_title(&Task { title: "t".repeat(1_000_000), ..Default::default() }).chars().count(), 300);
         assert_eq!(importance_label(Importance::High), "High");
         for filter in TaskFilter::ALL {
             assert!(icons::NAMES.contains(&filter_icon(filter)), "{filter:?}");

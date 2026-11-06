@@ -766,14 +766,10 @@ pub(crate) mod kit {
         ui.label(egui::RichText::new(shown(message, 400)).color(t.red));
     }
 
-    /// Text from elsewhere cut to `max` characters on one line, for a label.
-    pub fn shown(text: &str, max: usize) -> String {
-        let mut out: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).take(max).collect();
-        if text.chars().nth(max).is_some() {
-            out.push('…');
-        }
-        out
-    }
+    /// Text from elsewhere for a label, as a name is shown (#454): one line, without control
+    /// characters or characters that show nothing, spaces run together, at most `max` characters,
+    /// the last an ellipsis where it was cut.
+    pub use mailcraft_names::shown;
 
     /// Which of the buttons at the bottom was clicked.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1195,11 +1191,11 @@ pub(crate) mod kit {
 
         #[test]
         fn hostile_text_is_cut_for_labels() {
-            assert_eq!(shown("a\tb\nc\u{7}", 10), "a b c ");
-            assert_eq!(shown("abcdef", 3), "abc…");
-            // Cut by characters, never inside one.
+            assert_eq!(shown("a\tb\nc\u{7}", 10), "a b c");
+            assert_eq!(shown("abcdef", 3), "ab…");
+            // Cut by characters, never inside one; what shows nothing is gone.
             let long = "é\u{202e}\u{0}".repeat(10_000);
-            assert_eq!(shown(&long, 400).chars().count(), 401);
+            assert_eq!(shown(&long, 400), format!("{}…", "é".repeat(399)));
             assert_eq!(shown("", 5), "");
         }
     }

@@ -34,6 +34,7 @@ use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, Li
 use mailcraft_model::Message;
 
 use super::colors::Paper;
+use super::fonts::{Chooser, Pick};
 use super::images::{self, Pictures};
 use crate::theme::{Tokens, mono, regular, semibold};
 
@@ -331,6 +332,7 @@ impl Laid {
             right: self.size.x,
             // (A layout that was never made with `new` has no zoom: as it comes.)
             zoom: if self.zoom > 0.0 { self.zoom } else { 1.0 },
+            fonts: Chooser::new(ctx),
         };
         let mut flow = Flow { x: 0.0, width: self.width, y: self.y, paper: Paper::window(&t), prev: self.prev.take() };
         while self.next < blocks.len() && cx.work < budget {
@@ -343,6 +345,8 @@ impl Laid {
         self.pend = cx.pend;
         self.joined = cx.joined;
         self.stats = cx.stats;
+        // The faces the message asked for and egui doesn't have yet are read.
+        cx.fonts.finish(ctx);
         self.size = vec2(cx.right.max(self.width), flow.y);
         self.done = self.next >= blocks.len();
     }
@@ -374,6 +378,8 @@ struct Cx<'a> {
     right: f32,
     /// How large the text is set ([`Laid::zoomed`]).
     zoom: f32,
+    /// The message's own fonts (#600).
+    fonts: Chooser,
 }
 
 impl Cx<'_> {
@@ -604,18 +610,21 @@ fn halign(align: Align) -> egui::Align {
     }
 }
 
-/// The font a span of a block of `kind` is set in.
-fn font(span: &Span, kind: &BlockKind) -> egui::FontId {
+/// The font a span of a block of `kind` is set in: the first of the span's fonts installed here
+/// that egui has (#600), else the window's.
+fn font(span: &Span, kind: &BlockKind, fonts: &mut Chooser) -> egui::FontId {
     let (base, _) = type_scale(kind);
     let size = span.size.map_or(base, f32::from);
     if matches!(kind, BlockKind::Preformatted) {
-        mono(size.min(base))
+        return mono(size.min(base));
     } else if span.code {
-        mono(size - 0.5)
-    } else if span.bold {
-        semibold(size)
-    } else {
-        regular(size)
+        return mono(size - 0.5);
+    }
+    match span.font.as_deref().map(|list| fonts.pick(list, span.bold)) {
+        Some(Pick::Mono) => mono(size),
+        Some(Pick::Family(family)) => egui::FontId::new(size, family),
+        Some(Pick::Own) | None if span.bold => semibold(size),
+        Some(Pick::Own) | None => regular(size),
     }
 }
 
@@ -628,6 +637,7 @@ fn zoomed(font: egui::FontId, zoom: f32) -> egui::FontId {
 /// at `wrap`. With it, the parts that are links and the number of characters.
 fn text_job(
     t: &Tokens,
+    fonts: &mut Chooser,
     spans: &[Span],
     kind: &BlockKind,
     paper: Paper,
@@ -647,7 +657,7 @@ fn text_job(
             continue;
         }
         let size = span.size.map_or(base, f32::from) * zoom;
-        let font = zoomed(font(span, kind), zoom);
+        let font = zoomed(font(span, kind, fonts), zoom);
         // A highlight is the paper its text is read on.
         let behind = span.background.map_or(paper, |bg| Paper::of(bg, t));
         let ink = behind.ink(t, span.color, span.link.is_some(), quoted);
@@ -762,7 +772,8 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
     let mut begun = false;
     for (n, (piece, glue)) in cut(&block.spans).iter().enumerate() {
-        let (mut job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align, block.line_height, cx.zoom);
+        let (mut job, links, chars) =
+            text_job(&cx.t, &mut cx.fonts, piece, &block.kind, paper, quoted, width, block.align, block.line_height, cx.zoom);
         if chars == 0 {
             continue;
         }
@@ -1030,7 +1041,8 @@ fn line_length(blocks: &[Block], index: usize) -> usize {
 
 /// The size of a short text set in one line.
 fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
-    let (job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
+    let (job, ..) =
+        text_job(&cx.t, &mut cx.fonts, &block.spans, &block.kind, paper, block.quote > 0, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
     let size = cx.measure(job).size();
     vec2(size.x.ceil() + 1.0, size.y)
 }
@@ -1038,7 +1050,8 @@ fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
 /// How far a text starts and how tall its first row is, and how tall it is in all, when it
 /// starts `lead` points in and wraps at `width`.
 fn tail_metrics(cx: &mut Cx<'_>, block: &Block, paper: Paper, width: f32, lead: f32) -> (f32, f32) {
-    let (mut job, ..) = text_job(&cx.t, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height, cx.zoom);
+    let (mut job, ..) =
+        text_job(&cx.t, &mut cx.fonts, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height, cx.zoom);
     if let Some(first) = job.sections.first_mut() {
         first.leading_space = lead;
     }
@@ -1141,11 +1154,13 @@ fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
 
 // ---- boxes on a line ----
 
-/// How many blocks from `index` are boxes on a line: the box and those that follow it.
+/// How many blocks from `index` are boxes on a line: the box and those that follow it (floated
+/// to a side or not, as it is).
 fn box_run(blocks: &[Block], index: usize) -> usize {
+    let float = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
     let inline = |b: &&Block| matches!(&b.kind, BlockKind::Table(t) if t.inline);
-    let quote = blocks.get(index).map_or(0, |b| b.quote);
-    1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote).count()
+    let (quote, floats) = blocks.get(index).map_or((0, false), |b| (b.quote, float(b)));
+    1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote && float(b) == floats).count()
 }
 
 /// The room a box on a line asks to be kept free left and right of it.
@@ -1162,7 +1177,9 @@ fn box_gap(table: &Table) -> f32 {
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
 /// as its contents want, wrapping to more lines when a box does not fit; the bottom. A box that
 /// asks for more than the line is held to it. The boxes of a line stand at its top, the line
-/// where the first of them says (`text-align` of what holds them).
+/// where the first of them says (`text-align` of what holds them); boxes floated to a side
+/// (`Table::float`) each at its own side, those at the right from the right edge in, the first
+/// outermost.
 fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
     // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
     struct Slot<'a> {
@@ -1176,7 +1193,8 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         let BlockKind::Table(table) = &block.kind else { continue };
         let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
         let line = (width - clear).max(MIN_CELL.min(width));
-        let (wide, room) = match table.width {
+        // The width it asks for, and the room `table_block` is given (a share is of the line).
+        let (asked, room) = match table.width {
             Some(Length::Px(w)) => (f32::from(w).min(line), f32::from(w).min(line)),
             Some(Length::Percent(p)) => (line * f32::from(p.min(100)) / 100.0, line),
             None => {
@@ -1185,10 +1203,21 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
                 (wide, wide)
             }
         };
-        let wide = wide.max(MIN_CELL.min(line));
-        slots.push(Slot { table, wide, room: room.max(wide), clear });
+        let least = MIN_CELL.min(line);
+        let room = room.max(asked.max(least));
+        // It stands as wide as it is drawn: a table whose words need more than it asks for is
+        // wider, as in a browser, where a table's width is the least it takes; one stacked takes
+        // all its room.
+        let wide = drawn_width(cx, table, room, depth).max(asked).max(least);
+        slots.push(Slot { table, wide, room, clear });
     }
     let align = run.first().map_or(Align::Left, |b| b.align);
+    // Where a floated box goes: its block's side.
+    let sides: Vec<Option<Align>> = run
+        .iter()
+        .filter(|b| matches!(b.kind, BlockKind::Table(_)))
+        .map(|b| matches!(&b.kind, BlockKind::Table(t) if t.float).then_some(b.align))
+        .collect();
     let (mut y, mut first, mut start) = (y, true, 0);
     while start < slots.len() {
         // As many as fit in this line, at least one.
@@ -1202,11 +1231,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             used = next;
             end += 1;
         }
+        let floats = sides.iter().any(Option::is_some);
         let mut at = x + match align {
+            _ if floats => 0.0,
             Align::Left => 0.0,
             Align::Center => ((width - used) / 2.0).max(0.0),
             Align::Right => (width - used).max(0.0),
         };
+        // The right edge of the room the boxes floated right have left.
+        let mut right_at = x + width;
         let mut bottom = y;
         for (n, slot) in slots.get(start..end).unwrap_or_default().iter().enumerate() {
             // A copy has a space between the boxes, whether they are on one line or more: it does
@@ -1214,10 +1247,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             if !std::mem::take(&mut first) {
                 cx.beside();
             }
+            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
+            if sides.get(start + n).copied().flatten() == Some(Align::Right) {
+                right_at -= slot.wide + slot.clear;
+                bottom = bottom.max(table_block(cx, slot.table, Align::Left, right_at.max(x) + left, y, slot.room, paper, depth));
+                continue;
+            }
             if n > 0 {
                 at += box_gap(slot.table);
             }
-            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
             bottom = bottom.max(table_block(cx, slot.table, Align::Left, at + left, y, slot.room, paper, depth));
             at += slot.wide + slot.clear;
         }
@@ -1225,6 +1263,15 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
         start = end.max(start + 1);
     }
     y
+}
+
+/// The width `table_block` lays `table` out at in `room` points: its columns', or all the room
+/// when it is stacked.
+fn drawn_width(cx: &mut Cx<'_>, table: &Table, room: f32, depth: usize) -> f32 {
+    if depth >= MAX_NESTING {
+        return room;
+    }
+    column_widths(cx, table, &grid(table), room, depth).map_or(room, |(_, total)| total)
 }
 
 // ---- how wide things want to be ----
@@ -1313,11 +1360,12 @@ fn text_extent(cx: &mut Cx<'_>, block: &Block) -> Extent {
         // Too long to look at closely: it fills whatever it is given.
         return Extent { min: (MAX_WORD + indent).min(WIDE), max: WIDE };
     }
-    // The widest word and the longest line, from the widths of their glyphs.
+    // The widest word and the longest line, from the widths of their glyphs, in the fonts they
+    // are drawn in.
+    let faces: Vec<egui::FontId> = block.spans.iter().map(|span| zoomed(font(span, &block.kind, &mut cx.fonts), cx.zoom)).collect();
     let (word, line) = cx.ctx.fonts_mut(|fonts| {
         let (mut word, mut widest_word, mut line, mut longest_line) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
-        for span in &block.spans {
-            let font = zoomed(font(span, &block.kind), cx.zoom);
+        for (span, font) in block.spans.iter().zip(faces) {
             for c in span.text.chars() {
                 if c == '\n' {
                     (word, line) = (0.0, 0.0);
@@ -1334,8 +1382,18 @@ fn text_extent(cx: &mut Cx<'_>, block: &Block) -> Extent {
     });
     let max = if chars <= MEASURED_CHARS {
         // Short enough to shape: a cell's text must not wrap for want of half a point.
-        let (job, ..) =
-            text_job(&cx.t, &block.spans, &block.kind, Paper::window(&cx.t), false, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
+        let (job, ..) = text_job(
+            &cx.t,
+            &mut cx.fonts,
+            &block.spans,
+            &block.kind,
+            Paper::window(&cx.t),
+            false,
+            f32::INFINITY,
+            Align::Left,
+            block.line_height,
+            cx.zoom,
+        );
         cx.measure(job).size().x.max(line) + 1.0
     } else {
         line + 2.0
@@ -1500,8 +1558,17 @@ fn columns(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, depth: usize) -> Col
     for placed in &grid.cells {
         let pad = padding(table, ruled, placed.cell).across();
         let extent = blocks_extent(cx, &placed.cell.blocks, depth + 1);
-        // A cell with something in it gets the least room anything is laid out in.
-        let least = if placed.cell.blocks.is_empty() { 0.0 } else { MIN_CELL };
+        // A cell with something in it gets the least room anything is laid out in; one that holds
+        // only pictures needs no more than they ask for, as in a browser (a row of small icons is
+        // as wide as its icons, which stand at the left of their cells).
+        let pictures = placed.cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
+        let least = if placed.cell.blocks.is_empty() {
+            0.0
+        } else if pictures {
+            MIN_CELL.min(extent.max)
+        } else {
+            MIN_CELL
+        };
         let (min, mut max) = (extent.min.max(least) + pad, extent.max.max(least) + pad);
         if placed.cols > 1 {
             spanning.push((placed.col, placed.cols, min, max));
@@ -1587,8 +1654,19 @@ fn column_widths(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, room: f32, dep
     let mut total = asked.unwrap_or(most.min(room));
     if table.layout {
         // Stacked when its columns can't be had without breaking words, or would be narrow and
-        // squeezed; never when everything fits at the width it wants (a row of icons).
-        if n > 1 && (least > room + 0.5 || (most > room + 0.5 && room / (n as f32) < MIN_LAYOUT_COLUMN)) {
+        // squeezed; never when everything fits at the width it wants (a row of icons). A column
+        // that only makes room (a gutter, the corner of a frame drawn with cells' lines: no cell
+        // of its own holds anything) takes the room it asks for, and is not one of those squeezed.
+        let mut holds = vec![false; n];
+        for placed in grid.cells.iter().filter(|p| p.cols == 1 && !p.cell.blocks.is_empty()) {
+            if let Some(holds) = holds.get_mut(placed.col) {
+                *holds = true;
+            }
+        }
+        let room_kept: f32 = columns.max.iter().zip(&holds).filter(|(_, holds)| !**holds).map(|(max, _)| *max).sum();
+        let filled = holds.iter().filter(|h| **h).count();
+        let each = if filled == 0 { room / n as f32 } else { (room - room_kept).max(0.0) / filled as f32 };
+        if n > 1 && (least > room + 0.5 || (most > room + 0.5 && each < MIN_LAYOUT_COLUMN)) {
             return None;
         }
         total = total.min(room).max(least.min(room));

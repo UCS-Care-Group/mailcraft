@@ -91,6 +91,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 
 # ui
 egui = "0.37"
+# egui's painter, at egui's version: named only to turn on its colour glyphs (#832).
+epaint = "0.37"
 egui_extras = { version = "0.37", default-features = false }
 eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"

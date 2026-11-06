@@ -107,7 +107,6 @@ crates/ui-egui/src/i18n.rs
 crates/ui-egui/src/keep_offline.rs
 crates/ui-egui/src/keys.rs
 crates/ui-egui/src/mail_view.rs
-crates/ui-egui/src/people_view.rs
 crates/ui-egui/src/reading/colors.rs
 crates/ui-egui/src/reading/images.rs
 crates/ui-egui/src/reading/select.rs

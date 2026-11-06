@@ -44,6 +44,8 @@ pub(crate) struct Touched {
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
+    /// The contacts it added, changed or took away.
+    changed_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
     /// What the change did to each account's own list of categories (#661).
@@ -59,6 +61,13 @@ struct CategoryStep {
     left: BTreeMap<String, Option<(mailcraft_model::Category, bool)>>,
     /// When it was made, as [`Mailbox::category_stamp`] dates what a server was found to have.
     stamp: u64,
+}
+
+impl Touched {
+    /// Whether the change added, changed or took away the contact `id`.
+    pub(crate) fn changed_contact(&self, id: Id) -> bool {
+        self.changed_contacts.contains(&id)
+    }
 }
 
 /// The accounts of `mb` kept in step through Graph.
@@ -122,6 +131,33 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
                 if relevant(a, &g) {
                     t.messages.insert(**id, Some((*a).clone()));
                 }
+                is.next();
+            }
+        }
+    }
+    // (One walk of both maps, as for the messages.)
+    let mut was = before.contacts.iter().peekable();
+    let mut is = after.contacts.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !(Arc::ptr_eq(a, b) || a == b) {
+                    t.changed_contacts.insert(**id);
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                t.changed_contacts.insert(**id);
+                was.next();
+            }
+            (Some((id, _)), None) => {
+                t.changed_contacts.insert(**id);
+                was.next();
+            }
+            (_, Some((id, _))) => {
+                t.changed_contacts.insert(**id);
                 is.next();
             }
         }
@@ -520,6 +556,19 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
         }
     }
+    // Contacts the change didn't touch are as they are now (those an import put in and a later
+    // step's snapshot holds are not brought back by undoing that step).
+    let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();
+    for id in ids.into_iter().filter(|id| !touched.changed_contacts.contains(id)) {
+        match now.contacts.get(&id) {
+            Some(c) => {
+                out.contacts.insert(id, c.clone());
+            }
+            None => {
+                out.contacts.remove(&id);
+            }
+        }
+    }
     let then = std::mem::take(&mut out.folders);
     let mut kept = Vec::with_capacity(then.len());
     let mut seen = BTreeSet::new();
@@ -741,6 +790,8 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 return Some(c.clone());
             };
             let source = mailcraft_model::sync::fingerprint(placed.id.as_bytes());
+            // The stamps of the server it leaves stay behind (#781).
+            mailcraft_model::auth_results::forget_stamps(&mut m);
             said.queued.push(Queued::PlaceMessage {
                 account: t.account,
                 message: c.id,

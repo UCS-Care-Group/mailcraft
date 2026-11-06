@@ -1279,6 +1279,16 @@ msgstr[1] ""
 msgid "Attachment keywords"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Attachment options"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Attachment options for {name}"
+msgstr ""
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
 msgid "Attachments"
@@ -4333,6 +4343,11 @@ msgid "Imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Imported from {file}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Imported {what}"
 msgstr ""
@@ -4530,6 +4545,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Interface theme"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your contacts on this computer, each marked as imported from the file."
 msgstr ""
 
 #. interface
@@ -5247,6 +5267,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "MailCraft stopped reading it before it was done."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
 msgstr ""
 
 #. interface
@@ -7312,7 +7337,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "Preview: only the mail is brought in for now. Calendar items, contacts, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
 msgstr ""
 
 #. interface
@@ -7393,6 +7418,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Proposed time"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the contacts"
 msgstr ""
 
 #. interface
@@ -12506,6 +12536,11 @@ msgid "`value` is true or false"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
 msgstr ""
@@ -13460,6 +13495,11 @@ msgid "the .pst file couldn't be read: {why}"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the .pst file's reader stopped before it was done"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "the Inbox of this account hasn't been read yet"
 msgstr ""
@@ -13577,6 +13617,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import couldn't account for every item of {path}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the import has no folder to put mail in"
 msgstr ""
 
 #. what a command says
@@ -13855,6 +13900,11 @@ msgid "this .pst file has a password: give it to import the file"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "this Exchange server account has no server settings"
 msgstr ""
@@ -13927,6 +13977,11 @@ msgstr ""
 #. name
 #: crates/model/src/sync.rs
 msgid "this mailbox can't be reached through Microsoft Graph (MailboxNotEnabledForRESTAPI)"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
 msgstr ""
 
 #. what a command says
@@ -14573,7 +14628,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 msgid "{n} contact"
 msgid_plural "{n} contacts"
 msgstr[0] ""
@@ -14597,6 +14652,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} declined"
 msgid_plural "{n} declined"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} distribution list, kept as a contact listing its members"
+msgid_plural "{n} distribution lists, kept as contacts listing their members"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -14678,16 +14740,16 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "{n} item is only on this computer, and not in your Outlook calendar."
-msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} item is left for a later version"
+msgid_plural "{n} items are left for a later version"
 msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "{n} item isn't mail and is left for a later version"
-msgid_plural "{n} items aren't mail and are left for a later version"
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} item is only on this computer, and not in your Outlook calendar."
+msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
 msgstr[0] ""
 msgstr[1] ""
 

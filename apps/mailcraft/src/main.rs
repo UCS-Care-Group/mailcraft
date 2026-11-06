@@ -1383,7 +1383,7 @@ fn tasks_job_with(
         }
     };
     if !job.upload.ops.is_empty() {
-        let uploaded = graph::push_tasks(&access, &job.upload).for_account(&job.account);
+        let uploaded = graph::push_tasks(&access, &job.upload, job.zone).for_account(&job.account);
         out.denied = uploaded.outcomes.iter().any(|o| o.result == TaskResult::Denied);
         let refused = uploaded.token_refused;
         out.uploaded = Some(uploaded);
@@ -1395,7 +1395,7 @@ fn tasks_job_with(
     if out.denied {
         return out;
     }
-    match graph::tasks(&access) {
+    match graph::tasks(&access, job.zone) {
         Ok(download) => out.download = Some(download.for_account(&job.account)),
         // The token covers the permission and Graph still says no: the organisation keeps it.
         Err(NetError::Forbidden(_)) => out.denied = true,
