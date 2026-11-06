@@ -34,7 +34,7 @@ fn spec_example_1_decompresses() {
     let out = decompress_rtf(&EXAMPLE_1, 1 << 20).unwrap();
     assert_eq!(out, b"{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n");
     assert_eq!(crc32(&EXAMPLE_1[16..]), 0xa7c7_c5f1);
-    assert_eq!(rtf_text(&out, 1000).unwrap(), "hello world");
+    assert_eq!(rtf_text(&out, 1000).unwrap(), ("hello world".to_string(), false));
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn an_unknown_kind_is_an_error() {
 }
 
 fn text(rtf: &str) -> String {
-    rtf_text(rtf.as_bytes(), 1 << 20).unwrap()
+    rtf_text(rtf.as_bytes(), 1 << 20).unwrap().0
 }
 
 #[test]
@@ -166,9 +166,9 @@ fn bin_data_is_skipped_by_its_count() {
     let mut rtf = b"{\\rtf1 a{\\pict\\bin5 }}{b".to_vec();
     let at = rtf.iter().position(|&b| b == b'5').unwrap() + 2;
     rtf.splice(at..at, *b"}{\\par");
-    assert_eq!(rtf_text(&rtf, 100).unwrap(), "a\n".trim().to_string() + "b");
+    assert_eq!(rtf_text(&rtf, 100).unwrap().0, "ab");
     // A count past the end is the end.
-    assert_eq!(rtf_text(b"{\\rtf1 a\\bin99999999999 bc", 100).unwrap(), "a");
+    assert_eq!(rtf_text(b"{\\rtf1 a\\bin99999999999 bc", 100).unwrap().0, "a");
 }
 
 #[test]
@@ -192,10 +192,83 @@ fn depth_is_capped() {
 #[test]
 fn text_is_capped() {
     let long = format!("{{\\rtf1 {}}}", "word ".repeat(100_000));
-    assert!(rtf_text(long.as_bytes(), 1000).unwrap().len() <= 1000);
+    let (t, cut) = rtf_text(long.as_bytes(), 1000).unwrap();
+    assert!(t.len() <= 1000 && cut);
+    assert!(!rtf_text(b"{\\rtf1 short}", 1000).unwrap().1);
+    // Folded blank lines still say the text was cut.
+    let folded = format!("{{\\rtf1 {}}}", "x\\par\\par\\par\\par ".repeat(1000));
+    let (t, cut) = rtf_text(folded.as_bytes(), 1000).unwrap();
+    assert!(cut && t.len() < 1000, "{}", t.len());
     let multibyte = format!("{{\\rtf1 {}}}", "\\u233?".repeat(10_000));
-    let t = rtf_text(multibyte.as_bytes(), 101).unwrap();
+    let t = rtf_text(multibyte.as_bytes(), 101).unwrap().0;
     assert!(t.len() <= 102 && t.chars().all(|c| c == '\u{e9}'));
+}
+
+#[test]
+fn each_font_has_its_code_page() {
+    // RichEdit's shape: ANSI document, a font of its own character set.
+    assert_eq!(
+        text("{\\rtf1\\ansi\\ansicpg1252{\\fonttbl{\\f0\\fnil\\fcharset128 Yu Gothic;}}\\f0\\'93\\'fa\\'96\\'7b\\'8c\\'ea}"),
+        "\u{65e5}\u{672c}\u{8a9e}"
+    );
+    assert_eq!(text("{\\rtf1\\ansi\\ansicpg1252{\\fonttbl{\\f0\\fnil\\fcharset204 Calibri;}}\\f0\\'cf\\'f0\\'e8 x}"), "\u{41f}\u{440}\u{438} x");
+    // The font goes with its group.
+    assert_eq!(
+        text("{\\rtf1\\ansi\\ansicpg1252{\\fonttbl{\\f0\\fcharset204 A;}{\\f1\\fcharset161 B;}}{\\f0 \\'cf}\\'cf{\\f1\\'e1}\\f0\\'cf}"),
+        "\u{41f}\u{cf}\u{3b1}\u{41f}"
+    );
+    // A change of font in the middle of a run of bytes.
+    assert_eq!(text("{\\rtf1\\ansi{\\fonttbl{\\f0\\fcharset204 A;}{\\f1\\fcharset0 B;}}\\f0\\'cf\\f1\\'cf\\f0\\'cf}"), "\u{41f}\u{cf}\u{41f}");
+    // A flat font table, \deff and no charset at all.
+    assert_eq!(text("{\\rtf1\\ansi\\deff1{\\fonttbl\\f0\\fcharset0 A;\\f1\\fcharset204 B;}\\'cf}"), "\u{41f}");
+    assert_eq!(text("{\\rtf1\\ansi\\ansicpg1251{\\fonttbl{\\f0 A;}}\\f0\\'a8\\f9\\'a8}"), "\u{401}\u{401}");
+}
+
+#[test]
+fn the_sample_of_ms_oxrtfex_reads_its_font_charset() {
+    // [MS-OXRTFEX] 3.1: a 1251 document, and one font marked \fcharset0 for &uml; (0xA8, U+00A8).
+    let rtf = "{\\rtf1\\ANSI\\ansicpg1251\\fromhtml1 \\deff0\r\n{\\fonttbl {\\f0\\fmodern Courier New;}{\\f1\\fswiss Arial;}{\\f2\\fswiss\\fcharset0 Arial;}}\
+               \\uc1\\pard\\plain\\deftab360 \\f0\\fs24 {\\htmlrtf \\f1 \\htmlrtf0 \\'cf {\\*\\htmltag &uml;}\\htmlrtf {\\f2\\'a8}\\htmlrtf0 \\'a8}}";
+    assert_eq!(text(rtf), "\u{41f} \u{a8}\u{401}");
+}
+
+#[test]
+fn bytes_past_the_buffer_are_not_dropped() {
+    let dbcs = format!("{{\\rtf1\\ansi\\ansicpg932 {}}}", "\\'82\\'a0".repeat(3000));
+    assert_eq!(text(&dbcs), "\u{3042}".repeat(3000));
+    // An odd byte first, so the 4096-byte mark falls inside a pair.
+    let shifted = format!("{{\\rtf1\\ansi\\ansicpg932 \\'41{}}}", "\\'82\\'a0".repeat(3000));
+    assert_eq!(text(&shifted), format!("A{}", "\u{3042}".repeat(3000)));
+    let single = format!("{{\\rtf1\\ansi\\ansicpg1252 {}}}", "\\'e9".repeat(5000));
+    assert_eq!(text(&single), "\u{e9}".repeat(5000));
+    let raw: Vec<u8> = [b"{\\rtf1\\ansi\\ansicpg1252 ".as_slice(), &[0xE9u8; 5000], b"}"].concat();
+    assert_eq!(rtf_text(&raw, 1 << 20).unwrap().0, "\u{e9}".repeat(5000));
+}
+
+#[test]
+fn ansicpg_wins_over_mac_in_either_order() {
+    assert_eq!(text("{\\rtf1\\ansicpg1251\\mac \\'cf}"), "\u{41f}");
+    assert_eq!(text("{\\rtf1\\mac\\ansicpg1251 \\'cf}"), "\u{41f}");
+    assert_eq!(text("{\\rtf1\\mac \\'a5}"), "\u{2022}");
+}
+
+#[test]
+fn control_characters_are_not_text() {
+    assert_eq!(text("{\\rtf1 a\\'00b\\u0? c\\'07\\u1\\u9? d\\u10?e}"), "ab c\t d\ne");
+}
+
+#[test]
+fn a_literal_tab_and_a_backslash_line_end() {
+    assert_eq!(text("{\\rtf1 a\tb\\\r\nc\\\nd\\\re}"), "a\tb\nc\nd\ne");
+}
+
+#[test]
+fn the_code_pages_of_the_mail_are_the_code_pages_of_the_text() {
+    // Pages the first version of the text reader lacked: KOI8-R, ISO 8859-2, GB 18030's, EUC-KR's other number.
+    assert_eq!(text("{\\rtf1\\ansi\\ansicpg20866 \\'d0\\'d2}"), "\u{43f}\u{440}");
+    assert_eq!(text("{\\rtf1\\ansi\\ansicpg28592 \\'b1}"), "\u{105}");
+    assert_eq!(text("{\\rtf1\\ansi\\ansicpg51949 \\'b0\\'a1}"), "\u{ac00}");
+    assert_eq!(crate::code_page_label(20866), Some("koi8-r"));
 }
 
 proptest! {
@@ -221,6 +294,6 @@ proptest! {
     #[test]
     fn rtf_with_valid_start_is_bounded(body in "[\\\\{}a-z0-9 '*-]{0,600}", max in 0usize..300) {
         let rtf = format!("{{\\rtf1 {body}");
-        if let Ok(t) = rtf_text(rtf.as_bytes(), max) { prop_assert!(t.len() <= max.saturating_add(4)); }
+        if let Ok((t, _)) = rtf_text(rtf.as_bytes(), max) { prop_assert!(t.len() <= max.saturating_add(4)); }
     }
 }

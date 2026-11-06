@@ -331,13 +331,17 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         Some(PropValue::String8(b)) => Some(r.text.decode(&b)),
         _ => None,
     }
-    .filter(|b| !b.trim_end_matches('\0').is_empty());
+    .filter(|b| !b.trim_end_matches('\0').trim().is_empty());
+    let mut rtf_cut = false;
     // Outlook keeps a contact's notes as compressed rich text alone ([MS-OXRTFCP]): no plain text.
     if body.is_none()
         && let Some(PropValue::Binary(rtf)) = value(pst, m, 0x1009, MAX_NOTES, "notes (rich text)", &mut notes)?
     {
         match mailcraft_pst::decompress_rtf(&rtf, MAX_RTF).and_then(|raw| mailcraft_pst::rtf_text(&raw, room().saturating_add(8))) {
-            Ok(text) => body = Some(text),
+            Ok((text, cut)) => {
+                body = Some(text);
+                rtf_cut = cut;
+            }
             Err(e) => notes.push(format!("its notes (rich text) could not be read: {e}")),
         }
     }
@@ -349,7 +353,7 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         });
         let (text, cut) = fit(b.trim_end_matches('\0').replace("\r\n", "\n").as_str(), if list && has_members { room() / 2 } else { room() });
         c.notes = text;
-        if cut {
+        if cut || rtf_cut {
             notes.push("its notes were longer than a contact's notes can be and are cut".to_string());
         }
     }

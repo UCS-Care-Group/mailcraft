@@ -8,6 +8,9 @@
 //! for an allocation past that cap, nothing recurses (groups are counted, not nested calls),
 //! and every loop ends with its input.
 
+use std::collections::HashMap;
+
+use crate::codepage::code_page_label;
 use crate::crc::crc32;
 use crate::{Cap, Error, Result};
 
@@ -201,52 +204,169 @@ struct Group {
     /// Skip characters after `\u` (`\ucN`).
     uc: u32,
     skip: bool,
+    /// In the font table: `\fN` names the font that `\fcharsetN` is for.
+    fonttbl: bool,
+    /// The font being defined (in the font table).
+    defining: i64,
+    /// The font text is in (`\fN`), if one was chosen.
+    font: Option<i64>,
 }
+
+/// Most fonts whose character set is kept.
+const MAX_FONTS: usize = 1024;
+/// Most bytes of `\'hh` kept waiting for a character boundary.
+const PENDING: usize = 4096;
 
 struct Out {
     text: String,
     max: usize,
+    /// Text was dropped for the cap.
+    cut: bool,
     pending: Vec<u8>,
-    code_page: u32,
+    /// The code page of `pending`.
+    pending_cp: u32,
     high: Option<u16>,
+    ansicpg: Option<u32>,
+    mac: bool,
+    deff: Option<i64>,
+    /// `\fcharset` of each font in the font table.
+    fonts: HashMap<i64, i64>,
+}
+
+/// The code page a font character set stands for ([MSFT-RTF] `\fcharsetN`): `None` for the
+/// document's own (0 is Windows ANSI, 1252, which is not the document's when it says
+/// `\ansicpg` otherwise: [MS-OXRTFEX] 3.1 marks one font `\fcharset0` in a 1251 document to
+/// have 0xA8 read as U+00A8). Symbol (2) and Johab (130) have no table here: the document's.
+fn charset_code_page(charset: i64) -> Option<u32> {
+    Some(match charset {
+        0 => 1252,
+        77 => 10000,
+        128 => 932,
+        129 => 949,
+        134 => 936,
+        136 => 950,
+        161 => 1253,
+        162 => 1254,
+        163 => 1258,
+        177 => 1255,
+        178 => 1256,
+        186 => 1257,
+        204 => 1251,
+        222 => 874,
+        238 => 1250,
+        _ => return None,
+    })
+}
+
+/// Whether `b` begins a two-byte character in code page `cp`.
+fn is_lead(cp: u32, b: u8) -> bool {
+    match cp {
+        932 => matches!(b, 0x81..=0x9F | 0xE0..=0xFC),
+        936 | 949 | 950 => matches!(b, 0x81..=0xFE),
+        _ => false,
+    }
 }
 
 impl Out {
+    fn new(max: usize) -> Out {
+        Out {
+            text: String::new(),
+            max,
+            cut: false,
+            pending: Vec::new(),
+            pending_cp: 1252,
+            high: None,
+            ansicpg: None,
+            mac: false,
+            deff: None,
+            fonts: HashMap::new(),
+        }
+    }
+
+    /// The code page of the document: `\ansicpg`, else the Macintosh's for `\mac`, else 1252.
+    fn document_cp(&self) -> u32 {
+        self.ansicpg.unwrap_or(if self.mac { 10000 } else { 1252 })
+    }
+
+    /// The code page of bytes in font `font` (else the default font).
+    fn code_page(&self, font: Option<i64>) -> u32 {
+        font.or(self.deff).and_then(|f| self.fonts.get(&f)).and_then(|cs| charset_code_page(*cs)).unwrap_or_else(|| self.document_cp())
+    }
+
     fn full(&self) -> bool {
         self.text.len() >= self.max
     }
+
     fn flush(&mut self) {
-        if self.pending.is_empty() {
-            return;
-        }
         let bytes = std::mem::take(&mut self.pending);
-        let decoded = mailcraft_charset::decode(&bytes, label(self.code_page));
-        self.push_str(&decoded);
+        self.decode(&bytes);
     }
+
+    fn decode(&mut self, bytes: &[u8]) {
+        if !bytes.is_empty() {
+            let decoded = mailcraft_charset::decode(bytes, code_page_label(i64::from(self.pending_cp)).unwrap_or("windows-1252"));
+            self.push_str(&decoded);
+        }
+    }
+
+    /// Decodes the whole characters waiting, and keeps a lead byte whose second is not here yet.
+    fn flush_whole(&mut self) {
+        let mut cut = 0usize;
+        let mut i = 0usize;
+        while i < self.pending.len() {
+            let step = if self.pending.get(i).is_some_and(|b| is_lead(self.pending_cp, *b)) { 2 } else { 1 };
+            if i.saturating_add(step) > self.pending.len() {
+                break;
+            }
+            i = i.saturating_add(step);
+            cut = i;
+        }
+        let rest = self.pending.split_off(cut);
+        self.flush();
+        self.pending = rest;
+    }
+
     fn push_str(&mut self, s: &str) {
         for c in s.chars() {
+            // Controls other than the line end and the tab are not text.
+            if c.is_control() && c != '\n' && c != '\t' {
+                continue;
+            }
             if self.full() {
+                self.cut = true;
                 return;
             }
             self.text.push(c);
         }
     }
+
     fn char(&mut self, c: char) {
         self.flush_high();
         self.flush();
         self.push_str(c.encode_utf8(&mut [0; 4]));
     }
+
     fn flush_high(&mut self) {
         if self.high.take().is_some() {
             self.push_str("\u{FFFD}");
         }
     }
-    fn byte(&mut self, b: u8) {
+
+    /// A byte of 8-bit text in code page `cp`.
+    fn byte(&mut self, b: u8, cp: u32) {
         self.flush_high();
-        if self.pending.len() < 4096 {
-            self.pending.push(b);
+        if cp != self.pending_cp {
+            self.flush();
+            self.pending_cp = cp;
         }
+        if self.pending.len() >= PENDING {
+            self.flush_whole();
+        }
+        // (A buffer that is full of one character's bytes is not a text any code page here
+        // has; it is let grow by one rather than dropped.)
+        self.pending.push(b);
     }
+
     fn unit(&mut self, u: u16) {
         self.flush();
         match (self.high.take(), u) {
@@ -265,50 +385,27 @@ impl Out {
     }
 }
 
-/// The encoding label for a Windows code page (`\ansicpg`); 1252 for any not known.
-fn label(cp: u32) -> &'static str {
-    match cp {
-        874 => "windows-874",
-        932 => "shift_jis",
-        936 => "gbk",
-        949 => "euc-kr",
-        950 => "big5",
-        1250 => "windows-1250",
-        1251 => "windows-1251",
-        1253 => "windows-1253",
-        1254 => "windows-1254",
-        1255 => "windows-1255",
-        1256 => "windows-1256",
-        1257 => "windows-1257",
-        1258 => "windows-1258",
-        10000 => "macintosh",
-        65001 => "utf-8",
-        _ => "windows-1252",
-    }
-}
-
 /// The text of an RTF document: paragraphs and lines as newlines, tabs, `\'hh` bytes in the
-/// document's `\ansicpg` code page (Windows-1252 when it names none), `\uN` with its `\ucN`
-/// fallback skipped, and none of the font table, colours, styles, pictures, objects,
-/// headers or footers, nor any `{\*…}` destination (for encapsulated HTML, [MS-OXRTFEX], that
-/// leaves the text the document shows and not the `\htmltag` HTML, and the text as it is for
-/// `\fromtext`). At most `max` bytes of text; more is cut. Groups nest at most
-/// [`MAX_RTF_DEPTH`] deep, else an error; unbalanced braces are read as they come.
-pub fn rtf_text(rtf: &[u8], max: usize) -> Result<String> {
+/// code page of the font they are set in (its `\fcharset`, else the document's `\ansicpg`,
+/// Windows-1252 when it names none), `\uN` with its `\ucN` fallback skipped, and none of the
+/// font table, colours, styles, pictures, objects, headers or footers, nor any `{\*…}`
+/// destination (for encapsulated HTML, [MS-OXRTFEX], that leaves the text the document shows
+/// and not the `\htmltag` HTML, and the text as it is for `\fromtext`). Control characters
+/// other than the line end and the tab are dropped. At most `max` bytes of text; whether more
+/// was cut is the second part of the answer. Groups nest at most [`MAX_RTF_DEPTH`] deep, else
+/// an error; unbalanced braces are read as they come.
+pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
     let start = rtf.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(rtf.len());
     if rtf.get(start..start.saturating_add(5)) != Some(b"{\\rtf") {
         return Err(Error::Corrupt("not rich text"));
     }
-    let mut out = Out { text: String::new(), max, pending: Vec::new(), code_page: 1252, high: None };
+    let mut out = Out::new(max);
     let mut stack: Vec<Group> = Vec::new();
-    let mut cur = Group { uc: 1, skip: false };
+    let mut cur = Group { uc: 1, skip: false, fonttbl: false, defining: 0, font: None };
     let mut first = false;
     let mut skip_chars = 0u32;
     let mut i = start;
     while let Some(&b) = rtf.get(i) {
-        if out.full() {
-            break;
-        }
         i = i.saturating_add(1);
         match b {
             b'{' => {
@@ -339,6 +436,13 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<String> {
                             out.char(char::from(n));
                         }
                     }
+                    // A backslash before a line end is a paragraph end.
+                    b'\r' | b'\n' => {
+                        first = false;
+                        if !cur.skip {
+                            out.char('\n');
+                        }
+                    }
                     b'\'' => {
                         first = false;
                         let hex =
@@ -346,7 +450,8 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<String> {
                         if let Some(v) = hex {
                             i = i.saturating_add(2);
                             if !cur.skip && !take(&mut skip_chars) {
-                                out.byte(v);
+                                let cp = out.code_page(cur.font);
+                                out.byte(v, cp);
                             }
                         }
                     }
@@ -382,11 +487,18 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<String> {
                         let was_first = std::mem::replace(&mut first, false);
                         if was_first && SKIPPED.contains(&word.to_ascii_lowercase().as_str()) {
                             cur.skip = true;
+                            cur.fonttbl = word.eq_ignore_ascii_case("fonttbl");
                         }
                         skip_chars = 0;
                         control(word, num, &mut cur, &mut out, &mut skip_chars, &mut i, rtf);
                     }
                     _ => first = false,
+                }
+            }
+            b'\t' => {
+                first = false;
+                if !cur.skip && !take(&mut skip_chars) {
+                    out.char('\t');
                 }
             }
             0x00..=0x1F => {}
@@ -398,14 +510,16 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<String> {
                 if b.is_ascii() {
                     out.char(char::from(b));
                 } else {
-                    out.byte(b);
+                    let cp = out.code_page(cur.font);
+                    out.byte(b, cp);
                 }
             }
         }
     }
     out.flush();
     out.flush_high();
-    Ok(tidy(&out.text))
+    let cut = out.cut;
+    Ok((tidy(&out.text), cut))
 }
 
 fn take(skip: &mut u32) -> bool {
@@ -426,13 +540,20 @@ fn symbol(out: &mut Out, cur: &Group, c: char, first: &mut bool) {
 
 fn control(word: &str, num: Option<i64>, cur: &mut Group, out: &mut Out, skip_chars: &mut u32, i: &mut usize, rtf: &[u8]) {
     match word {
-        "ansicpg" => {
-            if let Some(n) = num.and_then(|n| u32::try_from(n).ok()) {
-                out.flush();
-                out.code_page = n;
+        "ansicpg" => out.ansicpg = num.and_then(|n| u32::try_from(n).ok()),
+        "mac" => out.mac = true,
+        // The fonts: which character set each has, and which one the text is in.
+        "f" if cur.fonttbl => cur.defining = num.unwrap_or(0),
+        "fcharset" if cur.fonttbl => {
+            if let Some(cs) = num
+                && (out.fonts.len() < MAX_FONTS || out.fonts.contains_key(&cur.defining))
+            {
+                out.fonts.insert(cur.defining, cs);
             }
         }
-        "mac" if out.code_page == 1252 => out.code_page = 10000,
+        "f" if !cur.skip => cur.font = num,
+        "deff" => out.deff = num,
+        "plain" if !cur.skip => cur.font = None,
         "uc" => cur.uc = num.and_then(|n| u32::try_from(n).ok()).unwrap_or(1).min(16),
         "u" if !cur.skip => {
             if let Some(n) = num {

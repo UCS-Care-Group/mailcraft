@@ -1370,8 +1370,8 @@ fn a_lists_notes_fit_a_vcard_line_and_the_cut_is_named() {
     let commas = ",".repeat(800);
     let members: Vec<Vec<u8>> = (0..1000).map(|i| one_off(&format!("{commas}{i}"), "SMTP", &format!("m{i}@example.org"), true)).collect();
     let mut list = list_item("Big", &members);
-    list.extra.push((0x1000, w::unicode(&"\n".repeat(900_000))));
-    let plain = contact_item("Plain", vec![(0x3001, w::unicode("Plain")), (0x1000, w::unicode(&"\n".repeat(1 << 20)))]);
+    list.extra.push((0x1000, w::unicode(&"\nx".repeat(450_000))));
+    let plain = contact_item("Plain", vec![(0x3001, w::unicode("Plain")), (0x1000, w::unicode(&"\nx".repeat(1 << 19)))]);
     let mut s = session();
     let answer = import(&mut s, &people_file(vec![list, plain]), json!({})).unwrap();
     adds_up(&answer);
@@ -1713,4 +1713,70 @@ fn notes_kept_only_as_rich_text_come_across() {
     assert_eq!(why.iter().filter(|w| w.contains("notes (rich text) could not be read")).count(), 1, "{why:?}");
     let what = texts(&answer, "notes", "what");
     assert!(what.iter().any(|w| w.contains("Broken Bea")), "{what:?}");
+}
+
+/// Compressed rich text ([MS-OXRTFCP]) of `head` and then `repeats` copies of its last `period`
+/// bytes (17 at a time), made of dictionary references alone: a small input that unpacks to a big one.
+fn repeating_rtf(head: &[u8], period: usize, repeats: usize) -> Vec<u8> {
+    let mut body = Vec::new();
+    let mut write = 207usize;
+    // Some(byte) is a literal, None a reference; the end mark follows the last.
+    let mut tokens: Vec<Option<u8>> = head.iter().map(|b| Some(*b)).collect();
+    tokens.extend(std::iter::repeat_n(None, repeats));
+    let total = tokens.len() + 1;
+    for chunk in (0..total).collect::<Vec<_>>().chunks(8) {
+        let at = body.len();
+        body.push(0);
+        for (bit, i) in chunk.iter().enumerate() {
+            match tokens.get(*i) {
+                Some(Some(b)) => {
+                    body.push(*b);
+                    write = (write + 1) % 4096;
+                }
+                Some(None) => {
+                    body[at] |= 1 << bit;
+                    let offset = (write + 4096 - period) % 4096;
+                    body.extend((((offset << 4) | (15)) as u16).to_be_bytes());
+                    write = (write + 17) % 4096;
+                }
+                // The end mark: a reference to the write position.
+                None => {
+                    body[at] |= 1 << bit;
+                    body.extend(((write << 4) as u16).to_be_bytes());
+                }
+            }
+        }
+    }
+    let mut v = ((body.len() + 12) as u32).to_le_bytes().to_vec();
+    v.extend(0u32.to_le_bytes());
+    v.extend(b"LZFu");
+    v.extend(mailcraft_pst::crc32(&body).to_le_bytes());
+    v.extend(body);
+    v
+}
+
+#[test]
+fn a_whitespace_only_text_does_not_hide_the_rich_text_notes() {
+    let both = contact_item(
+        "Blank Bo",
+        vec![(0x3001, w::unicode("Blank Bo")), (0x1000, w::unicode("\r\n")), (0x1009, w::binary(&uncompressed_rtf("{\\rtf1 The real notes}")))],
+    );
+    let mut s = session();
+    import(&mut s, &people_file(vec![both]), json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.values().next().unwrap().notes, "The real notes");
+}
+
+#[test]
+fn rich_text_notes_cut_at_the_cap_are_named_even_if_blank_lines_fold_them_short() {
+    // "x" and five paragraph ends: 6 bytes of text that fold to 3 and cost 5.
+    let head = b"{\\rtf1 x\\par\\par\\par\\par\\par ";
+    let rtf = repeating_rtf(head, 22, 230_000);
+    assert!(rtf.len() < 1 << 20);
+    let big = contact_item("Big Bo", vec![(0x3001, w::unicode("Big Bo")), (0x1009, w::binary(&rtf))]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![big]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.starts_with("x\n\nx\n\n") && c.notes.len() > 1000, "{} {:?}", c.notes.len(), texts(&answer, "notes", "why"));
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("notes") && w.contains("cut")), "{why:?}");
 }

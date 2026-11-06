@@ -22,6 +22,7 @@
 
 mod bth;
 mod bytes;
+mod codepage;
 mod crc;
 mod crypt;
 mod error;
@@ -54,6 +55,7 @@ pub mod test_writer;
 #[cfg(test)]
 mod tests;
 
+pub use codepage::code_page_label;
 pub use crc::crc32;
 pub use crypt::Encryption;
 pub use error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
