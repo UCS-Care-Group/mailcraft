@@ -993,7 +993,7 @@ pub(crate) struct Undo {
     pub(crate) mailbox: Mailbox,
     /// What the step did to the Microsoft accounts' mail, for keeping them in step when it is
     /// undone ([`crate::undo`]).
-    touched: crate::undo::Touched,
+    pub(crate) touched: crate::undo::Touched,
     sel: Selection,
     folder: Id,
     /// Whether the step changed mail (a message, a folder), and not only tasks, the calendar or
@@ -1099,6 +1099,8 @@ pub struct Session {
     pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
+    /// Counts every change to the steps to undo and redo ([`Session::undo_steps_moved`]).
+    steps_moved: u64,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
     undo_said: Vec<String>,
     rev: u64,
@@ -1251,6 +1253,7 @@ impl Session {
             auto_replies: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
+            steps_moved: 0,
             undo_said: Vec::new(),
             rev: 0,
             list_cache: None,
@@ -2724,6 +2727,7 @@ impl Session {
         self.pst_tops.clear();
         self.history.clear();
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         self.sel = Selection::default();
         self.compose = None;
         self.composing.clear();
@@ -2804,6 +2808,7 @@ impl Session {
             self.history.remove(0);
         }
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         self.dirty = true;
     }
 
@@ -2835,6 +2840,13 @@ impl Session {
     pub fn forget_history(&mut self) {
         self.history.clear();
         self.redo.clear();
+        self.steps_moved = self.steps_moved.wrapping_add(1);
+    }
+
+    /// Changes with every step done, undone, redone or forgotten: a question about the next
+    /// undo or redo is about that step only while this stays the same (#473).
+    pub fn undo_steps_moved(&self) -> u64 {
+        self.steps_moved
     }
 
     /// What the last undo or redo couldn't do, in words (empty when it did everything).
@@ -2942,9 +2954,40 @@ impl Session {
     /// A server account's copy goes to Deleted Items instead, which is not a removal; a copy
     /// not yet made on the server is dropped, so that asks (fails closed).
     pub fn undo_takes_mail(&self, redo: bool) -> bool {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        !self.undo_taken(redo).is_empty()
+    }
+
+    /// The messages that undoing the last step (or redoing, `redo`) would take away, drafts
+    /// among them, as [`Session::undo_takes_mail`] finds them: for the owner's question, which
+    /// names them.
+    pub fn undo_taken(&self, redo: bool) -> Vec<Id> {
+        self.undo_takes(redo).0
+    }
+
+    /// What undoing the last step (or redoing, `redo`) would take away: the messages, drafts
+    /// among them, and the contacts, events, tasks, calendars and categories, each of those
+    /// named by its kind and id (a category by its name). Read off the mailbox the undo itself
+    /// makes, by the merge it runs (on a copy, O(n), once for both).
+    pub fn undo_takes(&self, redo: bool) -> (Vec<Id>, Vec<String>) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (Vec::new(), Vec::new()) };
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
-        self.mailbox.messages.keys().any(|k| !back.messages.contains_key(k))
+        let now = &self.mailbox;
+        let taken = now.messages.keys().filter(|k| !back.messages.contains_key(k)).copied().collect();
+        let categories_gone = |now: &[Category], to: &[Category]| -> Vec<String> {
+            now.iter().filter(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase())).map(|c| c.name.to_lowercase()).collect()
+        };
+        let mut gone: Vec<String> = Vec::new();
+        gone.extend(now.contacts.keys().filter(|k| !back.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
+        gone.extend(now.events.keys().filter(|k| !back.events.contains_key(*k)).map(|k| format!("event {k}")));
+        gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
+        gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
+        // An account's own list the undo doesn't keep is taken away whole.
+        for (id, list) in &now.account_categories {
+            let to = back.account_categories.get(id).map(Vec::as_slice).unwrap_or_default();
+            gone.extend(categories_gone(list, to).into_iter().map(|n| format!("category {id} {n}")));
+        }
+        (taken, gone)
     }
 
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
@@ -2972,22 +3015,36 @@ impl Session {
         if crate::agent::places_tasks(now, to) {
             return Some(Class::Send);
         }
-        // Things that go for good (they don't go to Deleted Items) and that the step lacks.
-        let category_gone =
-            |now: &[Category], to: &[Category]| now.iter().any(|c| !to.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
-            || now.events.keys().any(|k| !to.events.contains_key(k))
-            || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
-            || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
-            || category_gone(&now.categories, &to.categories)
-            || now.account_categories.iter().any(|(id, list)| to.account_categories.get(id).is_some_and(|to| category_gone(list, to)));
-        if gone || !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) || self.undo_takes_mail(redo) {
+        if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
             return Some(Class::Settings);
         }
         None
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,
+    /// calendars or categories made since: things that go for good (they don't go to Deleted
+    /// Items) and that the mailbox the undo makes lacks.
+    pub fn undo_removes_items(&self, redo: bool) -> bool {
+        !self.undo_removed_items(redo).is_empty()
+    }
+
+    /// The contacts and the like of [`Session::undo_takes`].
+    pub fn undo_removed_items(&self, redo: bool) -> Vec<String> {
+        self.undo_takes(redo).1
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
+    /// the like, a draft (or puts back an earlier version of one), or another message, or it
+    /// changes the rules and leaves one switched on that deletes mail for good (#566).
+    pub fn undo_deletes(&self, redo: bool) -> bool {
+        if !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) {
+            return true;
+        }
+        let (taken, items) = self.undo_takes(redo);
+        !taken.is_empty() || !items.is_empty()
     }
 
     /// The stacks as they were before an undo (`redo`: a redo) that failed (#767): what it pushed
@@ -3006,6 +3063,7 @@ impl Session {
 
     pub fn undo(&mut self) -> bool {
         let Some(u) = self.history.pop() else { return false };
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         let cur = self.swap(u);
         self.redo.push(cur);
         true
@@ -3013,6 +3071,7 @@ impl Session {
 
     pub fn redo(&mut self) -> bool {
         let Some(u) = self.redo.pop() else { return false };
+        self.steps_moved = self.steps_moved.wrapping_add(1);
         let cur = self.swap(u);
         self.history.push(cur);
         true
@@ -3246,12 +3305,14 @@ impl Session {
                         self.dirty = true;
                         self.history.clear();
                         self.redo.clear();
+                        self.steps_moved = self.steps_moved.wrapping_add(1);
                     } else if history {
                         self.dirty = true;
                         let mut before = before;
                         before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
                         before.mail = before.mailbox.messages != self.mailbox.messages || before.mailbox.folders != self.mailbox.folders;
                         self.history.push(before);
+                        self.steps_moved = self.steps_moved.wrapping_add(1);
                         if self.history.len() > MAX_HISTORY {
                             self.history.remove(0);
                         }

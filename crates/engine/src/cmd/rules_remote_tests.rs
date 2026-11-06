@@ -1640,5 +1640,29 @@ fn an_agents_undo_or_redo_that_leaves_a_rule_on_that_deletes_for_good_asks_as_a_
     // Deleted, it comes back by an undo, and the question says what it does.
     run(&mut s, "rules.remove", json!({"id": purge}));
     assert_eq!(undo(&s, false), delete);
-    assert!(describe(&s, "edit.undo", &json!({})).contains("the rules, with one switched on that deletes mail permanently, back"));
+    assert!(describe(&s, "edit.undo", &json!({})).contains("puts the rules back as they were, with one switched on that deletes mail permanently"));
+}
+
+#[test]
+fn an_undo_that_puts_back_the_accounts_and_a_rule_that_deletes_for_good_is_asked_as_both() {
+    // As one that also takes mail away (#473): the question about the accounts names the rule,
+    // and a yes to it covers Delete; Accounts allowed in advance doesn't.
+    use crate::agent::{Class, Verdict, also, answered, check, describe};
+    let (mut s, account, _, _) = session();
+    let purge = add(&mut s, account, "Purge", json!([{"type": "category", "value": "Bin"}]), json!([{"type": "deleteForGood"}]));
+    run(&mut s, "rules.enable", json!({"id": purge, "value": false}));
+    s.mailbox.accounts[0].name.push_str(" (renamed)");
+    let undo = |s: &Session, allow: &[Class]| check(s, "edit.undo", &json!({}), allow);
+    assert!(matches!(undo(&s, &[]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(also(&s, "edit.undo", &json!({}), Class::Accounts), vec![Class::Delete]);
+    let asked = describe(&s, "edit.undo", &json!({}));
+    assert!(
+        asked.contains(
+            "puts the accounts back as they were; it also puts the rules back as they were, with one switched on that deletes mail permanently"
+        ),
+        "{asked}"
+    );
+    assert_eq!(answered(&s, "edit.undo", &json!({}), &[], Class::Accounts), Verdict::Run);
+    assert!(matches!(undo(&s, &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(undo(&s, &[Class::Accounts, Class::Delete]), Verdict::Run);
 }

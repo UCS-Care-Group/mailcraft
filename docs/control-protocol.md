@@ -88,7 +88,10 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
   and a `file.new` or `file.open` that would wait for a save, are refused and change nothing; a command that would
   open another dialog in place of such a form runs, but that dialog isn't shown and the agent is
   told; any other undo or redo that would take away a draft or put back an earlier version of
-  one needs `delete`;
+  one, or take away another message (a copy or an import undone, a delete for good redone), needs
+  `delete`; one that puts back the accounts or a change that writes to people and also takes
+  away messages, drafts, contacts or the like is asked about once, as `needs` `accounts` or `send` (`delete`, when that
+  class is allowed already), the question names those too, and a yes covers taking them;
 - `ui.click`, `ui.move`, `ui.drag`, `ui.key`, `ui.text` need `input`, and are refused while a
   question is up; `app.quit` is refused; `ui.screenshot` takes no `path` and answers `data`.
 
