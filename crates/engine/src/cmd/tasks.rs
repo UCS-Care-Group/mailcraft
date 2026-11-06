@@ -321,12 +321,12 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let t = s.mailbox.task_mut(id)?;
-    let (account, has) = (t.origin.account, t.categories.iter().any(|x| x.eq_ignore_ascii_case(&name)));
+    let (account, has) = (t.origin.account, t.categories.iter().any(|x| mailcraft_model::sync::same_category(x, &name)));
     let on = p::bool(v, "value").unwrap_or(!has);
     // The to-do takes the spelling of its account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let t = s.mailbox.task_mut(id)?;
-    t.categories.retain(|x| !x.eq_ignore_ascii_case(&name));
+    t.categories.retain(|x| !mailcraft_model::sync::same_category(x, &name));
     if on {
         t.categories.push(spelling);
     }

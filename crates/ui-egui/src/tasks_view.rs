@@ -604,7 +604,7 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
             account.as_slice(),
             &carried,
             "tasks.categorize",
-            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
+            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name))),
             None,
         );
     });

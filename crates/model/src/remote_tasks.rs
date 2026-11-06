@@ -62,7 +62,7 @@ impl RemoteTask {
         self.categories = std::mem::take(&mut self.categories).into_iter().map(|name| line(&name, MAX_NAME)).filter(|name| !name.is_empty()).fold(
             Vec::new(),
             |mut kept: Vec<String>, name| {
-                if kept.len() < MAX_CATEGORIES && !kept.iter().any(|have| have.eq_ignore_ascii_case(&name)) {
+                if kept.len() < MAX_CATEGORIES && !kept.iter().any(|have| crate::sync::same_category(have, &name)) {
                     kept.push(name);
                 }
                 kept

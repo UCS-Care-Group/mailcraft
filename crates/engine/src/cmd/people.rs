@@ -349,12 +349,12 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let c = s.mailbox.contact_mut(id)?;
-    let (account, has) = (c.origin.account, c.categories.iter().any(|x| x.eq_ignore_ascii_case(&name)));
+    let (account, has) = (c.origin.account, c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, &name)));
     let on = p::bool(v, "value").unwrap_or(!has);
     // The contact takes the spelling of its account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let c = s.mailbox.contact_mut(id)?;
-    c.categories.retain(|x| !x.eq_ignore_ascii_case(&name));
+    c.categories.retain(|x| !mailcraft_model::sync::same_category(x, &name));
     if on {
         c.categories.push(spelling);
     }

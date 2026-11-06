@@ -715,16 +715,33 @@ pub(crate) mod kit {
         ui.spacing_mut().item_spacing.x = gap;
     }
 
+    /// A click on the chip `name` in [`category_chips`]: a category the item carries, in any case
+    /// of its letters, is taken off it; one it doesn't carry is put on.
+    pub fn toggle_chip(chosen: &mut Vec<String>, name: &str) {
+        let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, name));
+        chosen.retain(|c| !mailcraft_model::sync::same_category(c, name));
+        if !on {
+            chosen.push(name.to_string());
+        }
+    }
+
+    /// The chips [`category_chips`] shows: the list's categories, then the names the item carries
+    /// that the list doesn't have (no colour), each once whatever the case of its letters.
+    pub fn chips_of(all: &[Category], chosen: &[String]) -> Vec<(String, Option<Color32>)> {
+        let mut chips: Vec<(String, Option<Color32>)> = all.iter().map(|c| (c.name.clone(), Some(c32(c.color)))).collect();
+        for name in chosen {
+            if !chips.iter().any(|(n, _)| mailcraft_model::sync::same_category(n, name)) {
+                chips.push((name.clone(), None));
+            }
+        }
+        chips
+    }
+
     /// Toggle chips for the mailbox's categories, and for names the item carries that the
     /// mailbox doesn't list.
     pub fn category_chips(ui: &mut Ui, all: &[Category], chosen: &mut Vec<String>) {
         let t = Tokens::get(ui.ctx());
-        let mut chips: Vec<(String, Color32)> = all.iter().map(|c| (c.name.clone(), c32(c.color))).collect();
-        for name in chosen.iter() {
-            if !chips.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
-                chips.push((name.clone(), t.text_disabled));
-            }
-        }
+        let chips: Vec<(String, Color32)> = chips_of(all, chosen).into_iter().map(|(name, color)| (name, color.unwrap_or(t.text_disabled))).collect();
         if chips.is_empty() {
             ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
             return;
@@ -732,12 +749,9 @@ pub(crate) mod kit {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
             for (name, color) in chips {
-                let on = chosen.iter().any(|c| c.eq_ignore_ascii_case(&name));
+                let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
                 if chip(ui, &name, on, color) {
-                    chosen.retain(|c| !c.eq_ignore_ascii_case(&name));
-                    if !on {
-                        chosen.push(name);
-                    }
+                    toggle_chip(chosen, &name);
                 }
             }
         });
@@ -3032,7 +3046,7 @@ mod event {
                         ui.label(tl!("No categories yet"));
                     }
                     for (name, color) in &categories {
-                        let on = self.categories.iter().any(|c| c.eq_ignore_ascii_case(name));
+                        let on = self.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name));
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(r.shrink(1.0), 3.0, *color);
@@ -3046,7 +3060,7 @@ mod event {
                                 );
                             }
                             if ui.add(egui::Button::new(kit::shown(name, 60)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
-                                self.categories.retain(|c| !c.eq_ignore_ascii_case(name));
+                                self.categories.retain(|c| !mailcraft_model::sync::same_category(c, name));
                                 if !on {
                                     self.categories.push(name.clone());
                                 }
@@ -5422,13 +5436,19 @@ mod categories {
     /// The colours a category can take: the theme's twelve.
     pub const PALETTE: [Rgb; 12] = crate::theme::CATEGORY_PALETTE;
 
-    /// The first palette colour no category has yet; the first one when all are taken.
-    pub fn unused_color(list: &[Category]) -> Rgb {
-        PALETTE.iter().find(|p| !list.iter().any(|c| c.color == **p)).or(PALETTE.first()).copied().unwrap_or_default()
+    /// The first of `palette` no category of `list` has yet; the first one when all are taken.
+    fn free_in(palette: &[Rgb], list: &[Category]) -> Rgb {
+        palette.iter().find(|p| !list.iter().any(|c| c.color == **p)).or(palette.first()).copied().unwrap_or_default()
     }
 
-    /// A colour swatch that opens the palette. Returns the colour picked there, if one was.
-    fn swatch(ui: &mut Ui, color: Rgb) -> Option<Rgb> {
+    /// The colours a category of `account`'s list can take: Outlook's 25 for a list kept in step
+    /// with a Microsoft account's server (#661), the theme's twelve for any other.
+    pub fn palette_of(mailbox: &Mailbox, account: Id) -> &'static [Rgb] {
+        if mailbox.synced_list_owner(account).is_some() { &mailcraft_model::outlook_colors::OUTLOOK_COLORS } else { &PALETTE }
+    }
+
+    /// A colour swatch that opens `palette`. Returns the colour picked there, if one was.
+    fn swatch(ui: &mut Ui, color: Rgb, palette: &[Rgb]) -> Option<Rgb> {
         let t = Tokens::get(ui.ctx());
         let (r, resp) = ui.allocate_exact_size(vec2(ROW_H, ROW_H), Sense::click());
         ui.painter().rect(
@@ -5442,7 +5462,8 @@ mod categories {
         let mut picked = None;
         egui::Popup::menu(&resp).show(|ui| {
             ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
-            for line in PALETTE.chunks(6) {
+            // (Outlook's 25 in five rows of five, the theme's twelve in two of six.)
+            for line in palette.chunks(if palette.len() == PALETTE.len() { 6 } else { 5 }) {
                 ui.horizontal(|ui| {
                     for choice in line {
                         let (cell, cell_resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
@@ -5504,7 +5525,8 @@ mod categories {
                 .or_else(|| s.mailbox.default_account().map(|a| a.id))
                 .and_then(|a| s.mailbox.category_list_owner(a))
                 .unwrap_or(0);
-            Some(CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() })
+            let new_color = free_in(palette_of(&s.mailbox, account), s.mailbox.categories_of(account));
+            Some(CategoriesForm { account, new_color, focus: true, ..Default::default() })
         }
 
         /// Put the list of `account` in view; nothing begun on the last one carries over.
@@ -5513,7 +5535,7 @@ mod categories {
             self.editing = None;
             self.new_name.clear();
             self.error.clear();
-            self.new_color = unused_color(mailbox.categories_of(account));
+            self.new_color = free_in(palette_of(mailbox, account), mailbox.categories_of(account));
         }
 
         /// A command's `params` for the list in view.
@@ -5538,13 +5560,26 @@ mod categories {
                 self.show_list(&app.session.mailbox, 0);
             }
             let list = app.session.mailbox.categories_of(self.account).to_vec();
-            // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
+            let palette = palette_of(&app.session.mailbox, self.account);
+            // A Microsoft account's list is kept in step with Outlook's (#661): those kept on this
+            // computer only say so, and can be added there. Any other list, once Outlook's was
+            // read, says which aren't on it (R3 spec S18).
+            let synced = app.session.mailbox.synced_list_owner(self.account);
             let outlook = app.session.mailbox.server_categories.get(&self.account);
-            let not_outlooks: Vec<bool> =
-                list.iter().map(|c| outlook.is_some_and(|names| !names.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name)))).collect();
+            let not_outlooks: Vec<bool> = list
+                .iter()
+                .map(|c| match synced {
+                    Some(owner) => app.session.mailbox.category_is_local(owner, &c.name),
+                    None => outlook.is_some_and(|names| !names.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name))),
+                })
+                .collect();
+            let read_only = app.categories_read_only_line(self.account);
+            // Nothing of a read-only list can be changed here: its fields are shown greyed.
+            let editable = read_only.is_none();
             let mut run: Option<(&'static str, Value)> = None;
             let mut adding = false;
             let mut picked = None;
+            let mut ask_sync = None;
             body(ui, |ui| {
                 if lists.len() > 1 {
                     ui.horizontal(|ui| {
@@ -5560,36 +5595,60 @@ mod categories {
                     });
                     ui.add_space(6.0);
                 }
+                // A list MailCraft may not change on its server is read-only here, and says so.
+                if let Some((line, allow)) = &read_only {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(egui::RichText::new(line).color(t.text_dim));
+                        let tip = tl!("Microsoft's page opens in your browser to ask for your permission, once.");
+                        if *allow && ui.button(tl!("Allow")).on_hover_text(tip).clicked() {
+                            ask_sync = synced;
+                        }
+                    });
+                    ui.add_space(6.0);
+                }
                 for (i, c) in list.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if let Some(color) = swatch(ui, c.color) {
-                            run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
-                        }
-                        let mut text = match &self.editing {
-                            Some((name, text)) if *name == c.name => text.clone(),
-                            _ => c.name.clone(),
-                        };
-                        let width = (ui.available_width() - 44.0).max(40.0);
-                        let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
-                        let resp = crate::text_menu::field(resp);
-                        if resp.changed() {
-                            self.editing = Some((c.name.clone(), text));
-                        }
-                        // Enter, or leaving the field, renames.
-                        if crate::text_menu::left(&resp)
-                            && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
-                            && to.trim() != from
-                        {
-                            run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
-                        }
-                        if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
-                            run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
-                        }
+                        ui.add_enabled_ui(editable, |ui| {
+                            if let Some(color) = swatch(ui, c.color, palette) {
+                                run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
+                            }
+                            let mut text = match &self.editing {
+                                Some((name, text)) if *name == c.name => text.clone(),
+                                _ => c.name.clone(),
+                            };
+                            let width = (ui.available_width() - 44.0).max(40.0);
+                            let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                            let resp = crate::text_menu::field(resp);
+                            if resp.changed() {
+                                self.editing = Some((c.name.clone(), text));
+                            }
+                            // Enter, or leaving the field, renames.
+                            if crate::text_menu::left(&resp)
+                                && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
+                                && to.trim() != from
+                            {
+                                run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
+                            }
+                            if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
+                                run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
+                            }
+                        });
                     });
                     if not_outlooks.get(i).copied().unwrap_or(false) {
                         ui.horizontal(|ui| {
                             ui.add_space(ROW_H + ui.spacing().item_spacing.x);
-                            ui.label(egui::RichText::new(tl!("Not in Outlook's list: no colour there")).small().color(t.text_dim));
+                            match synced {
+                                Some(owner) => {
+                                    ui.label(egui::RichText::new(tl!("Kept on this computer only")).small().color(t.text_dim));
+                                    let tip = tl!("Add this category to Outlook's list, in the nearest of Outlook's colours");
+                                    if read_only.is_none() && ui.small_button(tl!("Add to Outlook")).on_hover_text(tip).clicked() {
+                                        run = Some(("category.addToOutlook", json!({"name": c.name, "account": owner})));
+                                    }
+                                }
+                                None => {
+                                    ui.label(egui::RichText::new(tl!("Not in Outlook's list: no colour there")).small().color(t.text_dim));
+                                }
+                            }
                         });
                     }
                 }
@@ -5597,31 +5656,36 @@ mod categories {
                     ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
                 }
                 ui.separator();
-                ui.horizontal(|ui| {
-                    if let Some(color) = swatch(ui, self.new_color) {
-                        self.new_color = color;
-                    }
-                    let width = (ui.available_width() - 80.0).max(40.0);
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut self.new_name)
-                            .id(field_id("new_category"))
-                            .desired_width(width)
-                            .hint_text(tl!("New category")),
-                    );
-                    let resp = crate::text_menu::field(resp);
-                    if std::mem::take(&mut self.focus) {
-                        resp.request_focus();
-                    }
-                    let named = !self.new_name.trim().is_empty();
-                    let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
-                    if named && (add || (enter && resp.lost_focus())) {
-                        run = Some(self.add_command());
-                        adding = true;
-                    }
+                ui.add_enabled_ui(editable, |ui| {
+                    ui.horizontal(|ui| {
+                        if let Some(color) = swatch(ui, self.new_color, palette) {
+                            self.new_color = color;
+                        }
+                        let width = (ui.available_width() - 80.0).max(40.0);
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(&mut self.new_name)
+                                .id(field_id("new_category"))
+                                .desired_width(width)
+                                .hint_text(tl!("New category")),
+                        );
+                        let resp = crate::text_menu::field(resp);
+                        if std::mem::take(&mut self.focus) {
+                            resp.request_focus();
+                        }
+                        let named = !self.new_name.trim().is_empty();
+                        let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
+                        if named && (add || (enter && resp.lost_focus())) {
+                            run = Some(self.add_command());
+                            adding = true;
+                        }
+                    })
                 });
             });
             if let Some(account) = picked {
                 self.show_list(&app.session.mailbox, account);
+            }
+            if let Some(owner) = ask_sync {
+                app.ask_sync_again(owner);
             }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {
@@ -5630,7 +5694,7 @@ mod categories {
                         if adding {
                             // Ready for the next one.
                             self.new_name.clear();
-                            self.new_color = unused_color(app.session.mailbox.categories_of(self.account));
+                            self.new_color = free_in(palette, app.session.mailbox.categories_of(self.account));
                             self.focus = true;
                         }
                     }
@@ -5655,10 +5719,10 @@ mod categories {
             assert_eq!(distinct.len(), 12);
             // The six categories a mailbox starts with take red to green, blue and purple.
             let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
-            assert_eq!(unused_color(&s.mailbox.categories), Rgb(0x1A, 0x9B, 0xA6));
-            assert_eq!(unused_color(&[]), PALETTE[0]);
+            assert_eq!(free_in(&PALETTE, &s.mailbox.categories), Rgb(0x1A, 0x9B, 0xA6));
+            assert_eq!(free_in(&PALETTE, &[]), PALETTE[0]);
             let all: Vec<Category> = PALETTE.iter().map(|c| Category { name: c.hex(), color: *c }).collect();
-            assert_eq!(unused_color(&all), PALETTE[0]);
+            assert_eq!(free_in(&PALETTE, &all), PALETTE[0]);
             // The row at the bottom adds a category in that colour.
             let mut f = CategoriesForm::new(&s, &json!({})).unwrap();
             f.new_name = "Travel".into();
@@ -5666,7 +5730,7 @@ mod categories {
             let (command, params) = f.add_command();
             s.run(command, &params).unwrap();
             assert_eq!(s.mailbox.category("travel").map(|c| c.color), Some(Rgb(0x1A, 0x9B, 0xA6)));
-            assert_eq!(unused_color(&s.mailbox.categories), Rgb(0xC2, 0x4E, 0x9A));
+            assert_eq!(free_in(&PALETTE, &s.mailbox.categories), Rgb(0xC2, 0x4E, 0x9A));
             // A hostile name is the command's to clean.
             f.new_name = "\u{0}\u{202e}é\n".repeat(40_000);
             let (command, params) = f.add_command();

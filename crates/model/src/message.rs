@@ -525,7 +525,7 @@ impl Message {
     }
 
     pub fn has_category(&self, name: &str) -> bool {
-        self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+        self.categories.iter().any(|c| crate::sync::same_category(c, name))
     }
 }
 

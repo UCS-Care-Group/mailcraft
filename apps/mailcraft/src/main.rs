@@ -30,6 +30,8 @@ mod block_on;
 mod browser;
 #[cfg(test)]
 mod calendar_flow;
+#[cfg(test)]
+mod categories_job_tests;
 mod clipboard;
 #[cfg(test)]
 mod control_challenge_flow;
@@ -689,22 +691,12 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         let asked = mailcraft_net::oauth::sign_in_for_shared_send(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
-    // A tasks run found the sign-in doesn't cover the To Do lists (#248) and the owner said go
-    // ahead: the page comes up for that permission alone, by itself.
-    if request.graph && request.tasks {
-        let asked = mailcraft_net::oauth::sign_in_for_tasks(&request.oauth, &request.email, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    // A rule is to go to the server, the sign-in doesn't cover changing the rules (#566), and the
-    // owner said go ahead: the page comes up for that permission alone, by itself.
-    if request.graph && request.rules {
-        let asked = mailcraft_net::oauth::sign_in_for_rules(&request.oauth, &request.email, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    // A change of the automatic replies found the sign-in doesn't cover changing the mailbox's
-    // settings, and the owner said go ahead: the page comes up for that permission alone.
-    if request.graph && request.replies {
-        let asked = mailcraft_net::oauth::sign_in_for_replies(&request.oauth, &request.email, &open, &request.cancel);
+    // One of the to-dos, the rules, the automatic replies and the categories found the sign-in
+    // doesn't cover keeping them in step with the server (#661), and the owner said go ahead: the
+    // page comes up for what all four take, by itself.
+    if request.graph && request.sync {
+        // (Reading and changing mail only for an account kept in step through Graph, R3.)
+        let asked = mailcraft_net::oauth::sign_in_for_sync(&request.oauth, &request.email, request.mail_write, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
     // Calendars are opened by address for the first time (#70): the page comes up for the same
@@ -1413,6 +1405,62 @@ fn tasks_job_with(
     out
 }
 
+/// Keep an account's list of categories in step with its server (#661): a token that may change
+/// it (a sign-in that doesn't cover it gets none: the answer says so, and nothing is sent), what
+/// waits told to the server, then the list read back. Nothing of a category is logged.
+fn categories_job(job: mailcraft_ui_egui::category_sync::CategoriesJob) -> mailcraft_ui_egui::category_sync::CategoriesResult {
+    let mail = tasks_mail(&job.account);
+    categories_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_categories(oauth, refresh, mail))
+}
+
+/// [`categories_job`], with how the token is had as `renew` (the tests' own, which asks nobody).
+fn categories_job_with(
+    job: mailcraft_ui_egui::category_sync::CategoriesJob,
+    renew: RenewGraph<'_>,
+) -> mailcraft_ui_egui::category_sync::CategoriesResult {
+    use mailcraft_model::remote::CategoryResult;
+    use mailcraft_net::{NetError, graph};
+    let mut out = mailcraft_ui_egui::category_sync::CategoriesResult { account: job.account.id, ..Default::default() };
+    let access = match renew(&job.oauth, &job.refresh) {
+        Ok(got) => {
+            let access = got.tokens.access.clone();
+            out.tokens = Some(got.tokens);
+            out.covered = Some(true);
+            access
+        }
+        // The list is read-only here; the calendar's job still reads it.
+        Err(e) if e.is_consent_needed() => {
+            out.covered = Some(false);
+            return out;
+        }
+        Err(e) => {
+            out.sign_in_refused = e.is_refused_sign_in();
+            if !out.sign_in_refused {
+                out.errors.push(format!("Couldn't sign in to Microsoft for the categories: {e}"));
+            }
+            return out;
+        }
+    };
+    if !job.upload.changes.is_empty() {
+        let uploaded = graph::push_categories(&access, &job.upload).for_account(&job.account);
+        out.denied = uploaded.outcomes.iter().any(|o| o.result == CategoryResult::Denied);
+        let refused = uploaded.token_refused;
+        out.uploaded = Some(uploaded);
+        if refused {
+            out.sign_in_refused = true;
+            return out;
+        }
+    }
+    match graph::categories(&access) {
+        Ok(download) => out.download = Some(download.for_account(&job.account)),
+        // (Reading takes the calendar's permission: its job says what there is to say.)
+        Err(NetError::Forbidden(_)) => {}
+        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
+        Err(e) => log::debug!("the list of categories didn't come down after the changes: {e}"),
+    }
+    out
+}
+
 /// Keep an account's rules on its server (#566): when something waits to go, a token that may
 /// change the rules (a sign-in that doesn't cover it gets none: the answer says the owner is to
 /// be asked, and nothing is sent), what waits told to the server; then the server's rules read
@@ -1693,6 +1741,7 @@ fn services(
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
+    let categories_ctx = ctx.clone();
     let replies_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
@@ -1753,6 +1802,10 @@ fn services(
         // The rules a Microsoft account's server keeps (#566).
         graph_rules: Some(Box::new(move |job: mailcraft_ui_egui::rule_sync::RulesJob| {
             background(&rules_ctx, "server rules", move || rules_job(job))
+        })),
+        // A Microsoft account's list of categories, kept in step with its server (#661).
+        graph_categories: Some(Box::new(move |job: mailcraft_ui_egui::category_sync::CategoriesJob| {
+            background(&categories_ctx, "categories", move || categories_job(job))
         })),
         // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {

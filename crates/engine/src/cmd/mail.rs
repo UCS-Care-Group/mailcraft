@@ -851,7 +851,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
         spelled.insert(account, super::category::spelled(s, account, &name, on)?);
     }
     each(s, v, |m| {
-        m.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
+        m.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));
         if on {
             m.categories.push(spelled.get(&m.account).unwrap_or(&name).clone());
         }

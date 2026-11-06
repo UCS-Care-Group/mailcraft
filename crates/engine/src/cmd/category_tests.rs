@@ -37,9 +37,13 @@ fn tag(name: &str, color: Rgb) -> Category {
     Category { name: name.into(), color }
 }
 
+/// A read of `account`'s server's list, whose sign-in covers changing it (#661): its list here
+/// may be changed. (Read-only lists have tests of their own.)
 fn read(s: &mut Session, account: Id, categories: Vec<Category>) -> serde_json::Value {
     let email = s.mailbox.account(account).unwrap().email.clone();
-    super::remote::apply_categories(s, &CategoriesDownload { account, email, categories }).unwrap()
+    let owner = s.mailbox.junk_owner(account);
+    s.mailbox.category_writes.insert(owner);
+    super::remote::apply_categories(s, &CategoriesDownload { account, email, categories, complete: true }).unwrap()
 }
 
 fn message_of(s: &mut Session, account: Id, categories: &[&str]) -> Id {
@@ -85,7 +89,7 @@ fn a_name_its_server_stopped_listing_leaves_the_list_and_what_was_made_here_stay
     read(&mut s, a, vec![tag("Red", RED), tag("Old", WINE)]);
     read(&mut s, b, vec![tag("Old", WINE)]);
     let m = message_of(&mut s, a, &["Old"]);
-    s.run("category.set", &json!({"account": a, "name": "Made here", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Made here", "color": "#2E8B57"})).unwrap();
     read(&mut s, a, vec![tag("Red", RED)]);
     assert_eq!(names(&s, a), ["Red", "Made here"]);
     // Its items keep the name, in grey; the other account's list has its own.
@@ -122,7 +126,7 @@ fn the_commands_change_the_list_they_name() {
     read(&mut s, b, vec![tag("Red", WINE)]);
     let (of_a, of_b) = (message_of(&mut s, a, &["Red"]), message_of(&mut s, b, &["Red"]));
 
-    s.run("category.set", &json!({"account": b, "name": "New", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": b, "name": "New", "color": "#2E8B57"})).unwrap();
     assert_eq!(names(&s, b), ["Red", "New"]);
     assert_eq!(names(&s, a), ["Red"]);
     s.run("category.rename", &json!({"account": a, "from": "Red", "to": "Urgent"})).unwrap();
@@ -133,12 +137,12 @@ fn the_commands_change_the_list_they_name() {
     assert_eq!(s.mailbox.message(of_a).unwrap().categories, ["Urgent"]);
 
     // With no account: the shared list, as before there were others.
-    s.run("category.set", &json!({"name": "Shared", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"name": "Shared", "color": "#2E8B57"})).unwrap();
     assert!(s.mailbox.category("Shared").is_some() && s.mailbox.category_of(a, "Shared").is_none());
     // An account that isn't one is refused, whatever the command, and changes nothing.
     let before = s.mailbox.clone();
     for (command, params) in [
-        ("category.set", json!({"account": 9_999_999, "name": "X", "color": "#112233"})),
+        ("category.set", json!({"account": 9_999_999, "name": "X", "color": "#2E8B57"})),
         ("category.rename", json!({"account": 9_999_999, "from": "Shared", "to": "X"})),
         ("category.remove", json!({"account": 9_999_999, "name": "Shared"})),
         ("category.list", json!({"account": 9_999_999})),
@@ -149,15 +153,17 @@ fn the_commands_change_the_list_they_name() {
 }
 
 #[test]
-fn outlooks_colour_is_refused_on_its_own_accounts_list_alone() {
+fn each_accounts_list_says_what_is_kept_in_step_with_its_own_server() {
     let (mut s, a, b) = rig();
     read(&mut s, a, vec![tag("Red", RED)]);
     read(&mut s, b, vec![tag("Other", RED)]);
-    s.run("category.set", &json!({"account": b, "name": "Red", "color": "#112233"})).unwrap();
-    assert!(s.run("category.set", &json!({"account": a, "name": "Red", "color": "#112233"})).is_err());
+    // A colour of Outlook's list is changed here and goes there (#661): it is no longer refused.
+    s.run("category.set", &json!({"account": b, "name": "Red", "color": "#2E8B57"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Red", "color": "#2E8B57"})).unwrap();
+    assert_eq!(s.mailbox.category_color_of(a, "Red"), Rgb(0x2E, 0x8B, 0x57));
     let list = s.run("category.list", &json!({"account": b})).unwrap();
     let outlook = |name: &str| list["categories"].as_array().unwrap().iter().find(|c| c["name"] == name).unwrap()["outlook"].clone();
-    assert_eq!((outlook("Red"), outlook("Other")), (json!(false), json!(true)), "Red is A's server's, not B's");
+    assert_eq!((outlook("Red"), outlook("Other")), (json!(true), json!(true)), "both go to B's server");
     let accounts = list["accounts"].as_array().unwrap();
     assert_eq!(accounts.iter().map(|x| x["id"].as_u64().unwrap()).collect::<Vec<_>>(), [a, b]);
     // The shared list is no server's.
@@ -187,7 +193,7 @@ fn categorize_uses_the_list_of_each_messages_account() {
 fn the_server_list_isnt_the_owners_to_undo_but_the_accounts_list_is() {
     let (mut s, a, _) = rig();
     read(&mut s, a, vec![tag("Red", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
     s.mailbox.server_categories.insert(a, vec!["Red".into(), "Later".into()]);
     s.run("edit.undo", &json!({})).unwrap();
     assert!(s.mailbox.category_of(a, "Mine").is_none());
@@ -198,7 +204,7 @@ fn the_server_list_isnt_the_owners_to_undo_but_the_accounts_list_is() {
 fn an_agents_undo_that_loses_an_accounts_category_is_a_deletion() {
     let (mut s, a, _) = rig();
     read(&mut s, a, vec![tag("Red", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)));
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Delete]), Verdict::Run);
 }
@@ -218,12 +224,12 @@ fn an_agent_is_told_whose_category_goes() {
 #[test]
 fn an_account_that_isnt_one_is_refused_and_no_list_changes() {
     let (mut s, a, _) = rig();
-    s.run("category.set", &json!({"name": "Shared", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"name": "Shared", "color": "#2E8B57"})).unwrap();
     let before = s.mailbox.categories.clone();
     for junk in [json!(a.to_string()), json!(-1), json!(true), json!(1.5), json!(0), json!([a]), json!({"id": a}), json!(9_999_999)] {
         assert!(s.run("category.remove", &json!({"account": junk, "name": "Shared"})).is_err(), "{junk}");
         assert!(s.run("category.rename", &json!({"account": junk, "from": "Shared", "to": "Other"})).is_err(), "{junk}");
-        assert!(s.run("category.set", &json!({"account": junk, "name": "New", "color": "#112233"})).is_err(), "{junk}");
+        assert!(s.run("category.set", &json!({"account": junk, "name": "New", "color": "#2E8B57"})).is_err(), "{junk}");
         assert!(s.run("category.list", &json!({"account": junk})).is_err(), "{junk}");
     }
     assert_eq!(s.mailbox.categories, before);
@@ -235,7 +241,7 @@ fn an_account_that_isnt_one_is_refused_and_no_list_changes() {
 #[test]
 fn a_list_read_since_the_step_stays_after_an_undo() {
     let (mut s, a, _) = rig();
-    s.run("category.set", &json!({"name": "Shared", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"name": "Shared", "color": "#2E8B57"})).unwrap();
     read(&mut s, a, vec![tag("Red", RED)]);
     s.run("edit.undo", &json!({})).unwrap();
     assert!(s.mailbox.category("Shared").is_none());
@@ -251,7 +257,7 @@ fn a_name_that_left_a_list_stays_off_it_after_an_undo() {
     let (mut s, a, b) = rig();
     s.mailbox.set_category(0, "Invoices", WINE).unwrap();
     read(&mut s, a, vec![tag("Red", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
     read(&mut s, b, vec![tag("Invoices", RED)]);
     assert_eq!(names(&s, a), ["Red", "Mine"]);
     s.run("edit.undo", &json!({})).unwrap();
@@ -276,7 +282,7 @@ fn an_undo_that_takes_an_account_away_takes_its_servers_list_with_it() {
 fn the_colour_a_read_gave_stays_after_an_undo() {
     let (mut s, a, _) = rig();
     read(&mut s, a, vec![tag("Red", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
     read(&mut s, a, vec![tag("Red", WINE)]);
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.category_color_of(a, "Red"), WINE);
@@ -286,7 +292,7 @@ fn the_colour_a_read_gave_stays_after_an_undo() {
 fn what_a_read_changed_on_a_list_stays_after_an_undo() {
     let (mut s, a, _) = rig();
     read(&mut s, a, vec![tag("Red", RED), tag("Old", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
     let now = vec![tag("Red", RED), tag("New", WINE)];
     read(&mut s, a, now.clone());
     s.run("edit.undo", &json!({})).unwrap();
@@ -383,7 +389,7 @@ fn a_category_made_here_stays_when_an_account_added_later_lists_it() {
 fn an_undo_past_the_first_read_keeps_a_category_an_account_added_later_lists() {
     let (mut s, a) = one_account();
     s.mailbox.categories = vec![tag("Travel", WINE)];
-    s.run("category.set", &json!({"name": "Step", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"name": "Step", "color": "#2E8B57"})).unwrap();
     read(&mut s, a, vec![tag("Red", RED)]);
     let b = add(&mut s, "b@example.org");
     read(&mut s, b, vec![tag("Travel", WINE)]);
@@ -430,8 +436,8 @@ fn what_is_used_or_changed_on_a_list_stays_when_another_server_lists_it() {
     }
     message_of(&mut s, a, &["On an item"]);
     read(&mut s, a, vec![tag("On both", RED)]);
-    s.run("category.set", &json!({"account": a, "name": "Recoloured", "color": "#112233"})).unwrap();
-    s.run("category.set", &json!({"account": a, "name": "Made on this list", "color": "#112233"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Recoloured", "color": "#2E8B57"})).unwrap();
+    s.run("category.set", &json!({"account": a, "name": "Made on this list", "color": "#2E8B57"})).unwrap();
     let on_b = ["Unused", "On an item", "Recoloured", "On both", "Made on this list"];
     read(&mut s, b, on_b.iter().map(|name| tag(name, RED)).collect());
     assert_eq!(names(&s, a), ["On an item", "Recoloured", "On both", "Made on this list"]);
@@ -732,6 +738,20 @@ fn a_name_given_twice_in_other_capitals_is_carried_once() {
         assert_eq!(carried_by(&s, command, id), ["Twice"], "{command}");
         let list = list_of(command, a);
         assert_eq!(s.mailbox.categories_of(list).iter().filter(|c| c.name.eq_ignore_ascii_case("twice")).count(), 1, "{command}");
+    }
+}
+
+#[test]
+fn a_name_in_other_capitals_of_any_alphabet_is_the_lists_own_and_carried_once() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    for (command, id) in editable(&mut s, a) {
+        let list = list_of(command, a);
+        s.mailbox.set_category(list, "Été", RED).unwrap();
+        s.run(command, &json!({"id": id, "categories": ["ÉTÉ", "été", "Été"]})).unwrap();
+        assert_eq!(carried_by(&s, command, id), ["Été"], "{command}");
+        let same = |c: &&mailcraft_model::Category| mailcraft_model::sync::same_category(&c.name, "été");
+        assert_eq!(s.mailbox.categories_of(list).iter().filter(same).count(), 1, "{command}");
     }
 }
 

@@ -72,25 +72,29 @@ computer, for you, and for nothing else:
 - reading and sending your mail (IMAP and SMTP access, and sending through Microsoft Graph);
 - reading and changing your calendar, and reading your contacts;
 - reading your mailbox settings (working hours, categories, automatic replies, and the rules your mailbox keeps on Microsoft's servers);
-- changing your automatic replies (`MailboxSettings.ReadWrite`), so that File › Info › Automatic Replies
-  can turn them on or off and change their text: never asked for on a sign-in page; it is asked for by
-  itself the first time you change your automatic replies or a rule is to go to the server (below), after
-  the program has asked you, and a yes to either is a yes to both. File › Info shows whether it was given.
-  Only your automatic replies and your rules are changed with it, never your categories, working hours or
-  other settings;
+- changing your mailbox settings (`MailboxSettings.ReadWrite`), so that File › Info › Automatic Replies
+  can turn your automatic replies on or off and change their text, a rule you keep on the server goes
+  there (below), and your list of categories is the same here and in Outlook: a category you make, delete
+  or give another colour here (one of Outlook's 25) is made, deleted or recoloured in your Microsoft
+  account, and a renamed one is made under its new name and the old one deleted. Only your automatic
+  replies, your rules and your categories are changed with it, never your working hours or other settings;
 - reading and changing your To Do lists and tasks (`Tasks.ReadWrite`), so that your tasks are kept in
   step with Microsoft To Do: your tasks' titles, notes, dates, importance, categories and whether they are
-  done go to your own Microsoft account and come back from it, and nowhere else. It is never asked for
-  on a sign-in page, so signing in for mail never waits on it: it is asked for by itself, for a new account
-  and an old one alike, the first time its tasks would be kept in step, after the program has asked you,
-  and File › Info shows whether it was given. Until it is, tasks stay on this computer and nothing of them is sent. Even then, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
-- changing the rules your mailbox keeps on Microsoft's servers (the same permission), so that a
-  rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
+  done go to your own Microsoft account and come back from it, and nowhere else. Once it is given, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
+- changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
+  a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is
-  asked for by itself the first time a rule is to go to the server, after the program has asked you, and
-  File › Info shows whether it was given. Until it is, your rules stay on this computer and nothing of them
-  is sent; the rules already on the server are read with your mailbox settings and shown;
+  nowhere else.
+
+  These two permissions are on the page of a new sign-in, beside the rest; when Microsoft's page won't have them
+  (an organisation may make an administrator approve them), it is asked again without them, so that
+  signing in for mail never waits on them. An account that signed in before is asked once, by the
+  program, in one question for both ("Keep in Step with Outlook"), and then on one page of
+  Microsoft's; a question you close is not put again by itself, and File › Info has one line for each
+  Microsoft account (Sync with Outlook: on or off) with Ask again. Until they are given, nothing of your
+  tasks and rules is sent and they stay on this computer, the rules already on the server are read with
+  your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
+  here;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
 - reading and changing the mail of shared mailboxes you have been given access to, if you open one;
 - sending from a shared mailbox, asked for by itself the first time you send from one (an
