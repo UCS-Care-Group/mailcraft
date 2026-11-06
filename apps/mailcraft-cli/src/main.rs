@@ -24,9 +24,11 @@ USAGE:
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
-                                                preview: the mail of a .pst file
-                                                into a new folder named after the file on this
-                                                computer (or under the local folder PATH); the
+                                                preview: the mail and contacts of a .pst file;
+                                                mail into a new folder named after the file on this
+                                                computer (or under the local folder PATH),
+                                                contacts into the computer's contacts, each marked
+                                                as imported from the file; the
                                                 file's password, when it has one, is read from
                                                 MAILCRAFT_PST_PASSWORD. Prints the import report
                                                 (JSON) and saves the mailbox (not with --dry-run);
@@ -354,21 +356,33 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
             let dry = rest.iter().any(|a| a == "--dry-run");
             let mut s = open_or_new(mailbox)?;
-            let mut params = json!({"path": file, "dryRun": dry});
+            let mut params = json!({});
             if let Some(under) = arg_value(&rest, "--under") {
                 s.run("folder.select", &json!({"path": under}))?;
                 params["places"] = json!({"mail": s.view.folder});
             }
             // The file's password from the environment, never the command line.
-            if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {
-                params["password"] = json!(password);
-            }
-            let report = s.run("file.importPst", &params).map_err(|e| format!("{file}: {e}"))?;
-            print_json(&report)?;
+            let password = std::env::var("MAILCRAFT_PST_PASSWORD").ok();
+            // A batch at a time, as the window does (#815): attachments go to the mailbox's
+            // content folder as they are read, so a large file doesn't fill the memory.
+            // An import into a mailbox file that isn't there yet, and doesn't end in a saved one,
+            // leaves no content folder behind.
+            let new_file = !std::path::Path::new(mailbox).exists();
+            let undo = |e: String| {
+                if new_file {
+                    mailcraft_engine::store::remove_unwritten(std::path::Path::new(mailbox));
+                }
+                e
+            };
+            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| undo(format!("{file}: {e}")))?;
+            // (The import is kept, or its content taken away, whether or not the report could be
+            // written out: a closed pipe doesn't skip the save.)
+            let printed = print_json(&report);
             if !dry {
-                s.run("file.save", &json!({"path": mailbox}))?;
+                s.run("file.save", &json!({"path": mailbox})).map_err(|e| undo(e.to_string()))?;
                 eprintln!("wrote {mailbox}");
             }
+            printed?;
             Ok(())
         }
         "export" => {

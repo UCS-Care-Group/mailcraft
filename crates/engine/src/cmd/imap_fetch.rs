@@ -120,7 +120,7 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
         if let Some(id) = here.filter(|id| !taken.contains(id))
             && let Ok(m) = s.mailbox.message_mut(id)
         {
-            super::graph_down::take_mime(m, &fetched.mime);
+            super::graph_down::take_mime(m, account, &fetched.mime);
             taken.push(id);
         }
     }

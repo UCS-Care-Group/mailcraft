@@ -483,7 +483,7 @@ pub fn take_fetched(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: 
 pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: &str, mime: &[u8]) -> Option<Id> {
     let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id))?;
     let m = mb.message_mut(here).ok()?;
-    take_mime(m, mime);
+    take_mime(m, account, mime);
     // A draft as the server has it now: what a change made here is worked out from.
     if m.draft {
         let state = mailcraft_model::sync::DraftState::of(m);
@@ -495,10 +495,10 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     Some(here)
 }
 
-/// Message `m` fetched whole as `mime`: its text, attachments and headers from it, with what the
-/// mailbox keeps of it (where it is, its marks, its server state) as it was. An IMAP account's
-/// too (#653, [`super::imap_fetch`]).
-pub(crate) fn take_mime(m: &mut Message, mime: &[u8]) {
+/// Message `m` fetched whole as `mime` from the server of `account`: its text, attachments and
+/// headers from it, with what the mailbox keeps of it (where it is, its marks, its server state)
+/// as it was. An IMAP account's too (#653, [`super::imap_fetch`]).
+pub(crate) fn take_mime(m: &mut Message, account: Id, mime: &[u8]) {
     let read = crate::mime::parse(mime);
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
@@ -523,7 +523,11 @@ pub(crate) fn take_mime(m: &mut Message, mime: &[u8]) {
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
-    m.headers = read.headers;
+    (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    // Fetched to go on to another account's server: this server's stamps stay behind (#781).
+    if m.account != account {
+        mailcraft_model::auth_results::forget_stamps(m);
+    }
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
     m.unfetched = false;

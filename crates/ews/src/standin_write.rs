@@ -615,6 +615,8 @@ impl State {
         }
         let name = set.child_in(TYPES, "Folder").map(|f| f.text_of("DisplayName").trim().to_owned()).ok_or_else(|| invalid("Folder is missing"))?;
         let id = Check::attribute(id, "Id")?.to_owned();
+        // (A distinguished folder is renamed as any other: what Exchange does is not documented
+        // here, and a client never asks it, #779.)
         if !self.rename_folder(&id, &name) {
             return no("UpdateFolder", "ErrorFolderNotFound");
         }
@@ -631,6 +633,10 @@ impl State {
         Check::is(one, TYPES, "FolderId", &["Id", "ChangeKey"])?;
         let id = Check::attribute(one, "Id")?.to_owned();
         let Some(parent) = self.folder_of(to)? else { return no("MoveFolder", "ErrorFolderNotFound") };
+        // (The server's own folders stay where they are.)
+        if self.folders.iter().any(|f| f.id == id && !f.distinguished.is_empty()) {
+            return no("MoveFolder", "ErrorMoveDistinguishedFolder");
+        }
         self.rev = self.rev.saturating_add(1);
         let rev = self.rev;
         let Some(folder) = self.folders.iter_mut().find(|f| f.id == id) else { return no("MoveFolder", "ErrorFolderNotFound") };
