@@ -24,6 +24,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 mailcraft-charset = { workspace = true }
+# .pst files read for File › Open & Export › Import a .pst File (#815).
+mailcraft-pst = { workspace = true }
 # Word boundaries for Review › Word Count (UAX #29); already in the tree under egui.
 unicode-segmentation = { workspace = true }
 # Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
@@ -39,5 +41,7 @@ ring = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]
+# Synthetic .pst files for the import's tests (the writer is a dev-only feature).
+mailcraft-pst = { workspace = true, features = ["test-writer"] }
 mailcraft-i18n = { workspace = true, features = ["test-support"] }
 proptest = { workspace = true }

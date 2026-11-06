@@ -271,6 +271,19 @@ pub fn address(text: &str) -> Option<(&str, &str)> {
     ok.then_some((text, domain))
 }
 
+/// What `mailcraft-proto`'s IMAP LOGIN says when the server announces LOGINDISABLED (RFC 3501
+/// §6.2.3): no password on this connection, an app password included.
+const NO_PASSWORD_HERE: &str = "sign-in failed: the server doesn't take a password on this connection";
+
+/// What the host said went wrong, in the interface language where it is one of the host's own
+/// sentences; what a server said for itself is left as it said it.
+fn in_own_words(error: &str) -> String {
+    match error {
+        NO_PASSWORD_HERE => tl!("sign-in failed: the server doesn't take a password on this connection").to_string(),
+        _ => error.to_string(),
+    }
+}
+
 /// Whether `id` can be an application (client) ID: letters, digits, dots and dashes.
 fn is_identifier(id: &str, max: usize) -> bool {
     id.len() <= max && id.chars().all(|c| c.is_ascii_alphanumeric() || "-._".contains(c))
@@ -980,6 +993,15 @@ impl AccountSetup {
                     self.try_password(app);
                 }
             }
+            // Another kind of account, offered beside servers that are only a guess (#761): once
+            // it is taken, the password typed for those goes. (Back from it leads to the kinds of
+            // account, Choose, as for a kind picked there.)
+            (Page::Password, Action::Pick(kind)) if self.guessed => {
+                self.pick(app, kind);
+                if self.page != Page::Password {
+                    self.forget_password();
+                }
+            }
             (Page::Password, Action::Back) => {
                 self.forget_password();
                 self.go(self.origin());
@@ -1054,7 +1076,6 @@ impl AccountSetup {
 
     /// A tile of the Choose page.
     fn pick(&mut self, app: &mut MailApp, kind: Kind) {
-        self.picked = true;
         if kind == Kind::Exchange {
             // (The address typed already is the account's; nothing is sent yet.)
             if address(&self.email).is_none() {
@@ -1076,6 +1097,8 @@ impl AccountSetup {
                 return;
             }
         };
+        // (Only a kind that was taken is where Back returns to.)
+        self.picked = true;
         if kind == Kind::Local {
             self.outcome = Outcome::Local;
             self.go(Page::Done);
@@ -1501,9 +1524,13 @@ impl AccountSetup {
                 log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
                 self.refuse(e);
-                if google && self.error.starts_with("sign-in failed") {
+                // (A connection that takes no password takes no app password either: that is
+                // said as it is, Google's or not.)
+                if google && self.error.starts_with("sign-in failed") && self.error != NO_PASSWORD_HERE {
                     self.error = tl!("Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password.").to_string();
                     self.app_passwords = true;
+                } else {
+                    self.error = in_own_words(&self.error);
                 }
             }
         }
@@ -1716,12 +1743,30 @@ impl AccountSetup {
         } else {
             fmt(tl!("{service} account"), &[("service", &self.service)])
         };
+        let mut offered = None;
         let mut change_method = None;
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
             if self.guessed {
-                note(ui, tl!("MailCraft couldn't find the settings for this address. Check the servers below before you connect."), t.orange);
+                note(
+                    ui,
+                    tl!(
+                        "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+                    ),
+                    t.orange,
+                );
+                // It may be another kind of account: offered here, not only behind manual setup.
+                note(ui, tl!("Or is it one of these?"), t.text_dim);
+                let gap = ui.spacing().item_spacing.x;
+                let half = ((ui.available_width() - gap) / 2.0).max(40.0);
+                ui.horizontal(|ui| {
+                    for kind in [Kind::Microsoft365, Kind::Exchange] {
+                        if tile(ui, kind, half, &t).clicked() {
+                            offered = Some(kind);
+                        }
+                    }
+                });
             }
             if !self.note.is_empty() && !oauth_first {
                 note(ui, tl!(&self.note), t.text);
@@ -1771,6 +1816,9 @@ impl AccountSetup {
             }
             back = button(ui, tl!("Back"), false, true).clicked();
         });
+        if let Some(kind) = offered {
+            return Some(Action::Pick(kind));
+        }
         if let Some(change_method) = change_method {
             Some(change_method)
         } else if back {
@@ -2320,6 +2368,8 @@ mod tests {
     mod help;
     /// The password's eye (#438).
     mod reveal;
+    /// An address at a domain nobody here knows (#761).
+    mod unknown_domain;
 
     /// Wednesday 2026-10-14 16:00 UTC.
     const NOW: i64 = 1_791_993_600;
@@ -3014,7 +3064,7 @@ mod tests {
         let mut h = open(a, json!({}));
         connect(&mut h, "noor@example.org");
         assert_eq!(page(&h), Some(Page::Password));
-        assert!(says(&h, "Google Workspace account") && says(&h, "app password") && !says(&h, "couldn't find the settings"));
+        assert!(says(&h, "Google Workspace account") && says(&h, "app password") && !says(&h, "doesn't know the settings"));
         assert_eq!(wizard(&h).map(|w| (w.settings_open, w.guessed)), Some((false, false)));
         // Connect waits for a password.
         press(&mut h, Key::Enter);
@@ -3075,7 +3125,7 @@ mod tests {
             connect(&mut h, "noor@lumen.example");
             assert_eq!(page(&h), Some(Page::Password));
             assert_eq!(*asked.lock().unwrap(), ["lumen.example"]);
-            assert!(says(&h, "Sign in to your account") && says(&h, "couldn't find the settings"));
+            assert!(says(&h, "Sign in to your account") && says(&h, "doesn't know the settings for this address"));
             let w = wizard(&h).unwrap();
             assert!(w.settings_open && w.guessed && w.oauth.is_none());
             assert_eq!(

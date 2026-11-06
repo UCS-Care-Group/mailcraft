@@ -124,6 +124,17 @@ impl SyncStage {
             SyncStage::Checking | SyncStage::Reading => SyncPhase::NewMail,
         }
     }
+
+    /// Whether a run at this step is signed in to the incoming server: every step after
+    /// [`Connecting`](SyncStage::Connecting) is taken on the connection the server let in, so the
+    /// password it went with is a good one (#802). Sending is the outgoing server's, which may
+    /// ask for no password at all.
+    pub fn signed_in(self) -> bool {
+        match self {
+            SyncStage::Sending | SyncStage::Connecting => false,
+            SyncStage::Updating | SyncStage::Listed | SyncStage::Filing | SyncStage::Checking | SyncStage::Reading => true,
+        }
+    }
 }
 
 /// How far a run has got, as numbers. `folder` is the mailbox's name as it is shown (not its
