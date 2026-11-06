@@ -1,1 +1,0 @@
-- Importing a .pst file no longer stalls while MailCraft's window is hidden, minimised or on another desktop: the mail keeps coming in, and the window shows the result when you come back ([#815](https://github.com/GITHUB_REPOSITORY/issues/815)).
