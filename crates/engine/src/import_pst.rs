@@ -1190,6 +1190,14 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
         if m.received == 0 {
             m.received = if m.date != 0 { m.date } else { now };
         }
+        // The content the message names is asked for again as the message comes in, so that a
+        // save taken before this moment doesn't end its protection (`store::protect`).
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = s.path.as_deref() {
+            for r in m.attachments.iter().filter_map(|a| a.kept.as_ref()) {
+                crate::store::protect_ref(path, r);
+            }
+        }
         let id = s.mailbox.add_message(m).map_err(|e| fail(e.to_string()))?;
         run.added.push(id);
         n = n.saturating_add(1);

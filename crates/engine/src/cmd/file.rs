@@ -224,6 +224,16 @@ fn single_file_bytes(mb: &mailcraft_model::Mailbox) -> u64 {
     total
 }
 
+/// A .pst import writes its content beside the mailbox file it started with, so the mailbox is
+/// not moved to another file until the import is over.
+#[cfg(not(target_arch = "wasm32"))]
+fn refuse_while_importing(s: &Session) -> Result<(), crate::CmdError> {
+    if s.importing_pst() {
+        return Err(failed!("a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"));
+    }
+    Ok(())
+}
+
 /// Refuse, before anything is read or allocated, a self-contained copy that would not fit.
 fn check_single_file(s: &Session) -> Result<(), crate::CmdError> {
     let bytes = single_file_bytes(&s.mailbox);
@@ -256,6 +266,9 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
         // Saved somewhere else than where it is kept, the mailbox takes everything along: the
         // content folder there has none of what this one keeps.
         let elsewhere = s.path.as_ref().is_none_or(|kept| kept.as_path() != std::path::Path::new(&path));
+        if elsewhere {
+            refuse_while_importing(s)?;
+        }
         let saved = if elsewhere {
             // The content the mailbox keeps outside memory is copied (or linked) beside the new
             // file, one file at a time, rather than every part of every message read in at once.
@@ -296,6 +309,7 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     }
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
+        refuse_while_importing(s)?;
         check_single_file(s)?;
         let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
         json!({"path": path, "bytes": bytes})

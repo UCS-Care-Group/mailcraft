@@ -855,9 +855,10 @@ struct Shared {
     /// with the state of the session that let go of it: removed once a state at least that new
     /// is saved, unless something else still names it ([`forget_when_saved`]).
     forgetting: Mutex<Vec<(u64, Digest)>>,
-    /// Content written ahead of the messages that name it (`stash`, a .pst import): left alone by
-    /// every sweep until a saved mailbox file names it.
-    ahead: Mutex<HashSet<Digest>>,
+    /// Content written ahead of the messages that name it (`stash`, a .pst import), with the
+    /// sequence number of the last time it was asked for: left alone by every sweep until a
+    /// mailbox file saved from a state after that names it.
+    ahead: Mutex<HashMap<Digest, u64>>,
 }
 
 /// Most content names waiting to be forgotten ([`forget_when_saved`]); past this the sweep
@@ -1188,6 +1189,10 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
 pub fn stash(path: &Path, hash: &Digest, bytes: &[u8]) -> Result<ContentRef, String> {
     let r = Ref { hash: *hash, len: bytes.len() as u64 };
     let dir = blob_dir(&resolve(path));
+    // A content folder that is a link is never written through.
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(format!("{}: the content folder is a link", dir.display()));
+    }
     // The folder beside the mailbox file, and no more: nothing is written where there is no place.
     if let Err(e) = make_dir(&dir)
         && !dir.is_dir()
@@ -1205,7 +1210,12 @@ pub fn stash(path: &Path, hash: &Digest, bytes: &[u8]) -> Result<ContentRef, Str
 /// names it, and the message may be replaced, changed or let go of before the save, which no
 /// handle to the message could outlast.
 pub fn protect(path: &Path, hash: &Digest) {
-    lock(&shared(path).ahead).insert(*hash);
+    lock(&shared(path).ahead).insert(*hash, next_seq());
+}
+
+/// [`protect`], for the content a message names by its [`ContentRef`].
+pub fn protect_ref(path: &Path, r: &ContentRef) {
+    protect(path, &Digest(r.sha256));
 }
 
 /// Copy (or link, where the disk allows) the content files that `mailbox` keeps outside memory
@@ -1264,6 +1274,10 @@ pub fn remove_unwritten(path: &Path) -> usize {
         return 0;
     }
     let dir = blob_dir(&file);
+    // A link is somebody else's folder: it is never followed or removed.
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return 0;
+    }
     let mut removed = 0usize;
     for sub in fs::read_dir(&dir).into_iter().flatten().flatten().take(MAX_ENTRIES) {
         let name = sub.file_name();
@@ -2647,7 +2661,9 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
     // What the file names now needs no other protection.
     let mut ahead = lock(&shared.ahead);
     if !ahead.is_empty() {
-        ahead.retain(|d| !st.live.contains_key(d));
+        // Only what was asked for before this state was taken: a batch written or taken in since
+        // keeps its protection until a later save names it.
+        ahead.retain(|d, at| !(*at < seq && st.live.contains_key(d)));
     }
     drop(ahead);
     Ok(saved)
@@ -3582,7 +3598,7 @@ pub fn forget_due(path: &Path, rev: u64) -> Swept {
     let own = |m: &Message| !m.server.as_ref().is_some_and(|s| !s.id.is_empty()) || m.moving_out.is_some();
     named.extend(st.pins.kept_where(own));
     named.extend(lock(&shared.held).kept_where(own));
-    named.extend(lock(&shared.ahead).iter().copied());
+    named.extend(lock(&shared.ahead).keys().copied());
     let dir = blob_dir(&file);
     for hash in due.difference(&named) {
         let Some((_, stale)) = blob_path(&dir, hash) else { continue };
@@ -3636,7 +3652,7 @@ pub fn sweep(path: &Path, grace: Duration) -> Result<Swept, String> {
     // What a message still in memory keeps on disk stays, though the file no longer names it.
     named.extend(st.pins.kept());
     named.extend(lock(&shared.held).kept());
-    named.extend(lock(&shared.ahead).iter().copied());
+    named.extend(lock(&shared.ahead).keys().copied());
     let now = SystemTime::now();
     // A time in the future is no age at all.
     let old = |meta: &fs::Metadata| meta.modified().ok().and_then(|t| now.duration_since(t).ok()).is_some_and(|age| age >= grace);

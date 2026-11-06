@@ -378,3 +378,34 @@ fn a_self_contained_copy_past_the_cap_is_refused_before_anything_is_read_or_writ
     s.run("file.save", &json!({"path": other.display().to_string()})).unwrap();
     assert!(other.exists());
 }
+
+#[test]
+fn a_mailbox_is_not_moved_to_another_file_while_an_import_is_putting_mail_in() {
+    let dir = Temp::new("moving");
+    let mut s = kept_session(&dir);
+    let pst = dir.pst(&distinct(6, 3000));
+    let (batches, outcome) = batches_for(&s, &pst);
+    let params = json!({"staged": true, "name": "old-mail"});
+    let mut batches = batches.into_iter();
+    s.staged_pst = Some(Staged::Batch(batches.next().unwrap()));
+    s.run("file.importPst", &params).unwrap();
+    assert!(s.importing_pst());
+    let other = dir.0.join("other.mailcraft").display().to_string();
+    let err = s.run("file.save", &json!({"path": other})).unwrap_err().to_string();
+    assert!(err.contains("being imported"), "{err}");
+    let err = s.run("file.saveAs", &json!({"path": other})).unwrap_err().to_string();
+    assert!(err.contains("being imported"), "{err}");
+    assert_eq!(s.path.as_deref(), Some(dir.mailbox().as_path()));
+    assert!(!std::path::Path::new(&other).exists());
+    // Saving where it is kept is fine meanwhile.
+    s.run("file.save", &json!({})).unwrap();
+    // The import goes on to its end, and then the mailbox may be saved elsewhere.
+    for b in batches {
+        s.staged_pst = Some(Staged::Batch(b));
+        s.run("file.importPst", &params).unwrap();
+    }
+    s.staged_pst = Some(Staged::Done(Box::new(outcome)));
+    s.run("file.importPst", &params).unwrap();
+    s.run("file.save", &json!({"path": other})).unwrap();
+    assert_eq!(reopened(&dir, std::path::Path::new(&other)).messages.len(), 6);
+}

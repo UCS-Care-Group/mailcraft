@@ -375,11 +375,14 @@ fn run(args: &[String]) -> Result<(), Failure> {
                 e
             };
             let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| undo(format!("{file}: {e}")))?;
-            print_json(&report)?;
+            // (The import is kept, or its content taken away, whether or not the report could be
+            // written out: a closed pipe doesn't skip the save.)
+            let printed = print_json(&report);
             if !dry {
                 s.run("file.save", &json!({"path": mailbox})).map_err(|e| undo(e.to_string()))?;
                 eprintln!("wrote {mailbox}");
             }
+            printed?;
             Ok(())
         }
         "export" => {

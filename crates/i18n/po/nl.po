@@ -15038,6 +15038,11 @@ msgid "`value` is true or false"
 msgstr "`value` is true of false"
 
 #. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
 msgstr ""
