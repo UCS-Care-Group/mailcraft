@@ -94,9 +94,8 @@ msgstr "(keine)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
-#, fuzzy
 msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
-msgstr "* Die Größen lassen Nachrichten aus, deren Größe hier nicht bekannt ist: Von ihnen sind nur die Kopfzeilen auf diesem Computer und Ihr Server hat keine Größe genannt, oder sie waren zu groß zum Herunterladen."
+msgstr "* Die Größen lassen Nachrichten aus, deren Größe hier nicht bekannt ist: Nur deren Kopfzeilen sind auf diesem Computer und der Server hat keine Größe genannt, oder sie waren zu groß zum Herunterladen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4403,12 +4402,12 @@ msgstr "GitHub-Issues sind öffentlich: Gebn Sie darin keine E-Mail-Adressen, Na
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub's page is open: attach the diagnostics file there, then submit. MailCraft sent nothing."
-msgstr "Die GitHub-Seite ist geöffnet: Hänge dort die Diagnosedatei an und sende den Beitrag ab. MailCraft hat nichts gesendet."
+msgstr "Die GitHub-Seite ist geöffnet: Hängen Sie dort die Diagnosedatei an und senden Sie den Beitrag ab. MailCraft hat nichts gesendet."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
-msgstr "Die GitHub-Seite ist geöffnet: Überprüfe Sie Ihren Beitrag und sende Sie ihn anschließend ab. MailCraft hat nichts gesendet."
+msgstr "Die GitHub-Seite ist geöffnet: Überprüfe Sie Ihren Beitrag und senden Sie ihn anschließend ab. MailCraft hat nichts gesendet."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4571,7 +4570,7 @@ msgstr "Graphit"
 #. interface
 #: crates/ui-egui/src/sender_images.rs
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "Gravatar wird nach dem Bild des Absenders gefragt und erhält dabei einen Hash seiner Adresse. Andernfalls werden zuerst favicon.im und dann Google nach dem Symbol der Website gefragt und erhalten dabei die Domain des Absenders. Dadurch erfahren diese Dienste, wessen Bilder Sie ansehen. Dies gilt nur für Personen, die Sie kennen (Ihre Kontakte und Personen, denen Sie geschrieben haben), sowie für E-Mails, deren Bilder Sie herunterladem, niemals für Junk-E-Mails. Das Bild eines Absenders wird nur abgerufen, wenn Ihr Mailserver bestätigt, dass die E-Mail tatsächlich von ihm stammt."
+msgstr "Gravatar wird nach dem Bild des Absenders gefragt und erhält dabei einen Hash seiner Adresse. Andernfalls werden zuerst favicon.im und dann Google nach dem Symbol der Website gefragt und erhalten dabei die Domain des Absenders. Dadurch erfahren diese Dienste, wessen Bilder Sie ansehen. Dies gilt nur für Personen, die Sie kennen (Ihre Kontakte und Personen, denen Sie geschrieben haben), sowie für E-Mails, deren Bilder Sie herunterladen, niemals für Junk-E-Mails. Das Bild eines Absenders wird nur abgerufen, wenn Ihr Mailserver bestätigt, dass die E-Mail tatsächlich von ihm stammt."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -5574,7 +5573,7 @@ msgstr "Leer lassen, um das aktuelle beizubehalten"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Leave it empty to look for the server from your address. It must begin with https://."
-msgstr "Lass das Feld leer, damit der Server anhand Ihrer Adresse gesucht wird. Die Adresse muss mit https:// beginnen."
+msgstr "Lassen Sie das Feld leer, damit der Server anhand Ihrer Adresse gesucht wird. Die Adresse muss mit https:// beginnen."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -5591,7 +5590,7 @@ msgstr "Konto manuell einrichten"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
-msgstr "Lass Sie andere wissen, dass Sie abwesend sind oder eine Zeit lang nicht antworten können: Ihr Postfach antwortet automatisch."
+msgstr "Lassen Sie andere wissen, dass Sie abwesend sind oder eine Zeit lang nicht antworten können: Ihr Postfach antwortet automatisch."
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -5767,7 +5766,7 @@ msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würde
 #. what a command says
 #: crates/engine/src/io.rs
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
-msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würden gesendet werden. Wähle Sie einen anderen Ordner."
+msgstr "E-Mails können nicht in einen Postausgang importiert werden: Sie würden gesendet werden. Wählen Sie einen anderen Ordner."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -6350,7 +6349,7 @@ msgstr "Microsoft nimmt die Anmeldung nicht mehr an"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
-msgstr "Microsoft akzeptiert Ihre Anmeldung nicht mehr. Melde Sie sich erneut an, um Ihre automatischen Antworten abzurufen und zu ändern."
+msgstr "Microsoft akzeptiert Ihre Anmeldung nicht mehr. Melden Sie sich erneut an, um Ihre automatischen Antworten abzurufen und zu ändern."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12702,7 +12701,7 @@ msgstr "Diese Besprechung ist in einem Kalender, der von hier aus nicht geänder
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This meeting is kept by the server of {who}, and somebody else organizes it. Whether it is held online is for its organizer to say."
-msgstr "Diese Besprechung liegt auf dem Server von {who}, und jemand anderes organisiert sie. Ob sie online stattfindet, entscheidet Ihr Organisator."
+msgstr "Diese Besprechung liegt auf dem Server von {who}, und jemand anderes organisiert sie. Ob sie online stattfindet, entscheidet der Organisator."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -12720,7 +12719,7 @@ msgstr "Diese Besprechung ist vorbei."
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This meeting isn't on the account's calendar here yet: its server puts it there, and it hasn't come down. Answer it from the calendar once it shows."
-msgstr "Diese Besprechung ist hier noch nicht im Kalender des Kontos: Ihr Server trägt sie dort ein, und sie ist noch nicht angekommen. Beantworten Sie sie im Kalender, sobald sie erscheint."
+msgstr "Diese Besprechung ist hier noch nicht im Kalender des Kontos: Der Server trägt sie dort ein, und sie ist noch nicht angekommen. Beantworten Sie sie im Kalender, sobald sie erscheint."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13651,7 +13650,7 @@ msgstr "Ergebnis des vorherigen Senden/Empfangen: Das letzte brachte nichts Neue
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "What the people invited are asked for is for its organizer to say."
-msgstr "Worum die Eingeladenen gebeten werden, entscheidet Ihr Organisator."
+msgstr "Worum die Eingeladenen gebeten werden, entscheidet der Organisator."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13732,7 +13731,7 @@ msgstr ""
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Whether it is held online is for its organizer to say."
-msgstr "Ob sie online stattfindet, entscheidet Ihr Organisator."
+msgstr "Ob sie online stattfindet, entscheidet der Organisator."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13743,7 +13742,7 @@ msgstr ""
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Who is invited is for its organizer to say."
-msgstr "Wer eingeladen ist, entscheidet Ihr Organisator."
+msgstr "Wer eingeladen ist, entscheidet der Organisator."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
