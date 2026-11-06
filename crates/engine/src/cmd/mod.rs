@@ -91,6 +91,8 @@ mod picture_tests;
 #[cfg(test)]
 mod quote_tests;
 #[cfg(test)]
+mod range_select_tests;
+#[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
