@@ -37,7 +37,7 @@ const PAD: f32 = 8.0;
 const ICON: f32 = 20.0;
 const LABEL_GAP: f32 = 8.0;
 const LABEL_SIZE: f32 = 13.333;
-const DROP_W: f32 = 22.0;
+pub(crate) const DROP_W: f32 = 22.0;
 const DROP_GAP_LABEL: f32 = 2.0;
 const DROP_GAP_ICON: f32 = 5.0;
 /// Between two buttons, and between two that a rule parts (the rule is in the middle).
@@ -1772,8 +1772,8 @@ fn more_entries(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
     }
 }
 
-/// A small `▾`, centred on `c`.
-fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
+/// A small `▾`, centred on `c` (also the one at an attachment chip's right end, #785).
+pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
     ui.painter().add(Shape::line(vec![pos2(c.x - 2.75, c.y - 1.0), pos2(c.x, c.y + 1.25), pos2(c.x + 2.75, c.y - 1.0)], Stroke::new(1.1, color)));
 }
 

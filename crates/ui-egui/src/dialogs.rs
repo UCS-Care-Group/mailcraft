@@ -142,6 +142,8 @@ pub enum Dialog {
     AutomaticReplies(Box<crate::auto_replies::Draft>),
     /// What is in a folder of mbox files, before it is imported ([`crate::import_tree`]).
     ImportTree(Box<crate::import_tree::ImportTree>),
+    /// A .pst file, before and while its mail is imported ([`crate::import_pst`]).
+    ImportPst(Box<crate::import_pst::ImportPst>),
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
@@ -249,6 +251,7 @@ impl Dialog {
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::AutomaticReplies(_) => "automaticReplies",
             Dialog::ImportTree(_) => "importTree",
+            Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
@@ -392,6 +395,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
+    }
+    if name == "importPst" {
+        let path = params.get("path").and_then(Value::as_str)?;
+        return Some(Dialog::ImportPst(Box::new(crate::import_pst::ImportPst::open(app, path))));
     }
     if name == "importTree" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -2073,6 +2080,14 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut done = false;
             let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
+        }
+        Dialog::ImportPst(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Import a .pst File (preview)"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
+            // the report is shown first.)
+            let asked = close || !open;
+            close = done || (asked && !dialog.stop());
         }
         // (Enter is the date and time fields' to say OK with; the replies have lines of their own.)
         Dialog::AutomaticReplies(dialog) => {
