@@ -339,6 +339,16 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             });
             ui.add_space(8.0);
         }
+        // An IMAP account keeps a window of its mail too (#653): its messages come whole from
+        // its server when they are opened.
+        if a.kind == AccountKind::Imap {
+            ui.horizontal(|ui| {
+                ui.add_space(12.0);
+                ui.label(tl!("Mail to keep offline:"));
+                crate::keep_offline::slider(app, ui, a.id, a.keep_offline);
+            });
+            ui.add_space(8.0);
+        }
         // A mailbox of the organisation that the owner was given Full Access to (#70).
         // (Not for a personal Microsoft account, which has none.)
         if crate::shared_mailboxes::can_open_shared(a) {

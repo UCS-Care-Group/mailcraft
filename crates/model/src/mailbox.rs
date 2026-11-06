@@ -127,6 +127,12 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// An IMAP account's folder whose mailbox (`remote`) the server's last complete listing
+    /// didn't name: deleted or renamed there by another program (#653). Its mail is not taken
+    /// for the server's, and keeps its text here, which may be all there is of it. `false` again
+    /// once a listing names it.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub unlisted: bool,
 }
 
 /// Whether a list of category names has `name`.
@@ -1132,6 +1138,12 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The IMAP accounts were looked at once when their mail first kept to a window (#653): those
+    /// from before keep all of it ([`Mailbox::keep_imap_mail_as_it_was`]), done the first time a
+    /// mailbox is opened by a version that holds them to it. A new mailbox
+    /// ([`Mailbox::with_local_account`]) has it from the start; a file from before has none.
+    #[serde(skip_serializing_if = "is_false")]
+    pub imap_windowed: bool,
     next_id: Id,
 }
 
@@ -1168,6 +1180,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            imap_windowed: false,
             next_id: 1,
         }
     }
@@ -1243,7 +1256,8 @@ fn not_downloaded_yet(subject: &str) -> String {
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
-        let mut mb = Mailbox::default();
+        // A new mailbox: its IMAP accounts keep the window they are given from the start (#653).
+        let mut mb = Mailbox { imap_windowed: true, ..Mailbox::default() };
         mb.add_account(Account { name: email.to_string(), email: email.to_string(), display_name: display_name.to_string(), ..Default::default() });
         mb
     }
@@ -2417,6 +2431,11 @@ impl Mailbox {
         if self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
+        // Of an IMAP account's message that is only its headers and preview here (#653), what
+        // would go is not the message: it is downloaded when it is opened.
+        if m.unfetched && m.server.is_none() && self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap) {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         // Back into the IMAP account whose server still has the original: the move out of it
         // that waits goes on there, or is called off.
         let owner = self.waiting(id, fresh).and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -2578,7 +2597,10 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
+        // Nor of an IMAP account's message that is only its headers and preview here, anywhere
+        // (#653): the copy, which its server isn't told of, would be that for good.
+        let imap = self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap);
+        if m.unfetched && (imap || (from_account != to_account && self.keeps_changes_for_server(from_account))) {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));
@@ -2858,8 +2880,19 @@ impl Mailbox {
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does).
     pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
-        let mut ran = Vec::new();
-        let Some(account) = self.message(id).map(|m| m.account) else { return ran };
+        self.run_rules_told(id, now).0
+    }
+
+    /// [`Mailbox::apply_rules`], and what the owner is to be told of: a rule that couldn't move
+    /// the message where it says (one of which only the headers and a preview are here can't go
+    /// to another account or a local folder, #653).
+    pub fn apply_rules_told(&mut self, id: Id) -> (Vec<String>, Vec<String>) {
+        self.run_rules_told(id, false)
+    }
+
+    fn run_rules_told(&mut self, id: Id, now: bool) -> (Vec<String>, Vec<String>) {
+        let (mut ran, mut problems) = (Vec::new(), Vec::new());
+        let Some(account) = self.message(id).map(|m| m.account) else { return (ran, problems) };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
@@ -2872,14 +2905,16 @@ impl Mailbox {
                 continue;
             }
             if now || !rule.on_server() {
-                self.act(id, &rule.actions);
+                if let Some(why) = self.act(id, &rule.actions) {
+                    problems.push(format!("The rule \"{}\" couldn't move a message: {why}", rule.name));
+                }
                 ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;
             }
         }
-        ran
+        (ran, problems)
     }
 
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
@@ -2890,19 +2925,25 @@ impl Mailbox {
         if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
             return false;
         }
-        self.act(id, &rule.actions);
+        // Run by hand: a message that can't go where the rule says stays where it is.
+        let _ = self.act(id, &rule.actions);
         true
     }
 
-    /// Do what a rule says to a message.
-    fn act(&mut self, id: Id, actions: &[Action]) {
+    /// Do what a rule says to a message: why it couldn't be moved where the rule says, when it
+    /// couldn't.
+    fn act(&mut self, id: Id, actions: &[Action]) -> Option<String> {
+        let mut problem = None;
         for action in actions {
             match action {
                 Action::MoveTo(folder) => {
                     // A rule pointing at a folder that is gone does nothing, and none puts
                     // mail into a send queue (the next Send/Receive would send it).
-                    if !self.is_send_queue(*folder) {
-                        let _ = self.move_message(id, *folder);
+                    if !self.is_send_queue(*folder)
+                        && let Err(e) = self.move_message(id, *folder)
+                        && self.folder(*folder).is_some()
+                    {
+                        problem = Some(e.to_string());
                     }
                 }
                 Action::Delete => {
@@ -2924,6 +2965,7 @@ impl Mailbox {
                 }
             }
         }
+        problem
     }
 
     // ---- contacts, events, tasks ----

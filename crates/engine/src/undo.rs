@@ -336,7 +336,7 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             (true, Some(c)) => {
                 let mut f = t;
                 (f.remote, f.uid_validity, f.uid_seen, f.uid_from) = (c.remote.clone(), c.uid_validity, c.uid_seen, c.uid_from);
-                (f.whole, f.server, f.awaiting_listing) = (c.whole, c.server.clone(), c.awaiting_listing);
+                (f.whole, f.server, f.awaiting_listing, f.unlisted) = (c.whole, c.server.clone(), c.awaiting_listing, c.unlisted);
                 kept.push(f);
             }
             (true, None) => kept.push(t),

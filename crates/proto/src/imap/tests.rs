@@ -1031,3 +1031,64 @@ proptest! {
         prop_assert_eq!(&list[0].raw, &name);
     }
 }
+
+#[test]
+fn the_start_of_a_message_arrives_without_setting_seen() {
+    // #653: the header and the first bytes of the text of mail older than the window.
+    let start = b"From: ada@example.org\r\nSubject: Old\r\n\r\nThe first wor";
+    let mut server = with_literal("* 5 FETCH (UID 12 FLAGS () INTERNALDATE \"17-Jul-1996 02:44:25 -0700\" BODY[]<0> ", start, ")\r\n");
+    server.extend_from_slice(b"A0001 OK done\r\n");
+    let mut s = Script::new(server);
+    let got = Imap::resume(&mut s).uid_fetch_start(12, 16_384).unwrap().unwrap();
+    assert_eq!((got.uid, got.internal_date.as_deref(), got.body.as_deref()), (12, Some("17-Jul-1996 02:44:25 -0700"), Some(&start[..])));
+    assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[]<0.16384>)\r\n");
+    // A short message may come whole, under the name of the whole.
+    let mut s = Script::new("* 1 FETCH (UID 3 BODY[] {2}\r\nok)\r\nA0001 OK done\r\n");
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 100).unwrap().unwrap().body, Some(b"ok".to_vec()));
+    // A header alone is not what was asked for, and no answer is none.
+    let mut s = Script::new("* 1 FETCH (UID 3 BODY[HEADER] {2}\r\n\r\n)\r\nA0001 OK done\r\n");
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 100), Ok(None));
+    let mut s = Script::new("A0001 OK nothing\r\n");
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 100), Ok(None));
+    // A whole message is not the start of one: what a fetch of all of it is told stays its own.
+    let mut s = Script::new("* 1 FETCH (UID 3 BODY[]<0> {2}\r\nok)\r\nA0001 OK done\r\n");
+    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Ok(None));
+}
+
+#[test]
+fn the_start_of_a_message_is_no_longer_than_was_asked_for() {
+    // A server that answers with more than the first bytes, the whole message or a longer
+    // start, has the rest cut off: what is kept is what was asked for.
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[] {10}
+0123456789)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[]<0> {10}
+0123456789)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+    // What fits is kept whole.
+    let mut s = Script::new(
+        "* 1 FETCH (UID 3 BODY[] {4}
+0123)
+A0001 OK done
+",
+    );
+    assert_eq!(Imap::resume(&mut s).uid_fetch_start(3, 4).unwrap().unwrap().body, Some(b"0123".to_vec()));
+}
+
+#[test]
+fn sizes_and_dates_come_together() {
+    let mut s = Script::new(
+        "* 1 FETCH (UID 4 RFC822.SIZE 120 INTERNALDATE \"01-Jul-2003 09:52:37 +0000\")\r\n* 2 FETCH (INTERNALDATE \"02-Jul-2003 09:52:37 +0000\" UID 6 RFC822.SIZE 9)\r\n* 3 FETCH (UID 7 RFC822.SIZE 5)\r\nA0001 OK done\r\n",
+    );
+    let got = Imap::resume(&mut s).uid_fetch_sizes_dates("4:7").unwrap();
+    assert_eq!(got, vec![(4, 120, Some("01-Jul-2003 09:52:37 +0000".into())), (6, 9, Some("02-Jul-2003 09:52:37 +0000".into())), (7, 5, None)]);
+    assert_eq!(s.sent(), "A0001 UID FETCH 4:7 (UID RFC822.SIZE INTERNALDATE)\r\n");
+}

@@ -67,7 +67,7 @@ pub use message::{
     PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use messages::Messages;
-pub use offline::{KeepOffline, OfflineWindow};
+pub use offline::{KeepOffline, OfflineWindow, has_window};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
