@@ -186,3 +186,16 @@ fn more_recipients_than_are_checked_need_the_owners_say() {
     s.run("compose.send", &json!({"confirmed": true})).unwrap();
     assert_eq!(sent(&s).len(), 1);
 }
+
+#[test]
+fn a_message_named_by_an_id_written_as_a_fraction_is_measured_too() {
+    // `compose.send` takes `3.0` for the id 3; its warnings and its recipient lines are of that
+    // message too, so a yes asked about one message is never measured against nothing.
+    let mut s = session();
+    write(&mut s, "lin.zhao@harborwork.example", "");
+    let id = s.compose_id().unwrap();
+    let as_float = json!({"compose": id as f64});
+    assert_eq!(s.send_warnings(&as_float).iter().map(|w| w.kind()).collect::<Vec<_>>(), ["lookalikeRecipient"]);
+    assert!(Lines::named(&s, &as_float).is_some());
+    assert!(s.send_warnings(&json!({"compose": 0.5})).is_empty() && Lines::named(&s, &json!({"compose": 0.5})).is_none());
+}

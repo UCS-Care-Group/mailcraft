@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-06 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -169,8 +169,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
   for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
   @ is one edit or one skeleton from a known address at the same domain (five characters or
-  more), and for 5 or more people outside the owner's organisation, at 2 or more registrable
-  domains, in To and Cc (not when all of them were on the message replied to or forwarded). The
+  more; compared as it reads, without a `+tag` and without the dots Gmail ignores, so that none
+  of them, nor what draws nothing, pads a lookalike past the comparison), and for 5 or more
+  people outside the owner's organisation, at 2 or more registrable domains, in To and Cc (not
+  when all of them were on the message replied to or forwarded, whose To and Cc its sender wrote;
+  never for an owner without an organisation, for whom everybody would be outside). The
   known correspondents are the same contacts and Sent Items, never somebody who only wrote to the
   owner, so a lookalike that wrote first is still asked about when the owner replies. A message
   with a warning is refused unless the call says `"confirmed": true` (or `"moveToBcc": true`
@@ -180,8 +183,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   nobody can be asked, so the call's own `confirmed` is honoured, as for any script; sending at
   all still needs `--allow send`. The yes, the owner's or an agent's question's, holds for the
   recipient lines asked about: a message changed while the question was up is asked about again
-  (the owner's) or not sent (the agent's). An address is shown with what draws nothing left out
-  and its domain as it goes over the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
+  (the owner's) or not sent (the agent's). An address is shown with what draws nothing, and a
+  look-alike `@` or `.`, before the @ as its code (`<U+200B>`, `<U+FF20>`), and its domain as it goes over
+  the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
   dots Gmail ignores are not lookalikes. The rules are `crates/model/src/send_warnings.rs`,
   bounded to 1,000 different recipients (each counted once, however often it is named, so padding
   with a known address hides nothing) and 20 lookalikes said; a message to more is a warning of its

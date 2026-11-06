@@ -139,14 +139,20 @@ pub fn as_seen(text: &str, keep: usize) -> String {
             continue;
         }
         gap = false;
-        out.push(match c {
-            '\u{ff20}' | '\u{fe6b}' => '@',
-            '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' | '\u{a4f8}' | '\u{701}' | '\u{6d4}' | '\u{2e31}' => '.',
-            c => c,
-        });
+        out.push(drawn_as(c).unwrap_or(c));
         kept += 1;
     }
     out
+}
+
+/// The `@` or `.` that `c` is drawn as, when it is another character: `＠`, `﹫`; `．`, `․`,
+/// `﹒`, `。`, `｡`, `ꓸ`, `܁`, `۔`, `⸱`.
+pub fn drawn_as(c: char) -> Option<char> {
+    match c {
+        '\u{ff20}' | '\u{fe6b}' => Some('@'),
+        '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' | '\u{a4f8}' | '\u{701}' | '\u{6d4}' | '\u{2e31}' => Some('.'),
+        _ => None,
+    }
 }
 
 /// Whether `text` hides more than it shows: it is longer than [`MAX_READ`] characters, or more of

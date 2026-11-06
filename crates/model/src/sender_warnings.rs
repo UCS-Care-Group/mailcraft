@@ -24,6 +24,7 @@ use serde_json::{Value, json};
 
 use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
 use crate::confusables::{as_seen, hides, skeleton};
+use crate::send_warnings::Local;
 use crate::{Account, FolderKind, Message, provider};
 
 /// The most characters of a display name that are read.
@@ -179,13 +180,6 @@ pub struct Facts {
     pub(crate) locals: HashMap<String, Vec<Local>>,
 }
 
-/// The part before the @ of a known address: its characters, and as written.
-#[derive(Clone, Debug)]
-pub(crate) struct Local {
-    pub(crate) chars: Vec<char>,
-    pub(crate) text: String,
-}
-
 impl Facts {
     /// Whether `address` (any case) is one of the owner's own.
     pub fn is_own(&self, address: &str) -> bool {
@@ -268,9 +262,7 @@ impl FactsBuilder {
     fn address(&mut self, address: &str, domain: &str) {
         let Some((local, _)) = address.rsplit_once('@') else { return };
         if self.facts.addresses.insert(format!("{local}@{domain}")) {
-            let text = local.to_string();
-            let local = Local { chars: text.chars().collect(), text };
-            self.facts.locals.entry(domain.to_string()).or_default().push(local);
+            self.facts.locals.entry(domain.to_string()).or_default().push(Local::new(local, domain));
         }
     }
 

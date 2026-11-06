@@ -90,11 +90,52 @@ fn numbered_mailboxes_and_dots_a_provider_ignores_are_not_lookalikes() {
 }
 
 #[test]
+fn a_tag_or_dots_gmail_ignores_hide_no_lookalike() {
+    // `sam.friend@gmail.com` is known; padding the part before the @ out of the length compared
+    // hides nothing.
+    let f = facts();
+    for padded in ["sam.friend1+re@gmail.com", "sam.fr1end+x@gmail.com", "s.a.m.friend1@gmail.com", "samfriend1+a.b.c@gmail.com"] {
+        assert_eq!(lookalike(&f, padded).as_deref(), Some("sam.friend@gmail.com"), "{padded}");
+    }
+    // Where the provider doesn't ignore dots, a tag still is no part of the mailbox.
+    assert_eq!(lookalike(&f, "maya.okafur+news@lumen.example").as_deref(), Some("maya.okafor@lumen.example"));
+    // The known person's own tag, or Gmail dots, is their own mailbox.
+    for same in ["sam.friend+re@gmail.com", "s.a.m.f.r.i.e.n.d+x@gmail.com", "maya.okafor+news@lumen.example"] {
+        assert_eq!(lookalike(&f, same), None, "{same}");
+    }
+}
+
+#[test]
+fn what_draws_nothing_hides_no_lookalike() {
+    let f = facts();
+    // Two characters that draw nothing make it two longer, but it reads as the known address; and
+    // the warning shows them, so it never says the address looks like itself.
+    assert_eq!(lookalike(&f, "maya\u{200b}.oka\u{200b}for@lumen.example").as_deref(), Some("maya.okafor@lumen.example"));
+    let w = check(&to(&["maya\u{200b}.oka\u{200b}for@lumen.example"]), &[], &[], &f, &HashSet::new());
+    let SendWarning::LookalikeRecipient { address, like } = &w[0] else { panic!("{w:?}") };
+    assert_eq!(address, "maya<U+200B>.oka<U+200B>for@lumen.example");
+    assert_ne!(address, like);
+    assert_eq!(lookalike(&f, "sam\u{200b}\u{200b}.friend1@gmail.com").as_deref(), Some("sam.friend@gmail.com"));
+    // A look-alike full stop is no dot Gmail ignores.
+    assert_eq!(lookalike(&f, "sam\u{2024}friend@gmail.com").as_deref(), Some("sam.friend@gmail.com"));
+}
+
+#[test]
+fn a_look_alike_at_or_full_stop_before_the_at_is_shown_for_what_it_is() {
+    let w = check(&to(&["maya\u{ff0e}okafor@lumen.example"]), &[], &[], &facts(), &HashSet::new());
+    let SendWarning::LookalikeRecipient { address, .. } = &w[0] else { panic!("{w:?}") };
+    assert_eq!(address, "maya<U+FF0E>okafor@lumen.example");
+    let w = check(&to(&["maya.okafor\u{ff20}lumen.example@harborwork.example"]), &[], &[], &facts(), &HashSet::new());
+    let SendWarning::LookalikeRecipient { address, .. } = &w[0] else { panic!("{w:?}") };
+    assert!(address.starts_with("maya.okafor<U+FF20>lumen.example@"), "{address}");
+}
+
+#[test]
 fn a_lookalike_is_shown_for_what_it_is() {
     // A look-alike letter shows as the domain goes over the wire, and what draws nothing is left out.
     let w = check(&to(&["Lin.Zhao\u{200b}@h\u{430}rborworks.example"]), &[], &[], &facts(), &HashSet::new());
     let SendWarning::LookalikeRecipient { address, like } = &w[0] else { panic!("{w:?}") };
-    assert!(address.starts_with("lin.zhao@xn--") && !address.contains('\u{200b}'), "{address}");
+    assert!(address.starts_with("lin.zhao<U+200B>@xn--") && !address.contains('\u{200b}'), "{address}");
     assert_eq!(like, "harborworks.example");
     let long = format!("{}@harborwork.example", "x".repeat(5_000));
     let w = check(&to(&[long.as_str()]), &[], &[], &facts(), &HashSet::new());
@@ -190,12 +231,23 @@ fn colleagues_and_the_owner_are_not_outsiders() {
 }
 
 #[test]
-fn without_an_organisation_everybody_else_is_outside() {
-    let w = check(&to(&FIVE_AT_TWO), &[], &[], &personal(), &HashSet::new());
-    assert!(has_outsiders(&w));
-    let mut list = FIVE_AT_TWO[..4].to_vec();
-    list.push("avery.q@gmail.com");
-    assert!(check(&to(&list), &[], &[], &personal(), &HashSet::new()).is_empty(), "the owner is not an outsider");
+fn without_an_organisation_nobody_is_asked_about_as_outside() {
+    // Personal accounts only: everybody would be outside, and every family mail asked about.
+    assert!(check(&to(&FIVE_AT_TWO), &[], &[], &personal(), &HashSet::new()).is_empty());
+    // The other warnings stay.
+    let mut b = FactsBuilder::default().accounts([&Account { email: "avery.q@gmail.com".into(), ..Account::default() }]);
+    b.known("sam.friend@gmail.com", "");
+    let mut list = FIVE_AT_TWO.to_vec();
+    list.push("sam.friend1@gmail.com");
+    let w = check(&to(&list), &[], &[], &b.build(), &HashSet::new());
+    assert_eq!(w.iter().map(SendWarning::kind).collect::<Vec<_>>(), ["lookalikeRecipient"]);
+    let many: Vec<String> = (0..1_001).map(|i| format!("guest{i}@example.net")).collect();
+    let many: Vec<&str> = many.iter().map(String::as_str).collect();
+    let w = check(&to(&many), &[], &[], &personal(), &HashSet::new());
+    assert_eq!(w.iter().map(SendWarning::kind).collect::<Vec<_>>(), ["tooManyRecipients"]);
+    // Nor is anybody moved to Bcc as an outsider.
+    let (t, _, bcc) = outsiders_to_bcc(&personal(), &to(&FIVE_AT_TWO), &[], &[]);
+    assert_eq!((t.len(), bcc.len()), (5, 0));
 }
 
 #[test]

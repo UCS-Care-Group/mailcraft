@@ -10,8 +10,8 @@
 //! - **Outsiders who would see each other**: [`MIN_OUTSIDERS`] or more people outside the
 //!   **owner's organisation**, at [`MIN_OUTSIDE_DOMAINS`] or more domains, in To and Cc. Not when
 //!   every one of them was already on the message replied to or forwarded (From, To, Cc): they saw
-//!   each other's addresses there. For an owner with personal accounts only (no organisation),
-//!   everybody but the owner is outside.
+//!   each other's addresses there. Never for an owner with personal accounts only (no
+//!   organisation): everybody would be outside, and every family mail asked about.
 //!
 //! The **known correspondents** are those of the sender warnings ([`Facts`]): the contacts and
 //! whoever mail in Sent Items or the Outbox went to; never somebody who only wrote to the owner,
@@ -22,7 +22,7 @@ use std::collections::HashSet;
 
 use serde_json::{Value, json};
 
-use crate::confusables::{as_seen, skeleton};
+use crate::confusables::{MAX_READ, as_seen, drawn_as, draws_nothing, skeleton};
 use crate::sender_warnings::{Facts, MIN_LOOKALIKE_NAME, address_key, registrable, sender_domain, wire, within_one_edit};
 use crate::{Address, Message};
 
@@ -94,8 +94,46 @@ fn unique<'a>(lines: &[&'a [Address]]) -> (Vec<&'a Address>, bool) {
     (out, false)
 }
 
+/// The part before the @ of an address at a domain, in the forms a recipient is compared in:
+/// as written; the **mailbox** it goes to (without a `+…` subaddress, RFC 5233, and without the
+/// dots where the provider ignores them); the same as it reads on the screen ([`as_seen`]); and
+/// the skeleton of that. Made once for a known address ([`Facts`]), once per recipient.
+#[derive(Clone, Debug)]
+pub(crate) struct Local {
+    pub(crate) text: String,
+    mailbox: String,
+    seen: Vec<char>,
+    skeleton: String,
+}
+
+impl Local {
+    /// `local` (in lower case) at `domain` ([`sender_domain`]).
+    pub(crate) fn new(local: &str, domain: &str) -> Self {
+        let dotless = DOTS_IGNORED.contains(&domain);
+        let mailbox = |local: &str| {
+            let base = local.split_once('+').map_or(local, |(base, _)| if base.is_empty() { local } else { base });
+            if dotless { base.replace('.', "") } else { base.to_string() }
+        };
+        let seen = mailbox(&as_seen(local, MAX_COMPARED));
+        Local { text: local.to_string(), mailbox: mailbox(local), skeleton: skeleton(&seen), seen: seen.chars().collect() }
+    }
+
+    /// Whether it reads as `theirs` but isn't their mailbox: the same skeleton, or one edit
+    /// away, both long enough. Numbered mailboxes (`sales1`, `sales2`) are each other's
+    /// neighbours, not lookalikes.
+    fn looks_like(&self, theirs: &Local) -> bool {
+        theirs.seen.len() >= MIN_LOOKALIKE_NAME
+            && (self.skeleton == theirs.skeleton || (within_one_edit(&self.seen, &theirs.seen) && !differs_by_digits_only(&self.seen, &theirs.seen)))
+    }
+}
+
+/// The most characters before the @ that are compared.
+const MAX_COMPARED: usize = 256;
+
 /// The known correspondent `address` looks like but isn't (a domain, or an address), when it is
-/// neither known nor the owner's own.
+/// neither known nor the owner's own. Before the @, the mailboxes are compared as they read, so
+/// that a `+tag`, a dot Gmail ignores or a character that draws nothing hides no lookalike, and
+/// a known person's `+tag` or Gmail dots are theirs.
 pub fn lookalike(facts: &Facts, address: &str) -> Option<String> {
     let key = address_key(address)?;
     if facts.knows(&key) || facts.is_own(address) {
@@ -105,22 +143,15 @@ pub fn lookalike(facts: &Facts, address: &str) -> Option<String> {
     if let Some(like) = facts.lookalike_domain(domain) {
         return Some(wire(&like));
     }
-    let chars: Vec<char> = local.chars().collect();
-    if chars.len() < MIN_LOOKALIKE_NAME {
+    let mine = Local::new(local, domain);
+    if mine.seen.len() < MIN_LOOKALIKE_NAME {
         return None;
     }
-    let seen = skeleton(local);
-    let dotless = DOTS_IGNORED.contains(&domain);
-    facts
-        .locals
-        .get(domain)?
-        .iter()
-        .filter(|theirs| theirs.text != local && theirs.chars.len() >= MIN_LOOKALIKE_NAME && theirs.chars.len().abs_diff(chars.len()) <= 1)
-        // Numbered mailboxes (`sales1`, `sales2`) are each other's neighbours, not lookalikes; and
-        // where the provider ignores dots, `mayaokafor` is `maya.okafor`.
-        .filter(|theirs| !differs_by_digits_only(&chars, &theirs.chars) && !(dotless && theirs.text.replace('.', "") == local.replace('.', "")))
-        .find(|theirs| within_one_edit(&chars, &theirs.chars) || skeleton(&theirs.text) == seen)
-        .map(|theirs| format!("{}@{}", theirs.text, wire(domain)))
+    let known = facts.locals.get(domain)?;
+    if known.iter().any(|theirs| theirs.mailbox == mine.mailbox) {
+        return None;
+    }
+    known.iter().find(|theirs| mine.looks_like(theirs)).map(|theirs| format!("{}@{}", theirs.text, wire(domain)))
 }
 
 /// Domains whose mailboxes ignore dots before the @.
@@ -131,12 +162,11 @@ fn differs_by_digits_only(a: &[char], b: &[char]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x == y || (x.is_ascii_digit() && y.is_ascii_digit()))
 }
 
-/// `address` as a warning shows it: what draws nothing left out, at most [`MAX_SHOWN`]
-/// characters before the @, and its domain written as it goes over the wire (`xn--…`), so that a
+/// `address` as a warning shows it: at most [`MAX_SHOWN`] characters before the @ ([`shown_local`]), and its domain written as it goes over the wire (`xn--…`), so that a
 /// look-alike letter shows for what it is.
 pub fn shown(address: &str) -> String {
     match address_key(address).as_deref().and_then(|key| key.rsplit_once('@')) {
-        Some((local, domain)) => format!("{}@{}", as_seen(local, MAX_SHOWN), wire(domain)),
+        Some((local, domain)) => format!("{}@{}", shown_local(local), wire(domain)),
         None => as_seen(address, MAX_SHOWN),
     }
 }
@@ -144,10 +174,29 @@ pub fn shown(address: &str) -> String {
 /// The most characters of an address before the @ that a warning shows.
 const MAX_SHOWN: usize = 100;
 
+/// The part before the @ as [`shown`] shows it: a character that draws nothing, or is drawn as
+/// an `@` or a `.` ([`drawn_as`]), written as its code (`<U+200B>`, `<U+FF20>`), so that the
+/// address doesn't pass for the one it looks like.
+fn shown_local(local: &str) -> String {
+    let mut out = String::new();
+    let mut kept = 0usize;
+    for c in local.chars().take(MAX_READ) {
+        if kept >= MAX_SHOWN {
+            break;
+        }
+        let piece =
+            if drawn_as(c).is_some() || draws_nothing(c) { format!("<U+{:04X}>", u32::from(c)) } else { as_seen(c.encode_utf8(&mut [0; 4]), 1) };
+        kept += piece.chars().count();
+        out.push_str(&piece);
+    }
+    out
+}
+
 /// Whether `address` is outside the owner's organisation: not the owner's own, and at none of
-/// the organisation's domains (for an owner without one, anybody but the owner).
+/// the organisation's domains. Never for an owner without one: everybody would be outside, and
+/// every family mail asked about (and moved to Bcc).
 pub fn is_outsider(facts: &Facts, address: &str) -> bool {
-    !facts.is_own(address) && sender_domain(address).is_some_and(|domain| !facts.is_inside(&domain))
+    facts.organisation().next().is_some() && !facts.is_own(address) && sender_domain(address).is_some_and(|domain| !facts.is_inside(&domain))
 }
 
 /// The addresses that were on `m` for everyone on it to see (From, To, Cc), as [`address_key`]
@@ -157,7 +206,7 @@ pub fn seen_on(m: &Message) -> HashSet<String> {
 }
 
 /// The outsiders in `to` and `cc` who would see each other, when they are enough to ask about
-/// and not all of them were in `seen` already.
+/// and not all of them were in `seen` already; never for an owner without an organisation.
 pub fn outsiders(facts: &Facts, to: &[Address], cc: &[Address], seen: &HashSet<String>) -> Option<SendWarning> {
     let mut out = Vec::new();
     let mut domains = HashSet::new();

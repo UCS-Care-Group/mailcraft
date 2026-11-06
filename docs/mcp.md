@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-06 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -180,7 +180,7 @@ warning says a message may not be what it seems, never what to do about it.
 **Send warnings.** Before a message goes (#509), `compose.send` and `send_message` look for a
 recipient who looks like somebody the owner writes to but isn't (`lookalikeRecipient`) and for 5
 or more people outside the owner's organisation, at 2 or more domains, who would see each other in
-To and Cc (`outsidersSeeEachOther`), and ask about a message to more different recipients than they check (`tooManyRecipients`) ([control protocol](control-protocol.md#commands-worth-knowing)).
+To and Cc (`outsidersSeeEachOther`; never for an owner with personal accounts only), and ask about a message to more different recipients than they check (`tooManyRecipients`) ([control protocol](control-protocol.md#commands-worth-knowing)).
 Connected to the window (`--connect`), the owner is asked every time, whatever `--allow send` says:
 the question lists the warnings and offers Send Anyway, Move to Bcc for the outsiders, or not
 sending, and an agent's own `confirmed` or `moveToBcc` is dropped, since only the owner answers.
