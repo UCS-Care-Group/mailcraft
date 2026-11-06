@@ -15,22 +15,22 @@ use crate::{CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
-            .pure()
+            .reads()
             .params(r#"{"id": number} | {"ids": [number] ([] selects nothing)}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
-        CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).pure().key("Mod+A"),
-        CommandSpec::new("mail.next", "Next Message", "Mail", next).pure().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
-        CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).pure().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
-        CommandSpec::new("mail.first", "First Message", "Mail", first).pure().key("Home / Shift+Home").params(EXTEND),
-        CommandSpec::new("mail.last", "Last Message", "Mail", last).pure().key("End / Shift+End").params(EXTEND),
-        CommandSpec::new("mail.pageDown", "Page Down", "Mail", page_down).pure().key("PageDown / Shift+PageDown").params(PAGE),
-        CommandSpec::new("mail.pageUp", "Page Up", "Mail", page_up).pure().key("PageUp / Shift+PageUp").params(PAGE),
+        CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).reads().key("Mod+A"),
+        CommandSpec::new("mail.next", "Next Message", "Mail", next).reads().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
+        CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).reads().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
+        CommandSpec::new("mail.first", "First Message", "Mail", first).reads().key("Home / Shift+Home").params(EXTEND),
+        CommandSpec::new("mail.last", "Last Message", "Mail", last).reads().key("End / Shift+End").params(EXTEND),
+        CommandSpec::new("mail.pageDown", "Page Down", "Mail", page_down).reads().key("PageDown / Shift+PageDown").params(PAGE),
+        CommandSpec::new("mail.pageUp", "Page Up", "Mail", page_up).reads().key("PageUp / Shift+PageUp").params(PAGE),
         CommandSpec::new("mail.expandConversation", "Expand Conversation", "Mail", expand)
-            .pure()
+            .reads()
             .key("ArrowRight")
             .selection(can_expand)
             .params(CONVERSATION),
         CommandSpec::new("mail.collapseConversation", "Collapse Conversation", "Mail", collapse)
-            .pure()
+            .reads()
             .key("ArrowLeft")
             .selection(can_collapse)
             .params(CONVERSATION),
@@ -142,6 +142,22 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
         return Err(bad("`copy` names none of the rows the list shows the message in"));
     }
+    // A Shift+click from an anchor the list shows, in the list in view: the selection is that
+    // span of the list's own rows, every one of them listed, so none of what is asked below of
+    // whether the list shows them is (over a span of thousands of messages, that took 60 ms).
+    if p::bool(v, "range") == Some(true) && p::bool(v, "elsewhere") != Some(true) {
+        let rows = s.rows();
+        if let Some((anchor, anchor_copy)) = s.sel.anchor_row.filter(|(id, _)| s.sel.messages.contains(id))
+            && let (Some(a), Some(b)) = (s.sel.row_in(&rows, anchor, anchor_copy), position_of(&rows, last, copy))
+        {
+            s.sel.messages = span(&rows, anchor, a, last, b);
+            s.sel.whole = heads_in(&rows, a, b);
+            s.sel.focus_row = Some((last, copy));
+            s.keep_listed();
+            mark_opened(s);
+            return Ok(json!({"selected": s.sel.messages}));
+        }
+    }
     // Which of their rows the focus and a range's start were on, for those that stay them.
     let rows_before = [s.sel.focus_row, s.sel.anchor_row];
     let mut placed = None;
@@ -211,17 +227,14 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Reading a message marks it read (File › Options). Not an undo step: it follows the selection.
+/// Marked once the command is done ([`Session::opened`]): selecting changes nothing else of the
+/// mailbox, and is a reading command, which takes no copy of it.
 fn mark_opened(s: &mut Session) {
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 {
+        s.opened = None;
         return;
     }
-    if let Some(id) = s.sel.focus()
-        && s.mailbox.message(id).is_some_and(|m| !m.read && !m.draft)
-        && let Ok(m) = s.mailbox.message_mut(id)
-    {
-        m.read = true;
-        s.dirty = true;
-    }
+    s.opened = s.sel.focus().filter(|id| s.mailbox.message(*id).is_some_and(|m| !m.read && !m.draft));
 }
 
 fn select_all(s: &mut Session, _: &Value) -> CmdResult {

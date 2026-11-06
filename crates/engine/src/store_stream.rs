@@ -515,7 +515,7 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     drop(rest);
-    (mailbox.messages, mailbox.contacts, mailbox.events, mailbox.tasks) = (messages, contacts, events, tasks);
+    (mailbox.messages, mailbox.contacts, mailbox.events, mailbox.tasks) = (messages.into(), contacts, events, tasks);
     mailbox.version = 1;
     // The newest Inbox mail has its text read once the window shows, as for a mailbox opened for
     // a window: with no body in memory, a list would show no previews.
