@@ -1160,9 +1160,11 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let _ = app.run("ui.openWindow", json!({"message": id}));
     }
     // A right click on a row outside the selection acts on that row (a conversation's row and
-    // its newest message's own row under it are two rows, #503).
-    if resp.secondary_clicked() && !selected {
-        let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
+    // its newest message's own row under it are two rows, #503), shown as a click shows it (#727).
+    // When the row can't be selected (the message being written can't be saved), no menu opens:
+    // its Delete would act on the selection as it was.
+    if resp.secondary_clicked() && !selected && app.run("mail.select", json!({"id": id, "copy": copy})).is_err() {
+        return;
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
     let sent = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Sent);
