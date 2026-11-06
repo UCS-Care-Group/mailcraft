@@ -144,6 +144,26 @@ fn a_connection_lost_while_the_sizes_come_is_offline_and_refuses_nothing() {
 }
 
 #[test]
+fn a_connection_lost_while_the_folders_are_listed_is_offline_and_a_refused_list_is_not() {
+    // As a break while a mailbox opens or the sizes come: nothing is refused, and the account is
+    // offline only when the server was lost, not when it said no.
+    for (lost, offline) in [(true, true), (false, false)] {
+        let imap = server();
+        if lost {
+            imap.world().hang_up_on = Some("LIST".into());
+        } else {
+            imap.world().refuse = vec!["LIST".into()];
+        }
+        let result = fetch(&imap, vec![key("INBOX", 11, 4)]);
+        assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+        assert!(result.errors[0].starts_with("Couldn't read the list of folders"), "{:?}", result.errors);
+        assert!(result.failed.is_empty() && result.missing.is_empty(), "{:?} {:?}", result.failed, result.missing);
+        assert!(result.fetched.is_empty());
+        assert_eq!(result.offline, offline, "lost: {lost}");
+    }
+}
+
+#[test]
 fn a_server_that_is_not_there_is_offline_and_a_wrong_password_is_said_without_it() {
     let imap = server();
     let mut lost = account(&imap);

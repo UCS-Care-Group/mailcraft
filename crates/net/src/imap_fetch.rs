@@ -70,7 +70,9 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
     let mailboxes = match imap.list() {
         Ok(list) => list,
         Err(e) => {
-            out.errors.push(format!("Couldn't read the list of folders: {}", NetError::from(e)));
+            let e = NetError::from(e);
+            out.offline = e.is_unreachable();
+            out.errors.push(format!("Couldn't read the list of folders: {e}"));
             return;
         }
     };
