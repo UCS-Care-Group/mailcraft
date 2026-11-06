@@ -2668,13 +2668,24 @@ impl Session {
     /// is without the messages `added`, without the folders `made` that are empty then, and with
     /// the categories as they were (#815). What the owner did meanwhile stays as it is: a folder
     /// of the import that holds mail or a folder of the owner's stays, with them in it.
-    pub(crate) fn keep_import_step(&mut self, label: &'static str, added: &[Id], made: &[Id], categories: Vec<mailcraft_model::Category>) {
-        if added.is_empty() && made.is_empty() && categories == self.mailbox.categories {
+    pub(crate) fn keep_import_step(
+        &mut self,
+        label: &'static str,
+        added: &[Id],
+        contacts: &[Id],
+        made: &[Id],
+        categories: Vec<mailcraft_model::Category>,
+    ) {
+        if added.is_empty() && contacts.is_empty() && made.is_empty() && categories == self.mailbox.categories {
             return;
         }
         let mut before = self.snapshot(label);
         for id in added {
             before.mailbox.messages.remove(id);
+        }
+        // (Only the contacts the import put in: the owner's own, put in or changed since, stay.)
+        for id in contacts {
+            before.mailbox.contacts.remove(id);
         }
         // The folders it made, deepest first (each was made after its parent), that hold nothing
         // once its mail is out: not a message, not a folder.
@@ -2787,7 +2798,12 @@ impl Session {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
         let uid = |m: &mailcraft_model::Mailbox| m.event(item).map(|e| e.uid.clone());
         let event = uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox);
-        event || gone_in(&self.mailbox, &step.mailbox, item)
+        // (A contact the step didn't touch stays, as undo leaves it: the step's snapshot may
+        // hold fewer, or other, contacts than there are now.)
+        let there = |m: &mailcraft_model::Mailbox| m.event(item).is_some() || m.task(item).is_some();
+        let other = there(&self.mailbox) && !there(&step.mailbox);
+        let contact = self.mailbox.contact(item).is_some() && step.mailbox.contact(item).is_none() && step.touched.changed_contact(item);
+        event || other || contact
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would put back another version of the

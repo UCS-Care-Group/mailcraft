@@ -2444,6 +2444,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-link",
+ "mailcraft-names",
  "mailcraft-time",
  "proptest",
  "serde",
@@ -2493,6 +2494,7 @@ dependencies = [
 name = "mailcraft-pst"
 version = "0.10.0"
 dependencies = [
+ "mailcraft-charset",
  "proptest",
 ]
 

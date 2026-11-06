@@ -1,0 +1,1 @@
+| 2026-11-06 | #815: a .pst import keeps going while the window is hidden, minimised or on another desktop: its batches are taken in by the window's logic (which the toolkit runs without painting) with a time budget per turn instead of by the dialog's frame |

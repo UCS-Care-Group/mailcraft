@@ -454,8 +454,9 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
 /// what was typed after it could be, in its order, once something was typed (#308): each by
 /// their name, and their address goes after the keyword. Only an address the search reads back
 /// as that one address ([`is_address`]) is offered, so that, taken, it finds that address and no
-/// other (#301); each address once. A name is shown without control characters, its spaces run
-/// together, at most [`MAX_SUGGESTED_NAME`] characters of it.
+/// other (#301); each address once. A name is shown as names are (#454): without control
+/// characters or characters that show nothing, its spaces run together, cut with an ellipsis at
+/// [`MAX_SUGGESTED_NAME`] characters; by its address when nothing of it shows.
 pub fn suggestions_with(query: &str, cursor: usize, categories: &[Category], people: impl FnOnce(&str) -> Vec<Address>) -> Vec<Suggestion> {
     let mut cursor = cursor.min(query.len());
     while !query.is_char_boundary(cursor) {
@@ -599,11 +600,11 @@ fn keywords_starting(query: &str, token: &str, range: Range<usize>) -> Vec<Sugge
         .collect()
 }
 
-/// A person's name as the list shows it: no control characters, spaces run together, at most
-/// [`MAX_SUGGESTED_NAME`] characters.
+/// A person's name as the list shows it, as a name is shown (#454): one line, without control
+/// characters or characters that show nothing, spaces run together, at most
+/// [`MAX_SUGGESTED_NAME`] characters, the last an ellipsis where it was cut.
 fn shown_name(name: &str) -> String {
-    let words: Vec<&str> = name.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
-    words.join(" ").chars().take(MAX_SUGGESTED_NAME).collect::<String>().trim_end().to_string()
+    mailcraft_names::shown(name, MAX_SUGGESTED_NAME)
 }
 
 /// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an
