@@ -123,7 +123,8 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
     }
     match s.view.sort {
         SortBy::Date => Some(DateGroup::of(s.local(when(m)).date, s.today(), s.prefs.week_start).label().to_string()),
-        SortBy::From => Some(m.from.display().to_string()),
+        // In Sent Items, Drafts and the Outbox, who the mail is to, as it is sorted.
+        SortBy::From => Some(crate::columns::person(&s.mailbox, m)),
         SortBy::Importance => Some(
             match m.importance {
                 Importance::High => "High",
@@ -134,7 +135,7 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
         ),
         // Each row of a message arranged by categories has a heading of its own (`by_category`).
         SortBy::Categories => None,
-        SortBy::Subject | SortBy::Size => None,
+        SortBy::Subject | SortBy::Size | SortBy::Attachments | SortBy::Flag => None,
     }
 }
 
@@ -173,6 +174,14 @@ pub fn category_names(categories: &[String]) -> Vec<String> {
     names.sort();
     names.dedup();
     names
+}
+
+fn flag_order(flag: FlagStatus) -> u8 {
+    match flag {
+        FlagStatus::None => 0,
+        FlagStatus::Complete => 1,
+        FlagStatus::Flagged => 2,
+    }
 }
 
 pub fn rows(s: &Session) -> Vec<Row> {
@@ -304,7 +313,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
     if matches!(s.view.sort, SortBy::Date | SortBy::Importance | SortBy::Categories) {
         sort_by_dates(&mut shown, s.view.sort, desc);
     } else {
-        sort_by_words(&mut shown, s.view.sort, desc);
+        sort_by_words(mb, &mut shown, s.view.sort, desc);
     }
 
     if s.view.sort == SortBy::Categories {
@@ -377,23 +386,31 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
     (out, kept_only, unfetched)
 }
 
-/// `shown` in the order of a sort by name or size (From, Subject, Size): pinned first, ids
-/// breaking ties. A sender's or a subject's name is folded once for each message, not at each
-/// comparison.
-fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
+/// `shown` in the order of a sort by name, size, files or flag (From, Subject, Size,
+/// Attachments, Flag): pinned first, ids breaking ties. What a comparison needs that costs more
+/// than reading a field (a sender's or a subject's name folded, who a sent message is to, whether
+/// a message has files) is worked out once for each message, not at each comparison.
+fn sort_by_words(mb: &mailcraft_model::Mailbox, shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
     let name = |m: &Message| match sort {
-        SortBy::From => m.from.display().to_lowercase(),
+        // In Sent Items, Drafts and the Outbox, by who the mail is to, as the rows name them.
+        SortBy::From => crate::columns::person_key(mb, m),
         SortBy::Subject => m.topic().to_lowercase(),
         _ => String::new(),
     };
-    let mut keyed: Vec<(String, &Message)> = shown.iter().map(|m| (name(m), *m)).collect();
-    keyed.sort_by(|(an, a), (bn, b)| {
+    let rank = |m: &Message| match sort {
+        SortBy::Attachments => u8::from(crate::columns::sorts_with_files(m)),
+        SortBy::Flag => flag_order(m.flag),
+        _ => 0,
+    };
+    let mut keyed: Vec<(String, u8, &Message)> = shown.iter().map(|m| (name(m), rank(m), *m)).collect();
+    keyed.sort_by(|(an, ar, a), (bn, br, b)| {
         let key = match sort {
             // Within one sender or subject, newest first when the names run A to Z.
             SortBy::From | SortBy::Subject => an.cmp(bn).then(when(b).cmp(&when(a))),
             // As the row says it (#273): the server's size for what isn't here; one not known
             // counts as the smallest.
             SortBy::Size => a.list_size().cmp(&b.list_size()),
+            SortBy::Attachments | SortBy::Flag => ar.cmp(br).then(when(a).cmp(&when(b))),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             // Newest first; `by_category` then lists each under its categories.
             SortBy::Categories => when(b).cmp(&when(a)),
@@ -406,7 +423,7 @@ fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
         b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
     });
     shown.clear();
-    shown.extend(keyed.into_iter().map(|k| k.1));
+    shown.extend(keyed.into_iter().map(|k| k.2));
 }
 
 /// `shown` in the order of a sort by date, importance or categories, as [`sort_by_words`]
