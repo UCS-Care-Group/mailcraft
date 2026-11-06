@@ -17,8 +17,9 @@
 //!   no deeper than [`MAX_SVG_DEPTH`] (by a scan with no stack, before the XML reader, which
 //!   recurses, sees it), at most [`MAX_SVG_NODES`] nodes, no entity and no internal subset of the
 //!   document type, an `<svg>` root in SVG's namespace.
-//! - **Only what is allowed ([`plain`]):** the elements of [`ELEMENTS`] (and elements of other
-//!   namespaces, which the renderer skips), the attributes of [`ATTRIBUTES`] (and `data-…`,
+//! - **Only what is allowed ([`plain`]):** the elements of [`ELEMENTS`] in SVG's namespace or in
+//!   none (and elements of other namespaces, which the renderer skips, but no `<style>` of any
+//!   namespace, which usvg reads all the same), the attributes of [`ATTRIBUTES`] (and `data-…`,
 //!   `aria-…`, `xml:space`, `xml:lang` and editors' own namespaces', which it ignores), a `style` of those properties
 //!   alone with nothing quoted, escaped or commented, and `opacity` on a shape alone, so that no
 //!   layer is drawn inside another. So there is no `<use>`, style sheet, `href` (gradients don't
@@ -32,7 +33,8 @@
 //!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes, layers and segments it
 //!   has, so that drawing it is a bounded amount of work; and it is drawn on a thread of its own,
 //!   one drawing at a time, never on the window's (`Pictures::draw_apart`; the browser build,
-//!   which has no threads, shows none).
+//!   which has no threads, shows none). Reading it ([`probe`]: the parse, usvg's tree and the
+//!   stroking for bounds) is done on the window's thread, which is why the caps above come first.
 //!
 //! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
 //! broken picture too.
@@ -275,11 +277,16 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
     // lines its paths could be, from their text, and whether a stroke or a round one is anywhere.
     let (mut path_text, mut stroked, mut round) = (0u64, false, false);
     for node in document.descendants().filter(roxmltree::Node::is_element) {
-        // An element of another namespace (an editor's own) is skipped by the renderer, all in it.
-        if node.tag_name().namespace() != Some(SVG) {
-            continue;
-        }
         let name = node.tag_name().name();
+        match node.tag_name().namespace() {
+            // An element of no namespace (`xmlns=""`, which the XML reader gives as an empty
+            // one) is held to the allowlist as SVG's is: usvg may read it as one.
+            None | Some("" | SVG) => {}
+            // usvg takes a style sheet from a `<style>` of any namespace: none is allowed.
+            Some(_) if name == "style" => return None,
+            // An element of another namespace (an editor's own) is skipped by the renderer.
+            Some(_) => continue,
+        }
         // Only the root is an `<svg>`: one inside it is a drawing of its own.
         let root = node.parent().is_some_and(|p| !p.is_element());
         if !ELEMENTS.contains(&name) || (name == "svg" && !root) {

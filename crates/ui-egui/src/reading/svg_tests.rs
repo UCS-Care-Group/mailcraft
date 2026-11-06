@@ -499,6 +499,38 @@ fn review_9_xml_attributes_dashes_and_strokes_read() {
     assert!(images::decode(icon.as_bytes(), 2048, 48).is_some());
 }
 
+/// Review of #830: usvg takes a style sheet from a `<style>` of any namespace, or of none, and
+/// reads an element of no namespace as SVG's. Such a `<style>` is refused, and an element of no
+/// namespace is held to the allowlist; an editor's own elements are still let be.
+#[test]
+fn review_10_a_style_sheet_or_an_element_of_another_namespace_is_refused() {
+    let svg = |body: &str| format!("<svg {NS} width='10' height='10'>{body}</svg>").into_bytes();
+    let rect = "<rect width='10' height='10' fill='#2e8b57'/>";
+    for style in ["<x:style xmlns:x='urn:x'>rect{fill:red}</x:style>", "<style xmlns=''>rect{fill:red}</style>", "<style xmlns=''/>"] {
+        assert!(refused(&svg(&format!("{style}{rect}"))), "{style}");
+    }
+    // Rules that match every element at every depth, under the size cap: refused at once, not
+    // matched for seconds on the window's thread.
+    let depth = 38;
+    let sheet: String = (0..3_000).map(|_| format!("{}*{{fill:red}}", "* ".repeat(30))).collect();
+    let nested = format!("{}{}{}", "<g>".repeat(depth), "<rect/>".repeat(2_500), "</g>".repeat(depth));
+    for open in ["<x:style xmlns:x='urn:x'>", "<style xmlns=''>"] {
+        let close = if open.starts_with("<x:") { "</x:style>" } else { "</style>" };
+        let data = svg(&format!("{open}{sheet}{close}{nested}"));
+        assert!(data.len() <= MAX_SVG_BYTES, "{}", data.len());
+        assert!(refused(&data), "{open}");
+    }
+    // An element of no namespace that is not on the allowlist, as one of SVG's would be.
+    let red = b64(&drawing(4, 4, "<rect width='4' height='4' fill='red'/>"));
+    assert!(refused(&svg(&format!("<image xmlns='' width='10' height='10' href='data:image/svg+xml;base64,{red}'/>{rect}"))));
+    assert!(refused(&svg(&format!("<g xmlns=''><script>1</script></g>{rect}"))));
+    // One that is on it is let be (usvg skips it), as is an editor's element of its own namespace.
+    let image =
+        images::decode(&svg(&format!("<g xmlns=''><rect width='10' height='10'/></g><x:info xmlns:x='urn:x' x:by='editor'/>{rect}")), 512, 10)
+            .expect("drawn");
+    assert_eq!(pixel(&image, 5, 5), GREEN);
+}
+
 #[test]
 fn a_damaged_svg_is_a_broken_picture() {
     for data in [
