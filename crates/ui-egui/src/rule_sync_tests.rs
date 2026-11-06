@@ -124,7 +124,7 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert!(app.rules_tick_at(6.0 * 60_000.0));
     app.poll_rules();
     assert_eq!(jobs.lock().unwrap().last(), Some(&(owner, 0)));
-    // Turn On (File › Info): the question, then Microsoft's page for all of it.
+    // Ask again (File › Info): the question, then Microsoft's page for all of it.
     app.ask_sync_again(owner);
     assert!(app.run("ui.allowRules", json!({"account": owner})).is_err());
     assert!(app.run("ui.allowRules", json!({"account": 9_999, "confirmed": true})).is_err());
@@ -397,7 +397,7 @@ fn changes_held_back_from_the_server_say_the_server_still_has_the_rule_as_it_was
     app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
     app.auto_sync = false;
     let h = shown(app);
-    let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On).";
+    let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).";
     assert!(h.query_by_label(said).is_some());
 }
 

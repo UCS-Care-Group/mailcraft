@@ -10,7 +10,7 @@
 //! of the four finds its sign-in doesn't cover it: one question, then one page of Microsoft's for
 //! all of it (`ui.allowSync`, `mailcraft_net::oauth::sign_in_for_sync`; Microsoft shows only what
 //! wasn't given yet). A question that goes away unanswered is not put again by itself in this
-//! session, for any of the four; File › Info has one line per account, with Turn On.
+//! session, for any of the four; File › Info has one line per account, with Ask again.
 
 use mailcraft_model::Id;
 use serde_json::{Value, json};
@@ -60,7 +60,7 @@ impl MailApp {
         self.put_sync_question(account)
     }
 
-    /// File › Info's Turn On, and the Categories window's Allow: the question, whatever was
+    /// File › Info's Ask again, and the Categories window's Allow: the question, whatever was
     /// answered before.
     pub(crate) fn ask_sync_again(&mut self, account: Id) -> bool {
         if self.dialog.is_some() || self.signing_in.is_some() {
@@ -179,13 +179,13 @@ impl MailApp {
             }
             Err(e) if e == NO_BROWSER => {
                 self.sync_not_now(account);
-                self.status(crate::i18n::fmt(tl!("Tasks and rules stay on this computer for now: {error}"), &[("error", &e)]));
+                self.status(crate::i18n::fmt(tl!("For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"), &[("error", &e)]));
                 None
             }
             Err(e) => Some(crate::i18n::fmt(tl!("MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"), &[("error", &e)])),
         };
         if let Some(said) = refusal {
-            // (Not put again by itself, for any of the four: File › Info has Turn On.)
+            // (Not put again by itself, for any of the four: File › Info has Ask again.)
             self.sync_declined.insert(account);
             self.tasks_sync_refused(account, &said);
             self.rules_sync_refused(account, &said);
@@ -204,7 +204,7 @@ impl MailApp {
     }
 
     /// What File › Info says under a Microsoft account's card: one line for the four, what each
-    /// of them stands at (for the tip), and whether Turn On is offered. `None` for an account
+    /// of them stands at (for the tip), and whether Ask again is offered. `None` for an account
     /// none of them is kept for.
     pub(crate) fn sync_line(&self, account: Id) -> Option<(String, String, bool)> {
         let parts: Vec<(String, bool, Perm)> =

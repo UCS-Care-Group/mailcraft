@@ -324,16 +324,16 @@ fn a_refused_sign_in_for_tasks_leaves_ask_again() {
     }
     assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
     assert_eq!(jobs.lock().unwrap().len(), 1);
-    // Turn On: the question, then Microsoft's page.
+    // Ask again: the question, then Microsoft's page.
     app.ask_sync_again(owner);
-    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Turn On asks") };
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Ask again asks") };
     assert_eq!(command, "ui.allowSync");
     app.dialog = None;
     app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
 }
 
-/// #520: signing in again for mail is a way back too, without Turn On.
+/// #520: signing in again for mail is a way back too, without Ask again.
 #[test]
 fn a_new_sign_in_for_mail_lets_the_tasks_go_on() {
     let (mut app, owner, answers, jobs, _) = window();

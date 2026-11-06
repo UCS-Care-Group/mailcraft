@@ -3656,6 +3656,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Forget"
 msgstr ""
@@ -4559,7 +4564,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
 msgstr ""
 
 #. interface
@@ -5216,7 +5221,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Turn On."
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
 msgstr ""
 
 #. interface
@@ -9679,11 +9684,6 @@ msgid "Tasks"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
-msgid "Tasks and rules stay on this computer for now: {error}"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: Microsoft no longer takes the sign-in"
 msgstr ""
@@ -11571,11 +11571,6 @@ msgid "Tuesday"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Turn On"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Turned off by your organisation"
 msgstr ""
@@ -12267,7 +12262,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On)."
+msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
 msgstr ""
 
 #. interface
@@ -13221,7 +13216,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
-msgid "not allowed on the server yet: File › Info › Turn On"
+msgid "not allowed on the server yet: File › Info › Ask again"
 msgstr ""
 
 #. interface
@@ -14970,8 +14965,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
-msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
 msgstr[0] ""
 msgstr[1] ""
 

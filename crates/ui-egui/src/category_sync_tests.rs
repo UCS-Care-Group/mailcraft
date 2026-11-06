@@ -496,3 +496,49 @@ fn an_answer_read_after_a_long_gap_waits_from_when_it_was_read() {
     assert!(app.categories_tick_at(at + 76_000.0), "after the wait");
     assert_eq!(jobs.lock().unwrap().len(), 3);
 }
+
+#[test]
+fn another_address_is_looked_at_afresh_and_its_list_may_be_changed_without_asking_again() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    assert!(app.session.mailbox.categories_read_only(owner).is_none());
+    // The account is given another address: the new mailbox's list is read-only until a job says.
+    app.execute("account.edit", json!({"id": owner, "email": "noor.new@example.org"})).unwrap();
+    let mut read = download(owner, &["Red category", "Theirs"]);
+    read.email = "noor.new@example.org".into();
+    remote::apply_categories(&mut app.session, &read).unwrap();
+    assert!(app.session.mailbox.categories_read_only(owner).is_some());
+    // The next look asks the server again, at once, and the list may be changed once it says so.
+    let mut answer = covered(owner, &["Red category", "Theirs"]);
+    answer.download.as_mut().unwrap().email = "noor.new@example.org".into();
+    answers.lock().unwrap().push_back(answer);
+    // (The new address signs in for itself.)
+    assert!(!app.tokens.contains_key(&owner));
+    app.tokens.insert(owner, tokens("new-access", "ref-3"));
+    assert!(app.categories_tick_at(1_000.0), "looked at afresh");
+    app.poll_categories();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+    assert!(app.session.mailbox.categories_read_only(owner).is_none(), "not read-only until Allow");
+}
+
+#[test]
+fn what_waits_is_worked_out_again_at_most_once_a_second_while_the_mailbox_changes() {
+    let (mut app, owner, answers, _, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    app.categories_tick_at(10.0);
+    let worked_out = |app: &MailApp| app.category_sync.ready.as_ref().map(|(_, when, _)| *when);
+    assert_eq!(worked_out(&app), Some(10.0));
+    // The mailbox changes at every frame: the count waits for a second.
+    for frame in 1..50 {
+        app.execute("mail.markAllRead", json!({})).ok();
+        app.session.mailbox_changed();
+        app.categories_tick_at(10.0 + f64::from(frame) * 16.0);
+    }
+    assert_eq!(worked_out(&app), Some(10.0));
+    app.categories_tick_at(1_010.0);
+    assert_eq!(worked_out(&app), Some(1_010.0));
+}

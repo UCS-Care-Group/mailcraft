@@ -13,10 +13,12 @@
 //! [`CategoryResult::Denied`]. What comes back is hostile JSON like everything else from a server:
 //! the list is capped and an entry that is no category is skipped.
 
+use mailcraft_model::Rgb;
 use mailcraft_model::outlook_colors::{nearest_outlook_color, outlook_preset};
-use mailcraft_model::remote::{CategoriesUpload, CategoriesUploaded, CategoryChangeKind, CategoryOutcome, CategoryResult, MAX_CATEGORY_CHANGES};
+use mailcraft_model::remote::{
+    CategoriesUpload, CategoriesUploaded, CategoryChangeKind, CategoryOutcome, CategoryResult, MAX_CATEGORY_CHANGES, MAX_REMOTE_CATEGORIES,
+};
 use mailcraft_model::sync::same_category;
-use mailcraft_model::{MAX_CATEGORIES, Rgb};
 use serde_json::{Value, json};
 
 use super::tasks::valid_id;
@@ -27,11 +29,11 @@ use crate::http;
 /// Tell the account's server what was done here to its list of categories, one change after the
 /// other; what it made of each comes back ([`CategoryOutcome`]).
 ///
-/// - A category the server has already is given its colour when it is made again, and one it
-///   hasn't is not deleted again: [`CategoryResult::Done`], with nothing sent when there is
-///   nothing to change, and a creation's answer says it was found there
-///   ([`CategoryOutcome::found`]). So is a change of colour of one it deleted meanwhile: the next read takes
-///   it away here too.
+/// - A category the server has already is not made again, and keeps the colour it has there
+///   (another device made it): [`CategoryResult::Done`] with that colour, and the answer says it
+///   was found there ([`CategoryOutcome::found`]). One it hasn't is not deleted again, and a
+///   colour it has already is not sent: [`CategoryResult::Done`]. So is a change of colour of one
+///   it deleted meanwhile: the next read takes it away here too.
 /// - made (201), changed (200), deleted (204), any other 2xx, a deletion answered 404 or 410, a
 ///   creation answered 409 (made there meanwhile): [`CategoryResult::Done`].
 /// - 403: [`CategoryResult::Denied`]; the rest of the upload is left untried.
@@ -67,7 +69,9 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
     };
     // The list as the server has it now, to know what it calls each category.
     let mut there: Vec<There> = Vec::new();
-    let read = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_CATEGORIES, &mut |entry: &Value| {
+    // (As far as a read of the list goes, [`MAX_REMOTE_CATEGORIES`]: what lies past it isn't
+    // known here, so nothing is sent for it.)
+    let read = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
         let (id, name) = (text(entry, "id"), text(entry, "displayName").trim());
         if valid_id(id) && !name.is_empty() {
             there.push(There { id: id.to_string(), name: name.to_string(), color: category_color(text(entry, "color")) });
@@ -128,10 +132,16 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
             (CategoryChangeKind::Create, None) => {
                 ("POST", MASTER_CATEGORIES.to_string(), json!({"displayName": name, "color": color_name(change.color)}))
             }
-            (CategoryChangeKind::Create | CategoryChangeKind::Color, Some(i)) => match there.get(i) {
+            // Made there already (another device, a moment ago): it is the server's own, in the
+            // colour it has there, which is not changed (#661). A name is one category there.
+            (CategoryChangeKind::Create, Some(i)) => {
+                let color = there.get(i).map_or(change.color, |c| c.color);
+                uploaded.outcomes.push(CategoryOutcome { found: true, ..outcome(CategoryResult::Done, color, "") });
+                continue;
+            }
+            (CategoryChangeKind::Color, Some(i)) => match there.get(i) {
                 Some(c) if c.color == change.color => {
-                    let found = change.kind == CategoryChangeKind::Create;
-                    uploaded.outcomes.push(CategoryOutcome { found, ..outcome(CategoryResult::Done, c.color, "") });
+                    uploaded.outcomes.push(outcome(CategoryResult::Done, c.color, ""));
                     continue;
                 }
                 _ => ("PATCH", one(i), colored),
@@ -163,8 +173,6 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
         };
         let sent = body.as_deref().unwrap_or("");
         let mut done = outcome(CategoryResult::Done, change.color, "");
-        // A creation of a name the server has already: what is there is the server's own.
-        done.found = change.kind == CategoryChangeKind::Create && found.is_some();
         let stop = match reply.status {
             401 => {
                 uploaded.token_refused = true;

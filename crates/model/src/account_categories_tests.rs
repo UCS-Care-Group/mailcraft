@@ -84,10 +84,14 @@ fn a_shared_mailbox_uses_its_owners_list() {
     mb.account_categories.insert(a, vec![tagged("Red", RED)]);
     assert_eq!(mb.category_list_owner(shared), Some(a));
     assert_eq!(mb.category_color_of(shared, "Red"), RED);
-    // Its items are the owner's to rename.
+    // Its items are its server's, which has a list of its own: a rename of the owner's list
+    // leaves them as they are (#661), and its mail shows the old name in grey, as Outlook does.
     let m = message_of(&mut mb, shared, &["Red"]);
+    let own = message_of(&mut mb, a, &["Red"]);
     mb.rename_category(a, "Red", "Urgent").unwrap();
-    assert_eq!(mb.message(m).unwrap().categories, ["Urgent"]);
+    assert_eq!(mb.message(m).unwrap().categories, ["Red"]);
+    assert_eq!(mb.message(own).unwrap().categories, ["Urgent"]);
+    assert_eq!(mb.category_color_of(shared, "Red"), GREY_CATEGORY);
 }
 
 #[test]

@@ -4409,6 +4409,12 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder favorieten in Outlook bewaart, in dezelfde volgorde. Ze worden van de server gelezen en daar nooit gewijzigd. Zonder dit worden de favorieten getoond die u in MailCraft markeert."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Voorlopig blijven taken en regels op deze computer, worden je automatische antwoorden niet gewijzigd en kunnen de categorieën hier niet worden gewijzigd: {error}"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Forget"
@@ -5480,8 +5486,8 @@ msgstr "Het gaat als e-mail uit het Postvak UIT bij de volgende Verzenden/ontvan
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."
-msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
+msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6267,8 +6273,8 @@ msgstr "MailCraft heeft nodig dat u zich opnieuw aanmeldt om uw automatische ant
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Turn On."
-msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden te wijzigen: Bestand › Info › Inschakelen."
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
+msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden te wijzigen: Bestand › Info › Opnieuw vragen."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -11659,12 +11665,6 @@ msgid "Tasks"
 msgstr "Taken"
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
-#, fuzzy
-msgid "Tasks and rules stay on this computer for now: {error}"
-msgstr "Taken en regels blijven voorlopig op deze computer: {error}"
-
-#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Tasks: Microsoft no longer takes the sign-in"
@@ -13932,12 +13932,6 @@ msgid "Tuesday"
 msgstr "dinsdag"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Turn On"
-msgstr "Inschakelen"
-
-#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -14770,8 +14764,8 @@ msgstr "Uw automatische antwoorden zijn niet gewijzigd"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On)."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Inschakelen)."
+msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
+msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -15908,8 +15902,8 @@ msgstr "er is niemand anders uitgenodigd voor deze afspraak"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "not allowed on the server yet: File › Info › Turn On"
-msgstr "nog niet toegestaan op de server: Bestand › Info › Inschakelen"
+msgid "not allowed on the server yet: File › Info › Ask again"
+msgstr "nog niet toegestaan op de server: Bestand › Info › Opnieuw vragen"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -17968,10 +17962,10 @@ msgstr[1] "{n} resultaten in {scope}"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
-msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
-msgstr[0] "{n} regel die hier is verwijderd, staat nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen)."
-msgstr[1] "{n} regels die hier zijn verwijderd, staan nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen)."
+msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgstr[0] "{n} regel die hier is verwijderd, staat nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
+msgstr[1] "{n} regels die hier zijn verwijderd, staan nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -18264,16 +18258,38 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
+#~ msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."
+#~ msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
+
+#, fuzzy
+#~ msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Turn On."
+#~ msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden te wijzigen: Bestand › Info › Inschakelen."
+
+#, fuzzy
+#~ msgid "Tasks and rules stay on this computer for now: {error}"
+#~ msgstr "Taken en regels blijven voorlopig op deze computer: {error}"
+
+#, fuzzy
+#~ msgid "Turn On"
+#~ msgstr "Inschakelen"
+
+#, fuzzy
+#~ msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On)."
+#~ msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Inschakelen)."
+
+#, fuzzy
+#~ msgid "not allowed on the server yet: File › Info › Turn On"
+#~ msgstr "nog niet toegestaan op de server: Bestand › Info › Inschakelen"
+
+#, fuzzy
+#~ msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+#~ msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+#~ msgstr[0] "{n} regel die hier is verwijderd, staat nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen)."
+#~ msgstr[1] "{n} regels die hier zijn verwijderd, staan nog op de server tot MailCraft de regels van de server mag wijzigen (Bestand › Info › Inschakelen)."
+
+#, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Dit account bewaart zijn regels niet op zijn server"
-
-#, fuzzy
-#~ msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
-#~ msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
-
-#, fuzzy
-#~ msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-#~ msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen)."
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
@@ -18306,10 +18322,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Keep Tasks in Step with Microsoft To Do"
 #~ msgstr "Taken bijhouden met Microsoft To Do"
-
-#, fuzzy
-#~ msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-#~ msgstr "MailCraft heeft eerst uw toestemming nodig om uw automatische antwoorden te wijzigen: Bestand › Info › Opnieuw vragen."
 
 #, fuzzy
 #~ msgid "Rules stay on this computer for now: {error}"
@@ -18388,10 +18400,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
 #~ msgstr "De beheerder van uw organisatie moet het bijhouden van taken met Microsoft To Do één keer goedkeuren: Bestand › Info"
-
-#, fuzzy
-#~ msgid "not allowed on the server yet: File › Info › Ask again"
-#~ msgstr "nog niet toegestaan op de server: Bestand › Info › Opnieuw vragen"
 
 #, fuzzy
 #~ msgid "you signed in as somebody else"

@@ -206,7 +206,14 @@ impl MailApp {
             return false;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
+        // So does a job telling a server what was done to its categories: a list read meanwhile
+        // could be from before the change, and put it back here until the next read (#661).
+        if self.calendar.rx.is_some()
+            || self.graph_rx.is_some()
+            || self.sync_rx.is_some()
+            || self.signing_in.is_some()
+            || !self.sync_queue.is_empty()
+            || self.category_sync.busy()
         {
             return false;
         }

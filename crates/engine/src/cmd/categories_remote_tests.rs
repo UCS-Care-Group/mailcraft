@@ -196,15 +196,17 @@ fn what_the_server_refused_is_put_back_and_said() {
     s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();
     s.run("category.set", &json!({"account": a, "name": "Red category", "color": "#2E8B57"})).unwrap();
     s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
-    // The deletion waits on what is made; when the server won't make it, the deletion is not
-    // sent either, and the server's comes back with the next read.
+    // The deletion waits on what is made; when the server won't make it, the deletion, which is
+    // no rename's, goes all the same (#661).
     let said = answer(&mut s, a, CategoryChangeKind::Create, "Travel", GREEN, CategoryResult::Refused);
     assert!(said["messages"][0].as_str().unwrap().contains("Travel"));
+    assert!(!said["messages"].to_string().contains("wasn't deleted"), "{said}");
     answer(&mut s, a, CategoryChangeKind::Color, "Red category", GREEN, CategoryResult::Refused);
     assert_eq!(s.mailbox.category_color_of(a, "Red category"), RED);
     assert!(s.mailbox.category_is_local(a, "Travel"), "kept on this computer only");
-    assert!(changes(&mut s, a).is_empty());
-    read(&mut s, a, vec![tag("Red category", RED), tag("Old", RED)]);
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", RED)]);
+    // (Refused there, as below: it is put back.)
+    answer(&mut s, a, CategoryChangeKind::Delete, "Old", RED, CategoryResult::Refused);
     assert!(s.mailbox.category_of(a, "Old").is_some());
     // A deletion refused: back on the list.
     s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
@@ -686,7 +688,10 @@ fn a_deletion_sent_in_the_same_job_as_a_refused_making_is_answered_by_its_own_an
         ],
     );
     assert!(!said["messages"].to_string().contains("wasn't deleted"), "{said}");
-    // Not deleted for now: it goes again.
+    // The old letters are made there again first; then the deletion, not done for now, goes again.
+    let sent = changes(&mut s, a);
+    assert_eq!(sent, [change(CategoryChangeKind::Create, "client", GREEN)]);
+    took(&mut s, a, &sent);
     assert_eq!(deletes(&mut s, a), ["Old"]);
 }
 
@@ -1746,4 +1751,141 @@ fn mail_in_the_outbox_is_sent_not_changed_and_nothing_waits_for_it() {
     let sent = changes(&mut s, a);
     took(&mut s, a, &sent);
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
+}
+
+// ---- a change of the owner's list rewrites no other mailbox's items (#661) ----
+
+#[test]
+fn a_rename_or_a_removal_leaves_a_shared_mailboxs_items_and_other_peoples_calendars_alone() {
+    for remove in [false, true] {
+        let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+        let shared = s.run("account.addSharedMailbox", &json!({"account": a, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+        assert_eq!(s.mailbox.category_list_owner(shared), Some(a), "a shared mailbox's items use its owner's list");
+        let own = server_message(&mut s, a, &["Old"]);
+        // A message of the shared mailbox that its server has, and an event of its calendar.
+        let folder = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+        let there = ServerMessage { id: "m-2".into(), folder: "inbox".into(), categories: vec!["Old".into()], ..Default::default() };
+        let theirs = s.mailbox.add_message(Message { folder, categories: vec!["Old".into()], server: Some(there), ..Default::default() }).unwrap();
+        let shared_event = server_event(&mut s, shared, &["Old"]);
+        // And an event of a colleague's calendar that the owner's account lists.
+        let colleague = server_event(&mut s, a, &["Old"]);
+        let calendar = s.mailbox.event(colleague).unwrap().calendar;
+        s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().owner =
+            Some(mailcraft_model::CalendarOwner { address: "ben@example.org".into(), name: "Ben".into() });
+        let mine = server_event(&mut s, a, &["Old"]);
+        if remove {
+            s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+        } else {
+            s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+        }
+        let now = if remove { Vec::<String>::new() } else { vec!["New".to_string()] };
+        assert_eq!(s.mailbox.message(own).unwrap().categories, now, "the owner's own mail");
+        assert_eq!(s.mailbox.event(mine).unwrap().categories, now, "the owner's own event");
+        assert_eq!(s.mailbox.message(theirs).unwrap().categories, ["Old"], "the shared mailbox's mail");
+        assert_eq!(s.mailbox.event(shared_event).unwrap().categories, ["Old"], "the shared mailbox's event");
+        assert_eq!(s.mailbox.event(colleague).unwrap().categories, ["Old"], "a colleague's event");
+        // Only the owner's own event goes to its server.
+        let told: Vec<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
+        assert_eq!(told, [mine], "remove: {remove}");
+        // Nothing of the shared mailbox's mail is to go.
+        let (sent, _) = graph_up::message_changes(&s, shared, 10);
+        assert!(sent.is_empty(), "{sent:?}");
+    }
+}
+
+// ---- what an agent may do to Outlook's list without the owner (#661) ----
+
+#[test]
+fn an_agent_asks_before_it_sends_a_category_to_outlook_or_renames_one_there() {
+    let (s, a) = rig_with_local();
+    // Sending one kept on this computer only to Outlook, as `tasks.sendLocal` for the to-dos.
+    match check(&s, "category.addToOutlook", &json!({"account": a, "name": "Old local"}), &[]) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("\u{201c}Old local\u{201d}") && text.contains("to Outlook"), "{text}"),
+        other => panic!("an agent sends a local category to Outlook unasked: {other:?}"),
+    }
+    // Renaming one Outlook has: the new name is made there and the old one deleted there.
+    match check(&s, "category.rename", &json!({"account": a, "from": "Red category", "to": "Urgent"}), &[]) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("in Outlook too"), "{text}"),
+        other => panic!("an agent renames a category in Outlook unasked: {other:?}"),
+    }
+    assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": "Red category", "to": "Urgent"}), &[Class::Send]), Verdict::Run);
+    // One kept on this computer only, or on the list IMAP accounts and this computer share, is
+    // renamed here alone: nothing to ask.
+    assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": "Old local", "to": "Mine"}), &[]), Verdict::Run);
+    let mut s = s;
+    s.run("category.set", &json!({"name": "Shared", "color": "#2E8B57"})).unwrap();
+    assert_eq!(check(&s, "category.rename", &json!({"from": "Shared", "to": "Other"}), &[]), Verdict::Run);
+}
+
+#[test]
+fn a_name_another_device_made_in_outlook_meanwhile_keeps_outlooks_colour_and_says_so() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Travel", GREEN)]);
+    // The job found it there already, in blue: it is blue here too, and nothing more goes.
+    let said = answers(&mut s, a, vec![CategoryOutcome { found: true, ..outcome(CategoryChangeKind::Create, "Travel", BLUE, CategoryResult::Done) }]);
+    assert_eq!(s.mailbox.category_of(a, "Travel").map(|c| c.color), Some(BLUE));
+    assert!(said["messages"].to_string().contains("was in Outlook already"), "{said}");
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+    // Found there in the colour it has here: nothing to say.
+    s.run("category.set", &json!({"account": a, "name": "Home", "color": "#2E8B57"})).unwrap();
+    let said = answers(&mut s, a, vec![CategoryOutcome { found: true, ..outcome(CategoryChangeKind::Create, "Home", GREEN, CategoryResult::Done) }]);
+    assert_eq!(said["messages"], json!([]));
+}
+
+#[test]
+fn other_letters_refused_after_the_old_ones_went_make_the_old_ones_there_again() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "client", "to": "Client"})).unwrap();
+    let said = answers(
+        &mut s,
+        a,
+        vec![
+            outcome(CategoryChangeKind::Delete, "client", GREEN, CategoryResult::Done),
+            outcome(CategoryChangeKind::Create, "Client", GREEN, CategoryResult::Refused),
+        ],
+    );
+    assert!(said["messages"].to_string().contains("new spelling"), "{said}");
+    // Not kept on this computer alone: the old letters go back there, in their colour.
+    assert!(!s.mailbox.category_is_local(a, "client"));
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "client", GREEN)]);
+}
+
+#[test]
+fn a_new_name_the_server_wont_make_keeps_its_old_name_there_and_lets_other_deletions_go() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN), tag("Gone", RED)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "Newer"})).unwrap();
+    // Renamed again before it went: what the server has is still "Old".
+    s.run("category.rename", &json!({"account": a, "from": "Newer", "to": "New"})).unwrap();
+    s.run("category.remove", &json!({"account": a, "name": "Gone"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "New", GREEN)]);
+    let said = answer(&mut s, a, CategoryChangeKind::Create, "New", GREEN, CategoryResult::Refused);
+    assert!(said["messages"].to_string().contains("\"Old\\\" wasn't deleted in Outlook"), "{said}");
+    assert!(!said["messages"].to_string().contains("Gone"), "{said}");
+    // The owner's own deletion goes; the rename's old name stays there.
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Gone", RED)]);
+    assert!(s.mailbox.category_renames.is_empty());
+}
+
+#[test]
+fn an_undo_of_a_rename_before_its_event_change_goes_sends_nothing_and_once_it_went_there_is_none() {
+    // Undone while the event's change waits: the change goes with the undo, and nothing is sent.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event_changes.len(), 1);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
+    assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+
+    // Once the server took the event's change, the undo history is forgotten, as for any change
+    // of an event that reached its server: there is nothing to undo, and nothing goes back.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    server_event(&mut s, a, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    event_answer(&mut s, a);
+    assert!(!s.can_undo());
 }

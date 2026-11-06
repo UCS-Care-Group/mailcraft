@@ -1339,8 +1339,9 @@ msgstr "Come lo vedono le persone a cui si scrive"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Chiedi di nuovo"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4215,6 +4216,12 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Per un account che accede con Microsoft: le cartelle tenute nei Preferiti di Outlook, nello stesso ordine. Vengono lette dal server e mai modificate lì. Senza questa opzione, vengono mostrati i preferiti contrassegnati in MailCraft."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Per ora attività e regole restano su questo computer, le risposte automatiche non vengono modificate e le categorie non si possono modificare qui: {error}"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Forget"
 msgstr ""
@@ -5225,8 +5232,8 @@ msgstr "Parte come messaggio da Posta in uscita al prossimo Invia/Ricevi, con l'
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."
-msgstr "Passa al server non appena MailCraft può modificare le regole del server (File › Informazioni › Attiva); fino ad allora viene eseguita su questo computer, mentre MailCraft è aperto."
+msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
+msgstr "Passa al server non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo); fino ad allora viene eseguita su questo computer, mentre MailCraft è aperto."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5981,8 +5988,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Turn On."
-msgstr "MailCraft ha prima bisogno del tuo permesso per modificare le tue risposte automatiche: File › Informazioni › Attiva."
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
+msgstr "MailCraft ha prima bisogno del tuo permesso per modificare le tue risposte automatiche: File › Informazioni › Chiedi di nuovo."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -11145,12 +11152,6 @@ msgid "Tasks"
 msgstr "Attività"
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
-#, fuzzy
-msgid "Tasks and rules stay on this computer for now: {error}"
-msgstr "Attività e regole restano per ora su questo computer: {error}"
-
-#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: Microsoft no longer takes the sign-in"
 msgstr ""
@@ -13272,12 +13273,6 @@ msgid "Tuesday"
 msgstr "martedì"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Turn On"
-msgstr "Attiva"
-
-#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -14076,8 +14071,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On)."
-msgstr "Le tue risposte automatiche non sono state modificate: MailCraft ha prima bisogno del tuo permesso (File › Informazioni › Attiva)."
+msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
+msgstr "Le tue risposte automatiche non sono state modificate: MailCraft ha prima bisogno del tuo permesso (File › Informazioni › Chiedi di nuovo)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -15155,8 +15150,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "not allowed on the server yet: File › Info › Turn On"
-msgstr "non ancora consentito sul server: File › Informazioni › Attiva"
+msgid "not allowed on the server yet: File › Info › Ask again"
+msgstr "non ancora consentita sul server: File › Informazioni › Chiedi di nuovo"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -17138,10 +17133,10 @@ msgstr[1] "{n} risultati in {scope}"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
-msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
-msgstr[0] "{n} regola eliminata qui è ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Attiva)."
-msgstr[1] "{n} regole eliminate qui sono ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Attiva)."
+msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgstr[0] "{n} regola eliminata qui è ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Chiedi di nuovo)."
+msgstr[1] "{n} regole eliminate qui sono ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Chiedi di nuovo)."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -17425,6 +17420,36 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
 
 #, fuzzy
+#~ msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."
+#~ msgstr "Passa al server non appena MailCraft può modificare le regole del server (File › Informazioni › Attiva); fino ad allora viene eseguita su questo computer, mentre MailCraft è aperto."
+
+#, fuzzy
+#~ msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Turn On."
+#~ msgstr "MailCraft ha prima bisogno del tuo permesso per modificare le tue risposte automatiche: File › Informazioni › Attiva."
+
+#, fuzzy
+#~ msgid "Tasks and rules stay on this computer for now: {error}"
+#~ msgstr "Attività e regole restano per ora su questo computer: {error}"
+
+#, fuzzy
+#~ msgid "Turn On"
+#~ msgstr "Attiva"
+
+#, fuzzy
+#~ msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On)."
+#~ msgstr "Le tue risposte automatiche non sono state modificate: MailCraft ha prima bisogno del tuo permesso (File › Informazioni › Attiva)."
+
+#, fuzzy
+#~ msgid "not allowed on the server yet: File › Info › Turn On"
+#~ msgstr "non ancora consentito sul server: File › Informazioni › Attiva"
+
+#, fuzzy
+#~ msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+#~ msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+#~ msgstr[0] "{n} regola eliminata qui è ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Attiva)."
+#~ msgstr[1] "{n} regole eliminate qui sono ancora sul server finché MailCraft non può modificare le regole del server (File › Informazioni › Attiva)."
+
+#, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Questo account non conserva le sue regole sul suo server"
 
@@ -17443,10 +17468,6 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 
 #~ msgid "Google sign-in is not configured in File > Options."
 #~ msgstr "L’accesso con Google non è configurato in File > Opzioni."
-
-#, fuzzy
-#~ msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open."
-#~ msgstr "Passa al server non appena MailCraft può modificare le regole del server (File › Informazioni › Chiedi di nuovo); fino ad allora viene eseguita su questo computer, mentre MailCraft è aperto."
 
 #, fuzzy
 #~ msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
@@ -17503,10 +17524,6 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
 #~ msgstr "L'amministratore della tua organizzazione deve approvare una volta la conservazione delle regole sul server: File › Informazioni"
-
-#, fuzzy
-#~ msgid "not allowed on the server yet: File › Info › Ask again"
-#~ msgstr "non ancora consentita sul server: File › Informazioni › Chiedi di nuovo"
 
 #, fuzzy
 #~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."

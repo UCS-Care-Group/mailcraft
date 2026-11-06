@@ -648,3 +648,15 @@ fn a_server_that_answers_late_is_waited_for_from_its_answer() {
     assert!(app.calendar_tick_at(true, t0 + 71.0 * SECOND), "after the wait");
     assert_eq!(jobs(&server), 2);
 }
+
+#[test]
+fn the_calendar_waits_while_the_categories_are_told_to_the_server() {
+    let (mut app, server, account) = app();
+    // A categories job under way, its answer not taken in yet.
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.category_sync.rx = Some((account, 0.0, 0, rx));
+    assert!(!app.calendar_tick_at(true, now_ms()), "a list read now could be from before the change");
+    assert_eq!(jobs(&server), 0);
+    app.category_sync.rx = None;
+    assert!(app.calendar_tick_at(true, now_ms()));
+}

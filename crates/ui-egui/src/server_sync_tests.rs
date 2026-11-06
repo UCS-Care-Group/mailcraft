@@ -112,7 +112,7 @@ fn one_question_and_one_page_for_the_to_dos_and_the_categories() {
 }
 
 #[test]
-fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_turns_it_on() {
+fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_asks_again() {
     let (mut app, owner, sign_ins, _) = window();
     both_need_it(&mut app, owner);
     app.dialog = None;
@@ -126,11 +126,11 @@ fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_turns_it_on() {
         app.categories_tick_at(f64::from(minute) * 60_000.0);
         assert!(app.dialog.is_none(), "asked again by itself at minute {minute}");
     }
-    // One line in File › Info, off, with Turn On; what each stands at is in its tip.
+    // One line in File › Info, off, with Ask again; what each stands at is in its tip.
     let (line, details, again) = app.sync_line(owner).unwrap();
     assert!(line.contains("off") && again, "{line}");
     assert!(details.contains("Tasks") && details.contains("Categories"), "{details}");
-    // Turn On: the question, then the page.
+    // Ask again: the question, then the page.
     assert!(app.ask_sync_again(owner));
     assert_eq!(questions(&app), 1);
     assert!(!app.ask_sync_again(owner), "not twice over");
@@ -140,7 +140,7 @@ fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_turns_it_on() {
 }
 
 #[test]
-fn a_page_that_says_no_is_said_once_and_leaves_turn_on() {
+fn a_page_that_says_no_is_said_once_and_leaves_ask_again() {
     let (mut app, owner, sign_ins, answer) = window();
     *answer.lock().unwrap() = Err("the owner closed the page".into());
     both_need_it(&mut app, owner);
@@ -173,4 +173,19 @@ fn the_question_is_the_owners_alone() {
     // An agent asks the owner first, as for adding an account.
     use mailcraft_engine::agent::{Access, Class, access};
     assert_eq!(access("ui.allowSync"), Some(Access::Owner(Class::Accounts)));
+}
+
+#[test]
+fn a_browser_that_cant_be_started_is_said_for_all_four() {
+    let (mut app, owner, _, answer) = window();
+    *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
+    both_need_it(&mut app, owner);
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (said, _) = app.status_msg.clone().unwrap();
+    for part in ["tasks and rules", "automatic replies", "categories", crate::approval::NO_BROWSER] {
+        assert!(said.contains(part), "{part}: {said}");
+    }
+    assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Declined));
 }

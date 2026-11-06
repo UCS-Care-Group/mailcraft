@@ -344,8 +344,8 @@ const SAFE: &[&str] = &[
     "tasks.categorize",
     "tasks.fromMessage",
     "category.set",
+    // (Asked when it renames a category in Outlook: `classify`, #661.)
     "category.rename",
-    "category.addToOutlook",
     "category.list",
     "account.list",
     "account.offlineSize",
@@ -408,6 +408,8 @@ const SEND: &[&str] = &[
     "calendar.forward",
     // The owner's yes to sending the tasks that exist only here to a Microsoft account's To Do.
     "tasks.sendLocal",
+    // A category the owner keeps on this computer alone, sent to Outlook (#661), as the to-dos.
+    "category.addToOutlook",
     "ui.downloadPictures",
     "ui.retryPictures",
     "ui.joinMeeting",
@@ -701,6 +703,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if server_rule_deletes(s, id, params) {
         return Access::Owner(Class::Delete);
     }
+    // A rename on a list kept in step with Outlook makes the new name there and deletes the old
+    // one (#661): the owner says yes first, as for sending what is kept on this computer alone.
+    if id == "category.rename" && renames_in_outlook(s, params) {
+        return Access::Owner(Class::Send);
+    }
     // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
     // able to make it again (#566), as `tasks.delete`; so is one that went to be made there and
     // had no answer, which the server may have.
@@ -823,6 +830,15 @@ fn shared_task<'a>(s: &'a Session, id: &str, params: &Value) -> Option<&'a mailc
         return None;
     }
     p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
+}
+
+/// Whether `category.rename` with these params would rename a category in Outlook (#661): one
+/// of a Microsoft account's list kept in step with its server, and not kept on this computer
+/// alone. (A name the list doesn't have is left to the command, which refuses it.)
+fn renames_in_outlook(s: &Session, params: &Value) -> bool {
+    let Ok(account) = crate::cmd::category::list_account(s, params) else { return false };
+    let Some(from) = p::str(params, "from") else { return false };
+    s.mailbox.category_of(account, from).is_some() && crate::cmd::category::in_outlook(s, account, from) == Some(true)
 }
 
 /// Whether `id` renames or deletes a category that a to-do in a shared list has: the to-do is
@@ -1357,8 +1373,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let there = if outlook { " and from Outlook" } else { "" };
             format!("delete the category {}{whose}{there}, taking it off everything that has it{shared}", quoted(st("name")))
         }
-        "category.rename" if shared_category(s, id, params) => {
-            format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
+        "category.rename" if shared_category(s, id, params) || renames_in_outlook(s, params) => {
+            // In Outlook too (#661): the new name is made there, the items there take it, and the
+            // old one is deleted there.
+            let there = if renames_in_outlook(s, params) { " in Outlook too: the new name is made there and the old one deleted there" } else { "" };
+            let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
+            format!("rename the category {} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
+        }
+        "category.addToOutlook" => {
+            let whose = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            format!("send the category {}{whose}, kept on this computer only, to Outlook, where it is kept in step from then on", quoted(st("name")))
         }
         _ if leaves(id) => leaving_text(s, params),
         _ if let Some(text) = starting_text(s, id, params) => text,

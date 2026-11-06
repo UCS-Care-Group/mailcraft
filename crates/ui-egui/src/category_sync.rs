@@ -30,6 +30,8 @@ use crate::{MailApp, Tokens, now_ms};
 /// How long a change is left to settle before it goes, the wait after a job that failed, and the
 /// longest such wait (milliseconds).
 const QUIET_MS: f64 = 3_000.0;
+/// How often what waits to go is worked out again at most, while the mailbox changes.
+const RECOUNT_MS: f64 = 1_000.0;
 const FIRST_RETRY_MS: f64 = 30_000.0;
 const LONGEST_RETRY_MS: f64 = 15.0 * 60_000.0;
 /// How many times a job tries again, quietly, when the list may not be changed right after the
@@ -71,13 +73,16 @@ pub struct CategoriesResult {
 pub struct CategorySync {
     /// The job under way: for which account, since when, the [`fingerprint`] of the refresh
     /// token it was given, and the answer to come.
-    rx: Option<(Id, f64, u64, Receiver<CategoriesResult>)>,
+    pub(crate) rx: Option<(Id, f64, u64, Receiver<CategoriesResult>)>,
     /// Which mailbox the job under way is for ([`mailcraft_engine::Session::openings`]), and the
     /// account's address then: its answer is for that mailbox and that address alone.
     opening: u64,
     address: String,
     /// The accounts a job has looked at in this session, and when.
     checked: HashMap<Id, f64>,
+    /// The address each account had when it was last looked at: another address is another
+    /// mailbox, whose list is looked at afresh (#661).
+    addresses: HashMap<Id, String>,
     failures: HashMap<Id, (u32, f64)>,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
@@ -86,8 +91,9 @@ pub struct CategorySync {
     settling: HashMap<Id, u32>,
     /// How many changes were waiting the last time, and since when.
     waiting: HashMap<Id, (usize, f64)>,
-    /// How many changes wait per account, for the mailbox as of this revision.
-    ready: Option<(u64, HashMap<Id, usize>)>,
+    /// How many changes wait per account, for the mailbox as of this revision, worked out at
+    /// this time.
+    pub(crate) ready: Option<(u64, f64, HashMap<Id, usize>)>,
 }
 
 impl CategorySync {
@@ -137,6 +143,16 @@ impl MailApp {
             return false;
         }
         for account in category_accounts(&self.session.mailbox) {
+            // Another address: what was learnt of the old one's sign-in and list is not this one's.
+            let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_lowercase()).unwrap_or_default();
+            if self.category_sync.addresses.get(&account).is_some_and(|was| *was != address) {
+                self.category_sync.checked.remove(&account);
+                self.category_sync.perm.remove(&account);
+                self.category_sync.failures.remove(&account);
+                self.category_sync.settling.remove(&account);
+                self.category_sync.waiting.remove(&account);
+            }
+            self.category_sync.addresses.insert(account, address);
             if self.categories_blocked(account) {
                 continue;
             }
@@ -145,15 +161,17 @@ impl MailApp {
                 self.category_sync.perm.remove(&account);
                 self.category_sync.checked.remove(&account);
             }
+            // Worked out again for a new state of the mailbox, at most once a second: while a
+            // deletion waits for the items that carry it, that looks through the mail.
             let rev = self.session.rev();
-            if self.category_sync.ready.as_ref().is_none_or(|(at, _)| *at != rev) {
-                self.category_sync.ready = Some((rev, HashMap::new()));
+            if self.category_sync.ready.as_ref().is_none_or(|(at, when, _)| *at != rev && now - *when >= RECOUNT_MS) {
+                self.category_sync.ready = Some((rev, now, HashMap::new()));
             }
-            let ready = match self.category_sync.ready.as_ref().and_then(|(_, m)| m.get(&account).copied()) {
+            let ready = match self.category_sync.ready.as_ref().and_then(|(_, _, m)| m.get(&account).copied()) {
                 Some(n) => n,
                 None => {
                     let n = categories_remote::categories_waiting(&self.session, account);
-                    if let Some((_, m)) = &mut self.category_sync.ready {
+                    if let Some((_, _, m)) = &mut self.category_sync.ready {
                         m.insert(account, n);
                     }
                     n
@@ -231,6 +249,8 @@ impl MailApp {
             }
         };
         self.category_sync.rx = None;
+        // What waits is worked out again at the next look, whatever the time.
+        self.category_sync.ready = None;
         // For a mailbox that has been closed since: its ids may name other things in this one.
         let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_lowercase());
         if self.category_sync.opening != self.session.openings() || address.as_deref() != Some(self.category_sync.address.as_str()) {
@@ -345,7 +365,7 @@ impl MailApp {
     }
 
     /// The one question went away unanswered: the list stays read-only, and nobody is asked again
-    /// by itself (the Categories window has Allow, File › Info Turn On).
+    /// by itself (the Categories window has Allow, File › Info Ask again).
     pub(crate) fn categories_sync_not_now(&mut self, account: Id) {
         if matches!(self.category_sync.perm.get(&account), Some(Permission::Needed | Permission::Asking)) {
             self.category_sync.perm.insert(account, Permission::Declined);

@@ -169,7 +169,7 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
     assert!(said(&app).contains("weren't changed"), "{}", said(&app));
     let (line, again) = app.auto_replies_line(owner).unwrap();
     assert!(again.is_none() && line.contains("waits for your permission"), "{line}");
-    // File › Info's one line offers Turn On (#661).
+    // File › Info's one line offers Ask again (#661).
     assert!(app.sync_line(owner).unwrap().2);
     // The next change asks at once, without a job.
     let before = jobs.lock().unwrap().len();
@@ -371,7 +371,7 @@ fn the_question_is_not_put_over_another_window() {
     });
     let before = jobs.lock().unwrap().len();
     let refused = app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap_err();
-    assert!(refused.contains("Turn On"), "{refused}");
+    assert!(refused.contains("Ask again"), "{refused}");
     assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.nothing"));
     assert_eq!(jobs.lock().unwrap().len(), before);
 }
@@ -388,7 +388,7 @@ fn an_account_without_them_is_refused() {
 }
 
 /// Re-review F1, F2: a change that found the permission missing while the owner couldn't be
-/// asked (another window, a sign-in under way) was kept, and a much later Turn On sent it.
+/// asked (another window, a sign-in under way) was kept, and a much later Ask again sent it.
 #[test]
 fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
     for busy in ["window", "signIn"] {

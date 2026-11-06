@@ -176,13 +176,16 @@ fn one_made_there_meanwhile_is_taken_for_made() {
 }
 
 #[test]
-fn a_creation_of_a_name_the_server_has_in_another_colour_says_it_was_found_there() {
+fn a_creation_of_a_name_the_server_has_in_another_colour_keeps_the_servers_colour() {
+    // Another device made it a moment ago, in red: it stays red there, and the answer says so.
     let s = state(vec![json!({"id": "A", "displayName": "Red category", "color": "preset0"})]);
     let server = serve(&s);
     let done = push_categories_at(&server.url(""), TOKEN, &upload(vec![change(CategoryChangeKind::Create, "red category", 4)]));
     assert_eq!(done.outcomes[0].result, CategoryResult::Done, "{:?}", done.outcomes);
     assert!(done.outcomes[0].found);
-    assert_eq!(writes(&s), ["PATCH /v1.0/me/outlook/masterCategories/A"]);
+    assert_eq!(done.outcomes[0].color, OUTLOOK_COLORS[0]);
+    assert!(writes(&s).is_empty(), "{:?}", writes(&s));
+    assert_eq!(s.lock().unwrap().categories[0]["color"], "preset0");
 }
 
 #[test]
@@ -246,4 +249,58 @@ fn a_colour_is_sent_as_the_servers_own_name_for_it() {
     // Any other colour goes as the nearest of them.
     assert_eq!(color_name(Rgb(0xD0, 0x3B, 0x3B)), "preset0");
     assert_eq!(color_name(Rgb(0x2F, 0x70, 0xD1)), "preset7");
+}
+
+#[test]
+fn a_hostile_server_never_makes_the_push_panic_and_its_list_is_read_as_far_as_a_download_reads() {
+    // A list of junk: entries that are no category, ids that are no id, names that are no name,
+    // colours nobody has, and far more entries than a download reads.
+    let mut listed: Vec<Value> = vec![
+        json!(null),
+        json!(7),
+        json!("text"),
+        json!([1, 2]),
+        json!({}),
+        json!({"id": 5, "displayName": "Number id"}),
+        json!({"id": "", "displayName": "No id"}),
+        json!({"id": "x\u{0}y\r\n", "displayName": "Bad id"}),
+        json!({"id": "OK1", "displayName": "   "}),
+        json!({"id": "OK2", "displayName": "x".repeat(100_000), "color": "preset99"}),
+        json!({"id": "OK3", "displayName": "Ünïcødé\u{202e}", "color": {"nested": true}}),
+    ];
+    listed.extend((0..400).map(|i| json!({"id": format!("N{i}"), "displayName": format!("Name {i}"), "color": "preset3"})));
+    let list = json!({"value": listed}).to_string();
+    let asked: Arc<Mutex<Vec<String>>> = Default::default();
+    let log = asked.clone();
+    // Every write is answered "done", with a body that is no answer.
+    let server = FakeHttp::start(move |n, request| {
+        log.lock().unwrap().push(request.lines().next().unwrap_or("").to_string());
+        match (request.starts_with("GET "), n % 3) {
+            (true, _) => json_answer("200 OK", &list),
+            (false, 0) => json_answer("201 Created", "not json at all {"),
+            (false, 1) => json_answer("200 OK", r#"{"color": 12, "id": ["x"]}"#),
+            (false, _) => json_answer("200 OK", &"[".repeat(50_000)),
+        }
+    });
+    let changes = vec![
+        change(CategoryChangeKind::Create, "Fresh", 1),
+        change(CategoryChangeKind::Color, "Name 3", 5),
+        change(CategoryChangeKind::Create, "Ünïcødé\u{202e}", 2),
+        // Past what a read of the list goes to: not known here, so nothing is sent for it.
+        change(CategoryChangeKind::Delete, "Name 350", 3),
+    ];
+    let done = push_categories_at(&server.url(""), TOKEN, &upload(changes));
+    assert_eq!(done.outcomes.len(), 4, "{:?}", done.outcomes);
+    let results: Vec<CategoryResult> = done.outcomes.iter().map(|o| o.result).collect();
+    assert_eq!(results, [CategoryResult::Done, CategoryResult::Done, CategoryResult::Done, CategoryResult::Refused]);
+    // An answer that is no answer leaves the colour that was sent.
+    assert_eq!(done.outcomes[0].color, OUTLOOK_COLORS[1]);
+    assert_eq!(done.outcomes[1].color, OUTLOOK_COLORS[5]);
+    // Found there, as the server has it; and the one past the read is said in words.
+    assert!(done.outcomes[2].found);
+    assert!(done.outcomes[3].error.contains("too long"), "{:?}", done.outcomes[3]);
+    assert!(done.outcomes.iter().all(|o| !o.error.contains(TOKEN) && o.name.chars().count() < 1_000));
+    let writes: Vec<String> = asked.lock().unwrap().iter().filter(|l| !l.starts_with("GET ")).cloned().collect();
+    assert_eq!(writes.len(), 2, "{writes:?}");
+    assert!(!writes.iter().any(|w| w.contains("N350")), "{writes:?}");
 }

@@ -20,7 +20,7 @@
 //! without it is held, the window asks the owner the one question of [`crate::server_sync`], and
 //! Microsoft's page asks for it with what the to-dos take (`ui.allowSync`); the change goes once it
 //! is given and is dropped, and said, when it isn't. File › Info shows whether it was given, with
-//! Turn On. Nothing else waits on it: mail, the calendar and the working hours go on as they were.
+//! Ask again. Nothing else waits on it: mail, the calendar and the working hours go on as they were.
 //!
 //! **Another mailbox.** Everything here is about the accounts of the mailbox that is open (by
 //! id): when another takes its place, all of it is forgotten, and an answer still on its way is
@@ -341,7 +341,7 @@ impl MailApp {
         }
         if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
             if self.dialog.is_some() || self.signing_in.is_some() || !self.ask_sync_again(account) {
-                return Err(tl!("MailCraft needs your permission to change your automatic replies first: File › Info › Turn On.").to_string());
+                return Err(tl!("MailCraft needs your permission to change your automatic replies first: File › Info › Ask again.").to_string());
             }
             self.auto_replies.held.insert(account, change);
             return Ok(());
@@ -438,7 +438,7 @@ impl MailApp {
                 _ => tl!("Automatic replies are off").to_string(),
             }
         } else if result.write_consent_needed {
-            tl!("Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Turn On).").to_string()
+            tl!("Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again).").to_string()
         } else if result.write_denied {
             tl!("Your automatic replies weren't changed: your organisation doesn't let MailCraft change them.").to_string()
         } else {

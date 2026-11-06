@@ -270,7 +270,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 let tip = tl!(
                     "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
                 );
-                if again && ui.link(tl!("Turn On")).on_hover_text(tip).clicked() {
+                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
                     app.ask_sync_again(a.id);
                 }
             });

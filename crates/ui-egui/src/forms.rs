@@ -6328,8 +6328,8 @@ pub(crate) mod rules {
                     if gone > 0 {
                         let said = tln!(
                             gone,
-                            "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Turn On).",
-                            "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Turn On)."
+                            "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).",
+                            "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
                         );
                         ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
                     }
@@ -6544,7 +6544,7 @@ pub(crate) mod rules {
                         true,
                     ),
                     None if ticked && held => (
-                        tl!("It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open.")
+                        tl!("It goes to the server once MailCraft may change the server's rules (File › Info › Ask again); until then it runs on this computer, while MailCraft is open.")
                             .to_string(),
                         true,
                     ),

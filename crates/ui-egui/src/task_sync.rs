@@ -19,7 +19,7 @@
 //! ([`TasksResult::consent_needed`]), nothing of the to-dos is read or sent, mail and calendar go
 //! on as ever, and the window asks the owner the one question of [`crate::server_sync`], then
 //! Microsoft's page, for the to-dos and the mailbox's settings together. File › Info says where it
-//! stands, with Turn On. A no that is not the owner's to change is said as for the Favorites
+//! stands, with Ask again. A no that is not the owner's to change is said as for the Favorites
 //! ([`crate::favorites_sync::NEEDS_APPROVAL`]…).
 
 use std::collections::HashMap;
@@ -89,7 +89,7 @@ pub(crate) enum Permission {
     /// Asked, and no: why, in a few words.
     Refused(String),
     /// Microsoft no longer took the sign-in the job had (its refresh token's [`fingerprint`]),
-    /// for mail either (#520). Turn On (File › Info) is one way back; a new sign-in for mail is
+    /// for mail either (#520). Ask again (File › Info) is one way back; a new sign-in for mail is
     /// the other, and the next look runs a job again by itself.
     SignInOver(u64),
 }
@@ -442,7 +442,7 @@ impl MailApp {
     }
 
     /// The one question went away unanswered: the to-dos stay here, and nobody is asked again by
-    /// itself (File › Info has Turn On).
+    /// itself (File › Info has Ask again).
     pub(crate) fn tasks_sync_not_now(&mut self, account: Id) {
         if matches!(self.tasks.perm.get(&account), Some(Permission::Needed | Permission::Asking)) {
             self.tasks.perm.insert(account, Permission::Declined);

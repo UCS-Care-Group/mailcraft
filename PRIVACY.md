@@ -91,7 +91,7 @@ computer, for you, and for nothing else:
   signing in for mail never waits on them. An account that signed in before is asked once, by the
   program, in one question for both ("Keep in Step with Outlook"), and then on one page of
   Microsoft's; a question you close is not put again by itself, and File › Info has one line for each
-  Microsoft account (Sync with Outlook: on or off) with Turn On. Until they are given, nothing of your
+  Microsoft account (Sync with Outlook: on or off) with Ask again. Until they are given, nothing of your
   tasks and rules is sent and they stay on this computer, the rules already on the server are read with
   your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
   here;

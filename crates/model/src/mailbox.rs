@@ -1114,6 +1114,12 @@ pub struct Mailbox {
     /// What dates [`Mailbox::categories_found`]: it goes up with each name found.
     #[serde(skip)]
     pub category_stamp: u64,
+    /// The renames of each Microsoft account's list of categories that its server hasn't the new
+    /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
+    /// When the server won't make the new name, its old one is kept there; any other deletion
+    /// that waited goes. Not in the file: such a rename is a few seconds old.
+    #[serde(skip)]
+    pub category_renames: BTreeMap<Id, BTreeMap<String, String>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
     /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
@@ -1175,6 +1181,7 @@ impl Default for Mailbox {
             local_categories: BTreeMap::new(),
             category_writes: std::collections::BTreeSet::new(),
             categories_found: BTreeMap::new(),
+            category_renames: BTreeMap::new(),
             category_stamp: 0,
             own_lists_began: 0,
             zone: String::new(),
@@ -3155,7 +3162,8 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Rename a category on the list `account`'s items use, and on the items that use that list.
+    /// Rename a category on the list `account`'s items use, and on the items that use that list
+    /// (but a shared mailbox's and other people's calendars', [`Mailbox::each_category_list`]).
     /// On a list kept in step with a server, the new name goes there and the old one is deleted
     /// there (a server can't rename one); one kept on this computer alone stays so.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
@@ -3171,6 +3179,17 @@ impl Mailbox {
             return Ok(());
         }
         self.refuse_read_only(account)?;
+        // A rename there: the old name, as the server has it, waits on the new one.
+        if let Some(owner) = self.synced_list_owner(account).filter(|owner| !self.category_is_local(*owner, from))
+            && !same_category(from, &to)
+        {
+            let known =
+                self.synced_categories.get(&owner).and_then(|synced| synced.iter().find(|c| same_category(&c.name, from))).map(|c| c.name.clone());
+            let renames = self.category_renames.entry(owner).or_default();
+            if let Some(old) = renames.remove(&category_key(from)).or(known) {
+                renames.insert(category_key(&to), old);
+            }
+        }
         if let Some(cat) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, from)) {
             cat.name = to.clone();
         }
@@ -3187,7 +3206,8 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Remove a category from the list `account`'s items use, and from the items that use it.
+    /// Remove a category from the list `account`'s items use, and from the items that use it
+    /// (as [`Mailbox::rename_category`] says which).
     pub fn remove_category(&mut self, account: Id, name: &str) -> Result<(), ModelError> {
         let name = name.trim();
         if self.category_of(account, name).is_none() {
@@ -3221,19 +3241,28 @@ impl Mailbox {
     }
 
     /// Apply `f` to the category list of every item that has one (items without stay shared) and
-    /// uses the same list of categories as `account`'s items.
+    /// uses the same list of categories as `account`'s items, and is that list's owner's own: never
+    /// an item of a shared mailbox, nor an event of a calendar that is somebody else's (a
+    /// colleague's, a shared mailbox's). Their servers have lists of their own, which a change
+    /// here doesn't reach, so rewriting them there would leave them with a name their list lacks
+    /// (#661).
     fn each_category_list(&mut self, account: Id, f: impl Fn(&mut Vec<String>)) {
         let list = self.category_list_owner(account);
         let lists: HashMap<Id, Id> = self.accounts.iter().filter_map(|a| Some((a.id, self.category_list_owner(a.id)?))).collect();
-        let calendars: HashMap<Id, Id> = self.calendars.iter().map(|c| (c.id, c.origin.account)).collect();
-        let uses = |account: Id| lists.get(&account).copied() == list;
+        let shared: HashSet<Id> = self.accounts.iter().filter(|a| a.is_shared()).map(|a| a.id).collect();
+        let calendars: HashMap<Id, (Id, bool)> = self.calendars.iter().map(|c| (c.id, (c.origin.account, c.owner.is_some()))).collect();
+        let uses = |account: Id| !shared.contains(&account) && lists.get(&account).copied() == list;
+        let uses_calendar = |calendar: Id| match calendars.get(&calendar) {
+            Some((account, others)) => !others && uses(*account),
+            None => uses(0),
+        };
         for m in self.messages.values_mut().filter(|m| !m.categories.is_empty() && uses(m.account)) {
             f(&mut Arc::make_mut(m).categories);
         }
         for c in self.contacts.values_mut().filter(|c| !c.categories.is_empty() && uses(c.origin.account)) {
             f(&mut Arc::make_mut(c).categories);
         }
-        for e in self.events.values_mut().filter(|e| !e.categories.is_empty() && uses(calendars.get(&e.calendar).copied().unwrap_or(0))) {
+        for e in self.events.values_mut().filter(|e| !e.categories.is_empty() && uses_calendar(e.calendar)) {
             f(&mut Arc::make_mut(e).categories);
         }
         for t in self.tasks.values_mut().filter(|t| !t.categories.is_empty() && uses(t.origin.account)) {
@@ -3289,8 +3318,8 @@ impl Mailbox {
         changes
     }
 
-    /// Whether an item that uses `owner`'s list still carries `name` on its server while it no
-    /// longer does here, its change still to go (#661): a message (not one in the Outbox, which
+    /// Whether an item of `owner`'s own still carries `name` on its server while it no longer
+    /// does here, its change still to go (#661): a message (not one in the Outbox, which
     /// is sent, not changed), a to-do, or an event whose change waits. A deletion of the name in
     /// Outlook waits for them, as Outlook moves every item to a category's new name. A change the
     /// server refuses is given up (a message is put back as the server has it, a to-do is kept
@@ -3298,7 +3327,8 @@ impl Mailbox {
     /// shrank) keeps the name on that item there, and the list keeps it with it. Looked at only
     /// while a deletion waits, once a job, and it stops at the first item found.
     fn still_carried_there(&self, owner: Id, name: &str) -> bool {
-        let uses = |account: Id| self.category_list_owner(account) == Some(owner);
+        // (The owner's own items: a change of the list rewrites no other mailbox's.)
+        let uses = |account: Id| account == owner;
         let carries = |list: &[String]| list.iter().any(|c| same_category(c, name));
         let messages = self.messages.values().any(|m| {
             uses(m.account)
@@ -3317,11 +3347,12 @@ impl Mailbox {
                     && keeps_tasks(t.origin.account)
             })
         };
+        let own_calendar = |e: &Event| self.calendar(e.calendar).is_some_and(|c| c.owner.is_none());
         let events = || {
             self.event_changes.iter().any(|c| {
                 uses(c.account)
                     && c.base.as_ref().is_some_and(|b| carries(&b.categories))
-                    && self.event(c.event).is_some_and(|e| !carries(&e.categories))
+                    && self.event(c.event).is_some_and(|e| !carries(&e.categories) && own_calendar(e))
             })
         };
         messages || tasks() || events()
@@ -3336,6 +3367,14 @@ impl Mailbox {
         let mut said = Vec::new();
         let Some(synced) = self.synced_categories.get(&owner).cloned() else { return said };
         let mut synced = synced;
+        // (The names this job deleted there: a name written anew in other letters is deleted and
+        // made again, and the making may yet be refused.)
+        let deleted: Vec<&str> = outcomes
+            .iter()
+            .take(crate::remote::MAX_CATEGORY_CHANGES)
+            .filter(|o| o.kind == CategoryChangeKind::Delete && o.result == CategoryResult::Done)
+            .map(|o| o.name.trim())
+            .collect();
         // (Deletions this job sent: their own answers say what became of them.)
         let sent_deletes: Vec<&str> = outcomes
             .iter()
@@ -3357,6 +3396,17 @@ impl Mailbox {
                         }
                     } else if outcome.kind == CategoryChangeKind::Create {
                         self.found_category(owner, name);
+                        // Made there already (another device): it has the colour it has there,
+                        // as a read gives it, and the owner is told.
+                        let on_list = !self.category_is_local(owner, name);
+                        if let Some(c) =
+                            self.account_categories.get_mut(&owner).and_then(|list| list.iter_mut().find(|c| same_category(&c.name, name)))
+                            && on_list
+                            && c.color != color
+                        {
+                            c.color = color;
+                            said.push(format!("The category \"{name}\" was in Outlook already: it has Outlook's colour."));
+                        }
                     }
                     // Taken off here (or kept here alone) while the job was on its way: what this
                     // one made there goes again (its reverse); what was the server's own, found
@@ -3385,6 +3435,15 @@ impl Mailbox {
                     }
                     said.push(format!("The server didn't take the new spelling of the category \"{name}\": it has the server's again."));
                 }
+                // Other letters for one this job deleted there to make it so: the old letters are
+                // made there again with the next job, in its colour, so that nothing of it is lost
+                // there.
+                (CategoryResult::Refused, CategoryChangeKind::Create) if let Some(old) = deleted.iter().find(|d| same_category(d, name)) => {
+                    if let Some(c) = self.account_categories.get_mut(&owner).and_then(|list| list.iter_mut().find(|c| same_category(&c.name, name))) {
+                        c.name = (*old).to_string();
+                    }
+                    said.push(format!("The server didn't take the new spelling of the category \"{name}\": it has the server's again."));
+                }
                 (CategoryResult::Refused, CategoryChangeKind::Create) => {
                     let listed = self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name));
                     let names = self.local_categories.entry(owner).or_default();
@@ -3392,11 +3451,13 @@ impl Mailbox {
                         names.push(name.to_string());
                     }
                     said.push(format!("The server didn't take the category \"{name}\": it stays on this computer only."));
-                    // What was to be deleted there waits on what is made, as a rename's old name
-                    // does: it stays the server's, and comes back here with the next read.
+                    // The old name of a rename to it stays the server's, and comes back here with
+                    // the next read; any other deletion that waited on what is made goes.
                     let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+                    let renamed = self.category_renames.get_mut(&owner).and_then(|renames| renames.remove(&category_key(name)));
                     let kept: Vec<String> = synced
                         .iter()
+                        .filter(|c| renamed.as_deref().is_some_and(|old| same_category(old, &c.name)))
                         .filter(|c| !on_categories(list, &c.name) && !sent_deletes.iter().any(|d| same_category(d, &c.name)))
                         .map(|c| c.name.clone())
                         .collect();
@@ -3437,7 +3498,24 @@ impl Mailbox {
         }
         self.set_synced(owner, synced);
         self.tidy_local(owner);
+        self.tidy_renames(owner);
         said
+    }
+
+    /// What `owner` keeps of its renames ([`Mailbox::category_renames`]) is what still waits: a
+    /// new name on the list here that its server hasn't, for an old one it still has.
+    fn tidy_renames(&mut self, owner: Id) {
+        let Some(renames) = self.category_renames.get_mut(&owner) else { return };
+        let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+        let synced = self.synced_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+        let local = self.local_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
+        renames.retain(|new, old| {
+            let here = list.iter().any(|c| category_key(&c.name) == *new) && !local.iter().any(|n| category_key(n) == *new);
+            here && !synced.iter().any(|c| category_key(&c.name) == *new) && on_categories(synced, old)
+        });
+        if renames.is_empty() {
+            self.category_renames.remove(&owner);
+        }
     }
 
     /// What `owner` keeps on this computer alone is on its list, each name once: one that left
@@ -3463,6 +3541,7 @@ impl Mailbox {
         self.server_categories.remove(&owner);
         self.category_writes.remove(&owner);
         self.categories_found.remove(&owner);
+        self.category_renames.remove(&owner);
         let names: Vec<String> = self.categories_of(owner).iter().map(|c| c.name.clone()).collect();
         if names.is_empty() {
             self.local_categories.remove(&owner);
@@ -3582,6 +3661,7 @@ impl Mailbox {
                 }
             });
         }
+        self.tidy_renames(owner);
         changed + usize::from(lists_changed)
     }
 

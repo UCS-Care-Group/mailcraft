@@ -16,7 +16,7 @@
 //! doesn't cover it ([`RulesResult::consent_needed`]): nothing of the rules is sent, and the window
 //! asks the owner the one question of [`crate::server_sync`], then Microsoft's page. Until it is
 //! allowed the account's rules stay on this computer and run here, and the server's are still read
-//! and shown: only the changes wait. File › Info says where it stands, with Turn On.
+//! and shown: only the changes wait. File › Info says where it stands, with Ask again.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -398,7 +398,7 @@ impl MailApp {
     }
 
     /// The one question went away unanswered: the rules stay here, and nobody is asked again by
-    /// itself (File › Info has Turn On).
+    /// itself (File › Info has Ask again).
     pub(crate) fn rules_sync_not_now(&mut self, account: Id) {
         if matches!(self.rules.perm.get(&account), Some(Permission::Needed | Permission::Asking)) {
             self.rules.perm.insert(account, Permission::Declined);
@@ -446,7 +446,7 @@ impl MailApp {
     pub(crate) fn rules_wait_reason(&self, account: Id) -> String {
         match self.rules.perm.get(&account) {
             Some(Permission::Needed | Permission::Asking) => tl!("waiting for your permission to change the rules on the server").to_string(),
-            Some(Permission::Declined) => tl!("not allowed on the server yet: File › Info › Turn On").to_string(),
+            Some(Permission::Declined) => tl!("not allowed on the server yet: File › Info › Ask again").to_string(),
             Some(Permission::Refused(why)) => why.clone(),
             Some(Permission::SignInOver(_)) => tl!("Microsoft no longer takes the sign-in").to_string(),
             Some(Permission::Given) | None => tl!("it goes to the server at the next connection").to_string(),
