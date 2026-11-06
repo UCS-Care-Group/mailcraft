@@ -38,11 +38,12 @@ impl Session {
     }
 
     /// The message being written that a call with `params` acts on: the one its `compose` id
-    /// names, else the current one. A `compose` that names none open is none.
+    /// names (read as the command reads it, `3.0` too), else the current one. A `compose` that
+    /// names none open is none.
     pub fn compose_named(&self, params: &Value) -> Option<&Compose> {
         match params.get("compose") {
             None => self.compose.as_ref(),
-            Some(v) => v.as_u64().and_then(|id| self.composing_by_id(id)),
+            Some(_) => p::id_strict(params, "compose").ok().flatten().and_then(|id| self.composing_by_id(id)),
         }
     }
 

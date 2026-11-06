@@ -43,6 +43,7 @@ mod mark_tests;
 pub mod opening;
 mod picture_fit;
 pub mod sample;
+pub mod send_warnings;
 pub mod sender_warnings;
 mod session;
 #[cfg(not(target_arch = "wasm32"))]
@@ -422,6 +423,8 @@ mod import_tree_progress_tests;
 mod import_tree_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod send_warnings_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]

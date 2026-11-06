@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-03 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-06 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -177,6 +177,17 @@ the account's own server's verdict, the owner's contacts and Sent Items, and the
 address, a domain, a link) is the message's own, framed as untrusted like the text above: a
 warning says a message may not be what it seems, never what to do about it.
 
+**Send warnings.** Before a message goes (#509), `compose.send` and `send_message` look for a
+recipient who looks like somebody the owner writes to but isn't (`lookalikeRecipient`) and for 5
+or more people outside the owner's organisation, at 2 or more domains, who would see each other in
+To and Cc (`outsidersSeeEachOther`; never for an owner with personal accounts only), and ask about a message to more different recipients than they check (`tooManyRecipients`) ([control protocol](control-protocol.md#commands-worth-knowing)).
+Connected to the window (`--connect`), the owner is asked every time, whatever `--allow send` says:
+the question lists the warnings and offers Send Anyway, Move to Bcc for the outsiders, or not
+sending, and an agent's own `confirmed` or `moveToBcc` is dropped, since only the owner answers.
+Only `compose.send` is checked (not Send Again of a message held in an Outbox). Headless there is nobody to ask: the send is refused, with the warnings as data, unless the call
+says `"confirmed": true` (send anyway) or `"moveToBcc": true` (`send_message` takes both). That is
+the same rule as for any script without the window; sending at all still needs `--allow send`.
+
 **Send/Receive Progress.** `sync.progress` (class `safe`, through `execute`) answers what the
 Send/Receive under way is doing, or what the last one did, account by account: its state, phase,
 folder and counts, what it brought, its problems, and for a Microsoft account how far its messages have been fetched whole (`fullMessages`: done, total, paused), and how long its part of the run took, by phase, with the requests made and the folders skipped (`timings`: numbers only, #276) ([control protocol](control-protocol.md#commands-worth-knowing)).
@@ -207,7 +218,7 @@ app's Send/Receive) delivers it.
 | `inspect_mailbox` / `list_folders` | accounts and counts; the folder tree |
 | `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are |
 | `read_message` | one message in full |
-| `send_message` | write and send a new message |
+| `send_message` | write and send a new message (`confirmed`, `moveToBcc`: past a send warning, headless only) |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people and to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or an account's id: for people, one whose contacts are read from its server; for to-dos, one with To Do; another is refused) |
 | `parity` | feature coverage |
 | `status` | whether the mailbox is open; while the window still opens it at launch, every other tool is answered "the mailbox is still opening" |
