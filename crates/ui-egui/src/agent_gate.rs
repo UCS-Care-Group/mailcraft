@@ -8,7 +8,7 @@
 //! only on the owner's yes; nobody's answer within [`WAIT_MS`] is a no. While a question is up,
 //! no input from the control channel reaches the window.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::mpsc::Sender;
 
 use egui::vec2;
@@ -31,6 +31,15 @@ pub struct Asking {
     pub id: String,
     pub params: Value,
     pub class: Class,
+    /// What else it needs, which the question names and a yes covers ([`agent::also`], #473).
+    also: Vec<Class>,
+    /// The messages an undo or redo would take away, which the question names, and the steps
+    /// as they were when it was asked ([`mailcraft_engine::Session::undo_steps_moved`], #473).
+    taken: HashSet<u64>,
+    steps: u64,
+    /// The contacts, events, tasks, calendars and categories it would take away
+    /// ([`mailcraft_engine::Session::undo_takes`]): a yes reaches none that came since.
+    items: HashSet<String>,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -106,11 +115,18 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
+            let also = agent::also(&app.session, id, &params, class);
+            let (taken, items) = undo_takes(app, id);
+            let steps = app.session.undo_steps_moved();
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
                 params,
                 class,
+                also,
+                taken,
+                steps,
+                items,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
@@ -278,6 +294,18 @@ fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value)
     Some(params)
 }
 
+/// The messages, and the contacts and the like, an agent's undo or redo would take away (none
+/// for any other command), as sets: an undo of a large import is looked up in, not walked.
+fn undo_takes(app: &MailApp, id: &str) -> (HashSet<u64>, HashSet<String>) {
+    match id {
+        "edit.undo" | "edit.redo" => {
+            let (taken, items) = app.session.undo_takes(id == "edit.redo");
+            (taken.into_iter().collect(), items.into_iter().collect())
+        }
+        _ => (HashSet::new(), HashSet::new()),
+    }
+}
+
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
@@ -297,10 +325,23 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let lost = params.get("unsaved").filter(|u| !u.is_null());
         let other = lost.is_some() && lost != a.params.get("unsaved");
         let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
+        // What else it needs now, which the yes covers only when the question named it (#473).
+        let also = agent::also(&app.session, &a.id, &params, a.class);
+        // Nor does it cover another step than the one asked about, or other messages, drafts,
+        // contacts and the like than the question named.
+        let undoing = matches!(a.id.as_str(), "edit.undo" | "edit.redo");
+        let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c))
+            || {
+                let (taken, items) = undo_takes(app, &a.id);
+                !taken.is_subset(&a.taken) || !items.is_subset(&a.items)
+            }
+            || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
         let mut allow = a.allow.clone();
         allow.push(a.class);
+        allow.extend(also);
         match verdict {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
+            _ if more => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
             _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
             Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),

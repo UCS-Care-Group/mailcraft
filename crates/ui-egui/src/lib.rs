@@ -45,6 +45,8 @@ mod agent_gate_tests;
 mod agent_leaves_tests;
 #[cfg(test)]
 mod agent_names_tests;
+#[cfg(test)]
+mod agent_undo_tests;
 pub mod alerts;
 pub mod approval;
 #[cfg(test)]
