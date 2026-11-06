@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use mailcraft_model::remote_rules::{
     MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
 };
-use mailcraft_model::{Action, Condition, Importance};
+use mailcraft_model::{Action, Condition, Importance, Sensitivity};
 use serde_json::{Map, Value, json};
 
 use super::tasks::valid_id;
@@ -35,6 +35,8 @@ const FOLDERS: &str = "/v1.0/me/mailFolders";
 pub const MAX_FOLDER_LOOKUPS: usize = 20;
 /// What a rule's move is called among its parts, when the folder isn't one the account has.
 const MOVE: &str = "moveToFolder";
+/// And its copy.
+const COPY: &str = "copyToFolder";
 
 /// The account's rules, as its server has them. `folders` are the ids of the account's folders
 /// as its mail has them; a rule that moves mail to a folder named otherwise has it looked up.
@@ -73,10 +75,10 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
     download.complete = whole && unread == 0;
     // The folders named otherwise than the account's mail names them, each looked up once.
     let mut named: HashMap<String, Option<String>> = HashMap::new();
-    for rule in &download.rules {
-        if !rule.move_to.is_empty() && !folders.contains(&rule.move_to) && !named.contains_key(&rule.move_to) {
+    for folder in download.rules.iter().flat_map(|r| [&r.move_to, &r.copy_to]) {
+        if !folder.is_empty() && !folders.contains(folder) && !named.contains_key(folder) {
             if named.len() < MAX_FOLDER_LOOKUPS {
-                named.insert(rule.move_to.clone(), None);
+                named.insert(folder.clone(), None);
             } else {
                 // Not looked up, so nothing is known of this rule's folder: the read isn't whole.
                 download.complete = false;
@@ -94,12 +96,14 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
     // Nothing can be told of such a rule now, not even that it isn't one made here: it waits for
     // the next read, which is not whole without it.
     if !no_answer.is_empty() {
-        download.rules.retain(|rule| !no_answer.contains(&rule.move_to));
+        download.rules.retain(|rule| !no_answer.contains(&rule.move_to) && !no_answer.contains(&rule.copy_to));
         download.complete = false;
     }
     for rule in &mut download.rules {
-        if let Some(Some(id)) = named.get(&rule.move_to) {
-            rule.move_to = id.clone();
+        for folder in [&mut rule.move_to, &mut rule.copy_to] {
+            if let Some(Some(id)) = named.get(folder.as_str()) {
+                *folder = id.clone();
+            }
         }
     }
     log::debug!("rules: {} of them, {unread} that couldn't be read, complete: {}", download.rules.len(), download.complete);
@@ -110,7 +114,7 @@ pub(super) fn rules_at(base: &str, token: &str, folders: &[String]) -> Result<Ru
 enum Looked {
     /// The immutable id it goes by.
     Is(String),
-    /// The server won't say: the rule moves mail to a folder that isn't known.
+    /// The server won't say: the rule names a folder that isn't known.
     NotKnown,
     /// Not to be had now (a time-out, the server busy or failing).
     NoAnswer,
@@ -148,13 +152,74 @@ fn said(value: &Value) -> bool {
     }
 }
 
-/// The one text of a list of words (Graph's `senderContains: ["x"]`). A list of more is one of
-/// "any of these", which a rule here can't say.
-fn one_word(value: &Value) -> Option<String> {
-    match value.as_array()?.as_slice() {
-        [Value::String(word)] => Some(word.clone()),
+/// The words of a list of them (Graph's `senderContains: ["x", "y"]`), any of which is enough;
+/// none when it isn't a list of texts.
+fn words_of(value: &Value) -> Option<Vec<String>> {
+    let list = value.as_array()?;
+    let words: Vec<String> = list.iter().map(|w| w.as_str().map(str::to_string)).collect::<Option<_>>()?;
+    (!words.is_empty()).then_some(words)
+}
+
+/// The addresses of a list of recipients (Graph's `fromAddresses`), each by its address alone;
+/// none when one has none.
+fn addresses_of(value: &Value) -> Option<Vec<String>> {
+    let list = value.as_array()?;
+    let addresses: Vec<String> = list
+        .iter()
+        .map(|r| r.get("emailAddress").and_then(|e| e.get("address")).and_then(Value::as_str).map(|a| a.trim().to_string()).filter(|a| !a.is_empty()))
+        .collect::<Option<_>>()?;
+    (!addresses.is_empty()).then_some(addresses)
+}
+
+/// A rule's condition of the server's name `name`, when this version knows it whole.
+fn condition_of(name: &str, value: &Value) -> Option<Condition> {
+    let yes = value.as_bool() == Some(true);
+    match name {
+        "senderContains" => words_of(value).map(Condition::FromContains),
+        "recipientContains" => words_of(value).map(Condition::ToContains),
+        "subjectContains" => words_of(value).map(Condition::SubjectContains),
+        "bodyContains" => words_of(value).map(Condition::BodyContains),
+        "bodyOrSubjectContains" => words_of(value).map(Condition::SubjectOrBodyContains),
+        "headerContains" => words_of(value).map(Condition::HeaderContains),
+        "categories" => words_of(value).map(Condition::Category),
+        "fromAddresses" => addresses_of(value).map(Condition::From),
+        "sentToAddresses" => addresses_of(value).map(Condition::SentTo),
+        "hasAttachments" if yes => Some(Condition::HasAttachment),
+        "importance" => value.as_str().and_then(Importance::parse).map(Condition::Importance),
+        "sensitivity" => value.as_str().and_then(Sensitivity::parse).map(Condition::Sensitivity),
+        "withinSizeRange" => {
+            let size = |key: &str| value.get(key).and_then(Value::as_u64);
+            match (size("minimumSize"), size("maximumSize")) {
+                (Some(min), Some(max)) if min <= max => Some(Condition::SizeBetween { min, max }),
+                _ => None,
+            }
+        }
+        "isMeetingRequest" if yes => Some(Condition::MeetingRequest),
+        "isAutomaticReply" if yes => Some(Condition::AutomaticReply),
+        // Flagged for any action: Outlook's flags for one action (call, reply…) aren't MailCraft's.
+        "messageActionFlag" if value.as_str() == Some("any") => Some(Condition::Flagged),
+        "sentOnlyToMe" if yes => Some(Condition::SentOnlyToMe),
+        "sentToMe" if yes => Some(Condition::ToMe),
+        "sentCcMe" if yes => Some(Condition::CcMe),
+        "sentToOrCcMe" if yes => Some(Condition::ToOrCcMe),
+        "notSentToMe" if yes => Some(Condition::NotToMe),
         _ => None,
     }
+}
+
+/// The conditions of a rule's `conditions` or `exceptions`, with the names of those this
+/// version doesn't know, each after `prefix`.
+fn conditions_of(entry: &Value, key: &str, prefix: &str, unknown: &mut Vec<String>) -> Vec<Condition> {
+    let empty = Map::new();
+    let parts = entry.get(key).and_then(Value::as_object).unwrap_or(&empty);
+    let mut conditions = Vec::new();
+    for (name, value) in parts.iter().filter(|(name, value)| !name.starts_with('@') && said(value)) {
+        match condition_of(name, value) {
+            Some(c) => conditions.push(c),
+            None => unknown.push(format!("{prefix}{name}")),
+        }
+    }
+    conditions
 }
 
 pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
@@ -172,32 +237,19 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
         error: flag("hasError"),
         ..Default::default()
     };
-    let empty = Map::new();
-    let conditions = entry.get("conditions").and_then(Value::as_object).unwrap_or(&empty);
-    for (name, value) in conditions.iter().filter(|(name, value)| !name.starts_with('@') && said(value)) {
-        let condition = match name.as_str() {
-            "senderContains" => one_word(value).map(Condition::FromContains),
-            "recipientContains" => one_word(value).map(Condition::ToContains),
-            "subjectContains" => one_word(value).map(Condition::SubjectContains),
-            "bodyContains" => one_word(value).map(Condition::BodyContains),
-            "hasAttachments" if value.as_bool() == Some(true) => Some(Condition::HasAttachment),
-            "importance" => value.as_str().and_then(Importance::parse).map(Condition::Importance),
-            _ => None,
-        };
-        match condition {
-            Some(c) => rule.conditions.push(c),
-            None => rule.unknown.push(name.clone()),
-        }
-    }
+    rule.conditions = conditions_of(entry, "conditions", "", &mut rule.unknown);
     // A rule of the server without conditions acts on every message: not one a rule here is.
     if rule.conditions.is_empty() && rule.unknown.is_empty() {
         rule.unknown.push("conditions".into());
     }
-    if entry.get("exceptions").is_some_and(said) {
-        rule.unknown.push("exceptions".into());
-    }
+    rule.exceptions = conditions_of(entry, "exceptions", "exceptions.", &mut rule.unknown);
+    let empty = Map::new();
     let actions = entry.get("actions").and_then(Value::as_object).unwrap_or(&empty);
     for (name, value) in actions.iter().filter(|(name, value)| !name.starts_with('@') && said(value)) {
+        let mut take = |a: Action| {
+            rule.actions.push(a);
+            true
+        };
         let known = match name.as_str() {
             "assignCategories" => match value.as_array() {
                 Some(names) if names.iter().all(Value::is_string) => {
@@ -206,24 +258,13 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
                 }
                 _ => false,
             },
-            "markAsRead" => {
-                rule.actions.push(Action::MarkRead);
-                true
-            }
-            "markImportance" => match value.as_str().and_then(Importance::parse) {
-                Some(i) => {
-                    rule.actions.push(Action::SetImportance(i));
-                    true
-                }
-                None => false,
-            },
-            "delete" => {
-                rule.actions.push(Action::Delete);
-                true
-            }
-            MOVE => match value.as_str() {
+            "markAsRead" => take(Action::MarkRead),
+            "markImportance" => value.as_str().and_then(Importance::parse).is_some_and(|i| take(Action::SetImportance(i))),
+            "delete" => take(Action::Delete),
+            MOVE | COPY => match value.as_str() {
                 Some(folder) if valid_id(folder) => {
-                    rule.move_to = folder.to_string();
+                    let to = if name == MOVE { &mut rule.move_to } else { &mut rule.copy_to };
+                    *to = folder.to_string();
                     true
                 }
                 _ => false,
@@ -242,6 +283,72 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
     Some(rule)
 }
 
+/// A condition as the server has it: its name and value. `Err` for one it has no such
+/// condition for.
+fn predicate(condition: &Condition) -> Result<(&'static str, Value), &'static str> {
+    let people = |list: &[String]| Value::Array(list.iter().map(|a| json!({"emailAddress": {"address": a}})).collect());
+    Ok(match condition {
+        Condition::FromContains(t) => ("senderContains", json!(t)),
+        Condition::ToContains(t) => ("recipientContains", json!(t)),
+        Condition::SubjectContains(t) => ("subjectContains", json!(t)),
+        Condition::BodyContains(t) => ("bodyContains", json!(t)),
+        Condition::SubjectOrBodyContains(t) => ("bodyOrSubjectContains", json!(t)),
+        Condition::HeaderContains(t) => ("headerContains", json!(t)),
+        Condition::Category(t) => ("categories", json!(t)),
+        Condition::From(p) => ("fromAddresses", people(p)),
+        Condition::SentTo(p) => ("sentToAddresses", people(p)),
+        Condition::HasAttachment => ("hasAttachments", json!(true)),
+        Condition::Importance(i) => ("importance", json!(i.code())),
+        Condition::Sensitivity(s) => ("sensitivity", json!(s.code())),
+        Condition::SizeBetween { min, max } => ("withinSizeRange", json!({"minimumSize": min, "maximumSize": max})),
+        Condition::MeetingRequest => ("isMeetingRequest", json!(true)),
+        Condition::AutomaticReply => ("isAutomaticReply", json!(true)),
+        Condition::Flagged => ("messageActionFlag", json!("any")),
+        Condition::SentOnlyToMe => ("sentOnlyToMe", json!(true)),
+        Condition::ToMe => ("sentToMe", json!(true)),
+        Condition::CcMe => ("sentCcMe", json!(true)),
+        Condition::ToOrCcMe => ("sentToOrCcMe", json!(true)),
+        Condition::NotToMe => ("notSentToMe", json!(true)),
+        Condition::ReceivedBetween { .. } => return Err("the server's rules have no condition on the day mail came"),
+    })
+}
+
+/// The server's `conditions`: one of each kind, all of which must hold.
+fn conditions_body(conditions: &[Condition]) -> Result<Map<String, Value>, &'static str> {
+    let mut body = Map::new();
+    for condition in conditions {
+        let (name, value) = predicate(condition)?;
+        if body.insert(name.into(), value).is_some() {
+            return Err("the server's rules have one condition of each kind");
+        }
+    }
+    Ok(body)
+}
+
+/// The server's `exceptions`, any of which leaves a message alone: two of a kind that look for
+/// words or people are one list of them; two that are the same are one.
+fn exceptions_body(exceptions: &[Condition]) -> Result<Map<String, Value>, &'static str> {
+    let mut body = Map::new();
+    for exception in exceptions {
+        let (name, value) = predicate(exception)?;
+        match body.get_mut(name) {
+            None => {
+                body.insert(name.into(), value);
+            }
+            Some(had) if *had == value => {}
+            Some(Value::Array(had)) if exception.words().is_some() => {
+                for v in value.as_array().into_iter().flatten() {
+                    if !had.contains(v) {
+                        had.push(v.clone());
+                    }
+                }
+            }
+            Some(_) => return Err("the server's rules have one exception of each kind"),
+        }
+    }
+    Ok(body)
+}
+
 /// The body of a rule to be made on the server, or why it can't be.
 pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
     if !rule.unknown.is_empty() {
@@ -251,23 +358,11 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
         // On the server it would act on every message.
         return Err("a rule without conditions isn't made on the server");
     }
-    if rule.actions.is_empty() && rule.move_to.is_empty() {
+    if rule.actions.is_empty() && rule.move_to.is_empty() && rule.copy_to.is_empty() {
         return Err("a rule that does nothing isn't made on the server");
     }
-    let mut conditions = Map::new();
-    for condition in &rule.conditions {
-        let (name, value) = match condition {
-            Condition::FromContains(t) => ("senderContains", json!([t])),
-            Condition::ToContains(t) => ("recipientContains", json!([t])),
-            Condition::SubjectContains(t) => ("subjectContains", json!([t])),
-            Condition::BodyContains(t) => ("bodyContains", json!([t])),
-            Condition::HasAttachment => ("hasAttachments", json!(true)),
-            Condition::Importance(i) => ("importance", json!(i.code())),
-        };
-        if conditions.insert(name.into(), value).is_some() {
-            return Err("the server's rules have one condition of each kind");
-        }
-    }
+    let conditions = conditions_body(&rule.conditions)?;
+    let exceptions = exceptions_body(&rule.exceptions)?;
     let mut actions = Map::new();
     let mut categories: Vec<&str> = Vec::new();
     for action in &rule.actions {
@@ -288,27 +383,36 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
             Action::Delete => {
                 actions.insert("delete".into(), json!(true));
             }
-            Action::Flag => return Err("the server's rules can't flag mail"),
-            Action::MoveTo(_) => return Err("a folder to move mail to is named by the server's id"),
+            // Graph's delete past the recoverable items is asked of no server (R3).
+            Action::DeleteForGood => return Err("a rule that deletes mail for good stays on this computer"),
+            Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Err("the server's rules can't flag mail"),
+            Action::ClearCategories => return Err("the server's rules can't clear categories"),
+            Action::MoveTo(_) | Action::CopyTo(_) => return Err("a folder a rule puts mail in is named by the server's id"),
         }
     }
     if !categories.is_empty() {
         actions.insert("assignCategories".into(), json!(categories));
     }
-    if !rule.move_to.is_empty() {
-        if !valid_id(&rule.move_to) {
-            return Err("that isn't a folder the server could have");
+    for (name, folder) in [(MOVE, &rule.move_to), (COPY, &rule.copy_to)] {
+        if !folder.is_empty() {
+            if !valid_id(folder) {
+                return Err("that isn't a folder the server could have");
+            }
+            actions.insert(name.into(), json!(folder));
         }
-        actions.insert(MOVE.into(), json!(rule.move_to));
     }
     actions.insert("stopProcessingRules".into(), json!(rule.stop));
-    Ok(json!({
+    let mut body = json!({
         "displayName": rule.name,
         "sequence": rule.sequence.max(1),
         "isEnabled": rule.enabled,
         "conditions": conditions,
         "actions": actions,
-    }))
+    });
+    if !exceptions.is_empty() {
+        body["exceptions"] = Value::Object(exceptions);
+    }
+    Ok(body)
 }
 
 /// The body of a change: only what it changes.

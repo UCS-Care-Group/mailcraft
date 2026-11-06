@@ -293,7 +293,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.note_saved();
     }
     let mut taken = Taken::default();
-    let mut down = Down::default();
+    let mut down = Down::of(s);
     // What became of what went up, as for a Microsoft account: the folders, the messages (a
     // refusal is said once per kind and reason), the drafts, and what was sent.
     let mut errors = result.errors.clone();
@@ -382,7 +382,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

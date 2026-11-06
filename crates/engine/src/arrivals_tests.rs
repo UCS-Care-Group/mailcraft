@@ -20,10 +20,20 @@ fn message(uid: u32, from: &str, subject: &str) -> Message {
     Message { uid, from: Address::new(from, "someone@sender.example"), subject: subject.into(), date: 1_700_000_000, ..Default::default() }
 }
 
-/// What the server says of its Inbox: these messages are new, and it has been read up to the last.
+/// What the server says of its Inbox: these messages are new, and it has been read up to the last
+/// and whole, as a run that ends well says.
 fn inbox_delta(inbox: Id, messages: Vec<Message>) -> FolderDelta {
     let uid_seen = messages.iter().map(|m| m.uid).max().unwrap_or(0);
-    FolderDelta { id: Some(inbox), remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen, new: messages, ..Default::default() }
+    FolderDelta {
+        id: Some(inbox),
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 7,
+        uid_seen,
+        new: messages,
+        complete: true,
+        ..Default::default()
+    }
 }
 
 fn apply(s: &mut Session, account: Id, folders: Vec<FolderDelta>) {
@@ -235,4 +245,93 @@ fn a_partial_graph_run_after_a_caught_up_one_leaves_the_inbox_watched() {
     let before = mark(&s.mailbox);
     s.mailbox.add_message(Message { folder: inbox, subject: "next run".into(), ..Default::default() }).unwrap();
     assert_eq!(subjects(&arrivals(&s.mailbox, &before)), ["next run"]);
+}
+
+#[test]
+fn mail_a_rule_shows_an_alert_for_is_told_of_wherever_it_put_it_read_or_not() {
+    let (mut s, account, inbox) = read_once();
+    let receipts = s.mailbox.add_folder(account, None, "Receipts").unwrap();
+    let filed = json!({
+        "name": "Receipts",
+        "conditions": [{"type": "subjectContains", "value": "receipt"}],
+        "actions": [{"type": "moveTo", "value": receipts}, {"type": "markRead"}, {"type": "copyTo", "value": inbox}],
+        "alert": true,
+    });
+    // An alert and nothing else, as Outlook's "display a Desktop Alert" alone.
+    let urgent = json!({"name": "Urgent", "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [], "alert": true});
+    s.run("rules.add", &filed).unwrap();
+    s.run("rules.add", &urgent).unwrap();
+    let before = mark(&s.mailbox);
+    let read_elsewhere = Message { read: true, ..message(4, "Rowan", "Urgent, read on the phone") };
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(2, "Shop", "Your receipt"), message(3, "Rowan", "Hello"), read_elsewhere])]);
+    let found = arrivals(&s.mailbox, &before);
+    // The copy in the Inbox the rule made is read, and is no alert of its own.
+    assert_eq!(subjects(&found), ["Your receipt", "Hello", "Urgent, read on the phone"]);
+    let told: Vec<(bool, Id)> = found.iter().map(|a| (a.rule, a.folder)).collect();
+    assert_eq!(told, [(true, receipts), (false, inbox), (true, inbox)]);
+    // Told of once.
+    assert!(arrivals(&s.mailbox, &mark(&s.mailbox)).is_empty());
+    // Run Rules Now: the mail isn't arriving, and a copy made of what was told of is no alert.
+    let again = mark(&s.mailbox);
+    let copies =
+        json!({"name": "Copies", "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [{"type": "copyTo", "value": receipts}]});
+    s.run("rules.add", &copies).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert!(s.mailbox.messages_in(receipts).any(|m| m.subject.starts_with("Urgent")));
+    assert!(arrivals(&s.mailbox, &again).is_empty());
+}
+
+#[test]
+fn mail_a_rule_moves_to_another_account_shows_no_alert() {
+    let (mut s, account, inbox) = read_once();
+    let servers = json!({"email": "avery@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
+    let other = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let other_inbox = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    apply(&mut s, other, vec![inbox_delta(other_inbox, vec![message(1, "Old", "Already there")])]);
+    let kept = s.mailbox.add_folder(other, None, "Kept").unwrap();
+    let away = json!({
+        "name": "Away",
+        "conditions": [{"type": "subjectContains", "value": "receipt"}],
+        "actions": [{"type": "moveTo", "value": kept}],
+        "alert": true,
+    });
+    s.run("rules.add", &away).unwrap();
+    let before = mark(&s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(2, "Shop", "Your receipt"), message(3, "Rowan", "Hello")])]);
+    assert!(s.mailbox.messages_in(kept).any(|m| m.subject == "Your receipt"), "moved to the other account");
+    let found = arrivals(&s.mailbox, &before);
+    // It didn't arrive where the rule put it, and the other account isn't where it came.
+    assert_eq!(subjects(&found), ["Hello"]);
+    assert!(found.iter().all(|a| !a.rule));
+}
+
+#[test]
+fn an_accounts_first_download_shows_no_rules_alert_either() {
+    let (mut s, account, inbox) = session();
+    let urgent = json!({"name": "Urgent", "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [], "alert": true});
+    s.run("rules.add", &urgent).unwrap();
+    let before = mark(&s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(1, "Rowan", "Urgent")])]);
+    assert!(arrivals(&s.mailbox, &before).is_empty());
+}
+
+#[test]
+fn mail_a_rule_alerts_for_once_it_is_fetched_whole_is_told_of_in_the_owners_own_accounts_alone() {
+    let mut s = Session::empty();
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.mailbox.add_shared_mailbox(owner, "team@example.org").unwrap();
+    let local = s.mailbox.add_account(mailcraft_model::Account { name: "Local".into(), email: "me@local.example".into(), ..Default::default() });
+    let mut add = |account: Id, subject: &str, alert: bool, draft: bool| {
+        let folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m =
+            Message { folder, subject: subject.into(), from: Address::new("Zoe", "zoe@example.org"), rule_alert: alert, draft, ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let told = add(owner, "Invoice", true, false);
+    let ids =
+        [add(owner, "No rule", false, false), add(owner, "Draft", true, true), add(shared, "Shared", true, false), add(local, "Local", true, false)];
+    let found = alerted(&s.mailbox, &[ids[0], ids[1], told, ids[2], ids[3], 9_999]);
+    assert_eq!(subjects(&found), ["Invoice"]);
+    assert!(found[0].rule && found[0].sender == "Zoe" && found[0].account == owner);
+    assert!(alerted(&s.mailbox, &[]).is_empty());
 }

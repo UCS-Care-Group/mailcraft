@@ -273,6 +273,20 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let taken: Vec<Id> =
         result.fetched.iter().filter_map(|f| graph_down::take_fetched_as(&mut s.mailbox, &mut index, account, &f.id, &f.mime)).collect();
     s.graph_index = index;
+    // New mail its rules couldn't tell of from what its server listed: they have their say now
+    // that it is here whole (#566), a Microsoft account's and an Exchange server account's alike
+    // (and a JMAP account's, whose runs don't yet put new mail through the rules as it arrives).
+    // Those a rule shows a desktop alert for now are named, for the window to show it.
+    let clock = s.rule_clock();
+    let alerted = |s: &Session, id: Id| s.mailbox.message(id).is_some_and(|m| m.rule_alert);
+    let mut alerts = Vec::new();
+    for id in &taken {
+        let before = alerted(s, *id);
+        s.mailbox.run_waiting_rules(*id, &clock);
+        if !before && alerted(s, *id) {
+            alerts.push(*id);
+        }
+    }
     // Older than its mail to keep offline (the owner opened it): whole until the mailbox is
     // opened again (#143).
     let window = mailcraft_model::OfflineWindow::of(&s.mailbox, s.now());
@@ -291,7 +305,7 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     s.sync_progress.counted_as(&s.mailbox, account, counts, now);
     let graph_down::FullCounts { all, waiting, large } = counts;
     Ok(
-        json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
+        json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for, "alerts": alerts}),
     )
 }
 
@@ -358,6 +372,9 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 MessageOutcome::Done { .. } => taken.pushed += 1,
                 _ => taken.updated += 1,
             }
+            // A message's server id is new or gone, or a message is put back as its server's: where
+            // each message is, is looked at afresh, as for an Exchange server account.
+            s.graph_index = Default::default();
         }
     }
     // What was made here from another mailbox of the same owner's (#70).
@@ -400,7 +417,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
-    let mut down = Down::default();
+    let mut down = Down::of(s);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
@@ -426,7 +443,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || named || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

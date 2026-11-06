@@ -71,7 +71,7 @@ fn the_servers_rules_are_read_when_due_and_shown() {
         name: "From the shop".into(),
         sequence: 1,
         enabled: true,
-        conditions: vec![Condition::FromContains("shop@example.org".into())],
+        conditions: vec![Condition::FromContains(vec!["shop@example.org".into()])],
         actions: vec![Action::MarkRead],
         ..Default::default()
     };
@@ -266,7 +266,7 @@ fn server_rule(id: &str, name: &str, sequence: i32) -> RemoteRule {
         name: name.into(),
         sequence,
         enabled: true,
-        conditions: vec![Condition::SubjectContains(name.into())],
+        conditions: vec![Condition::SubjectContains(vec![name.into()])],
         actions: vec![Action::MarkRead],
         ..Default::default()
     }

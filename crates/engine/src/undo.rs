@@ -555,6 +555,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 marker: format!("mailcraft-place-{:x}-u-{source:016x}", c.id),
                 copy: false,
                 from: None,
+                source: None,
             });
             m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
             (m.server, m.uid, m.synced) = (None, 0, None);

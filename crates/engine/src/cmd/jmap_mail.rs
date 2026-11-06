@@ -224,7 +224,7 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     let name = receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded(result);
     let mut taken = Taken::default();
-    let mut down = Down::default();
+    let mut down = Down::of(s);
     if let Some(listing) = &result.listing {
         down.removed = jmap_down::keep_what_is_only_here(&mut s.mailbox, account, listing);
         graph_mail::take_listing(&mut s.mailbox, account, listing, &mut taken);
@@ -256,7 +256,7 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     // The threads of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

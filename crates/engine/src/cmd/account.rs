@@ -829,7 +829,12 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
             continue;
         }
         match pending {
-            Pending::Delete { .. } => note(&|| Some(RemoteOp::Delete { from: from.to_string(), uid })),
+            // (Not while a copy of the message is still on its way to another account's server: a
+            // refused one puts the original back, which the server must still have, #566.)
+            Pending::Delete { kept, .. } => {
+                let held = kept.as_ref().is_some_and(|m| mb.copy_waits_for(m.id));
+                note(&|| (!held).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
+            }
             Pending::Move { message, synced, to, .. } => {
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
@@ -1101,6 +1106,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    let clock = s.rule_clock();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     for made in &result.created {
@@ -1125,7 +1131,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, &mut counts);
+        take_in(mb, account, &mut on_server, delta, &mut counts, &clock);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1299,8 +1305,8 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
             mb.pending.push(Pending::Move { account, message, from, uid, synced: synced.map(|flags| flags.at(uid)), to });
         }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
-        (Some(Pending::Delete { message_id, seen, .. }), Some((from, uid))) => {
-            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen })
+        (Some(Pending::Delete { message_id, seen, kept, .. }), Some((from, uid))) => {
+            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept })
         }
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
@@ -1411,18 +1417,19 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
             // Called off meanwhile: the copy goes again.
             None => {
                 if let Some((from, uid)) = there {
-                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None });
+                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None, kept: None });
                 }
             }
         }
     }
     for id in unplaced {
         let Some(at) = waiting(mb, *id).filter(|at| *at < mb.queued.len()) else { continue };
-        let (copy, from) = match mb.queued.remove(at) {
-            Queued::PlaceMessage { copy, from, .. } => (copy, from),
-            _ => (false, None),
+        let (copy, source, from) = match mb.queued.remove(at) {
+            Queued::PlaceMessage { copy, source, from, .. } => (copy, source, from),
+            _ => (false, None, None),
         };
-        super::graph_place::put_back(mb, *id, copy, from);
+        let taken_away = super::graph_place::original_back(mb, *id, copy, source);
+        super::graph_place::put_back(mb, *id, taken_away, from);
     }
 }
 
@@ -1454,8 +1461,14 @@ pub(crate) fn original_goes(mb: &mut Mailbox, id: Id) {
             && *message == id
             && *owner != account
         {
-            let delete =
-                Pending::Delete { account: *owner, from: std::mem::take(from), uid: *uid, message_id: message_id.clone(), seen: seen.clone() };
+            let delete = Pending::Delete {
+                account: *owner,
+                from: std::mem::take(from),
+                uid: *uid,
+                message_id: message_id.clone(),
+                seen: seen.clone(),
+                kept: None,
+            };
             *p = delete;
         }
     }
@@ -1717,7 +1730,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 }
 
 /// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
+fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts, clock: &mailcraft_model::RuleClock) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1849,9 +1862,16 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
             // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
             // them as any mail arriving in the Inbox does.
-            let sorted = sorting && uid > old_seen && mb.sort_junk(id);
+            let fresh = sorting && uid > old_seen;
+            let sorted = fresh && mb.sort_junk(id);
+            // The rules file what was there before too (a first download, a mailbox numbered anew,
+            // older mail), but don't delete it for good or show an alert for it (#566).
             if inbox != sorted {
-                mb.apply_rules(id);
+                if fresh {
+                    mb.apply_rules(id, clock);
+                } else {
+                    mb.apply_rules_found(id, clock);
+                }
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {

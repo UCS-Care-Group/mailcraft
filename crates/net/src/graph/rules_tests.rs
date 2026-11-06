@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex};
 
 use mailcraft_model::remote_rules::{RemoteRule, RuleOp, RuleOpKind, RuleResult, RulesUpload};
-use mailcraft_model::{Action, Condition, Importance};
+use mailcraft_model::{Action, Condition, Importance, Sensitivity};
 use serde_json::{Value, json};
 
 use super::rules::{push_rules_at, rule_body, rule_of, rules_at};
@@ -105,7 +105,7 @@ fn news_rule() -> RemoteRule {
         name: "News".into(),
         sequence: 3,
         enabled: true,
-        conditions: vec![Condition::FromContains("news@example.org".into()), Condition::HasAttachment],
+        conditions: vec![Condition::FromContains(vec!["news@example.org".into()]), Condition::HasAttachment],
         actions: vec![Action::Categorize("Blue".into()), Action::MarkRead],
         move_to: "IMM-news".into(),
         stop: true,
@@ -129,8 +129,8 @@ fn a_rule_of_known_parts_is_read_whole() {
     assert!(rule.enabled && rule.stop && !rule.read_only && !rule.error);
     assert!(rule.unknown.is_empty(), "{:?}", rule.unknown);
     assert_eq!(rule.move_to, "IMM-shop");
-    assert!(rule.conditions.contains(&Condition::FromContains("shop@example.org".into())));
-    assert!(rule.conditions.contains(&Condition::SubjectContains("Order".into())));
+    assert!(rule.conditions.contains(&Condition::FromContains(vec!["shop@example.org".into()])));
+    assert!(rule.conditions.contains(&Condition::SubjectContains(vec!["Order".into()])));
     assert!(rule.conditions.contains(&Condition::Importance(Importance::High)));
     assert!(rule.conditions.contains(&Condition::HasAttachment));
     assert_eq!(rule.conditions.len(), 4);
@@ -145,14 +145,17 @@ fn a_rule_of_known_parts_is_read_whole() {
 fn parts_this_version_does_not_know_are_named() {
     let rule = rule_of(&json!({
         "id": "A2", "displayName": "Forward", "sequence": 1, "isEnabled": true,
-        "conditions": {"senderContains": ["a@example.org", "b@example.org"], "sentToMe": true},
-        "exceptions": {"subjectContains": ["private"]},
+        "conditions": {"senderContains": ["a@example.org"], "isEncrypted": true, "messageActionFlag": "call"},
+        "exceptions": {"subjectContains": ["private"], "isSigned": true},
         "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true}
     }))
     .unwrap();
-    for part in ["senderContains", "sentToMe", "exceptions", "forwardTo"] {
+    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo"] {
         assert!(rule.unknown.iter().any(|u| u == part), "{part} in {:?}", rule.unknown);
     }
+    assert_eq!(rule.unknown.len(), 4, "{:?}", rule.unknown);
+    assert_eq!(rule.conditions, vec![Condition::FromContains(vec!["a@example.org".into()])]);
+    assert_eq!(rule.exceptions, vec![Condition::SubjectContains(vec!["private".into()])]);
     assert_eq!(rule.actions, vec![Action::Delete]);
     // A rule without conditions acts on every message there: not one that is run here.
     let every = rule_of(&json!({"id": "A3", "displayName": "All", "conditions": {}, "actions": {"markAsRead": true}})).unwrap();
@@ -160,6 +163,96 @@ fn parts_this_version_does_not_know_are_named() {
     // No id: no rule.
     assert!(rule_of(&json!({"displayName": "x"})).is_none());
     assert!(rule_of(&json!({"id": "has space"})).is_none());
+}
+
+#[test]
+fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_back() {
+    let people = |a: &[&str]| json!(a.iter().map(|a| json!({"emailAddress": {"name": "N", "address": a}})).collect::<Vec<_>>());
+    let entry = json!({
+        "id": "A4", "displayName": "Everything", "sequence": 3, "isEnabled": true,
+        "conditions": {
+            "senderContains": ["shop", "store"], "bodyOrSubjectContains": ["order"], "headerContains": ["X-Shop"],
+            "fromAddresses": people(&["ann@example.org"]), "sentToAddresses": people(&["team@example.org", "ops@example.org"]),
+            "sensitivity": "private", "withinSizeRange": {"minimumSize": 10, "maximumSize": 500},
+            "isMeetingRequest": true, "isAutomaticReply": false, "categories": ["Red"], "messageActionFlag": "any",
+            "sentOnlyToMe": true, "sentToMe": true, "sentCcMe": true, "sentToOrCcMe": true, "notSentToMe": true
+        },
+        "exceptions": {"isAutomaticReply": true, "subjectContains": ["draft", "test"]},
+        "actions": {"copyToFolder": "IMM-copies", "markAsRead": true, "stopProcessingRules": false}
+    });
+    let rule = rule_of(&entry).unwrap();
+    assert!(rule.unknown.is_empty(), "{:?}", rule.unknown);
+    for c in [
+        Condition::FromContains(vec!["shop".into(), "store".into()]),
+        Condition::SubjectOrBodyContains(vec!["order".into()]),
+        Condition::HeaderContains(vec!["X-Shop".into()]),
+        Condition::From(vec!["ann@example.org".into()]),
+        Condition::SentTo(vec!["team@example.org".into(), "ops@example.org".into()]),
+        Condition::Sensitivity(Sensitivity::Private),
+        Condition::SizeBetween { min: 10, max: 500 },
+        Condition::MeetingRequest,
+        Condition::Category(vec!["Red".into()]),
+        Condition::Flagged,
+        Condition::SentOnlyToMe,
+        Condition::ToMe,
+        Condition::CcMe,
+        Condition::ToOrCcMe,
+        Condition::NotToMe,
+    ] {
+        assert!(rule.conditions.contains(&c), "{c:?} in {:?}", rule.conditions);
+    }
+    // `false` is a part the rule doesn't have.
+    assert!(!rule.conditions.contains(&Condition::AutomaticReply));
+    assert_eq!(rule.conditions.len(), 15);
+    assert_eq!(rule.exceptions.len(), 2);
+    assert_eq!(rule.copy_to, "IMM-copies");
+    assert_eq!(rule.actions, vec![Action::MarkRead]);
+    // Written back, it says the same.
+    let body = rule_body(&rule).unwrap();
+    let again = rule_of(&json!({"id": "A4", "displayName": body["displayName"], "isEnabled": true, "conditions": body["conditions"],
+        "exceptions": body["exceptions"], "actions": body["actions"]}))
+    .unwrap();
+    assert_eq!((again.conditions.len(), again.exceptions.len()), (15, 2));
+    assert!(rule.conditions.iter().all(|c| again.conditions.contains(c)) && rule.exceptions.iter().all(|c| again.exceptions.contains(c)));
+    assert_eq!((again.copy_to.as_str(), again.actions.as_slice()), ("IMM-copies", [Action::MarkRead].as_slice()));
+    assert_eq!(body["conditions"]["fromAddresses"], json!([{"emailAddress": {"address": "ann@example.org"}}]));
+    // Graph's sizes are in kilobytes (`sizeRange`), as a rule's are: 10 KB to 500 KB goes up as
+    // 10 and 500, never as bytes.
+    assert_eq!(body["conditions"]["withinSizeRange"], json!({"minimumSize": 10, "maximumSize": 500}));
+}
+
+#[test]
+fn two_exceptions_of_a_kind_go_up_as_one_and_two_conditions_never_do() {
+    let mut rule = RemoteRule {
+        name: "Bills".into(),
+        conditions: vec![Condition::SubjectContains(vec!["invoice".into()])],
+        exceptions: vec![
+            Condition::FromContains(vec!["boss".into()]),
+            Condition::FromContains(vec!["hr".into(), "boss".into()]),
+            Condition::ToMe,
+            Condition::ToMe,
+        ],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    };
+    let body = rule_body(&rule).unwrap();
+    assert_eq!(body["exceptions"], json!({"senderContains": ["boss", "hr"], "sentToMe": true}));
+    rule.exceptions = vec![Condition::Importance(Importance::High), Condition::Importance(Importance::Low)];
+    assert!(rule_body(&rule).is_err(), "one importance an exception looks at");
+    rule.exceptions.clear();
+    rule.conditions.push(Condition::SubjectContains(vec!["bill".into()]));
+    assert!(rule_body(&rule).is_err(), "both must hold, which the server's one list can't say");
+    // What the server's rules can't do isn't sent.
+    for (conditions, actions) in [
+        (vec![Condition::ReceivedBetween { from: None, to: mailcraft_model::time::Date::new(2026, 12, 31) }], vec![Action::MarkRead]),
+        (vec![Condition::ToMe], vec![Action::FlagFor(mailcraft_model::FollowUp::Today)]),
+        (vec![Condition::ToMe], vec![Action::ClearFlag]),
+        (vec![Condition::ToMe], vec![Action::ClearCategories]),
+        (vec![Condition::ToMe], vec![Action::DeleteForGood]),
+    ] {
+        let rule = RemoteRule { name: "x".into(), conditions, actions, ..Default::default() };
+        assert!(rule_body(&rule).is_err(), "{rule:?}");
+    }
 }
 
 #[test]
@@ -216,6 +309,17 @@ fn a_rule_whose_folder_gets_no_answer_waits_for_the_next_read() {
 }
 
 #[test]
+fn a_rule_copying_to_a_folder_that_gets_no_answer_waits_too() {
+    let s = state(vec![json!({"id": "A", "displayName": "One", "sequence": 1, "isEnabled": true,
+           "conditions": {"subjectContains": ["x"]}, "actions": {"copyToFolder": "OLD-copies"}})]);
+    let server = serve(&s);
+    s.lock().unwrap().folder_status = Some(503);
+    let got = rules_at(&server.url(""), TOKEN, &[]).unwrap();
+    assert!(!got.complete);
+    assert!(got.rules.is_empty());
+}
+
+#[test]
 fn a_rule_made_here_is_sent_whole_and_comes_back_with_its_id() {
     let s = state(Vec::new());
     let server = serve(&s);
@@ -244,7 +348,7 @@ fn a_rule_the_server_cannot_keep_is_not_sent() {
     flagged.actions.push(Action::Flag);
     assert!(rule_body(&flagged).is_err());
     let mut twice = news_rule();
-    twice.conditions.push(Condition::FromContains("other@example.org".into()));
+    twice.conditions.push(Condition::FromContains(vec!["other@example.org".into()]));
     assert!(rule_body(&twice).is_err());
     let mut none = news_rule();
     none.conditions.clear();

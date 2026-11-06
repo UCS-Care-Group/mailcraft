@@ -298,10 +298,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
   and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
   unconfirmed, nor is a file with no account that connects to a server.
-- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
-  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
-  older version), so incoming mail is never relayed by the owner's SMTP account
-  (`Mailbox::is_send_queue`).
+- No rule moves or copies mail into an Outbox, or a folder under one, whoever made it: `rules.add`
+  and `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or
+  an older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`). An agent is asked before a rule that deletes mail for good is made,
+  switched on or run (class `delete`), and no server is given a rule that deletes for good: such
+  a rule stays on this computer, and what it deletes is deleted from the account's server too, as
+  Shift+Delete does. A rule that can't yet tell whether it applies to mail not downloaded doesn't
+  act, and the rules after it delete nothing for good.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -310,7 +314,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
-  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
+  A server account's copy goes to Deleted Items on undo and is not counted as a removal. An undo or
+  redo that changes the rules and leaves one switched on that deletes mail permanently asks
+  `delete` too (#566).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the

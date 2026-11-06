@@ -33,7 +33,7 @@ impl AlertHost for Recorder {
 }
 
 fn arrival(message: Id, sender: &str, subject: &str) -> Arrival {
-    Arrival { message, account: 1, folder: 2, sender: sender.into(), subject: subject.into() }
+    Arrival { message, account: 1, folder: 2, sender: sender.into(), subject: subject.into(), rule: false }
 }
 
 // ---- the text ----
@@ -89,6 +89,19 @@ fn new_mail_is_told_of_only_while_the_window_is_not_in_front_and_the_switch_is_o
     // No name and no subject still say something.
     let bare = plan_mail(&[arrival(11, "\u{200b}", "")], true, false);
     assert_eq!((bare[0].title.as_str(), bare[0].body.as_str()), ("New message", "(no subject)"));
+}
+
+#[test]
+fn a_rules_alert_is_told_of_with_the_switch_off_but_not_while_the_window_is_in_front() {
+    // Outlook's way: alerts off for new mail, and a rule that shows one for some mail alone.
+    let mut boss = arrival(12, "Boss", "Budget");
+    boss.rule = true;
+    let found = [arrival(10, "Rowan Pike", "Lunch?"), boss];
+    let shown = plan_mail(&found, false, false);
+    assert_eq!(shown.len(), 1);
+    assert_eq!((shown[0].title.as_str(), shown[0].body.as_str()), ("Boss", "Budget"));
+    assert_eq!(plan_mail(&found, true, false).len(), 2, "with the switch on, both");
+    assert!(plan_mail(&found, false, true).is_empty(), "the window is in front");
 }
 
 #[test]
@@ -341,4 +354,140 @@ fn pass(ctx: &egui::Context, raw: egui::RawInput, f: impl FnOnce(&egui::Context)
     ctx.begin_pass(raw);
     f(ctx);
     ctx.end_pass().textures_delta.clear();
+}
+
+// ---- a rule's alert once the message is downloaded (#566) ----
+
+type Jobs = Arc<Mutex<Vec<(crate::graph_fetch::GraphFetchJob, std::sync::mpsc::Sender<mailcraft_model::sync::GraphFetchResult>)>>>;
+
+/// A window with a Microsoft account whose Inbox was read before; a rule of this computer that
+/// shows a desktop alert, and does nothing else, for mail whose text says "invoice"; a stand-in
+/// for the system's notifications; and a host that keeps each download for the test to answer.
+fn microsoft() -> (MailApp, Recorder, Id, Jobs) {
+    let mut session = Session::empty();
+    let account = session.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let server = mailcraft_model::ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() };
+    session.mailbox.folder_mut(inbox).unwrap().server = Some(server);
+    let rule =
+        json!({"name": "Invoices", "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [], "alert": true});
+    session.run("rules.add", &rule).unwrap();
+    let recorder = Recorder::default();
+    let jobs: Jobs = Default::default();
+    let kept = jobs.clone();
+    let fetch = move |job: crate::graph_fetch::GraphFetchJob| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        kept.lock().unwrap().push((job, tx));
+        rx
+    };
+    let services = Services { alert: Some(Box::new(recorder.clone())), graph_fetch: Some(Box::new(fetch)), ..Default::default() };
+    let mut app = MailApp::new(session, services);
+    app.autosave = false;
+    let tokens = mailcraft_model::sync::Tokens {
+        access: "stand-in".into(),
+        refresh: "r".into(),
+        expires_at: mailcraft_time::now() + 3_600,
+        ..Default::default()
+    };
+    app.seed_graph_token(account, tokens);
+    (app, recorder, account, jobs)
+}
+
+/// A Send/Receive that brings `id`, its headers and a preview alone, as the window sees it.
+fn arrive(app: &mut MailApp, ctx: &egui::Context, account: Id, id: &str, subject: &str) {
+    frame(app, ctx, false);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    frame(app, ctx, false);
+    bring(app, account, id, subject);
+    app.sync_rx = None;
+    frame(app, ctx, false);
+}
+
+/// What a Send/Receive brings of `id`: its headers and a preview alone.
+fn bring(app: &mut MailApp, account: Id, id: &str, subject: &str) {
+    let listed = mailcraft_model::sync::GraphMessage {
+        server: mailcraft_model::sync::ServerMessage { id: id.into(), folder: "F-in".into(), size: 1_200, ..Default::default() },
+        subject: subject.into(),
+        from: Address::new("Zoe Park", "zoe@example.org"),
+        received: mailcraft_time::now(),
+        ..Default::default()
+    };
+    let page = mailcraft_model::sync::MessagePage { folder: "F-in".into(), messages: vec![listed], ..Default::default() };
+    let result =
+        mailcraft_model::sync::GraphMailResult { account, email: "ada@example.org".into(), pages: vec![page], partial: true, ..Default::default() };
+    mailcraft_engine::cmd::graph_mail::apply_graph_mail(&mut app.session, result).unwrap();
+}
+
+/// The background downloads `id` whole, with `subject` and `text`.
+fn download(app: &mut MailApp, jobs: &Jobs, id: &str, subject: &str, text: &str) {
+    app.fetching.wake();
+    app.drive_fetch();
+    for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+        assert!(job.request.ids.contains(&id.to_string()), "{:?}", job.request.ids);
+        let mime =
+            format!("From: Zoe Park <zoe@example.org>\r\nTo: ada@example.org\r\nSubject: {subject}\r\nContent-Type: text/plain\r\n\r\n{text}\r\n");
+        let fetched = vec![mailcraft_model::sync::GraphFetched { id: id.into(), mime: mime.into_bytes() }];
+        tx.send(mailcraft_model::sync::GraphFetchResult {
+            account: job.request.account,
+            email: job.request.email.clone(),
+            fetched,
+            ..Default::default()
+        })
+        .unwrap();
+    }
+    app.drive_fetch();
+}
+
+fn told(recorder: &Recorder) -> Vec<(String, String)> {
+    recorder.shown.lock().unwrap().iter().map(|a| (a.title.clone(), a.body.clone())).collect()
+}
+
+#[test]
+fn a_rule_that_reads_the_text_shows_its_alert_once_the_message_is_downloaded_and_only_once() {
+    let (mut app, recorder, account, jobs) = microsoft();
+    let ctx = egui::Context::default();
+    // Outlook's way: alerts off for new mail, and the rule's alone.
+    app.execute("ui.desktopAlerts", json!({"newMail": false})).unwrap();
+    arrive(&mut app, &ctx, account, "N1", "May");
+    assert!(told(&recorder).is_empty(), "the rule can't tell yet");
+    download(&mut app, &jobs, "N1", "May", "The invoice for May.");
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder), [("Zoe Park".to_string(), "May".to_string())]);
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 1, "once");
+    // Not when the text doesn't say it.
+    arrive(&mut app, &ctx, account, "N2", "June");
+    download(&mut app, &jobs, "N2", "June", "Nothing to pay.");
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 1);
+    // A download that ends during a Send/Receive: told of once that is over.
+    arrive(&mut app, &ctx, account, "N3", "July");
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    frame(&mut app, &ctx, false);
+    download(&mut app, &jobs, "N3", "July", "The invoice for July.");
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 1, "the run isn't over");
+    app.sync_rx = None;
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder)[1], ("Zoe Park".to_string(), "July".to_string()));
+    // Brought and downloaded within one Send/Receive: one alert, at its end.
+    frame(&mut app, &ctx, false);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    frame(&mut app, &ctx, false);
+    bring(&mut app, account, "N5", "September");
+    download(&mut app, &jobs, "N5", "September", "The invoice for September.");
+    app.sync_rx = None;
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 3);
+    assert_eq!(told(&recorder)[2], ("Zoe Park".to_string(), "September".to_string()));
+    // With alerts on for new mail, one told of as it arrived isn't told of again by its rule.
+    app.execute("ui.desktopAlerts", json!({"newMail": true})).unwrap();
+    arrive(&mut app, &ctx, account, "N4", "August");
+    assert_eq!(told(&recorder).len(), 4);
+    download(&mut app, &jobs, "N4", "August", "The invoice for August.");
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 4);
 }
