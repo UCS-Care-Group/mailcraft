@@ -466,9 +466,10 @@ fn the_requests_hold_to_the_schema_and_write_nothing() {
         state.requests.iter().map(|r| (&r.operation, r.status, &r.code)).collect::<Vec<_>>()
     );
     let operations: Vec<&str> = state.requests.iter().map(|r| r.operation.as_str()).collect();
-    assert_eq!(operations.iter().take(2).collect::<Vec<_>>(), [&"GetFolder", &"SyncFolderHierarchy"]);
+    // (The server's own folders first, #779, then the special ones, then the folder list.)
+    assert_eq!(operations.iter().take(3).collect::<Vec<_>>(), [&"GetFolder", &"GetFolder", &"SyncFolderHierarchy"]);
     // (Five folders of mail: the server's Outbox, empty, is not read, #747.)
-    assert!(operations.iter().skip(2).all(|o| *o == "SyncFolderItems") && operations.len() == 7, "{operations:?}");
+    assert!(operations.iter().skip(3).all(|o| *o == "SyncFolderItems") && operations.len() == 8, "{operations:?}");
 }
 
 #[test]

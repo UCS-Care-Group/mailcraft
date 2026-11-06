@@ -207,7 +207,12 @@ fn a_deleted_folder_goes_with_its_mail_and_a_renamed_one_keeps_where_it_went_on_
     let (mut s, account) = session();
     list(&mut s, account);
     read(&mut s, account, page("F5", vec![mail("P1", "Plan", 1_000)], true, true), "S-P");
-    let delta = EwsFolderDeltas { changed: vec![folder("F5", "", "Projects (old)", FolderKind::Custom)], deleted: vec!["F3".into()], afresh: false };
+    let delta = EwsFolderDeltas {
+        changed: vec![folder("F5", "", "Projects (old)", FolderKind::Custom)],
+        deleted: vec!["F3".into()],
+        afresh: false,
+        ..Default::default()
+    };
     apply_ews_mail(&mut s, EwsMailResult { folders: Some(delta), hierarchy: "HIER-2".into(), ..piece(account) }).unwrap();
     let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
     assert_eq!(s.mailbox.folder(projects).unwrap().name, "Projects (old)");

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::messages::Messages;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
@@ -1030,8 +1031,8 @@ pub struct Mailbox {
     pub account_order: Vec<Id>,
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub folders: Vec<Folder>,
-    #[serde(deserialize_with = "crate::load_limit::capped_map")]
-    pub messages: BTreeMap<Id, Arc<Message>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_messages")]
+    pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
     pub calendars: Vec<Calendar>,
@@ -1141,7 +1142,7 @@ impl Default for Mailbox {
             accounts: Vec::new(),
             account_order: Vec::new(),
             folders: Vec::new(),
-            messages: BTreeMap::new(),
+            messages: Messages::new(),
             contacts: BTreeMap::new(),
             calendars: Vec::new(),
             events: BTreeMap::new(),
@@ -2483,6 +2484,7 @@ impl Mailbox {
                 m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
             }
             m.server = None;
+            crate::auth_results::forget_stamps(m);
             m.lies_in(folder, to_account, uid, synced);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from });
             return Ok(true);
@@ -2566,6 +2568,7 @@ impl Mailbox {
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
             copy.placed.clear();
+            crate::auth_results::forget_stamps(&mut copy);
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
@@ -3314,9 +3317,22 @@ impl Mailbox {
             n
         }
         let next = &mut self.next_id;
-        let rehomed =
-            rehome(&mut self.messages, next) + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
-        let rekeyed = rekey(&mut self.messages, |m| &mut m.id)
+        // (The messages as the others, in their own map: only what is changed is written.)
+        let big: Vec<Id> = self.messages.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
+        for k in &big {
+            if let Some(v) = self.messages.remove(k) {
+                self.messages.insert(*next, v);
+                *next += 1;
+            }
+        }
+        let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
+        let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
+        for k in &misnamed {
+            if let Some(m) = self.messages.get_mut(k) {
+                Arc::make_mut(m).id = *k;
+            }
+        }
+        let rekeyed = misnamed.len()
             + rekey(&mut self.contacts, |c| &mut c.id)
             + rekey(&mut self.events, |e| &mut e.id)
             + rekey(&mut self.tasks, |t| &mut t.id);
@@ -3461,11 +3477,17 @@ impl Mailbox {
         let folder_account: BTreeMap<Id, Id> = self.folders.iter().map(|f| (f.id, f.account)).collect();
         let fallback = self.inbox();
         let mut homeless = Vec::new();
-        for (id, m) in &mut self.messages {
+        let mut rehoused = Vec::new();
+        for (id, m) in &self.messages {
             match folder_account.get(&m.folder) {
                 Some(a) if *a == m.account => {}
-                Some(a) => Arc::make_mut(m).account = *a,
+                Some(a) => rehoused.push((*id, *a)),
                 None => homeless.push(*id),
+            }
+        }
+        for (id, account) in rehoused {
+            if let Some(m) = self.messages.get_mut(&id) {
+                Arc::make_mut(m).account = account;
             }
         }
         if !homeless.is_empty() {

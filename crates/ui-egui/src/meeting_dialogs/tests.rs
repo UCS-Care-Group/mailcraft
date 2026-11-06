@@ -562,3 +562,17 @@ fn the_menu_of_an_item_offers_what_can_be_done_with_a_meeting() {
     let mailbox = &harness.state().session.mailbox;
     assert!(mailbox.event_changes.is_empty() && mailbox.event_checks.is_empty());
 }
+
+/// Whose meeting it is is said as a name is shown (#454): a right-to-left override, zero-width
+/// marks and tags in the organizer's name are gone.
+#[test]
+fn the_organizers_name_is_shown_without_what_shows_nothing() {
+    let hidden = RemoteEvent { organizer: Some(Address::new("Bo\u{202e} Marsh\u{200b}\u{e0041}", "bo@example.org")), ..board() };
+    let (mut harness, _server) = served(vec![hidden]);
+    let board = id_of(&harness, "Board");
+    harness.state_mut().execute("calendar.select", json!({"id": board})).unwrap();
+    harness.state_mut().run("calendar.propose", json!({"id": board})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(dialog(&harness), Some("proposeTime"));
+    assert!(says(&harness, "Bo Marsh organizes \"Board\"."));
+}
