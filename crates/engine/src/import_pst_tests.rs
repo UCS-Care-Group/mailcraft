@@ -1671,3 +1671,46 @@ fn cancelling_while_in_the_contacts_folder_still_makes_the_mail_folders() {
     assert_eq!(answer["name"], "old-mail");
     assert!(folder_id(&s, &["old-mail"]).is_some());
 }
+
+/// [MS-OXRTFCP] 3.1.1: compressed RTF for `{\rtf1\ansi\ansicpg1252\pard hello world}`.
+const COMPRESSED_HELLO: [u8; 49] = [
+    0x2d, 0x00, 0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x4c, 0x5a, 0x46, 0x75, 0xf1, 0xc5, 0xc7, 0xa7, 0x03, 0x00, 0x0a, 0x00, 0x72, 0x63, 0x70, 0x67,
+    0x31, 0x32, 0x35, 0x42, 0x32, 0x0a, 0xf3, 0x20, 0x68, 0x65, 0x6c, 0x09, 0x00, 0x20, 0x62, 0x77, 0x05, 0xb0, 0x6c, 0x64, 0x7d, 0x0a, 0x80, 0x0f,
+    0xa0,
+];
+
+/// Rich text kept uncompressed (`MELA`).
+fn uncompressed_rtf(rtf: &str) -> Vec<u8> {
+    let mut v = ((rtf.len() + 12) as u32).to_le_bytes().to_vec();
+    v.extend((rtf.len() as u32).to_le_bytes());
+    v.extend(b"MELA");
+    v.extend([0u8; 4]);
+    v.extend(rtf.bytes());
+    v
+}
+
+#[test]
+fn notes_kept_only_as_rich_text_come_across() {
+    // Outlook writes a contact's notes as PidTagRtfCompressed alone: no PidTagBody.
+    let rtf = |name: &str, bytes: Vec<u8>| contact_item(name, vec![(0x3001, w::unicode(name)), (0x1009, w::binary(&bytes))]);
+    let contacts = vec![
+        rtf("Compressed Cora", COMPRESSED_HELLO.to_vec()),
+        rtf("Plain Pia", uncompressed_rtf("{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\pard Call after 5\\par Caf\\'e9 \\u8364?\\par}")),
+        rtf("Broken Bea", COMPRESSED_HELLO[..30].to_vec()),
+        // Plain text wins when there is some.
+        contact_item("Both Bo", vec![(0x3001, w::unicode("Both Bo")), (0x1000, w::unicode("The text")), (0x1009, w::binary(&COMPRESSED_HELLO))]),
+    ];
+    let mut s = session();
+    let answer = import(&mut s, &people_file(contacts), json!({})).unwrap();
+    adds_up(&answer);
+    let notes = |name: &str| s.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().notes.clone();
+    assert_eq!(notes("Compressed Cora"), "hello world");
+    assert_eq!(notes("Plain Pia"), "Call after 5\nCaf\u{e9} \u{20ac}");
+    assert_eq!(notes("Broken Bea"), "");
+    assert_eq!(notes("Both Bo"), "The text");
+    // The one that couldn't be read is named, with why.
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.iter().filter(|w| w.contains("notes (rich text) could not be read")).count(), 1, "{why:?}");
+    let what = texts(&answer, "notes", "what");
+    assert!(what.iter().any(|w| w.contains("Broken Bea")), "{what:?}");
+}

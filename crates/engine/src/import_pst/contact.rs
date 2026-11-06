@@ -37,6 +37,8 @@ pub const MAX_MEMBERS: usize = 1000;
 /// Most bytes of the notes of a contact read; what is kept is cut to fit a vCard's longest line
 /// ([`fit`]).
 const MAX_NOTES: u64 = 1 << 20;
+/// Most bytes of rich text a contact's notes are unpacked to.
+const MAX_RTF: usize = 4 << 20;
 const MAX_MEMBER_BYTES: u64 = 4 << 20;
 /// Longest a member entry may be (one-off entry ids are small).
 const MAX_ENTRY: usize = 16 * 1024;
@@ -324,11 +326,21 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         }
     }
 
-    let body = match value(pst, m, 0x1000, MAX_NOTES, "notes", &mut notes)? {
+    let mut body = match value(pst, m, 0x1000, MAX_NOTES, "notes", &mut notes)? {
         Some(PropValue::String(s)) => Some(s),
         Some(PropValue::String8(b)) => Some(r.text.decode(&b)),
         _ => None,
-    };
+    }
+    .filter(|b| !b.trim_end_matches('\0').is_empty());
+    // Outlook keeps a contact's notes as compressed rich text alone ([MS-OXRTFCP]): no plain text.
+    if body.is_none()
+        && let Some(PropValue::Binary(rtf)) = value(pst, m, 0x1009, MAX_NOTES, "notes (rich text)", &mut notes)?
+    {
+        match mailcraft_pst::decompress_rtf(&rtf, MAX_RTF).and_then(|raw| mailcraft_pst::rtf_text(&raw, room().saturating_add(8))) {
+            Ok(text) => body = Some(text),
+            Err(e) => notes.push(format!("its notes (rich text) could not be read: {e}")),
+        }
+    }
     if let Some(b) = body {
         // (A list's notes share the room with its members, when it has any.)
         let has_members = ids.id(LIST_ONE_OFF).and_then(|id| m.properties.get(id)).is_some_and(|v| match v {

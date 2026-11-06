@@ -32,6 +32,7 @@ mod named;
 mod ndb;
 mod prop;
 mod pst;
+mod rtf;
 mod source;
 /// The test writer: synthetic .pst files from invented folders and messages, for this crate's
 /// tests and, through the `test-writer` feature (a dev-dependency only, never in a build that
@@ -63,3 +64,4 @@ pub use pst::{
     Attachment, AttachmentContent, AttachmentReader, AttachmentRef, Folder, FolderEntry, FolderKind, FolderTree, ItemList, ItemSummary, LeftOut,
     LeftOutPart, Message, MessageRef, Nid, NodeInfo, Part, Pst, Recipient, RecipientKind, Store, node_types,
 };
+pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_text};
