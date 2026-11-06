@@ -114,13 +114,16 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
             .filter_map(|m| s.mailbox.imap_key(m).map(|key| (key, m.id)))
             .collect()
     };
+    // In the order they came, and a set beside it: `result.fetched` is as long as the host sends.
     let mut taken: Vec<Id> = Vec::new();
+    let mut seen: HashSet<Id> = HashSet::new();
     for fetched in &result.fetched {
         let here = ImapFetchKey::read(&fetched.id).and_then(|key| by_key.get(&key).copied());
-        if let Some(id) = here.filter(|id| !taken.contains(id))
+        if let Some(id) = here.filter(|id| !seen.contains(id))
             && let Ok(m) = s.mailbox.message_mut(id)
         {
             super::graph_down::take_mime(m, account, &fetched.mime);
+            seen.insert(id);
             taken.push(id);
         }
     }
