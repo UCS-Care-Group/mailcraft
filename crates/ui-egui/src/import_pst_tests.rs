@@ -246,3 +246,42 @@ fn an_import_whose_window_goes_is_one_step_to_undo() {
     h.state_mut().session.run("edit.undo", &json!({})).unwrap();
     assert_eq!(messages(&h), before);
 }
+
+/// A window that is hidden or minimised paints no frame, but the toolkit still runs its logic
+/// (#815): the batches must go in from there, or the reader waits for a frame that never comes.
+#[test]
+fn batches_go_in_while_no_frame_is_painted() {
+    let dir = Scratch::new("hidden");
+    let path = pst(&dir, 5, None);
+    let (jobs_tx, jobs_rx) = channel::<(PstJob, Sender<Event>)>();
+    let services = Services {
+        import_pst: Some(Box::new(move |job: PstJob| {
+            let (tx, rx) = channel();
+            jobs_tx.send((job, tx)).unwrap();
+            rx
+        })),
+        ..Default::default()
+    };
+    let mut h = window(services, &dir);
+    let before = messages(&h);
+    open(&mut h, &path);
+    click(&mut h, "Import");
+    let (job, tx) = jobs_rx.try_recv().unwrap();
+    let mut events = Vec::new();
+    mailcraft_engine::import_pst::read_path(&job.path, &job.job, &job.progress, &mut |e| {
+        events.push(e);
+        true
+    });
+    for e in events {
+        tx.send(e).unwrap();
+    }
+    // Only the logic runs, as for a hidden window.
+    let ctx = egui::Context::default();
+    for _ in 0..8 {
+        h.state_mut().logic(&ctx);
+    }
+    assert_eq!(messages(&h), before + 5, "everything is in without a frame");
+    assert!(matches!(h.state().dialog.as_ref(), Some(Dialog::ImportPst(d)) if !d.is_importing()), "and the report is ready");
+    h.run_steps(2);
+    assert!(says(&h, "5 messages brought in"));
+}

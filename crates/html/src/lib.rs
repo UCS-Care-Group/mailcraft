@@ -55,6 +55,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
+pub use style::MAX_FAMILIES;
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
@@ -257,8 +258,11 @@ pub struct Span {
     /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
-    /// The first font family asked for, lower case (`calibri`), for pasting into the composer,
-    /// which keeps the few it knows. The reading pane draws in its own font.
+    /// The font families asked for, lower case and joined by commas in their order
+    /// (`georgia,times new roman,serif`; at most eight): the reading pane draws the text in the
+    /// first that is installed on this computer (a generic family, `serif`, `sans-serif` or
+    /// `monospace`, in a font of its kind), else in its own font; nothing is ever fetched. A paste
+    /// into the composer keeps the first, when it is one of the few the composer knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<String>,
 }

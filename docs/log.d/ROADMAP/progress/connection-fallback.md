@@ -1,0 +1,1 @@
+| 2026-11-05 | Connection fallback: deterministic and loopback regressions cover a silent first address, unused time handed on, the address limit and an exhausted deadline. The bounded loop also keeps a very short attempt within its remaining time. |

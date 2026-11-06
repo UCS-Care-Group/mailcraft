@@ -260,6 +260,9 @@ struct Key {
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
+    /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
+    /// came, or turned out not to be had.
+    fonts: u64,
 }
 
 struct Entry {
@@ -513,11 +516,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
+        fonts: {
+            // What the fonts' threads brought is taken in first (#600).
+            super::fonts::tick(&ctx);
+            super::fonts::generation(&ctx)
+        },
     };
     if entry.key == Some(key) {
         entry.next = None;
-    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, ..old } == key) {
-        // Only the pictures changed: what is shown stays until the new layout is whole.
+    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, ..old } == key) {
+        // Only the pictures or the message's fonts changed: what is shown stays until the new
+        // layout is whole.
         if entry.next.as_ref().is_none_or(|(next, _)| *next != key) {
             entry.next = Some((
                 key,

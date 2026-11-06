@@ -67,7 +67,29 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
   suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
-  is not IMAP or Microsoft is asked about one message at a time. Mail the server does not hold
+  is not IMAP or Microsoft is asked about one message at a time. On Exchange Online, mail from
+  inside the owner's own organisation counts too, though it gets no DMARC verdict (`dmarc=none`, or
+  no `Authentication-Results` at all): every `X-MS-Exchange-Organization-AuthAs` header of it (at
+  least one, and fewer than 16, which the message reader keeps apart from its cap on headers so
+  that padding can't push Exchange's own out) says `Internal`, a header Exchange's header
+  firewall removes from mail arriving from outside and writes itself (as observed on a tenant:
+  Microsoft documents the firewall, not this header's every path), and the sender's domain is
+  the account's own or a name under it, never a consumer domain such as `outlook.com`
+  (`internal`); the cross-tenant header, which the sending tenant writes, is not read. A
+  connector the organisation set up may call a partner's mail internal, so a failed check in the
+  server's own `Authentication-Results` still wins, and so does one too long to be read whole. A colleague on another of the
+  organisation's domains is not vouched for this way. A message moved or copied onto the
+  server from another account or from this computer leaves the stamp behind (`forget_stamps`),
+  and the reader keeps room for it past its caps on header fields and header bytes too; an undo
+  that moves mail back from a shared mailbox leaves it behind as well. Versions from before kept
+  it on such a move, so a stamp is believed only when this version read it from the message
+  (`Message::fresh_stamps`): one already in a mailbox file vouches for nothing. The firewall does not
+  guard mail that another program puts on the server (Outlook dragging mail in from another
+  account, a migration tool, a Graph upload or an IMAP `APPEND`): Exchange keeps its headers as
+  written, a forged `Internal` with them (observed on a tenant for a Graph upload; `APPEND` not
+  tried), so such mail from the owner's own domain is vouched for unless a failed check wins,
+  as a forged topmost `Authentication-Results` on such mail already is.
+  Mail the server does not hold
   (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
   headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or
   `compauth`) clause whose own result is `pass` counts, with the `header.from` of that same clause,

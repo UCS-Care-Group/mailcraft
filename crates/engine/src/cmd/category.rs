@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Colour categories.
 
-use mailcraft_model::{GREY_CATEGORY, Id, Rgb};
+use mailcraft_model::{GREY_CATEGORY, Id, MAX_NAME, Rgb, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, done};
@@ -58,6 +58,64 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
         s.mailbox.set_category(account, name, GREY_CATEGORY)?;
     }
     Ok(name.to_string())
+}
+
+/// The categories an item of `account` carries when `given` is what a new or an edit says it
+/// carries, and `had` what it carried before, as an item of `had_account`: each name [`spelled`]
+/// as its list has it, a name given twice in other capitals kept once. A name it didn't carry
+/// joins the list, as putting it on with Categorize does, and so does one that was on the list
+/// of the account it was in (an event moved to another account's calendar). One it carried
+/// already that neither list has stays as the item had it, so that an edit that changes nothing
+/// of its categories needs no room on a full list. Names are compared as [`clean_name`] leaves
+/// them, so that one the item came with that is longer than a typed name may be (from an
+/// `.ics`, say) is still its own, and isn't cut and put on the list as a new one. Such a name is
+/// first looked for by its whole spelling, so that two the item carries that differ only past
+/// the cut stay two.
+pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
+    use std::collections::{HashMap, HashSet};
+    // Names are compared in ASCII capitals as `eq_ignore_ascii_case` does, through maps made once,
+    // so that a long list given against a long list had is no slower than the two read once.
+    let fold = |c: &str| c.to_ascii_lowercase();
+    let given_whole: HashSet<String> = given.iter().map(|g| fold(g.trim())).collect();
+    // What the item had, by its whole spelling and by its cleaned name; for the cleaned name,
+    // not a long one that is given whole as well (that is then a name of its own).
+    let mut had_whole: HashMap<String, &str> = HashMap::new();
+    let mut had_clean: HashMap<String, &str> = HashMap::new();
+    for c in had.iter().map(|c| c.trim()) {
+        had_whole.entry(fold(c)).or_insert(c);
+        if let Some(clean) = clean_name(c)
+            && !given_whole.contains(&fold(c))
+        {
+            had_clean.entry(fold(&clean)).or_insert(c);
+        }
+    }
+    // What each name carried is known by: the item's own spelling of one it had, whole, and the
+    // cleaned name of any other.
+    let mut keys: HashSet<String> = HashSet::new();
+    let mut carried: Vec<String> = Vec::new();
+    for raw in given {
+        let Some(name) = clean_name(raw) else { continue };
+        let whole = raw.trim();
+        // A name that wasn't cut may be the cut beginning of a long one the item had, as given
+        // back; one that was cut is the item's only by its whole spelling.
+        let cut = whole.chars().filter(|c| !c.is_control()).nth(MAX_NAME).is_some();
+        let had_as = had_whole.get(&fold(whole)).copied().or_else(|| (!cut).then(|| had_clean.get(&fold(&name)).copied()).flatten());
+        let key = had_as.unwrap_or(&name);
+        if !keys.insert(fold(key)) {
+            continue;
+        }
+        // A name the item had is looked for on a list by its whole spelling: a long one is on
+        // none, and its cut beginning (another name) is not it.
+        let listed = |s: &Session, list: Id| s.mailbox.category_of(list, key).is_some();
+        let spelling = match had_as {
+            Some(c) if !listed(s, account) && !listed(s, had_account) => c.to_string(),
+            // Else the list's spelling, or the item's as it joins the list.
+            Some(c) => spelled(s, account, c, true)?,
+            None => spelled(s, account, &name, true)?,
+        };
+        carried.push(spelling);
+    }
+    Ok(carried)
 }
 
 /// Refuses a new category when the list `account`'s items use is full.
