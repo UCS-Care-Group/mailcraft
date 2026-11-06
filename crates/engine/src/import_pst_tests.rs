@@ -792,9 +792,12 @@ fn the_report_never_writes_over_a_file() {
     params["dryRun"] = json!(false);
     let target = dir.join("target.txt");
     std::fs::write(&target, "the owner's").unwrap();
-    let name = std::path::Path::new(&first).file_name().unwrap().to_string_lossy().replace(".txt", " (2).txt");
+    // Only Unix makes the link: a symbolic link needs extra rights on Windows.
     #[cfg(unix)]
-    std::os::unix::fs::symlink(&target, dir.join(&name)).unwrap();
+    {
+        let name = std::path::Path::new(&first).file_name().unwrap().to_string_lossy().replace(".txt", " (2).txt");
+        std::os::unix::fs::symlink(&target, dir.join(&name)).unwrap();
+    }
     let second = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
     let third = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
     assert_ne!(first, second);
