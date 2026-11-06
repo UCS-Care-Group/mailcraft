@@ -85,9 +85,10 @@ pub(crate) fn snapshot(app: &MailApp, params: &Value) -> Value {
 }
 
 /// The owner's `compose.send` `params` as the window runs them: what its question was asked about
-/// taken out, and its yes with it when the message has changed since (an agent may have changed it
-/// while the question was up) or has a warning the question didn't show (the message it answers
-/// was deleted meanwhile, say), so that it is asked again about what it is now.
+/// taken out, and its answer with it (Send Anyway or Move to Bcc) when the message has changed
+/// since (an agent may have changed it while the question was up) or has a warning the question
+/// didn't show (the message it answers was deleted meanwhile, say), so that it is asked again about
+/// what it is now: a Move to Bcc kept would move people the owner was never asked about.
 pub(crate) fn settle(app: &mut MailApp, mut params: Value) -> Value {
     let Some(asked) = params.as_object_mut().and_then(|map| map.remove(ASKED_ABOUT)) else { return params };
     let shown = asked.get("warnings").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -95,6 +96,7 @@ pub(crate) fn settle(app: &mut MailApp, mut params: Value) -> Value {
         || app.session.send_warnings(&params).iter().any(|w| !shown.contains(&w.json()));
     if changed && let Some(map) = params.as_object_mut() {
         map.remove(CONFIRMED);
+        map.remove(MOVE_TO_BCC);
     }
     params
 }

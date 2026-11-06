@@ -113,6 +113,24 @@ fn a_message_changed_while_the_owner_is_asked_is_asked_about_again() {
 }
 
 #[test]
+fn a_move_to_bcc_for_a_message_changed_while_the_owner_is_asked_is_asked_about_again() {
+    let mut a = app();
+    write(&mut a, FIVE_AT_TWO);
+    a.run("compose.send", json!({})).unwrap();
+    let (command, params, ask) = question(&a);
+    let with = ask.more[0].1.clone();
+    // An agent adds another outsider while the question is up; the owner then picks Move to Bcc.
+    a.dialog = None;
+    a.session.compose.as_mut().unwrap().cc = "f.six@dunmore.example".into();
+    go_ahead(&mut a, &command, answered(&params, &with, None));
+    assert!(sent(&a).is_empty(), "the Move to Bcc was for another message");
+    let (_, again, ask) = question(&a);
+    assert!(ask.text.contains("6 people outside your organisation") && ask.text.contains("3 domains"), "{}", ask.text);
+    assert!(again.get("confirmed").is_none() && again.get("moveToBcc").is_none(), "{again}");
+    assert_eq!(ask.more.len(), 1, "Move to Bcc is offered again");
+}
+
+#[test]
 fn a_warning_the_question_didnt_show_is_asked_about_though_the_recipients_are_the_same() {
     // A reply to all of outsiders who saw each other on the message it answers, with a lookalike
     // in Bcc: the question shows the lookalike alone.
