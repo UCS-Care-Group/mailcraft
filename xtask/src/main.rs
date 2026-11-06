@@ -151,8 +151,8 @@ fn cmd_layers() -> Result<(), String> {
     }
 }
 
-/// Workspace packages that must build for wasm32: all L0–L5 crates plus
-/// the egui shell.
+/// Workspace packages that must build for wasm32: all L0–L5 crates, the egui shell and the
+/// browser app.
 fn wasm_set() -> Result<Vec<String>, String> {
     let crates = layers::from_metadata(&metadata()?)?;
     Ok(crates
@@ -163,6 +163,8 @@ fn wasm_set() -> Result<Vec<String>, String> {
             _ => false,
         })
         .map(|c| c.name)
+        // The browser app itself: its own code is wasm-only, and the release builds it.
+        .chain(std::iter::once("mailcraft-web".to_string()))
         .collect())
 }
 
