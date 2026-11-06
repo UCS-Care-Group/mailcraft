@@ -135,6 +135,13 @@ pub struct RuleClock {
     pub due_hour: u8,
 }
 
+/// The text of `m` a rule reads: none of a message too large to download, whose text here is
+/// MailCraft's note saying so ([`Message::not_downloaded`], which a sender can't set), not the
+/// message's own.
+fn own_text(m: &Message) -> &str {
+    if m.not_downloaded > 0 { "" } else { &m.body.text }
+}
+
 /// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
 /// letters' case: each text is put in lower case once, for all the words, and only when the texts
 /// before it don't have one.
@@ -162,7 +169,7 @@ impl Condition {
             Condition::FromContains(w) => any(w, &|t| person(&m.from, t)),
             Condition::ToContains(w) => any(w, &|t| m.to.iter().chain(&m.cc).any(|a| person(a, t))),
             Condition::SubjectContains(w) => any(w, &|t| contains_ci(&m.subject, t)),
-            Condition::BodyContains(w) => any_in(w, &[&m.body.text, &m.hidden_text]),
+            Condition::BodyContains(w) => any_in(w, &[own_text(m), &m.hidden_text]),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
             Condition::From(people) => people.iter().any(|p| is(&m.from, p)),
@@ -172,7 +179,7 @@ impl Condition {
             Condition::CcMe => m.cc.iter().any(me),
             Condition::ToOrCcMe => m.to.iter().chain(&m.cc).any(me),
             Condition::NotToMe => !how.me.trim().is_empty() && !m.to.iter().any(me),
-            Condition::SubjectOrBodyContains(w) => any_in(w, &[&m.subject, &m.body.text, &m.hidden_text]),
+            Condition::SubjectOrBodyContains(w) => any_in(w, &[&m.subject, own_text(m), &m.hidden_text]),
             Condition::HeaderContains(w) => {
                 let lines = m.header_lines_lowered();
                 any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())

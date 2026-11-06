@@ -203,6 +203,34 @@ fn a_header_rule_reads_the_headers_mail_came_with_and_not_mailcrafts_own() {
 }
 
 #[test]
+fn a_text_rule_doesnt_read_mailcrafts_note_in_place_of_a_message_too_large_to_download() {
+    // As `mailcraft-net` keeps such a message: its header, and a note in place of its text.
+    let note = format!(
+        "{NOT_DOWNLOADED_NOTE} it is 60 MB on the server. The message itself, with anything attached to it, is still on the server. Read it there on the web.\n"
+    );
+    let big = Message {
+        subject: "Holiday photos".into(),
+        body: Body { text: note.clone(), html: None },
+        headers: vec![(NOT_DOWNLOADED.into(), "62914560".into())],
+        not_downloaded: 62_914_560,
+        ..Default::default()
+    };
+    for word in ["attached", "on the web", "too large"] {
+        let rule =
+            Rule { enabled: true, conditions: vec![Condition::BodyContains(words(&[word]))], actions: vec![Action::Delete], ..Default::default() };
+        assert!(!rule.matches(&big), "{word}");
+        assert!(!Condition::SubjectOrBodyContains(words(&[word])).matches(&big), "{word}");
+        // Nor can it be told: as an exception it is not here.
+        assert!(Condition::BodyContains(words(&[word])).unread_in(&big), "{word}");
+    }
+    assert!(Condition::SubjectOrBodyContains(words(&["photos"])).matches(&big), "the subject is its own");
+    // A sender can write the note and the header into a message of their own, not the size the
+    // server gave: its text is read as its own.
+    let written = Message { not_downloaded: 0, ..big };
+    assert!(Condition::BodyContains(words(&["on the web"])).matches(&written));
+}
+
+#[test]
 fn received_between_reads_the_day_by_the_calendars_clock() {
     use crate::time::{Date, DateTime, Zone};
     let berlin = Zone::named("Europe/Berlin").unwrap();
