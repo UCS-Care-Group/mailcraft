@@ -280,6 +280,7 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | minor | #785: `attachment` and `attachmentMenu` in the hit map; what a message's window draws is recorded as in that window |
 | 2026-11-03 | patch | #488: `ui.updateCheck` and `ui.updateInstall` are File › About's switches, and `updateOption`, `updateInstallOption` and `updateInstallDetail` are in File › About |
 | 2026-11-03 | minor | #702: an account's heading drags; `accountGap` |
 | 2026-11-03 | minor | #631: `account` in `people.list` and its answer, `account` and `keptAt` for each contact, and `view.peopleAccount` |
