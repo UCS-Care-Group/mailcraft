@@ -246,6 +246,18 @@ impl State {
         id
     }
 
+    /// Makes one of the server's own folders, with its distinguished name (`conversationhistory`),
+    /// in the folder with the distinguished name `under` (`msgfolderroot`); its id.
+    pub fn add_own_folder(&mut self, distinguished: &str, name: &str, under: &str) -> String {
+        let id = self.add_folder(name);
+        let parent = self.folder_id(under).unwrap_or_default();
+        if let Some(folder) = self.folders.iter_mut().find(|f| f.id == id) {
+            folder.distinguished = distinguished.into();
+            folder.parent = parent;
+        }
+        id
+    }
+
     /// Renames a folder: an `Update`.
     pub fn rename_folder(&mut self, id: &str, name: &str) -> bool {
         self.rev = self.rev.saturating_add(1);
