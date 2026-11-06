@@ -512,9 +512,9 @@ fn screenshots() {
             "quillon-mark@quillon.example",
         ]
     );
-    // Every picture here is the message's own, and every one the corpus lists is referred to.
+    // Every picture here is the message's own, and every one the corpus lists for it is referred to.
     assert_eq!(pictures.len(), srcs.len());
-    for (id, ..) in PICTURES.iter().skip(1) {
+    for (id, ..) in PICTURES.iter().skip(1).filter(|(id, ..)| id.ends_with("@quillon.example")) {
         assert!(srcs.contains(id), "{id}");
     }
     assert!(!PICTURES.iter().any(|(id, ..)| *id == MISSING_PICTURE));

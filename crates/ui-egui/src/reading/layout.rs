@@ -663,7 +663,9 @@ fn text_job(
             font_id: font,
             color: ink,
             italics: span.italic,
-            underline: if span.underline || span.link.is_some() { stroke } else { Stroke::NONE },
+            // A link is underlined unless it said otherwise itself (`Span::bare`): what it
+            // opens is shown when the pointer is over it, whatever it looks like.
+            underline: if span.underline || (span.link.is_some() && !span.bare) { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -1777,7 +1779,7 @@ fn cell_paper(cx: &Cx<'_>, table: &Table, cell: &Cell, around: Paper) -> (Paper,
     match cell.background {
         Some(bg) => (Paper::of(bg, &cx.t), true),
         // A header cell of a data table is shaded a little when the message gives it no colour.
-        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own }, true),
+        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, asked: None }, true),
         None => (around, false),
     }
 }
