@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 
-use crate::blocks::{block_name, canon, css_of, floated, has_box_look, left_out};
+use crate::blocks::{asks_box, block_name, canon, css_of, floated, has_box_look, left_out};
 use crate::entities::unescape;
 use crate::is_blank;
 use crate::media::Env;
@@ -227,9 +227,10 @@ fn is_white_space(text: &str) -> bool {
 }
 
 /// Whether an element with this style is a box on a line: what the build makes of one that has
-/// `display: inline-block` and something to show of its own.
+/// `display: inline-block` (or `display: table`, on anything but a table) and something to show of
+/// its own.
 pub(crate) fn is_box(tag: &Tag<'_>, css: &Css) -> bool {
-    if !css.inline_block || left_out(tag, css) {
+    if !asks_box(tag, css) || left_out(tag, css) {
         return false;
     }
     match tag.name.as_str() {

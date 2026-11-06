@@ -28,7 +28,7 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block`, and `display: table` (a box as wide as what is in it) read as it |
+//! | boxes on a line | `display: inline-block`, and `display: table` (a box as wide as what is in it; centred by automatic margins) read as it on anything but a `<table>`, whose display that is anyway |
 //! | a link or a span as a box of its own | `display: block` on an `<a>` or a `<span>` that has a background, a frame, padding or a width: a block as wide as its line, as a button written so is (any other `display` but `none` says nothing) |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
@@ -153,6 +153,9 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// `display: table`: a box as wide as what is in it on anything but a `<table>`, whose display
+    /// that is anyway ([`crate::blocks::asks_box`]).
+    pub table: bool,
     /// `display: block`: read for a link or a span with a look of its own alone.
     pub block: bool,
     /// `border-spacing`, in pixels.
@@ -227,9 +230,10 @@ impl Css {
                 "font-family" => css.font = family(value).or(css.font.take()),
                 "display" => {
                     display_none = value == "none";
+                    css.inline_block = value == "inline-block";
                     // (`display: table` is a box as wide as what is in it, as a box on a line is:
-                    // a label or a badge written so.)
-                    css.inline_block = value == "inline-block" || value == "table";
+                    // a label or a badge written so. On a `<table>` it says nothing: `asks_box`.)
+                    css.table = value == "table";
                     css.block = value == "block";
                 }
                 "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),

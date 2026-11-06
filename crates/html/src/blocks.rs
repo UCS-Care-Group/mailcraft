@@ -167,11 +167,11 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
 fn box_holder(builder: &Builder, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<usize> {
     // (A quick look at the style first: only one that names an `inline-block` or a `table`
     // display is read whole.)
-    let asks = tag.sheet.as_ref().is_some_and(|a| a.css.inline_block)
+    let asks = tag.sheet.as_ref().is_some_and(|a| asks_box(tag, &a.css))
         || tag.raw_attr("style").is_some_and(|s| {
             let b = s.as_bytes();
             b.windows(12).any(|w| w.eq_ignore_ascii_case(b"inline-block"))
-                || (b.windows(5).any(|w| w.eq_ignore_ascii_case(b"table")) && Css::parse(s).inline_block)
+                || (b.windows(5).any(|w| w.eq_ignore_ascii_case(b"table")) && asks_box(tag, &Css::parse(s)))
         });
     // A table floated to a side stands beside the others its holder holds (and nothing else).
     let floats = !asks && tag.name == "table" && tag.raw_attr("align").is_some();
@@ -1275,7 +1275,7 @@ impl Builder {
         let room = self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
         // (A list item's marker, a heading and preformatted text are kept as they are.)
         let plain = self.item.is_none() && self.heading.is_none() && self.pre == 0;
-        let asks = css.inline_block || floated(tag, css).is_some();
+        let asks = asks_box(tag, css) || floated(tag, css).is_some();
         (asks && !left_out(tag, css) && room && plain && self.line_is_blank()).then_some(parent)
     }
 
@@ -1451,8 +1451,9 @@ impl Builder {
             box_margin: if boxed.inline { boxed.margin } else { [0, 0] },
             ..Table::default()
         };
-        // A box on a line stands where the text-align of what holds it puts the line.
-        let align = if boxed.inline { self.style().align } else { boxed.align };
+        // A box on a line stands where the text-align of what holds it puts the line, unless its
+        // own automatic margins centre it (`display: table; margin: 0 auto`).
+        let align = if boxed.inline && boxed.align == Align::Left { self.style().align } else { boxed.align };
         let table = Table { inline: boxed.inline, ..table };
         // A box that follows another with nothing between them stands in its line.
         let beside = boxed.inline && self.frame().after_box == Some(boxed.parent);
@@ -1941,7 +1942,7 @@ impl Builder {
                 background,
                 outline,
                 width: line_box_width(&css),
-                align: Align::Left,
+                align: if css.table && css.centred() { Align::Center } else { Align::Left },
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
@@ -2025,7 +2026,12 @@ impl Builder {
     /// End an open `<p>`: every block element does, as in a browser.
     fn close_paragraph(&mut self) {
         let wanted = |n: &Node| n.name == "p" && matches!(n.kind, Kind::Block(_));
-        if let Some(index) = self.find(wanted, |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
+        // (A block that starts inside a link or a span opened as a block (`open_block_box`) doesn't
+        // end the `<p>` round them: closed with it, the link and its box would go, where a browser
+        // opens the link again inside the block. The block is laid out inside the link's box.)
+        let barrier = |n: &Node| matches!(n.kind, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)) || is_block_box(n);
+        let nearest = self.nodes.iter().rposition(|n| wanted(n) || barrier(n));
+        if let Some(index) = nearest.filter(|i| self.nodes.get(*i).is_some_and(wanted)) {
             self.close_at(index, false);
         }
     }
@@ -2103,7 +2109,6 @@ impl Builder {
             // (`<body align>`, `<section align>` and the like align as a style does.)
             delta.align = delta.align.or(align);
         }
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
         if let Some(own) = own {
             delta.link = own.link.clone();
             delta.bare = own.bare;
@@ -2156,7 +2161,8 @@ impl Builder {
                 background,
                 outline,
                 width: if inline { line_box_width(&css) } else { capped.or(Some(Length::Percent(100))) },
-                align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
+                // (A `display: table` box with automatic margins stands in the middle of its line.)
+                align: if css.centred() && (capped.is_some() || (inline && css.table)) { Align::Center } else { Align::Left },
                 inline,
                 parent: parent.unwrap_or(0),
                 padding: css.padding_insets(),
@@ -2454,10 +2460,11 @@ fn line_box_width(css: &Css) -> Option<Length> {
 }
 
 /// The side a table floats to, as a browser floats it: `align="left"` or `"right"` on a table that
-/// is shown, isn't a box on a line by its style, and isn't the whole width (which nothing can
-/// stand beside). Whether it stands beside others is for what holds it to say (`Look::only_floats`).
+/// is shown, isn't a box on a line by its style (`display: inline-block`; `display: table` is a
+/// table's own display and takes nothing from its float), and isn't the whole width (which nothing
+/// can stand beside). Whether it stands beside others is for what holds it to say (`Look::only_floats`).
 pub(crate) fn floated(tag: &Tag<'_>, css: &Css) -> Option<Align> {
-    if tag.name != "table" || css.inline_block || left_out(tag, css) {
+    if tag.name != "table" || asks_box(tag, css) || left_out(tag, css) {
         return None;
     }
     let align = tag.attr("align")?;
@@ -2470,6 +2477,19 @@ pub(crate) fn floated(tag: &Tag<'_>, css: &Css) -> Option<Align> {
         return None;
     };
     (sized(css, tag.attr("width").and_then(|w| style::attr_length(&w))) != Some(Length::Percent(100))).then_some(side)
+}
+
+/// Whether an element asks to be a box on a line: `display: inline-block`, or `display: table` on
+/// anything but a `<table>`, whose display that is anyway (a `<table style="display:table">` is
+/// laid out as any table is, and floats to the side its `align` names).
+pub(crate) fn asks_box(tag: &Tag<'_>, css: &Css) -> bool {
+    css.inline_block || (css.table && tag.name != "table")
+}
+
+/// Whether an open node is a link or a span opened as a block ([`Builder::open_block_box`]): the
+/// one way an `<a>` or a `<span>` is a block node.
+fn is_block_box(node: &Node) -> bool {
+    matches!(node.kind, Kind::Block(_)) && matches!(node.name, "a" | "span")
 }
 
 /// Whether a style gives an element something to show of its own as a box: a background, a frame,

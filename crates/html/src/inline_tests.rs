@@ -629,6 +629,24 @@ fn tables_that_float_stand_beside_each_other() {
     assert!(blocks.iter().any(|b| !matches!(&b.kind, BlockKind::Table(t) if t.inline)), "past the cap, tables as before");
 }
 
+/// A `display: table` box with automatic margins (`margin: 0 auto`) stands in the middle of its
+/// line, as a browser centres one; without them it stands where the text round it is aligned.
+#[test]
+fn a_display_table_box_with_automatic_margins_stands_in_the_middle() {
+    let middle = |html: &str| {
+        let blocks = parse(html);
+        let found: Vec<&Block> = blocks.iter().filter(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)).collect();
+        assert_eq!(found.len(), 1, "{blocks:?}");
+        found[0].align
+    };
+    assert_eq!(middle("<div><div style='display:table;margin:0 auto;background:#eee;padding:4px'>mid</div></div>"), Align::Center);
+    assert_eq!(middle("<div><span style='display:table;margin:auto;background:#eee;padding:4px'>mid</span></div>"), Align::Center);
+    assert_eq!(middle("<div><div style='display:table;background:#eee;padding:4px'>left</div></div>"), Align::Left);
+    assert_eq!(middle("<div style='text-align:right'><div style='display:table;background:#eee;padding:4px'>r</div></div>"), Align::Right);
+    // (`margin: auto` on a box on a line (`inline-block`) centres nothing, as in a browser.)
+    assert_eq!(middle("<div><span style='display:inline-block;margin:0 auto;background:#eee;padding:4px'>x</span></div>"), Align::Left);
+}
+
 /// What column builders write, read as Outlook shows it: a badge or a label written as
 /// `display: table` is a box as wide as its words; a button written `display: inline-block;
 /// width: 100%` is as wide as its column, with its words where its own `text-align` puts them;

@@ -1500,3 +1500,28 @@ fn an_hr_with_the_hidden_attribute_is_not_drawn() {
     assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
     assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
 }
+
+/// A block that starts inside a link opened as a block (`<div>`, a table) keeps the link, in a
+/// `<p>` as anywhere else: the `<div>` doesn't end the `<p>` round the link, where closing it took
+/// the link and its box with it (a browser opens the link again inside the `<div>`).
+#[test]
+fn a_block_inside_a_block_link_keeps_the_link() {
+    let link = r#"<a href="https://example.org/pay" style="display:block;background:#0066cc;padding:8px">"#;
+    let button = "layout w=100%[(@0066cc p|[:Pay→https://example.org/pay])]";
+    assert_eq!(dump(&format!("<p>{link}<div>Pay</div></a></p>")), [button]);
+    assert_eq!(dump(&format!("<td>{link}<div>Pay</div></a></td>")), [button]);
+    assert_eq!(dump(&format!("{link}<div>Pay</div></a>")), [button]);
+    // Text before, in and after the `<div>` is all linked, in the one box; the text after the
+    // link isn't.
+    let three =
+        "layout w=100%[(@0066cc p|[:First→https://example.org/pay] ; p|[:Second→https://example.org/pay] ; p|[:Third→https://example.org/pay])]";
+    assert_eq!(dump(&format!("<p>{link}First<div>Second</div>Third</a>after</p>")), [three, "p|after"]);
+    assert_eq!(dump(&format!("<div>{link}First<div>Second</div>Third</a>after</div>")), [three, "p|after"]);
+    // A table inside the link is linked too, and the `<p>` goes on after the link.
+    assert_eq!(
+        dump(&format!("<p>{link}x<table><tr><td>cell</td></tr></table>y</a>z</p>")),
+        ["layout w=100%[(@0066cc p|[:x→https://example.org/pay] ; p|[:cell→https://example.org/pay] ; p|[:y→https://example.org/pay])]", "p|z"]
+    );
+    // A `<div>` after the link ends the `<p>` as it did.
+    assert_eq!(dump(&format!("<p>a {link}Pay</a><div>b</div>c</p>")), ["p|a", button, "p|b", "p|c"]);
+}
