@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Colour categories.
 
-use mailcraft_model::{GREY_CATEGORY, Id, Rgb, clean_name};
+use mailcraft_model::{GREY_CATEGORY, Id, MAX_NAME, Rgb, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, done};
@@ -68,21 +68,42 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
 /// already that neither list has stays as the item had it, so that an edit that changes nothing
 /// of its categories needs no room on a full list. Names are compared as [`clean_name`] leaves
 /// them, so that one the item came with that is longer than a typed name may be (from an
-/// `.ics`, say) is still its own, and isn't cut and put on the list as a new one.
+/// `.ics`, say) is still its own, and isn't cut and put on the list as a new one. Such a name is
+/// first looked for by its whole spelling, so that two the item carries that differ only past
+/// the cut stay two.
 pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
     let same = |c: &str, name: &str| clean_name(c).is_some_and(|c| c.eq_ignore_ascii_case(name));
+    let had: Vec<&str> = had.iter().map(|c| c.trim()).collect();
+    // What each name carried is known by: the item's own spelling of one it had, whole, and the
+    // cleaned name of any other.
+    let mut keys: Vec<String> = Vec::new();
     let mut carried: Vec<String> = Vec::new();
-    for name in given.iter().filter_map(|name| clean_name(name)) {
-        if carried.iter().any(|c| same(c, &name)) {
+    for raw in given {
+        let Some(name) = clean_name(raw) else { continue };
+        let whole = raw.trim();
+        // A name that wasn't cut may be the cut beginning of a long one the item had, as given
+        // back; one that was cut is the item's only by its whole spelling.
+        let cut = whole.chars().filter(|c| !c.is_control()).nth(MAX_NAME).is_some();
+        // (Not a long one that is given whole as well: this is then a name of its own.)
+        let given_whole = |c: &str| given.iter().any(|g| g.trim().eq_ignore_ascii_case(c));
+        let had_as = had
+            .iter()
+            .copied()
+            .find(|c| c.eq_ignore_ascii_case(whole))
+            .or_else(|| (!cut).then(|| had.iter().copied().find(|c| same(c, &name) && !given_whole(c))).flatten());
+        let key = had_as.unwrap_or(&name);
+        if keys.iter().any(|k| k.eq_ignore_ascii_case(key)) {
             continue;
         }
-        let had_as = had.iter().map(|c| c.trim()).find(|c| same(c, &name));
-        let listed = |s: &Session, list: Id| s.mailbox.category_of(list, &name).is_some();
+        keys.push(key.to_string());
+        // A name the item had is looked for on a list by its whole spelling: a long one is on
+        // none, and its cut beginning (another name) is not it.
+        let listed = |s: &Session, list: Id| s.mailbox.category_of(list, key).is_some();
         let spelling = match had_as {
             Some(c) if !listed(s, account) && !listed(s, had_account) => c.to_string(),
-            // One the list lacks keeps the item's spelling as it joins the list.
-            Some(c) if !listed(s, account) => spelled(s, account, c, true)?,
-            _ => spelled(s, account, &name, true)?,
+            // Else the list's spelling, or the item's as it joins the list.
+            Some(c) => spelled(s, account, c, true)?,
+            None => spelled(s, account, &name, true)?,
         };
         carried.push(spelling);
     }

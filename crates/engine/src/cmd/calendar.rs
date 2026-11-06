@@ -507,7 +507,7 @@ fn may_change(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool,
 /// day from now on, and what happens on it is an event of its own. `changed` is the series as
 /// the change would leave it; the occurrence is changed by as much (an hour later, another
 /// title), on its own day.
-fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, mut changed: Event) -> CmdResult {
+fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Event) -> CmdResult {
     if !happens_on(s, series, day) {
         return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
     }
@@ -518,9 +518,6 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, mut changed
     if kept && series.origin.id.is_empty() {
         return Err(fail("This series is still on its way to the account's server. Change one of its days once it is there (in a moment)."));
     }
-    // (Spelled after the refusals above, and before whether the day changes at all is seen:
-    // that is seen with its final categories.)
-    spell_categories(s, v, &mut changed, series)?;
     let apart = series.start.date.days_until(day);
     let origin = if kept {
         mailcraft_model::Origin {
@@ -554,10 +551,21 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, mut changed
         let (from, to, at) = (series.instants(&here), (instant(one.start), instant(one.end)), was.instants(&here));
         one.set_instants(at.0.saturating_add(to.0.saturating_sub(from.0)), at.1.saturating_add(to.1.saturating_sub(from.1)), &here);
     }
+    // What is the organizer's to say and the mail to those invited are refused before a full
+    // list of categories is: neither depends on the categories, so a change of anything else is
+    // checked first. The categories are spelled after that, and before whether the day changes
+    // at all is seen: that is seen with its final categories.
+    let besides = kept && Event { categories: was.categories.clone(), ..one.clone() } != was;
+    let asked = if besides { Some(may_change(s, v, &was, &one)?) } else { None };
+    spell_categories(s, v, &mut one, series)?;
     if one == was {
         return Ok(json!({"id": series.id}));
     }
-    let send = if kept { may_change(s, v, &was, &one)? } else { false };
+    let send = match asked {
+        Some(send) => send,
+        None if kept => may_change(s, v, &was, &one)?,
+        None => false,
+    };
     s.mailbox.event_mut(series.id)?.exceptions.push(day);
     let id = s.mailbox.add_event(one)?;
     if kept {

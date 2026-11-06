@@ -944,3 +944,91 @@ fn a_day_the_series_doesnt_have_is_said_before_a_full_list() {
     let err = s.run("calendar.edit", &json!({"id": series, "occurrence": "2027-02-01", "categories": ["One more"]})).unwrap_err();
     assert!(err.to_string().contains("doesn't happen on"), "{err}");
 }
+
+#[test]
+fn two_long_names_the_item_carries_that_differ_only_past_the_cut_both_stay() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let items = editable(&mut s, a);
+    // From an `.ics`, say: two names that are the same for their first 120 characters.
+    let start = format!("Project {}", "a".repeat(112));
+    let (one, two) = (format!("{start} north"), format!("{start} south"));
+    assert_eq!(start.chars().count(), mailcraft_model::MAX_NAME);
+    let came = vec![one.clone(), two.clone()];
+    for (command, id) in &items {
+        match *command {
+            "calendar.edit" => s.mailbox.event_mut(*id).unwrap().categories = came.clone(),
+            "people.edit" => s.mailbox.contact_mut(*id).unwrap().categories = came.clone(),
+            _ => s.mailbox.task_mut(*id).unwrap().categories = came.clone(),
+        }
+    }
+    let lists_before = lists(&s);
+    for (command, id) in &items {
+        // The window sends them back as the item has them, with another change.
+        s.run(command, &json!({"id": id, "notes": "Renamed", "categories": came})).unwrap();
+        assert_eq!(carried_by(&s, command, *id), [one.as_str(), two.as_str()], "{command}");
+        assert_eq!(lists(&s), lists_before, "{command}");
+        // Taking one off leaves the other.
+        s.run(command, &json!({"id": id, "categories": [two.clone()]})).unwrap();
+        assert_eq!(carried_by(&s, command, *id), [two.as_str()], "{command}");
+        assert_eq!(lists(&s), lists_before, "{command}");
+    }
+}
+
+#[test]
+fn a_new_long_name_that_begins_as_one_the_item_carries_is_a_name_of_its_own() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let start = format!("Project {}", "a".repeat(112));
+    let (had, new) = (format!("{start} north"), format!("{start} south"));
+    let event = event_of(&mut s, a);
+    s.mailbox.event_mut(event).unwrap().categories = vec![had.clone()];
+    s.run("calendar.edit", &json!({"id": event, "categories": [had.clone(), new]})).unwrap();
+    // The new one is cut as a typed name is, and joins the list; the one it had stays whole.
+    assert_eq!(carried_by(&s, "calendar.edit", event), [had.as_str(), start.as_str()]);
+    assert_eq!(names(&s, a), [start.as_str()]);
+}
+
+#[test]
+fn a_full_list_isnt_what_one_day_of_a_meeting_that_needs_send_is_told() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    for i in 0..200 {
+        s.mailbox.set_category(a, &format!("C{i}"), RED).unwrap();
+    }
+    let series = event_of(&mut s, a);
+    let e = s.mailbox.event_mut(series).unwrap();
+    e.start = mailcraft_time::parse_iso("2027-01-04T09:00").unwrap().0;
+    e.end = mailcraft_time::parse_iso("2027-01-04T09:30").unwrap().0;
+    e.recurrence = Some(mailcraft_model::Recurrence { count: Some(5), ..mailcraft_model::Recurrence::every(mailcraft_model::Freq::Daily) });
+    e.attendees = vec![mailcraft_model::Attendee { address: mailcraft_model::Address::new("", "pat@example.org"), ..Default::default() }];
+    let before = state(&s);
+    // A new title for the day would be mail to those invited: that is asked before the list.
+    let v = json!({"id": series, "occurrence": "2027-01-05", "title": "Stand-up, later", "categories": ["One more"]});
+    let err = s.run("calendar.edit", &v).unwrap_err();
+    assert!(!err.to_string().contains("too many categories"), "{err}");
+    assert!(err.to_string().contains("send"), "{err}");
+    assert_eq!(state(&s), before);
+    // Only another category for the day: no mail, so the full list is what is said.
+    let err = s.run("calendar.edit", &json!({"id": series, "occurrence": "2027-01-05", "categories": ["One more"]})).unwrap_err();
+    assert!(err.to_string().contains("too many categories"), "{err}");
+    assert_eq!(state(&s), before);
+}
+
+#[test]
+fn the_beginning_of_a_long_name_the_item_carries_given_with_it_is_a_name_of_its_own() {
+    let (mut s, a, _) = rig();
+    read(&mut s, a, vec![]);
+    let start = format!("Project {}", "a".repeat(112));
+    let long = format!("{start} north");
+    let event = event_of(&mut s, a);
+    s.mailbox.event_mut(event).unwrap().categories = vec![long.clone()];
+    // Given back alone, the beginning is the long one, as the item has it.
+    s.run("calendar.edit", &json!({"id": event, "notes": "Renamed", "categories": [start.clone()]})).unwrap();
+    assert_eq!(carried_by(&s, "calendar.edit", event), [long.as_str()]);
+    assert!(names(&s, a).is_empty());
+    // Given with it, it is a name of its own, and joins the list.
+    s.run("calendar.edit", &json!({"id": event, "categories": [long.clone(), start.clone()]})).unwrap();
+    assert_eq!(carried_by(&s, "calendar.edit", event), [long.as_str(), start.as_str()]);
+    assert_eq!(names(&s, a), [start.as_str()]);
+}
