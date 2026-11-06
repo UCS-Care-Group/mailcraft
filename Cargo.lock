@@ -1682,6 +1682,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "log",
  "peniko",
+ "png 0.18.1",
  "skrifa 0.44.0",
  "smallvec",
  "vello_common",
@@ -2514,6 +2515,7 @@ version = "0.10.0"
 dependencies = [
  "egui",
  "egui_kittest",
+ "epaint",
  "image",
  "js-sys",
  "log",
@@ -4765,6 +4767,7 @@ dependencies = [
  "guillotiere",
  "log",
  "peniko",
+ "png 0.18.1",
  "smallvec",
  "thiserror 2.0.21",
 ]
@@ -4778,6 +4781,7 @@ dependencies = [
  "bytemuck",
  "glifo",
  "hashbrown 0.17.1",
+ "png 0.18.1",
  "vello_common",
 ]
 

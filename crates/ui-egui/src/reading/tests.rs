@@ -1178,8 +1178,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 17,
-        "reading.rs, colors (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), svg, view (and its zoom tests) and warnings (and its tests)"
+        checked, 19,
+        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), svg, view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
