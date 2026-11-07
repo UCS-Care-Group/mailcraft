@@ -58,6 +58,16 @@ pub const BLOCKED: &[&str] = &[
     "application",
     "appref-ms",
     "appinstaller",
+    // More kinds the shell runs or hands to a program that runs what is in them.
+    "mad",
+    "appcontent-ms",
+    "vsmacros",
+    "bgi",
+    "asx",
+    "mcf",
+    "pcd",
+    "plg",
+    "osd",
     "gadget",
     "xbap",
     "xll",
@@ -277,7 +287,7 @@ pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", 
 /// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
 /// the files an agent may not have written are refused by.
 pub fn is_risky(ext: &str) -> bool {
-    BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+    !ext.is_ascii() || BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
 }
 
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
@@ -289,11 +299,12 @@ const RESERVED: &[&str] = &[
 /// The longest a file name is made, in characters (a folder's path takes the rest).
 pub const MAX_NAME: usize = 120;
 
-/// The kind of a file name: what is after its last dot, in lower case (empty when nothing).
+/// The kind of a file name: what is after its last dot, folded to lower case by ASCII rules only
+/// (a letter like `ſ` or `ı` is never folded into an ASCII one; empty when nothing).
 pub fn extension(name: &str) -> String {
     let name = name.trim_end_matches(['.', ' ']);
     match name.rsplit_once('.') {
-        Some((_, ext)) => ext.trim().to_lowercase(),
+        Some((_, ext)) => ext.trim().to_ascii_lowercase(),
         None => String::new(),
     }
 }
@@ -310,6 +321,9 @@ pub fn verdict(name: &str) -> Verdict {
     }
     if BLOCKED.contains(&ext.as_str()) {
         Verdict::Blocked
+    } else if !ext.is_ascii() {
+        // A kind the lists can't judge (a computer may fold its letters into ASCII ones): ask.
+        Verdict::Macros
     } else if MACROS.contains(&ext.as_str()) {
         Verdict::Macros
     } else if SCRIPTS.contains(&ext.as_str()) {

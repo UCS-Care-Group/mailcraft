@@ -285,18 +285,27 @@ pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Opt
 /// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
 /// other `OBJECT` (nothing but this puts one in the text).
 fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
-    let html = html.replace(OBJECT, "");
+    // No more than the reading after this looks at.
+    let html = crate::mailto::cut(html, mailcraft_html::MAX_INPUT_WITH_PICTURES).replace(OBJECT, "");
     let lower = html.to_ascii_lowercase();
     let (mut out, mut at) = (String::with_capacity(html.len()), 0usize);
     while let Some(start) = lower.get(at..).and_then(|rest| rest.find("<img")).map(|rel| at + rel) {
         let after = start + 4;
         let boundary = html.as_bytes().get(after).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>'));
-        let end = if boundary { tag_end(&html, after) } else { None };
-        let Some(end) = end else {
-            // Not a tag of its own (`<imgx>`) or never closed: kept as it is.
-            out.push_str(html.get(at..after).unwrap_or(""));
-            at = after;
-            continue;
+        let end = if boundary { tag_end(&html, after) } else { Err(after) };
+        let end = match end {
+            Ok(end) => end,
+            Err(looked) => {
+                // Not a tag of its own (`<imgx>`) or not closed in time: kept as it is, with what
+                // was looked through for its end, which isn't looked through again.
+                let mut skip = looked.max(after);
+                while !html.is_char_boundary(skip) {
+                    skip = skip.saturating_sub(1);
+                }
+                out.push_str(html.get(at..skip).unwrap_or(""));
+                at = skip;
+                continue;
+            }
         };
         out.push_str(html.get(at..start).unwrap_or(""));
         let tag = html.get(after..end).unwrap_or("");
@@ -310,19 +319,26 @@ fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> S
     out
 }
 
-/// Where the tag whose attributes start at `from` ends (just past its `>`), quotes respected.
-fn tag_end(html: &str, from: usize) -> Option<usize> {
+/// Longest `<img>` tag looked through for its end, in bytes; a longer one is kept as it is.
+const MAX_TAG: usize = 64 * 1024;
+
+/// Where the tag whose attributes start at `from` ends (just past its `>`), quotes respected;
+/// else how far it was looked through ([`MAX_TAG`] at most).
+fn tag_end(html: &str, from: usize) -> Result<usize, usize> {
+    let bytes = html.as_bytes();
+    let limit = from.saturating_add(MAX_TAG).min(bytes.len());
+    let Some(window) = bytes.get(from..limit) else { return Err(bytes.len()) };
     let mut quote = None;
-    for (i, b) in html.as_bytes().get(from..)?.iter().enumerate() {
+    for (i, b) in window.iter().enumerate() {
         match (quote, *b) {
             (Some(q), b) if b == q => quote = None,
             (Some(_), _) => {}
             (None, b'"' | b'\'') => quote = Some(*b),
-            (None, b'>') => return Some(from + i + 1),
+            (None, b'>') => return Ok(from + i + 1),
             _ => {}
         }
     }
-    None
+    Err(limit)
 }
 
 /// The `src`, `width` and `alt` of an `<img>` whose attributes are `attrs`, when `src` is a `cid:`.
@@ -381,7 +397,9 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
 fn read(html: &str, pictures: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
     let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
-    let mut reader = Reader { out: Vec::new(), pictures };
+    let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
+    let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
+    let mut reader = Reader { out: Vec::new(), pictures, copies };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -414,10 +432,21 @@ fn edge_blank_lines(html: &str) -> (usize, usize) {
     (lead, trail)
 }
 
+/// What the runs of one document may repeat of the link addresses they carry, all told: this
+/// many times the HTML read, and [`COPY_FLOOR`] besides. Every line of a span is a run of its own
+/// with the span's link (as is each picture in it); past this, a run keeps its text and style but not the link, so what is
+/// made stays a small multiple of what was read.
+const COPY_ALLOWANCE: usize = 4;
+
+/// What the runs of a short document may repeat besides ([`COPY_ALLOWANCE`]).
+const COPY_FLOOR: usize = 64 * 1024;
+
 struct Reader {
     out: Vec<Paragraph>,
     /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
     pictures: bool,
+    /// What the runs still to be made may repeat of links ([`COPY_ALLOWANCE`]).
+    copies: usize,
 }
 
 impl Reader {
@@ -474,24 +503,41 @@ impl Reader {
             let text = span.text.replace('\u{a0}', " ");
             for (i, line) in text.split('\n').enumerate() {
                 if i > 0 {
+                    if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
+                        return;
+                    }
                     self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level));
                 }
                 if self.pictures && line.contains(OBJECT) {
                     // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
                     for (n, part) in line.split(OBJECT).enumerate() {
                         match (n % 2, part.parse::<u32>()) {
-                            (1, Ok(id)) => cur.push(Run::picture(id, style.clone())),
+                            (1, Ok(id)) => cur.push(Run::picture(id, self.charged(&style))),
                             (1, Err(_)) => {}
                             _ if part.is_empty() => {}
-                            _ => cur.push(Run::new(part, style.clone())),
+                            _ => cur.push(Run::new(part, self.charged(&style))),
                         }
                     }
                     continue;
                 }
-                cur.push(Run::new(line, style.clone()));
+                cur.push(Run::new(line, self.charged(&style)));
             }
         }
-        self.out.push(Paragraph::new(cur, list).at_level(level));
+        if self.out.len() < mailcraft_model::rich::MAX_PARAGRAPHS {
+            self.out.push(Paragraph::new(cur, list).at_level(level));
+        }
+    }
+
+    /// `style` for one more run, when what its link repeats fits in what is left
+    /// ([`COPY_ALLOWANCE`]); else the same without its link.
+    fn charged(&mut self, style: &Style) -> Style {
+        let cost = style.link.as_deref().map_or(0, str::len);
+        if cost <= self.copies {
+            self.copies -= cost;
+            style.clone()
+        } else {
+            Style { link: None, ..style.clone() }
+        }
     }
 }
 

@@ -1,0 +1,1 @@
+| 2026-11-07 | AU3-01, AU3-22: what reading HTML mail makes stays a small multiple of what it reads (a link's address is held once and is at most 64 KB whatever its scheme), and reading a draft's pictures back takes time linear in its HTML; a property test and the HTML fuzz target check the bound |

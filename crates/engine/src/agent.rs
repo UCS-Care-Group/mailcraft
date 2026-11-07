@@ -20,6 +20,8 @@
 use mailcraft_model::{FolderKind, Id, Mailbox, Task};
 use serde_json::{Value, json};
 
+pub mod bind;
+
 use crate::cmd::compose::{LEAVING, draft_gone};
 use crate::{Session, p};
 
@@ -408,8 +410,6 @@ const SEND: &[&str] = &[
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
-    // The owner's yes to sending the tasks that exist only here to a Microsoft account's To Do.
-    "tasks.sendLocal",
     "ui.downloadPictures",
     "ui.retryPictures",
     "ui.joinMeeting",
@@ -574,6 +574,9 @@ const NEVER: &[&str] = &[
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
+    // The owner's own answer to sending the tasks that exist only here to an account's To Do
+    // (#632): an agent never gives it, asked or not.
+    "tasks.sendLocal",
     // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
     "ui.removeAllData",
     // Another program (the file manager) started on the owner's screen, as for an attachment
@@ -1106,6 +1109,10 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
                 Access::Owner(_) if allow.contains(&c) => more.iter().copied().find(|m| !allow.contains(m)).unwrap_or(c),
                 _ => c,
             };
+            // A question says what it is about, and the yes reaches that alone (`bind`).
+            if bind::object(id).is_none() {
+                return Verdict::Refuse(format!("`{id}` isn't available to agents: what it acts on can't be shown to the owner"));
+            }
             let what = describe(s, id, params);
             if what.chars().count() > MAX_QUESTION {
                 return Verdict::Refuse(format!(
@@ -1302,7 +1309,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "folder.empty" | "folder.delete" => {
             let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
-            let n = s.mailbox.count(f);
+            // Every message that goes with it, those in the folders under it too.
+            let n = if id == "folder.empty" { crate::cmd::folder::emptied(s, f).len() } else { crate::cmd::folder::deleted_with(s, f).len() };
             let verb = if id == "folder.empty" { "permanently empty" } else { "permanently delete the folder" };
             format!("{verb} {name} and the {} in it", plural(n, "{n} message", "{n} messages"))
         }

@@ -244,7 +244,7 @@ fn a_question_that_goes_away_counts_as_not_now() {
 fn a_programmatic_call_does_not_open_the_question_or_answer_it() {
     let (app, _, _, _) = first_look_with_local_tasks();
     // An agent is not let through to answer it.
-    assert!(matches!(mailcraft_engine::agent::access("tasks.sendLocal"), Some(mailcraft_engine::agent::Access::Owner(_))));
+    assert_eq!(mailcraft_engine::agent::access("tasks.sendLocal"), Some(mailcraft_engine::agent::Access::Never));
     assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
 }
 
