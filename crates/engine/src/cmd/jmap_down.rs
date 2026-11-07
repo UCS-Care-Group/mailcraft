@@ -107,7 +107,7 @@ pub(crate) fn fetch_queue(mb: &Mailbox, account: Id, most: usize, passed_over: &
     newest
         .into_iter()
         .take(BACKGROUND_NEWEST)
-        .filter(|m| m.unfetched && !m.incomplete)
+        .filter(|m| super::graph_down::still_to_fetch(mb, m) && !m.incomplete)
         .filter_map(|m| m.server.as_ref())
         .filter(|s| limit.is_none_or(|limit| s.size <= limit) && !passed_over.contains(&(account, s.id.clone())))
         .take(most)

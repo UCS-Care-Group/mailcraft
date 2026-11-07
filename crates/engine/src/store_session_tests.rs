@@ -226,7 +226,10 @@ fn a_reply_reads_the_text_and_its_pictures_and_a_calendar_part_too_large_is_not_
     let mut m = Message { folder: inbox, subject: "With a picture".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
     m.body.text = long_text(3);
     m.body.html = Some(format!("<html><body><p>{}</p><img src=\"cid:logo@pic.example\"></body></html>", long_text(4)));
-    let logo = Attachment { content_id: "logo@pic.example".into(), ..Attachment::new("logo.png", "image/png", noise(31, 3_001)) };
+    let logo = Attachment {
+        content_id: "logo@pic.example".into(),
+        ..Attachment::new("logo.png", "image/png", [b"\x89PNG\r\n\x1a\n".to_vec(), noise(31, 2_993)].concat())
+    };
     m.attachments.push(logo);
     m.attachments.push(Attachment::new("report.bin", "application/octet-stream", noise(32, 9_003)));
     // An invitation too large to be read, and one that is not.

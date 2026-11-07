@@ -18,7 +18,7 @@ pub mod dav;
 mod ews_server;
 mod jmap_server;
 mod junk;
-mod load_limit;
+pub mod load_limit;
 mod mailbox;
 mod message;
 pub mod messages;
@@ -35,6 +35,7 @@ pub mod rich;
 mod rule;
 pub mod search;
 pub mod sender_warnings;
+pub mod shown;
 pub mod signature;
 pub mod sync;
 mod task;
@@ -148,6 +149,8 @@ mod account_categories_tests;
 #[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
+mod auth_results_tests;
+#[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
@@ -155,6 +158,8 @@ mod calendar_rights_tests;
 mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod load_limit_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]
@@ -179,6 +184,8 @@ mod search_suggest_tests;
 mod search_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod shown_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 

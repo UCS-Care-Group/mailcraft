@@ -33,10 +33,12 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// Whether `m` was delivered by the server (into a folder 0.8.0 and before followed as the
-/// Outbox) rather than queued here: it has a server copy and is not a draft saved from here
-/// (those carry MailCraft's marker). Only what the owner queued here is ever sent (AU2-V2).
+/// Outbox) rather than queued here: it has a server copy and is not a draft saved or sent from
+/// here (those carry MailCraft's marker, or a change of the owner's waiting to go up, which only
+/// the owner's own saves and sends make: a draft begun elsewhere and sent here before it had a
+/// marker of its own). Only what the owner queued here is ever sent (AU2-V2).
 pub fn from_server(m: &mailcraft_model::Message) -> bool {
-    m.server.is_some() && m.server_draft.as_ref().is_none_or(|sd| sd.marker.is_empty())
+    m.server.is_some() && m.server_draft.as_ref().is_none_or(|sd| sd.marker.is_empty() && !sd.pending)
 }
 
 /// What `account` has waiting to be sent: every message of its Outbox that isn't held, whole.

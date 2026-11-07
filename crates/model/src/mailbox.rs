@@ -492,7 +492,7 @@ fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Ve
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
         let unknown = value.get("kind").is_some_and(|kind| AccountKind::deserialize(kind).unwrap_or(AccountKind::Unknown) == AccountKind::Unknown);
         if !unknown {
-            accounts.push(Account::deserialize(&value).map_err(serde::de::Error::custom)?);
+            accounts.push(crate::load_limit::from_value::<Account>(&value).map_err(serde::de::Error::custom)?);
             continue;
         }
         let who = Identity::deserialize(&value).unwrap_or_default();
@@ -2732,7 +2732,8 @@ impl Mailbox {
 
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a
     /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
-    /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
+    /// into Junk E-mail, to the Inbox, unless the account's own server says it failed its checks
+    /// ([`crate::auth_results::failed_check`]). The move is noted for the server as the owner's own is.
     /// Whether it moved. Never in a shared mailbox, and the callers sort only new mail of a folder
     /// read whole once ([`Folder::read_whole`], Graph's [`ServerFolder::round_ended`]), never a first download:
     /// mail that was here before (or before a list changed) stays where it is.
@@ -2742,7 +2743,11 @@ impl Mailbox {
         let Some(kind) = self.folder(m.folder).map(|f| f.kind) else { return false };
         let to = match (kind, lists.verdict(&m.from.email)) {
             (FolderKind::Inbox, Some(crate::JunkList::Blocked)) => FolderKind::Junk,
-            (FolderKind::Junk, Some(crate::JunkList::Safe)) => FolderKind::Inbox,
+            // The `From:` is the sender's word: a safe sender's mail leaves Junk E-mail only when
+            // the account's own server doesn't say it failed its checks.
+            (FolderKind::Junk, Some(crate::JunkList::Safe)) if crate::auth_results::failed_check(self.account(m.account), m).is_none() => {
+                FolderKind::Inbox
+            }
             _ => return false,
         };
         // The lists are the owner's: a shared mailbox's mail is other people's too, and stays

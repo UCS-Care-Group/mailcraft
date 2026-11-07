@@ -149,7 +149,7 @@ fn server(mode: Mode) -> crate::ews_up_flow::Server {
 
 #[test]
 fn the_server_is_found_from_the_address_and_the_account_is_tried_at_it() {
-    let standin = AutodiscoverStandIn::new().route("example.org", document());
+    let standin = AutodiscoverStandIn::new().route("autodiscover.example.org", document());
     let loopback = server(Mode::Basic);
     let mut world = Fake::new(standin);
     world.loopback = Some(loopback.url.clone());
@@ -160,7 +160,7 @@ fn the_server_is_found_from_the_address_and_the_account_is_tried_at_it() {
     assert_eq!(told.len(), 1, "no question was asked");
     assert_eq!(world.lookups.lock().unwrap().as_slice(), ["example.org"], "only the domain goes to the DNS");
     // The sign-in went to the owner's own domain only.
-    assert_eq!(world.autodiscover.hosts_sent_credentials(), ["example.org"]);
+    assert_eq!(world.autodiscover.hosts_sent_credentials(), ["autodiscover.example.org"]);
     assert_eq!(world.probes.lock().unwrap().as_slice(), [(EWS.to_owned(), true, String::new())]);
 }
 
@@ -277,7 +277,7 @@ fn a_giving_up_while_the_question_is_open_ends_the_job_quietly() {
 #[test]
 fn a_mailbox_in_microsoft_365_stops_the_search_and_nothing_is_sent_to_anyone() {
     // By the domain's mail exchangers, before anything is asked.
-    let mut world = Fake::new(AutodiscoverStandIn::new().route("example.org", document()));
+    let mut world = Fake::new(AutodiscoverStandIn::new().route("autodiscover.example.org", document()));
     world.exchangers = vec!["example-org.mail.protection.outlook.com".into()];
     let (job, _) = standin_job("");
     let told = run(&world, &job);
@@ -312,7 +312,7 @@ fn nothing_is_found_and_the_reason_is_a_kind_not_a_server_s_words() {
         (Route::Bytes(b"not xml <<<".to_vec()), EwsSetupFailure::Unreadable),
         (Route::Challenge("Basic realm=\"x\"".into()), EwsSetupFailure::SignInRefused),
     ] {
-        let world = Fake::new(AutodiscoverStandIn::new().route("example.org", route.clone()).route("autodiscover.example.org", route));
+        let world = Fake::new(AutodiscoverStandIn::new().route("autodiscover.example.org", route));
         let (job, _) = standin_job("");
         let end = ended(&run(&world, &job));
         let EwsSetupEnd::Failed(failure) = end else { panic!("{end:?}") };
@@ -389,14 +389,15 @@ fn a_look_at_a_loopback_server_finds_nothing_to_ask() {
 
 #[test]
 fn the_first_address_that_answers_decides_and_a_second_is_tried_only_when_nobody_answered_at_the_first() {
-    let mut world = Fake::new(AutodiscoverStandIn::new().route("example.org", document()));
+    let mut world = Fake::new(AutodiscoverStandIn::new().route("autodiscover.example.org", document()));
     // Both addresses are tried when the first isn't there: here neither is.
     let (job, _) = standin_job("");
     let end = ended(&run(&world, &job));
     assert_eq!(end, EwsSetupEnd::Failed(EwsSetupFailure::Unreachable));
     assert_eq!(world.probes.lock().unwrap().iter().map(|p| p.0.clone()).collect::<Vec<_>>(), [EWS, INTERNAL]);
     // A refusal of the password ends it at the first: the second would be asked with the same one.
-    world = Fake::new(AutodiscoverStandIn::new().route("example.org", document())).scripted(Probed::Failed(EwsSetupFailure::SignInRefused));
+    world =
+        Fake::new(AutodiscoverStandIn::new().route("autodiscover.example.org", document())).scripted(Probed::Failed(EwsSetupFailure::SignInRefused));
     let (job, _) = standin_job("");
     assert_eq!(ended(&run(&world, &job)), EwsSetupEnd::Failed(EwsSetupFailure::SignInRefused));
     assert_eq!(world.probes.lock().unwrap().len(), 1);

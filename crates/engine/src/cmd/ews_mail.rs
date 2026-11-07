@@ -203,7 +203,11 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|server| m.unfetched && ews_down::is_id(&server.id)).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            m.server
+                .as_ref()
+                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && ews_down::is_id(&server.id))
+                .map(|server| vec![server.id.clone()])
+                .unwrap_or_default()
         }
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable)
             .into_iter()

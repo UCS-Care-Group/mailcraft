@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use mailcraft_model::shown::{ShownIds, shown_ids};
 use mailcraft_model::{AccountChoice, Attachment, Category, ContentRef, Id, Importance, Mailbox, Message, RichBody};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
@@ -1085,6 +1086,10 @@ pub struct Session {
     /// set by the window while an agent's command runs: a command that takes one away is undone,
     /// as the owner wasn't asked about it (#494). Never saved.
     pub owner_changing: Vec<Id>,
+    /// The messages and folders the owner was shown in an agent's question, set by the window
+    /// while the command the owner said yes to runs: a folder emptied on that yes takes none but
+    /// these, and what came into it meanwhile stays ([`crate::agent::bind`]). Never saved.
+    pub only_shown: Option<crate::agent::bind::Only>,
     /// Who the Save Draft that is running is for (#286): the five-minute timer, a message put
     /// aside unasked, or anybody's asking for it. Never a command's parameter.
     pub(crate) saving: Saving,
@@ -1258,6 +1263,7 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             owner_changing: Vec::new(),
+            only_shown: None,
             saving: Saving::Asked,
             graph_switch_backup: None,
             staged_tree: None,
@@ -2131,12 +2137,12 @@ impl Session {
     /// HTML shows in place (`cid:`). Its other attachments stay where they are.
     pub fn loaded_for_reply(&self, id: Id) -> Result<Arc<Message>, CmdError> {
         let m = self.loaded_message_where(id, |_| false)?;
-        let html = m.body.html.as_deref().unwrap_or("");
-        if m.attachments.iter().all(|a| a.is_loaded() || !shown_in(html, a)) {
+        let ids = shown_ids(m.body.html.as_deref().unwrap_or(""));
+        if m.attachments.iter().all(|a| a.is_loaded() || !shown_in(&ids, a)) {
             return Ok(m);
         }
         let mut copy = Message::clone(&m);
-        loaded_into(&mut copy, |part| self.content(id, part), &|a| shown_in(html, a))?;
+        loaded_into(&mut copy, |part| self.content(id, part), &|a| shown_in(&ids, a))?;
         Ok(Arc::new(copy))
     }
 
@@ -2458,8 +2464,8 @@ impl Session {
         // The body first: which pictures are shown is in its HTML.
         let body = self.load_where(id, |_| false)?;
         let Some(m) = self.mailbox.message(id) else { return Ok(body) };
-        let html = m.body.html.clone().unwrap_or_default();
-        let parts = self.load_where(id, move |a| is_readable_calendar_part(a) || shown_in(&html, a))?;
+        let ids = shown_ids(m.body.html.as_deref().unwrap_or(""));
+        let parts = self.load_where(id, move |a| is_readable_calendar_part(a) || shown_in(&ids, a))?;
         Ok(body || parts)
     }
 
@@ -2469,8 +2475,8 @@ impl Session {
         if m.body_is_kept() {
             return true;
         }
-        let html = m.body.html.as_deref().unwrap_or("");
-        m.attachments.iter().any(|a| !a.is_loaded() && (is_readable_calendar_part(a) || shown_in(html, a)))
+        let ids = shown_ids(m.body.html.as_deref().unwrap_or(""));
+        m.attachments.iter().any(|a| !a.is_loaded() && (is_readable_calendar_part(a) || shown_in(&ids, a)))
     }
 
     /// The whole mailbox with every part in memory, as a self-contained file needs it (File ›
@@ -3400,9 +3406,11 @@ pub(crate) fn is_readable_calendar_part(a: &Attachment) -> bool {
     is_calendar_part(a) && a.size() <= MAX_CALENDAR_PART
 }
 
-/// Whether `html` shows the picture `a` in place (`cid:`).
-fn shown_in(html: &str, a: &Attachment) -> bool {
-    !a.content_id.is_empty() && html.contains(&format!("cid:{}", a.content_id))
+/// Whether an `<img>` of the HTML whose ids are `ids` asks for `a` (`cid:`,
+/// [`mailcraft_model::shown`]): a part to bring in with the body. Whether it is a picture is told
+/// by its bytes once they are here.
+fn shown_in(ids: &ShownIds, a: &Attachment) -> bool {
+    ids.shows(&a.content_id)
 }
 
 /// Bring the body of `m` and the attachments `pick` chooses into it, through `fetch`. Stops at
