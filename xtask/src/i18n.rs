@@ -177,6 +177,18 @@ fn gather(root: &Path) -> Result<Texts, String> {
         names(toks, file, &mut texts);
         engine_says(toks, file, &says, &consts, &mut texts);
     }
+    // What the hosts say of a mail server they couldn't use (#872): their texts alone, for these
+    // crates also hold stand-ins for servers, whose words are the servers'.
+    for dir in ["crates/proto/src", "crates/net/src"] {
+        let files = sources(root, dir)?;
+        let mut consts = BTreeMap::new();
+        for (_, toks) in &files {
+            constants(toks, &mut consts);
+        }
+        for (file, toks) in &files {
+            hosts_say(toks, file, &consts, &mut texts);
+        }
+    }
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
     }
@@ -700,6 +712,30 @@ fn names(toks: &[Tok], file: &str, texts: &mut Texts) {
     }
 }
 
+/// What a host says of a mail server it couldn't use: the template of each `said!("…", …)` and
+/// the words of `Arg::words(…)`, a literal or a constant. Nothing else of theirs: the hosts'
+/// stand-ins for servers say what servers say, and that stays as it was said.
+fn hosts_say(toks: &[Tok], file: &str, consts: &BTreeMap<String, String>, texts: &mut Texts) {
+    const KIND: &str = "why a mail server couldn't be used";
+    for i in 0..toks.len() {
+        let open = if is(toks, i, &["said", "!", "("]) {
+            i + 2
+        } else if is(toks, i, &["Arg", ":", ":", "words", "("]) {
+            i + 4
+        } else {
+            continue;
+        };
+        let text = match args(toks, open).first() {
+            Some([Tok::Str(s)]) => Some(s.clone()),
+            Some([Tok::Ident(name)]) => consts.get(name).cloned(),
+            _ => None,
+        };
+        if let Some(s) = text {
+            add(texts, &s, None, file, KIND);
+        }
+    }
+}
+
 /// Every `const NAME: &str = "…";`, by name.
 fn constants(toks: &[Tok], out: &mut BTreeMap<String, String>) {
     for i in 0..toks.len() {
@@ -1007,6 +1043,28 @@ mod tests {
         let ids: Vec<&str> = texts.keys().map(String::as_str).collect();
         assert_eq!(ids, ["Home", "January", "May", "Reply", "Respond", "nothing to undo", "select a message", "{month} {day}, {year}", "{n} day"]);
         assert_eq!(texts.get("{n} day").and_then(|f| f.plural.as_deref()), Some("{n} days"));
+    }
+
+    #[test]
+    fn what_the_hosts_say() {
+        let src = r#"
+            const NO_SUBJECT: &str = "(no subject)";
+            fn run() {
+                Err(ProtoError::Auth(said!("the server doesn't take a password on this connection")));
+                let why = said!("Couldn't open \"{name}\"", name);
+                let who = Arg::words(NO_SUBJECT);
+                let theirs = Text::verbatim("Basic authentication is disabled.");
+                return Err(invalid("The Start property is required."));
+                Err(ProtoError::Rejected("no such mailbox".into()));
+            }
+        "#;
+        let toks = lex(src);
+        let mut consts = BTreeMap::new();
+        constants(&toks, &mut consts);
+        let mut texts = Texts::new();
+        hosts_say(&toks, "crates/net/src/x.rs", &consts, &mut texts);
+        let ids: Vec<&str> = texts.keys().map(String::as_str).collect();
+        assert_eq!(ids, ["(no subject)", "Couldn't open \"{name}\"", "the server doesn't take a password on this connection"]);
     }
 
     #[test]

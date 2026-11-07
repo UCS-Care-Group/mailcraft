@@ -54,7 +54,7 @@ pub fn lookup_autodiscover(domain: &str) -> Result<Vec<SrvTarget>, NetError> {
 pub fn lookup_autodiscover_at(endpoints: &[&str], domain: &str) -> Result<Vec<SrvTarget>, NetError> {
     let Some(domain) = domain_name(domain) else {
         let shown: String = domain.chars().filter(|c| !c.is_control()).take(80).collect();
-        return Err(NetError::Config(format!("\"{shown}\" isn't a domain that mail could go to")));
+        return Err(NetError::Config(format!("\"{shown}\" isn't a domain that mail could go to").into()));
     };
     let name = format!("{SERVICE}.{domain}");
     let mut failure = None;
@@ -80,7 +80,7 @@ fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
 /// The targets of a name server's answer: `{"Status":0,"Answer":[{"type":33,"data":"10 60 443 mail.example.org."}]}`.
 /// Whatever else is in there, and whatever isn't a host name, is passed over.
 pub(crate) fn targets(answer: &Answer) -> Result<Vec<SrvTarget>, NetError> {
-    let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text));
+    let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text.into()));
     if answer.status != 200 {
         return Err(nonsense(format!("the name server answered with status {}", answer.status)));
     }
@@ -90,7 +90,7 @@ pub(crate) fn targets(answer: &Answer) -> Result<Vec<SrvTarget>, NetError> {
     match status {
         NO_ERROR => {}
         NO_SUCH_DOMAIN => return Ok(Vec::new()),
-        other => return Err(NetError::Proto(ProtoError::Rejected(format!("the name server couldn't look the domain up (code {other})")))),
+        other => return Err(NetError::Proto(ProtoError::Rejected(format!("the name server couldn't look the domain up (code {other})").into()))),
     }
     let records = json.get("Answer").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     // (priority, weight, target)
