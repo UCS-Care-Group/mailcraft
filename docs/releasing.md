@@ -80,12 +80,23 @@ merge commit of a pull request that was up to date with `main` (as the release's
 is) can be tagged as soon as it is merged: it holds the very tree the pull request's `ci-ok`
 passed on, and that check stands for it, so the release doesn't wait for CI to run again on
 `main`. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
-no `ci-ok` and can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
-secret in the environment (`package.ps1 -BuildOnly`, `package.sh --build-only`) and sign in a
-later one (`-SkipBuild`, `--skip-build`); the job that signs the checksums builds `xtask` first
-and runs the finished binary with the key (`MAILCRAFT_XTASK`), so no build script or macro of a
-dependency ever runs with a signing secret in its environment. Release builds use no build cache
-(`Swatinem/rust-cache` is for CI only).
+no `ci-ok` and can't be tagged). Building and signing are separate jobs. The Windows and macOS
+programs are compiled in jobs that hold no signing secret and name no environment
+(`package.ps1 -BuildOnly`, `package.sh --build-only`); each hands its binaries on as an artifact
+with a list of their SHA-256 and gives that list's digest as a job output
+(`packaging/ci/handoff.sh`). The jobs that sign check out the scripts afresh, check what they
+downloaded against that digest, and sign and package it (`-SkipBuild -NoRun`,
+`--skip-build --no-run`) with the systems' own signing tools and the pinned Artifact Signing
+client; they never run cargo, rustup or a program built here. The programs are run (the CLI,
+the window's `--version`, the MSI installed and removed) in check jobs that hold no secret. Every
+release file comes with the digest of the job that made it, and the job that makes the draft
+checks them all before it makes `SHA256SUMS.txt`, which it signs with the runner's OpenSSL, not
+with anything compiled from this repository. `cargo xtask workflows` (part of `cargo xtask ci`)
+fails when a job with a signing secret, an Azure sign-in, a keychain import or the `release`
+environment runs cargo, rustup or a built program. Release builds use no build cache
+(`Swatinem/rust-cache` is for CI only). The Google desktop client (`MAILCRAFT_GOOGLE_CLIENT_ID`,
+`MAILCRAFT_GOOGLE_CLIENT_SECRET`) is read by the build jobs, which name no environment, so it is
+a secret of the repository, not of the `release` environment.
 
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
 environment, not of the repository. Windows signing with Azure Artifact Signing has no client
@@ -182,10 +193,15 @@ nothing; the `.msi`, installed by Windows Installer, isn't affected.
   (Settings › Environments › release › Environment secrets, or
   `gh secret set MAILCRAFT_RELEASE_KEY --env release < mailcraft-release-key-in-use.pkcs8.b64`),
   and nowhere else. The public keys go into `RELEASE_KEYS`; they are not secret.
-- **Signing:** `packaging/sign-sums.sh <folder>` runs `cargo xtask release-key sign
-  <folder>/SHA256SUMS.txt` with the key from the environment (xtask is built from the checkout
-  with the locked crates in an earlier step that has no key, and the script runs that binary; no
-  tool is downloaded). The key is never printed; the step names the public key
+- **Signing:** `packaging/sign-sums.sh <folder>` signs `<folder>/SHA256SUMS.txt` with the key
+  from the environment, using OpenSSL 3 (`openssl pkeyutl -sign -rawin`, the same signature
+  `cargo xtask release-key sign` makes). In the workflow it is the runner's OpenSSL, checked
+  against its package's file list (`dpkg --verify`) before the key is handed to it; nothing is
+  compiled or downloaded in that job, and no program built from this repository runs with the
+  key. Locally, without OpenSSL 3, the script falls back to `cargo xtask release-key sign`.
+  The dry run makes a throwaway key with `cargo xtask release-key new` and checks that the
+  script's signature is byte for byte the one `cargo xtask release-key sign` makes with it (that
+  job holds no secret, so it may build). The key is never printed or written to a file; the step names the public key
   it signed with. Without the secret (a fork, a dry run) it says "unsigned" and the run goes on:
   such a release has no `.sig`, and no copy of MailCraft installs it by itself.
 - **Checking by hand:** the signature is a plain ed25519 signature over the bytes of
@@ -231,8 +247,10 @@ its version and its sha256 together, taken from the file itself.
 
 Dry run: `gh workflow run release.yml --ref <branch>` builds everything on any branch, unsigned,
 and keeps the files as workflow artifacts (FreeBSD only when asked for: it is slow), and their
-`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). A dry run names no
-environment, is given no secrets and publishes nothing.
+`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). It goes through the same
+jobs as a tag's run (build, then package, then check), checks every file against the digest of
+the job that made it, and checks that OpenSSL and xtask sign alike with a throwaway key. A dry run names
+no environment, is given no secrets and publishes nothing.
 
 
 Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenance GitHub attests
