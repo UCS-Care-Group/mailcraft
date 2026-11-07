@@ -255,14 +255,14 @@ fn gather(blocks: &[Block], out: &mut Vec<(String, String)>, depth: usize) {
         let mut current: Option<(String, String)> = None;
         for span in &block.spans {
             match (&span.link, &mut current) {
-                (Some(url), Some((text, href))) if href == url => {
+                (Some(url), Some((text, href))) if href.as_str() == &**url => {
                     if text.len() < 4_096 {
                         text.push_str(&span.text);
                     }
                 }
                 (Some(url), _) => {
                     out.extend(current.take());
-                    current = Some((span.text.clone(), url.clone()));
+                    current = Some((span.text.clone(), url.to_string()));
                 }
                 (None, _) => out.extend(current.take()),
             }

@@ -6,7 +6,9 @@
 //! not for agents, or names a file, is refused; one that needs the owner is asked about in a
 //! question over the window ("An agent wants to send …"), whose default answer is no. It runs
 //! only on the owner's yes; nobody's answer within [`WAIT_MS`] is a no. While a question is up,
-//! no input from the control channel reaches the window.
+//! no input from the control channel reaches the window. Other agent commands still run, and
+//! the yes reaches only what the question showed ([`agent::bind`], kept in the question's own
+//! record with the windows as they were): what changed meanwhile makes it do nothing.
 
 use std::collections::{HashSet, VecDeque};
 use std::sync::mpsc::Sender;
@@ -56,6 +58,11 @@ pub struct Asking {
     /// The recipient lines of the message a `compose.send` would send, as the owner was asked
     /// about them: a yes doesn't send to others (#509).
     recipients: Value,
+    /// What the question showed, kept here and never in the agent's params: the yes reaches that
+    /// alone ([`agent::bind`], AU3-24).
+    shown: agent::bind::Shown,
+    /// And the windows as it saw them (AU3-20).
+    windows: crate::windows::Seen,
 }
 
 /// The owner's answer to an agent's question.
@@ -122,7 +129,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
     // A send warning is the owner's to answer, every time (#509).
     let (params, warnings) = crate::send_warnings::for_agent(app, id, params);
     match agent::check(&app.session, id, &params, allow) {
-        Verdict::Run if warnings.is_empty() => run(app, id, params, allow),
+        Verdict::Run if warnings.is_empty() => run(app, id, params, allow, None),
         Verdict::Run => {
             let what = agent::describe(&app.session, id, &params);
             if what.chars().count() > agent::MAX_QUESTION {
@@ -160,6 +167,9 @@ fn queue(
     {
         map.insert("compose".into(), json!(compose));
     }
+    let Some(shown) = agent::bind::Shown::new(&app.session, id, &params, &what) else {
+        return err(format!("`{id}` isn't available to agents: what it acts on can't be shown to the owner"));
+    };
     let counted = match counted(app, id, &params) {
         Ok(counted) => counted,
         Err(why) => return err(why),
@@ -184,6 +194,8 @@ fn queue(
         deadline: crate::now_ms() + WAIT_MS,
         opening: app.session.openings(),
         warnings,
+        shown,
+        windows: crate::windows::seen(app),
     });
     Outcome::Pending
 }
@@ -272,7 +284,8 @@ fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
 /// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.) Nor does the
 /// command take away an appointment the owner is changing: in that form, or in a window unless
 /// the owner said yes to what the window would lose (`unsaved`).
-fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
+/// `only`: of a folder's messages and folders, the command takes none but these (the owner's yes, AU3-24).
+fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option<agent::bind::Only>) -> Outcome {
     let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
     let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
     let owners = match &app.dialog {
@@ -288,9 +301,11 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     }
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;
+    app.session.only_shown = only;
     let r = app.execute(id, params);
     app.session.agent = None;
     app.session.owner_changing = Vec::new();
+    app.session.only_shown = None;
     if let Some(form) = owners
         && let Some(opened) = app.dialog.replace(form)
     {
@@ -391,6 +406,13 @@ pub fn answer_with(app: &mut MailApp, said: Answer) {
                 !taken.is_subset(&a.taken) || !items.is_subset(&a.items)
             }
             || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
+        // Nor anything but what the question showed (AU3-24): what the command would take from the
+        // window, what it names, and the windows, as they were.
+        let reach = if crate::windows::seen(app) != a.windows {
+            Err(format!("the windows `{}` was asked about have changed since the owner was asked: nothing was done. Ask the owner again", a.id))
+        } else {
+            a.shown.check(&app.session, &a.id, &params)
+        };
         let mut allow = a.allow.clone();
         allow.push(a.class);
         allow.extend(also);
@@ -398,14 +420,28 @@ pub fn answer_with(app: &mut MailApp, said: Answer) {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
             _ if more => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
             _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
+            _ if let Err(why) = &reach => {
+                app.status(tl!("Nothing was done: what the agent asked about changed after you were asked."));
+                err(why)
+            }
             // The owner's answer to the send warnings they were shown, and only to those (#509).
             Verdict::Run if a.id == "compose.send" => {
+                let only = match reach {
+                    Ok(agent::bind::Reach::Only(only)) => Some(only),
+                    _ => None,
+                };
                 match crate::send_warnings::answered_for_agent(app, (&a.warnings, &a.recipients), params, said == Answer::MoveToBcc) {
-                    Ok(params) => run(app, &a.id, params, &allow),
+                    Ok(params) => run(app, &a.id, params, &allow, only),
                     Err(why) => err(why),
                 }
             }
-            Verdict::Run => run(app, &a.id, params, &allow),
+            Verdict::Run => {
+                let only = match reach {
+                    Ok(agent::bind::Reach::Only(only)) => Some(only),
+                    _ => None,
+                };
+                run(app, &a.id, params, &allow, only)
+            }
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
         }

@@ -311,21 +311,23 @@ fn an_agents_send_whose_recipients_were_swapped_meanwhile_is_not_sent() {
 }
 
 #[test]
-fn an_agents_send_sends_the_message_asked_about_though_another_is_current() {
+fn an_agents_send_with_another_message_started_meanwhile_sends_neither() {
     let mut a = app();
     write(&mut a, LOOKALIKE);
     let asked = a.session.compose_id().unwrap();
     let (_, rx) = ask(&mut a, json!({}), vec![]);
     assert_eq!(a.asking.front().unwrap().params["compose"], json!(asked), "the question is about this message");
-    // Another to the same people is started while the question is up.
+    // Another to the same people is started while the question is up: the windows the question
+    // was asked about have changed, so the yes reaches nothing (AU3-20), and never the other one.
     a.execute("mail.new", json!({"to": LOOKALIKE, "subject": "Other"})).unwrap();
     let other = a.session.compose_id().unwrap();
     assert_ne!(other, asked);
     agent_gate::answer_with(&mut a, Answer::Yes);
-    assert_eq!(rx.try_recv().unwrap()["ok"], true);
-    assert_eq!(sent(&a).len(), 1, "the one asked about went");
+    let v = rx.try_recv().unwrap();
+    assert_eq!(v["ok"], false, "{v}");
+    assert!(sent(&a).is_empty(), "nothing went");
     assert!(a.session.composing_by_id(other).is_some(), "the other is still being written");
-    assert!(a.session.composing_by_id(asked).is_none());
+    assert!(a.session.composing_by_id(asked).is_some(), "so is the one asked about");
 }
 
 #[test]
