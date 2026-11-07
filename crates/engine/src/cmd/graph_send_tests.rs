@@ -138,3 +138,49 @@ fn mailcraft_model_draft(s: &Session, id: Id) -> mailcraft_model::sync::DraftUp 
     let ups = sends(s, s.mailbox.message(id).unwrap().account);
     ups.into_iter().find(|up| up.message == id).and_then(|up| up.draft).unwrap()
 }
+
+/// AU3-26: a message handed to a server is marked before it leaves; the run's answer clears the
+/// mark; a mark still there when the next run begins holds the message rather than sending it.
+#[test]
+fn a_send_whose_answer_never_came_is_held_at_the_next_run() {
+    let (mut s, account, outbox) = setup();
+    let first = queued(&mut s, account, outbox, "First", None);
+    let second = queued(&mut s, account, outbox, "Second", None);
+    assert!(mark_sending(&mut s.mailbox, account, &[first]));
+    // Marked once: the same mark again is nothing new, and another account's id marks nothing.
+    assert!(!mark_sending(&mut s.mailbox, account, &[first]));
+    assert!(!mark_sending(&mut s.mailbox, account + 100, &[second]));
+    let mut said = Vec::new();
+    assert!(hold_unanswered(&mut s.mailbox, account, mailcraft_i18n::Lang::default(), &mut said));
+    let m = s.mailbox.message(first).unwrap();
+    assert_eq!((m.sending, m.held.as_str()), (false, MAY_HAVE_GONE));
+    assert_eq!(said.len(), 1);
+    assert!(s.mailbox.message(second).unwrap().held.is_empty());
+    // Not sent again by itself: only the one never handed over goes.
+    assert_eq!(subjects(&s, account), ["Second"]);
+    // The owner's Send Again puts it back.
+    s.run("mail.sendAgain", &json!({"id": first})).unwrap();
+    assert_eq!(subjects(&s, account), ["First", "Second"]);
+}
+
+#[test]
+fn a_send_whose_answer_was_taken_in_is_not_held() {
+    let (mut s, account, outbox) = setup();
+    let first = queued(&mut s, account, outbox, "First", None);
+    mark_sending(&mut s.mailbox, account, &[first]);
+    assert!(sending_answered(&mut s.mailbox, account));
+    let mut said = Vec::new();
+    assert!(!hold_unanswered(&mut s.mailbox, account, mailcraft_i18n::Lang::default(), &mut said));
+    assert!(said.is_empty());
+    assert_eq!(subjects(&s, account), ["First"]);
+}
+
+#[test]
+fn the_sending_mark_is_saved_with_the_mailbox() {
+    let (mut s, account, outbox) = setup();
+    let first = queued(&mut s, account, outbox, "First", None);
+    mark_sending(&mut s.mailbox, account, &[first]);
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let back = crate::io::read_mailbox(&bytes).unwrap();
+    assert!(back.message(first).unwrap().sending);
+}

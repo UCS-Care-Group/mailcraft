@@ -140,6 +140,60 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
     }
 }
 
+/// What a message held for having been handed to a server without an answer coming back says.
+pub const MAY_HAVE_GONE: &str = "It may have been sent: it was handed to the server, and the answer never came back (another mailbox was opened, or MailCraft stopped). Look in Sent Items before you send it again.";
+
+/// Mark the messages `ids` of `account`'s Outbox as being sent (AU3-26), before the run that
+/// sends them is handed to the host. Whether any mark is new (the mailbox is to be saved before
+/// the send leaves).
+pub fn mark_sending(mb: &mut Mailbox, account: Id, ids: &[Id]) -> bool {
+    let Some(outbox) = mb.folder_of_kind(account, FolderKind::Outbox) else { return false };
+    let mut changed = false;
+    for id in ids {
+        let marks = mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox && m.held.is_empty() && !m.sending);
+        if marks && let Ok(m) = mb.message_mut(*id) {
+            m.sending = true;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// The answer of a run of `account` was taken in: what it sent is gone, and what it didn't send
+/// is known not to have gone, so no mark is left on its messages. Whether anything changed.
+pub fn sending_answered(mb: &mut Mailbox, account: Id) -> bool {
+    let marked: Vec<Id> = mb.messages.values().filter(|m| m.account == account && m.sending).map(|m| m.id).collect();
+    for id in &marked {
+        if let Ok(m) = mb.message_mut(*id) {
+            m.sending = false;
+        }
+    }
+    !marked.is_empty()
+}
+
+/// A run of `account` begins: a message still marked as being sent was handed to a server by a
+/// run whose answer never came back, so it may have gone. It is held (the owner decides with Send
+/// Again), never sent again by itself. A line for the owner for each one; whether anything changed.
+pub fn hold_unanswered(mb: &mut Mailbox, account: Id, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
+    let mut marked: Vec<Id> = mb.messages.values().filter(|m| m.account == account && m.sending).map(|m| m.id).collect();
+    marked.sort_unstable();
+    for id in &marked {
+        let Ok(m) = mb.message_mut(*id) else { continue };
+        m.sending = false;
+        if !m.held.is_empty() {
+            continue;
+        }
+        m.held = MAY_HAVE_GONE.to_string();
+        let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
+        let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
+        said.push(mailcraft_i18n::fmt(
+            lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."),
+            &[("subject", &subject)],
+        ));
+    }
+    !marked.is_empty()
+}
+
 /// Why a shared mailbox's mail wasn't let go at the first send (#70), in plain words.
 fn hold_reason(code: &str) -> Option<&'static str> {
     match code {
@@ -178,7 +232,9 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));
     }
-    s.mailbox.message_mut(id)?.held.clear();
+    let m = s.mailbox.message_mut(id)?;
+    m.held.clear();
+    m.sending = false;
     s.mailbox_changed();
     Ok(json!({"id": id, "held": false}))
 }
