@@ -4047,8 +4047,8 @@ impl MailApp {
 
     /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
     /// interface's language (#872).
-    fn note_said_problems(&mut self, account: Id, problems: Vec<mailcraft_i18n::Text>, finished: bool) {
-        if problems.is_empty() {
+    fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
+        if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
             }
@@ -4056,8 +4056,8 @@ impl MailApp {
         }
         // The lines name subjects, addresses and folders: they are for the owner to read in the
         // problems report, and the log says only how many there were.
-        log::warn!("send/receive, account {account}: {} problem(s) reported", problems.len());
-        self.keep_said_problems(account, problems);
+        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
+        self.keep_said_problems(account, errors);
     }
 
     /// Keep lines for the Send/Receive problems report without putting them in the log: what
