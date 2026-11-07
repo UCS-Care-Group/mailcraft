@@ -113,6 +113,20 @@ fn a_check_that_fails_deletes_nothing() {
 }
 
 #[test]
+fn a_server_busy_partway_through_the_check_leaves_the_deletion_waiting() {
+    let (server, top, sub, messages) = server();
+    // The folder itself is looked at; its subfolder's mail is "not now" however often it is asked.
+    for _ in 0..12 {
+        server.state().fail_next.push((format!("GET /v1.0/me/mailFolders/{sub}/messages"), 429, "TooManyRequests".into()));
+    }
+    let result = run(&server, vec![delete(&top, &[&top, &sub], &messages)]);
+    assert!(result.changes.is_empty(), "the deletion waits, to be checked again: {:?}", result.changes);
+    assert!(!result.errors.is_empty());
+    assert_eq!(deletes_asked(&server), 0);
+    assert!(still_there(&server, &top));
+}
+
+#[test]
 fn a_server_that_cant_be_reached_is_asked_nothing_and_nothing_is_taken_for_done() {
     let (server, top, sub, messages) = server();
     // (A port nothing listens on.)

@@ -49,7 +49,8 @@ pub(super) fn unshown(graph: &Graph<'_>, id: &str, shown: &Shown) -> Result<Foun
     match reply.status {
         200 => {}
         404 | 410 => return Ok(Found::Gone),
-        401 => return Err(graph.refusal(Doing::Folders, &reply, "")),
+        // No sign-in, or busy past the waits: the run's changes stop, and the deletion waits.
+        401 | 429 | 503 | 504 => return Err(graph.refusal(Doing::Folders, &reply, "")),
         _ => {
             log::info!("graph folders: a folder couldn't be looked at before it was deleted (status {})", reply.status);
             return Ok(Found::Unknown);
@@ -117,11 +118,13 @@ pub(super) fn unshown(graph: &Graph<'_>, id: &str, shown: &Shown) -> Result<Foun
 }
 
 /// A list's answer for the check: whether it was read to its end (`None`: it couldn't be had,
-/// and the check is unknown), or the error that stops the run's changes.
+/// and the check is unknown), or the error that stops the run's changes: a sign-in or a shared
+/// mailbox refused, a server busy past the waits or out of reach, after which the deletion
+/// waits, unsent, to be checked afresh next time (spec R4).
 fn checked(listed: Result<bool, NetError>) -> Result<Option<bool>, NetError> {
     match listed {
         Ok(whole) => Ok(Some(whole)),
-        Err(e) if e.is_refused_sign_in() || matches!(e, NetError::SharedRefused(_)) => Err(e),
+        Err(e) if e.is_refused_sign_in() || e.is_unreachable() || matches!(e, NetError::SharedRefused(_) | NetError::Busy { .. }) => Err(e),
         // (Not the error's words: they may hold what the server said of the folder.)
         Err(_) => {
             log::info!("graph folders: what a folder holds couldn't be read before it was deleted");

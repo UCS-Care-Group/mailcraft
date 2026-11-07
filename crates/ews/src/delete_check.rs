@@ -49,6 +49,7 @@ impl<E: HttpExchange> Run<'_, E> {
         // Every mail folder the server has, by the folder it lies in.
         let mut under: HashMap<String, Vec<String>> = HashMap::new();
         let mut known: HashSet<String> = HashSet::new();
+        let mut unreadable: HashSet<String> = HashSet::new();
         let mut state = String::new();
         let mut ended = false;
         for _ in 0..MAX_LIST_PAGES {
@@ -65,6 +66,13 @@ impl<E: HttpExchange> Run<'_, E> {
                 if known.insert(folder.id.clone()) {
                     under.entry(folder.parent).or_default().push(folder.id);
                 }
+            }
+            // Mail folders the list couldn't read (no usable id or name), by where they lie.
+            for parent in page.unreadable {
+                if unreadable.len() >= MAX_SHOWN_FOLDERS {
+                    return Ok(Found::Unknown);
+                }
+                unreadable.insert(parent);
             }
             state = page.state;
             if page.last {
@@ -107,6 +115,11 @@ impl<E: HttpExchange> Run<'_, E> {
             level = next;
         }
         if !level.is_empty() {
+            return Ok(Found::Unknown);
+        }
+        // A mail folder in it that couldn't be read (or one whose place couldn't be): what it
+        // holds can't be told, and the deletion would take it unseen.
+        if unreadable.contains("") || walked.iter().any(|f| unreadable.contains(f)) {
             return Ok(Found::Unknown);
         }
         // The items of each.

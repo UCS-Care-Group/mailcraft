@@ -94,6 +94,23 @@ fn a_folder_made_elsewhere_under_it_keeps_it() {
 }
 
 #[test]
+fn a_folder_under_it_the_list_cant_read_keeps_it() {
+    let (standin, top, sub, messages) = standin();
+    {
+        // A folder of mail with no name to read, made elsewhere under the subfolder.
+        let mut s = standin.state();
+        let made = s.add_folder("   ");
+        if let Some(f) = s.folders.iter_mut().find(|f| f.id == made) {
+            f.parent = sub.clone();
+        }
+    }
+    let result = run_with(&standin, vec![delete(&top, &[&top, &sub], &messages)]);
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("check")), "{:?}", result.changes);
+    assert!(standin.state().deletes.is_empty());
+    assert!(still_there(&standin, &top));
+}
+
+#[test]
 fn a_deletion_from_before_that_says_nothing_shown_goes_only_for_an_empty_folder() {
     let (standin, top, _, _) = standin();
     let result = run_with(&standin, vec![FolderChange::Delete { id: top.clone(), shown: Shown::default() }]);
