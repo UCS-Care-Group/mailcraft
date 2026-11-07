@@ -18,7 +18,7 @@ pub mod dav;
 mod ews_server;
 mod jmap_server;
 mod junk;
-mod load_limit;
+pub mod load_limit;
 mod mailbox;
 mod message;
 pub mod messages;
@@ -157,6 +157,8 @@ mod calendar_rights_tests;
 mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod load_limit_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]

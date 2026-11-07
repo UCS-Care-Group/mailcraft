@@ -1,0 +1,1 @@
+- Reading HTML mail and reopening a draft stay within bounded memory and time (AU3-01, AU3-22).

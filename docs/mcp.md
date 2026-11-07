@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-06 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -227,6 +227,7 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | patch | #473 follow-up: `safe`, `delete` and `edit.undo` name messages among what an undo or redo removes (a server copy of a Microsoft or Exchange server account goes to Deleted Items instead); an undo or redo that puts back accounts or a change that writes to people and takes messages away is asked once, the question names the messages, and a yes covers Delete too |
 | 2026-11-03 | patch | #566 follow-up: `rules.move` of a rule its server has that deletes mail (or moves it to Deleted Items, or has parts MailCraft doesn't know) is `delete`, as `rules.enable` is |
 | 2026-11-02 | minor | #566: `delete` also covers deleting a rule its server has or may have, a rule that deletes mail or moves it to Deleted Items or a folder under it going to its server or switched on there, and a server's rule with parts MailCraft doesn't know switched on |
 | 2026-11-01 | minor | #286: a message an agent starts opens in a window of its own behind the owner's, without the keyboard, never takes the reading pane and at the bound is refused; `compose.popOut` (safe); `ui.closeWindow` of a message being written needs `save` or `discard`, and `discard` of the owner's waits for their Delete; `ui.inspect` lists kind `compose` windows; `ui.repliesInWindow` is a setting (`settings`) |

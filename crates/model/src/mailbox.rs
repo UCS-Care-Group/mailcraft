@@ -508,7 +508,7 @@ fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Ve
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
         let unknown = value.get("kind").is_some_and(|kind| AccountKind::deserialize(kind).unwrap_or(AccountKind::Unknown) == AccountKind::Unknown);
         if !unknown {
-            accounts.push(Account::deserialize(&value).map_err(serde::de::Error::custom)?);
+            accounts.push(crate::load_limit::from_value::<Account>(&value).map_err(serde::de::Error::custom)?);
             continue;
         }
         let who = Identity::deserialize(&value).unwrap_or_default();
