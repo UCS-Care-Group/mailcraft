@@ -1,0 +1,1 @@
+- Mail is vouched for only by its own server's word, also on Microsoft 365 and for mail moved onto a server; Safe Senders respect a failed check; server-kept meetings are changed only by their organizer; link warnings cover every layout of a message; a file is listed unless it is a picture the body shows (AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5).

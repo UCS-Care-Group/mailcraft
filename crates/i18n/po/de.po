@@ -7284,6 +7284,11 @@ msgid "Not connected: the rest of this message is on the server"
 msgstr "Nicht verbunden: Der Rest dieser Nachricht liegt auf dem Server"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Not every layout checked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Not in Outlook's list: no colour there"
@@ -12559,6 +12564,11 @@ msgstr "Diese Einladung gibt nicht an, um welche Besprechung es geht, daher kann
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
 msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
 msgstr ""
 
@@ -12788,6 +12798,11 @@ msgstr ""
 #, fuzzy
 msgid "This message isn't on this computer yet. It will download when you're online."
 msgstr "Diese Nachricht ist noch nicht auf diesem Computer. Sie wird heruntergeladen, sobald Sie online sind."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
