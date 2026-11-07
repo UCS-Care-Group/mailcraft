@@ -246,7 +246,7 @@ impl MailApp {
         let Some(oauth) = account.oauth.clone() else { return look };
         let access = self.graph_tokens.get(&account.id).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &account.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", account.id)).unwrap_or_default();
         let (from, to) = stretch(day);
         // The engine says what to ask.
         let ask = self
@@ -309,9 +309,8 @@ impl MailApp {
             && !self.signed_in_as_other(account, &tokens)
         {
             // The newest refresh token is the account's, for mail and the calendar alike.
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 if let Some(mail) = self.tokens.get_mut(&account) {
                     mail.refresh = tokens.refresh.clone();
                 }

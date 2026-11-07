@@ -72,7 +72,9 @@ impl MailApp {
     /// Start reading the store for this mailbox's accounts, unless a read is under way.
     /// `migrate`: move secrets kept under their old names first.
     pub(crate) fn start_secret_read(&mut self, migrate: bool) {
-        if self.secret_read.is_some() {
+        // (Nothing is read for a mailbox whose servers nobody has confirmed: one from a file, or
+        // one where two accounts have the same address, AU3-03.)
+        if self.secret_read.is_some() || self.unconfirmed {
             return;
         }
         let Some(store) = self.services.secrets.clone() else { return };
@@ -84,8 +86,11 @@ impl MailApp {
             .flat_map(|a| {
                 ["password", "refresh"].map(|kind| Ask {
                     key: Self::secret_key(kind, a),
-                    // (An Exchange server account is newer than the old names: nothing moves to it.)
-                    old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange).then(|| Self::legacy_secret_key(kind, &a.email)),
+                    // (An Exchange server account is newer than the old names: nothing moves to it;
+                    // nor to either of two accounts with one address: the old name doesn't say
+                    // whose it was, AU3-03.)
+                    old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange && !self.address_shared(&a.email))
+                        .then(|| Self::legacy_secret_key(kind, &a.email)),
                 })
             })
             .collect();
@@ -131,6 +136,9 @@ impl MailApp {
         {
             for (key, secret) in brought.answers {
                 if let Some(secret) = secret {
+                    // Noted, as one written here is, so that Remove all data finds it whichever
+                    // mailbox is open then (AU3-18).
+                    self.index_secret_key(key.clone());
                     self.secret_cache.insert(key, secret);
                 }
             }

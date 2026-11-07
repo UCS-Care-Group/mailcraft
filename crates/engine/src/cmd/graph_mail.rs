@@ -251,7 +251,7 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|_| m.unfetched).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            m.server.as_ref().filter(|_| graph_down::still_to_fetch(&s.mailbox, m)).map(|server| vec![server.id.clone()]).unwrap_or_default()
         }
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };

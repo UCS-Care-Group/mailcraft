@@ -10,7 +10,7 @@ use mailcraft_model::{Importance, TaskPatch};
 use mailcraft_time::{Date, Zone};
 use serde_json::{Value, json};
 
-use super::tasks::{push_tasks_at, task_body, tasks_at};
+use super::tasks::{push_tasks_at, task_body, tasks_at, valid_id};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -292,4 +292,14 @@ fn a_due_date_written_in_a_zone_stays_on_its_day() {
         serde_json::json!({"id": "t1", "title": "x", "dueDateTime": {"dateTime": "2026-07-14T00:00:00.0000000", "timeZone": "Europe/London"}});
     let task = super::tasks::task_of(&entry, "L1", Zone::UTC).unwrap();
     assert_eq!(task.due, mailcraft_time::Date::new(2026, 7, 14));
+}
+
+#[test]
+fn an_id_that_reads_as_a_step_in_the_address_is_none() {
+    for id in [".", "..", "", " a", "a\nb"] {
+        assert!(!valid_id(id), "{id:?}");
+    }
+    for id in ["AAMkAGI2T", "a.b", "...", "AQMkADAwATM0MDAAMS0zZmY1LWYxNjAtMDACLTAwCgAuAAAD"] {
+        assert!(valid_id(id), "{id:?}");
+    }
 }
