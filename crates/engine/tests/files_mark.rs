@@ -124,9 +124,8 @@ fn the_writers_write_the_bytes_and_a_new_file_is_never_written_over() {
     let new = dir.join("new.pdf");
     mailcraft_engine::mark::write_new_from_mail(&new, b"%PDF").unwrap();
     assert_eq!(std::fs::read(&new).unwrap(), b"%PDF");
-    #[cfg(windows)]
     for f in [&file, &new] {
-        assert_eq!(std::fs::read(mailcraft_engine::mark::zone_stream(f)).unwrap(), mailcraft_engine::mark::ZONE_IDENTIFIER);
+        assert_marked(f);
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -141,7 +140,21 @@ fn an_export_through_deliver_is_marked_where_the_system_has_a_mark() {
     let id = *s.mailbox.messages.keys().next().unwrap();
     s.run("file.exportMessage", &serde_json::json!({"id": id, "path": path.to_string_lossy()})).unwrap();
     assert!(std::fs::metadata(&path).unwrap().len() > 0);
-    #[cfg(windows)]
-    assert_eq!(std::fs::read(mailcraft_engine::mark::zone_stream(&path)).unwrap(), mailcraft_engine::mark::ZONE_IDENTIFIER);
+    assert_marked(&path);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The file carries the system's "from the Internet" mark, where the system has one (AU3-V6).
+fn assert_marked(path: &std::path::Path) {
+    #[cfg(windows)]
+    assert_eq!(std::fs::read(mailcraft_engine::mark::zone_stream(path)).unwrap(), mailcraft_engine::mark::ZONE_IDENTIFIER);
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("/usr/bin/xattr").arg("-p").arg("com.apple.quarantine").arg(path).output().unwrap();
+        assert!(out.status.success(), "{} isn't quarantined", path.display());
+        let value = String::from_utf8_lossy(&out.stdout);
+        assert!(value.starts_with("0083;") && value.trim_end().ends_with(";MailCraft;"), "quarantine value: {value}");
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let _ = path;
 }
