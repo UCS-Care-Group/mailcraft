@@ -474,20 +474,17 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let _ = app.run("ui.dialog", json!({"name": "openCalendar"}));
     }
     section(ui, tl!("Save out"), t);
-    if tile(ui, "save", tl!("Save Mailbox As"), tl!("Everything here in one .mailcraft file"), t) {
-        let _ = app.run("file.saveAs", json!({}));
-    }
-    if tile(ui, "save", tl!("Save Message As"), tl!("The selected message, as .eml"), t) {
-        let _ = app.run("file.exportMessage", json!({}));
-    }
-    if tile(ui, "export", tl!("Export Folder"), tl!("The messages of the folder in view, as .mbox"), t) {
-        let _ = app.run("file.exportFolder", json!({}));
-    }
-    if tile(ui, "calendar", tl!("Save Calendar"), tl!("Every event and task, as .ics"), t) {
-        let _ = app.run("file.exportCalendar", json!({}));
-    }
-    if tile(ui, "people", tl!("Export Contacts"), tl!("Every contact, as .vcf"), t) {
-        let _ = app.run("file.exportContacts", json!({}));
+    let save_out = [
+        ("save", tl!("Save Mailbox As"), tl!("Everything here in one .mailcraft file"), "file.saveAs"),
+        ("save", tl!("Save Message As"), tl!("The selected message, as .eml"), "file.exportMessage"),
+        ("export", tl!("Export Folder"), tl!("The messages of the folder in view, as .mbox"), "file.exportFolder"),
+        ("calendar", tl!("Save Calendar"), tl!("Every event and task, as .ics"), "file.exportCalendar"),
+        ("people", tl!("Export Contacts"), tl!("Every contact, as .vcf"), "file.exportContacts"),
+    ];
+    for (icon, title, text, command) in save_out {
+        if tile(ui, icon, title, text, t) {
+            let _ = app.run(command, json!({}));
+        }
     }
     section(ui, tl!("Start over"), t);
     if tile(ui, "mail", tl!("Sample Mailbox"), tl!("Invented mail, meetings, people and tasks to try things on"), t) {
