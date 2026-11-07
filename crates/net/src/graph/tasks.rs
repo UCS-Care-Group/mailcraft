@@ -101,8 +101,11 @@ pub(super) fn tasks_at(base: &str, token: &str, zone: Zone) -> Result<TasksDownl
     Ok(download)
 }
 
+/// An id from Graph (or the mailbox file) that is put in an address: none that is empty, too long,
+/// has spaces or control characters, or is `.` or `..`, which an address reads as a step to the
+/// same or the parent place (H3).
 pub(super) fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= MAX_ID && !id.chars().any(|c| c.is_control() || c.is_whitespace())
+    !id.is_empty() && id.len() <= MAX_ID && !matches!(id, "." | "..") && !id.chars().any(|c| c.is_control() || c.is_whitespace())
 }
 
 /// The day a task's `{"dateTime": …, "timeZone": …}` stands for, for an owner in `owner` (#809).

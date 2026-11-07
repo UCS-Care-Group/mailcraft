@@ -399,7 +399,8 @@ pub(crate) fn deliver(v: &Value, name: &str, bytes: Vec<u8>) -> CmdResult {
         Some(path) => {
             #[cfg(not(target_arch = "wasm32"))]
             {
-                std::fs::write(path, &bytes).map_err(|e| fail(format!("{path}: {e}")))?;
+                // From mail: marked as a browser marks a download (AU3-V6).
+                crate::mark::write_from_mail(std::path::Path::new(path), &bytes).map_err(|e| fail(format!("{path}: {e}")))?;
                 Ok(json!({"path": path, "bytes": bytes.len()}))
             }
             #[cfg(target_arch = "wasm32")]
