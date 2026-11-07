@@ -81,6 +81,17 @@ pub(crate) fn grouped(fingerprint: &str) -> String {
     pairs.chunks(16).map(|line| line.join(":")).collect::<Vec<_>>().join("\n")
 }
 
+/// A host's name as the owner is asked about it: whole when it fits, else its end, which holds
+/// the domain it is in, with what is cut off in front (H5).
+pub(crate) fn host_shown(host: &str, most: usize) -> String {
+    let count = host.chars().count();
+    if count <= most {
+        return host.to_string();
+    }
+    let end: String = host.chars().skip(count.saturating_sub(most.saturating_sub(1))).collect();
+    format!("…{end}")
+}
+
 /// A moment as a date for the certificate page.
 fn day_of(timestamp: i64) -> String {
     crate::dates::medium(mailcraft_time::DateTime::from_timestamp(timestamp, 0).date)
@@ -443,7 +454,7 @@ impl AccountSetup {
             Ok(Some(id)) => {
                 let password = self.password.take();
                 if !password.is_empty() {
-                    app.remember("password", &email, &password);
+                    app.remember("password", id, &password);
                     app.adopt_password(id, password);
                 }
                 if matches!(signed_in_with, "basic" | "ntlm") {
@@ -535,7 +546,7 @@ impl AccountSetup {
     pub(super) fn exchange_consent(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let (host, reason) = self.exchange.consent.clone().unwrap_or((String::new(), EwsConsentReason::Redirect));
-        let host = shown(&host, 120);
+        let host = host_shown(&host, 120);
         let why = match reason {
             EwsConsentReason::Redirect => {
                 tl!("The search for your Exchange server was sent on to {host}, which isn't in your address's own domain.")
@@ -546,6 +557,9 @@ impl AccountSetup {
             EwsConsentReason::MailServer => {
                 tl!("The settings the server gave name {host}, which isn't in your address's own domain, as the mail server.")
             }
+            EwsConsentReason::SignIn => tl!(
+                "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
+            ),
         };
         page(ui, &t, |ui| {
             heading(ui, tl!("Send your sign-in to another server?"), &t);
