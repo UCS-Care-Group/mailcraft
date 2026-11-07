@@ -37,6 +37,8 @@ pub mod io;
 #[cfg(test)]
 mod launchable_tests;
 pub mod list;
+#[cfg(test)]
+mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
 mod mark_tests;
@@ -49,6 +51,8 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 mod undo;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
