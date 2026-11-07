@@ -77,6 +77,7 @@ if [ "${1:-}" = "--self-test" ]; then
   dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/sign-sums.XXXXXX")"
   trap 'rm -rf "$dir"' EXIT
   printf '0123  mailcraft-0.0.0-self-test\n' >"$dir/SHA256SUMS.txt"
+  # shellcheck disable=SC2034 # read by name in key_der
   SELF_TEST_KEY="$(openssl genpkey -algorithm ed25519 -outform DER | base64 | tr -d '\n')"
   sign_with_openssl "$dir/SHA256SUMS.txt" SELF_TEST_KEY
   key_der SELF_TEST_KEY | openssl pkey -inform DER -pubout -outform DER >"$dir/public.der"
