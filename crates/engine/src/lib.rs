@@ -36,6 +36,8 @@ pub mod import_tree;
 pub mod io;
 #[cfg(test)]
 mod launchable_tests;
+#[cfg(test)]
+mod opening_tests;
 pub mod list;
 #[cfg(test)]
 mod mailbox_readers_tests;
