@@ -90,11 +90,13 @@ const MAX_WIDTHS: usize = 128;
 /// for each set of [`verdicts`] some pane width and theme gives them, at most [`MAX_ENVS`]: a wide
 /// light pane's first ([`Env::default`]), a wide dark one's next, then the widths the lists' own
 /// lengths tell apart, narrowest first, light and dark. What a message shows in any pane is what
-/// it shows in one of these, unless it has more looks than that.
-pub fn envs(lists: &[String]) -> Vec<Env> {
+/// it shows in one of these when the flag that comes with them is set; when it is not, the
+/// message has more looks than these (or names more widths than are tried), and a check of
+/// every look must say it could not make one.
+pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
     let mut out = vec![Env::default()];
     if lists.is_empty() {
-        return out;
+        return (out, true);
     }
     let mut widths: Vec<u16> = Vec::new();
     for list in lists {
@@ -103,6 +105,7 @@ pub fn envs(lists: &[String]) -> Vec<Env> {
             break;
         }
     }
+    let mut every = widths.len() < MAX_WIDTHS;
     widths.truncate(MAX_WIDTHS);
     widths.push(0);
     widths.sort_unstable();
@@ -111,16 +114,17 @@ pub fn envs(lists: &[String]) -> Vec<Env> {
     let candidates = std::iter::once(Env { width: WIDEST, dark: true })
         .chain(widths.iter().flat_map(|width| [false, true].map(|dark| Env { width: *width, dark })));
     for env in candidates {
-        if out.len() >= MAX_ENVS {
-            break;
-        }
         let said = verdicts(lists, &env);
         if !seen.contains(&said) {
+            if out.len() >= MAX_ENVS {
+                every = false;
+                break;
+            }
             seen.push(said);
             out.push(env);
         }
     }
-    out
+    (out, every)
 }
 
 /// The widths around each length a list's width features name, where a verdict may turn.

@@ -74,8 +74,15 @@ fn a_dmarc_fail_from_the_own_server_is_a_warning() {
     m.headers.push(("Received".into(), "from mail.shop.example (192.0.2.1) by A1.mail.protection.outlook.com (10.0.0.1)".into()));
     m.headers.push(("X-MS-Exchange-Organization-MessageDirectionality".into(), "Incoming".into()));
     assert_eq!(failed_check(Some(&microsoft), &m), Some(Failed::Dmarc));
-    // Without its id, or not above that hop, it is not Exchange's.
+    // Without an id, as Exchange writes it for consumer mailboxes, it is Exchange's too.
     m.headers[0].1 = "spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    assert_eq!(failed_check(Some(&microsoft), &m), Some(Failed::Dmarc));
+    // Another id, or not above that hop, it is not.
+    m.headers[0].1 = "mx.shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    assert_eq!(failed_check(Some(&microsoft), &m), None);
+    m.headers[0].1 = "spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    let below = m.headers.remove(0);
+    m.headers.push(below);
     assert_eq!(failed_check(Some(&microsoft), &m), None);
 }
 

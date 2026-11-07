@@ -308,8 +308,36 @@ fn a_deceptive_link_one_look_alone_shows_is_warned_of() {
     assert!(!kinds(&mut s, "honest").contains(&"linkMismatch".to_string()));
     // Every look's links, each once.
     let html = looks("(max-width: 600px)", deceptive);
-    let links = crate::sender_warnings::links_in_every_look(&html);
+    let (links, every) = crate::sender_warnings::links_in_every_look(&html);
     assert_eq!(links.len(), 2, "{links:?}");
+    assert!(every);
+    assert!(!kinds(&mut s, "narrow").contains(&"linksUnchecked".to_string()));
+}
+
+/// AU3-14: a message with more looks than are checked is said to be, so that a deceptive link in
+/// a look past the last one checked never passes in silence: here twenty bands of width, the link
+/// only between 800 and 850 pixels.
+#[test]
+fn a_message_with_more_looks_than_are_checked_says_so() {
+    let mut css = String::from(".b{display:none}");
+    let mut html = String::new();
+    for i in 0..20 {
+        let (from, to) = (50 * i, 50 * i + 49);
+        css.push_str(&format!(" @media (min-width: {from}px) and (max-width: {to}px) {{ .b{i}{{display:block !important}} }}"));
+        let link = if from == 800 {
+            "<a href=\"https://evil.example/login\">https://bank.example/login</a>".to_string()
+        } else {
+            format!("<a href=\"https://bank.example/{i}\">Band {i}</a>")
+        };
+        html.push_str(&format!("<div class=\"b b{i}\">{link}</div>"));
+    }
+    let html = format!("<style>{css}</style>{html}");
+    let (_, every) = crate::sender_warnings::links_in_every_look(&html);
+    assert!(!every);
+    let m = Message { body: Body { text: "Sign in".into(), html: Some(html) }, ..mail("Bank", "notice@bank.example", "bands") };
+    let (mut s, _) = imap(vec![m]);
+    let found = kinds(&mut s, "bands");
+    assert!(found.contains(&"linksUnchecked".to_string()), "{found:?}");
 }
 
 /// R7, link warnings: a verdict the sender wrote, or one MailCraft left behind, takes no warning

@@ -66,12 +66,18 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   signature of that domain, **and was written by the account's own server**
   (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account (or
   an IMAP account at Microsoft's host) only the topmost header with Exchange Online's authserv-id
-  `mx.microsoft.com` that stands above the topmost `Received` by one of its edge hosts
-  (`*.mail.protection.outlook.com`), and only when Exchange says the mail came in from outside
-  (`X-MS-Exchange-Organization-MessageDirectionality: Incoming`, every one of them):
+  `mx.microsoft.com`, or with none (as it writes for consumer mailboxes), that stands above the
+  topmost `Received` by one of its edge hosts (`*.mail.protection.outlook.com`), and only when
+  Exchange says the mail came in from outside
+  (`X-MS-Exchange-Organization-MessageDirectionality: Incoming`, every one of them, a header the
+  message reader keeps apart from its cap on headers as it does the one below):
   what is below that hop came with the message, and mail sent inside the organisation gets no
   such header, so no `Authentication-Results` in it vouches for anything
-  (`exchange_online_results`, AU3-V5); for another account one whose
+  (`exchange_online_results`, AU3-V5). A failure in that topmost header is a warning without the
+  word that the mail came in: a forged one can only add a warning. This rests on Exchange's
+  header firewall, which removes its organisation's headers from mail that arrives through its
+  transport; mail another program puts into the mailbox (IMAP `APPEND`, an upload) is not
+  filtered, so headers it carries may be forged; for another account one whose
   authserv-id (RFC 8601) is a known id of its IMAP host's provider
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
@@ -179,9 +185,10 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Sent Items, Drafts and the Outbox is not checked, and mail from the owner's own addresses (a
   shared mailbox's too) only for a failed check, since anybody can write them on a message; Junk
   E-mail is checked. A message's links are gathered in every look its style sheets give it (a
-  pane of each width and theme its `@media` rules tell apart, at most 16 of them), so that a
+  pane of each width and theme its `@media` rules tell apart), so that a
   deceptive link that only a narrow pane or a dark window shows is warned of too
-  (`links_in_every_look`, AU3-14). Everything is bounded (so many characters of a name, a link's text or a
+  (`links_in_every_look`, AU3-14); a message with more looks than are checked is said to have
+  them (`linksUnchecked`, a caution), so that one past the last never passes in silence. Everything is bounded (so many characters of a name, a link's text or a
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.

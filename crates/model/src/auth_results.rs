@@ -53,8 +53,9 @@ const EXCHANGE_ONLINE_ID: &str = "mx.microsoft.com";
 /// The names, under this, of the hosts at which Exchange Online takes mail in from the internet.
 const EXCHANGE_ONLINE_EDGE: &str = ".mail.protection.outlook.com";
 /// The header Exchange writes on every message it delivers, saying whether it came in from
-/// outside (`Incoming`) or was sent inside the organisation (`Originating`).
-const DIRECTIONALITY: &str = "X-MS-Exchange-Organization-MessageDirectionality";
+/// outside (`Incoming`) or was sent inside the organisation (`Originating`). `mailcraft_mime`
+/// keeps it apart from its cap on headers, as it does [`AUTH_AS`], at most [`MAX_AUTH_AS`] of them.
+pub const DIRECTIONALITY: &str = "X-MS-Exchange-Organization-MessageDirectionality";
 
 /// Longest address of a sender that is read, and the longest domain.
 const MAX_SENDER_LEN: usize = 320;
@@ -87,6 +88,18 @@ pub fn domain(text: &str) -> Option<String> {
 /// the first `;`, after comments, ignoring an optional version number. `None` when the value
 /// starts with a result instead (as Exchange Online did before it wrote one), or the id is no host name.
 fn authserv_id(value: &str) -> Option<String> {
+    let first = first_word(value)?;
+    if first.contains('=') { None } else { domain(&first) }
+}
+
+/// Whether an `Authentication-Results` value starts with a result (`spf=pass …`) and no
+/// authserv-id, as Exchange Online writes it for consumer mailboxes and did for others before.
+fn without_id(value: &str) -> bool {
+    first_word(value).is_some_and(|first| first.contains('='))
+}
+
+/// The first word of a value before its first `;`, outside comments.
+fn first_word(value: &str) -> Option<String> {
     let mut plain = String::new();
     let mut depth = 0usize;
     for c in value.chars().take(MAX_HEADER_CHARS) {
@@ -98,8 +111,7 @@ fn authserv_id(value: &str) -> Option<String> {
             _ => {}
         }
     }
-    let first = plain.split_whitespace().next()?;
-    if first.contains('=') { None } else { domain(first) }
+    plain.split_whitespace().next().map(str::to_string)
 }
 
 /// The host a `Received` value says took the message in: the word after `by`, outside comments.
@@ -126,31 +138,33 @@ fn received_by(value: &str) -> Option<String> {
 }
 
 /// The `Authentication-Results` headers Exchange Online wrote of `m` as it took it in from the
-/// internet, its own first and the ones below it after: Exchange says the mail came in from
-/// outside (every [`DIRECTIONALITY`] header says `Incoming`, and there is one), and the topmost
-/// header with its authserv-id ([`EXCHANGE_ONLINE_ID`]) lies above the topmost `Received` by
-/// one of its edge hosts ([`EXCHANGE_ONLINE_EDGE`]): what is below that hop came with the
-/// message, and anyone can write it. Mail sent inside the organisation gets no such header, so
-/// nothing in it is Exchange's verdict. `None` otherwise.
-fn exchange_online_results(m: &Message) -> Option<Vec<&str>> {
+/// internet, its own first and the ones below it after: the topmost header with its authserv-id
+/// ([`EXCHANGE_ONLINE_ID`]), or with none (it starts with a result), that lies above the topmost
+/// `Received` by one of its edge hosts ([`EXCHANGE_ONLINE_EDGE`]): what is below that hop came
+/// with the message, and anyone can write it. Its place is what makes it Exchange's, not its id.
+/// For a verdict that vouches (`for_failure` false) Exchange must also say the mail came in from
+/// outside (every [`DIRECTIONALITY`] header says `Incoming`, and there is one); a failure is read
+/// without that word, since a forged one can only add a warning. `None` otherwise.
+fn exchange_online_results(m: &Message, for_failure: bool) -> Option<Vec<&str>> {
     let headers: Vec<&(String, String)> = m.headers.iter().take(MAX_HEADERS_READ).collect();
-    let mut incoming = false;
-    for (_, value) in headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(DIRECTIONALITY)) {
-        if !value.trim().eq_ignore_ascii_case("Incoming") {
+    if !for_failure {
+        let mut incoming = false;
+        for (_, value) in headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(DIRECTIONALITY)) {
+            if !value.trim().eq_ignore_ascii_case("Incoming") {
+                return None;
+            }
+            incoming = true;
+        }
+        if !incoming {
             return None;
         }
-        incoming = true;
-    }
-    if !incoming {
-        return None;
     }
     let edge = headers.iter().position(|(name, value)| {
         name.eq_ignore_ascii_case("Received") && received_by(value).is_some_and(|host| host.ends_with(EXCHANGE_ONLINE_EDGE))
     })?;
-    let own = headers
-        .get(..edge)?
-        .iter()
-        .position(|(name, value)| name.eq_ignore_ascii_case(RESULTS) && authserv_id(value).is_some_and(|id| id == EXCHANGE_ONLINE_ID))?;
+    let own = headers.get(..edge)?.iter().position(|(name, value)| {
+        name.eq_ignore_ascii_case(RESULTS) && (without_id(value) || authserv_id(value).is_some_and(|id| id == EXCHANGE_ONLINE_ID))
+    })?;
     Some(headers.get(own..)?.iter().filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, value)| value.as_str()).collect())
 }
 
@@ -287,13 +301,13 @@ fn clauses(value: &str) -> (Vec<Vec<String>>, bool) {
 /// one [`exchange_online_results`] finds, elsewhere the topmost, when [`from_own_server`] says it
 /// is the server's: the receiving server puts its own on top, and the ones below were written
 /// before it. `None` otherwise: nothing to go by.
-fn own_results<'a>(account: Option<&Account>, m: &'a Message) -> Option<Vec<&'a str>> {
+fn own_results<'a>(account: Option<&Account>, m: &'a Message, for_failure: bool) -> Option<Vec<&'a str>> {
     if m.uid == 0 && m.server.is_none() {
         return None;
     }
     let account = account?;
     if on_exchange_online(account) {
-        return exchange_online_results(m);
+        return exchange_online_results(m, for_failure);
     }
     let results: Vec<&str> =
         m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, v)| v.as_str()).collect();
@@ -302,7 +316,7 @@ fn own_results<'a>(account: Option<&Account>, m: &'a Message) -> Option<Vec<&'a 
 
 /// The clauses of the topmost `Authentication-Results` header of `m`, as [`own_results`] has it.
 fn own_clauses(account: Option<&Account>, m: &Message) -> Option<Vec<Vec<String>>> {
-    let results = own_results(account, m)?;
+    let results = own_results(account, m, true)?;
     Some(clauses(results.first()?).0)
 }
 
@@ -337,9 +351,10 @@ pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
     if internal(account, m) {
         // An organisation's connector may call a partner's mail internal: the server's word wins,
         // and a word cut short may have hidden a failure.
-        return failed_check(account, m).is_none() && own_results(account, m).is_none_or(|results| results.first().is_none_or(|v| clauses(v).1));
+        return failed_check(account, m).is_none()
+            && own_results(account, m, true).is_none_or(|results| results.first().is_none_or(|v| clauses(v).1));
     }
-    let Some(results) = own_results(account, m) else { return false };
+    let Some(results) = own_results(account, m, false) else { return false };
     let Some((value, below)) = results.split_first() else { return false };
     let Some(sender_domain) = sender(&m.from.email).and_then(|address| domain(&address)) else { return false };
     let id = authserv_id(value);

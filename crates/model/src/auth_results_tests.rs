@@ -150,8 +150,8 @@ fn a_verdict_below_the_edge_hop_came_with_the_message() {
 
 #[test]
 fn only_exchanges_own_id_and_its_word_that_the_mail_came_in_count() {
-    // Another id above the hop, or none.
-    for other in ["dmarc=pass action=none header.from=example.org;compauth=pass reason=100", "mx.lumen.example; dmarc=pass header.from=example.org"] {
+    // Another id above the hop.
+    for other in ["mx.lumen.example; dmarc=pass header.from=example.org", "mx.microsoft.com.evil.example; dmarc=pass header.from=example.org"] {
         assert!(!vouched(Some(&microsoft()), &message("alerts@example.org", external(other, Vec::new()))), "{other}");
     }
     // No word on where it came from, or the word that it was sent inside, or two words.
@@ -217,4 +217,121 @@ fn a_message_placed_on_a_server_by_mailcraft_forgets_every_verdict_it_carried() 
     // The rest stays as it was, in order.
     assert!(names.contains(&"Received-SPF") && names.contains(&"DKIM-Signature") && names.contains(&"Subject"));
     assert!(!vouched(Some(&microsoft()), &m));
+}
+
+/// Exchange Online writes no authserv-id for consumer mailboxes (and did not for others before):
+/// such a verdict above the edge hop is its own, below the hop or without its word that the mail
+/// came in it vouches for nothing.
+const NO_ID_PASS: &str = "spf=pass (sender IP is 192.0.2.10) smtp.mailfrom=example.org; dkim=pass (signature was verified) \
+                          header.d=example.org;dmarc=pass action=none header.from=example.org;compauth=pass reason=100";
+const NO_ID_FAIL: &str = "spf=fail (sender IP is 198.51.100.7) smtp.mailfrom=example.org; dkim=none (message not signed) \
+                          header.d=none;dmarc=fail action=oreject header.from=example.org;compauth=fail reason=000";
+
+#[test]
+fn a_verdict_without_an_id_above_the_edge_hop_is_exchanges() {
+    for account in [microsoft(), microsoft_imap()] {
+        let m = message("alerts@example.org", external(NO_ID_PASS, Vec::new()));
+        assert!(vouched(Some(&account), &m));
+        let m = message("alerts@example.org", external(NO_ID_FAIL, Vec::new()));
+        assert!(!vouched(Some(&account), &m));
+        assert_eq!(failed_check(Some(&account), &m), Some(Failed::Dmarc));
+    }
+    // Below the hop it came with the message.
+    let mut headers = inside();
+    headers.push(h("Received", EDGE));
+    headers.extend(senders(vec![h("Authentication-Results", NO_ID_PASS)]));
+    headers.extend(stamps("Incoming", "Anonymous"));
+    assert!(!vouched(Some(&microsoft()), &message("alerts@example.org", headers)));
+    // Without Exchange's word that it came in, it vouches for nothing.
+    let mut headers: Vec<_> =
+        external(NO_ID_PASS, Vec::new()).into_iter().filter(|(name, _)| name != "X-MS-Exchange-Organization-MessageDirectionality").collect();
+    assert!(!vouched(Some(&microsoft()), &message("alerts@example.org", headers.clone())));
+    headers.push(h("X-MS-Exchange-Organization-MessageDirectionality", "Originating"));
+    assert!(!vouched(Some(&microsoft()), &message("alerts@example.org", headers)));
+}
+
+/// A failure above the edge hop is a warning even when Exchange's word on which way the mail went
+/// is missing (a forged failure can only add one), so that losing that word never takes the
+/// warning away.
+#[test]
+fn a_failure_above_the_edge_hop_counts_without_the_word_that_the_mail_came_in() {
+    for verdict in [OWN_FAIL, NO_ID_FAIL] {
+        let headers: Vec<_> =
+            external(verdict, Vec::new()).into_iter().filter(|(name, _)| name != "X-MS-Exchange-Organization-MessageDirectionality").collect();
+        let m = message("alerts@example.org", headers);
+        assert!(!vouched(Some(&microsoft()), &m));
+        assert_eq!(failed_check(Some(&microsoft()), &m), Some(Failed::Dmarc), "{verdict}");
+    }
+}
+
+/// Mail from outside relayed to Exchange Online through another service, in the shape such mail
+/// is delivered (invented hosts, addresses and ids): Exchange's own verdict above its topmost edge
+/// hop, then what the relay carried, with a second edge hop lower down and the earlier verdicts
+/// under other names. `results` is the topmost verdict.
+fn relayed(results: &str, domain: &str) -> Vec<(String, String)> {
+    let mut headers = inside();
+    headers.extend([
+        h("Authentication-Results", results),
+        h("Received-SPF", &format!("Pass (protection.outlook.com: domain of {domain} designates 192.0.2.20 as permitted sender)")),
+        h(
+            "Received",
+            "from AM0PR02CU001.outbound.protection.outlook.com (192.0.2.20) by LO1PEPF0000A0FD.mail.protection.outlook.com (10.167.16.2) \
+             with Microsoft SMTP Server; Tue, 3 Nov 2026 10:00:01 +0000",
+        ),
+        h("ARC-Seal", "i=1; a=rsa-sha256; s=arcselector; d=microsoft.com; cv=none; b=AAAA"),
+        h("ARC-Message-Signature", "i=1; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com; s=arcselector; b=BBBB"),
+        h(
+            "ARC-Authentication-Results",
+            &format!("i=1; mx.microsoft.com 1; spf=fail smtp.mailfrom={domain}; dmarc=fail action=oreject header.from={domain}"),
+        ),
+        h("DKIM-Signature", &format!("v=1; a=rsa-sha256; d={domain}; s=s1; b=CCCC")),
+        h("Received", "from relay.example.net (198.51.100.9) by AM0PR02CU001.outbound.protection.outlook.com with Microsoft SMTP Server"),
+        h(
+            "X-MS-Exchange-Authentication-Results",
+            &format!(
+                "mx.microsoft.com 1; spf=fail (sender IP is 198.51.100.9) smtp.mailfrom={domain}; dmarc=fail action=oreject header.from={domain}"
+            ),
+        ),
+        h("Received-SPF", &format!("Fail (protection.outlook.com: domain of {domain} does not designate 198.51.100.9 as permitted sender)")),
+        h(
+            "Received",
+            "from relay.example.net (198.51.100.9) by LO1PEPF0000A0CC.mail.protection.outlook.com (10.167.16.3) with Microsoft SMTP Server",
+        ),
+        h("From", &format!("Lin Zhao <lin@{domain}>")),
+        h(
+            "Authentication-Results-Original",
+            &format!("mx.microsoft.com 1; dkim=none (message not signed) header.d=none; dmarc=none action=none header.from={domain}"),
+        ),
+        h("Subject", "Quarterly figures"),
+    ]);
+    headers.extend(stamps("Incoming", "Anonymous"));
+    headers
+}
+
+/// Checked against the shapes of real headers (AU3-V5): the verdict above the topmost edge hop is
+/// read, with or without an id; the lower hop, the failures under other names and the earlier
+/// ARC verdict are not.
+#[test]
+fn relayed_mail_is_judged_by_the_verdict_above_the_topmost_edge_hop() {
+    let pass = "mx.microsoft.com 1; spf=pass (sender IP is 192.0.2.20) smtp.mailfrom=example.org; dkim=pass (signature was verified) \
+                header.d=example.org;dmarc=pass action=none header.from=example.org;compauth=pass reason=100";
+    let m = message("lin@example.org", relayed(pass, "example.org"));
+    assert!(vouched(Some(&microsoft()), &m));
+    assert_eq!(failed_check(Some(&microsoft()), &m), None);
+    // From a consumer mailbox: no id.
+    let no_id = "spf=pass (sender IP is 192.0.2.20) smtp.mailfrom=example.com; dkim=pass (signature was verified) \
+                 header.d=example.com;dmarc=pass action=none header.from=example.com;compauth=pass reason=100";
+    let m = message("lin@example.com", relayed(no_id, "example.com"));
+    assert!(vouched(Some(&microsoft()), &m));
+    assert_eq!(failed_check(Some(&microsoft()), &m), None);
+    // Without the topmost verdict, nothing below it is read in its place: not the failures under
+    // other names, nor a verdict below the lower hop.
+    let mut headers = relayed(pass, "example.org");
+    headers.retain(|(name, _)| name != "Authentication-Results");
+    let m = message("lin@example.org", headers.clone());
+    assert!(!vouched(Some(&microsoft()), &m));
+    assert_eq!(failed_check(Some(&microsoft()), &m), None);
+    let at = headers.iter().position(|(_, value)| value.contains("LO1PEPF0000A0CC")).unwrap();
+    headers.insert(at, h("Authentication-Results", pass));
+    assert!(!vouched(Some(&microsoft()), &message("lin@example.org", headers)));
 }

@@ -85,6 +85,14 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
             let rest = if more > 0 { format!(" {}", tln!(more, "And {n} more link like it.", "And {n} more links like it.")) } else { String::new() };
             (tl!("A link goes somewhere else.").to_string(), format!("{first}{rest} {}", tl!("Point at a link to see where it goes.")))
         }
+        Warning::LinksUnchecked => (
+            tl!("Not every layout checked.").to_string(),
+            format!(
+                "{} {}",
+                tl!("This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."),
+                tl!("Point at a link to see where it goes.")
+            ),
+        ),
         Warning::External { domain } => {
             (tl!("From outside your organisation.").to_string(), fill(tl!("The sender's address is at {domain}."), &[("domain", &short(domain))]))
         }

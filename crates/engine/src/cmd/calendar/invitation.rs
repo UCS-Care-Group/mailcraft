@@ -745,7 +745,9 @@ pub(super) fn respond(s: &mut Session, v: &Value) -> CmdResult {
     let propose = v.get("propose").cloned().unwrap_or(Value::Null);
     // A meeting a server keeps is answered from a message only when it is its organizer's.
     if about.event().and_then(|id| s.mailbox.event(id)).is_some_and(|have| on_server(s, have.id) && !from_its_organizer(s, &invitation, have)) {
-        return Err(fail("This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting."));
+        return Err(fail(
+            "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there.",
+        ));
     }
     let through = match about {
         About::Event(id) if on_server(s, id) => {
