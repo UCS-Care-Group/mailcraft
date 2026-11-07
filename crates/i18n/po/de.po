@@ -10462,7 +10462,7 @@ msgstr "Erneut anmelden"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Sign in again and choose {typed}, or change the email address to start a separate account setup. No account has been added."
-msgstr ""
+msgstr "Melde Sie sich erneut an und wählen Sie {typed} aus oder änderen Sie die E-Mail-Adresse, um eine separate Kontoeinrichtung zu starten. Es wurde kein Konto hinzugefügt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10485,7 +10485,7 @@ msgstr "Erneut anmelden, sobald ein Administrator genehmigt hat"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-msgstr ""
+msgstr "Melde Sie sich erneut an: Die Microsoft-Seite wird in Ihrem Browser geöffnet. E-Mails und Kalender funktionieren währenddessen wie gewohnt."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10566,7 +10566,7 @@ msgstr "Melden Sie sich noch einmal bei Microsoft an, damit MailCraft die Ordner
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Sign in with Send/Receive first, then change your automatic replies."
-msgstr ""
+msgstr "Melden Sie sich zuerst über „Senden/Empfangen“ an und ändern Sie anschließend Ihre automatischen Antworten."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -10637,7 +10637,7 @@ msgstr "Meldet sich auf der Seite von {provider} in Ihrem Browser an"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Signs in to an Exchange server with a user name and password"
-msgstr ""
+msgstr "Meldet sich mit Benutzername und Passwort bei einem Exchange-Server an"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10660,7 +10660,7 @@ msgstr "Meldet sich bei {provider} an"
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Signs in with: {how}"
-msgstr ""
+msgstr "Anmeldung mit: {how}"
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -10730,7 +10730,7 @@ msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Progra
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
-msgstr ""
+msgstr "Einige Daten sind noch vorhanden, wie oben aufgeführt. MailCraft wird beendet, sobald du dieses Fenster schließt."
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -10771,7 +10771,7 @@ msgstr "Sortieren nach"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Source of {subject}"
-msgstr ""
+msgstr "Quelle von {subject}"
 
 #. command label
 #: crates/engine/src/cmd/offline.rs
@@ -10782,7 +10782,7 @@ msgstr "Speicherplatz älterer E-Mails"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Spelling & Grammar"
-msgstr ""
+msgstr "Rechtschreibung & Grammatik"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10806,12 +10806,12 @@ msgstr "Neu aus den Angaben beginnen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Start date"
-msgstr "Beginndatum"
+msgstr "Startdatum"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "Start date:"
-msgstr ""
+msgstr "Startdatum:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10822,7 +10822,7 @@ msgstr "Neu beginnen"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Start time:"
-msgstr ""
+msgstr "Startzeit:"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -10839,7 +10839,7 @@ msgstr "Beginnt"
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Starts a new message with the days you choose of your calendar in it. You say who it goes to, and nothing is sent until you press Send."
-msgstr ""
+msgstr "Erstellt eine neue Nachricht mit den ausgewählten Tagen aus Ihrem Kalender. Sie legen fest, an wen diese gesendet werden. Es wird nichts verschickt, bevor Sie auf „Senden“ klicken."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10850,7 +10850,7 @@ msgstr "Bundesland oder Region"
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 msgid "Status bar"
-msgstr ""
+msgstr "Statusleiste"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
@@ -10861,7 +10861,7 @@ msgstr "Statusleiste · Datei"
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "Status:"
-msgstr ""
+msgstr "Status:"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10878,7 +10878,7 @@ msgstr "Anhalten"
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Stop opening it; the mailbox that is open stays"
-msgstr ""
+msgstr "Öffnen abbrechen; das bereits geöffnete Postfach bleibt geöffnet."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10895,7 +10895,7 @@ msgstr "Dieses Senden/Empfangen anhalten; was angekommen ist, bleibt"
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
-msgstr ""
+msgstr "Diesem Zertifikat für dieses Konto nicht mehr vertrauen. Wenn der Server es erneut vorlegt und Ihr Computer diesem nicht vertraut, werden Sie gefragt."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
@@ -10912,7 +10912,7 @@ msgstr "Angehalten ({line})"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Stopped before the end. Import the file again to bring the rest."
-msgstr ""
+msgstr "Vorzeitig abgebrochen. Importiere die Datei erneut, um die restlichen Daten zu übernehmen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -10929,7 +10929,7 @@ msgstr "Wird angehalten…"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Stopping… what has come in stays."
-msgstr ""
+msgstr "Wird abgebrochen… Bereits importierte Daten bleiben erhalten."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10940,17 +10940,17 @@ msgstr "Straße"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Stronger text and edges, in the light or the dark theme."
-msgstr ""
+msgstr "Kräftigere Schrift und deutlichere Konturen – sowohl im hellen als auch im dunklen Design."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Styles"
-msgstr ""
+msgstr "Formatvorlagen"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Subfolders"
-msgstr ""
+msgstr "Unterordner"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -11026,17 +11026,17 @@ msgstr "Beim Wechsel zur Google-Anmeldung bleiben heruntergeladene Nachrichten u
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Symbol"
-msgstr ""
+msgstr "Symbol"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Symbols"
-msgstr ""
+msgstr "Symbole"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Synchronization"
-msgstr ""
+msgstr "Synchronisierung"
 
 #. name
 #: crates/model/src/rich.rs
@@ -11053,7 +11053,7 @@ msgstr "Tabelle"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Tables"
-msgstr ""
+msgstr "Tabellen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
@@ -11064,7 +11064,7 @@ msgstr "Kategorien"
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Take everything MailCraft keeps here with you when you are done: for a shared or work computer, or before deleting a portable copy."
-msgstr ""
+msgstr "Nehmen Sie alle von MailCraft hier gespeicherten Daten mit, wenn Sie fertig sind: bei einem gemeinsam genutzten oder dienstlichen Computer oder bevor Sie eine portable Version löschen."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -11097,52 +11097,52 @@ msgstr "Aufgaben"
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks stay on this computer for now: {error}"
-msgstr ""
+msgstr "Aufgaben bleiben vorerst auf diesem Computer: {error}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks weren't allowed to be kept in step: {error}"
-msgstr ""
+msgstr "Die Synchronisierung der Aufgaben wurde nicht genehmigt: {error}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: Microsoft no longer takes the sign-in"
-msgstr ""
+msgstr "Aufgaben: Microsoft akzeptiert die Anmeldung nicht mehr"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
-msgstr ""
+msgstr "Aufgaben: Ihre Zustimmung wird angefordert…"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: kept in step with Microsoft To Do"
-msgstr ""
+msgstr "Aufgaben: Mit Microsoft To Do synchronisiert"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: kept on this computer only (not allowed yet)"
-msgstr ""
+msgstr "Aufgaben: Nur auf diesem Computer gespeichert (noch nicht genehmigt)"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: not allowed ({why})"
-msgstr ""
+msgstr "Aufgaben: Nicht genehmigt ({why})"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: not asked yet"
-msgstr ""
+msgstr "Aufgaben: Zustimmung noch nicht angefordert"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: waiting for your permission"
-msgstr ""
+msgstr "Aufgaben: Warten auf Ihre Zustimmung"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Teal"
-msgstr ""
+msgstr "Türkis"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -11165,7 +11165,7 @@ msgstr "Teams-Besprechung"
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
-msgstr ""
+msgstr "Teilen Sie den Entwicklern von MailCraft auf GitHub oder per E-Mail mit, was schiefgelaufen ist. Sie können den Bericht überprüfen und selbst versenden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11206,22 +11206,22 @@ msgstr "Tester werden genannt, wenn sie es wünschen; siehe docs/contributors.md
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
 msgid "Text"
-msgstr ""
+msgstr "Text"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Box"
-msgstr ""
+msgstr "Textfeld"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Effects"
-msgstr ""
+msgstr "Texteffekte"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Text Highlight Color"
-msgstr ""
+msgstr "Texthervorhebungsfarbe"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11250,7 +11250,7 @@ msgstr "Dieser Kalender wird nicht angezeigt: Aktivieren Sie ihn zuerst in der K
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "That calendar wasn't opened by address: it is in the account's own list."
-msgstr ""
+msgstr "Dieser Kalender wurde nicht über eine Adresse geöffnet: Er befindet sich in der eigenen Kalenderliste des Kontos."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -11279,12 +11279,12 @@ msgstr "Das ist keine Absenderadresse"
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "That is this account's own address: its own calendar is there already."
-msgstr ""
+msgstr "Das ist die eigene Adresse dieses Kontos: Der zugehörige Kalender ist bereits vorhanden."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That is too long for a report: shorten it"
-msgstr ""
+msgstr "Das ist zu lang für einen Fehlerbericht: Kürzen Sie den Text."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
@@ -11295,12 +11295,12 @@ msgstr "Das ist kein freigegebenes Postfach"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "That isn't the password of this file."
-msgstr ""
+msgstr "Das ist nicht das Passwort für diese Datei."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
-msgstr ""
+msgstr "Mehr lässt sich nicht in einem GitHub-Link unterbringen: Fügen Sie den Rest auf GitHub hinzu, sobald die Seite geöffnet ist."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11311,7 +11311,7 @@ msgstr "Am"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The .pst file has {what} to import; nothing was imported"
-msgstr ""
+msgstr "Die PST-Datei enthält {what} zum Importieren; es wurde nichts importiert."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11322,7 +11322,7 @@ msgstr "Die ganze Serie"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
-msgstr ""
+msgstr "Das Konto wurde geändert, seit die Kontoeinstellungen geöffnet wurden. Öffnen Sie die Kontoeinstellungen erneut, bevor Sie die Anmeldemethode wechseln."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -11333,7 +11333,7 @@ msgstr "Das Konto konnte nicht hinzugefügt werden"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
-msgstr ""
+msgstr "Das Konto konnte nicht eingerichtet werden. Überprüfen Sie die Angaben oder geben Sie die Serveradresse in den Servereinstellungen ein."
 
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
@@ -11350,7 +11350,7 @@ msgstr "Das Konto, das sich auf der Microsoft-Seite angemeldet hat, ist kein Adm
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "The account {address} is opened through is gone."
-msgstr ""
+msgstr "Das Konto {address}, über das der Kalender geöffnet wurde, ist nicht mehr vorhanden."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
