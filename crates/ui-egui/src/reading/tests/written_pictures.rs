@@ -175,10 +175,10 @@ fn the_original_under_a_reply_or_forward_still_shows_its_written_pictures() {
     }
 }
 
-/// A forward saved as a draft and opened again carries the original's pictures as its own files,
-/// and the picture written into the original in its quote: the original quoted under it shows
-/// both, also one its HTML calls by a Content-ID written otherwise (`cid:logo%40…`), which stays
-/// among the files.
+/// A forward saved as a draft and opened again carries the picture written into the original in
+/// its quote, and the original's own picture its HTML calls by a Content-ID written otherwise
+/// (`cid:logo%40…`) too: that is shown in place (AU3-15, [`mailcraft_model::shown`]), so it is the
+/// quote's, as any picture the quote shows. The original quoted under it shows both.
 #[test]
 fn a_reopened_forward_still_shows_both_kinds_of_picture_in_its_original() {
     use super::{MailApp, NOW, Place, Services, window};
@@ -214,8 +214,10 @@ fn a_reopened_forward_still_shows_both_kinds_of_picture_in_its_original() {
     app.execute("mail.editDraft", serde_json::json!({"id": draft})).unwrap();
     let c = app.session.compose.as_ref().unwrap();
     assert_eq!(c.mode, mailcraft_engine::ComposeMode::Draft);
-    assert_eq!(c.quote.as_ref().map(|q| q.pictures.len()), Some(1), "the written picture is the quote's");
-    assert!(c.attachments.iter().any(|a| a.content_id == "logo@rowan.example"), "the logo stays among the files");
+    let quoted = c.quote.as_ref().map_or(Vec::new(), |q| q.pictures.iter().map(|a| a.content_id.clone()).collect());
+    assert_eq!(quoted.len(), 2, "the written picture and the logo the quote shows are the quote's");
+    assert!(quoted.iter().any(|cid| cid == "logo@rowan.example"), "the logo, shown in place, goes with the quote");
+    assert!(!c.attachments.iter().any(|a| a.content_id == "logo@rowan.example"), "and once: not also among the files");
     let shown_as = c.source.and_then(|s| app.session.mailbox.messages.get(&s)).map_or(0, |s| s.id);
     let mut harness = window(app, (1280.0, 900.0));
     harness.run_steps(6);

@@ -128,6 +128,55 @@ fn a_cancellation_in_one_account_leaves_a_meeting_another_account_keeps() {
     assert!(removable(&mut s, own));
 }
 
+/// A meeting Bo organizes that Ada attends, kept by account `a`'s server.
+fn served_guest_meeting(s: &mut Session, a: Id) -> Id {
+    let start = clock(15, 14).to_timestamp(0);
+    let theirs = RemoteEvent {
+        id: "g-1".into(),
+        change_key: "ck-1".into(),
+        uid: "uid-1".into(),
+        title: "Design review".into(),
+        start,
+        end: start + 3_600,
+        organizer: Some(Address::new("Bo", "bo@example.org")),
+        attendees: vec![Attendee { address: Address::new("Ada", "ada@example.org"), ..Default::default() }],
+        is_organizer: Some(false),
+        ..Default::default()
+    };
+    serve(s, a, "ada@example.org", vec![theirs]);
+    s.mailbox.events.values().find(|e| e.uid == "uid-1").map(|e| e.id).unwrap()
+}
+
+/// AU3-13: a meeting a server keeps is held to the same organizer checks as a local one. A
+/// stranger's cancellation or invitation with its `UID`, naming herself or the real organizer,
+/// is shown and changes nothing; the organizer's own still does.
+#[test]
+fn a_stranger_neither_calls_off_nor_answers_a_meeting_a_server_keeps() {
+    for organizer in ["mallory@example.org", "bo@example.org"] {
+        let (mut s, a) = session();
+        let event = served_guest_meeting(&mut s, a);
+        let cancel = mail(&mut s, a, "mallory@example.org", "CANCEL", "uid-1", organizer);
+        assert!(!removable(&mut s, cancel), "{organizer}");
+        assert!(refused(&mut s, cancel).contains("organizer"));
+        assert!(s.mailbox.event(event).is_some() && s.mailbox.event_changes.is_empty());
+
+        let request = mail(&mut s, a, "mallory@example.org", "REQUEST", "uid-1", organizer);
+        let info = run(&mut s, "calendar.invitation", json!({"message": request}));
+        assert_eq!(info["blocked"], "mismatch", "{organizer}: {info}");
+        let answer = s.run("calendar.respond", &json!({"message": request, "response": "decline", "send": true}));
+        assert!(matches!(answer, Err(CmdError::Failed(_) | CmdError::Said(_))), "{organizer}: {answer:?}");
+        assert!(s.mailbox.event(event).is_some() && s.mailbox.event_changes.is_empty(), "{organizer}");
+    }
+    // The organizer's own word does what it says.
+    let (mut s, a) = session();
+    let event = served_guest_meeting(&mut s, a);
+    let request = mail(&mut s, a, "bo@example.org", "REQUEST", "uid-1", "bo@example.org");
+    assert!(run(&mut s, "calendar.invitation", json!({"message": request}))["blocked"].is_null());
+    let cancel = mail(&mut s, a, "bo@example.org", "CANCEL", "uid-1", "bo@example.org");
+    assert!(removable(&mut s, cancel));
+    assert_eq!(run(&mut s, "calendar.removeCancelled", json!({"message": cancel}))["removed"].as_u64(), Some(event));
+}
+
 /// #755: a session without the window's settings (`mailcraft-cli run`, headless `mcp`) keeps an
 /// answered request where it is; a saved choice, on or off, is read back as it was, and
 /// preferences saved without the option leave it off. (A new install's window turns it on:

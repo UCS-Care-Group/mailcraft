@@ -445,14 +445,11 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// The original's pictures that its HTML, as quoted, shows in place: those a picture of it refers
-/// to by the whole of their Content-ID (one of `quote-1` is not shown by `cid:quote-1.…`).
+/// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
+/// `<img>` asks for by `cid:` and is a picture by its bytes.
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
-    m.attachments
-        .iter()
-        .filter(|a| !a.content_id.is_empty() && html.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))))
-        .cloned()
-        .collect()
+    let ids = mailcraft_model::shown::shown_ids(html);
+    m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
