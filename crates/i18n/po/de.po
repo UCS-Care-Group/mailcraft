@@ -4392,7 +4392,7 @@ msgstr "GitHub ist öffentlich und erfordert ein GitHub-Konto. E-Mail ist privat
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
-msgstr "GitHub-Issues sind öffentlich: Gebn Sie darin keine E-Mail-Adressen, Namen oder Inhalte aus Ihren Nachrichten an. Beschreiben Sie mit eigenen Worten, was passiert ist."
+msgstr "GitHub-Issues sind öffentlich: Geben Sie darin keine E-Mail-Adressen, Namen oder Inhalte aus Ihren Nachrichten an. Beschreiben Sie mit eigenen Worten, was passiert ist."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
