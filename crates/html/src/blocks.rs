@@ -8,8 +8,9 @@
 //! message, and inside it every table cell and every block with a background of its own.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::data::{self, Budget, MAX_DATA_TEXT};
+use crate::data::{self, Budget};
 use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
 use crate::media::Env;
@@ -24,6 +25,17 @@ use crate::{
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
 /// structure and style.
 const MAX_DEPTH: usize = 128;
+
+/// What the spans and pictures of one document may repeat of the link addresses and font names
+/// they carry, all told: this many times the input read, and [`COPY_FLOOR`] besides. A link cut
+/// into many spans by the styles inside it is held once ([`Span::link`] is shared), but every span
+/// still names it when the blocks are written out; past this, the text goes on in the span before
+/// it (or, first in a block, without its link and font), so what is made stays a small multiple
+/// of what was read.
+const COPY_ALLOWANCE: usize = 4;
+
+/// What the spans of a short document may repeat besides ([`COPY_ALLOWANCE`]).
+const COPY_FLOOR: usize = 64 * 1024;
 
 /// Longest written-out list marker read from an Outlook list paragraph, in bytes.
 const MAX_MARKER: usize = 24;
@@ -112,7 +124,8 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
     let mut builder = Builder::new(decode);
     builder.own_link = own_link;
     builder.unseen = keep_hidden.then(String::new);
-    let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
+    let html = truncate(html, crate::MAX_INPUT_WITH_PICTURES);
+    builder.copies = html.len().saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
     // The message's style sheets, read once for the whole message; the nth start tag below is
     // the nth element of the tree they were matched against.
     let mut look = Look::new(html, env);
@@ -206,7 +219,7 @@ struct Style {
     /// centred, as in a browser.
     align_reset: bool,
     line_height: Option<LineHeight>,
-    link: Option<Rc<str>>,
+    link: Option<Arc<str>>,
     /// The font size in force is too small to be meant to be read (2 pixels or less): text
     /// written at it is not shown. It lasts until an element inside names a size that can be
     /// read, or carries a class or an id ([`Delta::hooked`]), and it hides nothing but text:
@@ -227,7 +240,7 @@ impl Style {
             underline: self.underline,
             strike: self.strike,
             code: self.code,
-            link: self.link.as_deref().map(str::to_string),
+            link: self.link.clone(),
             color: self.color,
             background: self.background,
             size: self.size,
@@ -246,6 +259,23 @@ impl Style {
             && self.size == span.size
             && self.font.as_deref() == span.font.as_deref()
             && self.link.as_deref() == span.link.as_deref()
+    }
+
+    /// What a span in this style repeats of the link and font it names ([`COPY_ALLOWANCE`]).
+    fn copied(&self) -> usize {
+        self.link.as_deref().map_or(0, str::len).saturating_add(self.font.as_deref().map_or(0, str::len))
+    }
+
+    /// A span of `text` in this style, when what it repeats fits in `room` (which it then takes
+    /// from); else the same without its link and font.
+    fn span_within(&self, text: String, room: &mut usize) -> Span {
+        let cost = self.copied();
+        if cost <= *room {
+            *room -= cost;
+            self.span(text)
+        } else {
+            Span { link: None, font: None, ..self.span(text) }
+        }
     }
 }
 
@@ -270,7 +300,7 @@ struct Delta {
     table: bool,
     /// `Some(None)`: `normal`.
     line_height: Option<Option<LineHeight>>,
-    link: Option<Option<Rc<str>>>,
+    link: Option<Option<Arc<str>>>,
     /// A table cell: formatting elements and highlights from outside stop here (an unclosed `<b>`
     /// above a table does not make the table bold). Colour, size and alignment are inherited, as
     /// in a browser, and a link around a table still leads somewhere.
@@ -624,6 +654,9 @@ struct Builder {
     decode: bool,
     /// What those have taken so far.
     budget: Budget,
+    /// What the spans and pictures still to be made may repeat of links and fonts
+    /// ([`COPY_ALLOWANCE`]).
+    copies: usize,
 }
 
 impl Builder {
@@ -665,6 +698,7 @@ impl Builder {
             boxed: None,
             decode,
             budget: Budget::default(),
+            copies: COPY_FLOOR,
         }
     }
 
@@ -872,7 +906,9 @@ impl Builder {
         };
         match self.spans.last_mut() {
             Some(last) if !self.fresh || style.matches(last) => last.text.push(c),
-            _ => self.spans.push(style.span(c.to_string())),
+            // Past what the spans may repeat, the text goes on in the span before.
+            Some(last) if style.copied() > self.copies => last.text.push(c),
+            _ => self.spans.push(style.span_within(c.to_string(), &mut self.copies)),
         }
         self.fresh = false;
     }
@@ -1082,12 +1118,19 @@ impl Builder {
                 self.flush();
                 self.settle();
                 let style = self.style().clone();
-                let spans = if alt.is_empty() { Vec::new() } else { vec![style.span(alt)] };
+                let spans = if alt.is_empty() { Vec::new() } else { vec![style.span_within(alt, &mut self.copies)] };
                 // The size the attributes give; where they give none, the one the style gives in
                 // pixels (`width:100%` and `height:auto` say nothing here: the picture's own shape does).
                 let size = |v: Option<f32>| v.map(|v| v.round().clamp(1.0, MAX_IMAGE_PX) as u16);
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
-                let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string), data };
+                let cost = style.link.as_deref().map_or(0, str::len);
+                let link = if cost <= self.copies {
+                    self.copies -= cost;
+                    style.link.clone()
+                } else {
+                    None
+                };
+                let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
                 let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
                 self.emit(block, false);
@@ -2214,11 +2257,11 @@ impl Builder {
                 if let Some(index) = self.find(|n| n.name == "a", |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
                     self.close_format(index);
                 }
-                let link: Option<Rc<str>> = match self.own_link {
+                let link: Option<Arc<str>> = match self.own_link {
                     Some(accept) => own_url(tag.attr("href"), accept),
                     None => safe_url(tag.attr("href")),
                 }
-                .map(Rc::from);
+                .map(Arc::from);
                 // A link has the reader's link colour unless it names one itself.
                 let color = link.is_some().then_some(None);
                 self.open_inline("a", true, tag, Delta { link: Some(link), color, ..Delta::default() });
@@ -2427,7 +2470,7 @@ fn safe_url(raw: Option<String>) -> Option<String> {
 /// [`safe_url`] for the owner's own HTML: tabs and line breaks removed as there, then `accept`.
 fn own_url(raw: Option<String>, accept: fn(&str) -> Option<String>) -> Option<String> {
     let url: String = raw?.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
-    accept(url.trim())
+    accept(url.trim()).filter(|url| url.len() <= mailcraft_link::MAX_LINK)
 }
 
 /// The address of a picture, when it may be used: [`safe_url`], and besides an address that
