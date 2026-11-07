@@ -69,6 +69,23 @@ fn styled_spans_inside_a_long_link_do_not_multiply_it() {
 }
 
 #[test]
+fn text_after_the_allowance_is_spent_never_takes_an_earlier_link() {
+    // Enough spans to spend what the links may repeat, then plain text after the link.
+    let html = format!("{}<p>after</p><p><i>tail</i> end</p>", alternations(60 * 1024, 1000));
+    let blocks = parse(&html);
+    for span in flat(&blocks).iter().flat_map(|b| &b.spans) {
+        if ["after", "tail", " end"].contains(&span.text.as_str()) {
+            assert!(span.link.is_none(), "{span:?}");
+        }
+    }
+    let after: Vec<&str> = flat(&blocks).iter().flat_map(|b| &b.spans).map(|s| s.text.as_str()).filter(|t| !t.starts_with('x')).collect();
+    assert_eq!(after, ["after", "tail", " end"]);
+    // Within the link, past the allowance, the text is all there with its own look, unlinked.
+    let spans: Vec<_> = flat(&blocks).iter().flat_map(|b| &b.spans).filter(|s| s.text == "x").collect();
+    assert!(spans.iter().any(|s| s.link.is_none() && s.bold), "{}", spans.len());
+}
+
+#[test]
 fn the_spans_of_one_link_share_its_address() {
     let blocks = parse("<p><a href=\"mailto:u@example.org\">a<b>b</b>c<i>d</i></a></p>");
     let links: Vec<&Arc<str>> = flat(&blocks).iter().flat_map(|b| &b.spans).filter_map(|s| s.link.as_ref()).collect();

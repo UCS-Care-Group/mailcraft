@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! What `parse` makes stays a small multiple of what it reads (the crate's contract), whatever
 //! the nesting of styles and links and however long the addresses: written out, the blocks are
-//! at most `K` times the input and a fixed allowance.
+//! at most `K` times the input and a fixed allowance, and what they repeat of links and fonts at
+//! most `COPIES` times (`mailcraft-mime`'s `tests/rich_output_bound.rs` holds the composer's
+//! reading of HTML to the same bound).
 
-use mailcraft_html::{Block, parse, parse_text_own};
+use mailcraft_html::{Block, BlockKind, parse, parse_text_own};
 use proptest::prelude::*;
 
 /// The most the blocks written out may be per byte of input.
@@ -17,12 +19,37 @@ fn written(blocks: &[Block]) -> usize {
     serde_json::to_vec(blocks).map_or(usize::MAX, |v| v.len())
 }
 
+/// What the spans and pictures repeat of the links and fonts they name, counted once per span or
+/// picture: held to a few times the input apart from everything else written out.
+const COPIES: usize = 4;
+
+/// The link and font bytes the blocks name, counted once per span or picture that names them.
+fn copied(blocks: &[Block]) -> usize {
+    let mut total = 0;
+    for block in blocks {
+        match &block.kind {
+            BlockKind::Image { link, .. } => total += link.as_deref().map_or(0, str::len),
+            BlockKind::Table(table) => total += table.rows.iter().flat_map(|r| &r.cells).map(|c| copied(&c.blocks)).sum::<usize>(),
+            _ => {}
+        }
+        total += block.spans.iter().map(|s| s.link.as_deref().map_or(0, str::len) + s.font.as_deref().map_or(0, str::len)).sum::<usize>();
+    }
+    total
+}
+
 fn bounded(html: &str) -> Result<(), TestCaseError> {
     let limit = K * html.len() + ALLOWANCE;
-    let made = written(&parse(html));
+    let copies = COPIES * html.len() + ALLOWANCE;
+    let blocks = parse(html);
+    let made = written(&blocks);
     prop_assert!(made <= limit, "{made} bytes from {} of input", html.len());
-    let own = written(&parse_text_own(html, |u| Some(u.to_string())));
-    prop_assert!(own <= limit, "own: {own} bytes from {} of input", html.len());
+    let copy = copied(&blocks);
+    prop_assert!(copy <= copies, "{copy} link and font bytes from {} of input", html.len());
+    let own = parse_text_own(html, |u| Some(u.to_string()));
+    let made = written(&own);
+    prop_assert!(made <= limit, "own: {made} bytes from {} of input", html.len());
+    let copy = copied(&own);
+    prop_assert!(copy <= copies, "own: {copy} link and font bytes from {} of input", html.len());
     Ok(())
 }
 
@@ -64,6 +91,7 @@ fn known_shapes_stay_within_the_bound() -> Result<(), TestCaseError> {
         "<b>x</b>x".repeat(200_000),
         "<p>x".repeat(100_000),
         "<table><tr><td>x".repeat(10_000),
+        format!("<a href=\"https://example.org/{}\">{}</a>", "a".repeat(2000), "x<br>".repeat(400_000)),
     ] {
         bounded(&html).map_err(|e| TestCaseError::fail(format!("{}: {e}", html.get(..40).unwrap_or(&html))))?;
     }

@@ -29,9 +29,8 @@ const MAX_DEPTH: usize = 128;
 /// What the spans and pictures of one document may repeat of the link addresses and font names
 /// they carry, all told: this many times the input read, and [`COPY_FLOOR`] besides. A link cut
 /// into many spans by the styles inside it is held once ([`Span::link`] is shared), but every span
-/// still names it when the blocks are written out; past this, the text goes on in the span before
-/// it (or, first in a block, without its link and font), so what is made stays a small multiple
-/// of what was read.
+/// still names it when the blocks are written out; past this, a span keeps its text and the rest
+/// of its look but not its link and font, so what is made stays a small multiple of what was read.
 const COPY_ALLOWANCE: usize = 4;
 
 /// What the spans of a short document may repeat besides ([`COPY_ALLOWANCE`]).
@@ -906,8 +905,6 @@ impl Builder {
         };
         match self.spans.last_mut() {
             Some(last) if !self.fresh || style.matches(last) => last.text.push(c),
-            // Past what the spans may repeat, the text goes on in the span before.
-            Some(last) if style.copied() > self.copies => last.text.push(c),
             _ => self.spans.push(style.span_within(c.to_string(), &mut self.copies)),
         }
         self.fresh = false;

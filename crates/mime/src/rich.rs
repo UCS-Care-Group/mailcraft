@@ -397,7 +397,9 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
 fn read(html: &str, pictures: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
     let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
-    let mut reader = Reader { out: Vec::new(), pictures };
+    let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
+    let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
+    let mut reader = Reader { out: Vec::new(), pictures, copies };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -430,10 +432,21 @@ fn edge_blank_lines(html: &str) -> (usize, usize) {
     (lead, trail)
 }
 
+/// What the runs of one document may repeat of the link addresses they carry, all told: this
+/// many times the HTML read, and [`COPY_FLOOR`] besides. Every line of a span is a run of its own
+/// with the span's link (as is each picture in it); past this, a run keeps its text and style but not the link, so what is
+/// made stays a small multiple of what was read.
+const COPY_ALLOWANCE: usize = 4;
+
+/// What the runs of a short document may repeat besides ([`COPY_ALLOWANCE`]).
+const COPY_FLOOR: usize = 64 * 1024;
+
 struct Reader {
     out: Vec<Paragraph>,
     /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
     pictures: bool,
+    /// What the runs still to be made may repeat of links ([`COPY_ALLOWANCE`]).
+    copies: usize,
 }
 
 impl Reader {
@@ -490,24 +503,41 @@ impl Reader {
             let text = span.text.replace('\u{a0}', " ");
             for (i, line) in text.split('\n').enumerate() {
                 if i > 0 {
+                    if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
+                        return;
+                    }
                     self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level));
                 }
                 if self.pictures && line.contains(OBJECT) {
                     // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
                     for (n, part) in line.split(OBJECT).enumerate() {
                         match (n % 2, part.parse::<u32>()) {
-                            (1, Ok(id)) => cur.push(Run::picture(id, style.clone())),
+                            (1, Ok(id)) => cur.push(Run::picture(id, self.charged(&style))),
                             (1, Err(_)) => {}
                             _ if part.is_empty() => {}
-                            _ => cur.push(Run::new(part, style.clone())),
+                            _ => cur.push(Run::new(part, self.charged(&style))),
                         }
                     }
                     continue;
                 }
-                cur.push(Run::new(line, style.clone()));
+                cur.push(Run::new(line, self.charged(&style)));
             }
         }
-        self.out.push(Paragraph::new(cur, list).at_level(level));
+        if self.out.len() < mailcraft_model::rich::MAX_PARAGRAPHS {
+            self.out.push(Paragraph::new(cur, list).at_level(level));
+        }
+    }
+
+    /// `style` for one more run, when what its link repeats fits in what is left
+    /// ([`COPY_ALLOWANCE`]); else the same without its link.
+    fn charged(&mut self, style: &Style) -> Style {
+        let cost = style.link.as_deref().map_or(0, str::len);
+        if cost <= self.copies {
+            self.copies -= cost;
+            style.clone()
+        } else {
+            Style { link: None, ..style.clone() }
+        }
     }
 }
 
