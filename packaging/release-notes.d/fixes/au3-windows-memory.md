@@ -1,0 +1,1 @@
+- On Windows, how much of a mailbox is read into memory now follows the computer's real memory instead of a fixed 8 GiB.
