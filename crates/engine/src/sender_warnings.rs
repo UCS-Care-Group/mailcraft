@@ -238,6 +238,27 @@ pub fn links(blocks: &[Block]) -> Vec<(String, String)> {
     out
 }
 
+/// The links of `html` in every look its style sheets give it (AU3-14): a pane of each width and
+/// theme its `@media` rules tell apart ([`mailcraft_html::media_envs`]), each link once, at most
+/// [`sender_warnings::MAX_LINKS`]. A deceptive link that only a narrow pane or a dark window shows
+/// is judged as one the default look shows.
+pub fn links_in_every_look(html: &str) -> Vec<(String, String)> {
+    let lists = mailcraft_html::media_lists(html);
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    for env in mailcraft_html::media_envs(&lists) {
+        for link in links(&mailcraft_html::parse_in(html, &env).blocks) {
+            if out.len() >= sender_warnings::MAX_LINKS {
+                return out;
+            }
+            if seen.insert(link.clone()) {
+                out.push(link);
+            }
+        }
+    }
+    out
+}
+
 fn gather(blocks: &[Block], out: &mut Vec<(String, String)>, depth: usize) {
     if depth > 16 {
         return;
@@ -313,7 +334,7 @@ impl Session {
         }
         let facts = checks.facts();
         let kind = self.mailbox.folder(m.folder).map(|f| f.kind);
-        let body = links.then(|| m.body.html.as_deref().map(|html| self::links(&mailcraft_html::parse(html)))).flatten();
+        let body = links.then(|| m.body.html.as_deref().map(links_in_every_look)).flatten();
         let pairs = body.as_ref().map(|pairs| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
         let warnings = Arc::new(sender_warnings::check(m, account, kind, &facts, pairs));
         if checks.kept.len() >= MAX_KEPT {

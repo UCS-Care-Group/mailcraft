@@ -46,6 +46,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   tucked away is out of reach of the owner's tools. For an agent it is message text like any
   other: framed as untrusted, data and never instructions. A message stored before this keeps no
   such text until it is read again from its source.
+- **A file is never hidden by what the body says of it.** A part is shown in place, and left out
+  of the attachment list, `has:attachment`, the rules that look for an attachment and a reply's
+  quote, only when an `<img>` of the body asks for it by `cid:` and it is a PNG, JPEG, GIF or WebP
+  by its own bytes; a `cid:` anywhere else (text, a comment, a link) or a file of another kind is
+  listed (`crates/model/src/shown.rs`, one bounded reader for the list, a reply, the parts brought
+  in with a body and a `.pst` file's inline pictures; AU3-15). While a body is kept outside
+  memory, only a part that is a picture is taken to be one it shows.
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
@@ -57,8 +64,14 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**
-  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account any
-  topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
+  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account (or
+  an IMAP account at Microsoft's host) only the topmost header with Exchange Online's authserv-id
+  `mx.microsoft.com` that stands above the topmost `Received` by one of its edge hosts
+  (`*.mail.protection.outlook.com`), and only when Exchange says the mail came in from outside
+  (`X-MS-Exchange-Organization-MessageDirectionality: Incoming`, every one of them):
+  what is below that hop came with the message, and mail sent inside the organisation gets no
+  such header, so no `Authentication-Results` in it vouches for anything
+  (`exchange_online_results`, AU3-V5); for another account one whose
   authserv-id (RFC 8601) is a known id of its IMAP host's provider
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
@@ -76,6 +89,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   server's own `Authentication-Results` still wins, and so does one too long to be read whole. A colleague on another of the
   organisation's domains is not vouched for this way. A message moved or copied onto the
   server from another account or from this computer leaves the stamp behind (`forget_stamps`),
+  and with it every `Authentication-Results` and `ARC-Authentication-Results` it carried, so that
+  no copy MailCraft puts on a server (`APPEND`, a Graph upload) is vouched for by what another
+  server, or its author, wrote of it (AU3-11),
   and the reader keeps room for it past its caps on header fields and header bytes too; an undo
   that moves mail back from a shared mailbox leaves it behind as well. Versions from before kept
   it on such a move, so a stamp is believed only when this version read it from the message
@@ -162,7 +178,10 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `List-Post`, does an address in it); and the External tag alone is never a warning. Mail in
   Sent Items, Drafts and the Outbox is not checked, and mail from the owner's own addresses (a
   shared mailbox's too) only for a failed check, since anybody can write them on a message; Junk
-  E-mail is checked. Everything is bounded (so many characters of a name, a link's text or a
+  E-mail is checked. A message's links are gathered in every look its style sheets give it (a
+  pane of each width and theme its `@media` rules tell apart, at most 16 of them), so that a
+  deceptive link that only a narrow pane or a dark window shows is warned of too
+  (`links_in_every_look`, AU3-14). Everything is bounded (so many characters of a name, a link's text or a
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
@@ -173,10 +192,16 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **A cancellation calls off only what its sender may.** "Remove from Calendar" is offered, and
   `calendar.removeCancelled` acts, only for a meeting that is somebody else's and, on a local
   calendar, when the cancellation names the meeting's organizer **and** comes from that address; a
-  meeting an account's server keeps only for a cancellation received in that account
-  (`may_call_off`). Any other cancellation is shown and the owner removes the meeting
+  meeting an account's server keeps only for a cancellation received in that account that names
+  its organizer and comes from that address too (`may_call_off`). An invitation with the `UID` of
+  a meeting a server keeps is answered from the message only when it, too, names the meeting's
+  organizer and comes from that address (`blocked`, `respond`, AU3-13). Any other cancellation is shown and the owner removes the meeting
   themselves. No DMARC word is needed: the organizer and the From line must agree, and the
   limit is that both are written by the sender.
+- **Safe Senders don't overrule the server's word.** A safe sender's address brings new mail out
+  of the server's Junk E-mail only when the account's own server doesn't say that mail failed
+  its checks for the sender's domain (`Mailbox::sort_junk`, `failed_check`, AU3-12): the `From:`
+  line is the sender's to write.
 - **Links** are shown with their real destination; only `http`, `https`, `mailto`, `tel` and `cid`
   are followed. A web address is read by MailCraft's own strict reader (`crates/link`, RFC 3986;
   no `url` crate): the host shown (after any `@`, an international name as `xn--`, a number as

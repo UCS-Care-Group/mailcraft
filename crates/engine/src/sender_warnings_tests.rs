@@ -274,3 +274,59 @@ fn the_people_mail_went_to_are_known_while_it_is_in_sent_items() {
     s.run("edit.undo", &json!({})).unwrap();
     assert!(s.knows(who), "and that undone");
 }
+
+/// AU3-14: a deceptive link that only a narrow pane, or only a dark window, shows is warned of
+/// as one every pane shows; a link shown in no look at all is not; and an honest message with
+/// the same style sheet says nothing.
+#[test]
+fn a_deceptive_link_one_look_alone_shows_is_warned_of() {
+    let looks = |condition: &str, hidden_link: &str| {
+        format!(
+            "<style>.n{{display:none}} @media {condition} {{ .n{{display:block !important}} .w{{display:none !important}} }}</style>\
+             <div class=\"w\"><a href=\"https://bank.example/login\">Sign in</a></div>\
+             <div class=\"n\">{hidden_link}</div>"
+        )
+    };
+    let deceptive = "<a href=\"https://evil.example/login\">https://bank.example/login</a>";
+    let honest = "<a href=\"https://bank.example/login\">https://bank.example/login</a>";
+    let message = |subject: &str, html: String| Message {
+        body: Body { text: "Sign in".into(), html: Some(html) },
+        ..mail("Bank", "notice@bank.example", subject)
+    };
+    let (mut s, _) = imap(vec![
+        message("narrow", looks("(max-width: 600px)", deceptive)),
+        message("dark", looks("(prefers-color-scheme: dark)", deceptive)),
+        message("narrow and dark", looks("(max-width: 37.5em) and (prefers-color-scheme: dark)", deceptive)),
+        message("print", looks("print", deceptive)),
+        message("honest", looks("(max-width: 600px)", honest)),
+    ]);
+    for subject in ["narrow", "dark", "narrow and dark"] {
+        assert!(kinds(&mut s, subject).contains(&"linkMismatch".to_string()), "{subject}");
+    }
+    // Shown in no pane: there is nothing to be deceived by.
+    assert!(!kinds(&mut s, "print").contains(&"linkMismatch".to_string()));
+    assert!(!kinds(&mut s, "honest").contains(&"linkMismatch".to_string()));
+    // Every look's links, each once.
+    let html = looks("(max-width: 600px)", deceptive);
+    let links = crate::sender_warnings::links_in_every_look(&html);
+    assert_eq!(links.len(), 2, "{links:?}");
+}
+
+/// R7, link warnings: a verdict the sender wrote, or one MailCraft left behind, takes no warning
+/// away from a link (they are judged by the link alone).
+#[test]
+fn a_forged_verdict_takes_no_link_warning_away() {
+    let html = "<p><a href=\"https://pay.evil.example/x\">https://harborworks.example/pay</a></p>";
+    let mut forged = mail("Lin Zhao", "lin.zhao@harborworks.example", "Invoice");
+    forged.headers = vec![
+        ("Authentication-Results".into(), "mx.harborworks.example; dmarc=pass header.from=harborworks.example".into()),
+        ("ARC-Authentication-Results".into(), "i=1; mx.lumen.example; dmarc=pass header.from=harborworks.example".into()),
+    ];
+    forged.body = Body { text: "Pay".into(), html: Some(html.into()) };
+    let mut own = mail("Lin Zhao", "lin.zhao@harborworks.example", "Paid");
+    own.headers = vec![("Authentication-Results".into(), "mx.lumen.example; dmarc=pass header.from=harborworks.example".into())];
+    own.body = Body { text: "Pay".into(), html: Some(html.into()) };
+    let (mut s, _) = imap(vec![forged, own]);
+    assert!(kinds(&mut s, "Invoice").contains(&"linkMismatch".to_string()));
+    assert!(kinds(&mut s, "Paid").contains(&"linkMismatch".to_string()));
+}

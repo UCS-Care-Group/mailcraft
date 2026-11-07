@@ -5,7 +5,9 @@
 //!
 //! The receiving server puts its own header on top; the ones below it were written before, by
 //! whoever, and a sender can write any of them. So only the topmost one is read, and only when
-//! the server of the account the message is in wrote it ([`from_own_server`]). MailCraft makes
+//! the server of the account the message is in wrote it ([`from_own_server`]); on Exchange
+//! Online, which writes more of its own above it, the one with its id above the hop at which it
+//! took the mail in from the internet ([`exchange_online_results`]). MailCraft makes
 //! no checks of its own (no DNS, no DKIM, no SPF): a server that says nothing says nothing.
 //!
 //! Two answers come of it:
@@ -33,12 +35,26 @@ pub const AUTH_AS: &str = "X-MS-Exchange-Organization-AuthAs";
 /// headers, so that a message padded with others can't push Exchange's own out): one with this
 /// many may have had more.
 pub const MAX_AUTH_AS: usize = 16;
-/// Forget `m`'s [`AUTH_AS`] stamps as it goes onto another account's server: they are the word of
-/// the server it came from, or a sender's own where no Exchange removed them, and the copy there
-/// would be vouched for by them ([`internal`]).
+/// Forget `m`'s [`AUTH_AS`] stamps and its `Authentication-Results` (and
+/// `ARC-Authentication-Results`) as it goes onto another account's server by MailCraft's own
+/// hand: they are the word of the server it came from, or a sender's own where no server removed
+/// them, and no receiving server stamps a copy MailCraft puts there itself, so the copy would be
+/// vouched for by them ([`internal`], [`vouched`]).
 pub fn forget_stamps(m: &mut Message) {
-    m.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(AUTH_AS));
+    m.headers.retain(|(name, _)| {
+        !name.eq_ignore_ascii_case(AUTH_AS) && !name.eq_ignore_ascii_case(RESULTS) && !name.eq_ignore_ascii_case("ARC-Authentication-Results")
+    });
 }
+
+/// The header a receiving server writes its verdict in (RFC 8601).
+const RESULTS: &str = "Authentication-Results";
+/// The authserv-id Exchange Online writes its own `Authentication-Results` with.
+const EXCHANGE_ONLINE_ID: &str = "mx.microsoft.com";
+/// The names, under this, of the hosts at which Exchange Online takes mail in from the internet.
+const EXCHANGE_ONLINE_EDGE: &str = ".mail.protection.outlook.com";
+/// The header Exchange writes on every message it delivers, saying whether it came in from
+/// outside (`Incoming`) or was sent inside the organisation (`Originating`).
+const DIRECTIONALITY: &str = "X-MS-Exchange-Organization-MessageDirectionality";
 
 /// Longest address of a sender that is read, and the longest domain.
 const MAX_SENDER_LEN: usize = 320;
@@ -69,7 +85,7 @@ pub fn domain(text: &str) -> Option<String> {
 
 /// The authserv-id (RFC 8601) an `Authentication-Results` value starts with: the first word before
 /// the first `;`, after comments, ignoring an optional version number. `None` when the value
-/// starts with a result instead (Exchange Online writes no id), or the id is no host name.
+/// starts with a result instead (as Exchange Online did before it wrote one), or the id is no host name.
 fn authserv_id(value: &str) -> Option<String> {
     let mut plain = String::new();
     let mut depth = 0usize;
@@ -86,16 +102,64 @@ fn authserv_id(value: &str) -> Option<String> {
     if first.contains('=') { None } else { domain(first) }
 }
 
-/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
-/// server: any header for a Microsoft account (Exchange Online puts its own on top, with no id),
-/// and for another account one whose authserv-id is a known id of its IMAP host's provider
-/// (`provider::authserv_ids`), or the IMAP host's domain one label up, or a name under that.
-/// Anything else is not known to be the account's server's.
-fn from_own_server(account: Option<&Account>, value: &str) -> bool {
-    let Some(account) = account else { return false };
-    if on_exchange_online(account) {
-        return true;
+/// The host a `Received` value says took the message in: the word after `by`, outside comments.
+fn received_by(value: &str) -> Option<String> {
+    let mut plain = String::new();
+    let mut depth = 0usize;
+    for c in value.chars().take(MAX_HEADER_CHARS) {
+        match c {
+            '(' => {
+                depth = depth.saturating_add(1);
+                plain.push(' ');
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                plain.push(' ');
+            }
+            c if depth == 0 => plain.push(c),
+            _ => {}
+        }
     }
+    let mut words = plain.split_whitespace();
+    words.by_ref().find(|word| word.eq_ignore_ascii_case("by"))?;
+    domain(words.next()?.trim_end_matches(';'))
+}
+
+/// The `Authentication-Results` headers Exchange Online wrote of `m` as it took it in from the
+/// internet, its own first and the ones below it after: Exchange says the mail came in from
+/// outside (every [`DIRECTIONALITY`] header says `Incoming`, and there is one), and the topmost
+/// header with its authserv-id ([`EXCHANGE_ONLINE_ID`]) lies above the topmost `Received` by
+/// one of its edge hosts ([`EXCHANGE_ONLINE_EDGE`]): what is below that hop came with the
+/// message, and anyone can write it. Mail sent inside the organisation gets no such header, so
+/// nothing in it is Exchange's verdict. `None` otherwise.
+fn exchange_online_results(m: &Message) -> Option<Vec<&str>> {
+    let headers: Vec<&(String, String)> = m.headers.iter().take(MAX_HEADERS_READ).collect();
+    let mut incoming = false;
+    for (_, value) in headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(DIRECTIONALITY)) {
+        if !value.trim().eq_ignore_ascii_case("Incoming") {
+            return None;
+        }
+        incoming = true;
+    }
+    if !incoming {
+        return None;
+    }
+    let edge = headers.iter().position(|(name, value)| {
+        name.eq_ignore_ascii_case("Received") && received_by(value).is_some_and(|host| host.ends_with(EXCHANGE_ONLINE_EDGE))
+    })?;
+    let own = headers
+        .get(..edge)?
+        .iter()
+        .position(|(name, value)| name.eq_ignore_ascii_case(RESULTS) && authserv_id(value).is_some_and(|id| id == EXCHANGE_ONLINE_ID))?;
+    Some(headers.get(own..)?.iter().filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, value)| value.as_str()).collect())
+}
+
+/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
+/// server, for an account not on Exchange Online ([`exchange_online_results`]): one whose
+/// authserv-id is a known id of its IMAP host's provider (`provider::authserv_ids`), or the IMAP
+/// host's domain one label up, or a name under that. Anything else is not known to be the
+/// account's server's.
+fn from_own_server(account: &Account, value: &str) -> bool {
     let (Some(host), Some(id)) = (incoming_host(account), authserv_id(value)) else { return false };
     if provider::authserv_ids(&host).contains(&id.as_str()) {
         return true;
@@ -217,22 +281,22 @@ fn clauses(value: &str) -> (Vec<Vec<String>>, bool) {
     (out, true)
 }
 
-/// The `Authentication-Results` headers of `m`, topmost first, when `m` is on the server (it has
-/// a UID there, or the server's own record of it: mail brought in from a file has the file's word
-/// and nothing else) and the topmost was written by the server of `account`
-/// ([`from_own_server`]): the receiving server puts its own on top, and the ones below were
-/// written before it. `None` otherwise: nothing to go by.
+/// The `Authentication-Results` headers of `m`, the server's own first, when `m` is on the server
+/// (it has a UID there, or the server's own record of it: mail brought in from a file has the
+/// file's word and nothing else) and the server of `account` wrote one: on Exchange Online the
+/// one [`exchange_online_results`] finds, elsewhere the topmost, when [`from_own_server`] says it
+/// is the server's: the receiving server puts its own on top, and the ones below were written
+/// before it. `None` otherwise: nothing to go by.
 fn own_results<'a>(account: Option<&Account>, m: &'a Message) -> Option<Vec<&'a str>> {
     if m.uid == 0 && m.server.is_none() {
         return None;
     }
-    let results: Vec<&str> = m
-        .headers
-        .iter()
-        .take(MAX_HEADERS_READ)
-        .filter(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"))
-        .map(|(_, v)| v.as_str())
-        .collect();
+    let account = account?;
+    if on_exchange_online(account) {
+        return exchange_online_results(m);
+    }
+    let results: Vec<&str> =
+        m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, v)| v.as_str()).collect();
     from_own_server(account, results.first()?).then_some(results)
 }
 
