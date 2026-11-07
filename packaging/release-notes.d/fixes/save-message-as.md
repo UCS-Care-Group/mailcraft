@@ -1,0 +1,1 @@
+- File › Open & Export has Save Message As, and a message saved under a name typed without an extension is saved as `.eml`.
