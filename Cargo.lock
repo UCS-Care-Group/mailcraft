@@ -2377,6 +2377,7 @@ dependencies = [
  "mailcraft-names",
  "proptest",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2435,6 +2436,7 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
