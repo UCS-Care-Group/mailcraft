@@ -57,8 +57,8 @@ fn named_contact(s: &Session, v: &Value) -> Result<Contact, CmdError> {
     s.mailbox.contact(id).cloned().ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
-/// Whether `v` names an item that is there, for the agent gate: an item named wrongly is an error
-/// here too, as the command would make it.
+/// Whether `v` names an item that is there (and a day it happens on), for the agent gate: the
+/// command's own error when it doesn't.
 pub(super) fn check(s: &Session, id: &str, v: &Value) -> Result<(), CmdError> {
     match id {
         "tasks.fromEvent" => named_event(s, v).map(|_| ()),

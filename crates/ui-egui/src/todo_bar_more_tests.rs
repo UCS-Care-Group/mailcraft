@@ -290,3 +290,22 @@ fn a_contact_dragged_with_another_button_makes_no_task() {
     w.run_steps(3);
     assert_eq!(w.state().session.mailbox.tasks.len(), tasks);
 }
+
+#[test]
+fn another_display_zone_works_the_calendar_out_again_though_the_mailbox_is_the_same() {
+    let mut w = window_of(sample(), "view.mail", 800.0);
+    let ctx = w.ctx.clone();
+    let s = &w.state().session;
+    let first = s.today().start_of_month().start_of_week(s.prefs.week_start);
+    let (rev, wall) = (s.rev(), s.local(s.now()));
+    let (busy, next) = (busy_days_cached(&ctx, s, first), next_appointments_cached(&ctx, s));
+    // Another zone, at the same offset now: the mailbox and the minute are as they were.
+    let s = &mut w.state_mut().session;
+    s.clock.offset = None;
+    s.clock.zone = mailcraft_time::Zone::named("Africa/Abidjan");
+    let s = &w.state().session;
+    assert_eq!((s.rev(), s.local(s.now())), (rev, wall));
+    assert_eq!(s.zone().id(), "Africa/Abidjan");
+    assert!(!Arc::ptr_eq(&busy, &busy_days_cached(&ctx, s, first)), "the busy days are worked out again");
+    assert!(!Arc::ptr_eq(&next, &next_appointments_cached(&ctx, s)), "the next appointments are worked out again");
+}

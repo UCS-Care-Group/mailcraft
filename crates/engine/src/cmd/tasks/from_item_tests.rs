@@ -195,3 +195,30 @@ fn an_agent_may_make_one_here_and_is_asked_before_it_goes_to_an_account() {
     assert_eq!(classify(&s, "tasks.fromContact", &json!({"id": c})), Access::Owner(Class::Send));
     assert!(describe(&s, "tasks.fromContact", &json!({"id": c})).contains("work@example.org"));
 }
+
+#[test]
+fn an_agent_naming_an_item_that_isnt_there_gets_the_commands_error_not_a_question() {
+    let mut s = session();
+    let ev = event(&mut s, "Stand-up");
+    s.mailbox.event_mut(ev).unwrap().recurrence = Some(Recurrence { freq: Freq::Daily, interval: 1, count: Some(5), ..Default::default() });
+    let work = run(&mut s, "account.add", json!({"email": "work@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}))["id"]
+        .as_u64()
+        .unwrap();
+    run(&mut s, "view.taskAccount", json!({"value": work}));
+    let tasks = s.mailbox.tasks.len();
+    // No such item, nothing selected, a day the series skips: the command fails on its own, and
+    // the owner isn't asked about putting a task in an account's To Do.
+    let cases = [
+        ("tasks.fromEvent", json!({"id": 999_999})),
+        ("tasks.fromContact", json!({"id": 999_999})),
+        ("tasks.fromEvent", json!({})),
+        ("tasks.fromContact", json!({})),
+        ("tasks.fromEvent", json!({"id": ev, "day": "2026-10-30"})),
+    ];
+    for (id, params) in cases {
+        assert_eq!(classify(&s, id, &params), Access::Safe, "{id} {params}");
+        assert_eq!(check(&s, id, &params, &[]), Verdict::Run, "{id} {params}");
+        assert!(s.run(id, &params).is_err(), "{id} {params}");
+    }
+    assert_eq!(s.mailbox.tasks.len(), tasks);
+}

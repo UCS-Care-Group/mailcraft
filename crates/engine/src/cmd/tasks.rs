@@ -145,8 +145,12 @@ pub fn place_of(s: &Session, id: &str, v: &Value) -> Result<Option<Id>, CmdError
             let made = s.mailbox.tasks.values().any(|t| t.message == Some(message.id));
             Ok(if made { None } else { place_of_message(s, message) })
         }
-        // An appointment or a contact named wrongly makes no task: an error, as for a message.
-        "tasks.fromEvent" | "tasks.fromContact" => from_item::check(s, id, v).map(|()| new_task_place(s)),
+        // An id said wrongly is an error, as for a message; one that names nothing (or nothing
+        // selected, or a day the series skips) makes no task, and the command says so.
+        "tasks.fromEvent" | "tasks.fromContact" => {
+            p::id_strict(v, "id")?;
+            Ok(from_item::check(s, id, v).ok().and_then(|()| new_task_place(s)))
+        }
         _ => Ok(None),
     }
 }

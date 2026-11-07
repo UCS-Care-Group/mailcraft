@@ -233,22 +233,24 @@ pub(crate) fn busy_days_cached(ctx: &egui::Context, s: &mailcraft_engine::Sessio
 }
 
 /// [`busy_days`] for the `k`th month the navigator stacks, each kept in a place of its own so
-/// that two or three months don't work each other's out again at every frame.
+/// that two or three months don't work each other's out again at every frame. Kept by the zone
+/// the calendar is shown in too: another one moves a zoned appointment's days, and it need not
+/// change the mailbox.
 fn busy_month_cached(ctx: &egui::Context, s: &mailcraft_engine::Session, first: Date, k: u8) -> Arc<[bool; 42]> {
     let slot = match k {
         0 => BUSY_CACHE,
         1 => "todo_bar_busy_1",
         _ => "todo_bar_busy_2",
     };
-    cached(ctx, slot, (s.rev(), s.mailbox.events.len(), first), || busy_days(s, first))
+    cached(ctx, slot, (s.rev(), s.mailbox.events.len(), s.zone(), first), || busy_days(s, first))
 }
 
-/// [`next_appointments`], kept until the mailbox changes or the clock reaches another minute (an
-/// appointment that is over leaves the list).
+/// [`next_appointments`], kept until the mailbox or the zone the calendar is shown in changes, or
+/// the clock reaches another minute (an appointment that is over leaves the list).
 pub(crate) fn next_appointments_cached(ctx: &egui::Context, s: &mailcraft_engine::Session) -> Arc<Vec<Occurrence>> {
     let mut now = s.local(s.now());
     now.second = 0;
-    cached(ctx, NEXT_CACHE, (s.rev(), s.mailbox.events.len(), now), || next_appointments(s))
+    cached(ctx, NEXT_CACHE, (s.rev(), s.mailbox.events.len(), s.zone(), now), || next_appointments(s))
 }
 
 /// [`favourites`], kept until the mailbox changes.
