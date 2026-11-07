@@ -571,6 +571,9 @@ const NEVER: &[&str] = &[
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
+    // Downloading a new version, opening its file, or stopping that: only the owner's click.
+    "ui.downloadUpdate",
+    "ui.cancelUpdateDownload",
     // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
     "ui.removeAllData",
     // Another program (the file manager) started on the owner's screen, as for an attachment

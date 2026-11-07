@@ -446,10 +446,17 @@ pub struct Services {
     /// AppImage): download, on a background thread, this copy's file of a newer release into
     /// the data folder, and check it by the release's own signature ([`updates`];
     /// `mailcraft_net::update_download`). Where the file is, or why there is none in words that
-    /// name no address, arrives through the channel. Nothing is installed. Absent for every
-    /// other copy, in the browser and in the tests: the owner is told of new versions, and that
-    /// is all.
-    pub update_download: Option<Box<dyn Fn(mailcraft_model::update::Release) -> Receiver<Result<std::path::PathBuf, String>>>>,
+    /// name no address, arrives through the channel. The host tells the [`updates::Progress`]
+    /// how far it has come, and stops when the owner's Cancel says so. Nothing is installed.
+    /// Absent for every other copy, in the browser and in the tests: the owner is told of new
+    /// versions, and offered the file in the browser (`release_file`).
+    pub update_download: Option<Box<dyn Fn(mailcraft_model::update::Release, updates::Progress) -> Receiver<Result<std::path::PathBuf, String>>>>,
+    /// Desktop, for one of the project's packages: the name of this copy's file in a release of
+    /// that version (`mailcraft-0.11.0-linux-x86_64.deb`), for File › About's Download update,
+    /// which opens that file of the new release in the browser. Absent, or `None`, when the
+    /// package isn't known for sure (a development build, the Linux `.tar.gz`): the release's
+    /// page is opened instead.
+    pub release_file: Option<Box<dyn Fn(&mailcraft_model::update::Version) -> Option<String>>>,
     /// The organisation has turned updating MailCraft by itself off for every user of the
     /// computer (a policy in the registry on Windows, a file on macOS and Linux): Install
     /// updates automatically is off and can't be turned on, and only the notice remains.
@@ -1363,6 +1370,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — once a newer version has been downloaded and checked by its release signature: closes the window as quitting does (what is being written is asked about, Send/Receive stops, the mailbox is saved), installs the new version and starts it. The owner's click only: refused for agents and the control channel ("Restart to update is the owner's click."). Not pressed, the new version is installed when MailCraft is quit. MailCraft never restarts by itself"#,
     ),
     (
+        "ui.downloadUpdate",
+        "Update",
+        "Status bar · File › About",
+        r#"{} — under the notice that a newer version is out. A copy that updates itself (the Windows .msi, a Linux AppImage) downloads it and checks it by the release's own signature, as the background download does, whatever Install updates automatically says; then Restart to update is offered (`ui.restartToUpdate`). Any other copy (and a pre-release) opens this platform's file of the release in the browser, or the release's page when no single file fits. A version known only from an earlier run is asked of GitHub first. Not when the organisation has turned updating off. The owner's click only: refused for agents and the control channel ("Update is the owner's click."). Answers {"pending": "download"|"updateCheck", "version"}, {"ready": version} or {"opened": url, "file": bool, "version"}"#,
+    ),
+    (
+        "ui.cancelUpdateDownload",
+        "Cancel Update Download",
+        "Status bar · File › About",
+        r#"{} — stops the download of a new version on its way; what came is kept for the next try and nothing of it is installed, and it is not started again by itself in this run. The owner's click only: refused for agents and the control channel. Answers {"cancelled": version}"#,
+    ),
+    (
         "ui.goBackVersion",
         "Go Back to the Previous Version",
         "Above the status bar",
@@ -2091,6 +2110,8 @@ impl MailApp {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
+            updates::DOWNLOAD => self.download_update(),
+            updates::CANCEL => self.cancel_update_download(),
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {

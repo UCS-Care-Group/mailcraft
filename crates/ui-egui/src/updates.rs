@@ -24,6 +24,18 @@
 //!   pre-release, nor in a development build, nor when the organisation has turned it off
 //!   ([`Services::updates_turned_off_by_organisation`]), nor for a check an agent or a script
 //!   asked for. Cut off, it is carried on at the next start.
+//! - Under the notice, in About and in the status bar, an **Update** button (#876,
+//!   `ui.downloadUpdate`, the owner's click alone). For a copy that updates itself it downloads
+//!   the release through the same host download and signature check as the background
+//!   download, with its progress and Cancel (`ui.cancelUpdateDownload`), whatever Install
+//!   updates automatically says: the click is the owner's say-so, for that version and this run.
+//!   Not when the organisation has turned updating off (no button at all then), and never a
+//!   pre-release, which is offered as a file instead. Any other copy (and a pre-release) has
+//!   **Download update**, which opens this platform's file of the release in the browser
+//!   ([`Services::release_file`]), and the release's page when no single file is known to fit.
+//!   That address is the one GitHub's answer gave, taken only when it is this project's
+//!   download address for that release and file name ([`file_address`]). A notice told of in an
+//!   earlier run has no files: the press asks GitHub first, and goes on with the answer.
 //! - Downloaded and checked, the status bar and About say "Version X is ready: **Restart to
 //!   update**" (`ui.restartToUpdate`, the owner's click alone). Pressed, the window closes as it
 //!   does at quit and the host installs the new version and starts it ([`MailApp::update_on_exit`]);
@@ -34,13 +46,17 @@
 //!   offers to go back to the one it replaced (`ui.goBackVersion`), and the version gone back from
 //!   is never installed by itself again.
 //! - Kept in `ui.json`: the settings, how often it was asked, when a check last got an answer,
-//!   and the last version told of ([`UiState`]); nothing else of GitHub's answer.
+//!   and the last version told of ([`UiState`]); nothing else of GitHub's answer. The addresses
+//!   of a release's files are held for the run only, and the version the owner pressed Update
+//!   for is never kept.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Ui, vec2};
-use mailcraft_model::update::{Release, Version};
+use mailcraft_model::update::{Release, Version, is_file_name};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -66,6 +82,13 @@ pub const RESTART: &str = "ui.restartToUpdate";
 pub const GO_BACK: &str = "ui.goBackVersion";
 /// The refusal of either by an agent or a script.
 pub const OWNERS_CLICK: &str = "Restart to update is the owner's click.";
+/// The command under the notice: download this version (a copy that updates itself), or open
+/// its file in the browser (any other).
+pub const DOWNLOAD: &str = "ui.downloadUpdate";
+/// The command that stops that download.
+pub const CANCEL: &str = "ui.cancelUpdateDownload";
+/// The refusal of either by an agent or a script.
+pub const UPDATE_OWNERS_CLICK: &str = "Update is the owner's click.";
 /// Said once, the first time a new version is ready to install.
 pub const INSTALLS_ITSELF: &str = "MailCraft now installs its updates itself. Turn this off in File › About.";
 
@@ -128,6 +151,71 @@ enum Asker {
     Script,
 }
 
+/// How far a download has come, and whether the owner pressed Cancel: shared between the
+/// window and the host's thread doing the download.
+#[derive(Clone, Debug, Default)]
+pub struct Progress {
+    done: Arc<AtomicU64>,
+    total: Arc<AtomicU64>,
+    cancel: Arc<AtomicBool>,
+}
+
+impl Progress {
+    /// The host, as the file comes: `done` of `total` bytes (a `total` of 0 says nothing).
+    /// Answers whether to go on.
+    pub fn note(&self, done: u64, total: u64) -> bool {
+        if total > 0 {
+            self.total.store(total, Ordering::Relaxed);
+            self.done.store(done.min(total), Ordering::Relaxed);
+        }
+        !self.cancelled()
+    }
+
+    /// The owner pressed Cancel.
+    pub fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+
+    fn stop(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    /// How much has come, from 0 to 1, once the size is known.
+    pub fn fraction(&self) -> Option<f32> {
+        let total = self.total.load(Ordering::Relaxed);
+        (total > 0).then(|| (self.done.load(Ordering::Relaxed) as f64 / total as f64).clamp(0.0, 1.0) as f32)
+    }
+}
+
+/// A download on its way.
+struct Downloading {
+    rx: Receiver<Result<PathBuf, String>>,
+    version: Version,
+    progress: Progress,
+    /// The owner pressed Update for it (or for the version it was already downloading): its
+    /// progress is shown in the status bar, and how it ends is said.
+    owner: bool,
+}
+
+/// What the owner's press of Update waits for: a check, when what is known of the new version
+/// came from an earlier run and so has none of its files.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Then {
+    /// Download it (a copy that updates itself).
+    Download,
+    /// Open its file in the browser.
+    Open,
+}
+
+/// What Update does for this copy and this version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Offer {
+    /// Download it here, check it by the release's signature, then Restart to update.
+    Update,
+    /// Open its file (or its page) in the browser.
+    Download,
+}
+
 /// What a run knows of new versions (not kept).
 #[derive(Default)]
 pub struct Updates {
@@ -137,8 +225,18 @@ pub struct Updates {
     pub(crate) asking: bool,
     /// A check on its way, and who asked for it.
     pending: Option<(Receiver<Result<Release, String>>, Asker)>,
-    /// A download on its way, of that version.
-    downloading: Option<(Receiver<Result<PathBuf, String>>, Version)>,
+    /// A download on its way.
+    downloading: Option<Downloading>,
+    /// The version the owner pressed Update for in this run: downloaded and installed whatever
+    /// Install updates automatically says, and though it is the version gone back from. Never
+    /// kept, and never set by an agent or a script.
+    chosen: Option<Version>,
+    /// A download the owner cancelled in this run: not started again by itself in this run.
+    declined: Option<Version>,
+    /// What the owner's press of Update waits for a check to do.
+    then: Option<Then>,
+    /// The address Download update last opened in the browser in this run.
+    opened: Option<String>,
     /// The version downloaded and checked this run.
     downloaded: Option<Version>,
     /// A check has been made at the start of this run to carry on a download of the version
@@ -178,6 +276,39 @@ fn may_check_by_itself(services: &Services) -> bool {
 /// The page of `version`'s release, made from its tag as this project writes them.
 fn page_of(version: &Version) -> String {
     format!("{}/releases/tag/v{version}", REPOSITORY.trim_end_matches('/'))
+}
+
+/// Longest address of a release's file opened.
+const MAX_ADDRESS: usize = 512;
+
+/// The address of `release`'s file `name`, as GitHub's answer gave it, when it is exactly this
+/// project's download address for that release and that name:
+/// `https://github.com/{owner}/{repo}/releases/download/{tag}/{name}`, the owner and the
+/// repository this build's (in any case), the tag this version, `name` one of this version's
+/// files, and nothing more (no query, no fragment, no escapes, no user, no port). GitHub's
+/// answer is as hostile as any server's: anything else is no address, and the page is opened.
+pub(crate) fn file_address(release: &Release, name: &str) -> Option<String> {
+    if !is_file_name(name) || !name.starts_with(&format!("mailcraft-{}-", release.version)) {
+        return None;
+    }
+    let mut found = release.assets.iter().filter(|asset| asset.name == name);
+    let asset = found.next()?;
+    if found.next().is_some() {
+        return None;
+    }
+    let url = asset.url.as_str();
+    let plain = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'/' | b':' | b'.' | b'-' | b'_' | b'+');
+    if url.len() > MAX_ADDRESS || !url.bytes().all(plain) {
+        return None;
+    }
+    let (owner, repo) = REPOSITORY.strip_prefix("https://github.com/")?.trim_end_matches('/').split_once('/')?;
+    let parts: Vec<&str> = url.strip_prefix("https://github.com/")?.split('/').collect();
+    let fits = matches!(parts.as_slice(), [o, r, "releases", "download", tag, n]
+        if o.eq_ignore_ascii_case(owner)
+            && r.eq_ignore_ascii_case(repo)
+            && Version::parse(tag).as_ref() == Some(&release.version)
+            && *n == name);
+    fits.then(|| url.to_string())
 }
 
 /// What is said of a newer release, in the status bar and in About.
@@ -245,11 +376,118 @@ impl MailApp {
         }
     }
 
-    /// The version downloaded and checked in this run that is to be installed: Install updates
-    /// automatically is still on, and it isn't the one the owner went back from.
+    /// The version downloaded and checked in this run that is to be installed: the owner pressed
+    /// Update for it (and the organisation hasn't turned updating off), or Install updates
+    /// automatically is still on and it isn't the one the owner went back from.
     pub(crate) fn update_ready(&self) -> Option<&Version> {
         let version = self.updates.downloaded.as_ref()?;
-        (self.installs_updates() && version.to_string() != self.ui.update_skip).then_some(version)
+        let newer = running().is_some_and(|running| version.is_newer_than(&running));
+        let chosen = self.updates.chosen.as_ref() == Some(version) && !self.services.updates_turned_off_by_organisation;
+        (newer && (chosen || (self.installs_updates() && version.to_string() != self.ui.update_skip))).then_some(version)
+    }
+
+    /// Whether the version ready to install is so only because the owner pressed Update for it.
+    fn ready_by_choice(&self) -> bool {
+        self.update_ready().is_some_and(|ready| self.updates.chosen.as_ref() == Some(ready) && !self.installs_updates())
+    }
+
+    /// What Update does for `release` here: nothing when the organisation has turned updating
+    /// off; a download for a copy that updates itself, but never of a pre-release; else the file
+    /// in the browser.
+    pub(crate) fn offer(&self, release: &Release) -> Option<Offer> {
+        if self.services.updates_turned_off_by_organisation {
+            return None;
+        }
+        let here = self.services.update_download.is_some() && !self.services.development_build;
+        Some(if here && !release.version.is_pre_release() { Offer::Update } else { Offer::Download })
+    }
+
+    /// The address Download update opens for `release`: this copy's file in it, when the host
+    /// names one and GitHub's answer has exactly that file at this project's address; else the
+    /// release's page.
+    fn release_address(&self, release: &Release) -> (String, bool) {
+        let name = self.services.release_file.as_ref().and_then(|name_of| name_of(&release.version));
+        match name.and_then(|name| file_address(release, &name)) {
+            Some(url) => (url, true),
+            None => (release.page.clone(), false),
+        }
+    }
+
+    /// Open `url` in the browser: the owner pressed Download update.
+    fn open_in_browser(&self, url: &str) {
+        if let Some(ctx) = &self.ctx {
+            ctx.open_url(egui::OpenUrl::new_tab(url.to_string()));
+        }
+    }
+
+    /// `ui.downloadUpdate`, the owner's click: for a copy that updates itself, download the new
+    /// version and check it (then Restart to update); for any other, open its file in the
+    /// browser. A version known only from an earlier run is checked for first.
+    pub(crate) fn download_update(&mut self) -> Result<Value, String> {
+        if self.services.updates_turned_off_by_organisation {
+            return Err(tl!(TURNED_OFF).to_string());
+        }
+        let Some(release) = self.newer_release() else {
+            return Err(tl!("No newer version of MailCraft is known.").to_string());
+        };
+        let version = release.version.to_string();
+        let offer = self.offer(&release);
+        if offer == Some(Offer::Update) {
+            if let Some(d) = self.updates.downloading.as_mut() {
+                if d.version != release.version || d.progress.cancelled() {
+                    return Err(tl!("The last download is still stopping. Try again in a moment.").to_string());
+                }
+                // Already on its way (by itself): the owner's now.
+                d.owner = true;
+                self.updates.chosen = Some(release.version.clone());
+                return Ok(json!({"pending": "download", "version": version}));
+            }
+            self.updates.chosen = Some(release.version.clone());
+            self.updates.declined = None;
+            if self.updates.downloaded.as_ref() == Some(&release.version) {
+                return Ok(json!({"ready": version}));
+            }
+        }
+        // What was told in an earlier run has none of the release's files: ask first.
+        if !self.updates.answered {
+            self.updates.then = Some(if offer == Some(Offer::Update) { Then::Download } else { Then::Open });
+            if self.updates.pending.is_none() && !self.begin_update_check(Asker::Owner) {
+                self.updates.then = None;
+                return Err(tl!("This build doesn't check for new versions.").to_string());
+            }
+            return Ok(json!({"pending": "updateCheck", "version": version}));
+        }
+        Ok(self.go_on_with_update(&release))
+    }
+
+    /// Download `release` (the owner's), or open its file: what the owner's press of Update
+    /// does once the release's files are known.
+    fn go_on_with_update(&mut self, release: &Release) -> Value {
+        let version = release.version.to_string();
+        if self.offer(release) == Some(Offer::Update) {
+            self.updates.chosen = Some(release.version.clone());
+            self.start_download(release, true);
+            return json!({"pending": "download", "version": version});
+        }
+        let (url, file) = self.release_address(release);
+        self.open_in_browser(&url);
+        self.updates.opened = Some(url.clone());
+        json!({"opened": url, "file": file, "version": version})
+    }
+
+    /// `ui.cancelUpdateDownload`, the owner's click: stop the download on its way. What came of
+    /// it is kept for the next try, and nothing of it is installed.
+    pub(crate) fn cancel_update_download(&mut self) -> Result<Value, String> {
+        let Some(d) = self.updates.downloading.as_ref() else {
+            return Err(tl!("No new version is being downloaded.").to_string());
+        };
+        d.progress.stop();
+        let version = d.version.clone();
+        if self.updates.chosen.as_ref() == Some(&version) {
+            self.updates.chosen = None;
+        }
+        self.updates.declined = Some(version.clone());
+        Ok(json!({"cancelled": version.to_string()}))
     }
 
     /// The offer to go back, while it stands: (the running version, the kept one).
@@ -320,6 +558,10 @@ impl MailApp {
         self.updates_at_start();
         self.poll_update_check();
         self.poll_update_download();
+        // A download's progress, as it comes.
+        if self.updates.downloading.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        }
         // (Working offline, nothing is checked by itself: the check is due again once it is off.)
         if self.ui.update_check != UpdateCheck::On || !may_check_by_itself(&self.services) || self.updates.pending.is_some() || self.offline() {
             return;
@@ -357,30 +599,77 @@ impl MailApp {
             && self.installs_updates()
             && !release.version.is_pre_release()
             && release.version.to_string() != self.ui.update_skip
+            && self.updates.declined.as_ref() != Some(&release.version);
+        if wanted {
+            self.start_download(release, false);
+        }
+    }
+
+    /// Hand the download of `release` to the host, unless it is downloaded or a download is on its
+    /// way already (one at a time: they share the folder); `owner`: the owner pressed Update.
+    /// Only for a newer version that isn't a pre-release, on a copy that updates itself.
+    fn start_download(&mut self, release: &Release, owner: bool) {
+        let fits = !release.version.is_pre_release()
+            && !self.services.development_build
             && running().is_some_and(|running| release.version.is_newer_than(&running))
-            && self.updates.downloaded.as_ref() != Some(&release.version)
-            && self.updates.downloading.as_ref().is_none_or(|(_, v)| *v != release.version);
-        let Some(download) = self.services.update_download.as_ref().filter(|_| wanted) else { return };
-        self.updates.downloading = Some((download(release.clone()), release.version.clone()));
+            && self.updates.downloaded.as_ref() != Some(&release.version);
+        if !fits {
+            return;
+        }
+        if let Some(d) = self.updates.downloading.as_mut() {
+            if d.version == release.version && !d.progress.cancelled() {
+                d.owner |= owner;
+            }
+            return;
+        }
+        let Some(download) = self.services.update_download.as_ref() else { return };
+        let progress = Progress::default();
+        let rx = download(release.clone(), progress.clone());
+        self.updates.downloading = Some(Downloading { rx, version: release.version.clone(), progress, owner });
     }
 
     fn poll_update_download(&mut self) {
-        let Some((rx, version)) = &self.updates.downloading else { return };
-        let answer = match rx.try_recv() {
+        let Some(d) = &self.updates.downloading else { return };
+        let answer = match d.rx.try_recv() {
             Ok(answer) => answer,
             Err(TryRecvError::Empty) => return,
             Err(TryRecvError::Disconnected) => Err("the download stopped unexpectedly".to_string()),
         };
-        let version = version.clone();
-        self.updates.downloading = None;
-        // One line in the log, naming no address (the host's words name none); the owner is told
-        // the notice and nothing more.
+        let Some(Downloading { version, progress, owner, .. }) = self.updates.downloading.take() else { return };
+        // Cancelled: whatever came of it, nothing of it is to be installed in this run.
+        if progress.cancelled() {
+            log::info!("the download of MailCraft {version} was cancelled");
+            let said = crate::i18n::fmt(tl!("The download of MailCraft {version} was cancelled."), &[("version", &version.to_string())]);
+            self.status(said.clone());
+            self.updates.said = Some(said);
+            return;
+        }
+        // One line in the log, naming no address (the host's words name none). A download by
+        // itself is told only by the notice; one the owner pressed Update for is said.
         match answer {
             Ok(_) => {
                 log::info!("MailCraft {version} is downloaded and checked by its release signature");
+                if owner {
+                    let said = crate::i18n::fmt(
+                        tl!("MailCraft {version} is downloaded and checked: restart to update."),
+                        &[("version", &version.to_string())],
+                    );
+                    self.status(said.clone());
+                    self.updates.said = Some(said);
+                }
                 self.updates.downloaded = Some(version);
             }
-            Err(why) => log::info!("MailCraft {version} wasn't downloaded: {why}"),
+            Err(why) => {
+                log::info!("MailCraft {version} wasn't downloaded: {why}");
+                if owner {
+                    let said = crate::i18n::fmt(
+                        tl!("MailCraft {version} couldn't be downloaded: {why}."),
+                        &[("version", &version.to_string()), ("why", &why)],
+                    );
+                    self.status(said.clone());
+                    self.updates.said = Some(said);
+                }
+            }
         }
     }
 
@@ -410,8 +699,13 @@ impl MailApp {
                     self.ui.update_told = version;
                     self.updates.said = pressed.then_some(said);
                     self.begin_update_download(&release, asker);
+                    // The owner pressed Update before the release's files were known.
+                    if self.updates.then.take().is_some() && !self.services.updates_turned_off_by_organisation {
+                        self.go_on_with_update(&release);
+                    }
                     self.updates.newer = Some(release);
                 } else {
+                    self.updates.then = None;
                     self.updates.newer = None;
                     if pressed {
                         let said = crate::i18n::fmt(tl!("MailCraft is up to date ({version})."), &[("version", env!("CARGO_PKG_VERSION"))]);
@@ -424,6 +718,8 @@ impl MailApp {
                 // (The host's words name no address.)
                 log::info!("couldn't find out whether a new version of MailCraft is out: {why}");
                 self.updates.retry_at = now.saturating_add(AFTER_A_FAILURE);
+                // The owner's press of Update waited for this: said as a press of Check for Updates is.
+                let pressed = pressed || self.updates.then.take().is_some();
                 if pressed {
                     let said = crate::i18n::fmt(tl!("Couldn't find out whether a new version is out: {why}."), &[("why", &why)]);
                     self.status(said.clone());
@@ -494,6 +790,15 @@ fn install_setting(app: &MailApp) -> &'static str {
     }
 }
 
+/// What Update offers, as `ui.updateCheck` says it.
+fn offer_code(offer: Option<Offer>) -> &'static str {
+    match offer {
+        Some(Offer::Update) => "update",
+        Some(Offer::Download) => "download",
+        None => "none",
+    }
+}
+
 /// What `ui.updateCheck` answers: the setting, and what is known.
 fn update_state(app: &MailApp) -> Value {
     let newer = app.newer_release();
@@ -502,6 +807,10 @@ fn update_state(app: &MailApp) -> Value {
             "value": app.installs_updates(),
             "setting": install_setting(app),
             "downloading": app.updates.downloading.is_some(),
+            "progress": app.updates.downloading.as_ref().and_then(|d| d.progress.fraction()),
+            "cancelling": app.updates.downloading.as_ref().is_some_and(|d| d.progress.cancelled()),
+            "chosen": app.updates.chosen.as_ref().map(ToString::to_string),
+            "opened": app.updates.opened,
             "downloaded": app.updates.downloaded.as_ref().map(ToString::to_string),
             "ready": app.update_ready().map(ToString::to_string),
             "restart": app.updates.restart,
@@ -512,7 +821,7 @@ fn update_state(app: &MailApp) -> Value {
         "setting": app.ui.update_check.code(),
         "asked": app.ui.update_asked,
         "version": env!("CARGO_PKG_VERSION"),
-        "newer": newer.as_ref().map(|r| json!({"version": r.version.to_string(), "security": r.security, "page": r.page})),
+        "newer": newer.as_ref().map(|r| json!({"version": r.version.to_string(), "security": r.security, "page": r.page, "offer": offer_code(app.offer(r))})),
         "checking": app.updates.pending.is_some(),
     })
 }
@@ -527,7 +836,7 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
         bar(app, ui, "update_go_back", &said, &[("goBack", &back, true), ("keepVersion", tl!("Keep this version"), false)], |app, which| {
             let _ = if which == "goBack" { app.run(GO_BACK, json!({})) } else { app.run("ui.dismissUpdateNotice", json!({"notice": "didntStart"})) };
         });
-    } else if app.update_ready().is_some() && !app.ui.update_install_told {
+    } else if app.update_ready().is_some() && !app.ui.update_install_told && !app.ready_by_choice() {
         bar(app, ui, "update_installs_itself", tl!(INSTALLS_ITSELF), &[("installsItselfOk", tl!("OK"), false)], |app, _| {
             let _ = app.run("ui.dismissUpdateNotice", json!({"notice": "installsItself"}));
         });
@@ -609,11 +918,77 @@ fn ready_text(app: &MailApp, version: &Version) -> String {
     crate::i18n::fmt(text, &[("version", &version.to_string())])
 }
 
+/// Where the status bar remembers how far the bar of an update's download got.
+const DOWNLOAD_BAR: &str = "status_update_bar";
+
+/// The label of the button under the notice, and what hovering over it says.
+fn offer_words(offer: Offer) -> (&'static str, &'static str) {
+    match offer {
+        Offer::Update => (
+            tl!("Update"),
+            tl!(
+                "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+            ),
+        ),
+        Offer::Download => {
+            (tl!("Download update"), tl!("Open this version's file for your computer in the browser (its page when no single file fits)."))
+        }
+    }
+}
+
+/// What is said of a download on its way: "Downloading MailCraft X… 42%".
+fn downloading_text(d: &Downloading) -> String {
+    let version = d.version.to_string();
+    if d.progress.cancelled() {
+        return tl!("Cancelling…").to_string();
+    }
+    match d.progress.fraction() {
+        Some(fraction) => {
+            let percent = format!("{:.0}", f64::from(fraction) * 100.0);
+            crate::i18n::fmt(tl!("Downloading MailCraft {version}… {percent}%"), &[("version", &version), ("percent", &percent)])
+        }
+        None => crate::i18n::fmt(tl!("Downloading MailCraft {version}…"), &[("version", &version)]),
+    }
+}
+
 /// The status bar, laid out right to left: "Version X is ready: **Restart to update**", while a
-/// new version is downloaded, checked and to be installed.
+/// new version is downloaded, checked and to be installed; else the download the owner pressed
+/// Update for, its progress and Cancel; else "MailCraft X is available: **Update**" (or
+/// **Download update**) while a newer version is known.
 pub(crate) fn status_item(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
-    let Some(version) = app.update_ready().cloned() else { return };
     let size = crate::chrome::STATUS_TEXT;
+    let Some(version) = app.update_ready().cloned() else {
+        if let Some(d) = app.updates.downloading.as_ref().filter(|d| d.owner) {
+            let (label, fraction, cancelling) = (downloading_text(d), d.progress.fraction().unwrap_or(0.0), d.progress.cancelled());
+            if !cancelling {
+                let cancel = ui.link(egui::RichText::new(tl!("Cancel")).size(size));
+                app.hit.add("cancelUpdateDownload", 0, cancel.rect);
+                if cancel.clicked() {
+                    let _ = app.run(CANCEL, json!({}));
+                }
+                ui.add_space(6.0);
+            }
+            let (resp, track) = crate::chrome::progress_bar(ui, t, &label, fraction, DOWNLOAD_BAR);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &label));
+            app.hit.add("updateDownloadBar", 0, track);
+            ui.add_space(10.0);
+            return;
+        }
+        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(DOWNLOAD_BAR)));
+        let Some(release) = app.newer_release() else { return };
+        let Some(offer) = app.offer(&release) else { return };
+        let (label, hover) = offer_words(offer);
+        let link = ui.link(egui::RichText::new(label).size(size).strong().color(t.accent_text));
+        app.hit.add("statusUpdate", 0, link.rect);
+        let link = link.on_hover_text(hover);
+        let said = ui.label(egui::RichText::new(format!("{}:", notice(&release))).size(size).color(t.text_dim));
+        app.hit.add("updateAvailable", 0, said.rect);
+        ui.add_space(10.0);
+        if link.clicked() {
+            let _ = app.run(DOWNLOAD, json!({}));
+        }
+        return;
+    };
     let link = ui.link(egui::RichText::new(tl!("Restart to update")).size(size).strong().color(t.accent_text));
     app.hit.add("restartToUpdate", 0, link.rect);
     let link = link.on_hover_text(tl!("Close MailCraft, install the new version and start it again. Otherwise it is installed when you quit."));
@@ -651,6 +1026,27 @@ pub(crate) fn about(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 }
             });
             ui.label(egui::RichText::new(tl!("Not now: it is installed when you quit MailCraft.")).color(t.text_dim));
+        } else if let Some(d) = app.updates.downloading.as_ref().filter(|d| d.version == release.version) {
+            // On its way (the owner's, or by itself): how far, and Cancel.
+            let (label, fraction, cancelling) = (downloading_text(d), d.progress.fraction(), d.progress.cancelled());
+            ui.horizontal(|ui| {
+                ui.label(label);
+                let bar = egui::ProgressBar::new(fraction.unwrap_or(0.0)).desired_width(180.0).fill(t.accent);
+                let bar = ui.add(if fraction.is_some() { bar } else { bar.animate(true) });
+                app.hit.add("aboutUpdateProgress", 0, bar.rect);
+                let cancel = ui.add_enabled(!cancelling, egui::Button::new(tl!("Cancel")));
+                app.hit.add("aboutCancelUpdate", 0, cancel.rect);
+                if cancel.clicked() {
+                    let _ = app.run(CANCEL, json!({}));
+                }
+            });
+        } else if let Some(offer) = app.offer(&release) {
+            let (label, hover) = offer_words(offer);
+            let pressed = primary_button(ui, label, true);
+            app.hit.add(if offer == Offer::Update { "aboutUpdate" } else { "aboutDownloadUpdate" }, 0, pressed.rect);
+            if pressed.on_hover_text(hover).clicked() {
+                let _ = app.run(DOWNLOAD, json!({}));
+            }
         }
     }
     if let Some(said) = app.updates.start_notice.clone() {
@@ -718,9 +1114,14 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.dismissUpdateNotice" => app.dismiss_update_notice(p),
         // The owner's clicks alone ([`MailApp::run`]).
         RESTART | GO_BACK => Err(tl!(OWNERS_CLICK).to_string()),
+        DOWNLOAD | CANCEL => Err(tl!(UPDATE_OWNERS_CLICK).to_string()),
         _ => return None,
     })
 }
+
+#[cfg(test)]
+#[path = "update_button_tests.rs"]
+mod update_button_tests;
 
 #[cfg(test)]
 mod tests {
@@ -980,7 +1381,7 @@ mod tests {
     fn downloading(mut services: Services, answer: Result<PathBuf, String>) -> (Services, Arc<Mutex<Vec<String>>>) {
         let asked = Arc::new(Mutex::new(Vec::new()));
         let kept = asked.clone();
-        services.update_download = Some(Box::new(move |release: Release| {
+        services.update_download = Some(Box::new(move |release: Release, _| {
             kept.lock().unwrap().push(release.version.to_string());
             let (tx, rx) = std::sync::mpsc::channel();
             let _ = tx.send(answer.clone());

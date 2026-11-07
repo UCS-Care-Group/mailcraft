@@ -627,7 +627,7 @@ const OPEN_BAR: &str = "status_open_bar";
 
 /// A label and a bar that fills as `fraction` goes from 0 to 1, in the status bar: the bar never
 /// goes back while it is shown (`key` remembers how far it got). Returns the whole and the bar.
-fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) -> (egui::Response, Rect) {
+pub(crate) fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) -> (egui::Response, Rect) {
     let font = regular(STATUS_TEXT);
     let gap = 8.0;
     let label_w = text_width(ui.painter(), label, &font, 0.0, t.text_dim).min(220.0);
