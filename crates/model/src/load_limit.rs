@@ -69,6 +69,11 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
     deserializer.deserialize_seq(V(PhantomData))
 }
 
+/// `deserialize_with` for the messages of a mailbox ([`crate::Messages`]).
+pub(crate) fn capped_messages<'de, D: Deserializer<'de>>(deserializer: D) -> Result<crate::Messages, D::Error> {
+    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::from)
+}
+
 /// `deserialize_with` for a list of ids a file may have got wrong (the owner's order of the
 /// accounts, #702): every entry counts as it is read; an entry that isn't an id, and a value that
 /// isn't a list, is passed over without being held, and never costs the owner the whole file.

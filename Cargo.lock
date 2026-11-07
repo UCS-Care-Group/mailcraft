@@ -1682,6 +1682,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "log",
  "peniko",
+ "png 0.18.1",
  "skrifa 0.44.0",
  "smallvec",
  "vello_common",
@@ -2245,7 +2246,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "mailcraft"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "apple-native-keyring-store",
  "arboard",
@@ -2287,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-charset"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "base64 0.23.1",
  "encoding_rs",
@@ -2296,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-cli"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-engine",
@@ -2311,14 +2312,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-control-key"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ring",
 ]
 
 [[package]]
 name = "mailcraft-dav"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-ical",
  "mailcraft-model",
@@ -2330,7 +2331,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-engine"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "image",
  "libc",
@@ -2355,7 +2356,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ews"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "hmac",
  "log",
@@ -2370,7 +2371,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-html"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-link",
  "mailcraft-names",
@@ -2380,14 +2381,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-i18n"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "mailcraft-ical"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-model",
  "mailcraft-time",
@@ -2396,7 +2397,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "log",
  "mailcraft-charset",
@@ -2409,7 +2410,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-link"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-names",
  "proptest",
@@ -2417,7 +2418,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mcp"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "log",
  "mailcraft-control-key",
@@ -2427,7 +2428,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-html",
@@ -2439,7 +2440,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
@@ -2454,14 +2455,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-names"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "mailcraft-net"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "flate2",
  "log",
@@ -2482,7 +2483,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-proto"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "log",
  "mailcraft-charset",
@@ -2492,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-pst"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-charset",
  "proptest",
@@ -2500,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-time"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "jiff",
  "js-sys",
@@ -2510,10 +2511,11 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ui-egui"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "egui",
  "egui_kittest",
+ "epaint",
  "image",
  "js-sys",
  "log",
@@ -2534,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-vcard"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-model",
@@ -2544,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-web"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "eframe",
  "egui",
@@ -4764,6 +4766,7 @@ dependencies = [
  "guillotiere",
  "log",
  "peniko",
+ "png 0.18.1",
  "smallvec",
  "thiserror 2.0.21",
 ]
@@ -4777,6 +4780,7 @@ dependencies = [
  "bytemuck",
  "glifo",
  "hashbrown 0.17.1",
+ "png 0.18.1",
  "vello_common",
 ]
 
@@ -5645,7 +5649,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "image",
  "mailcraft-charset",

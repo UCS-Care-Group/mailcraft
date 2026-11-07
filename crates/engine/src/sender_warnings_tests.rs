@@ -200,7 +200,7 @@ fn hostile_messages_never_panic_mail_get() {
 }
 
 fn banner_dismissed(s: &mut Session, subject: &str) -> bool {
-    let m = s.mailbox.messages[&id_of(s, subject)].clone();
+    let m = s.mailbox.messages.get(&id_of(s, subject)).unwrap().clone();
     let warnings = s.sender_warnings(&m, true);
     mailcraft_model::sender_warnings::dismissed(&warnings, &m.warnings_dismissed)
 }
@@ -248,4 +248,31 @@ fn an_agent_may_not_hide_a_warning() {
     let (s, _) = imap(vec![mail("Lin", "lin@harborwork.example", "Odd")]);
     let params = json!({"ids": [id_of(&s, "Odd")]});
     assert!(matches!(check(&s, "mail.dismissWarnings", &params, &[]), Verdict::Ask(Class::Settings, _)));
+}
+
+/// Whoever mail in Sent Items went to is known while that mail is there: moved in, moved out,
+/// undone, deleted for good, among many messages of other chunks.
+#[test]
+fn the_people_mail_went_to_are_known_while_it_is_in_sent_items() {
+    // Enough mail that the messages lie in several chunks of the mailbox's map.
+    let many: Vec<Message> = (0..2_500).map(|i| mail(&format!("sender{i}@lumen.example"), "avery@lumen.example", "Hello")).collect();
+    let (mut s, account) = imap(many);
+    let sent = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let who = "sol.reyes@harborworks.example";
+    let first = s.mailbox.messages_in(inbox).map(|m| m.id).next().unwrap();
+    // (Written with capitals and a space after it: known by the address as it is compared.)
+    s.mailbox.message_mut(first).unwrap().to = vec![Address::new("Sol Reyes", "Sol.Reyes@Harborworks.example ")];
+    assert!(!s.knows(who), "in the Inbox: not mail sent to them");
+    let id = first;
+    s.run("mail.move", &json!({"id": id, "folder": sent})).unwrap();
+    assert!(s.knows(who), "in Sent Items");
+    s.run("mail.move", &json!({"id": id, "folder": inbox})).unwrap();
+    assert!(!s.knows(who), "moved out of it");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.knows(who), "the move out undone");
+    s.run("mail.deletePermanently", &json!({"id": id})).unwrap();
+    assert!(!s.knows(who), "deleted for good");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.knows(who), "and that undone");
 }

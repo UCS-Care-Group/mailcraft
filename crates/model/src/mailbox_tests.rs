@@ -121,8 +121,8 @@ fn snapshots_share_messages_until_one_changes() {
     let b = mb.add_message(mail(inbox, "Two", 2)).unwrap();
     let snapshot = mb.clone();
     mb.message_mut(a).unwrap().read = true;
-    assert!(!Arc::ptr_eq(&mb.messages[&a], &snapshot.messages[&a]));
-    assert!(Arc::ptr_eq(&mb.messages[&b], &snapshot.messages[&b]));
+    assert!(!Arc::ptr_eq(mb.messages.get(&a).unwrap(), snapshot.messages.get(&a).unwrap()));
+    assert!(Arc::ptr_eq(mb.messages.get(&b).unwrap(), snapshot.messages.get(&b).unwrap()));
     assert!(!snapshot.message(a).unwrap().read);
 }
 

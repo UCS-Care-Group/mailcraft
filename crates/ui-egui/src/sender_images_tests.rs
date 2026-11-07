@@ -50,7 +50,7 @@ fn window(answer: impl Fn(&str) -> Result<Vec<u8>, String> + 'static) -> (MailAp
     .into_iter()
     .map(|m| mailbox.add_message(m).unwrap())
     .collect();
-    let shown = ids.iter().map(|id| (*mailbox.messages[id]).clone()).collect();
+    let shown = ids.iter().map(|id| (**mailbox.messages.get(id).unwrap()).clone()).collect();
     let asked = Arc::new(Mutex::new(Vec::new()));
     let noted = asked.clone();
     let services = Services {

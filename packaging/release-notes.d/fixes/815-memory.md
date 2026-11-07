@@ -1,1 +1,0 @@
-- Importing a large .pst file no longer fills the computer's memory: attachments are written to the mailbox's content folder as they are read, each distinct file once, instead of being held until the import is saved ([#815](https://github.com/GITHUB_REPOSITORY/issues/815)).

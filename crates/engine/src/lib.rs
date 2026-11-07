@@ -422,6 +422,8 @@ mod import_tree_progress_tests;
 #[cfg(test)]
 mod import_tree_tests;
 #[cfg(test)]
+mod list_sort_tests;
+#[cfg(test)]
 mod pop_out_tests;
 #[cfg(test)]
 mod send_warnings_tests;
