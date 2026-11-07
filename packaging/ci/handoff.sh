@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hand files from one release job to another by digest (docs/releasing.md › The release workflow).
+# Hand files from one release job to another by digest (docs/releasing.md).
 #
 #   packaging/ci/handoff.sh seal <dir> <name>
 #       Writes <dir>/<name>.sha256 (the SHA-256 of every file under <dir>, `sha256sum` format)
@@ -91,6 +91,8 @@ check() {
 }
 
 TMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+# Git Bash on Windows: RUNNER_TEMP is a Windows path.
+if command -v cygpath >/dev/null 2>&1; then TMP="$(cygpath -u "$TMP")"; fi
 RUNNER_TEMP_LIST="$(mktemp "$TMP/handoff.XXXXXX")"
 trap 'rm -f "$RUNNER_TEMP_LIST" "$RUNNER_TEMP_LIST".*' EXIT
 

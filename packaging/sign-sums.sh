@@ -44,6 +44,7 @@ checked_openssl() {
         echo "::error::$file isn't as its package (${pkg:-none}) installed it"
         exit 1
       fi
+      # shellcheck disable=SC2016 # dpkg-query's own format, not the shell's
       echo "$file: $pkg $(dpkg-query -W -f='${Version}' "$pkg"), as installed"
     done
     echo "signing with $(openssl version)"

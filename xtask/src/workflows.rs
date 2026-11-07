@@ -72,7 +72,7 @@ pub fn run(root: &Path) -> Result<(), String> {
         for p in &problems {
             eprintln!("{p}");
         }
-        Err(format!("{} problem(s) in the workflows (docs/releasing.md › The release workflow)", problems.len()))
+        Err(format!("{} problem(s) in the workflows (docs/releasing.md)", problems.len()))
     }
 }
 
