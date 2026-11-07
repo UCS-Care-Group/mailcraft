@@ -90,7 +90,8 @@ fn body(out: &mut String, text: &str) {
             if room == 0 {
                 return None;
             }
-            let line: String = line.chars().filter(|c| !c.is_control() || *c == '\t').take(room).collect();
+            // Each line as a name is shown: no controls, nothing that turns or hides the text.
+            let line = mailcraft_names::shown(line, room);
             room = room.saturating_sub(line.chars().count().max(1));
             Some(line)
         })
@@ -182,7 +183,7 @@ pub(crate) fn contact_notes(s: &Session, c: &Contact) -> String {
 
 /// A title for the task, as `tasks.new` keeps one: one line, at most 500 characters.
 fn title_of(text: &str, otherwise: &str) -> String {
-    let title: String = text.replace(['\r', '\n'], " ").trim().chars().take(500).collect();
+    let title = mailcraft_names::shown(&text.replace(['\r', '\n'], " "), 500);
     if title.is_empty() { otherwise.to_string() } else { title }
 }
 

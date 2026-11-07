@@ -231,3 +231,62 @@ fn one_of_the_next_appointments_dragged_onto_the_tasks_becomes_one() {
     assert!(s.mailbox.tasks.values().any(|t| t.title == title), "a task named {title}");
     assert_eq!(s.view.module, Module::Mail);
 }
+
+/// Review of #831: with the bar's tasks on, a calendar drag also carries its appointment, and
+/// egui takes Escape for that; Escape still gives the move up.
+#[test]
+fn escape_still_gives_up_a_move_in_the_calendar_with_the_bar_on() {
+    let mut w = window_of(sample(), "view.calendar", 800.0);
+    w.state_mut().execute("view.week", json!({})).unwrap();
+    bar(&mut w, &["tasks"]);
+    let s = &w.state().session;
+    let today = s.today();
+    let shown = mailcraft_engine::cmd::calendar::occurrences(s, today, today.add_days(3));
+    let o = shown.iter().find(|o| s.mailbox.event(o.event).is_some_and(|e| !e.all_day && e.recurrence.is_none())).copied().unwrap();
+    let start = s.mailbox.event(o.event).unwrap().start;
+    let block = hit(&w, "event", o.event).unwrap();
+    let (from, to) = (block.center(), block.center() + egui::vec2(0.0, 90.0));
+    w.run_steps(45);
+    w.input_mut().events.push(Event::PointerMoved(from));
+    w.step();
+    w.input_mut().events.push(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    w.step();
+    for i in 1..=8u8 {
+        w.input_mut().events.push(Event::PointerMoved(from + (to - from) * (f32::from(i) / 8.0)));
+        w.step();
+    }
+    testing::key(&mut w, egui::Key::Escape);
+    w.input_mut().events.push(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    w.run_steps(3);
+    let s = &w.state().session;
+    assert_eq!(s.mailbox.event(o.event).map(|e| e.start), Some(start), "Escape gave the move up");
+    // Without Escape the same drag moves it, as before.
+    let tasks = s.mailbox.tasks.len();
+    drag(&mut w, from, to);
+    assert_ne!(w.state().session.mailbox.event(o.event).map(|e| e.start), Some(start));
+    assert_eq!(w.state().session.mailbox.tasks.len(), tasks, "no task: it wasn't let go over the bar");
+}
+
+/// Review of #831: only the main button carries a contact to the tasks.
+#[test]
+fn a_contact_dragged_with_another_button_makes_no_task() {
+    let mut w = window_of(sample(), "view.mail", 800.0);
+    bar(&mut w, &["people", "tasks"]);
+    let favourite = *favourites(&w.state().session.mailbox).first().unwrap();
+    let from = hit(&w, "todoContact", favourite).unwrap().center();
+    let drop = hit(&w, "todoTaskDrop", 0).unwrap();
+    let to = pos2(drop.center().x, drop.max.y - 20.0);
+    let tasks = w.state().session.mailbox.tasks.len();
+    w.run_steps(45);
+    w.input_mut().events.push(Event::PointerMoved(from));
+    w.step();
+    w.input_mut().events.push(Event::PointerButton { pos: from, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE });
+    w.step();
+    for i in 1..=12u8 {
+        w.input_mut().events.push(Event::PointerMoved(from + (to - from) * (f32::from(i) / 12.0)));
+        w.step();
+    }
+    w.input_mut().events.push(Event::PointerButton { pos: to, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+    w.run_steps(3);
+    assert_eq!(w.state().session.mailbox.tasks.len(), tasks);
+}

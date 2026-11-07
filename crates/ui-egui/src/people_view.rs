@@ -635,7 +635,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
     let sense = if takes { Sense::click_and_drag() } else { Sense::click() };
     let resp = ui.interact(rect, ui.scope_id().with(("contact", id, copy)), sense);
     app.hit.add("contact", id, rect);
-    if takes && resp.drag_started() {
+    if takes && resp.drag_started_by(egui::PointerButton::Primary) {
         // The contacts picked together when the row is one of them, else the row's.
         let ids = if app.people_picked.contains(&id) && app.people_picked.len() >= 2 { app.people_picked.to_vec() } else { vec![id] };
         resp.dnd_set_drag_payload(crate::todo_bar::ContactDrag(ids));

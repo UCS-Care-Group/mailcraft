@@ -159,6 +159,14 @@ fn what_an_item_says_is_copied_within_bounds_and_named_wrongly_it_makes_nothing(
     assert!(task.notes.lines().count() <= 220);
     assert!(!task.notes.contains('\u{7}') && !task.notes.contains('\r'));
     assert!(task.notes.contains("Where: Upstairs Injected: header"), "{}", task.notes);
+    // Nothing that turns or hides text comes through, in the title or the notes.
+    let turned = event(&mut s, "Pay \u{202E}eciovni\u{200B} now\u{1b}");
+    s.mailbox.event_mut(turned).unwrap().description = "Line \u{202E}one".into();
+    let made = run(&mut s, "tasks.fromEvent", json!({"id": turned, "show": false}));
+    let task = s.mailbox.task(made["id"].as_u64().unwrap()).unwrap().clone();
+    for c in ['\u{202E}', '\u{200B}', '\u{1b}'] {
+        assert!(!task.title.contains(c) && !task.notes.contains(c), "{c:?} in {task:?}");
+    }
     let tasks = s.mailbox.tasks.len();
     for wrong in [json!({"id": 999_999}), json!({"id": "7"}), json!({"id": null}), json!({"id": id, "extra": 1}), json!({"id": id, "show": "no"})] {
         assert!(s.run("tasks.fromEvent", &wrong).is_err(), "{wrong}");

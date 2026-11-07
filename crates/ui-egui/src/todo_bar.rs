@@ -547,7 +547,7 @@ fn upcoming(app: &mut MailApp, ui: &mut Ui, count: usize) {
         let sense = if takes { Sense::click_and_drag() } else { Sense::click() };
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), EVENT_H), sense);
         app.hit.add("todoEvent", ev.id, rect);
-        if takes {
+        if takes && resp.drag_started_by(egui::PointerButton::Primary) {
             resp.dnd_set_drag_payload(EventDrag { event: ev.id, day: o.day });
         }
         let selected = app.session.sel.event == Some(ev.id);
@@ -638,7 +638,7 @@ fn people_rows(app: &mut MailApp, ui: &mut Ui, list: &[Id]) {
         let sense = if takes { Sense::click_and_drag() } else { Sense::click() };
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), PERSON_H), sense);
         app.hit.add("todoContact", id, rect);
-        if takes {
+        if takes && resp.drag_started_by(egui::PointerButton::Primary) {
             resp.dnd_set_drag_payload(ContactDrag(vec![id]));
         }
         if app.session.sel.contact == Some(id) {

@@ -78,6 +78,8 @@ const MINI_MONTH_ID: &str = "calendar_mini_month";
 const NAV_DRAG_ID: &str = "calendar_nav_drag";
 const GRID_VIEW_ID: &str = "calendar_grid_view";
 const DRAG_ID: &str = "calendar_drag";
+/// Whether the drag going on also carries its appointment for the To-Do Bar's tasks (#831).
+const CARRIED_ID: &str = "calendar_drag_carried";
 /// Where the question a drop with the right button asks is kept until it is answered.
 const DROP_MENU_ID: &str = "calendar_drop_menu";
 /// Where the last frame leaves the next one where the parts of the calendar were, and whether
@@ -2596,9 +2598,11 @@ impl Frame {
             let grip = if menu { Grip::Move } else { grip_of(rect, press, piece) };
             // Moved with the main button, it may also be let go over the To-Do Bar's tasks, to
             // become one (#831); anywhere else the calendar moves it as before.
-            if !menu && grip == Grip::Move && crate::todo_bar::takes_drops(ui.ctx()) {
+            let carried = !menu && grip == Grip::Move && crate::todo_bar::takes_drops(ui.ctx());
+            if carried {
                 egui::DragAndDrop::set_payload(ui.ctx(), crate::todo_bar::EventDrag { event: item.ev.id, day: item.occ.day });
             }
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(CARRIED_ID), carried));
             self.drag = Some(Drag {
                 event: item.ev.id,
                 start,
@@ -2643,6 +2647,18 @@ impl Frame {
         // Escape gives the drag up, when it is the main window's (#406).
         let escape = crate::keys::escape(ui.ctx(), ui.layer_id());
         drag.cancelled |= escape;
+        // A drag that also carries the appointment for the To-Do Bar (#831): egui takes Escape
+        // for itself and lets the appointment go, so the appointment gone before the button is
+        // let go is the drag given up, unless the To-Do Bar's tasks took it (they were under the
+        // pointer). Escape and the button can come in one frame.
+        let carried = ui.ctx().data(|d| d.get_temp::<bool>(egui::Id::unique(CARRIED_ID))).unwrap_or(false);
+        let gone = !egui::DragAndDrop::has_payload_of_type::<crate::todo_bar::EventDrag>(ui.ctx());
+        if carried && gone && !crate::todo_bar::over_tasks(ui.ctx()) {
+            drag.cancelled = true;
+        }
+        if self.dropped {
+            ui.ctx().data_mut(|d| d.remove::<bool>(egui::Id::unique(CARRIED_ID)));
+        }
         drag.copy = copy && drag.grip == Grip::Move && !drag.menu;
         // Over the To-Do Bar's tasks the appointment is theirs to take (#831): it goes nowhere here.
         let under = self.pointer.filter(|_| !crate::todo_bar::over_tasks(ui.ctx())).and_then(|pos| self.zones.under(pos));
