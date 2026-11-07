@@ -99,7 +99,7 @@ mod native {
     pub use crate::imap_fetch::fetch_imap;
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
-    pub use crate::sync::{sync, sync_with};
+    pub use crate::sync::{sync, sync_with, token_may_go_to};
 
     /// Whether this build can talk to mail servers.
     pub const AVAILABLE: bool = true;

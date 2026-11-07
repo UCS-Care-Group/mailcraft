@@ -89,6 +89,9 @@ pub enum Warning {
     /// [`hides`]) and which goes to `host`; `url` is where it goes, in full (an agent is given its
     /// first characters).
     LinkMismatch { text_host: String, host: String, url: String },
+    /// The message lays itself out in more ways (pane widths and themes) than were looked at, so
+    /// a link only one of the others shows was not compared.
+    LinksUnchecked,
 }
 
 impl Warning {
@@ -100,6 +103,7 @@ impl Warning {
             Warning::External { .. } => "external",
             Warning::LookalikeSender { .. } => "lookalikeSender",
             Warning::LinkMismatch { .. } => "linkMismatch",
+            Warning::LinksUnchecked => "linksUnchecked",
         }
     }
 
@@ -107,7 +111,7 @@ impl Warning {
         match self {
             Warning::FailedCheck(Failed::DmarcPolicyNone) => Level::Caution,
             Warning::FailedCheck(_) | Warning::NameHidesAddress { .. } => Level::Warning,
-            Warning::LookalikeSender { .. } | Warning::LinkMismatch { .. } => Level::Caution,
+            Warning::LookalikeSender { .. } | Warning::LinkMismatch { .. } | Warning::LinksUnchecked => Level::Caution,
             Warning::External { .. } => Level::Tag,
         }
     }
@@ -127,6 +131,7 @@ impl Warning {
             Warning::External { domain } => json!({"domain": domain}),
             Warning::LookalikeSender { domain, like } => json!({"domain": domain, "like": like}),
             Warning::LinkMismatch { text_host, host, url } => json!({"textHost": text_host, "host": host, "url": detail(url)}),
+            Warning::LinksUnchecked => json!({}),
         };
         if let (Some(o), Value::Object(more)) = (v.as_object_mut(), detail) {
             o.extend(more);
