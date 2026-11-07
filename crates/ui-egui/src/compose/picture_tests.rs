@@ -12,7 +12,7 @@ use crate::RichClipboard;
 
 /// A clipboard holding a picture (and perhaps HTML).
 #[derive(Clone, Default)]
-struct PictureBoard(std::rc::Rc<std::cell::RefCell<(Option<Vec<u8>>, Option<String>)>>);
+pub(super) struct PictureBoard(pub(super) std::rc::Rc<std::cell::RefCell<(Option<Vec<u8>>, Option<String>)>>);
 
 impl RichClipboard for PictureBoard {
     fn put(&self, _: &str, _: &str) -> Result<(), String> {
@@ -32,7 +32,7 @@ fn png(extra: usize) -> Vec<u8> {
     v
 }
 
-fn writing_with(board: &PictureBoard) -> Window {
+pub(super) fn writing_with(board: &PictureBoard) -> Window {
     let mut a = app();
     a.services.clipboard = Some(Box::new(board.clone()));
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();

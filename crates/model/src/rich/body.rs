@@ -6,7 +6,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::find::{Place, moved};
-use super::{Format, ListKind, MAX_CHARS, RichText, Style};
+use super::{Align, Format, ListKind, MAX_CHARS, RichText, Style};
 use crate::ModelError;
 
 /// Most undo steps one message keeps.
@@ -492,6 +492,14 @@ impl RichBody {
         Ok(now)
     }
 
+    /// Align the ordinary paragraphs the selection touches (list items stay left).
+    pub fn set_align(&mut self, align: Align) -> Result<(), ModelError> {
+        let sel = self.selection;
+        self.edit(false, |t, _| t.set_align(sel.start(), sel.end(), align))?;
+        self.typing = None;
+        Ok(())
+    }
+
     /// Move the list items the selection touches a level deeper (`by` 1) or shallower (-1); an
     /// item at the outermost level that goes shallower leaves its list. Whether anything changed.
     pub fn indent(&mut self, by: i8) -> Result<bool, ModelError> {
@@ -514,13 +522,14 @@ impl RichBody {
         Ok(self.text != before)
     }
 
-    /// Plain text again: the selection loses its formatting and its paragraphs their bullets
-    /// and numbers. With nothing selected, the next typed character is plain.
+    /// Plain text again: the selection loses its formatting and its paragraphs their bullets,
+    /// numbers and alignment. With nothing selected, the next typed character is plain.
     pub fn clear_formatting(&mut self) -> Result<(), ModelError> {
         let sel = self.selection;
         self.edit(false, |t, _| {
             t.format(sel.start(), sel.end(), &Format::Clear)?;
-            t.set_list(sel.start(), sel.end(), ListKind::None)
+            t.set_list(sel.start(), sel.end(), ListKind::None)?;
+            t.set_align(sel.start(), sel.end(), Align::Left)
         })?;
         if sel.is_empty() {
             self.pending = Some(Style::default());

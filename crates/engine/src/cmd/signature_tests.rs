@@ -3,6 +3,7 @@
 //! Signatures through commands (R4.5.1): rich text, pictures, the two defaults, and mailboxes
 //! from before there were any of these.
 
+use mailcraft_model::rich::Align;
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -155,6 +156,36 @@ fn a_signature_with_a_logo_goes_out_with_the_picture_inside_the_message() {
     let back = mailcraft_mime::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
+}
+
+#[test]
+fn alignment_in_the_open_signature_is_saved_and_goes_out_inside_the_table_and_above_the_picture() {
+    let mut s = session();
+    logo(&mut s);
+    run(&mut s, "signature.open", json!({"name": "Logo"}));
+    // The line the logo stands in centred, the next one right.
+    run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+    run(&mut s, "format.align", json!({"value": "right", "from": 13}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    let aligns: Vec<Align> = s.mailbox.signature("Logo").unwrap().body().paragraphs().iter().map(|p| p.align).collect();
+    assert_eq!(aligns, [Align::Center, Align::Right]);
+    let sent = |s: &mut Session| {
+        run(s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+        run(s, "compose.formatHtml", json!({}));
+        let id = run(s, "compose.send", json!({}))["id"].as_u64().unwrap();
+        s.mailbox.message(id).unwrap().body.html.clone().unwrap()
+    };
+    // Beside the picture, its lines are aligned inside the text's cell.
+    let html = sent(&mut s);
+    assert!(
+        html.contains("<td style=\"vertical-align:top\">\r\n<div style=\"text-align:center\">Avery Quinn</div>\r\n<div style=\"text-align:right\">Lumen Studio</div>"),
+        "{html}"
+    );
+    // Above the text, the picture is centred as the line it stood in was.
+    run(&mut s, "signature.layout", json!({"name": "Logo", "value": "pictureAbove"}));
+    let html = sent(&mut s);
+    assert!(html.contains("<div style=\"text-align:center\"><img src=\"cid:sig-"), "{html}");
 }
 
 #[test]
