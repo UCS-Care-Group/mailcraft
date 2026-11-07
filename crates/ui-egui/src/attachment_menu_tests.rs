@@ -399,6 +399,22 @@ fn ctrl_c_on_a_picked_attachment_copies_the_file_and_not_the_text() {
     assert_eq!(put(&c).len(), 2);
 }
 
+/// The keyboard moving on from a picked attachment to another chip lets go of the pick: Ctrl+C
+/// copies the chip that has the keyboard, not the one clicked before.
+#[test]
+fn ctrl_c_copies_the_focused_chip_over_a_picked_one() {
+    let (mut h, c) = copying(&["first.pdf", "second.pdf"]);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    // Tab on to the second chip.
+    h.get_by_role_and_label(Role::Button, "second.pdf").focus();
+    h.run_steps(2);
+    h.event(egui::Event::Copy);
+    h.run_steps(2);
+    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/second.pdf")]]);
+    assert_eq!(*c.written.borrow(), vec![("second.pdf".to_string(), b"a1".to_vec())]);
+}
+
 /// After a click on an attachment, the list's keys are still the list's (Down goes on to the
 /// next message), and Escape lets go of the attachment.
 #[test]

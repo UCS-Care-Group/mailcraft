@@ -830,12 +830,14 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
     };
 }
 
-/// The attachment picked in a window (#807): its chip, where it was last drawn and in which frame.
+/// The attachment picked in a window (#807): its chip, where it was last drawn and in which frame,
+/// and the widget that had the keyboard then (none, or the one the click left it with).
 #[derive(Clone, Copy)]
 struct Picked {
     chip: egui::Id,
     rect: egui::Rect,
     frame: u64,
+    focus: Option<egui::Id>,
 }
 
 /// Where a window's picked attachment is noted.
@@ -850,16 +852,23 @@ fn picked(ctx: &egui::Context) -> Option<Picked> {
 
 /// A click picked the attachment whose chip is `chip`, at `rect` (#807): Ctrl+C now copies the
 /// file, as in Outlook. The chip is not given the keyboard (the list's keys stay the list's); the
-/// pick lasts until the pointer goes down anywhere else, Escape, or the chip is no longer shown.
+/// pick lasts until the pointer goes down anywhere else, Escape, the keyboard moves on to another
+/// widget (Tab to the next chip: Ctrl+C is that one's), or the chip is no longer shown.
 pub(super) fn pick_attachment(ctx: &egui::Context, chip: egui::Id, rect: egui::Rect) {
-    let pick = Picked { chip, rect, frame: super::images::frame(ctx) };
+    let pick = Picked { chip, rect, frame: super::images::frame(ctx), focus: ctx.memory(|m| m.focused()) };
     let key = picked_key(ctx.viewport_id());
     ctx.data_mut(|d| d.insert_temp(key, pick));
 }
 
-/// Whether the attachment whose chip is `chip` is picked; noted as still shown, at `rect`.
+/// Whether the attachment whose chip is `chip` is picked; noted as still shown, at `rect`. A
+/// widget other than the chip taking the keyboard since lets go of it.
 pub(super) fn attachment_picked(ctx: &egui::Context, chip: egui::Id, rect: egui::Rect) -> bool {
     let Some(p) = picked(ctx).filter(|p| p.chip == chip) else { return false };
+    let key = picked_key(ctx.viewport_id());
+    if ctx.memory(|m| m.focused()).is_some_and(|f| f != chip && Some(f) != p.focus) {
+        ctx.data_mut(|d| d.remove::<Picked>(key));
+        return false;
+    }
     pick_attachment(ctx, p.chip, rect);
     true
 }
