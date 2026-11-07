@@ -53,7 +53,7 @@ pub(crate) fn bounded_up(result: &mut EwsMailResult) {
     result.changes.retain(|done| match &done.outcome {
         ChangeOutcome::Done { folder } => folder_ok(folder),
         ChangeOutcome::Refused { why } => why.len() <= 4096,
-        ChangeOutcome::Gone => true,
+        ChangeOutcome::Gone | ChangeOutcome::NotShown { .. } => true,
     });
     result.messages.retain(message_ok);
     result.drafts.retain(draft_ok);
