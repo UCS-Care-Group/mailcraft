@@ -235,7 +235,7 @@ fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
 /// command take away an appointment the owner is changing: in that form, or in a window unless
 /// the owner said yes to what the window would lose (`unsaved`).
 /// `only`: of a folder's messages, the command takes none but these (the owner's yes, AU3-24).
-fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option<HashSet<u64>>) -> Outcome {
+fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option<agent::bind::Only>) -> Outcome {
     let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
     let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
     let owners = match &app.dialog {

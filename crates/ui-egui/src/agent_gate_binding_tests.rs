@@ -116,6 +116,9 @@ enum Setup {
     Folder,
     /// A change to the Safe Senders to undo, or (`true`) to redo.
     Step(bool),
+    /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
+    /// with other people, with a category.
+    Shared,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -234,13 +237,18 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("file.import", r#"{"data": "U3ViamVjdDogeA0KDQp5DQo=", "name": "x.eml", "folder": $outbox}"#, Setup::None),
     ("compose.close", "{}", Setup::Writing),
     ("ui.dialog", r#"{"name": "accountSettings", "page": "certificate"}"#, Setup::None),
+    // To Do that a Microsoft account keeps, and a list of it shared with other people.
+    ("tasks.edit", r#"{"title": "x"}"#, Setup::Shared),
+    ("tasks.complete", "{}", Setup::Shared),
+    ("tasks.categorize", r#"{"category": "Red category"}"#, Setup::Shared),
+    ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
+    ("tasks.fromMessage", "{}", Setup::Shared),
+    ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
 ];
 
-/// Asked about only for what the sample mailbox doesn't have (a dialog with changes the owner
-/// hasn't saved; a To Do list shared with other people; a Microsoft account's To Do): their
-/// questions are bound as every other's, and the table holds their places.
-const NOT_IN_THE_SAMPLE: &[&str] =
-    &["ui.closeDialog", "tasks.edit", "tasks.complete", "tasks.categorize", "tasks.new", "tasks.fromMessage", "category.rename"];
+/// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
+/// here: its question is bound as every other's, and the table holds its place.
+const NOT_IN_THE_SAMPLE: &[&str] = &["ui.closeDialog"];
 
 /// Every row: [`ROWS`], and each command of the calendar asked about when it writes to people.
 fn rows(a: &MailApp) -> Vec<(String, String, Setup)> {
@@ -304,6 +312,16 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             let made = a.execute("folder.new", json!({"name": "Old", "parent": i.inbox})).unwrap();
             let id = made["id"].as_u64().unwrap();
             a.execute("folder.select", json!({"id": id})).unwrap();
+        }
+        Setup::Shared => {
+            let mb = &mut a.session.mailbox;
+            mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+            mb.shared_task_lists.insert(i.account, ["L1".to_string()].into());
+            let t = mb.task_mut(i.task).unwrap();
+            t.origin.account = i.account;
+            t.origin.id = "t1".to_string();
+            t.list = "L1".to_string();
+            t.categories = vec!["Shared".to_string()];
         }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();
@@ -404,6 +422,37 @@ fn a_folder_deleted_with_messages_moved_into_it_meanwhile_isnt_deleted() {
     assert_eq!(rx.try_recv().unwrap()["ok"], false);
     assert!(a.session.mailbox.folder(made).is_some());
     assert_eq!(a.session.mailbox.message(i.message).unwrap().folder, made);
+}
+
+#[test]
+fn deleted_items_emptied_with_a_folder_moved_in_meanwhile_keeps_that_folder() {
+    let mut a = app();
+    let i = ids(&a);
+    let keep = a.execute("folder.new", json!({"name": "Keep", "parent": i.inbox})).unwrap()["id"].as_u64().unwrap();
+    let (now, rx) = agent(&mut a, "folder.empty", json!({"id": i.deleted}));
+    assert!(now.is_none(), "asked: {now:?}");
+    let (r, _) = agent(&mut a, "folder.move", json!({"id": keep, "parent": i.deleted}));
+    assert_eq!(r.unwrap()["ok"], true);
+    assert_eq!(a.session.mailbox.folder(keep).unwrap().parent, Some(i.deleted));
+    answer(&mut a, true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    assert!(a.session.mailbox.folder(keep).is_some(), "a folder that wasn't shown stays");
+}
+
+#[test]
+fn a_folder_deleted_with_a_folder_moved_into_it_meanwhile_isnt_deleted() {
+    let mut a = app();
+    let i = ids(&a);
+    let old = a.execute("folder.new", json!({"name": "Old", "parent": i.inbox})).unwrap()["id"].as_u64().unwrap();
+    let keep = a.execute("folder.new", json!({"name": "Keep", "parent": i.inbox})).unwrap()["id"].as_u64().unwrap();
+    let (now, rx) = agent(&mut a, "folder.delete", json!({"id": old}));
+    assert!(now.is_none());
+    let (r, _) = agent(&mut a, "folder.move", json!({"id": keep, "parent": old}));
+    assert_eq!(r.unwrap()["ok"], true);
+    answer(&mut a, true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    assert!(a.session.mailbox.folder(old).is_some());
+    assert_eq!(a.session.mailbox.folder(keep).unwrap().parent, Some(old));
 }
 
 #[test]

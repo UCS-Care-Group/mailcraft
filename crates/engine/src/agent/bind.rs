@@ -175,12 +175,34 @@ pub struct Shown {
     sel: Selection,
     view: ViewState,
     accounts: Vec<Id>,
-    /// The messages being written, whole (the current one first), as a digest keyed for this
-    /// question alone.
+    /// The messages being written, whole, each with its id, as a digest keyed for this question
+    /// alone.
     composing: u64,
     keys: RandomState,
-    /// A folder emptied or deleted, and the messages that go with it.
-    held: Option<(Id, HashSet<Id>)>,
+    /// A folder emptied or deleted, and the messages and folders that go with it.
+    held: Option<Held>,
+    /// Everybody a calendar command writes to, in full (the question names the first few).
+    people: Vec<String>,
+}
+
+/// A folder emptied or deleted, as the question showed it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Held {
+    folder: Id,
+    /// The messages that go with it.
+    messages: HashSet<Id>,
+    /// The folders that go with it: those deleted into Deleted Items that its emptying takes, or
+    /// the folder deleted and every folder under it.
+    folders: HashSet<Id>,
+}
+
+/// What of a folder's content the owner's yes reaches, when something came into it since the
+/// question was asked ([`Session::only_shown`]): the messages and the folders shown that are still
+/// there.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Only {
+    pub messages: HashSet<Id>,
+    pub folders: HashSet<Id>,
 }
 
 /// How far the owner's yes reaches.
@@ -188,9 +210,9 @@ pub struct Shown {
 pub enum Reach {
     /// What the command would do now is what the question showed.
     All,
-    /// Of a folder's messages, only these: those shown that are still there. What came in
-    /// meanwhile stays ([`Session::only_shown`]).
-    Only(HashSet<Id>),
+    /// Of a folder's messages and folders, only these: those shown that are still there. What
+    /// came in meanwhile stays ([`Session::only_shown`]).
+    Only(Only),
 }
 
 impl Shown {
@@ -209,6 +231,7 @@ impl Shown {
             composing: digest(&keys, s.all_composing()),
             keys,
             held,
+            people: people(s, object, params),
         })
     }
 
@@ -233,20 +256,26 @@ impl Shown {
         if window && !COUNTED.contains(&id) && (self.object != Object::FolderContent || s.view.folder != self.view.folder) {
             return changed();
         }
+        if people(s, self.object, params) != self.people {
+            return changed();
+        }
         if self.object == Object::FolderContent {
-            let (Some((folder, shown)), Some((now, holds))) = (&self.held, held(s, id, params)) else { return changed() };
-            if *folder != now {
+            let (Some(shown), Some(now)) = (&self.held, held(s, id, params)) else { return changed() };
+            if shown.folder != now.folder {
                 return changed();
             }
-            if holds.is_subset(shown) {
+            if now.messages.is_subset(&shown.messages) && now.folders.is_subset(&shown.folders) {
                 return Ok(Reach::All);
             }
             if id != "folder.empty" {
                 return Err(format!(
-                    "the folder `{id}` was asked about holds messages that came into it since the owner was asked, which would go with it: nothing was done. Ask the owner again"
+                    "the folder `{id}` was asked about holds messages or folders that came into it since the owner was asked, which would go with it: nothing was done. Ask the owner again"
                 ));
             }
-            return Ok(Reach::Only(holds.intersection(shown).copied().collect()));
+            return Ok(Reach::Only(Only {
+                messages: now.messages.intersection(&shown.messages).copied().collect(),
+                folders: now.folders.intersection(&shown.folders).copied().collect(),
+            }));
         }
         if !COUNTED.contains(&id) && super::describe(s, id, params) != self.what {
             return changed();
@@ -256,19 +285,36 @@ impl Shown {
 }
 
 /// The folder `folder.empty` or `folder.delete` with `params` acts on, as the command finds it,
-/// and the messages that go with it.
-fn held(s: &Session, id: &str, params: &Value) -> Option<(Id, HashSet<Id>)> {
+/// and the messages and folders that go with it.
+fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
     let folder = p::id_strict(params, "id").ok()?.unwrap_or(s.view.folder);
     s.mailbox.folder(folder)?;
-    let ids = if id == "folder.empty" { crate::cmd::folder::emptied(s, folder) } else { crate::cmd::folder::deleted_with(s, folder) };
-    Some((folder, ids.into_iter().collect()))
+    let (messages, folders) = if id == "folder.empty" {
+        (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))
+    } else {
+        (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))
+    };
+    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect() })
+}
+
+/// Everybody a calendar command would write to, in full: the question names only the first few.
+fn people(s: &Session, object: Object, params: &Value) -> Vec<String> {
+    if object != Object::Event {
+        return Vec::new();
+    }
+    let mut who = super::invitees(s, params);
+    who.extend(super::addresses(params.get("to")));
+    who
 }
 
 /// The messages being written, whole, in order, as one number keyed by `keys`: an agent can't
 /// write two that come to the same one without knowing the key.
 fn digest<'a>(keys: &RandomState, composing: impl Iterator<Item = &'a Compose>) -> u64 {
     let mut out = Digest(keys.build_hasher());
-    for c in composing {
+    // By id: which one is current changes as the windows take turns, not what they say.
+    let mut all: Vec<&Compose> = composing.collect();
+    all.sort_by_key(|c| c.id);
+    for c in all {
         out.0.write_u64(c.id);
         // Written into the hasher as it is made: a message's attachments aren't copied for it.
         if serde_json::to_writer(&mut out, c).is_err() {

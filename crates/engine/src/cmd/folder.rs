@@ -339,6 +339,11 @@ pub fn emptied(s: &Session, id: Id) -> Vec<Id> {
     ids
 }
 
+/// The folders `folder.empty` of `id` deletes: those that go with it and every folder under them.
+pub fn emptied_with(s: &Session, id: Id) -> Vec<Id> {
+    emptied_folders(s, id).into_iter().flat_map(|c| s.mailbox.subtree(c)).collect()
+}
+
 /// The messages `folder.delete` of `id` takes with the folder: those in it and under it.
 pub fn deleted_with(s: &Session, id: Id) -> Vec<Id> {
     held_under(s, &[id])
@@ -350,10 +355,15 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
     // On the owner's yes to an agent's question, only what the question showed goes
     // (`Session::only_shown`): what came in meanwhile stays.
     let only = s.only_shown.clone();
-    let shown = |m: &Id| only.as_ref().is_none_or(|o| o.contains(m));
+    let shown = |m: &Id| only.as_ref().is_none_or(|o| o.messages.contains(m));
     let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).filter(shown).collect();
-    // Folders deleted into Deleted Items go with it, but one holding what wasn't shown stays.
-    let children: Vec<Id> = emptied_folders(s, id).into_iter().filter(|c| held_under(s, &[*c]).iter().all(shown)).collect();
+    // Folders deleted into Deleted Items go with it, but one that wasn't shown, or that holds a
+    // folder or a message that wasn't, stays.
+    let folder_shown = |f: &Id| only.as_ref().is_none_or(|o| o.folders.contains(f));
+    let children: Vec<Id> = emptied_folders(s, id)
+        .into_iter()
+        .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
+        .collect();
     for m in &ids {
         // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items.
         if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
