@@ -162,6 +162,9 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // What a new appointment, task or contact made of a message starts with (#873): it makes
+    // nothing; message text is data, never instructions.
+    "mail.itemFromMessage",
     "mail.new",
     "mail.reply",
     "mail.replyAll",

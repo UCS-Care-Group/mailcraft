@@ -121,7 +121,7 @@ fn place_of_new(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
 
 /// Where a to-do made from a message goes: that message's account when it keeps to-dos, else
 /// where a new one goes.
-fn place_of_message(s: &Session, message: &Message) -> Option<Id> {
+pub(crate) fn place_of_message(s: &Session, message: &Message) -> Option<Id> {
     if keeps_tasks(&s.mailbox, message.account) { Some(message.account) } else { new_task_place(s) }
 }
 

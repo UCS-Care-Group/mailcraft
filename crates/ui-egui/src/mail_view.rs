@@ -1121,7 +1121,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // Dragging a row carries it to a folder: the whole selection when the row is part of it,
     // otherwise just what the row stands for.
     if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        let mut ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        // The row grabbed first: what a drop on the module bar opens (#873).
+        if let Some(at) = ids.iter().position(|id| *id == row.id) {
+            ids[..=at].rotate_right(1);
+        }
         resp.dnd_set_drag_payload(MessageDrag(ids));
     }
     if let Some((delete, flag)) = &quick {
