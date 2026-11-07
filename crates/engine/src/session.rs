@@ -774,6 +774,18 @@ pub struct SignatureEdit {
     pub body: RichBody,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// The least id a picture added now may have: past every picture it has held since it was
+    /// opened, so that a step of `body`'s undo naming one it has let go of never shows another.
+    /// `None` once one of them had the last id there is: a new picture is then refused.
+    pub next_picture: Option<u32>,
+}
+
+impl SignatureEdit {
+    /// `signature` open to be edited.
+    pub fn new(signature: mailcraft_model::signature::Signature) -> SignatureEdit {
+        let next_picture = signature.next_picture_id();
+        SignatureEdit { body: RichBody::new(signature.body().clone()), signature, dirty: false, next_picture }
+    }
 }
 
 /// The text the editing commands work on ([`Session::doc_mut`]).

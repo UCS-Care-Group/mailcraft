@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::rich::{Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
 use mailcraft_model::signature::{Layout, MAX_WIDTH, Signature};
 use proptest::prelude::*;
 
@@ -17,6 +17,8 @@ fn assert_in_set(html: &str) {
         let ok = matches!(
             tag,
             "<div>"
+                | "<div style=\"text-align:center\">"
+                | "<div style=\"text-align:right\">"
                 | "</div>"
                 | "<br>"
                 | "<li>"
@@ -98,6 +100,14 @@ fn styled(text: &str, style: Style) -> Run {
     Run::new(text, style)
 }
 
+fn aligned(text: &str, align: Align) -> Paragraph {
+    Paragraph::new(vec![Run::plain(text)], ListKind::None).aligned(align)
+}
+
+fn aligns(t: &RichText) -> Vec<Align> {
+    t.paragraphs().iter().map(|p| p.align).collect()
+}
+
 #[test]
 fn the_set_is_written_as_html() {
     let t = RichText::from_paragraphs(vec![
@@ -110,6 +120,7 @@ fn the_set_is_written_as_html() {
             vec![styled("the <site> & \"more\"", Style { link: Some("https://example.org/?a=1&b=\"2\"".into()), ..Style::default() })],
             ListKind::None,
         ),
+        aligned("in the middle", Align::Center),
     ]);
     let html = to_html(&t);
     assert_eq!(
@@ -117,7 +128,8 @@ fn the_set_is_written_as_html() {
         "<div>Hi <b>Ada</b>,</div>\r\n<div><br></div>\r\n\
          <ul style=\"margin-top:0;margin-bottom:0\"><li><i><u>one</u></i></li>\r\n<li>two</li>\r\n</ul>\
          <ol style=\"margin-top:0;margin-bottom:0\"><li><span style=\"font-size:18pt\">big</span></li>\r\n</ol>\
-         <div><a href=\"https://example.org/?a=1&amp;b=&quot;2&quot;\">the &lt;site&gt; &amp; &quot;more&quot;</a></div>\r\n"
+         <div><a href=\"https://example.org/?a=1&amp;b=&quot;2&quot;\">the &lt;site&gt; &amp; &quot;more&quot;</a></div>\r\n\
+         <div style=\"text-align:center\">in the middle</div>\r\n"
     );
     assert_in_set(&html);
     assert_eq!(from_html(&html), t);
@@ -161,11 +173,108 @@ fn pasted_html_is_reduced_to_the_set() {
     let p = t.paragraphs();
     assert!(p[2].runs.iter().all(|r| r.style.size == Some(24)), "40px is shown at the most, 32px: 24pt");
     assert!(p[2].runs.iter().any(|r| r.style.bold && r.text == "strong"));
+    assert_eq!(p[2].align, Align::Center);
     assert_eq!(p[4].list, ListKind::Numbered);
     assert_eq!(p[5].runs.iter().filter_map(|r| r.style.link.as_deref()).collect::<Vec<_>>(), ["mailto:ada@example.org"]);
     assert_eq!(p[8].list, ListKind::Bullet);
     assert_eq!(p[10].list, ListKind::None);
     assert_in_set(&to_html(&t));
+}
+
+#[test]
+fn alignment_is_read_from_a_style_or_an_align_attribute_and_justify_start_and_end_reduce_to_left_left_and_right() {
+    let t = from_html(
+        r#"<div style="text-align:center">a</div><div align="right">b</div><div style="text-align:justify">c</div>
+        <div style="text-align:start">d</div><div style="text-align:end">e</div><div align=center>f</div><div>g</div>"#,
+    );
+    assert_eq!(t.text(), "a\nb\nc\nd\ne\nf\ng");
+    assert_eq!(aligns(&t), [Align::Center, Align::Right, Align::Left, Align::Left, Align::Right, Align::Center, Align::Left]);
+    assert_in_set(&to_html(&t));
+}
+
+#[test]
+fn a_center_wrapper_or_a_centred_cell_aligns_the_paragraphs_inside_it_but_not_its_list_items() {
+    let t = from_html(
+        r#"<center><div>a</div><ul><li>b<ul><li>c</li></ul></li></ul></center>
+        <table><tr><td align="center">d</td><td align="right"><div>e</div><ol><li>f</li></ol></td></tr></table>"#,
+    );
+    let read: Vec<(String, ListKind, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.list, p.align)).collect();
+    assert_eq!(
+        read,
+        [
+            ("a".to_string(), ListKind::None, Align::Center),
+            ("b".to_string(), ListKind::Bullet, Align::Left),
+            ("c".to_string(), ListKind::Bullet, Align::Left),
+            ("d".to_string(), ListKind::None, Align::Center),
+            ("e".to_string(), ListKind::None, Align::Right),
+            ("f".to_string(), ListKind::Numbered, Align::Left),
+        ]
+    );
+    // Written again, no list item is styled.
+    let html = to_html(&t);
+    assert!(!html.contains("<li style"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn the_further_paragraphs_of_a_list_item_in_a_centred_wrapper_are_left_too() {
+    // A paragraph inside an item, and the text after a list inside one, are part of that item.
+    let t = from_html(
+        r#"<center><ul><li>first<div>second</div></li></ul></center>
+        <div align="right"><ol><li>a<ul><li>b</li></ul>c</li></ol></div>"#,
+    );
+    let read: Vec<(String, ListKind, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.list, p.align)).collect();
+    assert_eq!(
+        read,
+        [
+            ("first".to_string(), ListKind::Bullet, Align::Left),
+            ("second".to_string(), ListKind::None, Align::Left),
+            ("a".to_string(), ListKind::Numbered, Align::Left),
+            ("b".to_string(), ListKind::Bullet, Align::Left),
+            ("c".to_string(), ListKind::None, Align::Left),
+        ]
+    );
+    // Written again, nothing is aligned.
+    let html = to_html(&t);
+    assert!(!html.contains("text-align"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn a_heading_or_preformatted_text_inside_a_list_item_in_a_centred_wrapper_is_left_too() {
+    // They look like a heading and preformatted text, but they are part of the item all the same,
+    // and so is a paragraph in a table inside one.
+    let t = from_html(
+        r#"<center><ul><li>first<pre>second</pre></li><li>third<h2>fourth</h2></li>
+        <li>fifth<table><tr><td>sixth</td><td>seventh</td></tr></table></li></ul></center>"#,
+    );
+    let read: Vec<(String, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.align)).collect();
+    let left = |s: &str| (s.to_string(), Align::Left);
+    assert_eq!(read, [left("first"), left("second"), left("third"), left("fourth"), left("fifth"), left("sixth"), left("seventh")]);
+    // Written again, nothing is aligned.
+    let html = to_html(&t);
+    assert!(!html.contains("text-align"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn an_empty_paragraph_is_written_bare_whatever_its_alignment_so_a_blank_lines_alignment_is_not_kept_by_a_draft() {
+    let t = RichText::from_paragraphs(vec![
+        aligned("", Align::Center),
+        aligned("Avery", Align::Center),
+        aligned("", Align::Right),
+        aligned("Lumen", Align::Right),
+        aligned("", Align::Center),
+    ]);
+    let html = to_html(&t);
+    assert_eq!(
+        html,
+        "<div><br></div>\r\n<div style=\"text-align:center\">Avery</div>\r\n<div><br></div>\r\n<div style=\"text-align:right\">Lumen</div>\r\n<div><br></div>\r\n"
+    );
+    // The blank lines come back, left; the lines with text as they were.
+    let back = from_html(&to_html_document(&t, None));
+    assert_eq!(back.text(), "\nAvery\n\nLumen\n");
+    assert_eq!(aligns(&back), [Align::Left, Align::Center, Align::Left, Align::Right, Align::Left]);
 }
 
 #[test]
@@ -229,15 +338,16 @@ fn arb_style() -> impl Strategy<Value = Style> {
 }
 
 fn arb_text() -> impl Strategy<Value = RichText> {
-    proptest::collection::vec((proptest::collection::vec(("\\PC{0,12}", arb_style()), 0..4), 0u8..3, any::<u8>()), 1..8).prop_map(|ps| {
+    proptest::collection::vec((proptest::collection::vec(("\\PC{0,12}", arb_style()), 0..4), 0u8..3, any::<u8>(), 0usize..3), 1..8).prop_map(|ps| {
         RichText::from_paragraphs(
             ps.into_iter()
-                .map(|(runs, list, level)| {
+                .map(|(runs, list, level, align)| {
                     Paragraph::new(
                         runs.into_iter().map(|(t, s)| Run::new(t, s)).collect(),
                         [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize],
                     )
                     .at_level(level)
+                    .aligned([Align::Left, Align::Center, Align::Right][align])
                 })
                 .collect(),
         )
@@ -245,7 +355,7 @@ fn arb_text() -> impl Strategy<Value = RichText> {
 }
 
 /// Documents the HTML form can carry exactly: words separated by one space, sizes up to 24pt,
-/// list items with text.
+/// list items with text, and paragraphs with text aligned any way (a blank line is left).
 fn arb_exact() -> impl Strategy<Value = RichText> {
     let style = (
         any::<bool>(),
@@ -256,11 +366,14 @@ fn arb_exact() -> impl Strategy<Value = RichText> {
     )
         .prop_map(|(bold, italic, underline, size, link)| Style { bold, italic, underline, size, link, ..Style::default() })
         .prop_flat_map(|s| (Just(s), proptest::option::of(Just("#1f6feb".to_string()))).prop_map(|(s, color)| Style { color, ..s }));
-    let paragraph = (proptest::collection::vec(("[a-zA-Z0-9&<>\"'é]{1,6}", style), 0..4), 0u8..3, 0..=MAX_LEVEL).prop_map(|(runs, list, level)| {
-        let runs: Vec<Run> = runs.into_iter().enumerate().map(|(i, (t, s))| Run::new(if i == 0 { t } else { format!(" {t}") }, s)).collect();
-        let list = if runs.is_empty() { ListKind::None } else { [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize] };
-        Paragraph::new(runs, list).at_level(level)
-    });
+    let paragraph = (proptest::collection::vec(("[a-zA-Z0-9&<>\"'é]{1,6}", style), 0..4), 0u8..3, 0..=MAX_LEVEL, 0usize..3).prop_map(
+        |(runs, list, level, align)| {
+            let runs: Vec<Run> = runs.into_iter().enumerate().map(|(i, (t, s))| Run::new(if i == 0 { t } else { format!(" {t}") }, s)).collect();
+            let list = if runs.is_empty() { ListKind::None } else { [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize] };
+            let align = if runs.is_empty() { Align::Left } else { [Align::Left, Align::Center, Align::Right][align] };
+            Paragraph::new(runs, list).at_level(level).aligned(align)
+        },
+    );
     proptest::collection::vec(paragraph, 1..8).prop_map(|ps| RichText::from_paragraphs(at_most_three_blank_lines(ps)))
 }
 
@@ -355,6 +468,7 @@ fn logo_signature(layout: Layout) -> Signature {
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1f6feb".into()))).unwrap();
     body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.set_align(12, 12, Align::Right).unwrap();
     sig.set_body(body).unwrap();
     let id = sig.add_picture("lumen-logo.png", png(), Some("Lumen \"Studio\" <logo>"), Some(0)).unwrap();
     sig.set_picture(id, Some(Some(120)), None).unwrap();
@@ -373,6 +487,7 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
         "{inline}"
     );
     assert!(inline.contains("<span style=\"color:#1f6feb\"><span style=\"font-family:Georgia, serif\">Avery Quinn</span></span>"), "{inline}");
+    assert!(inline.contains("<div style=\"text-align:right\">Lumen Studio</div>\r\n"), "{inline}");
     assert_in_set(&inline);
     let left = signature_html(&logo_signature(Layout::PictureLeft), &cid);
     assert!(
@@ -382,6 +497,8 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
         "{left}"
     );
     assert_eq!(left.matches("<img").count(), 1);
+    // A line aligned right is so inside the text's cell.
+    assert!(left.contains("<div style=\"text-align:right\">Lumen Studio</div>\r\n</td>"), "{left}");
     assert_in_set(&left);
     let above = signature_html(&logo_signature(Layout::PictureAbove), &cid);
     assert!(above.starts_with("<div><img") && !above.contains("<table"), "{above}");
@@ -390,6 +507,37 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
     let back = from_html(&left);
     assert_eq!(back.text(), "Avery Quinn\nLumen Studio");
     assert_eq!(back.style_at(3).color.as_deref(), Some("#1f6feb"));
+    assert_eq!(aligns(&back), [Align::Left, Align::Right]);
+}
+
+#[test]
+fn a_picture_above_the_signature_is_aligned_as_its_paragraph_was() {
+    let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@mailcraft.invalid", p.id);
+    let mut sig = logo_signature(Layout::PictureAbove);
+    let mut body = sig.body().clone();
+    body.set_align(0, 0, Align::Center).unwrap();
+    sig.set_body(body).unwrap();
+    let above = signature_html(&sig, &cid);
+    assert!(above.starts_with("<div style=\"text-align:center\"><img src=\"cid:sig-1@mailcraft.invalid\""), "{above}");
+    assert!(above.contains("</div>\r\n<div style=\"text-align:center\"><span style=\"color:#1f6feb\">"), "{above}");
+    assert_in_set(&above);
+}
+
+#[test]
+fn a_logo_standing_twice_goes_out_beside_the_text_and_once_in_it() {
+    let logo =
+        Picture { id: 1, name: "logo.png".into(), mime: "image/png".into(), data: std::sync::Arc::new(png()), width: None, alt: "Lumen".into() };
+    let body = RichText::from_paragraphs(vec![
+        Paragraph::new(vec![Run::picture(1, Style::default()), Run::plain("Avery Quinn")], ListKind::None),
+        Paragraph::new(vec![Run::plain("Lumen Studio"), Run::picture(1, Style::default())], ListKind::None),
+    ]);
+    let sig = Signature::assemble("Work", body, &[logo], Layout::PictureLeft);
+    let left = signature_html(&sig, &|p| format!("sig-{}@mailcraft.invalid", p.id));
+    // Once on the left, and once where it stood the second time; the first time it is the lead.
+    assert_eq!(left.matches("<img").count(), 2, "{left}");
+    assert!(left.contains("<div>Lumen Studio<img src=\"cid:sig-1@mailcraft.invalid\""), "{left}");
+    assert!(left.contains("<div>Avery Quinn</div>"), "{left}");
+    assert_in_set(&left);
 }
 
 proptest! {
@@ -469,4 +617,242 @@ fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
     let links = |t: &RichText| t.paragraphs().iter().flat_map(|p| p.runs.iter()).filter_map(|r| r.style.link.clone()).collect::<Vec<_>>();
     assert!(links(&super::from_html(html)).is_empty());
     assert_eq!(links(&super::from_html_with_pictures(html, &mut |_| None)), vec!["ms-settings:network-vpn".to_string()]);
+}
+
+#[test]
+fn an_object_character_written_as_an_entity_is_never_a_picture_and_a_claim_shows_one_at_most() {
+    // Hostile input: OBJECT characters written as entities around a number, as if they marked a
+    // picture, beside no picture claimed or beside one that is.
+    let forged = |id: u32| format!("&#xFFFC;{id}&#xFFFC;&#65532;{id}&#65532;");
+    let html = format!("<div>a{}b</div>", forged(7));
+    assert!(from_html_with_pictures(&html, &mut |_| None).pictures().is_empty());
+    let html = format!("<div>a{}<img src=\"cid:q@x\">{}b</div>", forged(7).repeat(500), forged(8));
+    let back = from_html_with_pictures(&html, &mut |img| (img.cid == "q@x").then_some(7));
+    assert_eq!(back.pictures(), vec![7]);
+}
+
+#[test]
+fn an_object_character_written_as_an_entity_or_as_it_is_leaves_the_text_around_it_and_the_pictures_where_they_were() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+    let picture = "<img src=\"cid:q@x\">";
+    for (html, text) in [
+        // An even number of them, an odd one, and a pair naming the picture claimed elsewhere.
+        (format!("<div>A&#65532;KEEP&#65532;B{picture}C</div>"), format!("AKEEPB{o}C")),
+        (format!("<div>&#xFFFC;before{picture}after</div>"), format!("before{o}after")),
+        (format!("<div>&#xFFFC;7&#xFFFC;</div><div>before{picture}after</div>"), format!("7\nbefore{o}after")),
+        // Written with leading zeros, without its `;`, in capitals.
+        (format!("<div>a&#x0fffc;b&#0065532 c&#XFFFC;d{picture}e</div>"), format!("ab cd{o}e")),
+        // One left out by hand, or as an entity, would make an entity of what is around it.
+        (format!("<div>a&#x{o}FFFC;7&#x{o}FFFC;b{picture}c</div>"), format!("a&#xFFFC;7&#xFFFC;b{o}c")),
+        (format!("<div>a&#x&#xFFFC;FFFC;7&#x&#xFFFC;FFFC;b{picture}c</div>"), format!("a&#xFFFC;7&#xFFFC;b{o}c")),
+    ] {
+        let back = read(&html);
+        assert_eq!((back.text(), back.pictures()), (text, vec![7]), "{html}");
+    }
+}
+
+#[test]
+fn an_img_never_closed_is_read_in_bounded_time_by_both_reads() {
+    let html = "<img ".repeat(800_000);
+    let started = std::time::Instant::now();
+    let back = from_html_with_pictures(&html, &mut |_| Some(1));
+    assert!(back.pictures().is_empty());
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
+}
+
+#[test]
+fn a_picture_is_claimed_only_where_it_is_shown_and_not_when_the_end_of_what_is_read_cuts_its_tag_short() {
+    let o = mailcraft_model::rich::OBJECT;
+    let img = |n: usize| format!("<img src=\"cid:{n}@x\">");
+    let id = |img: &ImgRef| img.cid.strip_suffix("@x").and_then(|n| n.parse().ok());
+    // Pictures in a comment, in hidden text and in an attribute are not shown, so not claimed.
+    let html = format!("<!--{}--><div style=\"display:none\">{}</div><div title='{}'>a{}b</div>", img(1), img(2), img(3), img(4));
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(&html, &mut |i| {
+        asked.push(i.cid.clone());
+        id(i)
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("a{o}b"), vec![4], vec!["4@x".to_string()]));
+    // A line of nothing but pictures not claimed is not there, as with any picture left out, and
+    // one amid a line leaves it whole.
+    let read = |html: String| from_html_with_pictures(&html, &mut |_| None).text();
+    assert_eq!(read(format!("<div>a</div><div>{}{}</div><div>b</div>", img(5), img(6))), "a\nb");
+    assert_eq!(read(format!("<div>a{}b</div>", img(5))), "ab");
+    // A picture whose tag ends where what is read ends is shown; one whose tag that end cuts
+    // short is not, and is left out.
+    let read_to = |short: usize| {
+        let pad = "a".repeat(mailcraft_html::MAX_INPUT - "<!----><div>x".len() - img(1).len() + short);
+        let back = from_html_with_pictures(&format!("<!--{pad}--><div>x{}</div>", img(1)), &mut |i| id(i));
+        (back.text(), back.pictures())
+    };
+    assert_eq!((read_to(0), read_to(1)), ((format!("x{o}"), vec![1]), ("x".to_string(), vec![])));
+}
+
+#[test]
+fn a_picture_hidden_by_its_own_tag_or_too_small_to_see_is_not_claimed_and_leaves_room_for_one_shown() {
+    let o = mailcraft_model::rich::OBJECT;
+    let html = "<div>a<img hidden src=\"cid:1@x\" alt=\"one\"><img style=\"display:none\" src=\"cid:2@x\"><img src=\"cid:3@x\" style=\"visibility:hidden\">\
+                <img width=1 src=\"cid:4@x\"><img height=\"2px\" src=\"cid:5@x\"><img style=\"width:1px;height:1px\" src=\"cid:6@x\">b<img src=\"cid:7@x\">c</div>";
+    let mut asked = Vec::new();
+    // One picture may be shown yet, and the one shown takes that room.
+    let back = from_html_with_pictures(html, &mut |i| {
+        asked.push(i.cid.clone());
+        (asked.len() == 1).then(|| i.cid.strip_suffix("@x").and_then(|n| n.parse().ok())).flatten()
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("ab{o}c"), vec![7], vec!["7@x".to_string()]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_its_own_tag_or_makes_too_small_to_see_is_not_claimed_and_leaves_room_for_one_shown() {
+    let o = mailcraft_model::rich::OBJECT;
+    let html = "<style>img.gone{display:none} img.dot{width:1px}</style>\
+                <div>a<img class=\"gone\" src=\"cid:1@x\"><img class=\"dot\" src=\"cid:2@x\">b<img src=\"cid:3@x\">c</div>";
+    let mut asked = Vec::new();
+    // One picture may be shown yet, and the one shown takes that room.
+    let back = from_html_with_pictures(html, &mut |i| {
+        asked.push(i.cid.clone());
+        (asked.len() == 1).then(|| i.cid.strip_suffix("@x").and_then(|n| n.parse().ok())).flatten()
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("ab{o}c"), vec![3], vec!["3@x".to_string()]));
+}
+
+#[test]
+fn a_style_sheet_rule_that_depends_on_a_pictures_place_acts_on_the_paste_as_on_the_original() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| {
+        let back = from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+        (back.text(), back.pictures())
+    };
+    // The text the sheet hides after the picture stays hidden, and the text the picture's place
+    // keeps shown stays.
+    let hides = read("<style>img + span{display:none}</style><p>a<img src=\"cid:q@x\"><span>hidden</span> b</p>");
+    let shows = read("<style>span:first-child{display:none}</style><p><img src=\"cid:q@x\"><span>shown</span> b</p>");
+    // So too beside a picture that is not claimed.
+    let other = read("<style>img + span{display:none}</style><p>a<img src=\"cid:missing@x\"><span>hidden</span> b</p>");
+    assert_eq!((hides, shows, other), ((format!("a{o} b"), vec![7]), (format!("{o}shown b"), vec![7]), ("a b".to_string(), vec![])));
+}
+
+#[test]
+fn a_picture_is_claimed_where_the_style_sheet_and_its_own_style_together_show_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    let read = |html: &str| {
+        let back = from_html_with_pictures(html, &mut |img| (img.cid == "q@x").then_some(7));
+        (back.text(), back.pictures())
+    };
+    // Every picture hidden or made one pixel wide by the sheet, and one its own style hides that
+    // the sheet's `!important` shows.
+    let hidden = read("<style>img { display:none }</style><div>A<img src=\"cid:q@x\">B</div>");
+    let dot = read("<style>img { width:1px }</style><div>A<img src=\"cid:q@x\">B</div>");
+    let shown = read("<style>img { display:block !important }</style><div>A<img style=\"display:none\" src=\"cid:q@x\">B</div>");
+    assert_eq!((hidden, dot, shown), (("AB".to_string(), vec![]), ("AB".to_string(), vec![]), (format!("A{o}B"), vec![7])));
+}
+
+/// `html` read for pictures with `q@x` claimed as 7: its text, its pictures, and the pictures
+/// `claim` was asked for.
+fn read_q(html: &str) -> (String, Vec<u32>, Vec<String>) {
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(html, &mut |img| {
+        asked.push(img.cid.clone());
+        (img.cid == "q@x").then_some(7)
+    });
+    (back.text(), back.pictures(), asked)
+}
+
+#[test]
+fn a_tag_naming_two_pictures_is_the_first_as_the_reading_pane_shows_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures("<div>before<img src=\"cid:A\" src=\"cid:B\">after</div>", &mut |img| {
+        asked.push(img.cid.clone());
+        [("A", 1), ("B", 2)].iter().find(|(cid, _)| img.cid == *cid).map(|(_, id)| *id)
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("before{o}after"), vec![1], vec!["A".to_string()]));
+}
+
+#[test]
+fn a_pictures_address_written_with_a_character_reference_is_read_as_the_reading_pane_reads_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    assert_eq!(read_q("<div>a<img src=\"cid:q&#64;x\">b</div>"), (format!("a{o}b"), vec![7], vec!["q@x".to_string()]));
+}
+
+#[test]
+fn a_picture_after_a_comment_holding_an_img_and_a_stray_quote_is_claimed() {
+    let o = mailcraft_model::rich::OBJECT;
+    assert_eq!(read_q("<div>a<!-- <img ' --><img src=\"cid:q@x\">b</div>"), (format!("a{o}b"), vec![7], vec!["q@x".to_string()]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_its_address_or_its_missing_description_is_not_claimed() {
+    let none = ("ab".to_string(), vec![], vec![]);
+    assert_eq!(read_q("<style>img[src^=\"cid:\"]{display:none}</style><div>a<img src=\"cid:q@x\">b</div>"), none);
+    assert_eq!(read_q("<style>img:not([alt]){display:none}</style><div>a<img src=\"cid:q@x\">b</div>"), none);
+}
+
+#[test]
+fn a_picture_hidden_by_its_last_attribute_the_reader_keeps_is_not_claimed() {
+    // 31 attributes, `hidden` the last: within the 32 the reader keeps.
+    let more: String = (1..=29).map(|n| format!(" a{n}")).collect();
+    assert_eq!(read_q(&format!("<div>a<img src=\"cid:q@x\"{more} hidden>b</div>")), ("ab".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn an_img_in_a_textarea_is_its_text_and_nothing_else() {
+    let html = "<textarea><img src=\"cid:q@x\"></textarea>";
+    assert_eq!(read_q(html), ("<img src=\"cid:q@x\">".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_a_style_sheet_hides_by_a_class_with_an_object_character_is_not_claimed() {
+    // The character written as a CSS escape in the sheet and as a reference in the class.
+    let html = "<style>.x\\fffc{display:none}</style><div>a<img class=\"x&#65532;\" src=\"cid:q@x\">b</div>";
+    assert_eq!(read_q(html), ("ab".to_string(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_past_the_input_read_is_not_claimed_however_the_text_before_it_is_written() {
+    // The comment alone, OBJECT characters written as references, is longer than what is read.
+    let html = format!("<!--{}--><img src=\"cid:q@x\">", "&#65532;".repeat(262_144));
+    assert_eq!(read_q(&html), (String::new(), vec![], vec![]));
+}
+
+#[test]
+fn a_picture_in_text_of_no_size_is_claimed_as_the_reading_pane_shows_it() {
+    // A size of nothing hides text, not pictures, from an inline style or from a sheet.
+    let o = mailcraft_model::rich::OBJECT;
+    let shown = (o.to_string(), vec![7], vec!["q@x".to_string()]);
+    assert_eq!(read_q("<div style=\"font-size:0\"><span>a<img src=\"cid:q@x\">b</span></div>"), shown);
+    assert_eq!(read_q("<style>div{font-size:0}</style><div><span>a<img src=\"cid:q@x\">b</span></div>"), shown);
+}
+
+#[test]
+fn a_picture_not_taken_ends_a_table_a_cell_implied_as_the_reading_pane_ends_it() {
+    let o = mailcraft_model::rich::OBJECT;
+    // `parse` ends the table the cell implied at the first picture, so the `</tr>` inside the
+    // hidden span closes nothing, and the second picture stays hidden.
+    let html = "<td>x</td><img src=\"cid:a\"><span hidden></tr><img src=\"cid:b\"></span><img src=\"cid:c\">";
+    let mut shown = Vec::new();
+    collect_cids(&mailcraft_html::parse(html), &mut shown);
+    assert_eq!(shown, ["a", "c"]);
+    let mut asked = Vec::new();
+    let back = from_html_with_pictures(html, &mut |img| {
+        asked.push(img.cid.clone());
+        match img.cid.as_str() {
+            "b" => Some(2),
+            "c" => Some(3),
+            _ => None,
+        }
+    });
+    assert_eq!((back.text(), back.pictures(), asked), (format!("x\n{o}"), vec![3], shown));
+}
+
+/// The `cid:` addresses of the pictures among `blocks`, table cells walked, in order.
+fn collect_cids(blocks: &[mailcraft_html::Block], out: &mut Vec<String>) {
+    for b in blocks {
+        match &b.kind {
+            mailcraft_html::BlockKind::Image { src, .. } => out.extend(src.strip_prefix("cid:").map(str::to_string)),
+            mailcraft_html::BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).for_each(|c| collect_cids(&c.blocks, out)),
+            _ => {}
+        }
+    }
 }

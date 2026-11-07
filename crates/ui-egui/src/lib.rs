@@ -173,6 +173,8 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+#[cfg(test)]
+mod signatures_tests;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -1425,6 +1427,9 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The signature open in File › Signatures takes the keyboard back at its next frame (after a
+    /// button of its bar or a dialog changed its text, #580).
+    pub(crate) signature_focus_wanted: bool,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1771,6 +1776,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -2135,19 +2141,26 @@ impl MailApp {
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
         }
-        // What was done to the text being written leaves the keyboard in it.
-        if r.is_ok()
-            && (id.starts_with("format.")
-                || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
-        {
+        // What was done to the text being written leaves the keyboard in it: the message's own
+        // format is the message's, whatever else is open (#580); the rest act on the text the
+        // commands edit.
+        if r.is_ok() && matches!(id, "compose.formatHtml" | "compose.formatPlain") {
+            self.body_focus_wanted = self.session.compose_id();
+        } else if r.is_ok() && (id.starts_with("format.") || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste")) {
             self.want_body_focus();
         }
         r
     }
 
-    /// The body of the current message being written takes the keyboard back at its next frame.
+    /// The text the commands act on takes the keyboard back at its next frame: the signature open
+    /// in File › Signatures while there is one (#580), else the body of the current message being
+    /// written.
     pub(crate) fn want_body_focus(&mut self) {
-        self.body_focus_wanted = self.session.compose_id();
+        if self.session.signature_edit.is_some() {
+            self.signature_focus_wanted = true;
+        } else {
+            self.body_focus_wanted = self.session.compose_id();
+        }
     }
 
     /// Whether the body of the current message being written is to take the keyboard back now; asked once.
@@ -2219,7 +2232,14 @@ impl MailApp {
             return Err(e);
         }
         let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
+        let signature = self.session.signature_edit.as_ref().map(|e| e.signature.name.clone());
         let r = self.session.run(id, &params);
+        // A request for the keyboard is the open signature's alone: one closed, replaced or
+        // opened again (`signature.open`, `signature.close`, an undo) takes it with it (#580).
+        if matches!(id, "signature.open" | "signature.close") || self.session.signature_edit.as_ref().map(|e| &e.signature.name) != signature.as_ref()
+        {
+            self.signature_focus_wanted = false;
+        }
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
@@ -4332,6 +4352,11 @@ impl MailApp {
                 self.dialog = Some(dialogs::Dialog::ImportPst(d));
             }
         }
+        // A signature closed before its editor took the keyboard back (Escape, `signature.close`)
+        // leaves nothing for the next one opened (#580).
+        if self.session.signature_edit.is_none() {
+            self.signature_focus_wanted = false;
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
@@ -4475,6 +4500,7 @@ impl MailApp {
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
         self.signature_note = None;
+        self.signature_focus_wanted = false;
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {

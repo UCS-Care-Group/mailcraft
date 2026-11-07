@@ -9,11 +9,12 @@
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
+use mailcraft_model::rich::Align;
 use mailcraft_model::{FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
-use crate::widgets::{self, CONTENT_H, LABEL_H, bg, big_frame, command_tooltip, group, mi, mi_check, shortcut_text, small_frame, stack};
+use crate::widgets::{self, CONTENT_H, LABEL_H, bg, big_frame, command_tooltip, control_shortcut_text, group, mi, mi_check, small_frame, stack};
 use crate::{MailApp, icons};
 
 mod fit;
@@ -272,7 +273,7 @@ impl Item {
     }
 
     /// What the tooltip calls it.
-    fn tip_text(&self) -> String {
+    pub(crate) fn tip_text(&self) -> String {
         if self.tip.is_empty() { self.name() } else { tl!(self.tip).to_string() }
     }
 }
@@ -620,6 +621,8 @@ pub(crate) struct Look {
     pub highlight: Option<Option<String>>,
     pub bullets: bool,
     pub numbering: bool,
+    /// Which way all of it is aligned (none in a plain-text message).
+    pub align: Option<Align>,
     pub link: bool,
     pub plain: bool,
 }
@@ -648,6 +651,11 @@ pub(crate) fn look(body: &mailcraft_model::RichBody, plain: bool) -> Look {
         highlight: all(&|s| s.highlight == first.highlight).then(|| first.highlight.clone()),
         bullets: text.all_lists(from, to, ListKind::Bullet).unwrap_or(false),
         numbering: text.all_lists(from, to, ListKind::Numbered).unwrap_or(false),
+        align: if plain {
+            None
+        } else {
+            [Align::Left, Align::Center, Align::Right].into_iter().find(|a| text.all_aligned(from, to, *a).unwrap_or(false))
+        },
         link: if sel.is_empty() { text.link_span(sel.head).is_some() } else { text.all(from, to, |s| s.link.is_some()).unwrap_or(false) },
         plain,
     }
@@ -655,6 +663,53 @@ pub(crate) fn look(body: &mailcraft_model::RichBody, plain: bool) -> Look {
 
 /// The font sizes offered, in points.
 pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36];
+
+/// Outlook's Align Left, Center and Align Right as `look` says the text is, at `section` of the
+/// simplified row: the Message tab's Basic Text and the Format Text tab's Paragraph both have
+/// them. One that is on puts the text back to left.
+fn align_items(look: &Look, section: u8) -> [Item; 3] {
+    let align = |a: Align, value: &str| json!({"value": if look.align == Some(a) { "left" } else { value }});
+    [
+        Item::small("alignLeft", "Align Left", "Align Left", "format.align", align(Align::Left, "left"))
+            .key("format.alignLeft")
+            .checked(look.align == Some(Align::Left))
+            .at(section, 4)
+            .plain(),
+        Item::small("alignCenter", "Center", "Center", "format.align", align(Align::Center, "center"))
+            .key("format.alignCenter")
+            .checked(look.align == Some(Align::Center))
+            .at(section, 4)
+            .plain(),
+        Item::small("alignRight", "Align Right", "Align Right", "format.align", align(Align::Right, "right"))
+            .key("format.alignRight")
+            .checked(look.align == Some(Align::Right))
+            .at(section, 4)
+            .plain(),
+    ]
+}
+
+/// The Message tab's Basic Text group as `look` says the text is: the composer's formatting, which
+/// File › Signatures draws for the open signature too, so that the two can't drift apart.
+pub(crate) fn basic_text(look: &Look) -> Vec<Item> {
+    let [left, center, right] = align_items(look, 1);
+    vec![
+        Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
+        Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
+        Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
+        Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
+        Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
+        Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
+        Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
+        Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(1, 3).plain(),
+        Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(1, 3).plain(),
+        left,
+        center,
+        right,
+        Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(1, 4).plain(),
+        Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(1, 4).plain(),
+        Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(1, 5).plain(),
+    ]
+}
 
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
@@ -667,23 +722,7 @@ fn message(app: &MailApp) -> Tab {
             "Clipboard",
             vec![Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain()],
         ),
-        g(
-            "Basic Text",
-            vec![
-                Item::small_menu("font", "font", "Font", "Font", Menu::Font).at(1, 4).plain(),
-                Item::small_menu("fontSize", "fontSize", "Font Size", "Font Size", Menu::FontSize).at(1, 4).plain(),
-                Item::small_menu("fontColor", "fontColor", "Font Color", "Font Color", Menu::FontColor).at(1, 3).plain(),
-                Item::small_menu("highlight", "highlight", "Text Highlight Color", "Text Highlight Color", Menu::Highlight).at(1, 4).plain(),
-                Item::small("bold", "Bold", "Bold", "format.bold", no()).checked(look.bold && !look.plain).at(1, 2).plain(),
-                Item::small("italic", "Italic", "Italic", "format.italic", no()).checked(look.italic && !look.plain).at(1, 2).plain(),
-                Item::small("underline", "Underline", "Underline", "format.underline", no()).checked(look.underline && !look.plain).at(1, 2).plain(),
-                Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(1, 3).plain(),
-                Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(1, 3).plain(),
-                Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(1, 4).plain(),
-                Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(1, 4).plain(),
-                Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(1, 5).plain(),
-            ],
-        ),
+        g("Basic Text", basic_text(&look)),
         g("Names", vec![Item::big("checkNames", "Check\nNames", "compose.checkNames", no()).at(3, 4)]),
         g(
             "Include",
@@ -741,6 +780,7 @@ fn format_text(app: &MailApp) -> Tab {
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     let rich = !look.plain;
+    let [left, center, right] = align_items(&look, 3);
     Tab::of(vec![
         g(
             "Clipboard",
@@ -775,9 +815,14 @@ fn format_text(app: &MailApp) -> Tab {
             vec![
                 Item::small("bullets", "Bullets", "Bullets", "format.bullets", no()).checked(look.bullets).at(3, 3).plain(),
                 Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(3, 3).plain(),
+                // (Line Spacing before the alignments, so that in the classic ribbon's columns of
+                // three they are a column of their own, as in the Message tab.)
+                Item::pending("format.lineSpacing", "Line Spacing", 3),
+                left,
+                center,
+                right,
                 Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(3, 4).plain(),
                 Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(3, 4).plain(),
-                Item::pending("format.lineSpacing", "Line Spacing", 3),
             ],
         ),
         g("Styles", vec![Item::pending("format.styles", "Styles", 4)]),
@@ -1586,7 +1631,7 @@ pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
 /// when it is on.
 fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
     let Some((id, params)) = &item.command else { return };
-    let (key, enabled) = (shortcut_text(app, id), app.enabled(id));
+    let (key, enabled) = (control_shortcut_text(app, item.key, id), app.enabled(id));
     let mut button = egui::Button::new(item.name()).selected(item.checked).min_size(vec2(190.0, 0.0));
     if !key.is_empty() {
         button = button.shortcut_text(key);
@@ -1802,7 +1847,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
         return;
     };
-    let main = command_tooltip(app, main, &item.tip_text(), command);
+    let main = command_tooltip(app, main, &item.tip_text(), item.key, command);
     if main.clicked() && on {
         let _ = app.run(command, params.clone());
     }
@@ -1894,7 +1939,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
-            let resp = command_tooltip(app, resp, &item.tip_text(), command);
+            let resp = command_tooltip(app, resp, &item.tip_text(), item.key, command);
             if resp.clicked() && on {
                 let _ = app.run(command, params.clone());
             }
@@ -1933,7 +1978,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     let on = app.enabled(command);
                     let resp = small_frame(ui, item.icon, label, on, item.checked, false);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    let resp = command_tooltip(app, resp, &item.tip_text(), command);
+                    let resp = command_tooltip(app, resp, &item.tip_text(), item.key, command);
                     if resp.clicked() && on {
                         let _ = app.run(command, params.clone());
                     }
