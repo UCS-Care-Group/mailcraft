@@ -111,6 +111,35 @@ these, so that one approval covers what is asked later.
 You can take these back at any time in your Microsoft account's or your organisation's list of
 approved applications; MailCraft then asks again the next time it needs them.
 
+## Permissions asked of a Google account
+
+When you sign in with Google (Gmail or Google Workspace), Google's page lists what MailCraft asks
+for. MailCraft asks for three things, and uses each on your computer, for you, and for nothing else:
+
+- `https://mail.google.com/`: reading, sending, moving and deleting your mail over IMAP and SMTP,
+  as you do in the program. This is the only permission Google offers for a mail program that uses
+  IMAP and SMTP, and it is broad: it is not read-only;
+- `openid` and `email`: your Google address, so that the program can check that the account you
+  signed in with is the one you added. It is read from what Google sends back at sign-in, and
+  MailCraft asks Google for nothing else about you;
+- keeping you signed in (a refresh token, stored as described above).
+
+MailCraft does not ask for your Google Calendar, Contacts, Drive or anything else of your Google
+account. The mail goes from Google's servers to your computer and stays there: MailCraft has no
+server of its own, so nothing of your Google data is sent to the project, to anybody who works on
+it, or to anybody else. Nobody at the project can read it, it is not used for advertising, it is
+not sold, and it is not used to develop, improve or train any AI or machine-learning model.
+Scripts and AI agents (below) can read it only on your own computer, when you start the program
+with them and they act for you.
+
+MailCraft's use and transfer to any other app of information received from Google APIs will
+adhere to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
+including the Limited Use requirements.
+
+You can take the permissions back at any time at <https://myaccount.google.com/permissions>;
+MailCraft then asks you to sign in again the next time it needs them. File › Info › Remove
+MailCraft's data from this computer removes your mail and every stored sign-in from your computer.
+
 ## Scripts and agents
 
 MailCraft can be driven by scripts and AI agents through a control channel and an MCP server.

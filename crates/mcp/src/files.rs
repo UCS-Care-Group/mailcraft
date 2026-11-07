@@ -12,7 +12,7 @@
 //!   through or over), never hidden (a leading dot), with the extension the command produces
 //!   (any but programs, scripts, web pages and macro-capable Office files, the kinds the attachment opener refuses or asks about, for an attachment).
 
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use mailcraft_engine::opening::is_risky;
@@ -40,7 +40,9 @@ fn bad_name(name: &str) -> bool {
 }
 
 fn extension(name: &str) -> Option<String> {
-    name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase())
+    // The engine's one reader (ASCII fold, trailing dots and spaces dropped) so that the list
+    // and the fold are the opener's own.
+    Some(mailcraft_engine::opening::extension(name)).filter(|e| !e.is_empty())
 }
 
 impl FilesDir {
@@ -124,21 +126,16 @@ impl FilesDir {
         Ok(Target { path, given: given.to_string() })
     }
 
-    /// Write a new file (never over one that is there, never through a link).
+    /// Write a new file (never over one that is there, never through a link). What an agent
+    /// saves came from mail: it is marked as from the Internet, as the owner's saves are (AU3-V6).
     pub fn write(&self, t: &Target, bytes: &[u8]) -> Result<(), String> {
-        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&t.path).map_err(|e| {
+        mailcraft_engine::mark::write_new_from_mail(&t.path, bytes).map_err(|e| {
             if e.kind() == std::io::ErrorKind::AlreadyExists {
                 format!("{} already exists; nothing is overwritten for an agent", t.given)
             } else {
                 format!("{}: {e}", t.given)
             }
-        })?;
-        if let Err(e) = f.write_all(bytes).and_then(|()| f.flush()) {
-            drop(f);
-            let _ = std::fs::remove_file(&t.path);
-            return Err(format!("{}: {e}", t.given));
-        }
-        Ok(())
+        })
     }
 }
 

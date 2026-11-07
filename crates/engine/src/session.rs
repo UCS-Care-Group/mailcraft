@@ -1070,6 +1070,10 @@ pub struct Session {
     /// set by the window while an agent's command runs: a command that takes one away is undone,
     /// as the owner wasn't asked about it (#494). Never saved.
     pub owner_changing: Vec<Id>,
+    /// The messages and folders the owner was shown in an agent's question, set by the window
+    /// while the command the owner said yes to runs: a folder emptied on that yes takes none but
+    /// these, and what came into it meanwhile stays ([`crate::agent::bind`]). Never saved.
+    pub only_shown: Option<crate::agent::bind::Only>,
     /// Who the Save Draft that is running is for (#286): the five-minute timer, a message put
     /// aside unasked, or anybody's asking for it. Never a command's parameter.
     pub(crate) saving: Saving,
@@ -1243,6 +1247,7 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             owner_changing: Vec::new(),
+            only_shown: None,
             saving: Saving::Asked,
             graph_switch_backup: None,
             staged_tree: None,
