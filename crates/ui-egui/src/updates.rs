@@ -392,10 +392,10 @@ impl MailApp {
     }
 
     /// What Update does for `release` here: nothing when the organisation has turned updating
-    /// off; a download for a copy that updates itself, but never of a pre-release; else the file
-    /// in the browser.
+    /// off, or in a build that doesn't check for new versions (the browser's); a download for a
+    /// copy that updates itself, but never of a pre-release; else the file in the browser.
     pub(crate) fn offer(&self, release: &Release) -> Option<Offer> {
-        if self.services.updates_turned_off_by_organisation {
+        if self.services.updates_turned_off_by_organisation || self.services.update_check.is_none() {
             return None;
         }
         let here = self.services.update_download.is_some() && !self.services.development_build;
@@ -427,6 +427,9 @@ impl MailApp {
         if self.services.updates_turned_off_by_organisation {
             return Err(tl!(TURNED_OFF).to_string());
         }
+        if self.services.update_check.is_none() {
+            return Err(tl!("This build doesn't check for new versions.").to_string());
+        }
         let Some(release) = self.newer_release() else {
             return Err(tl!("No newer version of MailCraft is known.").to_string());
         };
@@ -435,7 +438,7 @@ impl MailApp {
         if offer == Some(Offer::Update) {
             if let Some(d) = self.updates.downloading.as_mut() {
                 if d.version != release.version || d.progress.cancelled() {
-                    return Err(tl!("The last download is still stopping. Try again in a moment.").to_string());
+                    return Err(tl!("Another download is still on its way. Try again in a moment.").to_string());
                 }
                 // Already on its way (by itself): the owner's now.
                 d.owner = true;

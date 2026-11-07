@@ -367,6 +367,12 @@ fn download_update_opens_this_platforms_file() {
     }
     app.services.release_file = Some(Box::new(|v: &Version| Some(format!("mailcraft-{v}-linux-riscv64.deb"))));
     assert_eq!(app.run(DOWNLOAD, json!({})).unwrap()["file"], false);
+    // A build that doesn't check (the browser's) has nothing to offer, whatever was kept.
+    let mut bare = start(Services::default(), &UiState { update_told: newer().to_string(), ..both_off() });
+    frames(&mut bare);
+    assert!(bare.newer_release().is_some());
+    assert_eq!(bare.offer(&bare.newer_release().unwrap()), None);
+    assert!(bare.run(DOWNLOAD, json!({})).is_err());
     // A development build opens the page whatever it is given: it never downloads either.
     app.services.development_build = true;
     app.services.release_file = None;
