@@ -1,0 +1,1 @@
+- Security fixes AU3-24, AU3-25, AU3-23 and AU3-20: a yes to an agent's question now covers only what the question showed; anything that changed while it was asked is refused, and Empty Folder leaves mail that arrived in the meantime. AU3-V6: every file saved from mail, an agent's saves included, is marked as coming from the Internet.
