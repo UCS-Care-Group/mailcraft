@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::io::Cursor;
 
 use mailcraft_model::{FlagStatus, Importance, Message};
-use mailcraft_pst::test_writer::{self as w, AttachSpec, FileSpec, FolderSpec, Layout, MessageSpec, Value};
+use mailcraft_pst::test_writer::{self as w, AttachSpec, FileSpec, FolderSpec, Layout, MessageSpec, Value, one_off};
 use mailcraft_pst::{Encryption, Format, Limits, PS_PUBLIC_STRINGS};
 use mailcraft_time::{Date, DateTime, Timestamp};
 use proptest::prelude::*;
@@ -932,24 +932,6 @@ fn contact_item(name: &str, extra: Vec<(u16, Value)>) -> MessageSpec {
     MessageSpec { class: "IPM.Contact".into(), subject: name.into(), body: String::new(), delivered: DELIVERED, extra, ..Default::default() }
 }
 
-/// A one-off entry id: a display name, an address type and an address.
-fn one_off(name: &str, kind: &str, address: &str, unicode: bool) -> Vec<u8> {
-    let mut e = vec![0u8; 4];
-    e.extend([0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02]);
-    e.extend([0, 0]);
-    e.extend(if unicode { 0x8000u16 } else { 0 }.to_le_bytes());
-    for t in [name, kind, address] {
-        if unicode {
-            e.extend(t.encode_utf16().flat_map(u16::to_le_bytes));
-            e.extend([0, 0]);
-        } else {
-            e.extend(t.bytes());
-            e.push(0);
-        }
-    }
-    e
-}
-
 /// A FILETIME for midnight of a day.
 fn filetime_of(year: i32, month: u8, day: u8) -> u64 {
     let ts = DateTime::new(Date::new(year, month, day).unwrap(), 0, 0, 0).unwrap().to_timestamp(0);
@@ -1391,20 +1373,6 @@ fn a_lists_notes_fit_a_vcard_line_and_the_cut_is_named() {
 }
 
 #[test]
-fn a_list_kept_in_a_stream_is_named_not_silently_empty() {
-    let list = MessageSpec {
-        class: "IPM.DistList".into(),
-        extra: vec![(0x3001, w::unicode("Streamed")), (lid(0x8064), w::binary(&[1, 2, 3, 4]))],
-        ..Default::default()
-    };
-    let mut s = session();
-    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
-    let c = s.mailbox.contacts.values().next().unwrap();
-    assert!(c.notes.contains("kept in a form this version doesn't read"), "{}", c.notes);
-    assert!(texts(&answer, "notes", "why").iter().any(|w| w.contains("stream")));
-}
-
-#[test]
 fn deleted_contacts_are_left_out_in_one_line_and_every_other_folders_come_in() {
     let c = |n: &str| contact_item(n, vec![(0x3001, w::unicode(n))]);
     let classless = FolderSpec { name: "Loose".into(), class: None, messages: vec![c("Loose one")], children: vec![] };
@@ -1569,25 +1537,6 @@ fn a_list_with_no_members_keeps_all_the_room_for_its_notes() {
     let c = s.mailbox.contacts.values().next().unwrap();
     assert_eq!(c.notes.len(), 700_000);
     assert!(!texts(&answer, "notes", "why").iter().any(|w| w.contains("are cut")));
-}
-
-#[test]
-fn a_list_with_some_members_in_the_stream_says_so() {
-    let list = MessageSpec {
-        class: "IPM.DistList".into(),
-        extra: vec![
-            (0x3001, w::unicode("Partial")),
-            (lid(0x8054), multi_binary(&[one_off("A", "SMTP", "a@example.org", true)])),
-            (lid(0x8055), multi_binary(&[one_off("A", "SMTP", "a@example.org", true)])),
-            (lid(0x8064), w::binary(&[1, 2, 3, 4])),
-        ],
-        ..Default::default()
-    };
-    let mut s = session();
-    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
-    let c = s.mailbox.contacts.values().next().unwrap();
-    assert!(c.notes.contains("a@example.org") && c.notes.contains("Some members are kept in a form"), "{}", c.notes);
-    assert!(texts(&answer, "notes", "why").iter().any(|w| w.starts_with("some members")));
 }
 
 #[test]
@@ -1783,4 +1732,215 @@ fn rich_text_notes_cut_at_the_cap_are_named_even_if_blank_lines_fold_them_short(
     assert!(c.notes.starts_with("x\n\nx\n\n") && c.notes.len() > 1000, "{} {:?}", c.notes.len(), texts(&answer, "notes", "why"));
     let why = texts(&answer, "notes", "why");
     assert!(why.iter().any(|w| w.contains("notes") && w.contains("cut")), "{why:?}");
+}
+
+// ---- a list's stream (#843) ----
+
+fn streamed_list(name: &str, stream: Value, extra: Vec<(u16, Value)>) -> MessageSpec {
+    let mut e = vec![(0x3001, w::unicode(name)), (lid(0x8064), stream)];
+    e.extend(extra);
+    MessageSpec { class: "IPM.DistList".into(), subject: name.into(), extra: e, ..Default::default() }
+}
+
+fn smtp(i: usize) -> Vec<u8> {
+    one_off(&format!("Member {i}"), "SMTP", &format!("m{i}@example.org"), true)
+}
+
+#[test]
+fn a_big_list_kept_in_a_stream_comes_in_with_every_member() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..400).map(|i| (smtp(i), Vec::new())).collect();
+    let stream = w::list_stream(&members);
+    // Past 15,000 bytes, as Outlook writes them, and so past what the heap holds (3,580 bytes):
+    // the writer puts it in a subnode, and it is read on its own.
+    assert!(stream.bytes.len() > 15_000);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![streamed_list("Neighbours", stream, vec![])]), json!({})).unwrap();
+    adds_up(&answer);
+    let c = s.mailbox.contacts.values().next().unwrap();
+    let lines: Vec<&str> = c.notes.lines().collect();
+    assert_eq!(lines.len(), 401, "{}", c.notes);
+    assert_eq!((lines[0], lines[1], lines[400]), ("Members:", "Member 0 <m0@example.org>", "Member 399 <m399@example.org>"));
+    let notes: Vec<(String, String)> = texts(&answer, "notes", "what").into_iter().zip(texts(&answer, "notes", "why")).collect();
+    assert!(notes.iter().any(|(what, why)| what.contains("Neighbours") && why.contains("listing its members (400)")), "{notes:?}");
+    // Nothing is said to be kept in a form this version doesn't read, nor left out.
+    assert!(!notes.iter().any(|(_, why)| why.contains("stream") || why.contains("doesn't read") || why.contains("left out")), "{notes:?}");
+    assert!(!c.notes.contains("doesn't read"));
+}
+
+#[test]
+fn a_stream_with_more_members_than_the_cap_keeps_the_cap_and_names_the_rest() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..1200).map(|i| (smtp(i), Vec::new())).collect();
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![streamed_list("Everyone", w::list_stream(&members), vec![])]), json!({})).unwrap();
+    adds_up(&answer);
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes.lines().count(), 1001);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("200 member(s) past the limit of 1000")), "{why:?}");
+}
+
+#[test]
+fn contact_linked_and_one_off_members_of_a_stream_come_in() {
+    let members = vec![
+        // A one-off address.
+        (one_off("Cleo Varga", "SMTP", "cleo@example.org", true), Vec::new()),
+        // A contact's first email address: its address is in the one-off beside it.
+        (w::wrapped_entry_id(0xC3, &[7; 46]), one_off("Dee Halloran", "SMTP", "dee@example.org", false)),
+        // A one-off wrapped, with no one-off beside it.
+        (w::wrapped_entry_id(0x00, &one_off("Eli Marsh", "SMTP", "eli@example.org", true)), Vec::new()),
+        // A contact with no one-off, a list and a directory entry: no internet address.
+        (w::wrapped_entry_id(0xC3, &[7; 46]), Vec::new()),
+        (w::wrapped_entry_id(0xB4, &[8; 46]), Vec::new()),
+        (one_off("Somebody", "EX", "/O=EXAMPLE/CN=SOME", true), Vec::new()),
+    ];
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![streamed_list("Garden", w::list_stream(&members), vec![])]), json!({})).unwrap();
+    adds_up(&answer);
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes, "Members:\nCleo Varga <cleo@example.org>\nDee Halloran <dee@example.org>\nEli Marsh <eli@example.org>");
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("3 member(s) of the list name no internet address")), "{why:?}");
+}
+
+#[test]
+fn the_stream_is_read_and_the_member_lists_beside_it_are_not() {
+    // [MS-OXOCNTC] 2.2.2.2.4: with a stream, the two lists are to be ignored.
+    let old = vec![one_off("Old", "SMTP", "old@example.org", true)];
+    let list =
+        streamed_list("Both", w::list_stream(&[(smtp(1), Vec::new())]), vec![(lid(0x8054), multi_binary(&old)), (lid(0x8055), multi_binary(&old))]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes, "Members:\nMember 1 <m1@example.org>");
+}
+
+#[test]
+fn a_stream_cut_short_keeps_what_comes_before_the_cut_and_says_so() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..5).map(|i| (smtp(i), Vec::new())).collect();
+    let mut bytes = w::list_stream_bytes(&members);
+    let one = 12 + members[0].0.len();
+    bytes.truncate(28 + 3 * one + 10);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![streamed_list("Cut", w::binary(&bytes), vec![])]), json!({})).unwrap();
+    adds_up(&answer);
+    let c = s.mailbox.contacts.values().next().unwrap();
+    let lines: Vec<&str> = c.notes.lines().collect();
+    assert_eq!(lines.len(), 5, "{}", c.notes);
+    assert_eq!(
+        (lines[3], lines[4]),
+        ("Member 2 <m2@example.org>", "Some members may be missing: the list's stream of members couldn't be read whole.")
+    );
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("2 member(s) of the list's stream couldn't be read")), "{why:?}");
+}
+
+#[test]
+fn members_with_no_address_do_not_use_up_the_cap() {
+    let mut members: Vec<(Vec<u8>, Vec<u8>)> = (0..300).map(|_| (w::wrapped_entry_id(0xB5, &[5; 30]), Vec::new())).collect();
+    members.extend((0..900).map(|i| (smtp(i), Vec::new())));
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![streamed_list("Mixed", w::list_stream(&members), vec![])]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes.lines().count(), 901);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("300 member(s) of the list name no internet address")), "{why:?}");
+    assert!(!why.iter().any(|w| w.contains("past the limit")), "{why:?}");
+}
+
+#[test]
+fn a_stream_broken_at_its_first_member_gives_way_to_the_member_lists() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..3).map(|i| (smtp(i), Vec::new())).collect();
+    let mut bytes = w::list_stream_bytes(&members);
+    // The first entry id says it is longer than an entry may be.
+    bytes[28..32].copy_from_slice(&0x0010_0000u32.to_le_bytes());
+    let old = vec![one_off("Old", "SMTP", "old@example.org", true)];
+    let list = streamed_list("Broken", w::binary(&bytes), vec![(lid(0x8054), multi_binary(&old)), (lid(0x8055), multi_binary(&old))]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes, "Members:\nOld <old@example.org>\nSome members may be missing: the list's stream of members couldn't be read whole.");
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("ends before its first member")), "{why:?}");
+}
+
+#[test]
+fn a_stream_larger_than_the_cap_is_left_out_and_named() {
+    // 4 MB and a little more, of members that fit what an entry may be.
+    let one = smtp(1);
+    let n = (4 << 20) / (one.len() + 12) + 10;
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..n).map(|_| (one.clone(), Vec::new())).collect();
+    let stream = w::list_stream(&members);
+    assert!(stream.bytes.len() > 4 << 20);
+    let old = vec![one_off("Old", "SMTP", "old@example.org", true)];
+    let list = streamed_list("Huge", stream, vec![(lid(0x8054), multi_binary(&old)), (lid(0x8055), multi_binary(&old))]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    adds_up(&answer);
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.starts_with("Members:\nOld <old@example.org>\nSome members may be missing"), "{}", c.notes);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("list's stream of members is larger than the limit")), "{why:?}");
+}
+
+#[test]
+fn a_stream_that_lies_is_refused_and_the_member_lists_are_read_instead() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..3).map(|i| (smtp(i), Vec::new())).collect();
+    let mut lying = w::list_stream_bytes(&members);
+    // More members than the bytes could hold.
+    lying[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+    let old = vec![one_off("Old", "SMTP", "old@example.org", true)];
+    let fallback = streamed_list("Lying", w::binary(&lying), vec![(lid(0x8054), multi_binary(&old)), (lid(0x8055), multi_binary(&old))]);
+    // Of another version, with nothing beside it.
+    let mut v2 = w::list_stream_bytes(&members);
+    v2[0] = 9;
+    let alone = streamed_list("Other version", w::binary(&v2), vec![]);
+    // Not even a header.
+    let tiny = streamed_list("Tiny", w::binary(&[1, 2, 3, 4]), vec![]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![fallback, alone, tiny]), json!({})).unwrap();
+    adds_up(&answer);
+    let by = |n: &str| s.mailbox.contacts.values().find(|c| c.display_name == n).unwrap().notes.clone();
+    assert_eq!(by("Lying"), "Members:\nOld <old@example.org>\nSome members may be missing: the list's stream of members couldn't be read whole.");
+    assert_eq!(by("Other version"), "Members: the list's stream of members couldn't be read.");
+    assert_eq!(by("Tiny"), "Members: the list's stream of members couldn't be read.");
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("counts more members than it has room for")), "{why:?}");
+    assert!(why.iter().any(|w| w.contains("of a version this reader doesn't know")), "{why:?}");
+    assert!(why.iter().any(|w| w.contains("shorter than its header")), "{why:?}");
+}
+
+#[test]
+fn a_stream_with_lying_lengths_never_panics_and_stays_within_the_caps() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..50).map(|i| (smtp(i), smtp(i + 50))).collect();
+    let good = w::list_stream_bytes(&members);
+    let mut lists = Vec::new();
+    for at in [12usize, 16, 28, 32, 100, 500, 1000, 3000] {
+        for v in [0u32, 1, 0x7FFF_FFFF, u32::MAX] {
+            let mut b = good.clone();
+            b[at..at + 4].copy_from_slice(&v.to_le_bytes());
+            lists.push(streamed_list(&format!("L{at}-{v}"), w::binary(&b), vec![]));
+        }
+    }
+    // Junk where the stream goes.
+    lists.push(streamed_list("Text", w::unicode("not a stream"), vec![]));
+    lists.push(streamed_list("Many", multi_binary(std::slice::from_ref(&good)), vec![]));
+    let n = lists.len();
+    let mut s = session();
+    let answer = import(&mut s, &people_file(lists), json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(answer["added"], n);
+    for c in s.mailbox.contacts.values() {
+        assert!(c.notes.lines().count() <= 1001, "{}", c.display_name);
+        assert!(crate::cmd::people_merge::notes_line(&c.notes) <= crate::cmd::people_merge::MAX_NOTES, "{}", c.display_name);
+    }
+}
+
+#[test]
+fn a_streamed_list_with_long_notes_shares_the_room_with_its_members() {
+    let members: Vec<(Vec<u8>, Vec<u8>)> = (0..10).map(|i| (smtp(i), Vec::new())).collect();
+    let list = streamed_list("Long", w::list_stream(&members), vec![(0x1000, w::string8(&"n".repeat(1_048_570)))]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.ends_with("Member 9 <m9@example.org>"), "{}", &c.notes[c.notes.len() - 200..]);
 }
