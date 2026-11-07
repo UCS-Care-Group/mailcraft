@@ -389,7 +389,11 @@ fn arranged_by_attachments_opening_a_message_or_letting_it_go_never_moves_it() {
     // A signature logo with a Content-ID that no `cid:` in the HTML names.
     let m = mb.message_mut(logo).unwrap();
     m.body.html = Some(format!("<p>{}</p>", "Regards. ".repeat(300)));
-    m.attachments.push(Attachment { content_id: "logo@x.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![7; 64]) });
+    m.attachments.push(Attachment {
+        content_id: "logo@x.example".into(),
+        inline: true,
+        ..Attachment::new("logo.png", "image/png", b"\x89PNG\r\n\x1a\n".to_vec())
+    });
     save(&path, &mb).unwrap();
     clear_cache();
     let mut s = session_without_bodies(&path);
