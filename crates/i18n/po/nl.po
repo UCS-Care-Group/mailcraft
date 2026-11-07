@@ -3672,9 +3672,8 @@ msgstr "Vervalt {when}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "During development, Google may restrict sign-in to approved test users. In testing mode, Google refresh tokens may expire after seven days."
-msgstr "Tijdens ontwikkeling beperkt Google de aanmelding mogelijk tot goedgekeurde testgebruikers. In de testmodus kan het ververstoken van Google na zeven dagen verlopen."
+msgstr "Tijdens ontwikkeling beperkt Google de aanmelding mogelijk tot goedgekeurde testgebruikers. In de testmodus kan een verversingstoken van Google na zeven dagen verlopen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -4804,9 +4803,8 @@ msgstr "Id van de Google-bureaubladtoepassing"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google blocked access to MailCraft"
-msgstr "Google heeft toegang tot MailCraft geblokceerd"
+msgstr "Google heeft toegang tot MailCraft geblokkeerd"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -4828,9 +4826,8 @@ msgstr "Google bevestigde dit ongewijzigde account niet. De vorige aanmelding en
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
-msgstr "Google keerde niet terug naar MailCraft. Als u Fout 403 of Toegang geblokceerd zag omdat de app in de testmodus is, vraag de ontwikkelaar u als testgebruiker toe te voegen. Als uw organisatie dit blokkeerde, vraag de Workspace-beheerder ervan. Probeer het anders opnieuw. E-mail en instellingen zijn ongewijzigd."
+msgstr "Google keerde niet terug naar MailCraft. Als u Fout 403 of Toegang geblokkeerd zag omdat de app in de testmodus is, vraag de ontwikkelaar u als testgebruiker toe te voegen. Als uw organisatie dit blokkeerde, vraag de Workspace-beheerder ervan. Probeer het anders opnieuw. E-mail en instellingen zijn ongewijzigd."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4852,9 +4849,8 @@ msgstr "Aanmelden met Google werkt niet"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google sign-in does not use Microsoft's administrator consent flow"
-msgstr "Aanmelden met Google gebruikt de instroom voor beheerderstoestemming van Microsoft niet"
+msgstr "Aanmelden met Google gebruikt Microsoft's toestemmingsprocedure voor beheerders niet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9230,9 +9226,8 @@ msgstr "Verbind opnieuw met Google"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
-msgstr "Verbind opnieuw met Google als uw aanmelding is verlopen of ingetrokken. De gedownloadde e-mail en de accountinstellingen blijven op hun plek."
+msgstr "Verbind opnieuw met Google als uw aanmelding is verlopen of ingetrokken. De gedownloade e-mail en de accountinstellingen blijven op hun plek."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11769,9 +11764,8 @@ msgstr "Overschakelen zonder deze"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Switching to Google sign-in keeps your downloaded messages and folders. Your current app password stays in use unless Google signs in as this same account."
-msgstr "Bij het overschakelen naar aanmelden met Google blijven uw gedownloadde berichten en mappen. Het huidige app-wachtwoord blijft in gebruik, tenzij Google u aanmeldt als dezelfde account."
+msgstr "Bij het overschakelen naar aanmelden met Google blijven uw gedownloade berichten en mappen. Het huidige app-wachtwoord blijft in gebruik, tenzij Google u met hetzelfde account aanmeldt."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -13192,9 +13186,8 @@ msgstr "Deze week"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "This account does not use Google sign-in."
-msgstr "Dit account gebruikt aanmelden met Google niet."
+msgstr "Dit account gebruikt geen aanmelding met Google."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -14105,9 +14098,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "To switch, first save Google's standard IMAP and SMTP servers and an email-matching user name."
-msgstr "Zet voor het overschakelen eerst de standaardserver van Google voor IMAP en SMTP op, en een gebruikersnaam die bij het e-mailadres past."
+msgstr "Sla voor het overschakelen eerst de standaard-IMAP- en SMTP-servers van Google op, en een gebruikersnaam die bij het e-mailadres past."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18203,11 +18195,10 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "{n} message that came back empty after a refused delete is being downloaded again."
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
-msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerd verwijderen, wordt opnieuw gedownload."
-msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerd verwijderen, worden opnieuw gedownload."
+msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerde verwijdering, wordt opnieuw gedownload."
+msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerde verwijdering, worden opnieuw gedownload."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
