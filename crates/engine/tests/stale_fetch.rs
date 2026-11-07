@@ -154,10 +154,22 @@ fn a_late_fetch_never_overwrites_a_draft_edited_and_queued() {
         let after = s.mailbox.message(queued).unwrap();
         assert!(*after == before, "{kind:?}");
         assert!(after.body.text.contains("Only for Alice.") && !after.body.text.contains("Bob"));
-        for send in graph_send::sends(&s, account) {
-            if let Some(mime) = send.mime.as_ref() {
-                assert!(mime.to.iter().all(|a| a.email != "bob@example.org"), "{kind:?}");
+        // 5. What the next run sends is what the owner wrote, to whom the owner wrote it: as MIME
+        // for an Exchange server, as the draft's fields for Microsoft Graph.
+        let sends = graph_send::sends(&s, account);
+        assert_eq!(sends.len(), 1, "{kind:?}");
+        match (sends[0].mime.as_ref(), sends[0].draft.as_ref()) {
+            (Some(mime), _) => {
+                assert_eq!(mime.to.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["alice@example.org"], "{kind:?}");
+                assert!(mime.body.text.contains("Only for Alice."), "{kind:?}");
             }
+            (None, Some(draft)) => {
+                let to: Vec<&str> = draft.to.iter().flatten().map(|a| a.email.as_str()).collect();
+                assert_eq!(to, ["alice@example.org"], "{kind:?}");
+                let body = draft.body.as_ref().map(|b| b.content.as_str()).unwrap_or_default();
+                assert!(body.contains("Only for Alice.") && !body.contains("Bob"), "{kind:?}: {body}");
+            }
+            (None, None) => panic!("{kind:?}: nothing to send"),
         }
     }
 }
@@ -214,7 +226,7 @@ fn a_message_in_the_outbox_takes_no_fetch_and_one_still_to_fetch_does() {
 /// answer would be dropped, and a background that asked again at once would ask forever.
 #[test]
 fn a_message_in_the_outbox_is_never_asked_for() {
-    for kind in [Kind::Ews, Kind::Graph] {
+    for kind in [Kind::Ews, Kind::Graph, Kind::Jmap] {
         let (mut s, account) = with_draft(kind);
         let d = draft(&s);
         let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
