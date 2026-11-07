@@ -273,3 +273,114 @@ fn an_entry_read_for_one_mailbox_is_removed_with_all_data_after_another_is_opene
     assert!(left.is_empty(), "{left:?}");
     assert!(store.keys().is_empty(), "{:?}", store.keys());
 }
+
+// ---- review: every name an account's secret may have goes with it ----
+
+/// A pinned Exchange server account with its password still under the name from before the pin:
+/// removing the account leaves nothing of it in the store, nor its names in the settings.
+#[test]
+fn removing_a_pinned_account_forgets_its_password_under_every_name_it_had() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let pinned = exchange(7001, OWNER, &"ab".repeat(32));
+    let unpinned = exchange(7001, OWNER, "");
+    let mut a = app(&store, &seen);
+    open(&mut a, from_file(vec![pinned.clone()]));
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    for key in [MailApp::secret_key("password", &unpinned), MailApp::secret_key("password", &pinned), MailApp::legacy_secret_key("password", OWNER)] {
+        store.set(&key, SECRET).unwrap();
+        a.index_secret_key(key);
+    }
+    a.execute("account.remove", json!({"id": 7001})).unwrap();
+    assert!(store.keys().is_empty(), "{:?}", store.keys());
+    assert!(a.ui.remembered_keys.is_empty(), "{:?}", a.ui.remembered_keys);
+}
+
+/// On an install from before secrets were bound to servers, the password under the old name is
+/// moved to neither of two accounts with one address: the old name doesn't say whose it was.
+#[test]
+fn the_old_name_moves_to_neither_of_two_accounts_with_one_address() {
+    let store = Store::default();
+    store.set(&MailApp::legacy_secret_key("password", OWNER), SECRET).unwrap();
+    let mut mb = mailcraft_engine::sample::mailbox(NOW, 0);
+    mb.accounts.extend([imap(7001, OWNER, "mail.example"), imap(7002, OWNER, "attacker.example")]);
+    let mut a = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    a.autosave = false;
+    a.ui.remember_sign_in = true;
+    a.ui.sign_ins_bound = false;
+    a.services.secrets = Some(Arc::new(store.clone()));
+    a.drop_secrets_if_replaced();
+    // Own mailbox held back: the question says why, not that it came from a file.
+    let asked = a.confirm_servers_question().text;
+    assert!(!asked.contains("opened from a file"), "{asked}");
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
+    assert_eq!(a.remembered("password", 7001), None);
+    assert_eq!(a.remembered("password", 7002), None);
+    assert_eq!(store.keys(), vec![MailApp::legacy_secret_key("password", OWNER)]);
+}
+
+/// A shared mailbox with its owner's address keeps no secret of its own: it doesn't hold the
+/// owner's mailbox back.
+#[test]
+fn a_shared_mailbox_is_not_an_account_with_the_same_address() {
+    let mut owner = imap(7001, OWNER, "mail.example");
+    owner.kind = AccountKind::Microsoft;
+    let shared = Account { id: 7002, shared_of: Some(7001), ..owner.clone() };
+    let mut mb = mailcraft_engine::sample::mailbox(NOW, 0);
+    mb.accounts.extend([owner, shared]);
+    let a = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    assert!(!a.has_shared_address());
+}
+
+/// File › Info's look at a certificate connects to the account's server: not for a mailbox whose
+/// servers nobody has confirmed.
+#[test]
+fn the_certificate_look_waits_for_the_servers_to_be_confirmed() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    open(&mut a, from_file(vec![exchange(7001, OWNER, "")]));
+    assert!(a.is_unconfirmed());
+    let page = json!({"id": 7001, "page": "certificate"});
+    assert!(crate::account_setup::AccountSetup::open(&a, &page).is_none());
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    assert!(crate::account_setup::AccountSetup::open(&a, &page).is_some());
+}
+
+/// The store is read through `remembered` and the background read alone, and the old names are
+/// made in one place: any new place that does either has to be added here, on purpose.
+#[test]
+fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
+    let allowed: &[(&str, &str, usize)] = &[
+        ("lib.rs", "legacy_secret_key(", 2),
+        ("secret_read.rs", "legacy_secret_key(", 1),
+        ("lib.rs", "secret_cache.get(", 2),
+        ("secret_read.rs", "secret_cache.contains_key(", 2),
+    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut stack = vec![root.clone()];
+    let mut found = Vec::new();
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/");
+            if !name.ends_with(".rs") || name.ends_with("tests.rs") || name.contains("/tests/") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            for needle in ["legacy_secret_key(", "secret_cache.get(", "secret_cache.contains_key("] {
+                let n = text.matches(needle).count();
+                if n > 0 {
+                    found.push((name.clone(), needle, n));
+                }
+            }
+        }
+    }
+    found.sort();
+    let mut want: Vec<(String, &str, usize)> = allowed.iter().map(|(f, n, c)| (f.to_string(), *n, *c)).collect();
+    want.sort();
+    assert_eq!(found, want);
+}

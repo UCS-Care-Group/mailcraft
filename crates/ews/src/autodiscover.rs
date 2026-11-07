@@ -474,6 +474,12 @@ impl Autodiscover {
             || self.domains.iter().any(|domain| autodiscover_of(domain))
     }
 
+    /// Why the owner is asked about `host`: as a host of the address's own domain when it is one,
+    /// else for `otherwise` (a domain the owner agreed to is not the address's own).
+    fn in_own_domain(&self, host: &str, otherwise: ConsentReason) -> ConsentReason {
+        if is_within(host, &self.own) { ConsentReason::SignIn } else { otherwise }
+    }
+
     fn finish(&mut self, outcome: Outcome) {
         self.waiting = Waiting::Done(outcome);
     }
@@ -584,7 +590,8 @@ impl Autodiscover {
                 Some(host) if self.sign_in_allowed(&host) => self.sign_in_to(request.url()),
                 // Another host in the domain asks for it: the owner says (AU3-V1).
                 Some(host) => {
-                    self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::SignIn }, Pending::SignIn(request.url().to_owned()))
+                    let reason = self.in_own_domain(&host, ConsentReason::Redirect);
+                    self.waiting = Waiting::Consent(Consent { host, reason }, Pending::SignIn(request.url().to_owned()))
                 }
                 None => self.fail_step(Failure::Unreadable),
             }
@@ -682,7 +689,7 @@ impl Autodiscover {
         let taken = |host: &String| if vouched { self.allowed(host) } else { self.sign_in_allowed(host) };
         match found.urls().into_iter().filter_map(host_of).find(|host| !taken(host)) {
             Some(host) => {
-                let reason = if self.allowed(&host) { ConsentReason::SignIn } else { ConsentReason::MailServer };
+                let reason = self.in_own_domain(&host, ConsentReason::MailServer);
                 self.waiting = Waiting::Consent(Consent { host, reason }, Pending::Settings(found, vouched));
             }
             None => self.finish(Outcome::Found(found)),

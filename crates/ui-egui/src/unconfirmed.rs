@@ -215,12 +215,26 @@ impl MailApp {
         } else {
             String::new()
         };
-        let text = format!(
-            "{}\n\n{list}{twice}\n\n{}",
-            tl!("This mailbox was opened from a file. Its accounts connect to:"),
-            tl!("Only confirm if you know these servers.")
-        );
+        let opening = self.held_back_because();
+        let text = format!("{opening}\n\n{list}{twice}\n\n{}", tl!("Only confirm if you know these servers."));
         Question::new(tl!("Confirm Servers"), text, tl!("Confirm servers"), Value::Null)
+    }
+
+    /// Whether the open mailbox is the owner's own (held back only because two accounts have one
+    /// address), not one opened from a file.
+    fn opened_own_mailbox(&self) -> bool {
+        // (The one the window started with, or the file that is.)
+        self.session.openings() == 0
+            || self.session.path.as_ref().is_some_and(|path| self.own_mailbox.as_deref() == Some(kept_path(&path.to_string_lossy()).as_str()))
+    }
+
+    /// Why the mailbox waits for Confirm Servers, leading into the list of its servers.
+    pub(crate) fn held_back_because(&self) -> &'static str {
+        if self.opened_own_mailbox() {
+            tl!("Two or more accounts in this mailbox have the same address. Its accounts connect to:")
+        } else {
+            tl!("This mailbox was opened from a file. Its accounts connect to:")
+        }
     }
 
     /// A manual Send/Receive in an unconfirmed mailbox: ask to confirm the servers instead.
@@ -241,7 +255,7 @@ pub(crate) fn bar(app: &mut MailApp, ui: &mut Ui) {
     }
     let servers: String = app.account_servers().join("; ");
     let servers = if servers.chars().count() > 110 { format!("{}…", servers.chars().take(110).collect::<String>()) } else { servers };
-    let said = format!("{} {servers}", tl!("This mailbox was opened from a file. Its accounts connect to:"));
+    let said = format!("{} {servers}", app.held_back_because());
     crate::updates::bar(app, ui, "unconfirmed_servers", &said, &[("confirmServers", tl!("Confirm servers"), true)], |app, _| {
         let _ = app.run("ui.confirmServers", json!({}));
     });

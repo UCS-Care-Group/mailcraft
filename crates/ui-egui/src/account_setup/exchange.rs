@@ -238,6 +238,10 @@ impl AccountSetup {
     /// File › Info asks again about a certificate of this account's server that changed: look at
     /// the certificate alone (no sign-in is sent) and ask.
     pub(super) fn review_certificate(app: &MailApp, id: Id) -> Option<AccountSetup> {
+        // (Not for a mailbox whose servers nobody has confirmed: the look connects to its server.)
+        if app.unconfirmed {
+            return None;
+        }
         let a = app.session.mailbox.account(id).filter(|a| a.kind == AccountKind::Exchange && !a.email.is_empty())?;
         let mut w = AccountSetup::blank(Page::ExchangeChecking);
         w.email = line(&a.email, LINE);

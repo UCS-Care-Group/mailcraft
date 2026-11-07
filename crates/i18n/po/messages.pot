@@ -11558,6 +11558,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
 msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
 msgstr ""
 

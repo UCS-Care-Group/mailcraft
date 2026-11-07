@@ -352,13 +352,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   from `Debug` output (`SyncRequest`, `Tokens` in `crates/model/src/sync.rs`) and from error text. Access tokens are never stored.
   `ui.json` holds the key names of the entries MailCraft wrote, moved or read (`rememberedKeys`,
   names only), so that the full wipe and turning Remember sign-in off delete all of them, whichever
-  mailbox they were for, and report any that stay (AU2-18, AU3-18). A secret is read and written
-  for one account, by that account's own name (its address and its servers, and for an Exchange
-  server account the certificate it trusts besides the system's), never found by an address: an
-  account a file adds with the owner's address and other servers, or with a certificate to trust,
-  is never given the owner's secret, and a mailbox where two accounts share an address reads
-  nothing from the store until the owner has confirmed its servers, the certificate named among
-  them (AU3-02, AU3-03). A Microsoft or Google sign-in goes only to that provider's own mail
+  mailbox they were for, and report any that stay (AU2-18, AU3-18); removing an account deletes
+  its entries under every name it may have had. A secret belongs to one confirmed account as it
+  is: it is kept under that account's own name (its address and its servers, and for an Exchange
+  server account the certificate it trusts besides the system's) and read and written by that
+  account alone, never looked up by an address. The certificate is part of what the owner
+  confirms, and nothing is read from the store, and no server is contacted, for a mailbox whose
+  servers are not confirmed, nor for one where two accounts share an address until the owner has
+  confirmed it (AU3-02, AU3-03). A Microsoft or Google sign-in goes only to that provider's own mail
   servers, never to this computer outside a test (AU3-19). Work started for a mailbox (a sign-in, the copy
   before a switch to Graph) records `Session::openings()` and is dropped when another mailbox has
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). A

@@ -2782,6 +2782,18 @@ impl MailApp {
         }
     }
 
+    /// Every name the account's secret of this kind may be kept under: its own, the one from
+    /// before a pin was part of an Exchange server account's name, and the one from before
+    /// secrets were bound to servers. For forgetting, never for reading.
+    pub(crate) fn secret_keys_of(kind: &str, a: &mailcraft_model::Account) -> Vec<String> {
+        let mut keys = vec![Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)];
+        if let Some(e) = a.ews.as_ref().filter(|e| !e.trusted.trim().is_empty()) {
+            let unpinned = mailcraft_model::Account { ews: Some(mailcraft_model::EwsServer { trusted: String::new(), ..e.clone() }), ..a.clone() };
+            keys.push(Self::secret_key(kind, &unpinned));
+        }
+        keys
+    }
+
     /// The name secrets were kept under before they were bound to servers.
     pub(crate) fn legacy_secret_key(kind: &str, address: &str) -> String {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
@@ -2801,16 +2813,21 @@ impl MailApp {
     /// Whether two or more accounts of the open mailbox that connect to servers have the same
     /// address. A mailbox like that is opened, and nothing is read from the credential store for
     /// it until the owner has seen in Confirm Servers where each of them connects (AU3-03).
+    /// (A shared mailbox keeps no secret of its own: its owner's sign-in reads it.)
     pub(crate) fn has_shared_address(&self) -> bool {
-        let mut seen: Vec<String> = Vec::new();
-        for a in self.session.mailbox.accounts.iter().filter(|a| a.kind.has_server()) {
-            let address = a.email.trim().to_ascii_lowercase();
-            if seen.contains(&address) {
-                return true;
-            }
-            seen.push(address);
-        }
-        false
+        self.session.mailbox.accounts.iter().any(|a| self.address_shared(&a.email))
+    }
+
+    /// Whether two or more accounts that keep secrets of their own have this address.
+    pub(crate) fn address_shared(&self, address: &str) -> bool {
+        let address = address.trim();
+        self.session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
+            .nth(1)
+            .is_some()
     }
 
     /// What the owner had the operating system remember (`password` or `refresh`) for the
@@ -2865,16 +2882,7 @@ impl MailApp {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
             for kind in ["password", "refresh"] {
-                keys.push(Self::secret_key(kind, a));
-                keys.push(Self::legacy_secret_key(kind, &a.email));
-                // (A pinned Exchange server account's password from before the pin was part of
-                // the name.)
-                let unpinned = a
-                    .ews
-                    .as_ref()
-                    .filter(|e| !e.trusted.is_empty())
-                    .map(|e| mailcraft_model::Account { ews: Some(mailcraft_model::EwsServer { trusted: String::new(), ..e.clone() }), ..a.clone() });
-                keys.extend(unpinned.map(|a| Self::secret_key(kind, &a)));
+                keys.extend(Self::secret_keys_of(kind, a));
             }
         }
         keys.sort();
@@ -2916,7 +2924,7 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         for kind in ["password", "refresh"] {
-            for key in [Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)] {
+            for key in Self::secret_keys_of(kind, a) {
                 store.delete(&key);
                 if store.get(&key).is_none() {
                     gone.push(key);
@@ -2935,7 +2943,7 @@ impl MailApp {
 
     /// Forget only this account's rejected refresh grant, including the in-memory cache.
     fn forget_account_refresh(&mut self, account: &mailcraft_model::Account) {
-        let keys = [Self::secret_key("refresh", account), Self::legacy_secret_key("refresh", &account.email)];
+        let keys = Self::secret_keys_of("refresh", account);
         for key in &keys {
             self.secret_cache.remove(key);
         }

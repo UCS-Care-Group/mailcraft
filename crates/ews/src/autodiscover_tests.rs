@@ -1043,6 +1043,28 @@ fn settings_from_a_host_that_never_had_the_sign_in_vouch_for_no_server_in_the_do
     assert!(run.asked.is_empty() && run.sign_in.is_empty());
 }
 
+#[test]
+fn a_host_of_a_domain_the_owner_agreed_to_is_not_asked_about_as_one_of_the_addresses_own() {
+    // Sent on to another domain, agreed; its own name asks for the sign-in: the owner is asked
+    // about a host outside the address's domain, not one in it.
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Document(redirect_addr("ada@example.net")))
+        .route("example.net", Route::Challenge("Basic realm=\"site\"".into()))
+        .route("autodiscover.example.net", good());
+    let run = strict(&standin, None, &[true, false]);
+    assert_eq!(found(&run).external_url(), Some(EXTERNAL));
+    assert_eq!(run.asked, [("example.net".to_owned(), ConsentReason::OtherDomain), ("example.net".to_owned(), ConsentReason::Redirect)]);
+    // Settings that name a server in the agreed domain, from a host that never had the sign-in.
+    let answer = settings("https://mail.example.net/EWS/Exchange.asmx", "", "mail.example.net").into_bytes();
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Document(redirect_addr("ada@example.net")))
+        .route("example.net", Route::Bytes(answer));
+    let run = strict(&standin, None, &[true, false]);
+    assert_eq!(run.asked, [("example.net".to_owned(), ConsentReason::OtherDomain), ("mail.example.net".to_owned(), ConsentReason::MailServer)]);
+}
+
 /// The shape Grommunio 2026 answers with (E8, first contact with a real EWS server, made-up
 /// names): an `EXHTTP` and a MAPI/HTTP protocol first, then `EXCH` whose `Server` is a mailbox
 /// identifier with an `@` in it (not a host name), then an `EXPR` with no `EwsUrl` at all.
