@@ -89,3 +89,34 @@ fn a_budget_in_force_comes_back_after_a_read_within_another() {
     assert_eq!(outer.bytes_left(), 1 << 20);
     assert!(inner.bytes_left() < 1 << 30);
 }
+
+#[test]
+fn a_charge_refused_inside_a_lenient_field_refuses_the_read() {
+    // `synced` is read leniently: a refusal while it is read must not leave it out of a mailbox
+    // that then reads, to be saved without it.
+    let message = crate::Message {
+        subject: "Kept".into(),
+        synced: Some(crate::sync::RemoteFlags { uid: 7, ..Default::default() }),
+        server: Some(Default::default()),
+        moving_out: Some(Default::default()),
+        answers: Some(Default::default()),
+        ..Default::default()
+    };
+    let json = format!(r#"{{"version":1,"messages":{{"1":{}}}}}"#, serde_json::to_string(&message).unwrap());
+    let whole = Budget::new(usize::MAX, u64::MAX);
+    read_json::<Mailbox>(json.as_bytes(), &whole).unwrap();
+    let cost = u64::MAX - whole.bytes_left();
+    let mut read = 0;
+    for room in 0..=cost {
+        let budget = Budget::new(usize::MAX, room);
+        if let Ok(mb) = read_json::<Mailbox>(json.as_bytes(), &budget) {
+            read += 1;
+            let m = mb.messages.values().next().unwrap();
+            assert!(
+                m.synced.is_some() && m.server.is_some() && m.moving_out.is_some() && m.answers.is_some(),
+                "{room} of {cost}: read without a field"
+            );
+        }
+    }
+    assert!(read >= 1);
+}

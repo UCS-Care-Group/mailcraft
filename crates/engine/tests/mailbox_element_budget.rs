@@ -147,3 +147,22 @@ fn elements_at_any_depth_are_charged() {
     refused(with_limits(limits(SMALL, false), || mailcraft_engine::io::read_mailbox(json.as_bytes())), "deep");
     with_limits(limits(AMPLE, false), || mailcraft_engine::io::read_mailbox(json.as_bytes())).unwrap();
 }
+
+/// A mailbox of a million messages, saved in the form with a log of records, opens within the
+/// budget of a computer whose memory can't be measured (8 GiB, `store::UNMEASURED_ELEMENTS`).
+/// (`store_budget_tests.rs` checks a fiftieth of it at every run.)
+#[test]
+#[ignore = "saves and opens a million messages (a few GB of memory); run by hand"]
+fn a_million_messages_open_where_memory_cant_be_measured() {
+    let t = Temp::new("million");
+    let path = t.file("million.mailcraft");
+    let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@example.org");
+    let inbox = mb.inbox().unwrap();
+    for _ in 0..1_000_000 {
+        mb.add_message(mailcraft_model::Message { folder: inbox, ..Default::default() }).unwrap();
+    }
+    mailcraft_engine::store::save(&path, &mb).unwrap();
+    drop(mb);
+    let opened = with_limits(limits(8 << 30, false), || mailcraft_engine::store::open(&path)).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 1_000_000);
+}

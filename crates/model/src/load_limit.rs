@@ -112,8 +112,8 @@ impl Budget {
         }
     }
 
-    /// Give back `n` bytes taken and not used.
-    fn give_back(&self, n: u64) {
+    /// Give back `n` bytes taken and let go of (or not used).
+    pub fn give_back(&self, n: u64) {
         if n > 0 {
             let mut left = self.left();
             left.1 = left.1.saturating_add(n);
@@ -203,8 +203,20 @@ pub fn read_json<T: DeserializeOwned>(bytes: &[u8], budget: &Arc<Budget>) -> Res
         let mut de = serde_json::Deserializer::from_slice(bytes);
         let value = T::deserialize(Counting(&mut de))?;
         de.end()?;
+        // A charge refused inside a value read leniently (one that leaves out what it can't
+        // read) is still a refusal: nothing is left out of a mailbox for want of memory, to be
+        // saved without it.
+        refused_within(budget)?;
         Ok(value)
     })
+}
+
+/// An error when a charge to `budget` was refused, even where the reader went on.
+pub fn refused_within(budget: &Budget) -> Result<(), serde_json::Error> {
+    match budget.spent() {
+        Some(why) => Err(serde_json::Error::custom(why)),
+        None => Ok(()),
+    }
 }
 
 /// A `T` read with what it holds charged to the budget in force ([`within`]), for a reader that

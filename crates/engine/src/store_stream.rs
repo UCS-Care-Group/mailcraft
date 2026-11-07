@@ -517,6 +517,10 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         }
         return Err(format!("{show}: this isn't a MailCraft mailbox ({e})"));
     }
+    // (A charge refused inside a value read leniently is a refusal too: nothing is left out.)
+    if let Some(why) = build.budget.spent() {
+        return Err(format!("{show}: {why}"));
+    }
     // The last of the content, on the disk before anything names it.
     build.flush().map_err(|e| format!("{show}: {e}"))?;
     let Build { rest, messages, contacts, events, tasks, moved, version, .. } = build;

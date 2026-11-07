@@ -1817,22 +1817,27 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
+    // The records and what parsing them builds are read within one budget, as a file read whole
+    // is: a file that is more than it is refused before it is read.
+    let budget = open_budget();
+    if len > max_json_bytes() {
+        return Err(load_limit::TOO_MUCH.into());
+    }
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     // What its bytes are is worked out on a thread of its own from the bytes read here (no more
     // than `len` of them), for the first save to wait for: nothing wants it before.
     let mut reader = std::io::BufReader::with_capacity(HASH_PIECE, Hashing::new(Counted { inner: f.take(len), progress }, file));
-    let replayed = index::replay(&mut reader, len)?;
+    let replayed = index::replay_within(&mut reader, len, index::MAX_RECORDS, Some(&budget))?;
     // A sum only of the file read to its end by the replay itself: bytes read ahead into the
     // buffer and never taken (a save cut short) leave none, as a file not read through always has.
     let taken_whole = reader.buffer().is_empty();
     let sum = reader.into_inner().sum(len);
     let sum = if taken_whole { sum } else { Sum::None };
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
-    // The rest and every item are read within one budget, as a file read whole is.
-    let budget = open_budget();
     let mut mailbox: Mailbox = load_limit::read_json(&rest, &budget)
         .map_err(|e| if let Some(why) = budget.spent() { why.to_string() } else { format!("this mailbox file is damaged ({e})") })?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
+    budget.give_back((rest.len() as u64).saturating_add(index::RECORD_COST));
     drop(rest);
     // Items are their own records: whatever the rest says of them is no part of the mailbox.
     mailbox.messages = Default::default();
@@ -1852,6 +1857,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
         let mut slice = items.split_off(items.len().saturating_sub(OPEN_SLICE));
         slice.reverse();
         let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item, &budget))));
+        // (The records' bytes are let go of, and what they cost given back.)
+        budget.give_back(slice.iter().map(|(_, item)| item.cost()).fold(0u64, u64::saturating_add));
         drop(slice);
         for one in parsed {
             let Some(Some((key, size, result))) = one else { return Err("the mailbox file couldn't be read".into()) };
@@ -1978,7 +1985,9 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
     }
 }
 
-/// How the machine's memory stands, in bytes, where it can be read (Linux: `/proc/meminfo`).
+/// How the machine's memory stands, in bytes, where it can be read: Linux from `/proc/meminfo`,
+/// macOS and FreeBSD from the system's own `sysctl` (asked once). Not on Windows, where only a
+/// call this code can't make without `unsafe` says it.
 fn physical_memory() -> Option<u64> {
     #[cfg(target_os = "linux")]
     let total = {
@@ -1987,9 +1996,31 @@ fn physical_memory() -> Option<u64> {
         let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
         kb.checked_mul(1024)
     };
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    let total = {
+        static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
+        *TOTAL.get_or_init(sysctl_memory)
+    };
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
     let total = None;
     total
+}
+
+/// The machine's memory as `sysctl` says it (`hw.memsize` on macOS, `hw.physmem` on FreeBSD), run
+/// by its full path with nothing but the name.
+#[cfg(any(target_os = "macos", target_os = "freebsd"))]
+fn sysctl_memory() -> Option<u64> {
+    let (program, name) = if cfg!(target_os = "macos") { ("/usr/sbin/sysctl", "hw.memsize") } else { ("/sbin/sysctl", "hw.physmem") };
+    let out = std::process::Command::new(program)
+        .args(["-n", name])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    std::str::from_utf8(out.stdout.get(..64).unwrap_or(&out.stdout)).ok()?.trim().parse().ok().filter(|n| *n > 0)
 }
 
 #[cfg(test)]
@@ -2098,9 +2129,10 @@ const TEST_ELEMENTS: u64 = 256 << 20;
 /// The least [`max_json_bytes`] is: 1 GiB.
 const MIN_ELEMENTS: u64 = 1 << 30;
 
-/// [`max_json_bytes`] where the machine's memory can't be read: 2 GiB (beside a file of at most
-/// [`UNMEASURED_JSON_MAX`] read whole).
-const UNMEASURED_ELEMENTS: u64 = 2 << 30;
+/// [`max_json_bytes`] where the machine's memory can't be read (Windows, and systems other than
+/// Linux, macOS and FreeBSD): 8 GiB, which a mailbox of a million messages fits in several times
+/// over (`store_budget_tests.rs`).
+const UNMEASURED_ELEMENTS: u64 = 8 << 30;
 
 /// The most [`max_json_bytes`] is: 32 GiB.
 const MAX_ELEMENTS: u64 = 32 << 30;
@@ -3497,12 +3529,16 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
         if len > MAX_INDEX {
             return Err("too large".into());
         }
-        let replayed = index::replay(std::io::BufReader::with_capacity(1 << 20, fs::File::open(path).map_err(|e| e.to_string())?), len)?;
+        let budget = open_budget();
+        if len > max_json_bytes() {
+            return Err(load_limit::TOO_MUCH.into());
+        }
+        let file = fs::File::open(path).map_err(|e| e.to_string())?;
+        let replayed = index::replay_within(std::io::BufReader::with_capacity(1 << 20, file), len, index::MAX_RECORDS, Some(&budget))?;
         if matches!(replayed.tail, Tail::Bytes(_)) {
             return Ok(None);
         }
         // Only a file that opens is believed about what it names.
-        let budget = open_budget();
         load_limit::read_json::<Mailbox>(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, &budget).map_err(|e| e.to_string())?;
         let items: Vec<(&Key, &index::Item)> = replayed.items.iter().collect();
         let mut named = HashSet::new();

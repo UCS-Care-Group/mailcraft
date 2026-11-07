@@ -96,3 +96,51 @@ fn the_budget_is_kept_when_threads_share_it() {
     assert!(ok > 0 && ok < 400, "{ok}");
     assert!(budget.spent().is_some());
 }
+
+/// A mailbox in the form with a log of records of `n` messages with nothing in them.
+fn empty_messages(t: &Temp, n: usize) -> PathBuf {
+    let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@example.org");
+    let inbox = mb.inbox().unwrap();
+    for _ in 0..n {
+        mb.add_message(Message { folder: inbox, ..Default::default() }).unwrap();
+    }
+    save(&t.file(), &mb).unwrap();
+    assert!(is_index(&t.file()).unwrap());
+    t.file()
+}
+
+#[test]
+fn many_tiny_records_are_charged_while_they_are_replayed() {
+    // Each record held costs its bytes and `RECORD_COST`, however small it is in the file.
+    let t = Temp::new("budget-replay");
+    let path = empty_messages(&t, 20_000);
+    let bytes = fs::read(&path).unwrap();
+    let len = bytes.len() as u64;
+    let room = load_limit::Budget::new(usize::MAX, u64::MAX);
+    let replayed = index::replay_within(&bytes[..], len, index::MAX_RECORDS, Some(&room)).unwrap();
+    let charged = u64::MAX - room.bytes_left();
+    assert!(charged >= replayed.items.len() as u64 * index::RECORD_COST, "{charged}");
+    // A budget of less is refused while the records are read, not after.
+    let small = load_limit::Budget::new(usize::MAX, charged / 2);
+    let e = index::replay_within(&bytes[..], len, index::MAX_RECORDS, Some(&small)).err().unwrap();
+    assert!(e.contains("memory to open"), "{e}");
+    // And so is an open whose budget the records alone are more than.
+    let e = with_limits(Limits { element_bytes: charged / 2, stream: false }, || open(&path)).err().unwrap();
+    assert!(e.contains("memory to open"), "{e}");
+    // A file longer than the budget is refused before it is read.
+    let e = with_limits(Limits { element_bytes: len - 1, stream: false }, || open(&path)).err().unwrap();
+    assert!(e.contains("memory to open"), "{e}");
+}
+
+#[test]
+fn a_saved_mailbox_opens_under_the_budget_where_memory_cant_be_measured_in_proportion() {
+    // A fiftieth of a million messages under a fiftieth of the budget: so a million open under
+    // the whole of it (`tests/mailbox_element_budget.rs`, `a_million_messages_open_where_memory_cant_be_measured`).
+    let t = Temp::new("budget-proportion");
+    let path = empty_messages(&t, 20_000);
+    let opened = with_limits(Limits { element_bytes: UNMEASURED_ELEMENTS / 50, stream: false }, || open(&path)).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 20_000);
+    // With room to spare: a third of it is enough.
+    let opened = with_limits(Limits { element_bytes: UNMEASURED_ELEMENTS / 150, stream: false }, || open(&path)).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 20_000);
+}
