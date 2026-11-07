@@ -1832,6 +1832,20 @@ fn an_agent_asks_before_it_sends_a_category_to_outlook_or_renames_one_there() {
         other => panic!("an agent renames a category in Outlook unasked: {other:?}"),
     }
     assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": "Red category", "to": "Urgent"}), &[Class::Send]), Verdict::Run);
+    // Asked from a shared mailbox, both name the Outlook they change: its owner's.
+    let mut s = s;
+    let shared = s.run("account.addSharedMailbox", &json!({"account": a, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    for (command, params) in [
+        ("category.addToOutlook", json!({"account": shared, "name": "Old local"})),
+        ("category.rename", json!({"account": shared, "from": "Red category", "to": "Urgent"})),
+    ] {
+        match check(&s, command, &params, &[]) {
+            Verdict::Ask(Class::Send, text) => {
+                assert!(text.contains("\u{201c}a@example.org\u{201d}") && !text.contains("team@"), "{command}: {text}")
+            }
+            other => panic!("{command}: {other:?}"),
+        }
+    }
     // One kept on this computer only, or on the list IMAP accounts and this computer share, is
     // renamed here alone: nothing to ask.
     assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": "Old local", "to": "Mine"}), &[]), Verdict::Run);

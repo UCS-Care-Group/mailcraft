@@ -1425,7 +1425,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("rename the category {}{whose} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
         }
         "category.addToOutlook" => {
-            let whose = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            // Whose Outlook it goes to: a shared mailbox's list is its owner's.
+            let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
+            let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
             format!("send the category {}{whose}, kept on this computer only, to Outlook, where it is kept in step from then on", quoted(st("name")))
         }
         _ if leaves(id) => leaving_text(s, params),
