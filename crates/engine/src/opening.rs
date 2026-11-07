@@ -287,7 +287,7 @@ pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", 
 /// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
 /// the files an agent may not have written are refused by.
 pub fn is_risky(ext: &str) -> bool {
-    BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+    !ext.is_ascii() || BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
 }
 
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
