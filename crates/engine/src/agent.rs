@@ -1416,9 +1416,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "category.rename" if shared_category(s, id, params) || renames_in_outlook(s, params) => {
             // In Outlook too (#661): the new name is made there, the items there take it, and the
             // old one is deleted there.
-            let there = if renames_in_outlook(s, params) { " in Outlook too: the new name is made there and the old one deleted there" } else { "" };
+            // Whose Outlook, as `category.remove` says: two accounts may both have the name.
+            let outlook = renames_in_outlook(s, params);
+            let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
+            let whose = owner.filter(|_| outlook).and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+            let there = if outlook { " in Outlook too: the new name is made there and the old one deleted there" } else { "" };
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
-            format!("rename the category {} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
+            format!("rename the category {}{whose} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
         }
         "category.addToOutlook" => {
             let whose = p::id(params, "account").and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();

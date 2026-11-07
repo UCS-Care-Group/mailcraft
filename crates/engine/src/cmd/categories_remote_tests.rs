@@ -1827,7 +1827,8 @@ fn an_agent_asks_before_it_sends_a_category_to_outlook_or_renames_one_there() {
     }
     // Renaming one Outlook has: the new name is made there and the old one deleted there.
     match check(&s, "category.rename", &json!({"account": a, "from": "Red category", "to": "Urgent"}), &[]) {
-        Verdict::Ask(Class::Send, text) => assert!(text.contains("in Outlook too"), "{text}"),
+        // Whose Outlook: another account may have the same name.
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("in Outlook too") && text.contains("\u{201c}a@example.org\u{201d}"), "{text}"),
         other => panic!("an agent renames a category in Outlook unasked: {other:?}"),
     }
     assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": "Red category", "to": "Urgent"}), &[Class::Send]), Verdict::Run);

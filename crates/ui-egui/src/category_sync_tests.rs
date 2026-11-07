@@ -542,3 +542,41 @@ fn what_waits_is_worked_out_again_at_most_once_a_second_while_the_mailbox_change
     app.categories_tick_at(1_010.0);
     assert_eq!(worked_out(&app), Some(1_010.0));
 }
+
+/// `command` sent by an agent that was allowed nothing in advance: its answer when it has one,
+/// and where the answer comes once the owner answers its question.
+fn agent(app: &mut MailApp, command: &str, params: serde_json::Value) -> (Option<serde_json::Value>, mpsc::Receiver<serde_json::Value>) {
+    use crate::control::{ControlRequest, Outcome};
+    let (req, rx) = ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
+    let out = crate::control::handle(app, &egui::Context::default(), &req.from_agent(Vec::new()));
+    (if let Outcome::Done(v) = out { Some(v) } else { None }, rx)
+}
+
+#[test]
+fn an_agents_change_to_outlooks_list_runs_on_the_owners_yes() {
+    // A list kept in step that MailCraft may change, with one category kept on this computer only.
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    s.mailbox.categories = vec![Category { name: "Old local".into(), color: OUTLOOK_COLORS[3] }];
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.run("sync.categoryWrites", &json!({"account": owner, "allowed": true})).unwrap();
+    remote::apply_categories(&mut s, &download(owner, &["Red category", "Blue category"])).unwrap();
+    assert!(s.mailbox.category_is_local(owner, "Old local"));
+    let mut app = MailApp::new(s, Services::default());
+    app.autosave = false;
+    app.auto_sync = false;
+    for (command, params) in [
+        ("category.addToOutlook", json!({"account": owner, "name": "Old local"})),
+        ("category.rename", json!({"account": owner, "from": "Red category", "to": "Crimson"})),
+        ("category.remove", json!({"account": owner, "name": "Blue category"})),
+    ] {
+        let (now, rx) = agent(&mut app, command, params);
+        assert!(now.is_none() && !app.asking.is_empty(), "{command} is asked about: {now:?}");
+        crate::agent_gate::answer(&mut app, true);
+        let r = rx.try_recv().unwrap();
+        assert_eq!(r["ok"], true, "{command}: {r}");
+    }
+    let mb = &app.session.mailbox;
+    assert!(!mb.category_is_local(owner, "Old local"), "sent to Outlook");
+    assert!(mb.category_of(owner, "Crimson").is_some() && mb.category_of(owner, "Red category").is_none());
+    assert!(mb.category_of(owner, "Blue category").is_none());
+}
