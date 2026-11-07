@@ -347,6 +347,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let due = p::date(v, "due")?;
+    let show = p::opt_bool(v, "show")?.unwrap_or(true);
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // One to-do per message.
     if let Some(existing) = s.mailbox.tasks.values().find(|t| t.message == Some(mid)).cloned() {
@@ -373,7 +374,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = mailcraft_model::FlagStatus::Flagged;
     }
     s.sel.task = Some(id);
-    if p::bool(v, "show").unwrap_or(true) {
+    if show {
         s.view.module = Module::Tasks;
     }
     Ok(json!({"id": id, "existing": false}))

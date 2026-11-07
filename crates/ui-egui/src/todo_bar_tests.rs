@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The To-Do Bar (#831): drawn when a part of it is on, with what it lists.
 
+use std::sync::Arc;
+
 use egui::{Key, PointerButton};
 use mailcraft_engine::Module;
 use serde_json::json;
@@ -198,4 +200,45 @@ fn the_bar_and_its_width_are_kept_between_runs() {
     saved.todo_bar_width = f32::NAN;
     next.apply_prefs(saved);
     assert_eq!(next.ui.todo_bar_width, DEFAULT_WIDTH);
+}
+
+#[test]
+fn what_the_bar_lists_is_kept_between_frames_and_worked_out_again_when_it_changes() {
+    let mut w = window("view.mail");
+    let ctx = w.ctx.clone();
+    // Nothing changed: the same lists, not gone through again.
+    let s = &w.state().session;
+    let first = s.today().start_of_month().start_of_week(s.prefs.week_start);
+    assert!(Arc::ptr_eq(&task_rows_cached(&ctx, s), &task_rows_cached(&ctx, s)));
+    assert!(Arc::ptr_eq(&favourites_cached(&ctx, s), &favourites_cached(&ctx, s)));
+    assert!(Arc::ptr_eq(&next_appointments_cached(&ctx, s), &next_appointments_cached(&ctx, s)));
+    assert!(Arc::ptr_eq(&busy_days_cached(&ctx, s, first), &busy_days_cached(&ctx, s, first)));
+
+    // A task made: listed.
+    let made = w.state_mut().execute("tasks.new", json!({"title": "Sort the stationery cupboard"})).unwrap();
+    let made = made["id"].as_u64().unwrap();
+    assert!(task_rows_cached(&ctx, &w.state().session).iter().any(|(_, id)| *id == made));
+    // A favourite let go of: gone from the people.
+    let contact = *favourites_cached(&ctx, &w.state().session).first().unwrap();
+    w.state_mut().execute("people.favorite", json!({"id": contact, "value": false})).unwrap();
+    assert!(!favourites_cached(&ctx, &w.state().session).contains(&contact));
+    // The clock past the end of the next appointment: it is off the list.
+    let next = *next_appointments_cached(&ctx, &w.state().session).first().unwrap();
+    let s = &mut w.state_mut().session;
+    let mut at = s.now();
+    while s.local(at) < next.end {
+        at += 60;
+    }
+    s.clock.now = Some(at + 60);
+    assert!(!next_appointments_cached(&ctx, &w.state().session).contains(&next));
+    // Its calendar hidden: its days are no longer busy, unless something else is on them.
+    let s = &w.state().session;
+    let busy = busy_days_cached(&ctx, s, first);
+    let calendars: Vec<u64> = s.mailbox.calendars.iter().filter(|c| c.visible).map(|c| c.id).collect();
+    for id in calendars {
+        w.state_mut().execute("calendar.showCalendar", json!({"id": id, "value": false})).unwrap();
+    }
+    let after = busy_days_cached(&ctx, &w.state().session, first);
+    assert!(busy.iter().any(|b| *b), "the sample has something on");
+    assert!(after.iter().all(|b| !b), "nothing is on in a calendar that is hidden");
 }
