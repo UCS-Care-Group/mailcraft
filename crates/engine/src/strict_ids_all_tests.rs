@@ -73,7 +73,7 @@ fn table(s: &Session) -> Vec<(&'static str, Reads, Value)> {
     for c in ["mail.get", "mail.findFromSender", "file.exportMessage", "calendar.fromMessage", "tasks.fromMessage", "people.fromMessage"] {
         t.push((c, Reads::Message, json!({})));
     }
-    for c in ["mail.saveAttachment", "mail.removeAttachment", "mail.openAttachment"] {
+    for c in ["mail.saveAttachment", "mail.removeAttachment", "mail.openAttachment", "mail.copyAttachment"] {
         t.push((c, Reads::Message, json!({"index": 0})));
     }
     for c in [

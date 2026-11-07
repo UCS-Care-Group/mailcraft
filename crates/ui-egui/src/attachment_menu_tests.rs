@@ -18,7 +18,7 @@ const A: u64 = 13;
 const B: u64 = 15;
 
 /// The entries of an attachment's menu.
-const ENTRIES: [&str; 4] = ["Open", "Save As…", "Save All Attachments…", "Remove Attachment"];
+const ENTRIES: [&str; 5] = ["Open", "Save As…", "Save All Attachments…", "Remove Attachment", "Copy"];
 
 type Opened = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 
@@ -296,4 +296,148 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
     let at = arrow(&h, A, 1).center();
     click(&mut h, at, PointerButton::Primary, 1);
     assert_eq!(menus(&h), 1);
+}
+
+/// What the host was asked to write for a Copy, and the files put on the clipboard (#807).
+#[derive(Clone, Default)]
+struct Copied {
+    written: std::rc::Rc<std::cell::RefCell<Vec<(String, Vec<u8>)>>>,
+    put: std::rc::Rc<std::cell::RefCell<Vec<Vec<std::path::PathBuf>>>>,
+}
+
+impl crate::RichClipboard for Copied {
+    fn put(&self, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn html(&self) -> Option<String> {
+        None
+    }
+    fn put_files(&self, paths: &[std::path::PathBuf]) -> Result<(), String> {
+        self.put.borrow_mut().push(paths.to_vec());
+        Ok(())
+    }
+}
+
+/// [`window_with`], with a host that writes copies (to nowhere) and a clipboard that takes files.
+fn copying(a_files: &[&str]) -> (Window, Copied) {
+    let (mut h, _) = window_with(a_files);
+    let copied = Copied::default();
+    let app = h.state_mut();
+    app.services.clipboard = Some(Box::new(copied.clone()));
+    let sink = copied.written.clone();
+    app.services.copy_file = Some(Box::new(move |name, bytes| {
+        sink.borrow_mut().push((name.to_string(), bytes.to_vec()));
+        Ok(std::path::PathBuf::from("/copied").join(mailcraft_engine::opening::save_name(name)))
+    }));
+    (h, copied)
+}
+
+fn put(c: &Copied) -> Vec<Vec<std::path::PathBuf>> {
+    c.put.borrow().clone()
+}
+
+#[test]
+fn copy_from_the_menu_puts_that_file_on_the_clipboard() {
+    let (mut h, c) = copying(&["first.pdf", "second.pdf"]);
+    let at = arrow(&h, A, 1).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    choose(&mut h, "Copy");
+    assert_eq!(*c.written.borrow(), vec![("second.pdf".to_string(), b"a1".to_vec())]);
+    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/second.pdf")]]);
+    assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed");
+    // And from a message's own window, its own file.
+    let w = h.state_mut().run("ui.openWindow", json!({"message": B})).unwrap()["window"].as_u64().unwrap();
+    h.run_steps(8);
+    let in_window = h.state().hit.rect_in(w, "attachmentMenu", attachment_key(B, 0)).expect("the window's ▾");
+    click(&mut h, in_window.center(), PointerButton::Primary, 1);
+    choose(&mut h, "Copy");
+    assert_eq!(c.written.borrow().last(), Some(&("other.pdf".to_string(), b"b0".to_vec())));
+}
+
+/// Whether the last frame handed text to the clipboard.
+fn text_copied(h: &Window) -> bool {
+    h.output().platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(_)))
+}
+
+/// Ctrl+C on an attachment picked with a click copies the file, and not the message's text that
+/// is selected: the text's copy would reach the clipboard after the file and take its place.
+#[test]
+fn ctrl_c_on_a_picked_attachment_copies_the_file_and_not_the_text() {
+    let (mut h, c) = copying(&["notes.pdf"]);
+    // Text of the message selected: below the chip, in the body, then Ctrl+A.
+    let body = chip(&h, A, 0).center() + egui::vec2(0.0, 90.0);
+    click(&mut h, body, PointerButton::Primary, 1);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    h.event(egui::Event::Copy);
+    h.step();
+    assert!(text_copied(&h), "the selected text is copied while no attachment is picked");
+    assert!(put(&c).is_empty());
+    // A click picks the attachment, without taking the keyboard from the list.
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    assert!(!h.get_by_role_and_label(Role::Button, "notes.pdf").is_focused());
+    h.event(egui::Event::Copy);
+    h.step();
+    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/notes.pdf")]]);
+    assert!(!text_copied(&h), "no text went on the clipboard over the file");
+    h.run_steps(2);
+    // A press anywhere else lets go of it: Ctrl+C is the text's again.
+    click(&mut h, body, PointerButton::Primary, 1);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    h.event(egui::Event::Copy);
+    h.step();
+    assert!(text_copied(&h));
+    assert_eq!(put(&c).len(), 1);
+    h.run_steps(2);
+    // From the keyboard: Tab to the chip, then Ctrl+C.
+    h.get_by_role_and_label(Role::Button, "notes.pdf").focus();
+    h.run_steps(2);
+    h.event(egui::Event::Copy);
+    h.run_steps(2);
+    assert_eq!(put(&c).len(), 2);
+}
+
+/// After a click on an attachment, the list's keys are still the list's (Down goes on to the
+/// next message), and Escape lets go of the attachment.
+#[test]
+fn picking_an_attachment_leaves_the_keys_to_the_list() {
+    let (mut h, c) = copying(&["notes.pdf"]);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    key(&mut h, Key::Escape);
+    h.event(egui::Event::Copy);
+    h.run_steps(2);
+    assert!(put(&c).is_empty(), "Escape let go of it");
+    click(&mut h, at, PointerButton::Primary, 1);
+    key(&mut h, Key::ArrowDown);
+    assert_ne!(h.state().session.sel.focus(), Some(A), "Down moved on in the list");
+}
+
+/// The control channel's click on Copy is no Copy of the owner's: nothing goes on the clipboard.
+#[test]
+fn the_control_channel_copies_nothing() {
+    let (mut h, c) = copying(&["notes.pdf"]);
+    h.state_mut().driven = true;
+    let e = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap_err();
+    assert!(e.contains("Only you"), "{e}");
+    assert!(put(&c).is_empty() && c.written.borrow().is_empty());
+}
+
+/// Programs are copied as Save As saves them (nothing is opened), and where there is no host to
+/// write the copy (the browser) Copy says so and puts nothing on the clipboard.
+#[test]
+fn any_kind_is_copied_and_without_a_host_copy_says_why() {
+    let (mut h, c) = copying(&["setup.exe", "README"]);
+    let a = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap();
+    let b = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 1})).unwrap();
+    // The host is given the attachment's own name and names the file as Save As does.
+    let names: Vec<String> = c.written.borrow().iter().map(|(n, _)| n.clone()).collect();
+    assert_eq!(names, ["setup.exe", "README"]);
+    assert_eq!((a["name"].as_str(), b["name"].as_str()), (Some("setup.exe"), Some("README.bin")));
+    h.state_mut().services.copy_file = None;
+    let e = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap_err();
+    assert!(e.contains("can't be copied here") && e.contains("Save As"), "{e}");
+    assert_eq!(put(&c).len(), 2);
 }

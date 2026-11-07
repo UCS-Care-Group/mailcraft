@@ -11,10 +11,19 @@
 //! compositor's data-control protocol where it has one (KDE Plasma, wlroots compositors), else
 //! the X11 clipboard (an X11 session, or XWayland, which hands it on to Wayland programs).
 //!
+//! Files go on it and come off it too (#807), as a file manager puts the ones it copies there: an
+//! attachment the owner copied, for a file manager to paste, and files copied in one, for a
+//! message being written to attach. Windows' file list (`CF_HDROP`), file addresses on the macOS
+//! pasteboard, and on Linux and FreeBSD `text/uri-list` (`file://` addresses only), which
+//! Dolphin and current GNOME Files read; older file managers that read only
+//! `x-special/gnome-copied-files` (older GNOME Files, Thunar) don't see them.
+//!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
-//! copied is served from this program for as long as it holds the clipboard.
+//! copied is served from this program for as long as it holds the clipboard (when MailCraft
+//! quits, it is gone unless a clipboard manager keeps it).
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 
 use mailcraft_ui_egui::{RichClipboard, clipboard_picture_png as png};
 
@@ -69,6 +78,29 @@ impl RichClipboard for Board {
         let image = self.with(|b| b.get_image()).ok()?;
         png(image.width, image.height, &image.bytes)
     }
+
+    fn put_files(&self, paths: &[PathBuf]) -> Result<(), String> {
+        let r = self.with(|b| b.set().file_list(paths));
+        if let Err(e) = &r {
+            log::warn!("the clipboard took no file: {e}");
+        }
+        r
+    }
+
+    fn files(&self) -> Vec<PathBuf> {
+        let listed = self.with(|b| b.get().file_list()).unwrap_or_default();
+        local_files(listed)
+    }
+}
+
+/// The most files one paste names that are looked at: the window attaches far fewer
+/// (`mailcraft_ui_egui::files::MOST_ATTACHED`), and says how many it left out.
+const MOST_FILES: usize = 1_000;
+
+/// Of the paths a clipboard names, those that are whole paths of this computer, at most
+/// [`MOST_FILES`]. Whether each is a file that can be read is for the paste to find out.
+fn local_files(listed: Vec<PathBuf>) -> Vec<PathBuf> {
+    listed.into_iter().filter(|p| p.is_absolute()).take(MOST_FILES).collect()
 }
 
 /// The HTML itself out of what a clipboard hands over. Windows' "HTML Format" can come with its
@@ -87,6 +119,10 @@ fn fragment(html: &str) -> &str {
     }
     html.find('<').and_then(|i| html.get(i..)).unwrap_or_default()
 }
+
+#[cfg(test)]
+#[path = "clipboard_tests.rs"]
+mod clipboard_tests;
 
 #[cfg(test)]
 mod tests {

@@ -575,6 +575,8 @@ struct State {
     mine: bool,
     /// What was last put in the primary selection, `[from, to)`; `None` once nothing is selected.
     told: Option<(usize, usize)>,
+    /// The keys as far as a Ctrl+V of files is concerned ([`file_paste::Keys`], #807).
+    keys: file_paste::Keys,
 }
 
 /// What the keyboard and the pointer do to the text, as the command that does it.
@@ -817,7 +819,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
         });
         let page = ui.clip_rect().height().max(40.0) - 20.0;
-        for event in ui.input(|i| i.events.clone()) {
+        let (time, command, events) = ui.input(|i| (i.time, i.modifiers.command, i.events.clone()));
+        // A Ctrl+V of files alone, which the backend kept to itself (#807).
+        let lost_paste = st.keys.lost_paste(time, command, &events) && !app.driven;
+        for event in events {
             resync(&mut layout, app);
             let Some((sel, plain)) = now(app, which) else { break };
             let asked = match event {
@@ -854,7 +859,16 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
                 // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
                 Event::Paste(text) => {
-                    let (html, image) = match crate::text_menu::taken_paste(&ctx, id) {
+                    let menu = crate::text_menu::taken_paste(&ctx, id);
+                    // Files copied in a file manager are attached, not their names pasted as text (#807).
+                    if menu.is_none()
+                        && let Some(files) = file_paste::files(app, which)
+                    {
+                        file_paste::attach(app, &files);
+                        reveal = true;
+                        continue;
+                    }
+                    let (html, image) = match menu {
                         Some(found) => (found.html, None),
                         None => {
                             let board = app.services.clipboard.as_ref();
@@ -912,9 +926,15 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 own(app, which, &mut st, Some(command));
             }
         }
+        if lost_paste && let Some(files) = file_paste::files(app, which) {
+            file_paste::attach(app, &files);
+            reveal = true;
+        }
         resync(&mut layout, app);
     } else {
         st.preedit.clear();
+        // (A V let go of while the body hadn't the keyboard is no press of a later Ctrl+V's.)
+        st.keys = file_paste::Keys::default();
     }
 
     // Paint what is in view.
@@ -1202,3 +1222,6 @@ mod tests {
 #[cfg(test)]
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
+
+#[path = "file_paste.rs"]
+mod file_paste;

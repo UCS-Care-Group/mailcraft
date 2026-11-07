@@ -1704,6 +1704,7 @@ fn services(
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
+    let opened = opened_files();
     Services {
         file_dialog: Some(file_dialog),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
@@ -1832,8 +1833,13 @@ fn services(
         })),
         // An attachment the owner opened (double-click, Open): written into MailCraft's own
         // folder and opened with the system's program for its kind (#126).
-        open_file: opened_files()
+        open_file: opened
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
+        // An attachment the owner copied (Copy, Ctrl+C): written beside them, in a folder that is
+        // kept when MailCraft quits, for a file manager to paste (#807).
+        copy_file: opened.map(|opened| {
+            Box::new(move |name: &str, bytes: &[u8]| opened.copy(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<std::path::PathBuf, String>>
+        }),
         secrets: secrets::store(),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
