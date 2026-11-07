@@ -136,3 +136,29 @@ fn a_draft_begun_elsewhere_saved_then_sent_here_goes() {
         assert_eq!(graph_send::sends(&s, account).len(), 1, "{kind:?}");
     }
 }
+
+/// What 0.8.1 to 0.11.0 left behind: a draft begun elsewhere, sent here without a save, in the
+/// Outbox with no marker (sent, so with the owner's change waiting to go up). It goes with the
+/// next run now; what the server put in its Outbox still doesn't.
+#[test]
+fn a_draft_left_in_the_outbox_by_an_earlier_version_goes() {
+    for kind in [Kind::Ews, Kind::Graph] {
+        let (mut s, account) = account(kind);
+        let d = by_server(&s, "D1").unwrap();
+        fetched(&mut s, kind, account, "D1", PLAN);
+        s.run("mail.editDraft", &json!({"id": d})).unwrap();
+        s.run("compose.set", &json!({"to": "alice@example.org"})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+        let stuck = s.mailbox.messages_in(outbox).find(|m| m.server.as_ref().is_some_and(|x| x.id == "D1")).map(|m| m.id).unwrap();
+        // As the earlier version left it: no marker.
+        let sd = s.mailbox.message_mut(stuck).unwrap().server_draft.as_mut().unwrap();
+        sd.marker.clear();
+        assert!(sd.pending, "{kind:?}: sent here, its change waits to go up");
+        let sends = graph_send::sends(&s, account);
+        assert_eq!(sends.iter().map(|up| up.message).collect::<Vec<_>>(), [stuck], "{kind:?}");
+        let delivered = by_server(&s, "O1").unwrap();
+        assert!(graph_send::from_server(s.mailbox.message(delivered).unwrap()), "{kind:?}");
+        assert!(!graph_send::from_server(s.mailbox.message(stuck).unwrap()), "{kind:?}");
+    }
+}
