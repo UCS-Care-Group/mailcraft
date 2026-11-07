@@ -70,7 +70,17 @@ fn an_appointment_becomes_a_task_named_as_it_with_when_and_where_in_its_notes() 
     assert_eq!(task.title, "Review the joinery quote");
     // No due date of its own, as in Outlook, and no message behind it.
     assert_eq!((task.due, task.message, task.completed), (None, None, None));
-    for words in ["When:", "Friday, October 16, 2026", "10:00", "11:30", "Where: Room 4, Larchmere Studio", "Tom Arden", "Ines Varga", "Bring the birch samples.", "And the price list."] {
+    for words in [
+        "When:",
+        "Friday, October 16, 2026",
+        "10:00",
+        "11:30",
+        "Where: Room 4, Larchmere Studio",
+        "Tom Arden",
+        "Ines Varga",
+        "Bring the birch samples.",
+        "And the price list.",
+    ] {
         assert!(task.notes.contains(words), "{words:?} in {:?}", task.notes);
     }
     // The module in front stays (a drop on the To-Do Bar); the task is the one selected.
@@ -114,7 +124,9 @@ fn a_contact_becomes_a_task_named_as_them_with_their_details_in_its_notes() {
     let made = run(&mut s, "tasks.fromContact", json!({"id": id, "show": false}));
     let task = s.mailbox.task(made["id"].as_u64().unwrap()).unwrap().clone();
     assert_eq!(task.title, "Odile Frey");
-    for words in ["Owner, Frey Joinery", "Email: odile@freyjoinery.example", "+44 7700 900123 (mobile)", "3 Mill Lane, Ashby", "Prefers calls before noon."] {
+    for words in
+        ["Owner, Frey Joinery", "Email: odile@freyjoinery.example", "+44 7700 900123 (mobile)", "3 Mill Lane, Ashby", "Prefers calls before noon."]
+    {
         assert!(task.notes.contains(words), "{words:?} in {:?}", task.notes);
     }
     assert_eq!(s.view.module, Module::Mail);

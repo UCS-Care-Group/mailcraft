@@ -2593,13 +2593,19 @@ impl Frame {
             // The right button always moves (or copies): which, the drop asks.
             let menu = secondary && !primary;
             let start = to_minute(item.occ.start);
+            let grip = if menu { Grip::Move } else { grip_of(rect, press, piece) };
+            // Moved with the main button, it may also be let go over the To-Do Bar's tasks, to
+            // become one (#831); anywhere else the calendar moves it as before.
+            if !menu && grip == Grip::Move && crate::todo_bar::takes_drops(ui.ctx()) {
+                egui::DragAndDrop::set_payload(ui.ctx(), crate::todo_bar::EventDrag { event: item.ev.id, day: item.occ.day });
+            }
             self.drag = Some(Drag {
                 event: item.ev.id,
                 start,
                 end: to_minute(item.occ.end).max(start),
                 all_day: item.ev.all_day,
                 bar: item.is_bar(),
-                grip: if menu { Grip::Move } else { grip_of(rect, press, piece) },
+                grip,
                 menu,
                 press: under(press),
                 repeats: item.ev.recurrence.is_some(),
@@ -2638,7 +2644,8 @@ impl Frame {
         let escape = crate::keys::escape(ui.ctx(), ui.layer_id());
         drag.cancelled |= escape;
         drag.copy = copy && drag.grip == Grip::Move && !drag.menu;
-        let under = self.pointer.and_then(|pos| self.zones.under(pos));
+        // Over the To-Do Bar's tasks the appointment is theirs to take (#831): it goes nowhere here.
+        let under = self.pointer.filter(|_| !crate::todo_bar::over_tasks(ui.ctx())).and_then(|pos| self.zones.under(pos));
         drag.target = under.map(|under| drag.span(under, scale.step(), scale.slot)).filter(|_| !drag.cancelled);
         // Over another calendar's block, the event itself would go into that calendar (an edge
         // that is dragged stays its own block's, wherever the pointer strays).

@@ -53,8 +53,8 @@ msgstr ""
 msgid "(No title)"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/people_view.rs
 msgid "(no name)"
 msgstr ""
 
@@ -68,8 +68,8 @@ msgstr ""
 msgid "(no subject)"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 msgid "(no title)"
 msgstr ""
 
@@ -520,8 +520,18 @@ msgid "Add Account"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Appointment to Tasks"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Add Calendar"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Contact to Tasks"
 msgstr ""
 
 #. interface
@@ -686,6 +696,11 @@ msgstr ""
 msgid "Address"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Address:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
@@ -742,7 +757,7 @@ msgid "All accounts"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
 msgid "All day"
 msgstr ""
 
@@ -1319,6 +1334,11 @@ msgstr ""
 msgid "Attendees"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Attendees:"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "Aug"
@@ -1507,6 +1527,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 msgid "Birthday"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Birthday:"
 msgstr ""
 
 #. command label, interface
@@ -3106,6 +3131,11 @@ msgstr ""
 msgid "Email the people of this meeting"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Email:"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Emoji"
@@ -4662,6 +4692,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Join {service} Meeting"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Join:"
 msgstr ""
 
 #. date and time
@@ -6891,6 +6926,11 @@ msgstr ""
 msgid "Organizer"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Organizer:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "Organizer: your own calendar"
@@ -7099,6 +7139,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 msgid "Phone"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Phone:"
 msgstr ""
 
 #. interface
@@ -11865,6 +11910,11 @@ msgstr ""
 msgid "Want to be one? Sign up in #11"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Web page:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 msgid "Website"
@@ -11982,6 +12032,11 @@ msgstr ""
 msgid "When you switch:"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "When:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "Where"
@@ -11990,6 +12045,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Where they differ, the kept contact has:"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Where:"
 msgstr ""
 
 #. what a command says
@@ -13107,6 +13167,11 @@ msgstr ""
 msgid "no answer"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "no appointment with id {id}"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "no calendar was opened by address"
@@ -13118,7 +13183,7 @@ msgid "no calendar with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/tasks/from_item.rs
 msgid "no contact with id {id}"
 msgstr ""
 
@@ -13378,7 +13443,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks/from_item.rs
 msgid "select a contact first"
 msgstr ""
 
@@ -13398,7 +13463,7 @@ msgid "select a task first"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/tasks/from_item.rs
 msgid "select an appointment first"
 msgstr ""
 
@@ -13728,7 +13793,7 @@ msgid "the sender has no usable e-mail address"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/tasks/from_item.rs
 msgid "the series doesn't happen on {date}"
 msgstr ""
 
@@ -14616,7 +14681,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/todo_bar.rs
 msgid "{n} contact"
 msgid_plural "{n} contacts"
 msgstr[0] ""
