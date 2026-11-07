@@ -266,6 +266,8 @@ pub(crate) struct ImapWorld {
     pub(crate) sasl_ir: bool,
     /// Offer the password-based PLAIN mechanism.
     pub(crate) plain: bool,
+    /// Say a password isn't taken on this connection (`LOGINDISABLED`, RFC 3501 §6.2.3).
+    pub(crate) login_disabled: bool,
     /// A real TLS server for STARTTLS tests; none keeps the existing broken-handshake peer.
     pub(crate) starttls_upgrade: Option<StartTls>,
     pub(crate) mailboxes: Vec<FakeMailbox>,
@@ -322,7 +324,8 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}")
+        let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {

@@ -288,7 +288,7 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
     let server = FakeHttp::answering(ACCEPTED.to_vec());
     let (base, options) = (server.url(""), SendOptions::default());
     let config = |result: Result<(), NetError>| match result {
-        Err(NetError::Config(why)) => why,
+        Err(NetError::Config(why)) => why.to_string(),
         other => panic!("expected the message to be refused, got {other:?}"),
     };
     // Nobody to send it to.
@@ -314,7 +314,12 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
             Message { bcc: stranger.clone(), ..message() },
         ] {
             let why = config(send_at(&base, TOKEN, &message, &options));
-            assert!(why.contains("isn't an address mail can be sent to") && !why.contains('\r') && !why.contains('\n'), "{bad:?}: {why}");
+            assert!(
+                why.to_string().contains("isn't an address mail can be sent to")
+                    && !why.to_string().contains('\r')
+                    && !why.to_string().contains('\n'),
+                "{bad:?}: {why}"
+            );
         }
     }
     // No token, or what couldn't be one: there is no sign-in to show, and nothing to show it to.
@@ -736,7 +741,7 @@ fn hostile_calendar_answers_give_events_or_nothing() {
     ] {
         let result = listed(junk);
         assert!(
-            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.starts_with("Microsoft Graph's answer")),
+            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().starts_with("Microsoft Graph's answer")),
             "{junk:.40}: {result:?}"
         );
     }

@@ -3,6 +3,7 @@
 //! Reading IMAP responses: the pieces a response arrives in, the values in it, and status lines.
 
 use crate::ProtoError;
+use mailcraft_i18n::said;
 
 /// Deepest that parenthesised lists may nest.
 const MAX_DEPTH: usize = 32;
@@ -123,7 +124,7 @@ fn scan(text: &[u8], stack: &mut Vec<Vec<Value>>) -> Result<(), ProtoError> {
             b' ' | b'\t' => i += 1,
             b'(' => {
                 if stack.len() > MAX_DEPTH {
-                    return Err(ProtoError::Protocol("the server's response is nested too deeply".into()));
+                    return Err(ProtoError::Protocol(said!("the server's response is nested too deeply")));
                 }
                 stack.push(Vec::new());
                 i += 1;

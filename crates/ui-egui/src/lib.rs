@@ -102,6 +102,8 @@ mod google_credential_security_tests;
 mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
+#[cfg(test)]
+mod host_said_tests;
 pub mod i18n;
 pub mod icons;
 pub mod import_pst;
@@ -320,7 +322,7 @@ pub struct Services {
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
-    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), String>>>>,
+    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), mailcraft_i18n::Text>>>>,
     /// Desktop: the operating system's credential store (Windows Credential Manager, the macOS
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
@@ -1692,8 +1694,9 @@ pub struct MailApp {
     /// The reminders window: what is due, what was put off.
     pub(crate) reminders: reminders::State,
     /// What went wrong in each account's last Send/Receive, until a run of it goes through:
-    /// the account, its name, when, and the lines.
-    sync_problems: Vec<(Id, String, String, Vec<String>)>,
+    /// the account, its name, when, and the lines, as texts said in the interface's language
+    /// when they are shown (#872).
+    sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -4024,15 +4027,26 @@ impl MailApp {
         let mut out = Vec::new();
         for (_, name, at, lines) in &self.sync_problems {
             out.push(format!("{name} — {at}"));
-            out.extend(lines.iter().map(|l| format!("  {l}")));
+            out.extend(lines.iter().map(|l| format!("  {}", problem_line(l))));
         }
         out
+    }
+
+    /// The problems kept for `account`, as lines to show.
+    pub(crate) fn account_problem_lines(&self, account: Id) -> Vec<String> {
+        self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.iter().map(problem_line).collect()).unwrap_or_default()
     }
 
     /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
-        if errors.is_empty() {
+        self.note_said_problems(account, errors.iter().map(|e| mailcraft_i18n::Text::verbatim(e.clone())).collect(), finished);
+    }
+
+    /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
+    /// interface's language (#872).
+    fn note_said_problems(&mut self, account: Id, problems: Vec<mailcraft_i18n::Text>, finished: bool) {
+        if problems.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
             }
@@ -4040,29 +4054,53 @@ impl MailApp {
         }
         // The lines name subjects, addresses and folders: they are for the owner to read in the
         // problems report, and the log says only how many there were.
-        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
-        self.keep_sync_problems(account, errors);
+        log::warn!("send/receive, account {account}: {} problem(s) reported", problems.len());
+        self.keep_said_problems(account, problems);
     }
 
     /// Keep lines for the Send/Receive problems report without putting them in the log: what
     /// names an item (a line about an appointment, with its title) is for the owner to read,
     /// and whoever wrote it has logged what kind of thing happened.
     pub(crate) fn keep_sync_problems(&mut self, account: Id, errors: &[String]) {
-        if errors.is_empty() {
+        self.keep_said_problems(account, errors.iter().map(|e| mailcraft_i18n::Text::verbatim(e.clone())).collect());
+    }
+
+    /// [`MailApp::keep_sync_problems`] for problems a host told as texts.
+    fn keep_said_problems(&mut self, account: Id, problems: Vec<mailcraft_i18n::Text>) {
+        if problems.is_empty() {
             return;
         }
         let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
-        let clip = |e: &String| e.chars().take(600).collect::<String>();
+        // Not too long to keep: a line longer than is ever shown is kept as its English, cut short.
+        let problems: Vec<mailcraft_i18n::Text> = problems
+            .into_iter()
+            .map(|said| {
+                let english = said.to_string();
+                if english.chars().count() > MAX_PROBLEM {
+                    mailcraft_i18n::Text::verbatim(english.chars().take(MAX_PROBLEM).collect::<String>())
+                } else {
+                    said
+                }
+            })
+            .collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
             Some((_, _, when, lines)) => {
                 *when = at;
-                lines.extend(errors.iter().map(clip));
+                lines.extend(problems);
                 let extra = lines.len().saturating_sub(60);
                 lines.drain(..extra);
             }
-            None => self.sync_problems.push((account, name, at, errors.iter().take(60).map(clip).collect())),
+            None => self.sync_problems.push((account, name, at, problems.into_iter().take(60).collect())),
         }
+    }
+
+    /// What the status bar says when a Send/Receive of `account` is over: `summary`, or, when
+    /// that is the English of a problem kept for the account, the problem in the interface's
+    /// language (#872).
+    fn sync_summary_said(&self, account: Id, summary: String) -> String {
+        let kept = self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.as_slice()).unwrap_or_default();
+        kept.iter().find(|said| said.to_string() == summary).map_or(summary, problem_line)
     }
 
     /// Whether a job of Microsoft Graph is under way for an account.
@@ -4161,7 +4199,7 @@ impl MailApp {
             if signed_in {
                 self.keep_accepted_password(account);
             }
-            self.note_sync_problems(account, &piece.errors, false);
+            self.note_said_problems(account, piece.problems(), false);
             match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
@@ -4208,7 +4246,8 @@ impl MailApp {
                 self.note_sync_problems(account, &[], true);
             }
             self.sync_password = None;
-            self.status(totals.summary_in(i18n::current()));
+            let summary = self.sync_summary_said(account, totals.summary_in(i18n::current()));
+            self.status(summary);
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
             return;
@@ -5119,6 +5158,15 @@ fn owner_input(ctx: &egui::Context) -> bool {
 /// window's own commands (`ui.*`) say what they need where they are; and a command that wasn't
 /// available (`not available: …`), was given what it can't take, or had nothing to do is no
 /// refusal: those stay in the status bar.
+/// A problem of a Send/Receive as it is shown: in the interface's language, where it is
+/// MailCraft's own words, and not too long.
+fn problem_line(said: &mailcraft_i18n::Text) -> String {
+    said.in_lang(i18n::current()).chars().take(MAX_PROBLEM).collect()
+}
+
+/// The most characters of a Send/Receive problem that are kept and shown.
+const MAX_PROBLEM: usize = 600;
+
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
