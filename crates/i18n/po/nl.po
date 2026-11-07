@@ -7762,6 +7762,11 @@ msgid "Nothing to do here."
 msgstr "Hier is niets te doen."
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs
+msgid "Nothing was done: what the agent asked about changed after you were asked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
