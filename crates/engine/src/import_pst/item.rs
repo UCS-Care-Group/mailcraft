@@ -9,7 +9,6 @@
 //! attached to it) is within [`MAX_ITEM_BYTES`]. What can't be brought is said in the item's
 //! notes, which the import report lists; the item itself still comes in.
 
-use std::collections::HashSet;
 use std::io::{Read, Seek};
 
 use mailcraft_model::{Address, Attachment, FlagStatus, Importance, Message};
@@ -373,7 +372,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
     body(pst, m, &text, item, &mut out)?;
 
     // Attachments, and the pictures the HTML shows by content id (looked for once).
-    let cids = out.body.html.as_deref().map(content_ids).unwrap_or_default();
+    let cids = mailcraft_model::shown::shown_ids(out.body.html.as_deref().unwrap_or(""));
     for a in &m.attachments {
         attachment(pst, a, &text, item, depth, &cids, &mut out)?;
     }
@@ -550,31 +549,13 @@ fn file_name(raw: &str) -> String {
     s.trim().to_string()
 }
 
-/// The content ids an HTML body shows (`cid:` addresses), read once for all its attachments.
-fn content_ids(html: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let mut rest = html;
-    while let Some(at) = rest.find("cid:") {
-        let after = rest.get(at.saturating_add(4)..).unwrap_or_default();
-        let end = after.find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ')' | '>' | '<')).unwrap_or(after.len());
-        if out.len() < MAX_CONTENT_IDS {
-            out.insert(after.get(..end).unwrap_or_default().to_string());
-        }
-        rest = after.get(end..).unwrap_or_default();
-    }
-    out
-}
-
-/// Most content ids looked for in one body.
-const MAX_CONTENT_IDS: usize = 4096;
-
 fn attachment<R: Read + Seek>(
     pst: &mut Pst<R>,
     a: &mailcraft_pst::Attachment,
     text: &Text,
     item: &mut Item,
     depth: usize,
-    cids: &HashSet<String>,
+    cids: &mailcraft_model::shown::ShownIds,
     out: &mut Message,
 ) -> Result<(), PstError> {
     let p = &a.properties;
@@ -631,7 +612,9 @@ fn attachment<R: Read + Seek>(
             };
             let mut file = Attachment::new(name, mime, data);
             if !content_id.is_empty() {
-                file.inline = hidden || cids.contains(&content_id);
+                // Shown in place only as a picture an `<img>` asks for (or the file hides), by its
+                // bytes: a file of any other kind is listed, whatever the body or the file says.
+                file.inline = mailcraft_model::shown::is_picture(&file.data) && (hidden || cids.shows(&content_id));
                 file.content_id = content_id;
             }
             out.attachments.push(file);

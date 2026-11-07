@@ -369,9 +369,11 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
     out
 }
 
-/// The original's pictures that its HTML shows in place.
+/// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
+/// `<img>` asks for by `cid:` and is a picture by its bytes.
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
-    m.attachments.iter().filter(|a| !a.content_id.is_empty() && html.contains(&format!("cid:{}", a.content_id))).cloned().collect()
+    let ids = mailcraft_model::shown::shown_ids(html);
+    m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
