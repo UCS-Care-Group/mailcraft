@@ -10035,7 +10035,7 @@ msgstr "Gesendete Elemente"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Wird unverändert versendet, ohne ausführbare oder nachverfolgende Elemente. Bilder werden über Ihre Webadresse geladen. Die E-Mail-Programme der Empfänger entscheiden, ob sie die Bilder anzeigen. Beim Verfassen einer Nachricht wird eine vereinfachte Version dieser Signatur angezeigt. Wenn Sie diese dort bearbeiten, wird stattdessen diese Version versendet."
+msgstr "Wird unverändert versendet, ohne ausführbare oder nachverfolgende Elemente. Die Bilder werden über ihre Webadresse bereitgestellt und das Empfänger E-Mail-Programm entscheiden, ob die Bilder geladen werden. Beim Verfassen einer Nachricht wird eine vereinfachte Version dieser Signatur angezeigt. Wenn Sie diese dort bearbeiten, wird stattdessen diese Version versendet."
 
 #. name
 #: crates/ui-egui/src/forms.rs
