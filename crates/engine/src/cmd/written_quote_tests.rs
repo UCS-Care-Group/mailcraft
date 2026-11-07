@@ -8,24 +8,11 @@
 
 use mailcraft_model::sync::{EwsFolderDeltas, GraphFolder};
 use mailcraft_model::{Address, Attachment, FolderKind, Id, Message};
-use mailcraft_time::{Date, DateTime};
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::compose::QUOTE_MARK;
-use crate::{BodyFormat, Compose, Session, sample};
-
-fn session() -> Session {
-    let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
-    Session::at(sample::mailbox(now, 0), now, 0)
-}
-
-fn run(s: &mut Session, id: &str, params: Value) -> Value {
-    s.run(id, &params).unwrap_or_else(|e| panic!("{id} {params}: {e}"))
-}
-
-fn compose(s: &Session) -> &Compose {
-    s.compose.as_ref().unwrap()
-}
+use super::quote_tests::{compose, run, session};
+use crate::{BodyFormat, Compose, Session};
 
 /// A PNG's signature and header, then `extra` bytes: a picture by its own bytes.
 fn png(extra: usize, fill: u8) -> Vec<u8> {
