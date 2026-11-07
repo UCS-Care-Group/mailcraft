@@ -387,7 +387,7 @@ pub(crate) fn clip_chars(s: &str, max: usize) -> String {
 }
 
 /// The name a row and the card show.
-fn shown_name(c: &Contact) -> String {
+pub(crate) fn shown_name(c: &Contact) -> String {
     let name = one_line(&c.name(), 200);
     if name.is_empty() { tl!("(no name)").to_string() } else { name }
 }
@@ -403,7 +403,7 @@ fn subtitle(c: &Contact) -> String {
 
 /// Who the avatar stands for. A contact known only by its address takes its initials from the
 /// address, not from the address used as a name.
-fn avatar_address(c: &Contact) -> Address {
+pub(crate) fn avatar_address(c: &Contact) -> Address {
     let email = c.primary_email().unwrap_or("").trim();
     let name = c.name();
     let name = name.trim();

@@ -238,6 +238,7 @@ const SAFE: &[&str] = &[
     "view.tasks",
     "view.readingPane",
     "view.folderPane",
+    "view.todoBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",

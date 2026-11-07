@@ -72,6 +72,56 @@ impl Module {
     }
 }
 
+/// What the To-Do Bar shows in one module (#831): each of its three parts, stacked in this order
+/// (the date navigator and the next appointments, the favourite contacts, the tasks), on or off.
+/// All three off is the bar closed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TodoParts {
+    pub calendar: bool,
+    pub people: bool,
+    pub tasks: bool,
+}
+
+impl TodoParts {
+    /// Whether the bar is open: one part at least is on.
+    pub fn any(self) -> bool {
+        self.calendar || self.people || self.tasks
+    }
+}
+
+/// The To-Do Bar of each module, which Outlook remembers apart (#831): it may be open beside the
+/// mail and closed in the calendar. Closed everywhere until the owner opens it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TodoBar {
+    pub mail: TodoParts,
+    pub calendar: TodoParts,
+    pub people: TodoParts,
+    pub tasks: TodoParts,
+}
+
+impl TodoBar {
+    /// What the bar shows in `module`.
+    pub fn of(&self, module: Module) -> TodoParts {
+        match module {
+            Module::Mail => self.mail,
+            Module::Calendar => self.calendar,
+            Module::People => self.people,
+            Module::Tasks => self.tasks,
+        }
+    }
+
+    pub fn of_mut(&mut self, module: Module) -> &mut TodoParts {
+        match module {
+            Module::Mail => &mut self.mail,
+            Module::Calendar => &mut self.calendar,
+            Module::People => &mut self.people,
+            Module::Tasks => &mut self.tasks,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SortBy {
@@ -288,6 +338,8 @@ pub struct ViewState {
     pub scope: Scope,
     pub reading_pane: Pane,
     pub folder_pane: bool,
+    /// The To-Do Bar, module by module (`view.todoBar`, #831).
+    pub todo_bar: TodoBar,
     pub calendar: CalView,
     /// The day the calendar shows (its week or month, depending on the view).
     pub date: Date,
@@ -327,6 +379,7 @@ impl Default for ViewState {
             scope: Scope::Folder,
             reading_pane: Pane::Right,
             folder_pane: true,
+            todo_bar: TodoBar::default(),
             calendar: CalView::Week,
             date: Date::default(),
             days: 0,

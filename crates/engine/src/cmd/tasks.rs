@@ -38,7 +38,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
             .selection(needs_task),
         CommandSpec::new("tasks.fromMessage", "Add to Tasks", "Home › Tags", from_message)
-            .params(r#"{"id"?: number, "due"?: "YYYY-MM-DD"} (a message; default: the selected one) — the task goes to the message's account when it keeps to-dos, else where a new task goes; a message with a task already shows that one. The list moves to show it"#)
+            .params(r#"{"id"?: number, "due"?: "YYYY-MM-DD", "show"?: bool (default: true)} (a message; default: the selected one) — the task goes to the message's account when it keeps to-dos, else where a new task goes; a message with a task already shows that one. The list moves to show it, and Tasks comes to the front unless `show` is false (a message dropped on the To-Do Bar)"#)
             .selection(needs_message),
     ]
 }
@@ -362,6 +362,8 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = mailcraft_model::FlagStatus::Flagged;
     }
     s.sel.task = Some(id);
-    s.view.module = Module::Tasks;
+    if p::bool(v, "show").unwrap_or(true) {
+        s.view.module = Module::Tasks;
+    }
     Ok(json!({"id": id, "existing": false}))
 }
