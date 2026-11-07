@@ -445,6 +445,9 @@ fn a_folder_deleted_with_a_folder_moved_into_it_meanwhile_isnt_deleted() {
     let i = ids(&a);
     let old = a.execute("folder.new", json!({"name": "Old", "parent": i.inbox})).unwrap()["id"].as_u64().unwrap();
     let keep = a.execute("folder.new", json!({"name": "Keep", "parent": i.inbox})).unwrap()["id"].as_u64().unwrap();
+    // In Deleted Items, deleting it is for good (and is sent to the server).
+    a.execute("folder.delete", json!({"id": old})).unwrap();
+    assert_eq!(a.session.mailbox.folder(old).unwrap().parent, Some(i.deleted));
     let (now, rx) = agent(&mut a, "folder.delete", json!({"id": old}));
     assert!(now.is_none());
     let (r, _) = agent(&mut a, "folder.move", json!({"id": keep, "parent": old}));
