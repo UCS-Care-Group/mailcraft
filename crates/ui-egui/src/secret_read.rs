@@ -72,7 +72,9 @@ impl MailApp {
     /// Start reading the store for this mailbox's accounts, unless a read is under way.
     /// `migrate`: move secrets kept under their old names first.
     pub(crate) fn start_secret_read(&mut self, migrate: bool) {
-        if self.secret_read.is_some() {
+        // (Nothing is read for a mailbox whose servers nobody has confirmed: one from a file, or
+        // one where two accounts have the same address, AU3-03.)
+        if self.secret_read.is_some() || self.unconfirmed {
             return;
         }
         let Some(store) = self.services.secrets.clone() else { return };
@@ -131,6 +133,9 @@ impl MailApp {
         {
             for (key, secret) in brought.answers {
                 if let Some(secret) = secret {
+                    // Noted, as one written here is, so that Remove all data finds it whichever
+                    // mailbox is open then (AU3-18).
+                    self.index_secret_key(key.clone());
                     self.secret_cache.insert(key, secret);
                 }
             }

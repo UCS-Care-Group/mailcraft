@@ -67,8 +67,7 @@ impl MailApp {
         if let Some(typed) = self.passwords.get(&account) {
             return Some(typed.clone());
         }
-        let address = self.session.mailbox.account(account)?.email.clone();
-        self.remembered("password", &address)
+        self.remembered("password", account)
     }
 
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
@@ -89,7 +88,11 @@ impl MailApp {
         let inbox_pass = p.get("inboxPass").and_then(Value::as_bool).unwrap_or(false);
         let params = json!({"account": account, "background": quiet, "inboxPass": inbox_pass});
         let request = self.session.run("sync.ewsRequest", &params).map_err(|e| e.to_string())?;
-        let request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
+        let mut request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
+        // A certificate a file trusts counts once the owner has confirmed the file (AU3-02).
+        if self.unconfirmed {
+            request.trusted.clear();
+        }
         self.services.sync_cancel.store(false, Ordering::Relaxed);
         let sent = Some(secret.clone());
         let pieces = run(EwsJob { request, secret, cancel: self.services.sync_cancel.clone() });
