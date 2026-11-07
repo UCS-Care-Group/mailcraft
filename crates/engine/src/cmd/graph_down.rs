@@ -482,6 +482,12 @@ pub fn take_fetched(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: 
 /// [`take_fetched`], answering which message it was.
 pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: &str, mime: &[u8]) -> Option<Id> {
     let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id))?;
+    // Only while it is still what it was when it was asked for (AU3-16): headers only, no change
+    // of the owner's waiting to go up, not queued to be sent. An answer that comes after it was
+    // fetched another way, edited or sent is dropped, so that it never undoes what was done here.
+    if !still_to_fetch(mb, here) {
+        return None;
+    }
     let read = crate::mime::parse(mime);
     let m = mb.message_mut(here).ok()?;
     m.message_id = read.message_id;
@@ -531,6 +537,15 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         }
     }
     Some(here)
+}
+
+/// Whether a message fetched whole may take what was fetched: it is still only its headers here,
+/// has no change of the owner's waiting to go up, and isn't in an Outbox.
+fn still_to_fetch(mb: &Mailbox, id: Id) -> bool {
+    let Some(m) = mb.message(id) else { return false };
+    let queued = mb.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Outbox);
+    let edited = m.server_draft.as_ref().is_some_and(|d| d.pending);
+    m.unfetched && !edited && !queued
 }
 
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the
