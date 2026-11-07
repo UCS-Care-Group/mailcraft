@@ -1604,47 +1604,88 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
     gone
 }
 
-/// Whether `theirs`, come down from server mailbox `remote` after it was numbered anew, is the
-/// copy a move or a deletion made here waits for ([`renumbered`]): it then gets its UID, and the
-/// next run pushes it. A Message-ID is the sender's to choose, so the change goes only to the
-/// one arrival with that id that is also the same mail (date, sender, subject and recipients).
-/// When several arrivals share the id, or the one that does is not that mail, the change is
-/// dropped, and the owner told: it must never reach another message. `shared` is how many
-/// arrivals of this run have `theirs`'s Message-ID.
-fn waited_for(mb: &mut Mailbox, account: Id, remote: &str, theirs: &Message, shared: usize, counts: &mut Counts) -> bool {
-    if theirs.message_id.is_empty() {
-        return false;
+/// The Message-IDs a move or a deletion made here waits for in server mailbox `remote`, numbered
+/// anew ([`renumbered`]): an arrival that carries one is not new mail, and stays as it came until
+/// [`waited_for`] settles which copy, if any, the change is about.
+fn awaited(mb: &Mailbox, account: Id, remote: &str) -> HashSet<String> {
+    mb.pending
+        .iter()
+        .filter(|p| p.account() == account && p.source() == (remote, 0))
+        .filter_map(|p| match p {
+            Pending::Move { message, .. } => mb.message(*message).map(|m| m.message_id.clone()),
+            Pending::Delete { message_id, .. } => Some(message_id.clone()),
+        })
+        .filter(|id| !id.is_empty())
+        .collect()
+}
+
+/// Once `folder`, which follows server mailbox `remote` numbered anew, has been read whole: each
+/// move or deletion made here that waits with UID 0 for its copy ([`renumbered`]) gets the UID of
+/// that copy, which goes from here, and the next run pushes the change. A Message-ID is the
+/// sender's to choose, so the change goes only when exactly one message of the mailbox has that
+/// id, counted over all that came down, in whatever pieces and runs, and all on its way out of
+/// it, and that message is also the same mail (date, sender, subject and recipients). Otherwise
+/// the change is dropped, and the owner told: it must never reach another message.
+fn waited_for(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: Id, remote: &str, counts: &mut Counts) {
+    if !mb.pending.iter().any(|p| p.account() == account && p.source() == (remote, 0)) {
+        return;
     }
-    let messages = &mb.messages;
-    let at = mb.pending.iter().position(|p| {
-        p.account() == account
-            && p.source() == (remote, 0)
-            && match p {
-                Pending::Move { message, .. } => messages.get(message).is_some_and(|m| m.message_id == theirs.message_id),
-                Pending::Delete { message_id, .. } => *message_id == theirs.message_id,
-            }
-    });
-    let Some(at) = at else { return false };
-    let is_it = shared == 1
-        && match mb.pending.get(at) {
-            Some(Pending::Move { message, .. }) => messages.get(message).is_some_and(|m| MailIdentity::of(m).fits(theirs)),
-            Some(Pending::Delete { seen, .. }) => seen.as_ref().is_some_and(|seen| seen.fits(theirs)),
-            None => false,
+    // Every copy the mailbox has of each Message-ID: the messages here (`Some`), and those on
+    // their way out of it by a change still to go up (`None`).
+    let mut copies: HashMap<String, Vec<Option<Id>>> = HashMap::new();
+    for m in mb.messages.values().filter(|m| m.folder == folder && m.uid != 0 && !m.message_id.is_empty()) {
+        copies.entry(m.message_id.clone()).or_default().push(Some(m.id));
+    }
+    for p in mb.pending.iter().filter(|p| p.account() == account && p.source().0 == remote && p.source().1 != 0) {
+        let id = match p {
+            Pending::Move { message, .. } => mb.message(*message).map(|m| m.message_id.clone()),
+            Pending::Delete { message_id, .. } => Some(message_id.clone()),
         };
-    if !is_it {
-        mb.pending.remove(at);
+        if let Some(id) = id.filter(|id| !id.is_empty()) {
+            copies.entry(id).or_default().push(None);
+        }
+    }
+    let mut pending = std::mem::take(&mut mb.pending);
+    let mut dropped = false;
+    pending.retain_mut(|p| {
+        if p.account() != account || p.source() != (remote, 0) {
+            return true;
+        }
+        let (message_id, seen) = match &*p {
+            Pending::Move { message, .. } => {
+                mb.message(*message).map_or((String::new(), None), |m| (m.message_id.clone(), Some(MailIdentity::of(m))))
+            }
+            Pending::Delete { message_id, seen, .. } => (message_id.clone(), seen.clone()),
+        };
+        let found = match copies.get(&message_id).map(Vec::as_slice) {
+            Some([Some(id)]) => mb.message(*id).filter(|theirs| seen.as_ref().is_some_and(|seen| seen.fits(theirs))).map(|m| (m.id, m.uid)),
+            _ => None,
+        };
+        let Some((id, uid)) = found else {
+            dropped = true;
+            return false;
+        };
+        // Taken: another change waiting for the same id finds no copy left.
+        copies.remove(&message_id);
+        match p {
+            Pending::Move { uid: at, synced, .. } => (*at, *synced) = (uid, synced.map(|flags| flags.at(uid))),
+            Pending::Delete { uid: at, .. } => *at = uid,
+        }
+        // Moved or deleted here before it came down again: it goes from here.
+        if mb.forget_message(id).is_ok() {
+            on_server.by_uid.remove(&(folder, uid));
+            on_server.leaving.insert((folder, uid));
+            counts.matched += 1;
+        }
+        true
+    });
+    mb.pending = pending;
+    if dropped {
         counts.notes.push(
-            "A change made here to a message could not be matched to its new copy for certain (more than one message has its Message-ID, or the copy differs), so it was not made on the server."
+            "A change made here to a message could not be matched to its new copy for certain (no message, or more than one, has its Message-ID, or the copy differs), so it was not made on the server."
                 .to_string(),
         );
-        return false;
     }
-    match mb.pending.get_mut(at) {
-        Some(Pending::Move { uid, synced, .. }) => (*uid, *synced) = (theirs.uid, synced.map(|flags| flags.at(theirs.uid))),
-        Some(Pending::Delete { uid, .. }) => *uid = theirs.uid,
-        None => return false,
-    }
-    true
 }
 
 /// The local folder of a server mailbox that has none yet: the standard folder of its kind when
@@ -1815,23 +1856,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
     // up in Deleted Items, Junk, Sent and the rest was put there (a message deleted on a phone
     // was "1 new message").
     let arriving = matches!(delta.kind, FolderKind::Inbox | FolderKind::Custom) || old_seen == 0;
-    // How many of these arrivals have each Message-ID: only a lone one can be the copy a change waits for.
-    let mut shared: HashMap<String, usize> = HashMap::new();
-    if reset {
-        for m in &delta.new {
-            *shared.entry(m.message_id.clone()).or_default() += 1;
-        }
-    }
+    // Copies a move or deletion made here waits for, the mailbox numbered anew (AU3-17): taken in
+    // as they come, and settled once the mailbox has been read whole ([`waited_for`]).
+    let awaited = awaited(mb, account, &delta.remote);
     for mut m in delta.new {
         let uid = m.uid;
         // Here already, or on its way out of that mailbox by a change still to be pushed.
         if uid != 0 && (on_server.by_uid.contains_key(&(folder, uid)) || on_server.leaving.contains(&(folder, uid))) {
-            continue;
-        }
-        // The copy a move or deletion made here was waiting for, the mailbox numbered anew.
-        if uid != 0 && waited_for(mb, account, &delta.remote, &m, shared.get(&m.message_id).copied().unwrap_or(1), counts) {
-            on_server.leaving.insert((folder, uid));
-            counts.matched += 1;
             continue;
         }
         if matched(mb, on_server, folder, &m).is_some() {
@@ -1841,9 +1872,14 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
         m.id = 0;
         m.folder = folder;
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
+        // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
+        let waited = awaited.contains(&m.message_id);
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
+        }
+        if waited {
+            continue;
         }
         if inbox || junk {
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
@@ -1860,6 +1896,9 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             }
         }
         counts.new += usize::from(arriving);
+    }
+    if delta.complete {
+        waited_for(mb, account, on_server, folder, &delta.remote, counts);
     }
     if let Ok(f) = mb.folder_mut(folder) {
         if delta.complete {
