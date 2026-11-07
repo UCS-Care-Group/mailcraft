@@ -59,6 +59,8 @@ fn not_saved(why: &str) -> String {
 impl MailApp {
     /// Mark `ids` of `account` as being sent, and write the mailbox, before they leave.
     fn saved_before_sending(&mut self, account: Id, ids: &[Id]) -> Saved {
+        // (A new run: what an earlier one's refused piece said is not this one's.)
+        self.send_doubt = false;
         if !graph_send::mark_sending(&mut self.session.mailbox, account, ids) {
             return Saved::Now;
         }
@@ -150,7 +152,7 @@ impl MailApp {
     pub(crate) fn send_gate_tick(&mut self, failed: Option<&str>) {
         let Some(gate) = &self.send_gate else { return };
         if gate.opening != self.session.openings() {
-            // (Nothing went: the mailbox it was for is gone.)
+            // (Nothing went: the mailbox it was for is gone, and its marks with it.)
             self.send_gate = None;
             return;
         }
@@ -172,12 +174,15 @@ impl MailApp {
             return;
         }
         // The host's answer takes the stand-in's place, in the run that is still this one.
-        match waiting {
+        let went = match waiting {
             Waiting::Imap(request, _) => {
                 if let (Some(start), Some(MailRun::Imap { account: whose, rx, .. })) = (&self.services.sync, &mut self.sync_rx)
                     && *whose == account
                 {
                     *rx = start(*request);
+                    true
+                } else {
+                    false
                 }
             }
             Waiting::Graph(request, _) => {
@@ -185,6 +190,9 @@ impl MailApp {
                     && *whose == account
                 {
                     *rx = graph(*request);
+                    true
+                } else {
+                    false
                 }
             }
             Waiting::Ews(job, _) => {
@@ -192,6 +200,9 @@ impl MailApp {
                     && *whose == account
                 {
                     *pieces = run(*job);
+                    true
+                } else {
+                    false
                 }
             }
             Waiting::Jmap(job, _) => {
@@ -199,8 +210,15 @@ impl MailApp {
                     && *whose == account
                 {
                     *pieces = run(*job);
+                    true
+                } else {
+                    false
                 }
             }
+        };
+        // The run was called off while it waited: nothing went, so nothing is in doubt.
+        if !went {
+            self.sending_answered(account);
         }
     }
 
@@ -208,6 +226,17 @@ impl MailApp {
     pub(crate) fn sending_answered(&mut self, account: Id) {
         if graph_send::sending_answered(&mut self.session.mailbox, account) {
             self.session.mailbox_changed();
+        }
+    }
+
+    /// The run of `account` is over: when every piece of its answer was taken in, what it sent is
+    /// filed and what it didn't send is known not to have gone, so no mark is left. A piece that
+    /// was refused leaves them, for the next run to hold (AU3-26).
+    pub(crate) fn run_answered(&mut self, account: Id) {
+        if std::mem::take(&mut self.send_doubt) {
+            log::warn!("send/receive, account {account}: part of the answer was refused; what it sent is held at the next run");
+        } else {
+            self.sending_answered(account);
         }
     }
 

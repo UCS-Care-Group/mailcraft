@@ -184,3 +184,43 @@ fn the_sending_mark_is_saved_with_the_mailbox() {
     let back = crate::io::read_mailbox(&bytes).unwrap();
     assert!(back.message(first).unwrap().sending);
 }
+
+/// A message moved out of the Outbox (filed in Sent Items, moved away by its owner) is not one
+/// being sent any more: the move takes its mark off, and a mark found anywhere but the Outbox is
+/// only taken off, never a reason to hold it.
+#[test]
+fn only_what_is_still_in_the_outbox_is_held() {
+    let (mut s, account, outbox) = setup();
+    let moved = queued(&mut s, account, outbox, "Moved", None);
+    let stray = queued(&mut s, account, outbox, "Stray", None);
+    assert!(mark_sending(&mut s.mailbox, account, &[moved, stray]));
+    let sent_items = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    s.mailbox.move_message(moved, sent_items).unwrap();
+    assert!(!s.mailbox.message(moved).unwrap().sending, "the move takes the mark off");
+    // (As a file written by a version that left the mark on.)
+    s.mailbox.message_mut(stray).unwrap().folder = sent_items;
+    let mut said = Vec::new();
+    assert!(hold_unanswered(&mut s.mailbox, account, mailcraft_i18n::Lang::default(), &mut said));
+    for id in [moved, stray] {
+        let m = s.mailbox.message(id).unwrap();
+        assert_eq!((m.sending, m.held.as_str()), (false, ""));
+    }
+    assert!(said.is_empty());
+}
+
+/// What became of each message sent, as the answer says it, takes its mark off whatever it was.
+#[test]
+fn each_send_the_answer_accounts_for_loses_its_mark() {
+    let (mut s, account, outbox) = setup();
+    let refused = queued(&mut s, account, outbox, "Refused", None);
+    let busy = queued(&mut s, account, outbox, "Busy", None);
+    let untold = queued(&mut s, account, outbox, "Untold", None);
+    mark_sending(&mut s.mailbox, account, &[refused, busy, untold]);
+    let lang = mailcraft_i18n::Lang::default();
+    let mut said = Vec::new();
+    for (message, outcome) in [(refused, SendOutcome::Held { lost: false, why: "no recipients".into() }), (busy, SendOutcome::Waits)] {
+        send_done(&mut s.mailbox, account, &SendDone { message, outcome, draft: None, draft_left: String::new() }, lang, &mut said);
+        assert!(!s.mailbox.message(message).unwrap().sending);
+    }
+    assert!(s.mailbox.message(untold).unwrap().sending, "one the answer doesn't name keeps its mark");
+}

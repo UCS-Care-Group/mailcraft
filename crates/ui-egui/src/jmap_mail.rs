@@ -138,7 +138,10 @@ impl MailApp {
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                 }
-                Err(e) => self.status(e.to_string()),
+                Err(e) => {
+                    self.status(e.to_string());
+                    self.send_doubt = true;
+                }
             }
             if !last {
                 continue;
@@ -146,7 +149,7 @@ impl MailApp {
             // The run is over.
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.sending_answered(account);
+            self.run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.sync_queue.push_front((whose, quiet));

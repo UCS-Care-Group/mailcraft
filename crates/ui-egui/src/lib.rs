@@ -1748,6 +1748,9 @@ pub struct MailApp {
     /// A Send/Receive that waits for the "sending" marks of what it sends to be written to the
     /// mailbox file before it is handed to the host ([`sending`], AU3-26).
     pub(crate) send_gate: Option<sending::SendGate>,
+    /// A piece of the mail run under way was refused (AU3-26): at its end, the marks of what it
+    /// sent are left for the next run to hold, not taken off.
+    pub(crate) send_doubt: bool,
 }
 
 /// A Send/Receive of one account in flight, its pieces to come. A JMAP account's run takes the place
@@ -1911,6 +1914,7 @@ impl MailApp {
             reading_ahead: None,
             swapping: false,
             send_gate: None,
+            send_doubt: false,
         }
     }
 
@@ -3687,7 +3691,10 @@ impl MailApp {
                             said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                         self.graph_problems.extend(errors.unwrap_or_default());
                     }
-                    Err(e) => self.graph_problems.push(e.to_string()),
+                    Err(e) => {
+                        self.graph_problems.push(e.to_string());
+                        self.send_doubt = true;
+                    }
                 }
                 if let Some((progress, status)) = kept {
                     (self.session.sync_progress, self.session.sync_status) = (progress, status);
@@ -3731,9 +3738,11 @@ impl MailApp {
         }
         // What the run sent is filed by now, and what it didn't send is known not to have gone:
         // no message of the account is marked as being sent any more. (A job that ended without
-        // an answer leaves them marked: they may have gone, AU3-26.)
-        if answered {
-            self.sending_answered(account);
+        // an answer, or with a piece refused, leaves them marked: they may have gone, AU3-26.)
+        // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
+        // as they are taken in; one it didn't try is held at the next run.
+        if answered && result.mail.is_none() {
+            self.run_answered(account);
         }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
@@ -4261,7 +4270,10 @@ impl MailApp {
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
                 Ok(_) => {}
-                Err(e) => self.status(e.to_string()),
+                Err(e) => {
+                    self.status(e.to_string());
+                    self.send_doubt = true;
+                }
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
             // waits beyond what waits at this moment was done here since.
@@ -4274,7 +4286,7 @@ impl MailApp {
             // The run is over.
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.sending_answered(account);
+            self.run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {

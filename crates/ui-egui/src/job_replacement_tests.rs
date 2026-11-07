@@ -35,8 +35,8 @@ use crate::jobs::JobKind;
 use crate::rule_sync::{RulesJob, RulesResult};
 use crate::task_sync::{TasksJob, TasksResult};
 use crate::{
-    CalendarCheckRequest, CalendarCheckResult, FreeBusyRequest, FreeBusyResult, GraphRequest, GraphResult, MailApp, SecretStore, Services,
-    SignInRequest,
+    AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, FreeBusyRequest, FreeBusyResult, GraphRequest, GraphResult,
+    MailApp, SecretStore, Services, SignInRequest,
 };
 
 const NOW: i64 = 1_791_993_600;
@@ -60,6 +60,7 @@ struct Hosts {
     free_busy: Kept<FreeBusyRequest, FreeBusyResult>,
     check: Kept<CalendarCheckRequest, CalendarCheckResult>,
     sign_in: Kept<SignInRequest, Result<Tokens, String>>,
+    admin_consent: Kept<AdminConsentRequest, AdminConsentAnswer>,
 }
 
 fn take<R, A>(kept: &Kept<R, A>) -> (R, mpsc::Sender<A>) {
@@ -172,6 +173,7 @@ fn hosted(mailbox: Mailbox) -> (MailApp, Hosts, Store) {
     keep!(app.services.free_busy, hosts.free_busy);
     keep!(app.services.check_calendar, hosts.check);
     keep!(app.services.sign_in, hosts.sign_in);
+    keep!(app.services.admin_consent, hosts.admin_consent);
     (app, hosts, store)
 }
 
@@ -279,6 +281,9 @@ fn row(kind: JobKind, way: Way) {
             app.dialog = crate::dialogs::Dialog::open("account", &app, &json!({}));
             assert!(app.dialog.is_some());
         }
+        JobKind::AdminConsent => {
+            assert_eq!(app.run("ui.adminConsent", json!({"account": ids.microsoft})).unwrap()["pending"], "adminConsent");
+        }
     }
     assert!(app.job_running(kind), "{kind:?}: the job is under way");
     // B takes A's place.
@@ -378,6 +383,14 @@ fn row(kind: JobKind, way: Way) {
         }
         // (What the dialog asked of the host goes with it: there is no answer left to let in.)
         JobKind::AccountSetup => {}
+        JobKind::AdminConsent => {
+            let (_, tx) = take(&hosts.admin_consent);
+            let _ = tx.send(AdminConsentAnswer::Approved);
+            app.poll_admin_consent();
+            // (An approval of A's is no reason to sign B's account in again.)
+            assert!(!app.job_running(kind), "{way:?}: A's approval is let go of, not kept for B's account");
+            assert!(hosts.graph.lock().unwrap().is_empty() && hosts.sign_in.lock().unwrap().is_empty(), "{way:?}: nothing started");
+        }
     }
     assert!(bytes(&app) == before, "{kind:?} ({way:?}): the mailbox that took A's place is as it was");
     assert_eq!(store.writes(), writes, "{kind:?} ({way:?}): nothing of A's answer is remembered");
@@ -421,7 +434,8 @@ fn ways(kind: JobKind) -> &'static [Way] {
         | JobKind::Tasks
         | JobKind::Rules
         | JobKind::AutoReplies
-        | JobKind::SignIn => &[Way::Poll, Way::Frame],
+        | JobKind::SignIn
+        | JobKind::AdminConsent => &[Way::Poll, Way::Frame],
         // The dialog's answers are taken in by the dialog, in a frame.
         JobKind::AccountSetup => &[Way::Frame],
     }
@@ -463,6 +477,7 @@ rows! {
     an_auto_replies_answer_for_a_replaced_mailbox_is_let_go => AutoReplies,
     a_sign_in_answer_for_a_replaced_mailbox_is_let_go => SignIn,
     the_add_account_dialog_goes_with_a_replaced_mailbox => AccountSetup,
+    an_approval_answer_for_a_replaced_mailbox_is_let_go => AdminConsent,
 }
 
 // ---- sending (AU3-26) ----
@@ -630,6 +645,132 @@ fn a_send_whose_answer_came_leaves_no_mark() {
     assert!(app.session.mailbox.message(message).is_none_or(|m| Some(m.folder) != outbox), "sent, and gone from the Outbox");
     let m = app.session.mailbox.message(other).unwrap();
     assert_eq!((m.held.as_str(), m.sending), ("", false), "the one the server didn't take waits for the next run");
+}
+
+/// The server took the message and the piece that said so was taken in (filed in Sent Items),
+/// and then the run was lost: the next run holds nothing, since it is out of the Outbox.
+#[test]
+fn a_send_taken_in_before_the_run_was_lost_is_not_held() {
+    let (mut app, ids, hosts, _store) = window();
+    let message = queued(&mut app, ids.imap, "Receipt");
+    assert_eq!(app.run("ui.sync", json!({"account": ids.imap})).unwrap()["started"], true);
+    let (request, tx) = take(&hosts.sync);
+    assert_eq!(request.outbox.iter().map(|m| m.id).collect::<Vec<_>>(), [message]);
+    let _ = tx.send(SyncResult { account: ids.imap, sent: vec![message], partial: true, ..Default::default() });
+    poll_run(&mut app);
+    // Killed here, with what was taken in on disk.
+    drop(tx);
+    let on_disk = mailcraft_engine::io::read_mailbox(&bytes(&app)).unwrap();
+    let (mut app, _hosts, _) = hosted(on_disk);
+    sign_in(&mut app, ids);
+    let _ = app.run("ui.sync", json!({"account": ids.imap}));
+    let m = app.session.mailbox.message(message).expect("filed in Sent Items");
+    let sent_items = app.session.mailbox.folder_of_kind(ids.imap, FolderKind::Sent);
+    assert_eq!((Some(m.folder), m.held.as_str(), m.sending), (sent_items, "", false));
+}
+
+/// A run whose answer was refused (it was for another account) leaves what it sent marked: the
+/// next run holds it as one that may have gone, and doesn't hand it over again.
+fn refused_row(protocol: Sends) {
+    let (mut app, ids, hosts, _store) = window();
+    let account = sending_account(ids, protocol);
+    let message = queued(&mut app, account, "Board pack");
+    assert_eq!(app.run("ui.sync", json!({"account": account})).unwrap()["started"], true, "{protocol:?}");
+    let stranger = "mallory@example.net".to_string();
+    match protocol {
+        Sends::Imap => {
+            let (_, tx) = take(&hosts.sync);
+            let _ = tx.send(SyncResult { account, email: stranger, partial: false, ..Default::default() });
+        }
+        Sends::Graph => {
+            let (mut request, tx) = take(&hosts.graph);
+            if let Some(pieces) = request.mail_pieces.take() {
+                let _ = pieces.send(GraphMailResult { account, email: stranger, ..Default::default() });
+            }
+            let _ = tx.send(GraphResult { account, ..Default::default() });
+        }
+        Sends::Ews => {
+            let (_, tx) = take(&hosts.ews);
+            let _ = tx.send(EwsMailResult { account, email: stranger, url: EWS.into(), partial: false, ..Default::default() });
+        }
+    }
+    poll_run(&mut app);
+    assert!(app.session.mailbox.message(message).is_some_and(|m| m.sending), "{protocol:?}: the mark is left");
+    let again = app.run("ui.sync", json!({"account": account}));
+    let m = app.session.mailbox.message(message).expect("still in the Outbox");
+    assert_eq!((m.held.as_str(), m.sending), (MAY_HAVE_GONE, false), "{protocol:?}: held as one that may have gone");
+    if again.is_ok_and(|v| v["started"] == true) {
+        let (going, _) = handed(&hosts, protocol);
+        assert!(!going.contains(&message), "{protocol:?}: not sent again by itself");
+    }
+}
+
+#[test]
+fn an_imap_send_whose_answer_was_refused_is_held_not_sent_again() {
+    refused_row(Sends::Imap);
+}
+
+#[test]
+fn a_graph_send_whose_answer_was_refused_is_held_not_sent_again() {
+    refused_row(Sends::Graph);
+}
+
+#[test]
+fn an_ews_send_whose_answer_was_refused_is_held_not_sent_again() {
+    refused_row(Sends::Ews);
+}
+
+/// An Exchange server's answer to a send that can't be taken in (an id that isn't one) is never
+/// dropped: the message may have gone, and is held.
+#[test]
+fn an_ews_send_whose_answer_cant_be_taken_in_is_held() {
+    let (mut app, ids, hosts, _store) = window();
+    let message = queued(&mut app, ids.ews, "Rota");
+    assert_eq!(app.run("ui.sync", json!({"account": ids.ews})).unwrap()["started"], true);
+    let (_, tx) = take(&hosts.ews);
+    let done = SendDone { draft_left: "bad\nid".into(), ..sent(message) };
+    let _ = tx.send(EwsMailResult { account: ids.ews, sent: vec![done], partial: false, ..Default::default() });
+    poll_run(&mut app);
+    let m = app.session.mailbox.message(message).expect("still in the Outbox");
+    assert!(m.held.starts_with("It may have been sent") && !m.sending, "held: {:?}", m.held);
+}
+
+/// The two other ways a send goes through Graph: an IMAP account that signs in with Microsoft
+/// sends through Graph before its mail, and a shared mailbox sends at its own address. Each is
+/// marked on disk before it leaves, and held when its answer is lost.
+#[test]
+fn graph_sends_of_imap_and_shared_mailboxes_are_marked_and_held() {
+    for (shared, subject) in [(false, "Timesheet"), (true, "Support reply")] {
+        let (mut app, ids, hosts, _store) = window();
+        let written: Arc<Mutex<Vec<Vec<u8>>>> = Default::default();
+        let note = written.clone();
+        app.services.persist = Some(Box::new(move |bytes: &[u8]| {
+            note.lock().unwrap().push(bytes.to_vec());
+            Ok(())
+        }));
+        app.autosave = true;
+        let account = if shared { ids.shared } else { ids.oauth };
+        let message = queued(&mut app, account, subject);
+        let started = app.run("ui.sync", json!({"account": account})).unwrap();
+        assert!(started["started"] == true || started["pending"] == "graph", "shared: {shared}: {started}");
+        let (request, tx) = take(&hosts.graph);
+        let going: Vec<Id> = if shared {
+            request.mail.as_ref().map(|mail| mail.sends.iter().map(|up| up.message).collect()).unwrap_or_default()
+        } else {
+            request.outbox.iter().map(|m| m.id).collect()
+        };
+        assert_eq!(going, [message], "shared: {shared}: it goes through Graph");
+        let saved = written.lock().unwrap().last().cloned().expect("saved before the send left");
+        let on_disk = mailcraft_engine::io::read_mailbox(&saved).unwrap();
+        assert!(on_disk.message(message).is_some_and(|m| m.sending), "shared: {shared}: the mark is on disk");
+        // Killed mid-send.
+        drop((request, tx));
+        let (mut app, _hosts, _) = hosted(on_disk);
+        sign_in(&mut app, ids);
+        let _ = app.run("ui.sync", json!({"account": account}));
+        let m = app.session.mailbox.message(message).expect("still in the Outbox");
+        assert_eq!((m.held.as_str(), m.sending), (MAY_HAVE_GONE, false), "shared: {shared}: held");
+    }
 }
 
 // ---- shared mailboxes' sign-in (AU3-10) ----

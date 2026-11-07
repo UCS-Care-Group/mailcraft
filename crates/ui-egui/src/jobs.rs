@@ -73,6 +73,8 @@ job_kinds! {
     SignIn,
     /// What the Add Account dialog asks of the host (mail exchangers, the servers' check).
     AccountSetup,
+    /// An administrator's approval on Microsoft's page.
+    AdminConsent,
 }
 
 impl MailApp {
@@ -97,6 +99,7 @@ impl MailApp {
             JobKind::AutoReplies => self.auto_replies.busy(),
             JobKind::SignIn => self.signing_in.is_some(),
             JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..)))),
+            JobKind::AdminConsent => self.admin_consent_busy(),
         }
     }
 
@@ -126,6 +129,7 @@ impl MailApp {
                     Some(Dialog::Form(Form::Account(mut setup))) => setup.give_up(self),
                     other => self.dialog = other,
                 },
+                JobKind::AdminConsent => self.forget_admin_consent(),
             }
         }
     }

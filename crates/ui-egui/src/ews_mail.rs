@@ -175,6 +175,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
+                    self.send_doubt = true;
                     // A piece that was refused is not skipped over: the run is called off, and the
                     // pages after it (read from the state it would have kept) are left out by the
                     // engine, whichever of them still come ([`apply_ews_mail`]).
@@ -189,7 +190,7 @@ impl MailApp {
             // The run is over.
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.sending_answered(account);
+            self.run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.sync_queue.push_front((whose, quiet));

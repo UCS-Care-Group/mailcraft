@@ -86,6 +86,13 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
     if let Some(draft) = &done.draft {
         changed |= super::graph_drafts::draft_done(mb, account, draft, lang, said);
     }
+    // The answer accounts for it (AU3-26): whatever became of it, it is no longer in doubt.
+    if mb.message(done.message).is_some_and(|m| m.account == account && m.sending)
+        && let Ok(m) = mb.message_mut(done.message)
+    {
+        m.sending = false;
+        changed = true;
+    }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
     let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) { "the server" } else { "Microsoft" };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
@@ -176,13 +183,16 @@ pub fn sending_answered(mb: &mut Mailbox, account: Id) -> bool {
 /// A run of `account` begins: a message still marked as being sent was handed to a server by a
 /// run whose answer never came back, so it may have gone. It is held (the owner decides with Send
 /// Again), never sent again by itself. A line for the owner for each one; whether anything changed.
+/// Only what is still in the Outbox is held: a mark anywhere else (filed in Sent Items, moved
+/// away) is a stray, and is only taken off.
 pub fn hold_unanswered(mb: &mut Mailbox, account: Id, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
     let mut marked: Vec<Id> = mb.messages.values().filter(|m| m.account == account && m.sending).map(|m| m.id).collect();
     marked.sort_unstable();
     for id in &marked {
         let Ok(m) = mb.message_mut(*id) else { continue };
         m.sending = false;
-        if !m.held.is_empty() {
+        if !m.held.is_empty() || Some(m.folder) != outbox {
             continue;
         }
         m.held = MAY_HAVE_GONE.to_string();
