@@ -24,7 +24,7 @@ fn request() -> EwsMailRequest {
         hierarchy: "H-STATE".into(),
         scope: EwsScope::Light { also: vec!["F-ONE".into()] },
         states: vec![EwsFolderState { folder: "F-ONE".into(), state: "S-ONE".into() }],
-        changes: vec![FolderChange::Delete { id: "F-GONE".into() }],
+        changes: vec![FolderChange::Delete { id: "F-GONE".into(), shown: Default::default() }],
         inbox_pass: true,
         full: true,
         background: true,
