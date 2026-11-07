@@ -69,6 +69,16 @@ check() {
     [ -f "$list" ] || die "$name: $list isn't among the downloaded files"
     got="$(sha256 "$list" | cut -d' ' -f1)"
     [ "$got" = "$digest" ] || die "$name: its list of files has SHA-256 $got, but the job that made it gave $digest"
+    # Every name is under this folder: `./`, and no `..` on the way.
+    while IFS= read -r f; do
+      case "$f" in
+        ./*) ;;
+        *) die "$name: $list names \"$f\", which isn't under ./" ;;
+      esac
+      case "$f" in
+        */../* | */..) die "$name: $list names \"$f\", which leaves the folder" ;;
+      esac
+    done < <(sed -e 's/^[0-9a-f]\{64\} [ *]//' "$list")
     sha256 -c "$list" || die "$name: a file doesn't match the SHA-256 its job gave it"
     echo "./$list" >>"$RUNNER_TEMP_LIST.named"
     # The names in the list, as `files` prints them (`sha256sum` puts a `*` before a binary one).

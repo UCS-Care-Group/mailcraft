@@ -4,7 +4,6 @@
 # update only when this signature verifies by one of the public keys it carries.
 #
 #   MAILCRAFT_RELEASE_KEY=… packaging/sign-sums.sh <folder with SHA256SUMS.txt>
-#   packaging/sign-sums.sh --self-test
 #
 # The key (base64 PKCS#8, from `cargo xtask release-key new`) is a secret of the protected
 # `release` environment and comes in through the environment only; it is never printed or
@@ -16,10 +15,8 @@
 # from this repository: the job that holds the key never runs cargo or a program it built. In
 # GitHub Actions the OpenSSL is the runner's own package, checked against the package's file list
 # (`dpkg --verify`) before the key is handed to it. Locally, without OpenSSL 3, it falls back to
-# `cargo run --package xtask -- release-key sign`.
-#
-# --self-test signs and verifies a scratch file with a throwaway key, so a dry run proves the
-# signing path without the release key.
+# `cargo run --package xtask -- release-key sign`. The release workflow's dry run checks that both
+# make the same signature, with a key `cargo xtask release-key new` made.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,12 +32,16 @@ checked_openssl() {
     exit 1
   fi
   if [ -n "${GITHUB_ACTIONS:-}" ] && command -v dpkg >/dev/null 2>&1; then
-    local bin lib file pkg
+    local bin lib file pkg verify
     bin="$(readlink -f "$(command -v openssl)")"
     lib="$(ldd "$bin" | awk '/libcrypto/ { print $3; exit }')"
     for file in "$bin" ${lib:+"$(readlink -f "$lib")"}; do
       pkg="$(dpkg -S "$file" 2>/dev/null | cut -d: -f1 | head -n 1)"
-      if [ -z "$pkg" ] || [ -n "$(dpkg --verify "$pkg" 2>&1)" ]; then
+      # Only this file's line counts: a changed file elsewhere in the package (its config) is
+      # not what signs. `dpkg --verify` ends each line with the file's path.
+      # (dpkg --verify fails for any changed file, so its status alone says nothing here.)
+      verify="$( [ -z "$pkg" ] || dpkg --verify "$pkg" 2>&1 || true)"
+      if [ -z "$pkg" ] || printf '%s\n' "$verify" | awk -v f="$file" '$NF == f { bad = 1 } END { exit !bad }'; then
         echo "::error::$file isn't as its package (${pkg:-none}) installed it"
         exit 1
       fi
@@ -72,23 +73,7 @@ sign_with_openssl() {
   echo "signed $file with the release key $public: $file.sig"
 }
 
-if [ "${1:-}" = "--self-test" ]; then
-  checked_openssl
-  dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/sign-sums.XXXXXX")"
-  trap 'rm -rf "$dir"' EXIT
-  printf '0123  mailcraft-0.0.0-self-test\n' >"$dir/SHA256SUMS.txt"
-  # shellcheck disable=SC2034 # read by name in key_der
-  SELF_TEST_KEY="$(openssl genpkey -algorithm ed25519 -outform DER | base64 | tr -d '\n')"
-  sign_with_openssl "$dir/SHA256SUMS.txt" SELF_TEST_KEY
-  key_der SELF_TEST_KEY | openssl pkey -inform DER -pubout -outform DER >"$dir/public.der"
-  base64 -d <"$dir/SHA256SUMS.txt.sig" >"$dir/sig.bin"
-  [ "$(wc -c <"$dir/sig.bin" | tr -d ' ')" = 64 ] || { echo "::error::the self-test signature isn't 64 bytes"; exit 1; }
-  openssl pkeyutl -verify -rawin -pubin -keyform DER -inkey "$dir/public.der" -in "$dir/SHA256SUMS.txt" -sigfile "$dir/sig.bin"
-  echo "self-test: the signing path signs and verifies"
-  exit 0
-fi
-
-DIR="${1:?usage: packaging/sign-sums.sh <folder with SHA256SUMS.txt> | --self-test}"
+DIR="${1:?usage: packaging/sign-sums.sh <folder with SHA256SUMS.txt>}"
 SUMS="$(cd "$DIR" && pwd)/SHA256SUMS.txt"
 
 if [ ! -f "$SUMS" ]; then

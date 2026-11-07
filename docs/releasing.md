@@ -199,8 +199,9 @@ nothing; the `.msi`, installed by Windows Installer, isn't affected.
   against its package's file list (`dpkg --verify`) before the key is handed to it; nothing is
   compiled or downloaded in that job, and no program built from this repository runs with the
   key. Locally, without OpenSSL 3, the script falls back to `cargo xtask release-key sign`.
-  `packaging/sign-sums.sh --self-test` signs and verifies with a throwaway key, which the dry run
-  does. The key is never printed or written to a file; the step names the public key
+  The dry run makes a throwaway key with `cargo xtask release-key new` and checks that the
+  script's signature is byte for byte the one `cargo xtask release-key sign` makes with it (that
+  job holds no secret, so it may build). The key is never printed or written to a file; the step names the public key
   it signed with. Without the secret (a fork, a dry run) it says "unsigned" and the run goes on:
   such a release has no `.sig`, and no copy of MailCraft installs it by itself.
 - **Checking by hand:** the signature is a plain ed25519 signature over the bytes of
@@ -248,7 +249,7 @@ Dry run: `gh workflow run release.yml --ref <branch>` builds everything on any b
 and keeps the files as workflow artifacts (FreeBSD only when asked for: it is slow), and their
 `SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). It goes through the same
 jobs as a tag's run (build, then package, then check), checks every file against the digest of
-the job that made it, and signs and verifies a scratch file with a throwaway key. A dry run names
+the job that made it, and checks that OpenSSL and xtask sign alike with a throwaway key. A dry run names
 no environment, is given no secrets and publishes nothing.
 
 

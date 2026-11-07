@@ -8,9 +8,11 @@
 //!
 //! - a job that holds signing material (a secret other than the few that aren't, `secrets:
 //!   inherit`, `azure/login`, a keychain import, or the `release` environment) also runs cargo,
-//!   rustup or rustc, sets up a Rust toolchain, runs a program built here (`target/…`, xtask, the
-//!   MailCraft programs) or calls a packaging script without the flags that keep it from building
-//!   and from running what was built;
+//!   rustup, rustc, trunk or cross, sets up a Rust toolchain, restores a cache, uses a local action
+//!   (this check can't see into one; a reusable workflow under `.github/workflows/` is checked
+//!   itself), runs a program built here (`target/…`, xtask, the MailCraft programs), calls a
+//!   packaging script without the flags that keep it from building and from running what was
+//!   built, or runs a script from inside `packaging/` that isn't one of the signing scripts;
 //! - a workflow or job asks for `permissions: read-all` or `write-all`;
 //! - `curl` runs without `--proto =https`.
 //!
@@ -33,7 +35,7 @@ const KEYED: &[(&str, &str)] = &[
 ];
 
 /// Commands that compile or set up a compiler.
-const BUILD_WORDS: &[&str] = &["cargo", "rustup", "rustc"];
+const BUILD_WORDS: &[&str] = &["cargo", "rustup", "rustc", "trunk", "cross"];
 
 /// What sets up Rust or runs a program built here.
 const BUILT: &[&str] = &[
@@ -45,9 +47,15 @@ const BUILT: &[&str] = &[
     "xtask",
     "mailcraft-cli",
     "mailcraft.exe",
+    "/release/mailcraft",
     "MacOS/MailCraft",
     "xvfb-run",
+    "actions/cache",
 ];
+
+/// The scripts a job with signing material may run from inside `packaging/` (`./<script>` with a
+/// `working-directory:` there).
+const SIGNING_SCRIPTS: &[&str] = &["sign-sums.sh", "handoff.sh", "import-cert.sh", "sign.ps1", "package.ps1", "package.sh"];
 
 /// Every problem in the workflows under `root`, or `Ok` when there is none.
 pub fn run(root: &Path) -> Result<(), String> {
@@ -122,15 +130,73 @@ pub fn check(file: &str, text: &str) -> Vec<String> {
         let Some((at, why)) = why else {
             continue;
         };
+        let mut found = Vec::new();
         for (number, command) in commands(job) {
             if let Some(what) = builds_or_runs(&command) {
-                problems.push(format!(
-                    "{file}:{number}: job `{name}` {why} (line {at}) and {what}: build in a job without signing material and hand the files on by digest"
-                ));
+                found.push((number, what));
             }
+        }
+        for step in steps(job) {
+            found.extend(packaging_scripts(step));
+        }
+        found.sort();
+        for (number, what) in found {
+            problems.push(format!(
+                "{file}:{number}: job `{name}` {why} (line {at}) and {what}: build in a job without signing material and hand the files on by digest"
+            ));
         }
     }
     problems
+}
+
+/// The steps of a job: the items under its `steps:`.
+fn steps<'a, 'b>(job: &'b [Line<'a>]) -> Vec<&'b [Line<'a>]> {
+    let Some(at) = job.iter().position(|l| l.code.trim() == "steps:") else {
+        return Vec::new();
+    };
+    let below = job.get(at + 1..).unwrap_or_default();
+    let Some(indent) = below.iter().find(|l| !l.code.trim().is_empty()).map(|l| l.indent) else {
+        return Vec::new();
+    };
+    let end = below.iter().position(|l| !l.code.trim().is_empty() && l.indent < indent).unwrap_or(below.len());
+    let below = below.get(..end).unwrap_or_default();
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, l) in below.iter().enumerate() {
+        if l.indent == indent
+            && l.code.trim().starts_with('-')
+            && let Some(s) = start.replace(i)
+        {
+            out.push(below.get(s..i).unwrap_or_default());
+        }
+    }
+    if let Some(s) = start {
+        out.push(below.get(s..).unwrap_or_default());
+    }
+    out
+}
+
+/// In a step that works inside `packaging/`, every `./<script>` that isn't a signing script.
+fn packaging_scripts(step: &[Line]) -> Vec<(usize, String)> {
+    let inside = step.iter().any(|l| {
+        let code = l.code.trim();
+        let code = code.strip_prefix("- ").unwrap_or(code);
+        code.strip_prefix("working-directory:").is_some_and(|v| v.contains("packaging"))
+    });
+    if !inside {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (number, command) in commands(step) {
+        let unquoted: String = command.chars().filter(|c| *c != '\'' && *c != '"').collect();
+        for word in unquoted.split_whitespace().filter(|w| w.starts_with("./")) {
+            let script = word.rsplit(['/', '\\']).next().unwrap_or_default();
+            if !script.is_empty() && !SIGNING_SCRIPTS.contains(&script) {
+                out.push((number, format!("runs `{word}` inside packaging/, which isn't one of the signing scripts")));
+            }
+        }
+    }
+    out
 }
 
 /// `raw` up to its comment (`#` at the start or after a space).
@@ -219,6 +285,9 @@ fn signing_secret(code: &str) -> Option<String> {
             }
         } else if after.starts_with('[') {
             return Some("secrets[…]".to_string());
+        } else if after.trim_start().starts_with(')') || before == Some('(') {
+            // `toJSON(secrets)` and the like: every secret at once.
+            return Some("context, all of them".to_string());
         }
     }
     None
@@ -257,12 +326,20 @@ fn builds_or_runs(command: &str) -> Option<String> {
         }
     }
     if let Some(what) = BUILT.iter().find(|b| command.contains(*b)) {
-        return Some(format!("sets up Rust or runs what was built (`{what}`)"));
+        return Some(format!("sets up Rust, restores a cache or runs what was built (`{what}`)"));
+    }
+    if let Some(at) = command.find("uses: ./") {
+        // A reusable workflow of this repository is checked itself; a local action is not.
+        let target = command.get(at + "uses: ".len()..).unwrap_or_default();
+        let checked_too = target.starts_with("./.github/workflows/") && (target.ends_with(".yml") || target.ends_with(".yaml"));
+        if !checked_too {
+            return Some("uses a local action, which this check can't read".to_string());
+        }
     }
     if command.contains("package.ps1") && !(command.contains("-SkipBuild") && command.contains("-NoRun")) {
         return Some("calls package.ps1 without -SkipBuild -NoRun".to_string());
     }
-    if command.contains("packaging/") && command.contains("package.sh") && !(command.contains("--skip-build") && command.contains("--no-run")) {
+    if command.contains("package.sh") && !(command.contains("--skip-build") && command.contains("--no-run")) {
         return Some("calls a package.sh without --skip-build --no-run".to_string());
     }
     None
@@ -275,9 +352,13 @@ fn has_word(text: &str, word: &str) -> bool {
         let start = from + at;
         let end = start + word.len();
         let before = text.get(..start).and_then(|t| t.chars().last());
-        let after = text.get(end..).and_then(|t| t.chars().next());
-        let edge = |c: Option<char>| c.is_none_or(|c| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | '\\' | '$')));
-        if edge(before) && edge(after) {
+        // `cargo.exe` is still cargo, and so is `/usr/bin/cargo`.
+        let rest = text.get(end..).unwrap_or_default();
+        let after = rest.strip_prefix(".exe").unwrap_or(rest).chars().next();
+        let edge = |c: Option<char>, path: bool| {
+            c.is_none_or(|c| (path && matches!(c, '/' | '\\')) || !(c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | '\\' | '$')))
+        };
+        if edge(before, true) && edge(after, false) {
             return true;
         }
         from = end;

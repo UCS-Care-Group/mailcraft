@@ -165,9 +165,30 @@ jobs:
           sha256sum -- * | tee SHA256SUMS.txt
       - name: Sign the checksums (no key here)
         run: packaging/sign-sums.sh artifacts
-      # The signing path itself, with a throwaway key: what a tag's run will do with the real one.
-      - name: Sign and verify with a throwaway key
-        run: packaging/sign-sums.sh --self-test
+      # The signing path itself, with a throwaway key in the release key's own format (made by
+      # `cargo xtask release-key new`): the runner's OpenSSL, as a tag's run uses it, must make
+      # the very signature `cargo xtask release-key sign` makes. This job holds no secret, so it
+      # may build; the job that holds the real key never does.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - name: OpenSSL signs as xtask does, with a throwaway key
+        run: |
+          keys="$RUNNER_TEMP/throwaway-keys"
+          scratch="$RUNNER_TEMP/throwaway-sums"
+          mkdir -p "$scratch/openssl" "$scratch/xtask"
+          cargo run --locked --quiet --package xtask -- release-key new "$keys"
+          cp artifacts/SHA256SUMS.txt "$scratch/openssl/"
+          cp artifacts/SHA256SUMS.txt "$scratch/xtask/"
+          key="$(cat "$keys/mailcraft-release-key-in-use.pkcs8.b64")"
+          MAILCRAFT_RELEASE_KEY="$key" packaging/sign-sums.sh "$scratch/openssl"
+          MAILCRAFT_RELEASE_KEY="$key" cargo run --locked --quiet --package xtask -- release-key sign "$scratch/xtask/SHA256SUMS.txt"
+          if ! cmp "$scratch/openssl/SHA256SUMS.txt.sig" "$scratch/xtask/SHA256SUMS.txt.sig"; then
+            echo "::error::OpenSSL's signature isn't the one cargo xtask release-key sign makes"
+            exit 1
+          fi
+          echo "OpenSSL and xtask make the same signature"
+          rm -rf "$keys" "$scratch"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dry-run-sums
