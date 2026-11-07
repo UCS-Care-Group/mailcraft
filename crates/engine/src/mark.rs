@@ -53,3 +53,29 @@ pub fn mark_from_internet(path: &Path) {
     #[cfg(not(any(windows, target_os = "macos")))]
     let _ = path;
 }
+
+/// Write bytes from mail (a message, an attachment, an export of mail, a calendar or contacts) to
+/// `path`, over what is there, and mark the file as from the Internet. Every file of a sender's
+/// bytes is written through this or [`write_new_from_mail`], so that none is left unmarked
+/// (AU3-V6; `tests/files_mark.rs` lists the writers).
+pub fn write_from_mail(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    std::fs::write(path, bytes)?;
+    mark_from_internet(path);
+    Ok(())
+}
+
+/// [`write_from_mail`] into a new file only: never over one that is there, nor through a link
+/// (an error of kind `AlreadyExists` then). What was written of a file that couldn't be written
+/// whole is removed.
+pub fn write_new_from_mail(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+    if let Err(e) = file.write_all(bytes).and_then(|()| file.flush()) {
+        drop(file);
+        let _ = std::fs::remove_file(path);
+        return Err(e);
+    }
+    drop(file);
+    mark_from_internet(path);
+    Ok(())
+}

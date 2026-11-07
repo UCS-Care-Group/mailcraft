@@ -1,0 +1,1 @@
+- A late download of a message no longer changes a draft edited or queued to send meanwhile, and a change waiting through a server renumbering goes to the one matching message or is dropped with a word (AU3-16, AU3-17).

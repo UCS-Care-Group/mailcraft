@@ -55,6 +55,9 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
 - **Every crash fix and every data-loss fix comes with a regression test.**
+- **Security fixes: a fix for a security finding comes with a test that covers every site of its
+  root cause**, not only the one that was reported: a table over every command, reader or writer
+  of that kind, built so that one added later without the fix fails it.
 - **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
   brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
   file. Code scanning ([`.github/codeql/codeql-config.yml`](.github/codeql/codeql-config.yml))
