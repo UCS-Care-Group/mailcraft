@@ -2539,7 +2539,6 @@ msgstr "Verbindung zum Mailserver wird hergestellt"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Contact"
 msgstr "Kontakt"
 
@@ -2564,13 +2563,11 @@ msgstr "Kontaktkarte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "Kontakte werden nicht in „Gelöschte Elemente“ verschoben."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
-#, fuzzy
 msgid "Continue"
 msgstr "Weiter"
 
@@ -2581,15 +2578,13 @@ msgstr "Weiter bearbeiten"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Contributors"
 msgstr "Mitwirkende"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
-msgstr "Mitwirkende wählen Ihre Namen selbst; siehe docs/contributors.md."
+msgstr "Mitwirkende wählen Ihren Namen selbst; siehe docs/contributors.md."
 
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
