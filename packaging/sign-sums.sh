@@ -52,24 +52,66 @@ checked_openssl() {
   fi
 }
 
-# The key's DER bytes on stdout, from the environment variable named by $1.
-key_der() {
-  printf '%s' "${!1}" | tr -d '[:space:]' | base64 -d
+# Hex on stdin, as bytes on stdout (printf is the shell's own: nothing goes on a command line).
+unhex() {
+  local escaped
+  escaped="$(sed -e 's/../\\x&/g')"
+  # shellcheck disable=SC2059 # the format is \xHH escapes of checked hex and nothing else
+  printf "$escaped"
+}
+
+# The key's DER in hex, from the environment variable named by $1.
+key_hex() {
+  printf '%s' "${!1}" | tr -d '[:space:]' | base64 -d 2>/dev/null | od -An -v -tx1 | tr -d ' \n'
+}
+
+# The PKCS#8 v1 DER of the key whose seed is in KEY_SEED. OpenSSL 3.0 doesn't read the v2 form
+# `cargo xtask release-key new` writes (ring's, with the public half in it), so the key goes to
+# OpenSSL as v1, rebuilt from its seed; it only ever passes through a pipe.
+v1_der() {
+  printf '%s' "302e020100300506032b657004220420$KEY_SEED" | unhex
 }
 
 # sign <file> <variable holding the key>: <file>.sig, and the public key said.
 sign_with_openssl() {
-  local file="$1" var="$2" public spki
-  # An ed25519 key's public half is 44 bytes of DER: this prefix (id-Ed25519) and 32 bytes.
-  spki="$(key_der "$var" 2>/dev/null | openssl pkey -inform DER -pubout -outform DER 2>/dev/null | od -An -v -tx1 | tr -d ' \n' || true)"
-  if [ "${#spki}" != 88 ] || [ "${spki#302a300506032b6570032100}" = "$spki" ]; then
-    echo "::error::$var isn't an ed25519 private key in base64 PKCS#8 (as \`cargo xtask release-key new\` writes it)"
+  local file="$1" var="$2" hex embedded="" public spki bad
+  bad="$var isn't an ed25519 private key in base64 PKCS#8 (as \`cargo xtask release-key new\` writes it)"
+  hex="$(key_hex "$var" || true)"
+  KEY_SEED=""
+  # Two layouts and no other: v2 as ring writes it (83 bytes: version 1, the seed, then the public
+  # half as [1] 33 bytes), and v1 (48 bytes: version 0 and the seed).
+  if [ "${#hex}" = 166 ] && [ "${hex:0:32}" = 3051020101300506032b657004220420 ] && [ "${hex:96:6}" = 812100 ]; then
+    KEY_SEED="${hex:32:64}"
+    embedded="${hex:102:64}"
+  elif [ "${#hex}" = 96 ] && [ "${hex:0:32}" = 302e020100300506032b657004220420 ]; then
+    KEY_SEED="${hex:32:64}"
+  fi
+  hex=""
+  case "$KEY_SEED" in
+    "" | *[!0-9a-f]*)
+      KEY_SEED=""
+      echo "::error::$bad"
+      exit 1
+      ;;
+  esac
+  # An ed25519 key's public half is 44 bytes of DER: this prefix (id-Ed25519) and 32 bytes; and in
+  # a v2 key it must be the half the key carries.
+  spki="$(v1_der | openssl pkey -inform DER -pubout -outform DER 2>/dev/null | od -An -v -tx1 | tr -d ' \n' || true)"
+  if [ "${#spki}" != 88 ] || [ "${spki:0:24}" != 302a300506032b6570032100 ]; then
+    KEY_SEED=""
+    echo "::error::$bad"
     exit 1
   fi
-  openssl pkeyutl -sign -rawin -keyform DER -inkey <(key_der "$var") -in "$file" | base64 | tr -d '\n' >"$file.sig.part"
+  if [ -n "$embedded" ] && [ "${spki:24:64}" != "$embedded" ]; then
+    KEY_SEED=""
+    echo "::error::$var carries a public key that isn't its own"
+    exit 1
+  fi
+  openssl pkeyutl -sign -rawin -keyform DER -inkey <(v1_der) -in "$file" | base64 | tr -d '\n' >"$file.sig.part"
+  KEY_SEED=""
   echo >>"$file.sig.part"
   mv "$file.sig.part" "$file.sig"
-  public="$(key_der "$var" | openssl pkey -inform DER -pubout -outform DER | tail -c 32 | base64)"
+  public="$(printf '%s' "${spki:24:64}" | unhex | base64)"
   echo "signed $file with the release key $public: $file.sig"
 }
 
