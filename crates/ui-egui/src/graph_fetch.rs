@@ -218,7 +218,7 @@ fn imap_secret(app: &MailApp, account: Id) -> Option<String> {
     if a.oauth.is_some() {
         return app.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone());
     }
-    app.passwords.get(&account).cloned().or_else(|| app.remembered("password", &a.email))
+    app.passwords.get(&account).cloned().or_else(|| app.remembered("password", account))
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
