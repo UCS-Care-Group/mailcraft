@@ -1154,7 +1154,7 @@ impl AccountSetup {
             // A switch must not silently save unrelated edits or drop a newly typed password.
             self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
         } else if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
         } else {
             self.reconnecting_google = false;
             self.oauth = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
@@ -1174,7 +1174,7 @@ impl AccountSetup {
             return;
         };
         if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
         } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
             self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
         } else {
