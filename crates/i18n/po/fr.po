@@ -7270,7 +7270,7 @@ msgid "Not available for this account"
 msgstr "Non disponible pour ce compte"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "Non disponible : {reason}"
