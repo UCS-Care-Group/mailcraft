@@ -62,8 +62,8 @@ msgstr "« {subject} » a peut-être été envoyé : vérifiez dans Élém
 msgid "(No title)"
 msgstr "(Sans titre)"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(sans nom)"
@@ -11608,6 +11608,13 @@ msgstr ""
 #, fuzzy
 msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr "Le dossier « {folder} » et tout son contenu seront supprimés."
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
+msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

@@ -749,8 +749,15 @@ pub struct OAuth {
 #[serde(rename_all = "camelCase")]
 pub enum Queued {
     /// A folder was deleted for good here (from Deleted Items, or by emptying it): the server
-    /// deletes it too, which keeps it recoverable for the server's retention period.
-    DeleteFolder { account: Id, id: String },
+    /// deletes it too, which keeps it recoverable for the server's retention period. `shown`:
+    /// what the owner had of it and under it then (AU3-H7), so that what the server holds there
+    /// beyond that (mail that arrived since, a folder made elsewhere) keeps it on the server.
+    DeleteFolder {
+        account: Id,
+        id: String,
+        #[serde(default, skip_serializing_if = "crate::sync::Shown::is_empty")]
+        shown: crate::sync::Shown,
+    },
     /// A message the server has was copied here into another of the account's server folders
     /// (R3 spec S16, S21). `id` is the source's server id, `to` the destination folder's;
     /// `copy` is the copy made here, which takes the server's copy's id once the server has
@@ -1878,11 +1885,14 @@ impl Mailbox {
                 // doesn't have among them (deleting that takes what is under it along).
                 if self.names_may_hold_slashes(f.account) {
                     let on_server = |p: Id| gone.contains(&p) && self.folder(p).is_some_and(|parent| parent.server.is_some());
+                    let shown = self.shown_of(f.account, &f.name, &gone);
                     let deletes: Vec<Queued> = self
                         .folders
                         .iter()
                         .filter(|g| gone.contains(&g.id) && (g.id == id || !g.parent.is_some_and(on_server)))
-                        .filter_map(|g| g.server.as_ref().map(|server| Queued::DeleteFolder { account: f.account, id: server.id.clone() }))
+                        .filter_map(|g| {
+                            g.server.as_ref().map(|server| Queued::DeleteFolder { account: f.account, id: server.id.clone(), shown: shown.clone() })
+                        })
                         .collect();
                     self.queued.extend(deletes);
                 }
@@ -1932,6 +1942,21 @@ impl Mailbox {
                 Ok(true)
             }
         }
+    }
+
+    /// What the owner has of the folders `gone` of `account` as they are deleted for good (AU3-H7):
+    /// the server's ids of those folders and of the messages in them, and of the messages of the
+    /// account already waiting to be deleted on the server (the owner deleted those too). `name`
+    /// is the folder's, for the line that says when the server kept it.
+    fn shown_of(&self, account: Id, name: &str, gone: &[Id]) -> crate::sync::Shown {
+        let gone: HashSet<Id> = gone.iter().copied().collect();
+        let folders = self.folders.iter().filter(|g| gone.contains(&g.id)).filter_map(|g| g.server.as_ref()).map(|s| s.id.as_str());
+        let held = self.messages.values().filter(|m| gone.contains(&m.folder)).filter_map(|m| m.server.as_ref()).map(|s| s.id.as_str());
+        let deleting = self.queued.iter().filter_map(|q| match q {
+            Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.as_str()),
+            _ => None,
+        });
+        crate::sync::Shown::of(name, folders, held.chain(deleting))
     }
 
     // ---- messages ----
