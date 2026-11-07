@@ -49,6 +49,8 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 mod undo;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;

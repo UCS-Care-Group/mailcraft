@@ -1,0 +1,1 @@
+- A mailbox file whose lists would take more memory than the computer has is refused with an error when it is opened, in every form it comes in (AU3-05, AU3-06, AU3-07).

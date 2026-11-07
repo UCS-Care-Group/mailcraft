@@ -2337,6 +2337,7 @@ dependencies = [
  "libc",
  "log",
  "mailcraft-charset",
+ "mailcraft-engine",
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-ical",
