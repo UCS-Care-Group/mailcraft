@@ -119,6 +119,7 @@ fn todo_bar(s: &mut Session, v: &Value) -> CmdResult {
         Some(m) => m.as_str().and_then(parse_enum::<Module>).ok_or_else(|| bad("`module` is mail, calendar, people or tasks"))?,
     };
     let part = p::req_str(v, "part")?.trim().to_ascii_lowercase();
+    let value = p::opt_bool(v, "value")?;
     let parts = s.view.todo_bar.of_mut(module);
     let flag = match part.as_str() {
         "calendar" => &mut parts.calendar,
@@ -130,7 +131,7 @@ fn todo_bar(s: &mut Session, v: &Value) -> CmdResult {
         }
         _ => return Err(bad("`part` is calendar, people, tasks or off")),
     };
-    *flag = p::bool(v, "value").unwrap_or(!*flag);
+    *flag = value.unwrap_or(!*flag);
     Ok(todo_bar_json(s, module))
 }
 

@@ -7,6 +7,8 @@
 //! A title typed in its box is a new task, a double click opens what it lists, and a message
 //! dragged out of the list and let go over its tasks becomes a task.
 
+use std::sync::Arc;
+
 use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::TaskFilter;
 use mailcraft_engine::cmd::calendar::occurrences;
@@ -53,6 +55,72 @@ const TITLE_MAX: usize = 500;
 /// Where the bar's own memory lives in egui's: the month the navigator shows, and what is typed.
 const MONTH_ID: &str = "todo_bar_month";
 const NEW_TASK_ID: &str = "todo_bar_new_task";
+
+/// What each part lists is worked out when the mailbox, the day or what it depends on changes,
+/// not at every frame: a large mailbox's events, contacts and tasks are not gone through again
+/// while the owner reads mail beside the bar. Each is kept under these names with what it was
+/// worked out from.
+const BUSY_CACHE: &str = "todo_bar_busy";
+const NEXT_CACHE: &str = "todo_bar_next";
+const PEOPLE_CACHE: &str = "todo_bar_people";
+const TASKS_CACHE: &str = "todo_bar_tasks";
+
+/// `make()` as kept under `slot` for `key`, worked out again only when `key` is another.
+fn cached<K, V>(ctx: &egui::Context, slot: &'static str, key: K, make: impl FnOnce() -> V) -> Arc<V>
+where
+    K: Clone + PartialEq + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+{
+    let id = egui::Id::unique(slot);
+    if let Some((_, kept)) = ctx.data(|d| d.get_temp::<(K, Arc<V>)>(id)).filter(|(at, _)| *at == key) {
+        return kept;
+    }
+    let made = Arc::new(make());
+    ctx.data_mut(|d| d.insert_temp(id, (key, made.clone())));
+    made
+}
+
+/// The days of the six weeks from `first` on which something happens, as the navigator marks
+/// them.
+pub(crate) fn busy_days(s: &mailcraft_engine::Session, first: Date) -> [bool; 42] {
+    let last = first.add_days(41);
+    let mut busy = [false; 42];
+    for o in occurrences(s, first, last).into_iter().take(2000) {
+        let lo = first.days_until(o.start.date).clamp(0, 41);
+        let hi = first.days_until(crate::calendar_view::last_day(o.start, o.end)).clamp(-1, 41);
+        for day in lo..=hi {
+            if let Some(slot) = usize::try_from(day).ok().and_then(|i| busy.get_mut(i)) {
+                *slot = true;
+            }
+        }
+    }
+    busy
+}
+
+/// [`busy_days`], kept until the mailbox changes.
+pub(crate) fn busy_days_cached(ctx: &egui::Context, s: &mailcraft_engine::Session, first: Date) -> Arc<[bool; 42]> {
+    cached(ctx, BUSY_CACHE, (s.rev(), s.mailbox.events.len(), first), || busy_days(s, first))
+}
+
+/// [`next_appointments`], kept until the mailbox changes or the clock reaches another minute (an
+/// appointment that is over leaves the list).
+pub(crate) fn next_appointments_cached(ctx: &egui::Context, s: &mailcraft_engine::Session) -> Arc<Vec<Occurrence>> {
+    let mut now = s.local(s.now());
+    now.second = 0;
+    cached(ctx, NEXT_CACHE, (s.rev(), s.mailbox.events.len(), now), || next_appointments(s))
+}
+
+/// [`favourites`], kept until the mailbox changes.
+pub(crate) fn favourites_cached(ctx: &egui::Context, s: &mailcraft_engine::Session) -> Arc<Vec<Id>> {
+    cached(ctx, PEOPLE_CACHE, (s.rev(), s.mailbox.contacts.len()), || favourites(&s.mailbox))
+}
+
+/// [`task_rows`], kept until the mailbox, the day, the first day of the week or the account the
+/// Tasks module shows changes.
+pub(crate) fn task_rows_cached(ctx: &egui::Context, s: &mailcraft_engine::Session) -> Arc<Vec<(Bucket, Id)>> {
+    let key = (s.rev(), s.mailbox.tasks.len(), s.today(), s.prefs.week_start, tasks::shown_account(s));
+    cached(ctx, TASKS_CACHE, key, || task_rows(s))
+}
 
 /// A width read back from the settings, made one the bar can have.
 pub fn sane_width(width: f32) -> f32 {
@@ -204,17 +272,7 @@ fn navigator(app: &mut MailApp, ui: &mut Ui) {
     // Six weeks from the start of the week the month begins in; the days on which something
     // happens among them.
     let first = month.start_of_week(week_start);
-    let last = first.add_days(41);
-    let mut busy = [false; 42];
-    for o in occurrences(&app.session, first, last).into_iter().take(2000) {
-        let lo = first.days_until(o.start.date).clamp(0, 41);
-        let hi = first.days_until(crate::calendar_view::last_day(o.start, o.end)).clamp(-1, 41);
-        for day in lo..=hi {
-            if let Some(slot) = usize::try_from(day).ok().and_then(|i| busy.get_mut(i)) {
-                *slot = true;
-            }
-        }
-    }
+    let busy = busy_days_cached(ui.ctx(), &app.session, first);
     let (grid, _) = ui.allocate_exact_size(vec2(width, 6.0 * WEEK_H), Sense::hover());
     for i in 0..42i64 {
         let day = first.add_days(i);
@@ -266,7 +324,7 @@ pub(crate) fn next_appointments(s: &mailcraft_engine::Session) -> Vec<Occurrence
 
 fn upcoming(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let list = next_appointments(&app.session);
+    let list = next_appointments_cached(ui.ctx(), &app.session);
     if list.is_empty() {
         quiet(ui, tl!("No upcoming appointments"));
         return;
@@ -274,8 +332,9 @@ fn upcoming(app: &mut MailApp, ui: &mut Ui) {
     let today = app.session.today();
     let twelve = app.session.prefs.twelve_hour;
     let mut day_shown: Option<Date> = None;
-    for o in list {
-        let Some(ev) = app.session.mailbox.event(o.event).cloned() else { continue };
+    for o in list.iter().copied() {
+        // The shared pointer, not a copy of the event.
+        let Some(ev) = app.session.mailbox.events.get(&o.event).cloned() else { continue };
         let day = o.start.date.max(today);
         if day_shown != Some(day) {
             day_shown = Some(day);
@@ -337,12 +396,12 @@ pub(crate) fn favourites(mailbox: &mailcraft_model::Mailbox) -> Vec<Id> {
 fn people_part(app: &mut MailApp, ui: &mut Ui) {
     heading(app, ui, tl!("People"), "people");
     let t = Tokens::get(ui.ctx());
-    let list = favourites(&app.session.mailbox);
+    let list = favourites_cached(ui.ctx(), &app.session);
     if list.is_empty() {
         quiet(ui, tl!("Add contacts to Favorites to keep them here"));
         return;
     }
-    for id in list {
+    for id in list.iter().copied() {
         let Some(c) = app.session.mailbox.contacts.get(&id).cloned() else { continue };
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), PERSON_H), Sense::click());
         app.hit.add("todoContact", id, rect);
@@ -386,13 +445,13 @@ fn tasks_part(app: &mut MailApp, ui: &mut Ui) {
     heading(app, ui, tl!("Tasks"), "tasks");
     let top = ui.cursor().min.y;
     new_task(app, ui);
-    let rows = task_rows(&app.session);
+    let rows = task_rows_cached(ui.ctx(), &app.session);
     if rows.is_empty() {
         quiet(ui, tl!("Nothing to do here."));
     }
     let today = app.session.today();
     let mut bucket_shown = None;
-    for (bucket, id) in rows {
+    for (bucket, id) in rows.iter().copied() {
         if bucket_shown != Some(bucket) {
             bucket_shown = Some(bucket);
             group(ui, tl!(bucket.label()));

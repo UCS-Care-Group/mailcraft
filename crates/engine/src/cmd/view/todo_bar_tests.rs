@@ -74,6 +74,10 @@ fn junk_is_refused_and_changes_nothing() {
         json!({"part": "tasks", "module": "notes"}),
         json!({"part": "tasks", "module": 2}),
         json!({"part": "tasks", "module": ["mail"]}),
+        // A switch that is no true or false is refused, not taken as "toggle".
+        json!({"part": "tasks", "value": "yes"}),
+        json!({"part": "tasks", "value": "false"}),
+        json!({"part": "calendar", "value": 1}),
     ] {
         assert!(s.run("view.todoBar", &junk).is_err(), "{junk}");
     }
@@ -93,4 +97,17 @@ fn a_message_dropped_on_the_bar_becomes_a_task_where_the_owner_is() {
     let other = *s.mailbox.messages.keys().find(|m| **m != message).unwrap();
     run(&mut s, "tasks.fromMessage", json!({"id": other}));
     assert_eq!(s.view.module, Module::Tasks);
+}
+
+#[test]
+fn a_show_that_is_no_true_or_false_is_refused_and_makes_no_task() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let message = *s.mailbox.messages.keys().next().unwrap();
+    let tasks = s.mailbox.tasks.len();
+    for junk in [json!("false"), json!(0), json!(null), json!([false])] {
+        let params = json!({"id": message, "show": junk});
+        assert!(s.run("tasks.fromMessage", &params).is_err(), "{params}");
+        assert_eq!(s.mailbox.tasks.len(), tasks, "{params}");
+        assert_eq!(s.view.module, Module::Mail, "{params}");
+    }
 }
