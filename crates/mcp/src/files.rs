@@ -40,7 +40,9 @@ fn bad_name(name: &str) -> bool {
 }
 
 fn extension(name: &str) -> Option<String> {
-    name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase())
+    // The engine's one reader (ASCII fold, trailing dots and spaces dropped) so that the list
+    // and the fold are the opener's own.
+    Some(mailcraft_engine::opening::extension(name)).filter(|e| !e.is_empty())
 }
 
 impl FilesDir {
