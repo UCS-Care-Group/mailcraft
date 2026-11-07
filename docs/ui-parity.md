@@ -93,6 +93,9 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | minor | #761: Add Account: an address at a domain nobody here knows says its servers are only a guess from its domain, and offers the Microsoft 365 and Exchange server choices on the same page |
+| 2026-11-05 | minor | #600: Reading pane: a message is drawn in the first of its fonts installed on this computer |
+| 2026-11-04 | minor | #785: Reading pane and a message's window: a ▾ at each attachment chip's right end opens the chip's right-click menu (Open, Save As, Save All Attachments, Remove), by a click or by Enter or Space |
 | 2026-11-04 | patch | #795: Message list: a conversation is one thread, not every message with its subject |
 | 2026-11-03 | minor | #702 (point 2): the accounts put in the owner's order by dragging their headings in the folder pane |
 | 2026-11-03 | minor | #702: Move Up and Move Down on an account's right-click menu; the folder pane scrolls while an account is dragged near its edge; To Do jobs start in the pane's order |

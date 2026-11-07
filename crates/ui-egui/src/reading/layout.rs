@@ -755,7 +755,7 @@ fn text_job(
         };
         let count = span.text.chars().count();
         if let Some(url) = &span.link {
-            links.push((chars..chars + count, Arc::from(url.as_str())));
+            links.push((chars..chars + count, Arc::clone(url)));
         }
         chars += count;
         job.append(&span.text, 0.0, format);

@@ -15,7 +15,9 @@
 //! keeps it going on steady frames for that long afterwards, for a profiler to look at (with
 //! `MAILCRAFT_FRAME_BENCH_OPEN` set, with a message open in the reading pane; with
 //! `MAILCRAFT_FRAME_BENCH_CHANGES` set, with a change to the mailbox before every frame; with
-//! `MAILCRAFT_FRAME_BENCH_SELECT` set, with another message selected before every frame).
+//! `MAILCRAFT_FRAME_BENCH_SELECT` set, with another message selected before every frame; with
+//! `MAILCRAFT_FRAME_BENCH_RANGE=n` set, with the first row clicked and then Shift+clicked to row
+//! `n` before every frame).
 //!
 //! Measured on 2026-11-01 (8 cores, release build), `main` before the counts (e26e4ad, with this
 //! file added) against after; a frame's time in milliseconds, the median of a steady run or the
@@ -37,6 +39,72 @@
 //!
 //! The frame after a change or a selection, which builds the Inbox's list again, is the hitch
 //! that is left.
+//!
+//! A Shift+click, measured on 2026-11-02 before and after selecting became a reading command
+//! (no copy of the mailbox taken and compared; the message opened is marked read after it): the
+//! command's own time in milliseconds.
+//!
+//! | Shift+click over        | Before | After |
+//! |-------------------------|--------|-------|
+//! | 10 rows                 | 38–56  | 0.1–0.2 |
+//! | 1,000 rows              | 34–47  | 0.7–1.3 |
+//! | 10,000 rows             | 47–60  | 16    |
+//! | 50,000 rows (33,807 messages) | 132–152 | 65 |
+//!
+//! A click or an arrow key that opens a message saves the same 40 ms of copying.
+//!
+//! The frame after a selection, measured on 2026-11-02 before and after the reading pane's
+//! conversation came from an index of the conversations rather than a walk over the account's
+//! 108,000 messages: 65–90 ms before, 1.5–3.6 ms after. (That index, keyed by subject, went
+//! with #795's conversations by thread: see 2026-11-05 below.)
+//!
+//! A change to the mailbox, measured on 2026-11-02 before and after the messages were kept in
+//! chunks shared between the mailbox and its copies (`mailcraft_model::Messages`), the folder
+//! counts were brought in step with a change rather than counted again, and a change that
+//! touches nothing the list is built from left the list standing:
+//!
+//! | What                                         | Before   | After    |
+//! |----------------------------------------------|----------|----------|
+//! | The mailbox's messages copied (each change)  | 19       | 0.1      |
+//! | Compared with the copy                       | 14       | 0.1      |
+//! | The copy let go of                           | 18       | 0.1      |
+//! | Frame after a read mark                      | 40–65    | 0.7–3.7  |
+//! | A flag: the command, then the frame          | ~40, 40–58 | 0.2, 0.8–1.5 |
+//! | A move: the command, then the frame          | ~40, 40–58 | 0.7, 27–31 |
+//! | The index of conversations brought in step   | 10       | 0.1      |
+//!
+//! A move changes what the Inbox lists, which is built again (98,000 rows, 27 ms).
+//!
+//! Then, the same day: the window holds the list's rows weakly (a read mark copied all of them
+//! to put one row's unread count right: the command 10 ms, now 0.3–0.5); a Shift+click from a
+//! listed anchor takes the span of rows without asking of each message whether it is listed
+//! (10,000 rows 11–25 ms, now 7; 33,800 messages 50–70, now 21); Undo merges only the messages
+//! its versions differ in, brings the counts in step itself and builds the list once, and the
+//! known correspondents follow the map chunk by chunk:
+//!
+//! | Undo, the command and the frame after it    | Before      | After     |
+//! |---------------------------------------------|-------------|-----------|
+//! | Of a thousand deleted                        | 340, 107    | 58, 31    |
+//! | Of every Inbox message marked read (98,000)  | 388, 127    | 115, 57   |
+//!
+//! Measured on 2026-11-05, with #795's conversations by thread (`mailcraft_model::ThreadIndex`,
+//! built in one pass over every message and kept by `mailcraft_engine::conversations`, which
+//! checks it chunk by chunk after a change: a chunk the mailbox and its copy share isn't looked
+//! into, and in one they don't, a message that is the same `Arc` isn't hashed again). The
+//! conversations are built in the window's first frame over the mailbox (205–270 ms, once), and
+//! worked out again only when a message comes or goes or a header or a server's conversation id
+//! changes:
+//!
+//! | The command, and the frame after it           | 2026-11-05 |
+//! |-----------------------------------------------|------------|
+//! | A click (the frame after a selection)         | 1.3–3.9    |
+//! | A read mark                                   | 0.5, 0.7–1.0 |
+//! | A flag                                        | 0.1–0.5, 0.7 |
+//! | A move                                        | 0.4, 20–23 |
+//! | Shift+click over 10 / 10,000 / 33,800 rows    | 0.0 / 4 / 14, then 1–3 |
+//! | Mark All as Read (98,000), and its Undo       | 89, 44; 109, 40 |
+//! | Delete a thousand, and its Undo               | 31, 14; 32, 13 |
+//! | A message copied in (the conversations again) | 6–7, 280–310; its Undo 24–28, 270 |
 
 use std::time::Instant;
 
@@ -130,6 +198,15 @@ fn frames(harness: &mut egui_kittest::Harness<'static, MailApp>, n: usize) -> (f
     (times[n / 2], times[n - 1])
 }
 
+/// How long turning the last frame's shapes into triangles takes, as the window does before it
+/// draws (the harness itself doesn't).
+fn tessellate(harness: &egui_kittest::Harness<'static, MailApp>) -> (f64, usize) {
+    let out = harness.output().clone();
+    let t = Instant::now();
+    let meshes = harness.ctx.tessellate(out.shapes, out.pixels_per_point);
+    (ms(t.elapsed()), meshes.len())
+}
+
 fn report(what: &str, harness: &mut egui_kittest::Harness<'static, MailApp>, n: usize) {
     let (median, worst) = frames(harness, n);
     eprintln!("FRAME_BENCH {what}: median {median:.1} ms, worst {worst:.1} ms over {n} frames");
@@ -143,7 +220,19 @@ fn frame_bench() {
     let mb = make(messages);
     eprintln!("FRAME_BENCH made {} messages in {:.0} ms", mb.messages.len(), ms(making.elapsed()));
     let inbox = mb.inbox().unwrap();
+    {
+        let t = Instant::now();
+        let threads = mailcraft_model::ThreadIndex::build(mb.messages.values().map(|m| m.as_ref()));
+        eprintln!("FRAME_BENCH the conversations (ThreadIndex), built: {:.1} ms, {} steps", ms(t.elapsed()), threads.work());
+    }
+    let t = Instant::now();
     let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    eprintln!("FRAME_BENCH the window made over it: {:.0} ms", ms(t.elapsed()));
+    // What the window's first frame does before anything else (`Session::prepare_conversations`;
+    // the harness runs that frame as it is built, so it is done here, timed).
+    let t = Instant::now();
+    let built = app.session.prepare_conversations();
+    eprintln!("FRAME_BENCH the conversations, worked out for the window: {} in {:.1} ms", if built { "built" } else { "in step" }, ms(t.elapsed()));
     app.autosave = false;
     app.auto_sync = false;
     let mut harness =
@@ -158,6 +247,11 @@ fn frame_bench() {
     let first = Instant::now();
     harness.run_steps(4);
     eprintln!("FRAME_BENCH first four frames: {:.0} ms", ms(first.elapsed()));
+    // (Asked again here, they are in step and nothing is built.)
+    let t = Instant::now();
+    let built = harness.state_mut().session.prepare_conversations();
+    eprintln!("FRAME_BENCH the conversations after the first frames: {} in {:.1} ms", if built { "built now" } else { "in step" }, ms(t.elapsed()));
+    // (The conversations were worked out in those frames: `Session::prepare_conversations`.)
     let _ = harness.state_mut().execute("ui.dismissReminder", serde_json::json!({"all": true}));
     harness.run_steps(2);
     report("steady", &mut harness, 20);
@@ -165,12 +259,34 @@ fn frame_bench() {
     // A change to the mailbox, as every Send/Receive makes: the list is built again.
     let ids: Vec<Id> = harness.state().session.mailbox.messages_in(inbox).map(|m| m.id).take(40).collect();
     for (i, id) in ids.iter().take(5).enumerate() {
+        let t = Instant::now();
         let _ = harness.state_mut().execute("mail.markUnread", serde_json::json!({"id": id}));
+        let took = ms(t.elapsed());
         let t = Instant::now();
         harness.step();
-        eprintln!("FRAME_BENCH frame after a change {i}: {:.1} ms", ms(t.elapsed()));
+        eprintln!("FRAME_BENCH frame after a change {i}: command {took:.1} ms, next frame {:.1} ms", ms(t.elapsed()));
     }
     report("steady after changes", &mut harness, 10);
+
+    // A flag and a move, which change what the list shows (not read marks alone): the command,
+    // and the frame after it.
+    let archive = harness.state().session.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Archive).map(|f| f.id).unwrap();
+    for (i, (command, params)) in [
+        ("mail.flag", serde_json::json!({"id": ids[30]})),
+        ("mail.flag", serde_json::json!({"id": ids[31]})),
+        ("mail.move", serde_json::json!({"id": ids[32], "folder": archive})),
+        ("mail.move", serde_json::json!({"id": ids[33], "folder": archive})),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let t = Instant::now();
+        let _ = harness.state_mut().run(command, params);
+        let took = ms(t.elapsed());
+        let t = Instant::now();
+        harness.step();
+        eprintln!("FRAME_BENCH {command} {i}: command {took:.1} ms, next frame {:.1} ms", ms(t.elapsed()));
+    }
 
     for (i, id) in ids.iter().skip(5).take(5).enumerate() {
         let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": id}));
@@ -190,7 +306,9 @@ fn frame_bench() {
         });
         let t = Instant::now();
         harness.step();
-        eprintln!("FRAME_BENCH frame after a scroll {i}: {:.1} ms", ms(t.elapsed()));
+        let frame = ms(t.elapsed());
+        let (tess, meshes) = tessellate(&harness);
+        eprintln!("FRAME_BENCH frame after a scroll {i}: {frame:.1} ms, tessellated in {tess:.1} ms ({meshes} meshes)");
     }
 
     let other = harness.state().session.mailbox.folders.iter().find(|f| f.name == "Project 3").map(|f| f.id).unwrap();
@@ -212,6 +330,60 @@ fn frame_bench() {
     let _ = harness.state_mut().execute("view.clearSearch", serde_json::json!({}));
     harness.step();
 
+    // A Shift+click from the first row to rows further down, as the list's own click runs it.
+    let rows: Vec<(Id, u16)> = harness.state_mut().session.rows().iter().map(|r| (r.id, r.copy)).collect();
+    for reach in [10usize, 100, 1_000, 10_000, 50_000] {
+        let Some(&(first, _)) = rows.first() else { break };
+        let Some(&(to, copy)) = rows.get(reach.min(rows.len().saturating_sub(1))) else { break };
+        let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": first}));
+        harness.step();
+        let t = Instant::now();
+        let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": to, "copy": copy, "range": true}));
+        let command = ms(t.elapsed());
+        let t = Instant::now();
+        harness.step();
+        let frame = ms(t.elapsed());
+        let selected = harness.state().session.sel.messages.len();
+        eprintln!("FRAME_BENCH shift+click over {reach} rows ({selected} selected): command {command:.1} ms, next frame {frame:.1} ms");
+        report(&format!("steady with {selected} selected"), &mut harness, 5);
+    }
+    let _ = harness.state_mut().run("mail.select", serde_json::json!({"ids": []}));
+    harness.step();
+
+    // Whole-folder work: Select All, every one of them marked read and unread again, a thousand
+    // deleted, and each undone.
+    let inbox_ids: Vec<Id> = harness.state_mut().session.rows().iter().map(|r| r.id).collect();
+    let thousand: Vec<Id> = inbox_ids.iter().copied().take(1000).collect();
+    for (what, command, params) in [
+        ("select all", "mail.selectAll", serde_json::json!({})),
+        ("mark all read", "mail.markRead", serde_json::json!({"ids": inbox_ids})),
+        ("undo it", "edit.undo", serde_json::json!({})),
+        ("delete a thousand", "mail.delete", serde_json::json!({"ids": thousand})),
+        ("undo the delete", "edit.undo", serde_json::json!({})),
+        // A message more (as mail that comes is): the conversations are worked out again.
+        ("copy one in (a message comes)", "mail.copy", serde_json::json!({"ids": [ids[0]], "folder": inbox})),
+        ("undo the copy", "edit.undo", serde_json::json!({})),
+    ] {
+        let t = Instant::now();
+        let r = harness.state_mut().run(command, params);
+        let took = ms(t.elapsed());
+        let t = Instant::now();
+        harness.step();
+        let frame = ms(t.elapsed());
+        // (Worked out again in that frame when the command changed what groups a message or how
+        // many there are; checked and kept otherwise.)
+        let t = Instant::now();
+        let built = harness.state_mut().session.prepare_conversations();
+        eprintln!(
+            "FRAME_BENCH {what}: command {took:.1} ms{}, next frame {frame:.1} ms; the conversations then {} in {:.1} ms",
+            if r.is_err() { " (failed)" } else { "" },
+            if built { "built" } else { "in step" },
+            ms(t.elapsed())
+        );
+    }
+    let _ = harness.state_mut().run("mail.select", serde_json::json!({"ids": []}));
+    harness.step();
+
     if std::env::var_os("MAILCRAFT_FRAME_BENCH_OPEN").is_some() {
         let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": ids[6]}));
         harness.run_steps(2);
@@ -223,12 +395,37 @@ fn frame_bench() {
         let mut n = 0usize;
         let changes = std::env::var_os("MAILCRAFT_FRAME_BENCH_CHANGES").is_some();
         let selects = std::env::var_os("MAILCRAFT_FRAME_BENCH_SELECT").is_some();
+        let ranges = std::env::var_os("MAILCRAFT_FRAME_BENCH_RANGE").is_some();
         while Instant::now() < until {
             if changes {
-                let _ = harness.state_mut().execute("mail.toggleRead", serde_json::json!({"id": ids[n % 5]}));
+                match std::env::var("MAILCRAFT_FRAME_BENCH_CHANGES").as_deref() {
+                    Ok("flag") => drop(harness.state_mut().execute("mail.toggleFlag", serde_json::json!({"id": ids[n % 5]}))),
+                    // Into the Archive and back: the Inbox's list is built again each time.
+                    Ok("move") => {
+                        let to = if n.is_multiple_of(2) { archive } else { inbox };
+                        drop(harness.state_mut().execute("mail.move", serde_json::json!({"id": ids[34], "folder": to})));
+                    }
+                    // A hundred deleted, then undone.
+                    Ok("undo") => {
+                        if n.is_multiple_of(2) {
+                            let some: Vec<Id> = harness.state_mut().session.rows().iter().take(100).map(|r| r.id).collect();
+                            drop(harness.state_mut().execute("mail.delete", serde_json::json!({"ids": some})));
+                        } else {
+                            drop(harness.state_mut().execute("edit.undo", serde_json::json!({})));
+                        }
+                    }
+                    _ => drop(harness.state_mut().execute("mail.toggleRead", serde_json::json!({"id": ids[n % 5]}))),
+                }
             }
             if selects {
                 let _ = harness.state_mut().execute("mail.select", serde_json::json!({"id": ids[10 + n % 20]}));
+            }
+            if ranges {
+                let reach: usize = std::env::var("MAILCRAFT_FRAME_BENCH_RANGE").ok().and_then(|s| s.parse().ok()).unwrap_or(200);
+                let from = rows.first().copied().unwrap_or_default();
+                let to = rows.get(reach).or(rows.last()).copied().unwrap_or_default();
+                let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": from.0, "copy": from.1}));
+                let _ = harness.state_mut().run("mail.select", serde_json::json!({"id": to.0, "copy": to.1, "range": true}));
             }
             harness.step();
             n += 1;

@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, mailbox files, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -14,6 +14,8 @@ cargo-fuzz = true
 
 [dependencies]
 mailcraft-dav = { path = "../crates/dav" }
+# Mailbox files in every form (`mailbox_file`), with the small limits of its tests.
+mailcraft-engine = { path = "../crates/engine", features = ["test-support"] }
 libfuzzer-sys = "0.4"
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
@@ -173,6 +175,13 @@ bench = false
 [[bin]]
 name = "rtf"
 path = "fuzz_targets/rtf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mailbox_file"
+path = "fuzz_targets/mailbox_file.rs"
 test = false
 doc = false
 bench = false

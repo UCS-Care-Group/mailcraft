@@ -1991,7 +1991,7 @@ fn content_let_go_of_goes_from_disk_once_a_state_that_new_is_saved_in_the_backgr
     assert!(before >= 4, "{before}");
     // Message 0's own text goes; the file it shares with another message stays for that one.
     let id = *mb.messages.keys().next().unwrap();
-    let names = content_names(id, &mb.messages[&id]);
+    let names = content_names(id, mb.messages.get(&id).unwrap());
     assert!(names.len() >= 2, "{names:?}");
     forget_when_saved(&path, 2, names.clone());
     // A save of an older state removes nothing.
@@ -2018,6 +2018,9 @@ mod in_session;
 
 #[path = "store_undo_body_tests.rs"]
 mod undo_body;
+
+#[path = "store_budget_tests.rs"]
+mod budget;
 
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
@@ -2074,8 +2077,10 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
     }
     json.push_str("}}");
     fs::write(t.file(), json).unwrap();
-    // (A small budget still reads 250,000 items; 600,000 are more.)
-    let err = with_budget(64 << 20, || open(&t.file())).err().unwrap();
+    // (A small budget still reads 250,000 items; 600,000 are more. Room enough for what parsing
+    // 250,000 builds, so that it is the count that refuses them.)
+    let room = crate::test_support::Limits { element_bytes: 1 << 30, stream: false };
+    let err = crate::test_support::with_limits(room, || with_budget(64 << 20, || open(&t.file()))).err().unwrap();
     assert!(err.contains("more items"), "{err}");
     // A reasonable file opens under the same budget.
     fs::write(t.file(), "{\"messages\":{\"1\":{},\"2\":{}}}").unwrap();

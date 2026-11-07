@@ -7398,6 +7398,11 @@ msgid "Nothing to do here."
 msgstr "Nada que hacer aquí."
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs
+msgid "Nothing was done: what the agent asked about changed after you were asked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
 msgstr ""
@@ -13243,6 +13248,16 @@ msgstr "Cumple {age} hoy"
 msgid "Two Weeks Ago"
 msgstr "Hace dos semanas"
 
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -16292,6 +16307,11 @@ msgstr "{from} – {to} {year}"
 #, fuzzy
 msgid "{host} (not encrypted)"
 msgstr "{host} (sin cifrar)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs

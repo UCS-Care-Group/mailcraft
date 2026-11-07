@@ -25,10 +25,24 @@ struct Run {
     outcome: Outcome,
     asked: Vec<(String, ConsentReason)>,
     srv: Vec<String>,
+    /// The hosts in the domain the owner was asked to send the sign-in to (AU3-V1), when they
+    /// are answered yes by themselves ([`run_with`]).
+    sign_in: Vec<String>,
 }
 
-fn run_with(standin: &AutodiscoverStandIn, mut search: Autodiscover, srv: Option<Vec<&str>>, yes: &[bool]) -> Run {
-    let (mut asked, mut looked, mut at) = (Vec::new(), Vec::new(), 0usize);
+/// A whole search, where a host in the domain that asks for the sign-in is agreed to without
+/// counting among `yes` (most tests are about something else: [`strict`] for the question).
+fn run_with(standin: &AutodiscoverStandIn, search: Autodiscover, srv: Option<Vec<&str>>, yes: &[bool]) -> Run {
+    run_as(standin, search, srv, yes, true)
+}
+
+/// A whole search where every question counts among `yes`, that one too.
+fn strict(standin: &AutodiscoverStandIn, srv: Option<Vec<&str>>, yes: &[bool]) -> Run {
+    run_as(standin, search("ada@example.org"), srv, yes, false)
+}
+
+fn run_as(standin: &AutodiscoverStandIn, mut search: Autodiscover, srv: Option<Vec<&str>>, yes: &[bool], sign_in_yes: bool) -> Run {
+    let (mut asked, mut looked, mut sign_in, mut at) = (Vec::new(), Vec::new(), Vec::new(), 0usize);
     let srv = srv.map(|hosts| hosts.into_iter().map(|host| (host.to_owned(), 443)).collect::<Vec<_>>());
     let outcome = block_on(search.run(
         standin,
@@ -37,13 +51,17 @@ fn run_with(standin: &AutodiscoverStandIn, mut search: Autodiscover, srv: Option
             srv.clone()
         },
         |consent| {
+            if sign_in_yes && consent.reason() == ConsentReason::SignIn {
+                sign_in.push(consent.host().to_owned());
+                return true;
+            }
             asked.push((consent.host().to_owned(), consent.reason()));
             at += 1;
             yes.get(at - 1).copied().unwrap_or(false)
         },
     ))
     .unwrap();
-    Run { outcome, asked, srv: looked }
+    Run { outcome, asked, srv: looked, sign_in }
 }
 
 fn go(standin: &AutodiscoverStandIn, srv: Option<Vec<&str>>, yes: &[bool]) -> Run {
@@ -676,7 +694,7 @@ fn calls_out_of_turn_are_ignored() {
     machine.srv(None);
     assert!(matches!(machine.step(), Step::Request(_)));
     // A finished search stays finished.
-    let standin = AutodiscoverStandIn::new().route("example.org", good());
+    let standin = AutodiscoverStandIn::new().route("autodiscover.example.org", good());
     let mut machine = search("ada@example.org");
     let _ = block_on(machine.run(&standin, |_| None, |_| false));
     let before = standin.state().seen.len();
@@ -801,10 +819,13 @@ fn a_challenge_without_basic_sends_nothing_and_the_next_place_is_tried() {
     // Another scheme (a site behind a bearer token) is just not Autodiscover.
     let standin = AutodiscoverStandIn::new().route("example.org", Route::Challenge("Bearer".into())).route("autodiscover.example.org", good());
     found(&go(&standin, None, &[]));
-    // Several offered, Basic among them: Basic is taken.
-    let standin = AutodiscoverStandIn::new().route("example.org", good());
+    // Several offered, Basic among them: Basic is taken (at the domain's Autodiscover host).
+    let standin = AutodiscoverStandIn::new().route("autodiscover.example.org", good());
     let mut machine = search("ada@example.org");
+    let Step::Request(_) = machine.step() else { panic!() };
+    machine.response(Ok(HttpResponse::new(404, Vec::new())));
     let Step::Request(request) = machine.step() else { panic!() };
+    assert_eq!(request.url(), "https://autodiscover.example.org/autodiscover/autodiscover.xml");
     machine.response(Ok(HttpResponse::new(401, Vec::new())
         .with_field("WWW-Authenticate", "Negotiate")
         .with_field("WWW-Authenticate", "Basic realm=\"x\"")));
@@ -950,6 +971,98 @@ fn the_srv_name_shows_nothing_in_debug_output() {
     let Step::LookupSrv(name) = &step else { panic!() };
     assert_eq!(name.as_str(), "_autodiscover._tcp.example.org");
     assert!(!format!("{step:?}").contains("example"), "{step:?}");
+}
+
+// ---- which hosts the sign-in goes to unasked (AU3-V1) ----
+
+#[test]
+fn the_domains_own_name_asking_for_the_sign_in_is_asked_about_first() {
+    // The domain's own name is a web site behind Basic: the owner is asked, naming it whole;
+    // declined, nothing goes there and the Autodiscover host is found.
+    let make =
+        || AutodiscoverStandIn::new().route("example.org", Route::Challenge("Basic realm=\"site\"".into())).route("autodiscover.example.org", good());
+    let standin = make();
+    let run = strict(&standin, None, &[false]);
+    assert_eq!(found(&run).external_url(), Some(EXTERNAL));
+    assert_eq!(run.asked, [("example.org".to_owned(), ConsentReason::SignIn)]);
+    assert_eq!(standin.hosts_sent_credentials(), ["autodiscover.example.org"]);
+    // Agreed: then, and only then, it goes there.
+    let standin = make();
+    let run = strict(&standin, None, &[true]);
+    assert_eq!(run.outcome, Outcome::Failed(Failure::SignInRefused));
+    assert_eq!(standin.hosts_sent_credentials(), ["example.org"]);
+}
+
+#[test]
+fn only_the_autodiscover_host_an_srv_target_or_an_agreed_host_has_the_sign_in_unasked() {
+    // The Autodiscover host: no question.
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Status(404)).route("autodiscover.example.org", good());
+    let run = strict(&standin, None, &[]);
+    found(&run);
+    assert!(run.asked.is_empty());
+    // A host the SRV record names, in the domain: no question.
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("ad.example.org", good());
+    let run = strict(&standin, Some(vec!["ad.example.org"]), &[]);
+    found(&run);
+    assert!(run.asked.is_empty());
+    assert_eq!(standin.hosts_sent_credentials(), ["ad.example.org"]);
+    // Another host in the domain a redirect leads to: the redirect is followed without asking,
+    // the sign-in only after a yes.
+    for (yes, sent) in [(false, Vec::<String>::new()), (true, vec!["mail.example.org".to_owned()])] {
+        let standin = chain(&["example.org", "mail.example.org"], good());
+        let run = strict(&standin, None, &[yes]);
+        assert_eq!(run.asked, [("mail.example.org".to_owned(), ConsentReason::SignIn)]);
+        assert_eq!(standin.hosts_asked()[..2], ["example.org".to_owned(), "mail.example.org".to_owned()]);
+        assert_eq!(standin.hosts_sent_credentials(), sent);
+    }
+    // A look-alike of the Autodiscover host is not it.
+    let standin = chain(&["example.org", "autodiscover.example.org.example.org"], good());
+    let run = strict(&standin, None, &[false]);
+    assert_eq!(run.asked, [("autodiscover.example.org.example.org".to_owned(), ConsentReason::SignIn)]);
+    assert!(standin.hosts_sent_credentials().is_empty());
+}
+
+#[test]
+fn settings_from_a_host_that_never_had_the_sign_in_vouch_for_no_server_in_the_domain() {
+    // The domain's own name answers settings without asking for a sign-in, naming itself as the
+    // mail server: the owner is asked before the password would go there.
+    let answer = settings("https://example.org/EWS/Exchange.asmx", "", "example.org").into_bytes();
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Bytes(answer));
+    let run = strict(&standin, None, &[false]);
+    assert_eq!(run.asked, [("example.org".to_owned(), ConsentReason::SignIn)]);
+    assert_eq!(run.outcome, Outcome::Failed(Failure::Declined));
+    // The same answer from the Autodiscover host, after its sign-in, is taken.
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Document(settings("https://mail.example.org/EWS/Exchange.asmx", "", "mail.example.org")));
+    let run = strict(&standin, None, &[]);
+    assert_eq!(found(&run).urls(), ["https://mail.example.org/EWS/Exchange.asmx"]);
+    assert!(run.asked.is_empty() && run.sign_in.is_empty());
+}
+
+#[test]
+fn a_host_of_a_domain_the_owner_agreed_to_is_not_asked_about_as_one_of_the_addresses_own() {
+    // Sent on to another domain, agreed; its own name asks for the sign-in: the owner is asked
+    // about a host outside the address's domain, not one in it.
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Document(redirect_addr("ada@example.net")))
+        .route("example.net", Route::Challenge("Basic realm=\"site\"".into()))
+        .route("autodiscover.example.net", good());
+    let run = strict(&standin, None, &[true, false]);
+    assert_eq!(found(&run).external_url(), Some(EXTERNAL));
+    assert_eq!(run.asked, [("example.net".to_owned(), ConsentReason::OtherDomain), ("example.net".to_owned(), ConsentReason::Redirect)]);
+    // Settings that name a server in the agreed domain, from a host that never had the sign-in.
+    let answer = settings("https://mail.example.net/EWS/Exchange.asmx", "", "mail.example.net").into_bytes();
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Document(redirect_addr("ada@example.net")))
+        .route("example.net", Route::Bytes(answer));
+    let run = strict(&standin, None, &[true, false]);
+    assert_eq!(run.asked, [("example.net".to_owned(), ConsentReason::OtherDomain), ("mail.example.net".to_owned(), ConsentReason::MailServer)]);
 }
 
 /// The shape Grommunio 2026 answers with (E8, first contact with a real EWS server, made-up

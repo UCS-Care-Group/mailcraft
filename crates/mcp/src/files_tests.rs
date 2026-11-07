@@ -24,3 +24,30 @@ fn kinds_that_ask_before_opening_are_not_written() {
     }
     let _ = std::fs::remove_dir_all(&d);
 }
+
+#[test]
+fn launchers_and_non_ascii_kinds_are_not_written() {
+    let d = folder("au3-kinds");
+    let f = FilesDir::new(&d).unwrap();
+    for name in [
+        "a.mad",
+        "a.appcontent-ms",
+        "a.vsmacros",
+        "a.bgi",
+        "a.asx",
+        "a.mcf",
+        "a.pcd",
+        "a.plg",
+        "a.osd",
+        "a.OSD",
+        "a.exe.",
+        "a.exe ",
+        "a.j\u{17f}",
+        "a.\u{17f}cr",
+        "a.p\u{131}f",
+    ] {
+        assert!(f.target(name, "").is_err(), "{name:?} should be refused");
+    }
+    assert!(f.target("a.pdf.", "").is_ok());
+    let _ = std::fs::remove_dir_all(&d);
+}
