@@ -209,3 +209,55 @@ fn a_message_in_the_outbox_takes_no_fetch_and_one_still_to_fetch_does() {
         assert!(!m.unfetched && m.body.text.contains("Old text"));
     }
 }
+
+/// A message only its headers that the owner moves into the Outbox is never asked for: its
+/// answer would be dropped, and a background that asked again at once would ask forever.
+#[test]
+fn a_message_in_the_outbox_is_never_asked_for() {
+    for kind in [Kind::Ews, Kind::Graph] {
+        let (mut s, account) = with_draft(kind);
+        let d = draft(&s);
+        let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+        if s.run("mail.move", &json!({"ids": [d], "folder": outbox})).is_err() {
+            s.mailbox.message_mut(d).unwrap().folder = outbox;
+        }
+        let m = s.mailbox.message(d).unwrap();
+        assert!(m.folder == outbox && m.unfetched, "{kind:?}");
+        assert!(ask(&s, kind, account, None).is_empty(), "{kind:?}");
+        assert!(ask(&s, kind, account, Some(d)).is_empty(), "{kind:?}");
+    }
+}
+
+/// A draft sent here and still in the Outbox, changed on the server meanwhile: not asked for
+/// either, whatever the server says of its copy.
+#[test]
+fn a_queued_draft_the_server_changed_is_never_asked_for() {
+    for kind in [Kind::Ews, Kind::Graph] {
+        let (mut s, account) = with_draft(kind);
+        let d = draft(&s);
+        assert_eq!(answer(&mut s, kind, account, OLD), 1);
+        s.run("mail.editDraft", &json!({"id": d})).unwrap();
+        s.run("compose.set", &json!({"to": "alice@example.org", "body": "Only for Alice."})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+        let queued = s.mailbox.messages_in(outbox).map(|m| m.id).next().unwrap();
+        // Its copy on the server changed on another device: a delta says so.
+        match kind {
+            Kind::Ews => {
+                let piece = EwsMailResult { account, email: ME.into(), url: EWS.into(), partial: true, ..Default::default() };
+                let page =
+                    EwsMessagePage { folder: "F4".into(), messages: vec![draft_listed("CK9")], last: true, state: "S2".into(), ..Default::default() };
+                ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![page], ..piece }).unwrap();
+            }
+            _ => {
+                let page = MessagePage { folder: "F4".into(), messages: vec![draft_listed("CK9")], ..Default::default() };
+                graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], ..Default::default() }).unwrap();
+            }
+        }
+        assert!(!ask(&s, kind, account, None).contains(&"D1".to_owned()), "{kind:?}");
+        if s.mailbox.message(queued).is_some() {
+            assert!(ask(&s, kind, account, Some(queued)).is_empty(), "{kind:?}");
+            assert_eq!(recipients(&s, queued), ["alice@example.org"], "{kind:?}");
+        }
+    }
+}

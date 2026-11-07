@@ -9,7 +9,7 @@
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::account::{apply_sync, sync_request};
 use mailcraft_model::sync::{FolderDelta, RemoteOp, SyncResult};
-use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending};
+use mailcraft_model::{Address, Body, FolderKind, Id, Importance, Message, Pending};
 use serde_json::{Value, json};
 
 #[derive(Clone, Copy, Debug)]
@@ -171,5 +171,26 @@ fn a_copy_that_differs_gets_no_change() {
         let r = apply(&mut s, piece(a, inbox, vec![other], true, true));
         assert!(destructive(&s, a).is_empty() && s.mailbox.pending.is_empty(), "{change:?}");
         assert!(told(&[r]));
+    }
+}
+
+/// While a change waits, the copy it waits for is neither new mail nor the rules' to act on; a
+/// message that only carries its Message-ID (another sender) is new mail as any other, and the
+/// owner's rules act on it.
+#[test]
+fn only_the_awaited_mail_is_kept_from_the_rules() {
+    for change in [Change::Delete, Change::Move] {
+        let (mut s, a, inbox, legit, _) = changed_then_renumbered(change);
+        let rule = json!({"name": "Three", "conditions": [{"type": "subjectContains", "value": "Three"}], "actions": [{"type": "setImportance", "value": "high"}]});
+        s.run("rules.add", &rule).unwrap();
+        let other = Message { uid: 32, from: Address::new("", "someone@example.org"), ..legit.clone() };
+        let r = apply(&mut s, piece(a, inbox, vec![legit, from_server(40, "Newest")], true, false));
+        assert_eq!(r["new"].as_u64(), Some(1), "{change:?}: only Newest is new: {r}");
+        let copy = s.mailbox.messages_in(inbox).find(|m| m.uid == 30).map(|m| m.importance).unwrap();
+        assert_eq!(copy, Importance::Normal, "{change:?}: the rules left the awaited copy alone");
+        let r = apply(&mut s, piece(a, inbox, vec![other], false, false));
+        assert_eq!(r["new"].as_u64(), Some(1), "{change:?}: {r}");
+        let other = s.mailbox.messages_in(inbox).find(|m| m.uid == 32).map(|m| m.importance).unwrap();
+        assert_eq!(other, Importance::High, "{change:?}: a message with the id alone goes through the rules");
     }
 }

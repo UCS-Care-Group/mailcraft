@@ -1604,18 +1604,19 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
     gone
 }
 
-/// The Message-IDs a move or a deletion made here waits for in server mailbox `remote`, numbered
-/// anew ([`renumbered`]): an arrival that carries one is not new mail, and stays as it came until
-/// [`waited_for`] settles which copy, if any, the change is about.
-fn awaited(mb: &Mailbox, account: Id, remote: &str) -> HashSet<String> {
+/// The mail a move or a deletion made here waits for in server mailbox `remote`, numbered anew
+/// ([`renumbered`]), by Message-ID and what it was: an arrival that is that mail is not new mail,
+/// and stays as it came until [`waited_for`] settles which copy, if any, the change is about. One
+/// that only carries the id is mail as any other, and goes through the owner's lists and rules.
+fn awaited(mb: &Mailbox, account: Id, remote: &str) -> Vec<(String, MailIdentity)> {
     mb.pending
         .iter()
         .filter(|p| p.account() == account && p.source() == (remote, 0))
         .filter_map(|p| match p {
-            Pending::Move { message, .. } => mb.message(*message).map(|m| m.message_id.clone()),
-            Pending::Delete { message_id, .. } => Some(message_id.clone()),
+            Pending::Move { message, .. } => mb.message(*message).map(|m| (m.message_id.clone(), MailIdentity::of(m))),
+            Pending::Delete { message_id, seen, .. } => seen.clone().map(|seen| (message_id.clone(), seen)),
         })
-        .filter(|id| !id.is_empty())
+        .filter(|(id, _)| !id.is_empty())
         .collect()
 }
 
@@ -1873,7 +1874,7 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
         m.folder = folder;
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
         // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
-        let waited = awaited.contains(&m.message_id);
+        let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
