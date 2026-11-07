@@ -315,10 +315,55 @@ fn favorite(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "favorite": f.favorite}))
 }
 
+/// The folders that go with a folder when it is emptied: those deleted into Deleted Items, when it
+/// is Deleted Items. (Not one of the server's own that an earlier version put there, #756: it
+/// can't be deleted, and the next listing puts it back where the server has it.)
+fn emptied_folders(s: &Session, id: Id) -> Vec<Id> {
+    if s.mailbox.folder(id).map(|f| f.kind) != Some(FolderKind::Deleted) {
+        return Vec::new();
+    }
+    s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect()
+}
+
+/// The messages in `folders` and in every folder under them.
+fn held_under(s: &Session, folders: &[Id]) -> Vec<Id> {
+    let all: HashSet<Id> = folders.iter().flat_map(|f| s.mailbox.subtree(*f)).collect();
+    s.mailbox.messages.values().filter(|m| all.contains(&m.folder)).map(|m| m.id).collect()
+}
+
+/// The messages `folder.empty` of `id` takes away: those in it, and those in the folders that go
+/// with it ([`emptied_folders`]).
+pub fn emptied(s: &Session, id: Id) -> Vec<Id> {
+    let mut ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).collect();
+    ids.extend(held_under(s, &emptied_folders(s, id)));
+    ids
+}
+
+/// The folders `folder.empty` of `id` deletes: those that go with it and every folder under them.
+pub fn emptied_with(s: &Session, id: Id) -> Vec<Id> {
+    emptied_folders(s, id).into_iter().flat_map(|c| s.mailbox.subtree(c)).collect()
+}
+
+/// The messages `folder.delete` of `id` takes with the folder: those in it and under it.
+pub fn deleted_with(s: &Session, id: Id) -> Vec<Id> {
+    held_under(s, &[id])
+}
+
 fn empty(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let kind = s.mailbox.folder(id).map(|f| f.kind);
-    let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).collect();
+    // On the owner's yes to an agent's question, only what the question showed goes
+    // (`Session::only_shown`): what came in meanwhile stays.
+    let only = s.only_shown.clone();
+    let shown = |m: &Id| only.as_ref().is_none_or(|o| o.messages.contains(m));
+    let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).filter(shown).collect();
+    // Folders deleted into Deleted Items go with it, but one that wasn't shown, or that holds a
+    // folder or a message that wasn't, stays.
+    let folder_shown = |f: &Id| only.as_ref().is_none_or(|o| o.folders.contains(f));
+    let children: Vec<Id> = emptied_folders(s, id)
+        .into_iter()
+        .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
+        .collect();
     for m in &ids {
         // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items.
         if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
@@ -327,14 +372,8 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
             s.mailbox.delete_message(*m)?;
         }
     }
-    // Folders deleted into Deleted Items go with it.
-    if kind == Some(FolderKind::Deleted) {
-        // (Not one of the server's own that an earlier version put there, #756: it can't be
-        // deleted, and the next listing puts it back where the server has it.)
-        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect();
-        for c in children {
-            s.mailbox.delete_folder(c)?;
-        }
+    for c in children {
+        s.mailbox.delete_folder(c)?;
     }
     s.sel.messages.clear();
     Ok(json!({"removed": ids.len()}))

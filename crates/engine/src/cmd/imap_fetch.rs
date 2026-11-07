@@ -54,7 +54,7 @@ pub fn imap_fetch_request(s: &Session, account: Id, message: Option<Id>, most: u
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            s.mailbox.imap_key(m).filter(|_| m.unfetched).map(|key| vec![key.write()]).unwrap_or_default()
+            s.mailbox.imap_key(m).filter(|_| super::graph_down::still_to_fetch(&s.mailbox, m)).map(|key| vec![key.write()]).unwrap_or_default()
         }
         None => fetch_queue(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
@@ -68,7 +68,7 @@ pub fn fetch_queue(mb: &Mailbox, account: Id, most: usize, now: Timestamp, passe
     let mut waiting: Vec<(Timestamp, String)> = mb
         .messages
         .values()
-        .filter(|m| m.account == account && m.unfetched && window.within(m))
+        .filter(|m| m.account == account && super::graph_down::still_to_fetch(mb, m) && window.within(m))
         .filter_map(|m| mb.imap_key(m).map(|key| (m.received, key.write())))
         .filter(|(_, key)| !passed_over.contains(&(account, key.clone())))
         .collect();
@@ -103,14 +103,15 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
         s.note_saved();
     }
     // Only one that is still the server's message under its key, and still not whole: one moved,
-    // numbered anew or fetched by other means meanwhile stays as it is.
+    // numbered anew or fetched by other means meanwhile stays as it is, and so does one edited or
+    // queued to be sent since it was asked for (AU3-16, [`super::graph_down::still_to_fetch`]).
     let by_key: HashMap<ImapFetchKey, Id> = if result.fetched.is_empty() {
         HashMap::new()
     } else {
         s.mailbox
             .messages
             .values()
-            .filter(|m| m.account == account && m.unfetched)
+            .filter(|m| m.account == account && super::graph_down::still_to_fetch(&s.mailbox, m))
             .filter_map(|m| s.mailbox.imap_key(m).map(|key| (key, m.id)))
             .collect()
     };

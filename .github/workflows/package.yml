@@ -45,13 +45,19 @@ on:
         required: false
       AZURE_CLIENT_ID:
         required: false
-      AZURE_CLIENT_SECRET:
-        required: false
       AZURE_SIGNING_ENDPOINT:
         required: false
       AZURE_SIGNING_ACCOUNT:
         required: false
       AZURE_CERT_PROFILE:
+        required: false
+      # The project's Google Desktop OAuth client (#232), compiled into the app. Not signing
+      # credentials: a desktop client's id and secret ship inside the binary, so a dependency's
+      # build script seeing them reveals nothing the program doesn't. Without them (a dry run),
+      # Google accounts fall back to an app password.
+      MAILCRAFT_GOOGLE_CLIENT_ID:
+        required: false
+      MAILCRAFT_GOOGLE_CLIENT_SECRET:
         required: false
 
 permissions:
@@ -78,6 +84,9 @@ jobs:
     # Signing runs in the protected `release` environment, which holds the signing secrets and
     # accepts version tags only; an unsigned build names no environment and gets no secrets.
     environment: ${{ inputs.sign && 'release' || '' }}
+    permissions:
+      contents: read
+      id-token: write # the Azure sign-in only (OIDC), in the `release` environment
     steps:
       - name: Signing only for a pushed version tag
         if: inputs.sign && !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
@@ -119,22 +128,42 @@ jobs:
       - name: Build and package, unsigned (MSI and portable zip)
         if: ${{ !inputs.sign }}
         shell: pwsh
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
       # The compile runs first, with no secret in its environment, so no build script or macro of a
       # dependency can read the signing credentials; the signing step then packages what was built.
       - name: Build (no signing secrets here)
         if: inputs.sign
         shell: pwsh
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }} -BuildOnly
+      # Azure Artifact Signing signs in with GitHub's OIDC token: the app registration's federated
+      # credential accepts it only from the `release` environment, and there is no client secret.
+      # Without AZURE_CLIENT_ID (Azure not set up) the build stays unsigned and sign.ps1 says so.
+      - name: Azure signing set up?
+        id: azure
+        if: inputs.sign
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: echo "configured=${AZURE_CLIENT_ID:+true}" >> "$GITHUB_OUTPUT"
+      - name: Sign in to Azure (OIDC)
+        if: steps.azure.outputs.configured == 'true'
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
       - name: Sign and package (MSI and portable zip)
         if: inputs.sign
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
@@ -187,6 +216,9 @@ jobs:
       # imported, so no build script or macro of a dependency can read the signing credentials.
       - name: Build (no signing secrets here)
         if: inputs.sign
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         run: bash packaging/macos/package.sh --arch universal --build-only
       # With the signing secrets set, the app is signed with the Developer ID and notarized;
       # without them (an unsigned build, or none in the environment) it is ad-hoc signed and the
@@ -201,6 +233,9 @@ jobs:
           if [ -n "${APPLE_CERTIFICATE:-}" ]; then bash packaging/macos/import-cert.sh; else echo "no signing certificate: ad-hoc signing"; fi
       - name: Build and package, ad-hoc signed (.app in a .dmg, CLI zip)
         if: ${{ !inputs.sign }}
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         run: bash packaging/macos/package.sh --arch universal
       - name: Sign and package (.app in a .dmg, CLI zip)
         if: inputs.sign
@@ -271,6 +306,9 @@ jobs:
         with:
           toolchain: 1.98.1
       - name: Build and package (AppImage, deb, rpm, tar.gz)
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         run: bash packaging/linux/package.sh
       # The .deb for real: installed with its dependencies, the window started on a virtual
       # display, and removed again.
@@ -341,9 +379,13 @@ jobs:
         # A FreeBSD build that fails doesn't hold back the other platforms: the release then has
         # no FreeBSD tarball, and this step shows as failed.
         continue-on-error: true
+        env:
+          MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+          MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
         uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc # v1.5.9
         with:
           release: "15.1"
+          envs: "MAILCRAFT_GOOGLE_CLIENT_ID MAILCRAFT_GOOGLE_CLIENT_SECRET"
           usesh: true
           cpu: 4
           mem: 12288

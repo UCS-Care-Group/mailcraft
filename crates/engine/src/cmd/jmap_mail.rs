@@ -157,7 +157,11 @@ pub fn jmap_fetch_request(s: &Session, account: Id, message: Option<Id>, most: u
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|server| m.unfetched && jmap_down::is_id(&server.id)).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            m.server
+                .as_ref()
+                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && jmap_down::is_id(&server.id))
+                .map(|server| vec![server.id.clone()])
+                .unwrap_or_default()
         }
         None => jmap_down::fetch_queue(&s.mailbox, account, most.clamp(1, 100), &s.graph_unfetchable),
     };

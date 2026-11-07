@@ -260,7 +260,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
   `ical`, `vcard`, `pst`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -278,6 +278,10 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | minor | #454 part 3: `model` and the window show names through `names::shown` (the window's labels, People, desktop alerts, the search box's suggestions) |
+| 2026-11-04 | minor | #815: `pst`, L2: a reader of `.pst` files from [MS-PST], capped and without I/O of its own; a `pst` fuzz target; 20 crates |
+| 2026-11-04 | minor | #232: describe registration-secret configuration and client-ID pairing, primary-address identity checks and unsupported Workspace aliases |
+| 2026-11-03 | minor | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-01 | minor | #376: portable DAV model, document and XML foundation; DAV fuzz targets; 19 library crates |
 | 2026-11-01 | minor | #252: the `MAILCRAFT_EWS` switch and `Session::ews` are gone; Exchange server accounts are on for everyone |
 | 2026-10-29 | minor | #252: Exchange server accounts, first step: `AccountKind::Exchange`, `Account::ews`, the request and result shapes, three registered commands, the `MAILCRAFT_EWS` switch in the data flow |

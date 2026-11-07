@@ -115,7 +115,11 @@ pub fn read_mailbox(bytes: &[u8]) -> Result<Mailbox, String> {
     if bytes.starts_with(FAMILY) {
         return Err(NEWER.into());
     }
-    let mut mb: Mailbox = serde_json::from_slice(bytes).map_err(|e| format!("this isn't a MailCraft mailbox ({e})"))?;
+    // (Within the budget a mailbox file is opened with: what parsing builds is charged while it is
+    // built, and a file that would cost more memory than it may is refused before it does.)
+    let budget = mailbox_budget();
+    let mut mb: Mailbox = mailcraft_model::load_limit::read_json(bytes, &budget)
+        .map_err(|e| if let Some(why) = budget.spent() { why.to_string() } else { format!("this isn't a MailCraft mailbox ({e})") })?;
     match mb.version {
         0 | 1 => {}
         2 => return Err(KEPT_BESIDE.into()),
@@ -126,6 +130,29 @@ pub fn read_mailbox(bytes: &[u8]) -> Result<Mailbox, String> {
     }
     Ok(mb)
 }
+
+/// The budget [`read_mailbox`] reads within: a desktop program's, the one any mailbox file opens
+/// with (`store::open_budget`); in the browser, which can't measure its memory and keeps the
+/// mailbox in its own storage, [`WEB_ITEMS`] items and [`WEB_BYTES`] of parsed values.
+fn mailbox_budget() -> std::sync::Arc<mailcraft_model::load_limit::Budget> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        crate::store::open_budget()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        mailcraft_model::load_limit::Budget::new(WEB_ITEMS, WEB_BYTES)
+    }
+}
+
+/// Items a mailbox is read with in the browser: as many as a desktop program always allows.
+#[cfg(target_arch = "wasm32")]
+const WEB_ITEMS: usize = 250_000;
+
+/// Bytes of parsed values a mailbox is read with in the browser: 1 GiB (of a page's 4 GiB at
+/// the most).
+#[cfg(target_arch = "wasm32")]
+const WEB_BYTES: u64 = 1 << 30;
 
 /// The mailbox as one self-contained file: everything in it, attachments as base64.
 pub fn write_mailbox(mb: &Mailbox) -> Result<Vec<u8>, String> {

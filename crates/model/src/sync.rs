@@ -469,12 +469,12 @@ pub struct GraphFetched {
 pub(crate) fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
+    T: serde::de::DeserializeOwned,
 {
-    Ok(match Maybe::<T>::deserialize(deserializer)? {
-        Maybe::Is(value) => Some(value),
-        Maybe::Not(_) => None,
-    })
+    // (Held as JSON first, then read from it as the file is, every list element in it charged to
+    // the budget of the file being read: `load_limit`.)
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(crate::load_limit::from_value(&value).ok())
 }
 
 /// [`lenient`] for a value that has a "nothing was said" of its own: that, when what the file
@@ -482,7 +482,7 @@ where
 pub(crate) fn lenient_or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de> + Default,
+    T: serde::de::DeserializeOwned + Default,
 {
     lenient(deserializer).map(Option::unwrap_or_default)
 }
@@ -491,31 +491,10 @@ where
 pub(crate) fn lenient_list<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
+    T: serde::de::DeserializeOwned,
 {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum List<T> {
-        Is(Vec<Maybe<T>>),
-        Not(serde::de::IgnoredAny),
-    }
-    Ok(match List::<T>::deserialize(deserializer)? {
-        List::Is(entries) => entries
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Maybe::Is(value) => Some(value),
-                Maybe::Not(_) => None,
-            })
-            .collect(),
-        List::Not(_) => Vec::new(),
-    })
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Maybe<T> {
-    Is(T),
-    Not(serde::de::IgnoredAny),
+    let serde_json::Value::Array(entries) = serde_json::Value::deserialize(deserializer)? else { return Ok(Vec::new()) };
+    Ok(entries.iter().filter_map(|entry| crate::load_limit::from_value(entry).ok()).collect())
 }
 
 /// What changed in one server folder.
