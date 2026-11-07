@@ -109,7 +109,7 @@ fn the_remembered_sign_ins_of_every_account_go_and_nothing_is_remembered_again()
     assert!(left.is_empty(), "{left:?}");
     assert!(a.passwords.is_empty() && a.tokens.is_empty());
     // A Send/Receive that was still under way can't put one back.
-    a.remember("password", "avery@mail.example", "late");
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "late");
     assert!(store.get("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").is_none());
     // And nothing is written on the way out.
     assert_eq!(a.save_on_exit(), Ok(()));
@@ -320,7 +320,7 @@ fn what_was_remembered_for_a_mailbox_that_is_no_longer_open_goes_too() {
     let mut a = app(&host, &store);
     a.ui.remember_sign_in = true;
     a.execute("account.add", json!({"email": "avery@mail.example", "auth": "oauth2", "incoming": {"host": "imap.mail.example"}})).unwrap();
-    a.remember("refresh", "avery@mail.example", "invented-refresh-token");
+    a.remember("refresh", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented-refresh-token");
     assert_eq!(store.0.lock().unwrap().len(), 1);
     // Another mailbox takes its place; the entry is still in the store.
     a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
@@ -338,7 +338,7 @@ fn turning_remembering_off_forgets_the_entries_of_other_mailboxes_too() {
     let mut a = app(&host, &store);
     a.ui.remember_sign_in = true;
     a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
-    a.remember("password", "avery@mail.example", "invented");
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented");
     a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
     a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
     assert!(store.0.lock().unwrap().is_empty());
@@ -365,7 +365,7 @@ fn an_entry_that_cannot_be_removed_is_in_the_report() {
     a.services.secrets = Some(std::sync::Arc::new(Stuck(store.clone())));
     a.ui.remember_sign_in = true;
     a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
-    a.remember("password", "avery@mail.example", "invented");
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented");
     let said = a.execute("ui.removeAllData", json!({})).unwrap();
     assert!(said["failed"].as_array().is_some_and(|f| f.iter().any(|l| l.as_str().is_some_and(|l| l.contains("avery@mail.example")))), "{said}");
 }
@@ -382,8 +382,8 @@ fn removing_an_account_takes_its_entry_names_off_the_settings() {
             .as_u64()
             .unwrap();
     a.execute("account.add", json!({"email": "kit@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
-    a.remember("refresh", "avery@mail.example", "invented-refresh-token");
-    a.remember("password", "kit@mail.example", "invented");
+    a.remember("refresh", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented-refresh-token");
+    a.remember("password", a.account_at("kit@mail.example").map_or(0, |x| x.id), "invented");
     assert_eq!(a.ui.remembered_keys.len(), 2);
 
     a.execute("account.remove", json!({"id": id})).unwrap();
@@ -401,7 +401,7 @@ fn a_name_whose_entry_stays_stays_too() {
     a.ui.remember_sign_in = true;
     let id =
         a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
-    a.remember("password", "avery@mail.example", "invented");
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented");
     let names = a.ui.remembered_keys.clone();
     assert_eq!(names.len(), 1);
     a.services.secrets = Some(std::sync::Arc::new(Stuck(store.clone())));
@@ -420,7 +420,7 @@ fn a_store_that_cannot_be_used_keeps_every_name() {
     a.ui.remember_sign_in = true;
     let id =
         a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
-    a.remember("password", "avery@mail.example", "invented");
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented");
     let names = a.ui.remembered_keys.clone();
     assert_eq!(names.len(), 1);
     a.services.secrets = Some(std::sync::Arc::new(Locked));

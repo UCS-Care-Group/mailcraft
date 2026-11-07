@@ -1299,6 +1299,7 @@ proptest! {
             response: [Response::None, Response::Accepted, Response::Tentative, Response::Declined][usize::from(flags.2)],
             send: flags.0,
             comment: title.clone(),
+            meeting: flags.0,
         }).collect::<Vec<_>>();
         let upload = EventsUpload { account: 3, email: "ada@example.org".into(), ops, ..Default::default() };
         let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone, ..Default::default() });

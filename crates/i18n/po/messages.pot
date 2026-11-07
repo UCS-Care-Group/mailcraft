@@ -11771,6 +11771,16 @@ msgstr ""
 msgid "Two Weeks Ago"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 msgid "Type"
@@ -14782,6 +14792,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "{host} (not encrypted)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
 msgstr ""
 
 #. why a mail server couldn't be used

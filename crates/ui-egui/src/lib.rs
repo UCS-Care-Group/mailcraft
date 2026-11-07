@@ -163,6 +163,9 @@ mod secret_read;
 #[path = "secret_read_tests.rs"]
 mod secret_read_tests;
 #[cfg(test)]
+#[path = "secrets_binding_tests.rs"]
+mod secrets_binding_tests;
+#[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
 #[cfg(test)]
@@ -1472,6 +1475,9 @@ pub struct MailApp {
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
+    /// The opening whose accounts were last looked at for an address two of them have: the
+    /// mailbox the window started with is looked at too (AU3-03).
+    shared_address_judged: Option<u64>,
     /// The settings file couldn't be read at start, and the line saying so hasn't been put away
     /// ([`settings_notice`]).
     pub settings_unread: Option<settings_notice::SettingsUnread>,
@@ -1792,6 +1798,7 @@ impl MailApp {
             secrets_asked: None,
             sync_after_secrets: Vec::new(),
             unconfirmed: false,
+            shared_address_judged: None,
             settings_unread: None,
             held: Default::default(),
             own_mailbox,
@@ -2741,10 +2748,15 @@ impl MailApp {
             format!("{kind}:{address}|jmap={session}|bearer={bearer}")
         } else if a.kind == mailcraft_model::AccountKind::Exchange {
             // (Its whole EWS address: another one, on the same server or not, is another server;
-            // and the user name it signs in with: a password is for one name.)
+            // the user name it signs in with: a password is for one name; and the certificate it
+            // trusts besides the system's, when it does: a password remembered for the server the
+            // system vouches for is never handed to a connection that a pin lets through, AU3-02.)
             let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
             let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
-            format!("{kind}:{address}|ews={url}|user={user}")
+            match a.ews.as_ref().map(|e| e.trusted.trim().to_ascii_lowercase()).filter(|pin| !pin.is_empty()) {
+                Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
+                None => format!("{kind}:{address}|ews={url}|user={user}"),
+            }
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -2775,34 +2787,74 @@ impl MailApp {
         }
     }
 
+    /// Every name the account's secret of this kind may be kept under: its own, the one from
+    /// before a pin was part of an Exchange server account's name, and the one from before
+    /// secrets were bound to servers. For forgetting, never for reading.
+    pub(crate) fn secret_keys_of(kind: &str, a: &mailcraft_model::Account) -> Vec<String> {
+        let mut keys = vec![Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)];
+        if let Some(e) = a.ews.as_ref().filter(|e| !e.trusted.trim().is_empty()) {
+            let unpinned = mailcraft_model::Account { ews: Some(mailcraft_model::EwsServer { trusted: String::new(), ..e.clone() }), ..a.clone() };
+            keys.push(Self::secret_key(kind, &unpinned));
+        }
+        keys
+    }
+
     /// The name secrets were kept under before they were bound to servers.
     pub(crate) fn legacy_secret_key(kind: &str, address: &str) -> String {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
     }
 
-    /// The account in this mailbox with this address.
-    fn account_at(&self, address: &str) -> Option<&mailcraft_model::Account> {
+    /// The account in this mailbox with this address; none when two or more have it (a mailbox
+    /// from a file may), since then the address doesn't say which (AU3-03). (For tests: secrets
+    /// are read and written by the account itself, never found by an address.)
+    #[cfg(test)]
+    pub(crate) fn account_at(&self, address: &str) -> Option<&mailcraft_model::Account> {
         let address = address.trim();
-        self.session.mailbox.accounts.iter().find(|a| a.email.trim().eq_ignore_ascii_case(address))
+        let mut with = self.session.mailbox.accounts.iter().filter(|a| a.email.trim().eq_ignore_ascii_case(address));
+        let first = with.next()?;
+        with.next().is_none().then_some(first)
     }
 
-    /// What the owner had the operating system remember for `address` (`password` or `refresh`),
-    /// for the account of that address with the servers it has now.
-    fn remembered(&self, kind: &str, address: &str) -> Option<String> {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in {
+    /// Whether two or more accounts of the open mailbox that connect to servers have the same
+    /// address. A mailbox like that is opened, and nothing is read from the credential store for
+    /// it until the owner has seen in Confirm Servers where each of them connects (AU3-03).
+    /// (A shared mailbox keeps no secret of its own: its owner's sign-in reads it.)
+    pub(crate) fn has_shared_address(&self) -> bool {
+        self.session.mailbox.accounts.iter().any(|a| self.address_shared(&a.email))
+    }
+
+    /// Whether two or more accounts that keep secrets of their own have this address.
+    pub(crate) fn address_shared(&self, address: &str) -> bool {
+        let address = address.trim();
+        self.session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
+            .nth(1)
+            .is_some()
+    }
+
+    /// What the owner had the operating system remember (`password` or `refresh`) for the
+    /// account `account` of this mailbox, with the servers it has now: that account's own, never
+    /// one found by its address (another may have it too, with other servers, AU3-03).
+    fn remembered(&self, kind: &str, account: Id) -> Option<String> {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
+        let a = self.session.mailbox.account(account)?;
         // (What the background read brought, never the store itself: it may be locked, and then
         // asking blocks until the owner answers.)
-        self.secret_cache.get(&Self::secret_key(kind, self.account_at(address)?)).cloned()
+        self.secret_cache.get(&Self::secret_key(kind, a)).cloned()
     }
 
-    /// Have the operating system remember a secret for `address`, when the owner wants that.
-    fn remember(&mut self, kind: &str, address: &str, secret: &str) {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
+    /// Have the operating system remember a secret for the account `account`, when the owner
+    /// wants that: under that account's own name.
+    fn remember(&mut self, kind: &str, account: Id, secret: &str) {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
             return;
         }
-        let Some(account) = self.account_at(address) else { return };
+        let Some(account) = self.session.mailbox.account(account) else { return };
         let key = Self::secret_key(kind, account);
         let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {
@@ -2835,8 +2887,7 @@ impl MailApp {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
             for kind in ["password", "refresh"] {
-                keys.push(Self::secret_key(kind, a));
-                keys.push(Self::legacy_secret_key(kind, &a.email));
+                keys.extend(Self::secret_keys_of(kind, a));
             }
         }
         keys.sort();
@@ -2878,7 +2929,7 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         for kind in ["password", "refresh"] {
-            for key in [Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)] {
+            for key in Self::secret_keys_of(kind, a) {
                 store.delete(&key);
                 if store.get(&key).is_none() {
                     gone.push(key);
@@ -2897,7 +2948,7 @@ impl MailApp {
 
     /// Forget only this account's rejected refresh grant, including the in-memory cache.
     fn forget_account_refresh(&mut self, account: &mailcraft_model::Account) {
-        let keys = [Self::secret_key("refresh", account), Self::legacy_secret_key("refresh", &account.email)];
+        let keys = Self::secret_keys_of("refresh", account);
         for key in &keys {
             self.secret_cache.remove(key);
         }
@@ -3063,9 +3114,7 @@ impl MailApp {
         if self.signed_in_as_other(account, &tokens) {
             return;
         }
-        if let Some(address) = self.session.mailbox.account(account).map(|a| a.email.clone()) {
-            self.remember("refresh", &address, &tokens.refresh);
-        }
+        self.remember("refresh", account, &tokens.refresh);
         self.note_directory(account, &tokens.tenant);
         self.tokens.insert(account, tokens);
     }
@@ -3203,7 +3252,7 @@ impl MailApp {
             // Signed in on the provider's page: a token that is still good goes along; without
             // one the host renews it or the owner signs in, and this runs again after.
             let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-            let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+            let refresh = kept.or_else(|| self.remembered("refresh", account)).unwrap_or_default();
             // Good for the whole run: Microsoft ends an IMAP session the moment its token runs
             // out, folders still to go. ponytail: ten minutes covers a run; a longer first
             // download still meets the end, and the next run renews.
@@ -3260,7 +3309,7 @@ impl MailApp {
             if let Some(pw) = p.get("password").and_then(Value::as_str) {
                 self.passwords.insert(account, pw.to_string());
             } else if !self.passwords.contains_key(&account)
-                && let Some(pw) = self.remembered("password", &address)
+                && let Some(pw) = self.remembered("password", account)
             {
                 self.passwords.insert(account, pw);
             }
@@ -3299,7 +3348,7 @@ impl MailApp {
         let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
         let address = owner.email.clone();
         let kept = self.tokens.get(&account).or(self.graph_tokens.get(&account)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", account)).unwrap_or_default();
         if refresh.is_empty() {
             // Nobody asked for this run: no page is put in front of the owner.
             if quiet {
@@ -3434,6 +3483,16 @@ impl MailApp {
             self.rules = rule_sync::RuleSync::default();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
+            self.shared_address_judged = Some(opening);
+        }
+        // The one the window started with is never from a file, but two of its accounts may have
+        // the same address all the same: then it is held back too, until the owner has seen where
+        // each connects (AU3-03). Before anything is read from the credential store for it.
+        if self.shared_address_judged != Some(opening) {
+            self.shared_address_judged = Some(opening);
+            if !self.unconfirmed && self.has_shared_address() {
+                self.judge_mailbox();
+            }
         }
     }
 
@@ -3459,9 +3518,9 @@ impl MailApp {
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
-            self.services.sign_in.is_some() && (kept || self.remembered("refresh", &a.email).is_some())
+            self.services.sign_in.is_some() && (kept || self.remembered("refresh", account).is_some())
         } else {
-            self.passwords.contains_key(&account) || self.remembered("password", &a.email).is_some()
+            self.passwords.contains_key(&account) || self.remembered("password", account).is_some()
         }
     }
 
@@ -3668,7 +3727,6 @@ impl MailApp {
         }
         // The Favorites as Outlook has them, when they came along ([`favorites_sync`]).
         self.take_in_favorites(account, &mut result);
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         let mut errors = result.errors;
         if result.token_refused {
             self.graph_tokens.remove(&account);
@@ -3679,7 +3737,7 @@ impl MailApp {
             self.note_directory(account, &tokens.tenant);
             // The newest refresh token is the account's, for mail and Graph alike.
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 if let Some(mail) = self.tokens.get_mut(&account) {
                     mail.refresh = tokens.refresh.clone();
                 }
@@ -3908,7 +3966,6 @@ impl MailApp {
         if for_shared_calendars {
             return self.opened_calendars_signed_in(account, answer);
         }
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         // The owner picks who signs in on the page: it has to be this account. Somebody else's
         // tokens are neither used nor remembered, mail's or Graph's (#103).
         if let Ok(tokens) = &answer {
@@ -3923,7 +3980,7 @@ impl MailApp {
             match answer {
                 Ok(tokens) => {
                     if !tokens.refresh.is_empty() {
-                        self.remember("refresh", &address, &tokens.refresh);
+                        self.remember("refresh", account, &tokens.refresh);
                         if let Some(mail) = self.tokens.get_mut(&account) {
                             mail.refresh = tokens.refresh.clone();
                         }
@@ -3967,7 +4024,7 @@ impl MailApp {
         }
         match answer {
             Ok(tokens) => {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
                 if let Err(e) = self.start_sync(&json!({"account": account})) {
                     self.session.sync_status.clear();
@@ -4158,10 +4215,9 @@ impl MailApp {
         if self.passwords.get(&account) != Some(&sent) {
             return;
         }
-        let Some(address) = self.session.mailbox.account(account).map(|a| a.email.clone()) else { return };
-        let key = self.account_at(&address).map(|a| Self::secret_key("password", a));
-        if key.and_then(|key| self.secret_cache.get(&key)) != Some(&sent) {
-            self.remember("password", &address, &sent);
+        let Some(key) = self.session.mailbox.account(account).map(|a| Self::secret_key("password", a)) else { return };
+        if self.secret_cache.get(&key) != Some(&sent) {
+            self.remember("password", account, &sent);
         }
     }
 
@@ -4225,12 +4281,11 @@ impl MailApp {
                 self.sync_queue.push_front((whose, quiet));
             }
             let totals = std::mem::take(&mut self.sync_totals);
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
             if std::mem::take(&mut self.sync_refused) {
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.account_at(&address)) {
+                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
                     let key = Self::secret_key("password", a);
                     store.delete(&key);
                     self.secret_cache.remove(&key);

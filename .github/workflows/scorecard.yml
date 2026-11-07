@@ -12,13 +12,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions: read-all
+# Nothing by default; the job asks for what the action needs and no more.
+permissions: {}
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-24.04
     permissions:
+      # Read the repository and its workflows' runs (the checks look at both).
+      contents: read
+      actions: read
       # Upload the results to code scanning.
       security-events: write
       # Publish the results and get a badge (OIDC to the Scorecard API).

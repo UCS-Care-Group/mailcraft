@@ -1,0 +1,1 @@
+| 2026-11-07 | A draft begun on another device and sent here is queued as the owner's and goes with the next run (Graph and EWS); mail the server itself put in the Outbox is still never sent from here |

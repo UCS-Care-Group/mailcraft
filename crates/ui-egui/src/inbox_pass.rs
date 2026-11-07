@@ -181,7 +181,7 @@ impl MailApp {
         }
         let oauth = owner.oauth.clone()?;
         let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if refresh.is_empty() {
             return None;
         }
@@ -252,17 +252,16 @@ impl MailApp {
     /// What an Inbox pass's answer says of its sign-in, kept as for any job: renewed tokens (the
     /// refresh token for the owner, in the system's store when remembered), or a token refused.
     fn keep_inbox_tokens(&mut self, account: Id, result: &GraphResult) {
-        let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
+        let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
         if let Some(tokens) = result.tokens.clone()
             && (owner.is_some() || !self.signed_in_as_other(account, &tokens))
         {
-            let (owner, address) =
-                owner.unwrap_or_else(|| (account, self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default()));
+            let owner = owner.unwrap_or(account);
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", owner, &tokens.refresh);
                 if let Some(kept) = self.tokens.get_mut(&owner) {
                     kept.refresh = tokens.refresh.clone();
                 }
