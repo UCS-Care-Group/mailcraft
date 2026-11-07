@@ -119,6 +119,8 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// That, and Tasks shows that account's To Do, where a new task goes.
+    ToDo,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -243,6 +245,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.categorize", r#"{"category": "Red category"}"#, Setup::Shared),
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
+    ("tasks.fromEvent", "{}", Setup::ToDo),
+    ("tasks.fromContact", "{}", Setup::ToDo),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
 ];
 
@@ -313,7 +317,10 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             let id = made["id"].as_u64().unwrap();
             a.execute("folder.select", json!({"id": id})).unwrap();
         }
-        Setup::Shared => {
+        Setup::Shared | Setup::ToDo => {
+            if matches!(setup, Setup::ToDo) {
+                a.session.view.task_account = mailcraft_model::AccountChoice::Account(i.account);
+            }
             let mb = &mut a.session.mailbox;
             mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
             mb.shared_task_lists.insert(i.account, ["L1".to_string()].into());
@@ -569,4 +576,44 @@ fn a_meeting_sent_is_the_one_in_the_window_the_question_named() {
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(crate::windows::told(&a, second));
+}
+
+#[test]
+fn a_task_made_from_an_appointment_or_a_contact_for_an_accounts_to_do_is_asked_about_and_made_from_the_one_shown() {
+    // Nothing allowed in advance: a task that goes to an account's To Do is the owner's to say
+    // (#831), and is asked about, never refused.
+    for (command, select) in [("tasks.fromEvent", "calendar.select"), ("tasks.fromContact", "people.select")] {
+        let mut a = app();
+        let i = ids(&a);
+        set_up(&mut a, Setup::ToDo, &i);
+        let (shown, other) = if command == "tasks.fromEvent" { (i.event, i.event2) } else { (i.contact, i.contact2) };
+        let name = |a: &MailApp, item: Id| match command {
+            "tasks.fromEvent" => a.session.mailbox.event(item).unwrap().title.clone(),
+            _ => a.session.mailbox.contact(item).unwrap().name(),
+        };
+        a.execute(select, json!({"id": shown})).unwrap();
+        let tasks = a.session.mailbox.tasks.len();
+        // Selected otherwise while the question is up: nothing is made.
+        let (now, rx) = agent(&mut a, command, json!({}));
+        assert!(now.is_none(), "{command}: asked, not refused: {now:?}");
+        let email = a.session.mailbox.accounts[0].email.trim().to_string();
+        assert!(a.asking.front().unwrap().what.contains(&email), "{command}: the question names the account");
+        let (r, _) = agent(&mut a, select, json!({"id": other}));
+        assert_eq!(r.unwrap()["ok"], true);
+        answer(&mut a, true);
+        assert_eq!(rx.try_recv().unwrap()["ok"], false, "{command}");
+        assert_eq!(a.session.mailbox.tasks.len(), tasks, "{command}: nothing made");
+        // As shown: the task is made, from that one, in that account's To Do.
+        a.execute(select, json!({"id": shown})).unwrap();
+        let (now, rx) = agent(&mut a, command, json!({}));
+        assert!(now.is_none(), "{command}: asked: {now:?}");
+        answer(&mut a, true);
+        let r = rx.try_recv().unwrap();
+        assert_eq!(r["ok"], true, "{command}: {r}");
+        let made: Vec<&mailcraft_model::Task> = a.session.mailbox.tasks.values().map(|t| t.as_ref()).filter(|t| t.title == name(&a, shown)).collect();
+        assert_eq!(made.len(), 1, "{command}: one task, from the one shown");
+        assert_eq!(made[0].origin.account, i.account, "{command}");
+        assert_eq!(a.session.mailbox.tasks.len(), tasks + 1, "{command}");
+        assert_ne!(name(&a, shown), name(&a, other));
+    }
 }
