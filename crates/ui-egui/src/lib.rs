@@ -250,6 +250,15 @@ pub struct Services {
     /// programs and scripts and asked about macros. An error means nothing was opened. Absent in
     /// the browser (the file is downloaded instead) and the tests.
     pub open_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
+    /// Desktop: write an attachment the owner copied (`mail.copyAttachment`, #807) where a file
+    /// manager can paste it from, and say where: under the attachment's own name made safe as Save
+    /// As makes it,
+    /// into a folder of MailCraft's own that only this user can read, which is kept when MailCraft
+    /// quits (a paste soon after still finds the file) and tidied at a later start once it is a
+    /// day old. Any kind of file: nothing is opened. The window then puts the path on the
+    /// clipboard ([`RichClipboard::put_files`]). Only ever called for the owner's own Copy or
+    /// Ctrl+C. Absent in the browser and the tests: nothing is copied, and Copy says so.
+    pub copy_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<std::path::PathBuf, String>>>,
     /// Web: hand bytes to the browser as a download. An error means no download started.
     pub download: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
     /// Web: told whether there are unsaved changes after each pass, for the leave-page guard.
@@ -493,6 +502,18 @@ pub trait RichClipboard {
     /// does with what the system read.
     fn text(&self) -> Option<String> {
         None
+    }
+    /// Put files on the clipboard as a file manager puts the ones it copies, for a file manager or
+    /// another program to paste (#807): `paths` are files the host has written. An error means
+    /// the clipboard has none of them.
+    fn put_files(&self, paths: &[std::path::PathBuf]) -> Result<(), String> {
+        let _ = paths;
+        Err(tl!("Files can't be put on the clipboard here.").to_string())
+    }
+    /// The files on the clipboard, when what is on it is files copied in a file manager (#807);
+    /// empty when it isn't. Where they are, as the clipboard says: nothing of them is read here.
+    fn files(&self) -> Vec<std::path::PathBuf> {
+        Vec::new()
     }
 }
 

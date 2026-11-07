@@ -892,6 +892,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr ""
@@ -2262,13 +2267,18 @@ msgstr ""
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Copied {name}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr ""
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 msgid "Copy"
 msgstr ""
 
@@ -2277,6 +2287,11 @@ msgstr ""
 msgid ""
 "Copy\n"
 "Diagnostics"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Copy Attachment"
 msgstr ""
 
 #. command label, interface
@@ -3375,6 +3390,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 msgid "File dialogs aren't available here"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Files can't be put on the clipboard here."
 msgstr ""
 
 #. interface
@@ -6664,6 +6684,11 @@ msgstr ""
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
@@ -8445,6 +8470,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/select.rs
 msgid "Select some text first"
+msgstr ""
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+msgid "Selection"
 msgstr ""
 
 #. command label, interface, ribbon

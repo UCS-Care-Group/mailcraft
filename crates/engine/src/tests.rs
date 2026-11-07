@@ -353,6 +353,31 @@ fn attachments_are_opened_only_in_the_window() {
 }
 
 #[test]
+fn attachments_are_copied_only_in_the_window() {
+    // #807: the clipboard is the window's; anywhere else Copy says so and names Save As's command,
+    // for a program as for any other file (nothing is opened), and agents may not ask for it.
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+    run(&mut s, "compose.attach", json!({"name": "notes.txt", "data": "aGVsbG8="}));
+    run(&mut s, "compose.attach", json!({"name": "setup.exe", "data": "aGVsbG8="}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    for index in [0, 1] {
+        let e = s.run("mail.copyAttachment", &json!({"id": id, "index": index})).unwrap_err();
+        assert!(matches!(e, crate::CmdError::Disabled(_)), "{e}");
+        let e = e.to_string();
+        assert!(e.contains("clipboard") && e.contains("window") && e.contains("mail.saveAttachment"), "{e}");
+    }
+    // No such attachment, no index, a message that isn't there: refused for that.
+    for bad in [json!({"id": id, "index": 9}), json!({"id": id}), json!({"id": 999_999, "index": 0}), json!({"id": "x", "index": 0})] {
+        let e = s.run("mail.copyAttachment", &bad).unwrap_err();
+        assert!(!matches!(e, crate::CmdError::Disabled(_)), "{bad}: {e}");
+    }
+    assert_eq!(crate::agent::access("mail.copyAttachment"), Some(crate::agent::Access::Never));
+    // Outlook's Attachments › Copy is this command.
+    assert!(crate::catalog::features().any(|f| f.id == "mail.copyAttachment"));
+}
+
+#[test]
 fn folders_and_views() {
     let mut s = session();
     let r = run(&mut s, "folder.select", json!({"path": "inbox/projects/atlas"}));

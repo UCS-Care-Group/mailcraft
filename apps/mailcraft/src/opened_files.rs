@@ -10,6 +10,9 @@
 //!     <process>-<time>/               one per run of MailCraft, removed when it quits
 //!         1/report.pdf                one folder per file opened, so two files of one name
 //!         2/report.pdf                never meet; the file read-only, as a copy is
+//!     copied-<process>-<time>/        the files the owner copied (#807), one per run, kept
+//!         3/setup.exe                 when MailCraft quits so that a paste still finds them;
+//!                                     any kind, named as Save As names it, not read-only
 //! ```
 //!
 //! - **Only what the window allowed:** the window refuses programs, scripts and the like and
@@ -26,7 +29,7 @@
 //!   Windows, `open` on macOS, `xdg-open` and the like elsewhere; `file_launcher.rs`), with the
 //!   file's whole absolute path as the one argument.
 //! - **Tidied:** the run's folder goes when MailCraft quits; what an earlier run left (it was
-//!   killed, the file was still open) goes at the next start once it is a day old.
+//!   killed, the file was still open, the files copied) goes at the next start once it is a day old.
 
 use std::fs;
 use std::io::Write as _;
@@ -43,6 +46,9 @@ pub const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 /// How deep the folders go below the one for all runs (run, file's folder, file).
 const DEPTH: usize = 3;
 
+/// What the name of a run's folder of copied files starts with.
+const COPIES: &str = "copied-";
+
 /// The folder for all runs: in this user's cache folder.
 pub fn base() -> Option<PathBuf> {
     let cache = if cfg!(windows) {
@@ -58,16 +64,18 @@ pub fn base() -> Option<PathBuf> {
     cache.is_absolute().then(|| cache.join("MailCraft").join("Attachments"))
 }
 
-/// The files opened in this run: where they go, and how many there have been.
+/// The files opened in this run: where they go, and how many there have been. The files copied
+/// (#807) go into a folder of their own beside, which is kept when MailCraft quits.
 pub struct Opened {
     base: PathBuf,
     run: Mutex<Option<PathBuf>>,
+    copies: Mutex<Option<PathBuf>>,
     count: AtomicU32,
 }
 
 impl Opened {
     pub fn at(base: PathBuf) -> Opened {
-        Opened { base, run: Mutex::new(None), count: AtomicU32::new(0) }
+        Opened { base, run: Mutex::new(None), copies: Mutex::new(None), count: AtomicU32::new(0) }
     }
 
     /// Write `bytes` as an attachment called `name` and open it with the system's program.
@@ -89,15 +97,8 @@ impl Opened {
             log::warn!("couldn't write an attachment to open it ({:?})", e.kind());
             "The attachment couldn't be written to be opened: save it with Save As instead.".to_string()
         };
-        let run = self.run_folder().map_err(failed)?;
-        let n = self.count.fetch_add(1, Ordering::Relaxed).saturating_add(1);
-        let folder = run.join(n.to_string());
-        private_dir(&folder).map_err(failed)?;
-        let path = folder.join(opening::file_name(name));
-        let mut file = new_file(&path).map_err(failed)?;
-        file.write_all(bytes).and_then(|()| file.sync_all()).map_err(failed)?;
-        drop(file);
-        mailcraft_engine::mark::mark_from_internet(&path);
+        let run = self.run_folder(&self.run, "").map_err(failed)?;
+        let path = self.write_into(&run, &opening::file_name(name), bytes, true).map_err(failed)?;
         // A copy: what is changed in it is not the message's (Save As keeps a file).
         if let Ok(meta) = fs::metadata(&path) {
             let mut perms = meta.permissions();
@@ -107,9 +108,41 @@ impl Opened {
         Ok(path)
     }
 
-    /// This run's folder, made the first time a file is opened.
-    fn run_folder(&self) -> std::io::Result<PathBuf> {
-        let mut run = self.run.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    /// Write an attachment the owner copied (#807) where a file manager can paste it from, and
+    /// say where. As Save As, any kind of file and under the name Save As gives it
+    /// ([`opening::save_name`]): nothing is opened. Into this run's folder of copies, which
+    /// [`clear`](Self::clear) leaves, so that a paste soon after MailCraft quits still finds the
+    /// file; [`tidy`](Self::tidy) takes it at a later start once it is a day old. The file is
+    /// marked as from the Internet, which a paste on the same kind of drive keeps, and is not
+    /// read-only, nor for this user only (the folders are): a paste keeps both, and the file
+    /// pasted is the owner's to change as a saved one is.
+    pub fn copy(&self, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+        let failed = |e: std::io::Error| {
+            log::warn!("couldn't write an attachment to copy it ({:?})", e.kind());
+            "The attachment couldn't be written to be copied: save it with Save As instead.".to_string()
+        };
+        let run = self.run_folder(&self.copies, COPIES).map_err(failed)?;
+        self.write_into(&run, &opening::save_name(name), bytes, false).map_err(failed)
+    }
+
+    /// Write `bytes` as `name` (already made safe) into a new numbered folder of `run`, so that
+    /// two files of one name never meet, and mark it as from the Internet.
+    fn write_into(&self, run: &Path, name: &str, bytes: &[u8], private: bool) -> std::io::Result<PathBuf> {
+        let n = self.count.fetch_add(1, Ordering::Relaxed).saturating_add(1);
+        let folder = run.join(n.to_string());
+        private_dir(&folder)?;
+        let path = folder.join(name);
+        let mut file = new_file(&path, private)?;
+        file.write_all(bytes).and_then(|()| file.sync_all())?;
+        drop(file);
+        mailcraft_engine::mark::mark_from_internet(&path);
+        Ok(path)
+    }
+
+    /// This run's folder in `slot` (the files opened, or with `prefix` the files copied), made
+    /// the first time a file goes into it.
+    fn run_folder(&self, slot: &Mutex<Option<PathBuf>>, prefix: &str) -> std::io::Result<PathBuf> {
+        let mut run = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(folder) = run.as_ref() {
             return Ok(folder.clone());
         }
@@ -117,7 +150,7 @@ impl Opened {
         let stamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default();
         let mut last = std::io::Error::other("no folder");
         for attempt in 0..16u32 {
-            let folder = self.base.join(format!("{}-{stamp}-{attempt}", std::process::id()));
+            let folder = self.base.join(format!("{prefix}{}-{stamp}-{attempt}", std::process::id()));
             match private_dir(&folder) {
                 Ok(()) => {
                     *run = Some(folder.clone());
@@ -130,7 +163,7 @@ impl Opened {
     }
 
     /// Remove this run's folder (when MailCraft quits). A file another program still holds
-    /// (Windows) stays, for the next start to tidy.
+    /// (Windows) stays, for the next start to tidy. The files copied stay too, for a paste.
     pub fn clear(&self) {
         let run = self.run.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).take();
         if let Some(folder) = run {
@@ -142,6 +175,7 @@ impl Opened {
     /// folder stays; a link among them is removed without following it.
     pub fn tidy(&self, max_age: Duration) {
         let mine = self.run.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+        let copies = self.copies.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
         let Ok(meta) = fs::symlink_metadata(&self.base) else { return };
         if !meta.is_dir() {
             return;
@@ -150,7 +184,7 @@ impl Opened {
         let now = SystemTime::now();
         for entry in entries.flatten().take(10_000) {
             let path = entry.path();
-            if mine.as_deref() == Some(path.as_path()) {
+            if mine.as_deref() == Some(path.as_path()) || copies.as_deref() == Some(path.as_path()) {
                 continue;
             }
             let Ok(meta) = fs::symlink_metadata(&path) else { continue };
@@ -201,12 +235,17 @@ fn restrict(path: &Path) {
     let _ = path;
 }
 
-/// A file made new, for this user only; an error if anything is there already.
-fn new_file(path: &Path) -> std::io::Result<fs::File> {
+/// A file made new, for this user only when `private` (else as the user's files are made); an
+/// error if anything is there already, a link among them.
+fn new_file(path: &Path, private: bool) -> std::io::Result<fs::File> {
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    if private {
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    }
+    #[cfg(not(unix))]
+    let _ = private;
     options.open(path)
 }
 
@@ -234,6 +273,10 @@ fn remove_tree(path: &Path, depth: usize) {
     }
     let _ = fs::remove_dir(path);
 }
+
+#[cfg(test)]
+#[path = "opened_files_tests.rs"]
+mod opened_files_tests;
 
 #[cfg(test)]
 mod tests {

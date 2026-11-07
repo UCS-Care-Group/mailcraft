@@ -830,6 +830,60 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
     };
 }
 
+/// The attachment picked in a window (#807): its chip, where it was last drawn and in which frame.
+#[derive(Clone, Copy)]
+struct Picked {
+    chip: egui::Id,
+    rect: egui::Rect,
+    frame: u64,
+}
+
+/// Where a window's picked attachment is noted.
+fn picked_key(viewport: egui::ViewportId) -> egui::Id {
+    egui::Id::unique("attachmentPicked").with(viewport)
+}
+
+fn picked(ctx: &egui::Context) -> Option<Picked> {
+    let key = picked_key(ctx.viewport_id());
+    ctx.data(|d| d.get_temp::<Picked>(key))
+}
+
+/// A click picked the attachment whose chip is `chip`, at `rect` (#807): Ctrl+C now copies the
+/// file, as in Outlook. The chip is not given the keyboard (the list's keys stay the list's); the
+/// pick lasts until the pointer goes down anywhere else, Escape, or the chip is no longer shown.
+pub(super) fn pick_attachment(ctx: &egui::Context, chip: egui::Id, rect: egui::Rect) {
+    let pick = Picked { chip, rect, frame: super::images::frame(ctx) };
+    let key = picked_key(ctx.viewport_id());
+    ctx.data_mut(|d| d.insert_temp(key, pick));
+}
+
+/// Whether the attachment whose chip is `chip` is picked; noted as still shown, at `rect`.
+pub(super) fn attachment_picked(ctx: &egui::Context, chip: egui::Id, rect: egui::Rect) -> bool {
+    let Some(p) = picked(ctx).filter(|p| p.chip == chip) else { return false };
+    pick_attachment(ctx, p.chip, rect);
+    true
+}
+
+/// Whether Ctrl+C in this window is an attachment's (picked, or its chip has the keyboard): the
+/// selected text's copy, which reaches the clipboard after the pass, would put itself over it.
+fn attachment_has_copy(ctx: &egui::Context, frame: u64) -> bool {
+    picked(ctx).is_some_and(|p| p.frame.saturating_add(1) >= frame || ctx.memory(|m| m.has_focus(p.chip))) || {
+        let key = focus_key(ctx.viewport_id());
+        ctx.data(|d| d.get_temp::<egui::Id>(key)).is_some_and(|id| ctx.memory(|m| m.has_focus(id)))
+    }
+}
+
+/// Where the chip of a window that has the keyboard is noted.
+fn focus_key(viewport: egui::ViewportId) -> egui::Id {
+    egui::Id::unique("attachmentFocus").with(viewport)
+}
+
+/// An attachment's chip (`id`) has the keyboard in this window (Tab): noted as it is drawn.
+pub(super) fn attachment_focused(ctx: &egui::Context, id: egui::Id) {
+    let key = focus_key(ctx.viewport_id());
+    ctx.data_mut(|d| d.insert_temp(key, id));
+}
+
 /// A message is about to be shown at `place`. What was selected there in another message is
 /// forgotten; where the pointer goes down says whom the keys are for; and the keys that are
 /// about a selection are acted on: Ctrl+C copies it, Escape lets go of it.
@@ -846,6 +900,14 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     // Escape when it is for the window the message is in, and nothing there took it (the search
     // box, the window's own close) (#365, #406).
     let escape = crate::keys::escape(ctx, ui.layer_id());
+    // A picked attachment is let go of by a press anywhere else (a selection begun in the text,
+    // the list) and by Escape (#807).
+    let at = ui.input(|i| i.pointer.interact_pos());
+    if let Some(p) = picked(ctx)
+        && (escape || (pressed && !at.is_some_and(|at| p.rect.contains(at))))
+    {
+        ctx.data_mut(|d| d.remove::<Picked>(picked_key(viewport)));
+    }
     let selections = &mut app.text_selection;
     let had_keys = selections.focus == Some(place);
     let Some(state) = selections.open(place) else { return };
@@ -880,7 +942,8 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
         return;
     }
     let mut actions = Vec::new();
-    if copy {
+    // Ctrl+C with an attachment picked copies the file (#807), not the text.
+    if copy && !attachment_has_copy(ctx, frame) {
         let labels = ctx.with_plugin(|labels: &mut LabelSelectionState| labels.has_selection()).unwrap_or(false);
         if selections.copy_target(viewport, frame, labels) == Some(place) {
             actions.push(Action::Copy);
