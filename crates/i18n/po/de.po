@@ -10085,7 +10085,7 @@ msgstr "Servereinstellungen"
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Server: {address}"
-msgstr ""
+msgstr "Server: {address}"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -10319,22 +10319,22 @@ msgstr "Nachrichten im dunklen Design auf hellem Hintergrund anzeigen"
 #. interface
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
-msgstr ""
+msgstr "Passwort anzeigen"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs
 msgid "Show sender images from Gravatar, favicon.im and Google"
-msgstr ""
+msgstr "Absenderbilder von Gravatar, favicon.im und Google anzeigen"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Show signature as it is sent"
-msgstr ""
+msgstr "Signatur so anzeigen, wie sie gesendet wird"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Show the Copy under Shared Calendars"
-msgstr ""
+msgstr "Die Kopie unter „Freigegebene Kalender“ anzeigen"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -10375,7 +10375,7 @@ msgstr "Bilder dieser Nachricht einmalig anzeigen. Der Absender kann dann erkenn
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Show this message's warning"
-msgstr ""
+msgstr "Warnhinweis zu dieser Nachricht anzeigen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10404,22 +10404,22 @@ msgstr "Wenn leer, als Vorname Nachname angezeigt"
 #. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
-msgstr ""
+msgstr "Als Text angezeigt: Nichts darin wird ausgeführt, geöffnet oder heruntergeladen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
-msgstr ""
+msgstr "Zeigt die Signatur wieder wie ursprünglich gestaltet an, solange ihr Text unverändert bleibt."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Shows {path}, which holds the mailbox and the settings, in your file manager."
-msgstr ""
+msgstr "Zeigt {path}, in dem sich das Postfach und die Einstellungen befinden, in Ihrem Dateimanager an."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Shows {path}, which holds the mailbox open now, in your file manager. MailCraft's settings are in a folder of their own."
-msgstr ""
+msgstr "Zeigt {path}, in dem sich das aktuell geöffnete Postfach befindet, in Ihrem Dateimanager an. Die Einstellungen von MailCraft befinden sich in einem eigenen Ordner."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10427,7 +10427,9 @@ msgstr ""
 msgid ""
 "Side-by-\n"
 "Side"
-msgstr "Nebeneinander"
+msgstr ""
+"Neben-\n"
+"einander"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
