@@ -433,7 +433,7 @@ A malicious or vulnerable dependency, GitHub Action or build step.
   [zizmor](https://docs.zizmor.sh/) checks the workflows on every change to them, and
   [OpenSSF Scorecard](https://scorecard.dev/) scores the repository weekly.
 - **Build tools:** the shared workflows are pinned to full commit SHAs too, and every tool the
-  release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Trusted Signing
+  release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Artifact Signing
   client, rustup-init, wasm-opt) and WiX (a NuGet package) is an exact version checked against a recorded sha256 before
   use; trunk runs offline. Every release file gets a build provenance attestation
   (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).

@@ -56,7 +56,7 @@ WordCraft does.
 | Platform | Artifacts | Signing |
 |---|---|---|
 | macOS | universal `MailCraft.app` in a `.dmg`, universal CLI zip | Developer ID + notarization (`APPLE_*` secrets) |
-| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Trusted Signing (`AZURE_*` secrets) or a certificate (`WINDOWS_CERTIFICATE*`) |
+| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Artifact Signing (`AZURE_*` secrets, OIDC sign-in) or a certificate (`WINDOWS_CERTIFICATE*`) |
 | Linux | x86_64 and aarch64 `.AppImage` (+ `.zsync` for AppImageUpdate), `.flatpak` bundle, `.deb`, `.rpm`, `.tar.gz` | checksums |
 | FreeBSD | x86_64 `.tar.gz` (built in a FreeBSD VM; on a tag always, on a dry run only when asked for) | checksums |
 | Web | `mailcraft-web-<version>.zip` (static site: `index.html`, wasm, glue) | none |
@@ -88,7 +88,11 @@ dependency ever runs with a signing secret in its environment. Release builds us
 (`Swatinem/rust-cache` is for CI only).
 
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
-environment, not of the repository. That environment accepts version tags (`v*`) only and waits
+environment, not of the repository. Windows signing with Azure Artifact Signing has no client
+secret: the job signs in with GitHub's OIDC token (`azure/login`), which the app registration's
+federated credential accepts only from the `release` environment; its secrets are
+`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT` and
+`AZURE_CERT_PROFILE`. That environment accepts version tags (`v*`) only and waits
 for a maintainer's approval; the Windows and macOS jobs that sign, and the job that makes the
 draft, run in it, and only for a pushed version tag. Without the secrets the builds are unsigned
 (ad-hoc on macOS) and the scripts say so, so forks still build. None is set yet, so every
@@ -216,7 +220,7 @@ What the build fetches is pinned: every action by full commit SHA (Dependabot mo
 after their release), the shared workflows of `storytold/craft-common-actions` by full commit SHA
 (moved by hand), and every tool downloaded by URL by exact version and
 sha256, checked before it is used: nfpm (`package.yml`), appimagetool and the AppImage runtime
-(`packaging/linux/package.sh`), the Trusted Signing client (`packaging/windows/sign.ps1`),
+(`packaging/linux/package.sh`), the Artifact Signing client (`packaging/windows/sign.ps1`),
 rustup-init on FreeBSD and wasm-opt (`package.yml`). WiX 5.0.2 and its two extensions are NuGet
 packages: `package.yml` downloads each by exact version and checks its sha256 before installing
 the tool from the checked file (the extensions are fetched by `wix extension add`, after their
