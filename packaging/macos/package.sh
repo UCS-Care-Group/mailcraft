@@ -4,7 +4,9 @@
 #   $DIST/mailcraft-<version>-macos-<arch>.dmg          MailCraft.app on a drag-to-Applications DMG
 #   $DIST/mailcraft-cli-<version>-macos-<arch>.zip      the headless CLI
 #
-# Usage: packaging/macos/package.sh [--arch universal|aarch64|x86_64] [--skip-build | --build-only]
+# Usage: packaging/macos/package.sh [--arch universal|aarch64|x86_64] [--skip-build | --build-only] [--no-run]
+#
+# --no-run: don't run the built CLI at the end (the job that signs never runs what was built).
 #
 # Signing (env):
 #   MACOS_SIGN_IDENTITY   codesign identity (name or SHA-1). Default "-" = ad-hoc (local testing;
@@ -20,12 +22,14 @@ HERE="$ROOT/packaging/macos"
 ARCH=universal
 SKIP_BUILD=0
 BUILD_ONLY=0
+NO_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --arch) ARCH="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=1; shift ;;
     --build-only) BUILD_ONLY=1; shift ;;
-    -h | --help) sed -n '2,18p' "$0"; exit 0 ;;
+    --no-run) NO_RUN=1; shift ;;
+    -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -67,8 +71,9 @@ if [ "$SKIP_BUILD" = 0 ]; then
   (cd "$ROOT" && cargo build --release --locked -p mailcraft -p mailcraft-cli "${args[@]}")
 fi
 
-# CI compiles in a step of its own (--build-only), with no signing secret in its environment, and
-# signs in a later one (--skip-build): nothing a dependency's build script runs sees the secrets.
+# CI compiles in a job of its own (--build-only), which has no signing secret, and hands the
+# binaries by digest to a job that signs and packages them (--skip-build --no-run) without
+# running cargo or them.
 if [ "$BUILD_ONLY" = 1 ]; then
   echo "==> built; signing and packaging come next"
   exit 0
@@ -194,6 +199,10 @@ ditto -c -k --norsrc --noextattr --keepParent "$CLI_DIR" "$CLI_ZIP"
 # A bare Mach-O can't carry a stapled ticket; Gatekeeper looks the notarization up online.
 if [ "$NOTARIZE" = 1 ]; then notarize "$CLI_ZIP"; fi
 
-"$WORK/bin/mailcraft-cli" --version
+if [ "$NO_RUN" = 1 ]; then
+  echo "==> skipping mailcraft-cli --version (--no-run): a job without the signing secrets runs it"
+else
+  "$WORK/bin/mailcraft-cli" --version
+fi
 echo "==> done"
 ls -lh "$DMG" "$CLI_ZIP"

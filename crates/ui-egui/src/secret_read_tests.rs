@@ -149,7 +149,7 @@ fn a_store_waiting_for_its_unlock_never_stops_the_window() {
     drop(answer);
     settle(&mut a);
     frames(&mut a, imap, microsoft, 20);
-    assert_eq!(a.remembered("password", "avery@mail.example").as_deref(), Some("pw"));
+    assert_eq!(a.remembered("password", a.account_at("avery@mail.example").map_or(0, |x| x.id)).as_deref(), Some("pw"));
     assert!(a.can_sync_quietly(imap));
     let (by_window, all) = store.asks();
     assert_eq!(by_window, 0);
@@ -195,8 +195,8 @@ fn a_secret_written_this_session_is_answered_from_memory() {
     let (mut a, imap, microsoft, _) = window(&store);
     settle(&mut a);
     assert!(!a.can_sync_quietly(imap));
-    a.remember("password", "avery@mail.example", "typed");
-    assert_eq!(a.remembered("password", "avery@mail.example").as_deref(), Some("typed"));
+    a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "typed");
+    assert_eq!(a.remembered("password", a.account_at("avery@mail.example").map_or(0, |x| x.id)).as_deref(), Some("typed"));
     assert!(a.can_sync_quietly(imap));
     frames(&mut a, imap, microsoft, 5);
     assert_eq!(store.asks(), (0, 4));
