@@ -362,7 +362,17 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   confirmed it (AU3-02, AU3-03). A Microsoft or Google sign-in goes only to that provider's own mail
   servers, never to this computer outside a test (AU3-19). Work started for a mailbox (a sign-in, the copy
   before a switch to Graph) records `Session::openings()` and is dropped when another mailbox has
-  taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). A
+  taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
+  every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
+  Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
+  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  When another mailbox takes the place of the open one they are all called off, an answer that
+  still comes for the old one is let go of whole, and no answer is taken in for an account under
+  the address of the account open now; a shared mailbox's sign-in is checked against its owner's
+  address (AU3-08, AU3-09, AU3-10, AU3-21, AU3-V8). A message handed to a server to be sent is
+  marked so in the mailbox file first, and the run's answer clears the mark: a message still marked
+  at the account's next run (the answer was let go of, or MailCraft stopped mid-send) is held as
+  one that may have been sent, never sent again until the owner says so (AU3-26). A
   `mailto:` link handed in from outside saves a message with changes to Drafts first (AU2-19).
 - **The control channel** (only when started with `--control`) listens on `127.0.0.1` only, and every
   request must carry a key: 32 random bytes from the operating system, written to a key file created
