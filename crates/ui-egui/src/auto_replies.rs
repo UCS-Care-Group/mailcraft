@@ -186,7 +186,7 @@ impl MailApp {
     /// The refresh token a job for `account` is given.
     fn auto_replies_refresh(&self, account: &Account) -> String {
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        kept.or_else(|| self.remembered("refresh", &account.email)).unwrap_or_default()
+        kept.or_else(|| self.remembered("refresh", account.id)).unwrap_or_default()
     }
 
     /// Whether `account`'s replies wait for a new sign-in: the one that was refused is still the
@@ -373,8 +373,7 @@ impl MailApp {
             && !tokens.refresh.is_empty()
             && !self.signed_in_as_other(account, tokens)
         {
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-            self.remember("refresh", &address, &tokens.refresh);
+            self.remember("refresh", account, &tokens.refresh);
             if let Some(mail) = self.tokens.get_mut(&account) {
                 mail.refresh = tokens.refresh.clone();
             }

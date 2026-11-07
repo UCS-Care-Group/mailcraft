@@ -214,7 +214,7 @@ impl MailApp {
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return false };
         let Some(oauth) = owner.oauth.clone() else { return false };
         let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if refresh.is_empty() {
             // (Nothing to renew with: Send/Receive signs in first.)
             return false;
@@ -264,8 +264,7 @@ impl MailApp {
             && !tokens.refresh.is_empty()
             && !self.signed_in_as_other(account, tokens)
         {
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-            self.remember("refresh", &address, &tokens.refresh);
+            self.remember("refresh", account, &tokens.refresh);
             if let Some(mail) = self.tokens.get_mut(&account) {
                 mail.refresh = tokens.refresh.clone();
             }

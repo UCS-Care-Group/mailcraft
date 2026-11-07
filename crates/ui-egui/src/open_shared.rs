@@ -204,13 +204,12 @@ impl MailApp {
         use crate::approval::NO_BROWSER;
         use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         let said = match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(account, &tokens) => return,
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", account, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&account) {
                         kept.refresh = tokens.refresh.clone();
                     }

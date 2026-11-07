@@ -99,8 +99,12 @@ fn a_draft_fetched_again_has_its_new_size() {
     let longer = [MIME, b"A paragraph added on the web.\r\n".as_slice()].concat();
     assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", &longer));
     assert_eq!(size(&mb, id), longer.len() as u64);
-    // Fetched once more, as it is after the paragraph was taken out again: a size already
-    // known gives way to the one measured.
+    // Changed elsewhere once more and fetched again, as it is after the paragraph was taken out
+    // again: a size already known gives way to the one measured.
+    let mut page = delta("AAkA1", "CK3");
+    page.messages[0].draft = Some(true);
+    take_page(&mut mb, &mut index, account, &page, &mut Down::default());
+    assert!(mb.message(id).unwrap().unfetched);
     assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", MIME));
     assert_eq!(size(&mb, id), MIME.len() as u64);
 }
