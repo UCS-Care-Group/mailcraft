@@ -276,7 +276,7 @@ fn row(kind: JobKind, way: Way) {
         JobKind::AutoReplies => assert!(app.auto_replies_tick_at(0.0)),
         JobKind::SignIn => assert_eq!(app.run("ui.sync", json!({"account": ids.oauth, "secretsAsked": true})).unwrap()["pending"], "signIn"),
         JobKind::AccountSetup => {
-            app.dialog = crate::dialogs::Dialog::open("account", &mut app, &json!({}));
+            app.dialog = crate::dialogs::Dialog::open("account", &app, &json!({}));
             assert!(app.dialog.is_some());
         }
     }
@@ -654,5 +654,61 @@ fn a_shared_mailbox_run_keeps_only_its_owners_sign_in() {
         assert_eq!(store.writes(), writes, "inbox pass: {inbox}: nothing remembered");
         let kept_stale = app.tokens.values().chain(app.graph_tokens.values()).any(|t| t.access == STALE);
         assert!(!kept_stale, "inbox pass: {inbox}: somebody else's sign-in isn't kept");
+    }
+}
+
+// ---- the background saver (AU3-26) ----
+
+/// A background saver that writes nothing, and reports each state handed in as the test says.
+#[derive(Clone, Default)]
+struct Saver {
+    handed: Arc<Mutex<Vec<(std::path::PathBuf, u64)>>>,
+    fails: Arc<Mutex<bool>>,
+}
+
+impl mailcraft_engine::io::BackgroundSave for Saver {
+    fn follow(&self, _: &std::path::Path) {}
+    fn submit(&self, path: &std::path::Path, _: &Mailbox, rev: u64) {
+        self.handed.lock().unwrap().push((path.to_path_buf(), rev));
+    }
+    fn reports(&self) -> Vec<mailcraft_engine::io::SaveReport> {
+        let failed = *self.fails.lock().unwrap();
+        std::mem::take(&mut *self.handed.lock().unwrap())
+            .into_iter()
+            .map(|(path, rev)| mailcraft_engine::io::SaveReport { path, rev, result: if failed { Err("the disk is full".into()) } else { Ok(()) } })
+            .collect()
+    }
+    fn flush(&self) {}
+}
+
+/// Where the mailbox is kept by the background saver, the run waits for the marks to be written
+/// before the host is handed it; a save that fails sends nothing.
+#[test]
+fn a_send_waits_for_the_saver_to_write_its_mark() {
+    for fails in [false, true] {
+        let (mut app, ids, hosts, _store) = window();
+        let saver = Saver::default();
+        *saver.fails.lock().unwrap() = fails;
+        app.services.saver = Some(Box::new(saver.clone()));
+        app.session.path = Some(std::path::PathBuf::from("kept.mailcraft"));
+        app.autosave = true;
+        let message = queued(&mut app, ids.imap, "Invoice");
+        assert_eq!(app.run("ui.sync", json!({"account": ids.imap})).unwrap()["started"], true);
+        assert!(hosts.sync.lock().unwrap().is_empty(), "nothing goes before the mark is on disk");
+        assert!(app.job_running(JobKind::Imap), "the run is under way, waiting");
+        assert!(app.session.mailbox.message(message).is_some_and(|m| m.sending));
+        // The saver says how it went.
+        let failed = app.collect_saves();
+        app.send_gate_tick(failed.as_deref());
+        if fails {
+            assert!(hosts.sync.lock().unwrap().is_empty(), "a save that failed sends nothing");
+            poll_run(&mut app);
+            assert!(!app.syncing(), "the run ends");
+            let m = app.session.mailbox.message(message).unwrap();
+            assert_eq!((m.sending, m.held.as_str()), (false, ""), "not held: it never went, and goes with the next run");
+        } else {
+            let (going, _) = handed(&hosts, Sends::Imap);
+            assert_eq!(going, [message], "handed over once the mark is written");
+        }
     }
 }

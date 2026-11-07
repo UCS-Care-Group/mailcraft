@@ -7407,6 +7407,11 @@ msgstr ""
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/sending.rs
+msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -12338,13 +12343,13 @@ msgid "This build can't ask a server when other people are busy: only your own c
 msgstr "Cette version ne peut pas demander à un serveur quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "Cette version ne peut pas se connecter à Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Cette version ne peut pas se connecter aux serveurs de messagerie"

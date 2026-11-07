@@ -36,10 +36,10 @@ enum Saved {
 /// A run waiting for its marks to be written, with the end its stand-in answer comes through
 /// until then.
 pub(crate) enum Waiting {
-    Imap(SyncRequest, Sender<SyncResult>),
-    Graph(GraphRequest, Sender<GraphResult>),
-    Ews(EwsJob, Sender<EwsMailResult>),
-    Jmap(JmapJob, Sender<JmapMailResult>),
+    Imap(Box<SyncRequest>, Sender<SyncResult>),
+    Graph(Box<GraphRequest>, Sender<GraphResult>),
+    Ews(Box<EwsJob>, Sender<EwsMailResult>),
+    Jmap(Box<JmapJob>, Sender<JmapMailResult>),
 }
 
 /// A Send/Receive that waits for the saver.
@@ -107,7 +107,7 @@ impl MailApp {
             Saved::Now => {
                 self.services.sync.as_ref().map(|start| start(request)).ok_or_else(|| tl!("This build can't connect to mail servers").to_string())
             }
-            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Imap(request, tx))),
+            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Imap(Box::new(request), tx))),
             Saved::Failed(why) => Err(why),
         }
     }
@@ -120,7 +120,7 @@ impl MailApp {
             Saved::Now => {
                 self.services.graph.as_ref().map(|graph| graph(request)).ok_or_else(|| tl!("This build can't connect to Microsoft").to_string())
             }
-            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Graph(request, tx))),
+            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Graph(Box::new(request), tx))),
             Saved::Failed(why) => Err(why),
         }
     }
@@ -130,7 +130,7 @@ impl MailApp {
         let going: Vec<Id> = job.request.sends.iter().map(|up| up.message).collect();
         match self.saved_before_sending(account, &going) {
             Saved::Now => self.services.ews.as_ref().map(|run| run(job)).ok_or_else(|| tl!("This build can't connect to mail servers").to_string()),
-            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Ews(job, tx))),
+            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Ews(Box::new(job), tx))),
             Saved::Failed(why) => Err(why),
         }
     }
@@ -140,7 +140,7 @@ impl MailApp {
         let going: Vec<Id> = job.request.sends.iter().map(|up| up.message).collect();
         match self.saved_before_sending(account, &going) {
             Saved::Now => self.services.jmap.as_ref().map(|run| run(job)).ok_or_else(|| tl!("This build can't connect to mail servers").to_string()),
-            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Jmap(job, tx))),
+            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Jmap(Box::new(job), tx))),
             Saved::Failed(why) => Err(why),
         }
     }
@@ -177,28 +177,28 @@ impl MailApp {
                 if let (Some(start), Some(MailRun::Imap { account: whose, rx, .. })) = (&self.services.sync, &mut self.sync_rx)
                     && *whose == account
                 {
-                    *rx = start(request);
+                    *rx = start(*request);
                 }
             }
             Waiting::Graph(request, _) => {
                 if let (Some(graph), Some((whose, _, _, _, rx))) = (&self.services.graph, &mut self.graph_rx)
                     && *whose == account
                 {
-                    *rx = graph(request);
+                    *rx = graph(*request);
                 }
             }
             Waiting::Ews(job, _) => {
                 if let (Some(run), Some(MailRun::Ews { account: whose, pieces, .. })) = (&self.services.ews, &mut self.sync_rx)
                     && *whose == account
                 {
-                    *pieces = run(job);
+                    *pieces = run(*job);
                 }
             }
             Waiting::Jmap(job, _) => {
                 if let (Some(run), Some(MailRun::Jmap { account: whose, pieces, .. })) = (&self.services.jmap, &mut self.sync_rx)
                     && *whose == account
                 {
-                    *pieces = run(job);
+                    *pieces = run(*job);
                 }
             }
         }
