@@ -8,12 +8,13 @@
 //! signature is open in File › Signatures they work on it instead ([`Session::doc`]).
 //! Positions count characters of the body's text, a paragraph break being one.
 
-use mailcraft_model::rich::{Font, Format, ListKind, MAX_SIZE, MIN_SIZE, safe_color};
+use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_SIZE, MIN_SIZE, safe_color};
 use mailcraft_model::{ModelError, RichBody, RichText};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_compose};
 use crate::Doc;
+use crate::session::{enum_code, parse_enum};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, Session, p};
 
 const RANGE: &str = r#"{"from"?: number, "to"?: number} (default: the selection)"#;
@@ -64,6 +65,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_html),
         CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.align", "Align Text", "Message › Basic Text", align)
+            .pure()
+            .params(r#"{"value": "left"|"center"|"right", "from"?: number, "to"?: number} — every ordinary paragraph the range (default: the selection) touches; a list item stays left. Kept when sent (text-align) and on a paste, but not for a blank line; a plain-text message has none. Answers {"value"}: the alignment where the range starts. The Commands list doesn't offer it, having no way to say which"#)
+            .when_writing(needs_html),
         CommandSpec::new("format.clear", "Clear All Formatting", "Message › Basic Text", clear).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("compose.link", "Link", "Message › Include", link)
             .pure()
@@ -87,7 +92,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, links and lists (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, a colour, a highlight, the composer's fonts, links, lists and a paragraph's alignment (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -356,6 +361,12 @@ fn bullets(s: &mut Session, v: &Value) -> CmdResult {
 
 fn numbering(s: &mut Session, v: &Value) -> CmdResult {
     list(s, v, ListKind::Numbered)
+}
+
+fn align(s: &mut Session, v: &Value) -> CmdResult {
+    let align = p::str(v, "value").and_then(parse_enum::<Align>).ok_or_else(|| bad("`value` is left, center or right"))?;
+    edit(s, v, |b| b.set_align(align))?;
+    Ok(json!({"value": s.doc().map(|(b, _)| enum_code(&b.text().align_at(b.selection().start())))}))
 }
 
 fn clear(s: &mut Session, v: &Value) -> CmdResult {

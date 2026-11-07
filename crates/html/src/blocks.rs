@@ -573,6 +573,8 @@ struct Builder {
     spans: Vec<Span>,
     kind: BlockKind,
     align: Align,
+    /// It is part of a list item ([`Block::in_item`]).
+    in_item: bool,
     line_height: Option<LineHeight>,
     /// Room from the sides, left and right, that the open elements that are not boxes ask for
     /// (the margins and padding of a `<div>` that has no frame of its own), in pixels.
@@ -637,6 +639,7 @@ impl Builder {
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
             align: Align::Left,
+            in_item: false,
             line_height: None,
             inset: [0, 0],
             fresh: true,
@@ -858,6 +861,7 @@ impl Builder {
                 BlockKind::Paragraph
             };
             self.align = self.loose_align();
+            self.in_item = matches!(self.kind, BlockKind::ListItem { .. }) || self.inside_item();
             self.line_height = self.style().line_height;
             self.fresh = true;
         }
@@ -984,7 +988,14 @@ impl Builder {
                 }
             }
         }
-        let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        let block = Block {
+            quote: self.quote_depth(),
+            align: self.align,
+            beside,
+            in_item: self.in_item,
+            line_height: self.line_height,
+            ..Block::new(kind, spans)
+        };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -1089,7 +1100,8 @@ impl Builder {
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
                 let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string), data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
+                let block =
+                    Block { quote: self.quote_depth(), align: self.loose_align(), beside, in_item: self.inside_item(), ..Block::new(kind, spans) };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -1204,6 +1216,11 @@ impl Builder {
             }
         }
         None
+    }
+
+    /// Whether a list item is open, however far inside it: in a table or a box of its own too.
+    fn inside_item(&self) -> bool {
+        self.nodes.iter().any(|n| matches!(n.kind, Kind::Item(_)))
     }
 
     /// Whether something open has a background of its own.
@@ -1447,7 +1464,8 @@ impl Builder {
         let table = Table { spaced, ..table };
         // (The margins of a box on a line are the table's own: the line is placed as a whole.)
         let inset = if boxed.inline { [0, 0] } else { boxed.margin };
-        let block = Block { quote: self.quote_depth(), align, beside, inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align, beside, in_item: self.inside_item(), inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = boxed.inline.then_some(boxed.parent);
@@ -1625,7 +1643,8 @@ impl Builder {
             t.spaced = spaced;
         }
         let inset = if table.inline { [0, 0] } else { table.margin };
-        let block = Block { quote: self.quote_depth(), align: table.align, beside, inset, ..Block::new(kind, Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align: table.align, beside, in_item: self.inside_item(), inset, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = table.inline.then_some(table.parent);

@@ -282,3 +282,28 @@ fn search_commands_never_covers_a_tab() {
     }
     assert!(named && icon, "Search commands was not seen both with its name ({named}) and as the magnifier alone ({icon})");
 }
+
+/// Align Left, Center and Align Right stand in a column of their own in the classic Basic Text
+/// group and the Format Text tab's Paragraph group (#580), at each stage that keeps the group's
+/// buttons.
+#[test]
+fn the_alignment_buttons_are_one_column_of_basic_text_and_of_paragraph() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    app.autosave = false;
+    app.execute("mail.new", json!({})).unwrap();
+    for (tab, group, stage) in [("Message", "Basic Text"), ("Format Text", "Paragraph")]
+        .into_iter()
+        .flat_map(|(t, g)| [Stage::Full, Stage::Small, Stage::Icons].map(|s| (t, g, s)))
+    {
+        let tab = super::describe_tab(&app, tab);
+        let group = tab.groups.iter().find(|g| g.title == group).unwrap();
+        let columns: Vec<Vec<&str>> = super::fit::cells(&super::fit::shown(group), stage)
+            .into_iter()
+            .filter_map(|c| match c {
+                super::fit::Cell::Column(items) => Some(items.iter().map(|i| i.icon).collect()),
+                super::fit::Cell::Big(_) => None,
+            })
+            .collect();
+        assert!(columns.iter().any(|c| c == &["alignLeft", "alignCenter", "alignRight"]), "{}, {stage:?}: {columns:?}", group.title);
+    }
+}

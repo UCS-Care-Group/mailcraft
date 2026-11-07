@@ -1214,6 +1214,21 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(4.5, 11.0), (4.5, 14.5), (9.5, 14.5)], a);
             pen.head(9.5, 14.5, 0.0, 2.0, a);
         }
+        // Lines of text, long and short by turns, standing at the left, the middle or the right.
+        "alignLeft" | "alignCenter" | "alignRight" => {
+            let short = match name {
+                "alignLeft" => 2.5,
+                "alignCenter" => 5.5,
+                _ => 8.5,
+            };
+            for (i, y) in [4.0, 8.0, 12.0, 16.0].into_iter().enumerate() {
+                if i % 2 == 0 {
+                    pen.line(&[(2.5, y), (17.5, y)]);
+                } else {
+                    pen.line(&[(short, y), (short + 9.0, y)]);
+                }
+            }
+        }
         "formatPlain" => {
             pen.line(&[(3.5, 5.5), (16.5, 5.5)]);
             pen.line(&[(3.5, 10.0), (16.5, 10.0)]);
@@ -1436,6 +1451,9 @@ pub const NAMES: &[&str] = &[
     "symbol",
     "increaseIndent",
     "decreaseIndent",
+    "alignLeft",
+    "alignCenter",
+    "alignRight",
     "showPassword",
     "hidePassword",
 ];

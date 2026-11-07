@@ -774,7 +774,7 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
                     | Key::End
             );
             let chord = modifiers.command || modifiers.alt;
-            if in_body && modifiers.command && crate::compose::editor::owns_chord(key) {
+            if in_body && modifiers.command && crate::compose::editor::owns_chord(key, modifiers) {
                 continue;
             }
             if !(function || chord && !editing) {
