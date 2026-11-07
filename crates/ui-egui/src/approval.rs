@@ -339,7 +339,6 @@ impl MailApp {
     }
 
     /// Whether an approval is being waited for, or its answer is still to be taken.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn admin_consent_busy(&self) -> bool {
         self.approvals.asking.is_some() || self.approvals.answer.is_some()
     }

@@ -206,6 +206,34 @@ pub fn hold_unanswered(mb: &mut Mailbox, account: Id, lang: mailcraft_i18n::Lang
     !marked.is_empty()
 }
 
+/// Messages `ids` of `account` that were handed to `server` (in the owner's words: "Microsoft",
+/// "the server") whose answer was lost (a timeout, a connection that broke, an answer that doesn't
+/// say): they may have gone, so each still in the Outbox is held for the owner, never sent again
+/// by itself (AU3-26). A line for the owner for each; whether anything changed.
+pub fn hold_lost(mb: &mut Mailbox, account: Id, ids: &[Id], server: &str, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    let mut changed = false;
+    for id in ids {
+        let Ok(m) = mb.message_mut(*id) else { continue };
+        if m.account != account || Some(m.folder) != outbox {
+            continue;
+        }
+        m.sending = false;
+        changed = true;
+        if !m.held.is_empty() {
+            continue;
+        }
+        m.held = format!("It may have been sent: the answer from {server} was lost. Look in Sent Items before you send it again.");
+        let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
+        let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
+        said.push(mailcraft_i18n::fmt(
+            lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."),
+            &[("subject", &subject)],
+        ));
+    }
+    changed
+}
+
 /// Why a shared mailbox's mail wasn't let go at the first send (#70), in plain words.
 fn hold_reason(code: &str) -> Option<&'static str> {
     match code {

@@ -805,6 +805,10 @@ pub struct GraphResult {
     /// Outbox messages that must not be sent another way in this run: whether they went is not
     /// known, or the server said to try later.
     pub held: Vec<Id>,
+    /// Those of `held` whose answer was lost after they were handed over (a timeout, a broken
+    /// connection, an answer that doesn't say): they may have gone, and are held for the owner
+    /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
+    pub unsure: Vec<Id>,
     pub events: Option<mailcraft_model::remote::EventsDownload>,
     pub contacts: Option<mailcraft_model::remote::ContactsDownload>,
     /// What the server said to the calendar changes it was told ([`GraphRequest::changes`]).
@@ -3736,9 +3740,26 @@ impl MailApp {
             self.graph_pieces_taken = 0;
             return self.finish_inbox_pass(account, result);
         }
-        // What the run sent is filed by now, and what it didn't send is known not to have gone:
-        // no message of the account is marked as being sent any more. (A job that ended without
-        // an answer, or with a piece refused, leaves them marked: they may have gone, AU3-26.)
+        // What was handed to Microsoft and whose answer was lost may have gone: held for the
+        // owner, never sent again by itself (AU3-26).
+        let mut said = Vec::new();
+        if mailcraft_engine::cmd::graph_send::hold_lost(
+            &mut self.session.mailbox,
+            account,
+            &result.unsure,
+            "Microsoft",
+            self.session.interface_language,
+            &mut said,
+        ) {
+            self.session.mailbox_changed();
+            if let Some(first) = said.first() {
+                self.status(first.clone());
+            }
+        }
+        // What the run sent is filed by now, what it held for a lost answer is held, and the rest
+        // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
+        // being sent any more. (A job that ended without an answer, or with a piece refused,
+        // leaves them marked: they may have gone.)
         // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
         // as they are taken in; one it didn't try is held at the next run.
         if answered && result.mail.is_none() {

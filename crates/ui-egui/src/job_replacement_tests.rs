@@ -773,6 +773,56 @@ fn graph_sends_of_imap_and_shared_mailboxes_are_marked_and_held() {
     }
 }
 
+/// An IMAP account that signs in with Microsoft sends through Graph first. A send whose answer
+/// was lost after it was handed over (a timeout) may have gone: it is held, and neither the IMAP
+/// leg nor the next run sends it again. One Microsoft said to try later (429) goes next run.
+#[test]
+fn a_graph_send_before_imap_whose_answer_was_lost_is_held_and_a_busy_one_goes_again() {
+    for lost in [true, false] {
+        let (mut app, ids, hosts, _store) = window();
+        let message = queued(&mut app, ids.oauth, "Purchase order");
+        assert_eq!(app.run("ui.sync", json!({"account": ids.oauth})).unwrap()["pending"], "graph");
+        let (request, tx) = take(&hosts.graph);
+        assert_eq!(request.outbox.iter().map(|m| m.id).collect::<Vec<_>>(), [message]);
+        let unsure = if lost { vec![message] } else { Vec::new() };
+        let why = if lost { "the request timed out" } else { "Microsoft Graph is busy; try again later" };
+        let _ = tx.send(GraphResult { account: ids.oauth, held: vec![message], unsure, errors: vec![why.into()], ..Default::default() });
+        poll_run(&mut app);
+        // The IMAP leg: it doesn't send it either way.
+        let (leg, tx) = take(&hosts.sync);
+        assert!(leg.outbox.iter().all(|m| m.id != message), "lost: {lost}: not sent a second way in this run");
+        let _ = tx.send(SyncResult { account: ids.oauth, partial: false, ..Default::default() });
+        poll_run(&mut app);
+        let m = app.session.mailbox.message(message).expect("still in the Outbox");
+        assert_eq!((m.held.is_empty(), m.sending), (!lost, false), "lost: {lost}: held only when it may have gone: {:?}", m.held);
+        // The next run.
+        let again = app.run("ui.sync", json!({"account": ids.oauth})).unwrap();
+        let going: Vec<Id> = if again["pending"] == "graph" {
+            take(&hosts.graph).0.outbox.iter().map(|m| m.id).collect()
+        } else {
+            take(&hosts.sync).0.outbox.iter().map(|m| m.id).collect()
+        };
+        assert_eq!(going.contains(&message), !lost, "lost: {lost}: sent again only when it didn't go");
+    }
+}
+
+/// An SMTP send cut off once the message was handed over may have gone: the run's answer says so,
+/// and the message is held, not sent again by the next run.
+#[test]
+fn an_smtp_send_cut_off_mid_way_is_held_not_sent_again() {
+    let (mut app, ids, hosts, _store) = window();
+    let message = queued(&mut app, ids.imap, "Payslip");
+    assert_eq!(app.run("ui.sync", json!({"account": ids.imap})).unwrap()["started"], true);
+    let (_, tx) = take(&hosts.sync);
+    let errors = vec!["Couldn't send \"Payslip\": the connection was closed".to_string()];
+    let _ = tx.send(SyncResult { account: ids.imap, unsure: vec![message], errors, partial: false, ..Default::default() });
+    poll_run(&mut app);
+    let m = app.session.mailbox.message(message).expect("still in the Outbox");
+    assert!(m.held.starts_with("It may have been sent") && !m.sending, "held: {:?}", m.held);
+    assert_eq!(app.run("ui.sync", json!({"account": ids.imap})).unwrap()["started"], true);
+    assert!(take(&hosts.sync).0.outbox.iter().all(|m| m.id != message), "not sent again by itself");
+}
+
 // ---- shared mailboxes' sign-in (AU3-10) ----
 
 /// A shared mailbox's run brings a sign-in of somebody other than the mailbox's owner: it is

@@ -641,6 +641,11 @@ pub struct SyncResult {
     /// (it wouldn't take it, or has no mailbox for sent mail): the copy here is the one there is.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unfiled: Vec<Id>,
+    /// Outbox messages whose send was cut off after they were handed to the outgoing server
+    /// (the connection broke, no answer came): whether they went is not known, so they are held
+    /// for the owner, never sent again by itself (AU3-26).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unsure: Vec<Id>,
     /// What became of [`SyncRequest::ops`]. An op that isn't here failed (see `errors`) or wasn't
     /// tried, and is still to be pushed.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -699,6 +704,7 @@ impl SyncResult {
             && self.sent.is_empty()
             && self.filed.is_empty()
             && self.unfiled.is_empty()
+            && self.unsure.is_empty()
             && self.pushed_count() == 0)
     }
 
@@ -717,6 +723,7 @@ impl SyncResult {
         self.filed.retain(|id| !later.unfiled.contains(id));
         self.filed.extend(later.filed);
         self.unfiled.extend(later.unfiled);
+        self.unsure.extend(later.unsure);
         self.flagged.extend(later.flagged);
         self.moved.extend(later.moved);
         self.deleted.extend(later.deleted);
