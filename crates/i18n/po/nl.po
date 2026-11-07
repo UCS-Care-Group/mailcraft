@@ -13239,6 +13239,11 @@ msgstr "Deze uitnodiging vermeldt niet over welke vergadering het gaat, dus deze
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
 msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noemt een andere organisator, en kan die vergadering dus niet wijzigen."

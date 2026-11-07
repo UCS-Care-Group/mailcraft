@@ -443,23 +443,30 @@ pub(crate) fn same_organizer<'a>(on_calendar: &'a Event, invitation: &'a Event) 
     who(on_calendar).eq_ignore_ascii_case(who(invitation))
 }
 
-/// Whether the message may call off the meeting that is on the calendar. The organizer written
-/// in a message is the sender's word, so it is not enough: a meeting on a local calendar is called
-/// off only by a message that names its organizer and comes from that address; one that a server
-/// keeps only by a message of the account that server belongs to. Anything else is shown, and
-/// the owner takes the meeting out of the calendar themselves.
-fn may_call_off(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
-    if !is_theirs(s, on_calendar) {
-        return false;
-    }
-    if remote::keeper(&s.mailbox, &on_calendar.origin).is_some() {
-        return on_calendar.origin.account == invitation.account;
-    }
+/// Whether the message is the word of the organizer of the meeting on the calendar: it names
+/// the same organizer ([`same_organizer`]) and comes from that address. A meeting with no
+/// organizer has nobody whose word that could be.
+fn from_its_organizer(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
     let Some(organizer) = on_calendar.organizer.as_ref().map(|who| who.email.trim()).filter(|email| !email.is_empty()) else {
         return false;
     };
     let from = s.mailbox.message(invitation.message).map_or("", |message| message.from.email.trim());
     same_organizer(on_calendar, &invitation.event) && from.eq_ignore_ascii_case(organizer)
+}
+
+/// Whether the message may call off the meeting that is on the calendar. The organizer written
+/// in a message is the sender's word, so it is not enough: a meeting is called off only by a
+/// message that names its organizer and comes from that address ([`from_its_organizer`]), and
+/// one that a server keeps only by such a message in the account that server belongs to. Anything
+/// else is shown, and the owner takes the meeting out of the calendar themselves.
+fn may_call_off(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
+    if !is_theirs(s, on_calendar) {
+        return false;
+    }
+    if remote::keeper(&s.mailbox, &on_calendar.origin).is_some() && on_calendar.origin.account != invitation.account {
+        return false;
+    }
+    from_its_organizer(s, invitation, on_calendar)
 }
 
 /// Why an invitation can't be answered from here; `None` when it can. `event` is the meeting
@@ -474,9 +481,13 @@ fn blocked(s: &Session, invitation: &Invitation, about: About, event: &Event) ->
     if event.organizer.as_ref().is_some_and(|who| is_mine(s, who)) || kept.is_some_and(|event| !event.origin.guest) {
         return Some("organizer");
     }
-    // A meeting kept here, on a local calendar, is changed only by its own organizer's word.
-    if kept.is_none() && on_calendar.is_some_and(|have| !same_organizer(have, event)) {
-        return Some("mismatch");
+    // A meeting kept here, on a local calendar, is changed only by its own organizer's word; one
+    // that a server keeps only by a message from that organizer too.
+    if let Some(have) = on_calendar {
+        let theirs = if kept.is_some() { from_its_organizer(s, invitation, have) } else { same_organizer(have, event) };
+        if !theirs {
+            return Some("mismatch");
+        }
     }
     if is_over(s, event) {
         return Some("past");
@@ -732,6 +743,10 @@ pub(super) fn respond(s: &mut Session, v: &Value) -> CmdResult {
     // occurrence of a series is answered as that occurrence.
     // (Another time that is proposed with the answer goes along: `calendar.propose`.)
     let propose = v.get("propose").cloned().unwrap_or(Value::Null);
+    // A meeting a server keeps is answered from a message only when it is its organizer's.
+    if about.event().and_then(|id| s.mailbox.event(id)).is_some_and(|have| on_server(s, have.id) && !from_its_organizer(s, &invitation, have)) {
+        return Err(fail("This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting."));
+    }
     let through = match about {
         About::Event(id) if on_server(s, id) => {
             Some((id, json!({"id": id, "response": response, "send": send, "comment": note, "scope": "series", "propose": propose})))
