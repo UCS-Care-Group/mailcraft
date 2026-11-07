@@ -360,7 +360,7 @@ impl MailApp {
         let Some(signer) = signer else { return false };
         let Some(oauth) = signer.oauth.clone() else { return false };
         let kept = self.tokens.get(&signer.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &signer.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", signer.id)).unwrap_or_default();
         let held = if shared { self.shared_calendar_access(account) } else { self.graph_access(account, false) };
         if refresh.is_empty() && held.is_empty() {
             return false;
@@ -444,9 +444,9 @@ impl MailApp {
         }
         if let Some(tokens) = result.tokens.take() {
             if shared {
-                let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
-                if let Some((owner, address)) = owner.filter(|(owner, _)| !self.signed_in_as_other(*owner, &tokens)) {
-                    self.keep_shared_calendar_tokens(account, owner, &address, tokens);
+                let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
+                if let Some(owner) = owner.filter(|owner| !self.signed_in_as_other(*owner, &tokens)) {
+                    self.keep_shared_calendar_tokens(account, owner, tokens);
                 }
             } else {
                 self.keep_graph_tokens(account, tokens);
@@ -507,9 +507,8 @@ impl MailApp {
             return;
         }
         self.note_directory(account, &tokens.tenant);
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         if !tokens.refresh.is_empty() {
-            self.remember("refresh", &address, &tokens.refresh);
+            self.remember("refresh", account, &tokens.refresh);
             if let Some(mail) = self.tokens.get_mut(&account) {
                 mail.refresh = tokens.refresh.clone();
             }
@@ -679,7 +678,7 @@ impl MailApp {
         let account = owner.id;
         let access = self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if access.is_empty() && refresh.is_empty() {
             return Err(tl!("This account's calendar can't be asked yet: Send/Receive signs it in first.").to_string());
         }

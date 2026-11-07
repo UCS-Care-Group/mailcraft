@@ -71,6 +71,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
+use mailcraft_model::load_limit::{self, Budget};
 use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
@@ -731,7 +732,7 @@ impl Loaded {
     /// Everything but the messages, as the model writes it.
     fn rest(mailbox: &Mailbox) -> Option<Digest> {
         let mut shell = mailbox.clone();
-        shell.messages = BTreeMap::new();
+        shell.messages = Default::default();
         serde_json::to_vec(&shell).ok().map(|bytes| Digest::of(&bytes))
     }
 
@@ -1707,7 +1708,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     }
     // A file that would not fit in memory whole (or is more than is read whole) is read as a
     // stream, its content going to the content folder as it is read (#649).
-    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()))
+    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()) || forced_stream())
         && let Some(opened) = stream::open(st, &file, len, progress).map_err(|e| e.to_string())?
     {
         return Ok((opened, true));
@@ -1740,13 +1741,15 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_MAILBOX_JSON) {
         return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
     }
-    let mut mailbox: Mailbox =
-        mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
+    // (What parsing builds is charged while it is built, every list element at any depth: a file
+    // that would cost more memory than it may is refused before it does, `load_limit`.)
+    let budget = open_budget();
+    let mut mailbox: Mailbox = load_limit::read_json(&bytes, &budget).map_err(|e| refused(&show, "this isn't a MailCraft mailbox", &e, &budget))?;
     let version = mailbox.version;
     let (split, filled) = match version {
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
-            let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
+            let head: Head = load_limit::read_json(&bytes, &budget).map_err(|e| refused(&show, "this mailbox file is damaged", &e, &budget))?;
             (true, fill(st, &blob_dir(&file), &mut mailbox, head, None, Launch::default()))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
@@ -1787,19 +1790,24 @@ enum Parsed {
     Task(Arc<Task>),
 }
 
-fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
-    let damaged = |e: serde_json::Error| format!("this mailbox file is damaged (item {} of {:?}: {e})", key.1, key.0);
+/// One item of the file read, what parsing it builds charged to `budget` (the one the whole file
+/// is read within). (Not counted as an item: a file in this form has always held as many as
+/// `MAX_RECORDS`, and every item is charged what it costs in memory.)
+fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Parsed, Fp), String> {
+    let damaged = |e: serde_json::Error| {
+        if let Some(why) = budget.spent() { why.to_string() } else { format!("this mailbox file is damaged (item {} of {:?}: {e})", key.1, key.0) }
+    };
     let fp = item.fp;
     let parsed = match key.0 {
         Coll::Message => {
-            let m: Message = serde_json::from_slice(item.json()).map_err(damaged)?;
+            let m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
             let refs = item.refs();
-            let wire = if refs.is_empty() { None } else { Some(serde_json::from_slice::<WireParts>(refs).map_err(damaged)?) };
+            let wire = if refs.is_empty() { None } else { Some(load_limit::read_json::<WireParts>(refs, budget).map_err(damaged)?) };
             Parsed::Message(Arc::new(m), wire)
         }
-        Coll::Contact => Parsed::Contact(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
-        Coll::Event => Parsed::Event(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
-        Coll::Task => Parsed::Task(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
+        Coll::Contact => Parsed::Contact(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
+        Coll::Event => Parsed::Event(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
+        Coll::Task => Parsed::Task(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
     };
     Ok((parsed, fp))
 }
@@ -1809,22 +1817,30 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
+    // The records and what parsing them builds are read within one budget, as a file read whole
+    // is: a file that is more than it is refused before it is read.
+    let budget = open_budget();
+    if len > max_json_bytes() {
+        return Err(load_limit::TOO_MUCH.into());
+    }
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     // What its bytes are is worked out on a thread of its own from the bytes read here (no more
     // than `len` of them), for the first save to wait for: nothing wants it before.
     let mut reader = std::io::BufReader::with_capacity(HASH_PIECE, Hashing::new(Counted { inner: f.take(len), progress }, file));
-    let replayed = index::replay(&mut reader, len)?;
+    let replayed = index::replay_within(&mut reader, len, index::MAX_RECORDS, Some(&budget))?;
     // A sum only of the file read to its end by the replay itself: bytes read ahead into the
     // buffer and never taken (a save cut short) leave none, as a file not read through always has.
     let taken_whole = reader.buffer().is_empty();
     let sum = reader.into_inner().sum(len);
     let sum = if taken_whole { sum } else { Sum::None };
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
-    let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
+    let mut mailbox: Mailbox = load_limit::read_json(&rest, &budget)
+        .map_err(|e| if let Some(why) = budget.spent() { why.to_string() } else { format!("this mailbox file is damaged ({e})") })?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
+    budget.give_back((rest.len() as u64).saturating_add(index::RECORD_COST));
     drop(rest);
     // Items are their own records: whatever the rest says of them is no part of the mailbox.
-    mailbox.messages = BTreeMap::new();
+    mailbox.messages = Default::default();
     mailbox.contacts = BTreeMap::new();
     mailbox.events = BTreeMap::new();
     mailbox.tasks = BTreeMap::new();
@@ -1840,7 +1856,9 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     while !items.is_empty() {
         let mut slice = items.split_off(items.len().saturating_sub(OPEN_SLICE));
         slice.reverse();
-        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item))));
+        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item, &budget))));
+        // (The records' bytes are let go of, and what they cost given back.)
+        budget.give_back(slice.iter().map(|(_, item)| item.cost()).fold(0u64, u64::saturating_add));
         drop(slice);
         for one in parsed {
             let Some(Some((key, size, result))) = one else { return Err("the mailbox file couldn't be read".into()) };
@@ -1904,8 +1922,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     let mut disk = Disk::new(rest_fp);
     (disk.len, disk.tail) = (replayed.good_len, replayed.tail);
     let trusted = fixed.is_empty();
-    fn of<T>(map: &BTreeMap<Id, Arc<T>>, id: Id, trusted: bool) -> Weak<T> {
-        map.get(&id).filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
+    fn of<T>(item: Option<&Arc<T>>, trusted: bool) -> Weak<T> {
+        item.filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
     }
     for (key, fp, size) in records {
         disk.live = disk.live.saturating_add(size);
@@ -1913,16 +1931,16 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
         match key.0 {
             Coll::Message => {
                 let parts = parts.remove(&id).unwrap_or_default();
-                disk.messages.insert(id, Msg { entry: Entry { of: of(&mailbox.messages, id, trusted), fp, size }, parts });
+                disk.messages.insert(id, Msg { entry: Entry { of: of(mailbox.messages.get(&id), trusted), fp, size }, parts });
             }
             Coll::Contact => {
-                disk.contacts.insert(id, Entry { of: of(&mailbox.contacts, id, trusted), fp, size });
+                disk.contacts.insert(id, Entry { of: of(mailbox.contacts.get(&id), trusted), fp, size });
             }
             Coll::Event => {
-                disk.events.insert(id, Entry { of: of(&mailbox.events, id, trusted), fp, size });
+                disk.events.insert(id, Entry { of: of(mailbox.events.get(&id), trusted), fp, size });
             }
             Coll::Task => {
-                disk.tasks.insert(id, Entry { of: of(&mailbox.tasks, id, trusted), fp, size });
+                disk.tasks.insert(id, Entry { of: of(mailbox.tasks.get(&id), trusted), fp, size });
             }
         }
     }
@@ -1967,7 +1985,9 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
     }
 }
 
-/// How the machine's memory stands, in bytes, where it can be read (Linux: `/proc/meminfo`).
+/// How the machine's memory stands, in bytes, where it can be read: Linux from `/proc/meminfo`,
+/// macOS and FreeBSD from the system's own `sysctl` (asked once). Not on Windows, where only a
+/// call this code can't make without `unsafe` says it.
 fn physical_memory() -> Option<u64> {
     #[cfg(target_os = "linux")]
     let total = {
@@ -1976,9 +1996,31 @@ fn physical_memory() -> Option<u64> {
         let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
         kb.checked_mul(1024)
     };
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    let total = {
+        static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
+        *TOTAL.get_or_init(sysctl_memory)
+    };
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
     let total = None;
     total
+}
+
+/// The machine's memory as `sysctl` says it (`hw.memsize` on macOS, `hw.physmem` on FreeBSD), run
+/// by its full path with nothing but the name.
+#[cfg(any(target_os = "macos", target_os = "freebsd"))]
+fn sysctl_memory() -> Option<u64> {
+    let (program, name) = if cfg!(target_os = "macos") { ("/usr/sbin/sysctl", "hw.memsize") } else { ("/sbin/sysctl", "hw.physmem") };
+    let out = std::process::Command::new(program)
+        .args(["-n", name])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    std::str::from_utf8(out.stdout.get(..64).unwrap_or(&out.stdout)).ok()?.trim().parse().ok().filter(|n| *n > 0)
 }
 
 #[cfg(test)]
@@ -2012,7 +2054,9 @@ pub fn body_budget() -> u64 {
 
 /// Whether reading and parsing a JSON file of `len` bytes would want more than `available` bytes
 /// of memory (three times the file: the bytes, and the strings made of them). Where the memory
-/// can't be read (everywhere but Linux) a fixed cap stands in, [`UNMEASURED_JSON_MAX`].
+/// can't be read (everywhere but Linux) a fixed cap stands in, [`UNMEASURED_JSON_MAX`]. Only a
+/// first guess, which decides whether a file is read whole or as a stream: what parsing builds is
+/// bounded while it is built, by [`open_budget`].
 fn json_needs_too_much_memory(len: u64, available: Option<u64>) -> bool {
     match available {
         Some(a) => len.saturating_mul(3) > a,
@@ -2061,6 +2105,57 @@ const MIN_JSON_ITEMS: usize = 250_000;
 /// after it has used the memory.
 pub(crate) fn max_json_items() -> usize {
     usize::try_from(body_budget().saturating_mul(4) / mailcraft_model::MIN_ITEM_BYTES).unwrap_or(usize::MAX).max(MIN_JSON_ITEMS)
+}
+
+/// Bytes of parsed values (every list element, map entry and compound value of the mailbox, at any
+/// depth, at what it takes in memory: `load_limit`) a mailbox file is read with, in every form:
+/// half the machine's memory, [`UNMEASURED_ELEMENTS`] where that can't be read, and never less
+/// than [`MIN_ELEMENTS`] or more than [`MAX_ELEMENTS`]. What the text of a file holds (strings, the
+/// bytes of attachments) is bounded by the file's size and is not counted here.
+pub(crate) fn max_json_bytes() -> u64 {
+    #[cfg(any(test, feature = "test-support"))]
+    if let Some(limits) = crate::test_support::limits() {
+        return limits.element_bytes;
+    }
+    if cfg!(test) {
+        return TEST_ELEMENTS;
+    }
+    physical_memory().map_or(UNMEASURED_ELEMENTS, |m| m / 2).clamp(MIN_ELEMENTS, MAX_ELEMENTS)
+}
+
+/// [`max_json_bytes`] under test, small as the other limits are there: 256 MB.
+const TEST_ELEMENTS: u64 = 256 << 20;
+
+/// The least [`max_json_bytes`] is: 1 GiB.
+const MIN_ELEMENTS: u64 = 1 << 30;
+
+/// [`max_json_bytes`] where the machine's memory can't be read (Windows, and systems other than
+/// Linux, macOS and FreeBSD): 8 GiB, which a mailbox of a million messages fits in several times
+/// over (`store_budget_tests.rs`).
+const UNMEASURED_ELEMENTS: u64 = 8 << 30;
+
+/// The most [`max_json_bytes`] is: 32 GiB.
+const MAX_ELEMENTS: u64 = 32 << 30;
+
+/// The budget a mailbox file is read within: [`max_json_items`] items and [`max_json_bytes`] of
+/// parsed values. One for the whole of a file, whatever its form and however many threads read it.
+pub(crate) fn open_budget() -> Arc<Budget> {
+    Budget::new(max_json_items(), max_json_bytes())
+}
+
+/// The error for a mailbox file that couldn't be read: that it would cost more memory than it may,
+/// when that is why, or else `what` and the parser's word.
+fn refused(show: &impl std::fmt::Display, what: &str, e: &serde_json::Error, budget: &Budget) -> String {
+    if let Some(why) = budget.spent() { format!("{show}: {why}") } else { format!("{show}: {what} ({e})") }
+}
+
+/// Whether a file is to be read as a stream whatever its size (a test's choice).
+fn forced_stream() -> bool {
+    #[cfg(any(test, feature = "test-support"))]
+    if let Some(limits) = crate::test_support::limits() {
+        return limits.stream;
+    }
+    false
 }
 
 /// What [`fill`] did with the content the mailbox file names.
@@ -2947,8 +3042,8 @@ fn io_error(e: std::io::Error) -> String {
 
 /// Walk `now` and `was` side by side, both in the order of their ids: `each` is given every item
 /// of `now` with what `was` has under its id. Returns the ids only `was` has, in order.
-fn walk<'a, 'b, A, B>(
-    now: &'a BTreeMap<Id, A>,
+fn walk<'a, 'b, A: 'a, B>(
+    now: impl IntoIterator<Item = (&'a Id, &'a A)>,
     was: &'b BTreeMap<Id, B>,
     mut each: impl FnMut(&'a Id, &'a A, Option<&'b B>) -> Result<(), String>,
 ) -> Result<Vec<Id>, String> {
@@ -3434,15 +3529,20 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
         if len > MAX_INDEX {
             return Err("too large".into());
         }
-        let replayed = index::replay(std::io::BufReader::with_capacity(1 << 20, fs::File::open(path).map_err(|e| e.to_string())?), len)?;
+        let budget = open_budget();
+        if len > max_json_bytes() {
+            return Err(load_limit::TOO_MUCH.into());
+        }
+        let file = fs::File::open(path).map_err(|e| e.to_string())?;
+        let replayed = index::replay_within(std::io::BufReader::with_capacity(1 << 20, file), len, index::MAX_RECORDS, Some(&budget))?;
         if matches!(replayed.tail, Tail::Bytes(_)) {
             return Ok(None);
         }
         // Only a file that opens is believed about what it names.
-        mailcraft_model::from_json(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, max_json_items()).map_err(|e| e.to_string())?;
+        load_limit::read_json::<Mailbox>(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, &budget).map_err(|e| e.to_string())?;
         let items: Vec<(&Key, &index::Item)> = replayed.items.iter().collect();
         let mut named = HashSet::new();
-        for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item))) {
+        for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item, &budget))) {
             if let (Parsed::Message(_, Some(wire)), _) = parsed.flatten().ok_or("the mailbox file couldn't be read")?? {
                 named.extend(wire.hashes());
             }
@@ -3456,7 +3556,7 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
     if len > MAX_MAILBOX_JSON {
         return Err("too large".into());
     }
-    let head: Head = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let head: Head = load_limit::read_json(&fs::read(path).map_err(|e| e.to_string())?, &open_budget()).map_err(|e| e.to_string())?;
     if head.version != SPLIT_VERSION {
         return Ok(None);
     }

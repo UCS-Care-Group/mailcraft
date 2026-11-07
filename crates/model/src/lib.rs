@@ -18,9 +18,12 @@ pub mod dav;
 mod ews_server;
 mod jmap_server;
 mod junk;
-mod load_limit;
+pub mod load_limit;
 mod mailbox;
 mod message;
+pub mod messages;
+#[cfg(test)]
+mod messages_tests;
 mod offline;
 pub mod pictures;
 pub mod pop;
@@ -63,6 +66,7 @@ pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
     PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
+pub use messages::Messages;
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
@@ -151,6 +155,8 @@ mod calendar_rights_tests;
 mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod load_limit_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]

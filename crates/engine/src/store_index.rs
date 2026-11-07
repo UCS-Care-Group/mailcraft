@@ -44,6 +44,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 
 use mailcraft_model::Id;
+use mailcraft_model::load_limit::{self, Budget};
 
 pub use crate::io::INDEX_MAGIC as MAGIC;
 
@@ -204,6 +205,11 @@ pub struct Item {
 }
 
 impl Item {
+    /// What it is charged while it is held ([`replay_within`]): its bytes and [`RECORD_COST`].
+    pub fn cost(&self) -> u64 {
+        (self.payload.len() as u64).saturating_add(RECORD_COST)
+    }
+
     pub fn json(&self) -> &[u8] {
         self.payload.get(PUT_HEAD as usize..self.json_end).unwrap_or(&[])
     }
@@ -374,12 +380,36 @@ pub fn is_ours(head: &[u8]) -> bool {
 /// Read a format-3 file of `file_len` bytes up to its last commit. An error is a file that
 /// isn't one, is from a newer program, or couldn't be read at all; damage after the first commit
 /// is a [`Tail`], not an error.
+#[cfg(test)]
 pub fn replay(r: impl Read, file_len: u64) -> Result<Replayed, String> {
-    replay_capped(r, file_len, MAX_RECORDS)
+    replay_within(r, file_len, MAX_RECORDS, None)
 }
 
 /// [`replay`], with at most `max_records` records held at once.
-pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Result<Replayed, String> {
+#[cfg(test)]
+pub fn replay_capped(r: impl Read, file_len: u64, max_records: usize) -> Result<Replayed, String> {
+    replay_within(r, file_len, max_records, None)
+}
+
+/// What a record held in memory costs over its bytes, at the least: its place in the list of a
+/// save and then in the map of items (the key, the item, the room a growing map keeps), and the
+/// allocation of its bytes.
+pub const RECORD_COST: u64 = 160;
+
+/// What `op` is charged while it is held.
+fn cost(op: &Op) -> u64 {
+    match op {
+        Op::Rest(json, _) => (json.len() as u64).saturating_add(RECORD_COST),
+        Op::Put(_, item) => item.cost(),
+        Op::Delete(_) => RECORD_COST,
+    }
+}
+
+/// Read a format-3 file (as `replay` does), at most `max_records` records held at once and every
+/// record held charged to `budget` (its bytes and [`RECORD_COST`]) as it
+/// is read, and given back when a later save replaces or removes it: a file of many small records
+/// is refused before it costs more memory than the budget, not read until memory runs out.
+pub fn replay_within(mut r: impl Read, file_len: u64, max_records: usize, budget: Option<&Budget>) -> Result<Replayed, String> {
     let mut head = [0u8; HEADER_LEN as usize];
     let got = fill(&mut r, &mut head).map_err(|e| e.to_string())?;
     let head = head.get(..got).unwrap_or(&[]);
@@ -425,7 +455,7 @@ pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Res
                     out.tail = Tail::Bytes(file_len.saturating_sub(out.good_len));
                     break;
                 }
-                take_in(&mut out, &mut pending, max_records)?;
+                take_in(&mut out, &mut pending, max_records, budget)?;
                 out.good_len = at;
                 out.lost_records = out.lost_records.saturating_add(u32::try_from(lost_items).unwrap_or(u32::MAX));
                 (salvaged, lost_items) = (0, 0);
@@ -434,6 +464,9 @@ pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Res
                 at = at.saturating_add(size);
                 if pending.len() >= max_records {
                     return Err(too_many());
+                }
+                if budget.is_some_and(|b| !b.take(cost(&op))) {
+                    return Err(load_limit::TOO_MUCH.into());
                 }
                 pending.try_reserve(1).map_err(|_| no_memory())?;
                 pending.push(op);
@@ -448,7 +481,7 @@ pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Res
             {
                 at = at.saturating_add(size);
                 salvaged_bytes = salvaged_bytes.saturating_add(size);
-                take_in(&mut out, &mut pending, max_records)?;
+                take_in(&mut out, &mut pending, max_records, budget)?;
                 out.good_len = at;
                 out.lost_records = u32::try_from(lost_items).unwrap_or(u32::MAX);
                 (salvaged, lost_items) = (0, 0);
@@ -495,7 +528,7 @@ pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Res
     // renamed into place only once all of it was written, so what it has of the mailbox is
     // taken, as far as it could be read (the host fetches the items lost again).
     if out.good_len == HEADER_LEN && salvaged > 0 && pending.iter().any(|op| matches!(op, Op::Rest(..))) {
-        take_in(&mut out, &mut pending, max_records)?;
+        take_in(&mut out, &mut pending, max_records, budget)?;
         out.lost_records = u32::try_from(lost_items).unwrap_or(u32::MAX);
         out.good_len = at.min(file_len);
         out.tail = Tail::Bytes(file_len.saturating_sub(out.good_len).max(salvaged_bytes).max(1));
@@ -512,6 +545,10 @@ pub fn replay_capped(mut r: impl Read, file_len: u64, max_records: usize) -> Res
     if (out.lost_records > 0 || base_damaged || salvaged_bytes > 0) && !matches!(out.tail, Tail::Bytes(_)) {
         out.tail = Tail::Bytes(salvaged_bytes.max(1));
     }
+    // Records no finished save took in are let go of.
+    if let Some(budget) = budget {
+        budget.give_back(pending.iter().map(cost).fold(0u64, u64::saturating_add));
+    }
     Ok(out)
 }
 
@@ -519,10 +556,16 @@ const TOO_MANY: &str = "this mailbox file holds more records than can be opened"
 const NO_MEMORY: &str = "not enough memory to open the mailbox";
 
 /// Take in the records of a save that is read, in their order.
-fn take_in(out: &mut Replayed, pending: &mut Vec<Op>, max_records: usize) -> Result<(), String> {
+fn take_in(out: &mut Replayed, pending: &mut Vec<Op>, max_records: usize, budget: Option<&Budget>) -> Result<(), String> {
+    // What a record replaced or removed by a later one cost is given back.
+    let mut freed = 0u64;
     for op in pending.drain(..) {
         match op {
-            Op::Rest(json, fp) => out.rest = Some((json, fp)),
+            Op::Rest(json, fp) => {
+                if let Some((old, _)) = out.rest.replace((json, fp)) {
+                    freed = freed.saturating_add((old.len() as u64).saturating_add(RECORD_COST));
+                }
+            }
             Op::Put(key, item) => {
                 if !out.items.contains_key(&key) {
                     if out.items.len() >= max_records {
@@ -530,12 +573,20 @@ fn take_in(out: &mut Replayed, pending: &mut Vec<Op>, max_records: usize) -> Res
                     }
                     out.items.try_reserve(1).map_err(|_| NO_MEMORY.to_string())?;
                 }
-                out.items.insert(key, item);
+                if let Some(old) = out.items.insert(key, item) {
+                    freed = freed.saturating_add(old.cost());
+                }
             }
             Op::Delete(key) => {
-                out.items.remove(&key);
+                freed = freed.saturating_add(RECORD_COST);
+                if let Some(old) = out.items.remove(&key) {
+                    freed = freed.saturating_add(old.cost());
+                }
             }
         }
+    }
+    if let Some(budget) = budget {
+        budget.give_back(freed);
     }
     Ok(())
 }

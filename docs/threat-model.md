@@ -314,7 +314,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
-  A server account's copy goes to Deleted Items on undo and is not counted as a removal.
+  A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
+  server account has made goes to Deleted Items on undo and is not counted as a removal; on any
+  other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
+  that puts back the accounts (or a change that writes to people) and also takes away messages,
+  drafts, contacts or the like is asked about once: the question names those too, and a yes
+  covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
+  what it would take away when asked: another step meanwhile, or a message or contact that came
+  down since, and the yes is refused.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
@@ -347,9 +354,17 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted
   from `Debug` output (`SyncRequest`, `Tokens` in `crates/model/src/sync.rs`) and from error text. Access tokens are never stored.
-  `ui.json` holds the key names of the entries MailCraft wrote (`rememberedKeys`, names only), so
-  that the full wipe and turning Remember sign-in off delete all of them, whichever mailbox they
-  were for, and report any that stay (AU2-18). Work started for a mailbox (a sign-in, the copy
+  `ui.json` holds the key names of the entries MailCraft wrote, moved or read (`rememberedKeys`,
+  names only), so that the full wipe and turning Remember sign-in off delete all of them, whichever
+  mailbox they were for, and report any that stay (AU2-18, AU3-18); removing an account deletes
+  its entries under every name it may have had. A secret belongs to one confirmed account as it
+  is: it is kept under that account's own name (its address and its servers, and for an Exchange
+  server account the certificate it trusts besides the system's) and read and written by that
+  account alone, never looked up by an address. The certificate is part of what the owner
+  confirms, and nothing is read from the store, and no server is contacted, for a mailbox whose
+  servers are not confirmed, nor for one where two accounts share an address until the owner has
+  confirmed it (AU3-02, AU3-03). A Microsoft or Google sign-in goes only to that provider's own mail
+  servers, never to this computer outside a test (AU3-19). Work started for a mailbox (a sign-in, the copy
   before a switch to Graph) records `Session::openings()` and is dropped when another mailbox has
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). A
   `mailto:` link handed in from outside saves a message with changes to Drafts first (AU2-19).
@@ -430,7 +445,7 @@ A malicious or vulnerable dependency, GitHub Action or build step.
   [zizmor](https://docs.zizmor.sh/) checks the workflows on every change to them, and
   [OpenSSF Scorecard](https://scorecard.dev/) scores the repository weekly.
 - **Build tools:** the shared workflows are pinned to full commit SHAs too, and every tool the
-  release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Trusted Signing
+  release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Artifact Signing
   client, rustup-init, wasm-opt) and WiX (a NuGet package) is an exact version checked against a recorded sha256 before
   use; trunk runs offline. Every release file gets a build provenance attestation
   (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).
@@ -518,6 +533,10 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
+| 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
+| 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
+| 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |

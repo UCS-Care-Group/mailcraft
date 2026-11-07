@@ -37,10 +37,14 @@ pub mod io;
 #[cfg(test)]
 mod launchable_tests;
 pub mod list;
+#[cfg(test)]
+mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+#[cfg(test)]
+mod opening_tests;
 mod picture_fit;
 pub mod sample;
 pub mod sender_warnings;
@@ -49,6 +53,8 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 mod undo;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
@@ -420,6 +426,8 @@ mod import_tests;
 mod import_tree_progress_tests;
 #[cfg(test)]
 mod import_tree_tests;
+#[cfg(test)]
+mod list_sort_tests;
 #[cfg(test)]
 mod pop_out_tests;
 #[cfg(test)]
