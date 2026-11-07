@@ -248,7 +248,7 @@ impl MailApp {
         // For a mailbox that has been closed since: its ids may name other accounts and tasks in
         // this one, and the answer is nobody's (AU3-08).
         if begun.opening != self.session.openings() {
-            log::info!("tasks, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            log::info!("tasks: the answer is for a mailbox that is no longer open; let go of");
             self.tasks = TaskSync::default();
             return;
         }

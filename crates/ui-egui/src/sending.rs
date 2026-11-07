@@ -87,7 +87,7 @@ impl MailApp {
                 Saved::Now
             }
             Err(e) => {
-                log::warn!("send/receive, account {account}: the mailbox couldn't be saved before sending; nothing is sent: {e}");
+                log::warn!("send/receive: the mailbox couldn't be saved before sending; nothing is sent: {e}");
                 self.sending_answered(account);
                 Saved::Failed(not_saved(&e))
             }
@@ -161,7 +161,7 @@ impl MailApp {
         }
         let Some(SendGate { account, waiting, .. }) = self.send_gate.take() else { return };
         if let Some(e) = failed {
-            log::warn!("send/receive, account {account}: the mailbox couldn't be saved before sending; nothing is sent: {e}");
+            log::warn!("send/receive: the mailbox couldn't be saved before sending; nothing is sent: {e}");
             self.sending_answered(account);
             let errors = vec![not_saved(e)];
             // The stand-in answers: the run ends as any run that couldn't go.
@@ -234,7 +234,7 @@ impl MailApp {
     /// was refused leaves them, for the next run to hold (AU3-26).
     pub(crate) fn run_answered(&mut self, account: Id) {
         if std::mem::take(&mut self.send_doubt) {
-            log::warn!("send/receive, account {account}: part of the answer was refused; what it sent is held at the next run");
+            log::warn!("send/receive: part of the answer was refused; what it sent is held at the next run");
         } else {
             self.sending_answered(account);
         }
@@ -245,7 +245,7 @@ impl MailApp {
     pub(crate) fn hold_unanswered(&mut self, account: Id) {
         let mut said = Vec::new();
         if graph_send::hold_unanswered(&mut self.session.mailbox, account, self.session.interface_language, &mut said) {
-            log::warn!("send/receive, account {account}: {} message(s) handed to the server by an earlier run got no answer; held", said.len());
+            log::warn!("send/receive: {} message(s) handed to the server by an earlier run got no answer; held", said.len());
             self.session.mailbox_changed();
             if let Some(first) = said.first() {
                 self.status(first.clone());

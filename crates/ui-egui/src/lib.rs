@@ -3652,7 +3652,7 @@ impl MailApp {
         // (AU3-09, AU3-10). The run is called off; what it sent is found held at its file's next
         // run.
         if opening != self.session.openings() {
-            log::info!("graph, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            log::info!("graph: the answer is for a mailbox that is no longer open; let go of");
             self.forget_mail_runs();
             return;
         }

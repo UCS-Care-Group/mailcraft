@@ -429,7 +429,7 @@ impl MailApp {
         // For a mailbox that has been closed since: its accounts are other accounts, whatever
         // their ids and addresses, and the answer is nobody's (AU3-V8).
         if *opening != self.session.openings() {
-            log::info!("calendar, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            log::info!("calendar: the answer is for a mailbox that is no longer open; let go of");
             self.calendar.forget_jobs();
             return;
         }
@@ -724,7 +724,7 @@ impl MailApp {
         let Some((account, opening, rx)) = &self.calendar.check_rx else { return };
         let account = *account;
         if *opening != self.session.openings() {
-            log::info!("calendar check, account {account}: the answer is for a mailbox that is no longer open; let go of");
+            log::info!("calendar check: the answer is for a mailbox that is no longer open; let go of");
             self.calendar.check_rx = None;
             return;
         }

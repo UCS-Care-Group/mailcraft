@@ -260,7 +260,7 @@ impl MailApp {
         let mut waiting = Vec::new();
         for (account, opening, job) in std::mem::take(&mut self.inbox_check.gave_way) {
             if opening != self.session.openings() {
-                log::info!("inbox check, account {account}: its answer is for a mailbox that is no longer open; let go of");
+                log::info!("inbox check: its answer is for a mailbox that is no longer open; let go of");
                 continue;
             }
             match job.try_recv() {
