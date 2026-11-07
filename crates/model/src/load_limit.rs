@@ -14,8 +14,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::de::{Deserialize, DeserializeOwned, DeserializeSeed, Deserializer, Error, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde_json::Value;
@@ -44,8 +44,8 @@ pub const TOO_MUCH: &str = "it holds more than this computer has the memory to o
 /// read the parts of one file.
 #[derive(Debug)]
 pub struct Budget {
-    items: AtomicUsize,
-    bytes: AtomicU64,
+    /// Items and bytes left. (Threads take bytes a chunk at a time, so they seldom meet here.)
+    left: Mutex<(usize, u64)>,
     /// A charge was refused: 0 none, [`ITEMS`] an item, [`BYTES`] bytes.
     spent: AtomicU8,
 }
@@ -53,12 +53,19 @@ pub struct Budget {
 impl Budget {
     /// A budget of `items` items and `bytes` bytes of parsed values.
     pub fn new(items: usize, bytes: u64) -> Arc<Budget> {
-        Arc::new(Budget { items: AtomicUsize::new(items), bytes: AtomicU64::new(bytes), spent: AtomicU8::new(0) })
+        Arc::new(Budget { left: Mutex::new((items, bytes)), spent: AtomicU8::new(0) })
     }
 
     /// Take one item; `false` (and nothing taken) when none is left.
     pub fn take_item(&self) -> bool {
-        let taken = self.items.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok();
+        let mut left = self.left();
+        let taken = match left.0.checked_sub(1) {
+            Some(n) => {
+                left.0 = n;
+                true
+            }
+            None => false,
+        };
         if !taken {
             self.spent.store(ITEMS, Ordering::Relaxed);
         }
@@ -75,12 +82,24 @@ impl Budget {
     }
 
     fn try_take(&self, n: u64) -> bool {
-        self.bytes.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| left.checked_sub(n)).is_ok()
+        let mut left = self.left();
+        match left.1.checked_sub(n) {
+            Some(rest) => {
+                left.1 = rest;
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn left(&self) -> MutexGuard<'_, (usize, u64)> {
+        // (Nothing is ever left half-changed under the lock.)
+        self.left.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Bytes not yet taken.
     pub fn bytes_left(&self) -> u64 {
-        self.bytes.load(Ordering::Relaxed)
+        self.left().1
     }
 
     /// Why a charge was refused ([`TOO_MANY_ITEMS`] or [`TOO_MUCH`]), when one was: what was being
@@ -96,7 +115,8 @@ impl Budget {
     /// Give back `n` bytes taken and not used.
     fn give_back(&self, n: u64) {
         if n > 0 {
-            let _ = self.bytes.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| Some(left.saturating_add(n)));
+            let mut left = self.left();
+            left.1 = left.1.saturating_add(n);
         }
     }
 }
