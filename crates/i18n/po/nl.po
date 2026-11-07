@@ -9834,8 +9834,8 @@ msgstr "Postvak opslaan"
 msgid "Save Mailbox As"
 msgstr "Postvak opslaan als"
 
-#. command label
-#: crates/engine/src/cmd/file.rs
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Save Message As"
 msgstr "Bericht opslaan als"
@@ -12475,6 +12475,11 @@ msgstr "Het zoeken naar uw Exchange-server vraagt om opnieuw te beginnen met een
 #, fuzzy
 msgid "The search for your Exchange server was sent on to {host}, which isn't in your address's own domain."
 msgstr "Het zoeken naar uw Exchange-server is doorgestuurd naar {host}, dat niet in het eigen domein van uw adres ligt."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected message, as .eml"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
