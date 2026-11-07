@@ -4488,22 +4488,22 @@ msgstr "Google hat den Zugriff auf MailCraft blockiert"
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google did not authorize MailCraft. Your mailbox was not changed. You can retry or choose an app password."
-msgstr ""
+msgstr "Google hat MailCraft nicht autorisiert. Dein Postfach wurde nicht verändert. Du kannst es erneut versuchen oder ein App-Passwort verwenden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google did not confirm the unchanged account and its Gmail servers. The app-password account was not changed."
-msgstr ""
+msgstr "Google hat das unveränderte Konto und dessen Gmail-Server nicht bestätigt. Das Konto mit App-Passwort wurde nicht verändert."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google did not confirm this unchanged account. Its previous sign-in and mail were kept."
-msgstr ""
+msgstr "Google hat das unveränderte Konto nicht bestätigt. Die bisherige Anmeldung und die E-Mails wurden beibehalten."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
-msgstr ""
+msgstr "Google hat nicht zu MailCraft zurückgeleitet. Wenn du den Fehler 403 oder den Hinweis „Zugriff blockiert“ gesehen hast, weil sich die App im Testmodus befindet, bitte den Entwickler, dich als Testnutzer hinzuzufügen. Wenn deine Organisation den Zugriff blockiert hat, wende dich an den System-Administrator. Andernfalls versuche es erneut. E-Mails und Einstellungen sind unverändert."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4524,27 +4524,27 @@ msgstr "Google-Anmeldung ist fehlgeschlagen"
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google sign-in does not use Microsoft's administrator consent flow"
-msgstr ""
+msgstr "Bei der Google-Anmeldung wird nicht der Administrator-Zustimmungsprozess von Microsoft verwendet."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build"
-msgstr ""
+msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build."
-msgstr ""
+msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build. Use an app password instead."
-msgstr ""
+msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet. Verwende stattdessen ein App-Passwort."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in needs Google's IMAP server"
-msgstr ""
+msgstr "Für die Google-Anmeldung wird der IMAP-Server von Google benötigt."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
