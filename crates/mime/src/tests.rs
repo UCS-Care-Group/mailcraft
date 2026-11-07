@@ -767,3 +767,19 @@ fn exchange_stamps_are_kept_past_the_header_cap() {
     assert_eq!(cut[0].chars().count(), 65);
     assert_ne!(cut[0].trim(), "Internal");
 }
+
+/// Nor can padding push out Exchange's word on which way a message went (AU3-V5), past the cap on
+/// kept headers, on header fields or on header bytes; a flood of it is capped too.
+#[test]
+fn exchanges_direction_is_kept_past_the_header_cap() {
+    use mailcraft_model::auth_results::{DIRECTIONALITY, MAX_AUTH_AS};
+    let words = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(DIRECTIONALITY)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
+    for padding in ["X-Pad: 1\r\n".repeat(200), "X-Pad: 1\r\n".repeat(2_500), format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20)] {
+        let padded = format!("From: a@example.org\r\n{padding}{DIRECTIONALITY}: Incoming\r\n\r\n");
+        assert_eq!(words(&parse(padded.as_bytes())), ["Incoming"]);
+    }
+    let flood = format!("{DIRECTIONALITY}: Incoming\r\n").repeat(MAX_AUTH_AS + 10);
+    assert_eq!(words(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
+    let long = format!("{DIRECTIONALITY}: Incoming{}x\r\n\r\n", " ".repeat(10_000));
+    assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
+}

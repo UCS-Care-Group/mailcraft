@@ -170,7 +170,7 @@ The server's instructions say the same. This is defence in depth: the gate above
 **What a sender hid.** `read_message` and `mail.get` answer, beside `body` (what the owner sees), a `hiddenText` field (#599) when the message has any: the words of what its sender hid (a preheader, the other copy of a desktop and mobile pair), which the owner's reading pane leaves out and search finds. It is message text like the rest: framed as untrusted, data and never instructions. A message read before #599 has none until it is read again from its source.
 
 **Sender warnings.** `read_message` and `mail.get` answer a message's sender warnings (#508) in
-`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`,
+`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`, `linksUnchecked`,
 `external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
 the account's own server's verdict, the owner's contacts and Sent Items, and the message's links
 ([control protocol](control-protocol.md#commands-worth-knowing)). What they are about (a name, an

@@ -20,13 +20,15 @@
 .EXAMPLE
   pwsh packaging/windows/package.ps1 -Arch x64
   pwsh packaging/windows/package.ps1 -Arch x86 -SkipBuild
-  pwsh packaging/windows/package.ps1 -Arch x64 -BuildOnly   # compile only (CI signs in a later step, -SkipBuild)
+  pwsh packaging/windows/package.ps1 -Arch x64 -BuildOnly   # compile only (CI signs in another job: -SkipBuild -NoRun)
   pwsh packaging/windows/package.ps1 -Arch arm64     # cross-compiled; needs the MSVC ARM64 build tools
 #>
 param(
   [ValidateSet('x64', 'x86', 'arm64')] [string] $Arch = 'x64',
   [switch] $SkipBuild,
-  [switch] $BuildOnly
+  [switch] $BuildOnly,
+  # Don't run the built CLI at the end (the job that signs never runs what was built).
+  [switch] $NoRun
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -72,8 +74,8 @@ if (-not $SkipBuild) {
 
 $Bin = Join-Path $TargetDir "$Target\release"
 
-# CI compiles in a step of its own (-BuildOnly), with no signing secret in its environment, and
-# signs in a later one (-SkipBuild): nothing a dependency's build script runs sees the secrets.
+# CI compiles in a job of its own (-BuildOnly), which has no signing secret, and hands the binaries
+# by digest to a job that signs and packages them (-SkipBuild -NoRun) without running cargo or them.
 if ($BuildOnly) { Write-Output 'built; signing and packaging come next'; exit 0 }
 
 # Check both binaries' PE headers before packaging. Machine (COFF header) must match -Arch, so an
@@ -164,7 +166,9 @@ Compress-Archive -Path $Portable -DestinationPath $Zip
 # Smoke-test the CLI when this machine can run it. An ARM64 build made on an x64 runner can't run
 # here; .github/workflows/windows-arm64.yml installs and runs it on ARM64 instead.
 $HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
-if ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
+if ($NoRun) {
+  Write-Output 'skipping mailcraft-cli --version (-NoRun): a job without the signing secrets runs it'
+} elseif ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
   Invoke-Native 'mailcraft-cli --version' { & (Join-Path $Stage 'mailcraft-cli.exe') --version }
 } else {
   Write-Output "skipping mailcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
