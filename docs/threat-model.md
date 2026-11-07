@@ -438,6 +438,20 @@ A malicious or vulnerable dependency, GitHub Action or build step.
   use; trunk runs offline. Every release file gets a build provenance attestation
   (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).
 - Pure-Rust TLS (rustls), and no handwritten JavaScript.
+- **New versions:** a copy that updates itself downloads a release only one way
+  (`mailcraft_net::update_download`): `SHA256SUMS.txt` must carry MailCraft's ed25519 signature
+  and the file the checksum it lists, every address on the way is HTTPS to GitHub's release hosts,
+  and anything else is deleted. The Update button under the notice of a newer version (#876) takes
+  that same way on the owner's click, whatever Install updates automatically says; never for an
+  agent or a script (`ui.downloadUpdate` and `ui.cancelUpdateDownload` are refused through the
+  control channel and MCP, as `ui.restartToUpdate` is), never when the organisation has turned
+  updating off, and never a pre-release. Cancel ends it as a cut-off download: the part is kept
+  for the next try and nothing of it is installed. Any other copy's Download update only opens a
+  page in the browser: the address of this platform's file as GitHub's answer gave it, taken only
+  when it is exactly `https://github.com/<this repository>/releases/download/<this version>/<the
+  expected name>` (nothing more: no query, user, port or escapes), else the release's page.
+  MailCraft downloads and runs nothing for it, and keeps no address of a release's files beyond
+  the run.
 
 ## Assurance case
 

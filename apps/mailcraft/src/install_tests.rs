@@ -130,3 +130,75 @@ fn a_folder_is_writable_when_a_file_can_be_made_in_it() {
     assert!(!writable(&dir.join("not-there")));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_file_of_each_package_is_one_a_release_has() {
+    let version = v("0.11.0");
+    // The files of release 0.11.0, as published.
+    let published = [
+        "mailcraft-0.11.0-freebsd-x86_64.tar.gz",
+        "mailcraft-0.11.0-linux-aarch64.AppImage",
+        "mailcraft-0.11.0-linux-aarch64.deb",
+        "mailcraft-0.11.0-linux-aarch64.flatpak",
+        "mailcraft-0.11.0-linux-aarch64.rpm",
+        "mailcraft-0.11.0-linux-x86_64.AppImage",
+        "mailcraft-0.11.0-linux-x86_64.deb",
+        "mailcraft-0.11.0-linux-x86_64.flatpak",
+        "mailcraft-0.11.0-linux-x86_64.rpm",
+        "mailcraft-0.11.0-macos-universal.dmg",
+        "mailcraft-0.11.0-windows-arm64-portable.zip",
+        "mailcraft-0.11.0-windows-arm64.msi",
+        "mailcraft-0.11.0-windows-x64-portable.zip",
+        "mailcraft-0.11.0-windows-x64.msi",
+        "mailcraft-0.11.0-windows-x86-portable.zip",
+        "mailcraft-0.11.0-windows-x86.msi",
+    ];
+    for (package, arch, name) in [
+        (Package::Msi, "x86_64", Some("mailcraft-0.11.0-windows-x64.msi")),
+        (Package::PortableZip, "x86_64", Some("mailcraft-0.11.0-windows-x64-portable.zip")),
+        (Package::PortableZip, "x86", Some("mailcraft-0.11.0-windows-x86-portable.zip")),
+        (Package::PortableZip, "aarch64", Some("mailcraft-0.11.0-windows-arm64-portable.zip")),
+        (Package::Dmg, "aarch64", Some("mailcraft-0.11.0-macos-universal.dmg")),
+        (Package::AppImage, "aarch64", Some("mailcraft-0.11.0-linux-aarch64.AppImage")),
+        (Package::Deb, "x86_64", Some("mailcraft-0.11.0-linux-x86_64.deb")),
+        (Package::Deb, "aarch64", Some("mailcraft-0.11.0-linux-aarch64.deb")),
+        (Package::Rpm, "x86_64", Some("mailcraft-0.11.0-linux-x86_64.rpm")),
+        (Package::Flatpak, "aarch64", Some("mailcraft-0.11.0-linux-aarch64.flatpak")),
+        (Package::FreeBsdTarGz, "x86_64", Some("mailcraft-0.11.0-freebsd-x86_64.tar.gz")),
+        // No such file.
+        (Package::FreeBsdTarGz, "aarch64", None),
+        (Package::Deb, "riscv64", None),
+        (Package::PortableZip, "powerpc", None),
+        (Package::Unknown, "x86_64", None),
+    ] {
+        let got = package.file_name(&version, arch);
+        assert_eq!(got.as_deref(), name, "{package:?} {arch}");
+        if let Some(got) = got {
+            assert!(published.contains(&got.as_str()), "{got}");
+            assert!(mailcraft_model::update::is_file_name(&got), "{got}");
+        }
+    }
+}
+
+#[test]
+fn the_package_is_named_only_when_known_for_sure() {
+    let usr = Path::new("/usr/bin/mailcraft");
+    let elsewhere = Path::new("/home/a/mailcraft/bin/mailcraft");
+    for (found, os, exe, flatpak, dpkg, rpm, package) in [
+        (Install::Msi, "windows", elsewhere, false, false, false, Package::Msi),
+        (Install::NoticeOnly, "windows", elsewhere, false, false, false, Package::PortableZip),
+        (Install::MacApp, "macos", elsewhere, false, false, false, Package::Dmg),
+        (Install::AppImage, "linux", elsewhere, false, false, false, Package::AppImage),
+        (Install::NoticeOnly, "linux", Path::new("/app/bin/mailcraft"), true, false, false, Package::Flatpak),
+        (Install::NoticeOnly, "linux", usr, false, true, true, Package::Deb),
+        (Install::NoticeOnly, "linux", usr, false, false, true, Package::Rpm),
+        (Install::NoticeOnly, "freebsd", elsewhere, false, false, false, Package::FreeBsdTarGz),
+        // Not known for sure: the release's page instead.
+        (Install::NoticeOnly, "linux", usr, false, false, false, Package::Unknown),
+        (Install::NoticeOnly, "linux", elsewhere, false, true, true, Package::Unknown),
+        (Install::NoticeOnly, "macos", elsewhere, false, false, false, Package::Unknown),
+        (Install::NoticeOnly, "netbsd", elsewhere, false, false, false, Package::Unknown),
+    ] {
+        assert_eq!(package_of(found, os, exe, flatpak, dpkg, rpm), package, "{found:?} {os} {exe:?}");
+    }
+}

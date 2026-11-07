@@ -96,6 +96,85 @@ pub fn writable(dir: &Path) -> bool {
     }
 }
 
+/// Which of a release's packages this copy came from, as far as that can be told, for File ›
+/// About's Download update (#876): the browser is sent to that file of the new release. Only
+/// what is known for sure names one; anything else is [`Package::Unknown`], and the release's
+/// page is opened instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Package {
+    Msi,
+    /// The Windows `…-portable.zip`: a copy the `.msi` didn't register.
+    PortableZip,
+    Dmg,
+    AppImage,
+    /// The Linux `.deb`: `/usr/bin/mailcraft`, which dpkg lists as the `mailcraft` package's.
+    Deb,
+    /// The Linux `.rpm`: `/usr/bin/mailcraft` on a computer with an rpm database and no dpkg
+    /// entry for it.
+    Rpm,
+    Flatpak,
+    /// The FreeBSD `.tar.gz`, the only package there is for FreeBSD.
+    FreeBsdTarGz,
+    /// Built from source, the Linux `.tar.gz` unpacked somewhere, or anything not told for sure.
+    Unknown,
+}
+
+impl Package {
+    /// The name of this package's file in release `version`, as the release workflow names it,
+    /// for a program built for `arch` (`std::env::consts::ARCH`). `None` where there is none.
+    pub fn file_name(self, version: &Version, arch: &str) -> Option<String> {
+        let windows = match arch {
+            "x86_64" => Some("x64"),
+            "x86" => Some("x86"),
+            "aarch64" => Some("arm64"),
+            _ => None,
+        };
+        let linux = matches!(arch, "x86_64" | "aarch64").then_some(arch);
+        let (place, ext) = match self {
+            Package::Msi => return Install::Msi.file_name(version, arch),
+            Package::Dmg => return Install::MacApp.file_name(version, arch),
+            Package::AppImage => return Install::AppImage.file_name(version, arch),
+            Package::PortableZip => (format!("windows-{}", windows?), "portable.zip"),
+            Package::Deb => (format!("linux-{}", linux?), "deb"),
+            Package::Rpm => (format!("linux-{}", linux?), "rpm"),
+            Package::Flatpak => (format!("linux-{}", linux?), "flatpak"),
+            Package::FreeBsdTarGz if arch == "x86_64" => ("freebsd-x86_64".to_string(), "tar.gz"),
+            Package::FreeBsdTarGz | Package::Unknown => return None,
+        };
+        // The portable zip's name has a `-` before its kind; the others a `.`.
+        let joint = if self == Package::PortableZip { '-' } else { '.' };
+        Some(format!("mailcraft-{version}-{place}{joint}{ext}"))
+    }
+}
+
+/// The package this copy came from ([`Package`]), from what it was installed as ([`found`]),
+/// the system, and on Linux what its package managers say of `/usr/bin/mailcraft`.
+pub fn package() -> Package {
+    let found = found();
+    let exe = std::env::current_exe().unwrap_or_default();
+    let dpkg_lists = Path::new("/var/lib/dpkg/info/mailcraft.list").is_file();
+    let rpm_database = ["/var/lib/rpm", "/usr/lib/sysimage/rpm"].iter().any(|dir| Path::new(dir).is_dir());
+    package_of(found, std::env::consts::OS, &exe, std::env::var_os("FLATPAK_ID").is_some(), dpkg_lists, rpm_database)
+}
+
+/// [`package`] from what was found: `os` is `std::env::consts::OS`; `flatpak`, that it runs in
+/// a Flatpak; `dpkg_lists`, that dpkg has a list of the `mailcraft` package's files;
+/// `rpm_database`, that the computer has an rpm database.
+pub fn package_of(found: Install, os: &str, exe: &Path, flatpak: bool, dpkg_lists: bool, rpm_database: bool) -> Package {
+    let packaged = exe == Path::new("/usr/bin/mailcraft");
+    match (found, os) {
+        (Install::Msi, _) => Package::Msi,
+        (Install::MacApp, _) => Package::Dmg,
+        (Install::AppImage, _) => Package::AppImage,
+        (Install::NoticeOnly, "windows") => Package::PortableZip,
+        (Install::NoticeOnly, "linux") if flatpak => Package::Flatpak,
+        (Install::NoticeOnly, "linux") if packaged && dpkg_lists => Package::Deb,
+        (Install::NoticeOnly, "linux") if packaged && rpm_database => Package::Rpm,
+        (Install::NoticeOnly, "freebsd") => Package::FreeBsdTarGz,
+        _ => Package::Unknown,
+    }
+}
+
 /// What this copy was installed as, whether or not it updates itself.
 pub fn found() -> Install {
     let Ok(exe) = std::env::current_exe() else { return Install::NoticeOnly };

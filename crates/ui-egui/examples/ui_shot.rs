@@ -624,7 +624,7 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
         })),
         // A copy that updates itself: what it finds is downloaded and checked at once (nothing
         // is downloaded and nothing is kept).
-        update_download: Some(Box::new(|_| answered(Ok(std::path::PathBuf::from("updates"))))),
+        update_download: Some(Box::new(|_, _| answered(Ok(std::path::PathBuf::from("updates"))))),
         saver: Some(Box::new(StandInSaver(host.clone()))),
         // Every sender has a picture: a disc on a ground of two colours from their address,
         // drawn here (nothing is downloaded).
