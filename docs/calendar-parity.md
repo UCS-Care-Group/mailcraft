@@ -27,7 +27,8 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Week numbers (option) | Done (ISO weeks) |
 | Several calendars side by side or overlaid, each in its colour, under My Calendars / Other Calendars / shared | Done for the account's own: the list by group (the account's own first, its other groups, Other Calendars, On this computer), each group folding; every ticked calendar in a block of its own with its tab, in Day, Work Week, Week and Month; the arrow on a tab (or View › Overlay) lays calendars over one another, the one in front solid and the others dimmer, a click on a tab bringing it to the front; View › Side-by-Side stands them apart. Right-click a calendar: Show Only This Calendar, Overlay, Colour. A calendar that can only be read says so (a lock beside it) and takes no new items. A calendar the server lists that belongs to somebody else (an accepted sharing invitation) is under **Shared Calendars**, whatever group the server puts it in. Eight blocks at most (the calendars beyond share the last). Later: a shared mailbox's calendars, calendars opened by address, Schedule view (#70) |
 | The calendar clicked in the list is the one new items go to | Done (the account's own calendar unless another is picked); and what is picked, typed or dropped in a calendar's block is that calendar's, which is then the one being worked in |
-| Weather, To-Do bar, daily task list | Later |
+| The To-Do Bar's calendar: a date navigator and the next appointments beside every module | Done (#831): View › Layout › To-Do Bar › Calendar, one month and the next six appointments of the coming week |
+| Weather, daily task list | Later |
 
 ## Working with items in the grid
 

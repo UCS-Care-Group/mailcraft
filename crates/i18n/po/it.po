@@ -62,8 +62,8 @@ msgstr "«{subject}» potrebbe essere già stato inviato: controllare in Posta i
 msgid "(No title)"
 msgstr "(Senza titolo)"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(senza nome)"
@@ -80,8 +80,8 @@ msgstr "(nessun destinatario)"
 msgid "(no subject)"
 msgstr "(nessun oggetto)"
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(senza titolo)"
@@ -601,10 +601,20 @@ msgid "Add Account"
 msgstr "Aggiungi account"
 
 #. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Appointment to Tasks"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Aggiungi calendario"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Contact to Tasks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -743,6 +753,11 @@ msgid "Add as a Microsoft account"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Add contacts to Favorites to keep them here"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Add filters"
 msgstr ""
@@ -791,6 +806,11 @@ msgstr "Aggiunto da una versione più recente di MailCraft: inviare e ricevere c
 #, fuzzy
 msgid "Address"
 msgstr "Indirizzo"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Address:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -857,7 +877,7 @@ msgid "All accounts"
 msgstr "Tutti gli account"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "Tutto il giorno"
@@ -1518,6 +1538,11 @@ msgstr ""
 msgid "Attendees"
 msgstr "Partecipanti"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Attendees:"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -1717,6 +1742,11 @@ msgstr "Prima di qualsiasi modifica, accanto alla cassetta postale ne viene salv
 msgid "Birthday"
 msgstr "Compleanno"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Birthday:"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1823,7 +1853,7 @@ msgid "By Subject"
 msgstr "Per oggetto"
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendario"
@@ -3560,6 +3590,11 @@ msgstr "Indirizzo di posta elettronica"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Email the people of this meeting"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Email:"
 msgstr ""
 
 #. ribbon
@@ -5331,6 +5366,11 @@ msgstr "Partecipa alla riunione online"
 msgid "Join {service} Meeting"
 msgstr "Partecipa alla riunione {service}"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Join:"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -6103,13 +6143,13 @@ msgid "Mark All as Read"
 msgstr "Segna tutti come letti"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "Segna come completato"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "Segna come non completato"
@@ -7172,6 +7212,11 @@ msgid "No two contacts share an e-mail address or a phone number."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "No upcoming appointments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/windows.rs
 msgid "No window shows a message file"
 msgstr ""
@@ -7392,7 +7437,7 @@ msgid "Nothing more was found on the server"
 msgstr "Non è stato trovato altro sul server"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "Niente da fare qui."
@@ -7448,6 +7493,11 @@ msgstr "ott"
 #, fuzzy
 msgid "October"
 msgstr "ottobre"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Off"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -7908,6 +7958,11 @@ msgstr "Oppure è uno di questi?"
 msgid "Organizer"
 msgstr "Organizzatore"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Organizer:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -8130,7 +8185,7 @@ msgid "Pending development"
 msgstr ""
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "Contatti"
@@ -8145,6 +8200,11 @@ msgstr ""
 #, fuzzy
 msgid "Phone"
 msgstr "Telefono"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Phone:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8819,6 +8879,11 @@ msgstr "Rimuovi questa azione"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Rimuovi questa condizione"
+
+#. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Remove {part} from the To-Do Bar"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11066,8 +11131,8 @@ msgstr ""
 msgid "Task:"
 msgstr ""
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Attività"
@@ -13092,6 +13157,18 @@ msgstr ""
 msgid "To use another server or user name, remove the account and add it again."
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"To-Do\n"
+"Bar"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "To-Do Bar"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "To-do Changes to Send"
@@ -13110,13 +13187,13 @@ msgid "To: {names}"
 msgstr "A: {names}"
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Today"
 msgstr "Oggi"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Domani"
@@ -13246,6 +13323,11 @@ msgstr "Due settimane fa"
 #, fuzzy
 msgid "Type"
 msgstr "Digita"
+
+#. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Type a new task"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13558,6 +13640,11 @@ msgstr "L'attesa dell'approvazione si è interrotta in modo imprevisto"
 msgid "Want to be one? Sign up in #11"
 msgstr "Si desidera partecipare? Iscriversi in #11"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Web page:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -13693,6 +13780,11 @@ msgstr "Quando"
 msgid "When you switch:"
 msgstr "Al passaggio:"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "When:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -13702,6 +13794,11 @@ msgstr "Dove"
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Where they differ, the kept contact has:"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Where:"
 msgstr ""
 
 #. what a command says
@@ -14960,6 +15057,11 @@ msgstr "nessun account con id {id}"
 msgid "no answer"
 msgstr "nessuna risposta"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "no appointment with id {id}"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "no calendar was opened by address"
@@ -14972,7 +15074,7 @@ msgid "no calendar with id {id}"
 msgstr "nessun calendario con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "nessun contatto con id {id}"
@@ -15272,7 +15374,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr "salvare prima la cassetta postale in un file: il passaggio ne conserva una copia accanto a quel file"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select a contact first"
 msgstr "selezionare prima un contatto"
@@ -15296,7 +15398,7 @@ msgid "select a task first"
 msgstr "selezionare prima un'attività"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selezionare prima un appuntamento"
@@ -15666,7 +15768,7 @@ msgid "the sender has no usable e-mail address"
 msgstr "il mittente non ha un indirizzo di posta elettronica utilizzabile"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "la serie non ricorre il {date}"
@@ -16685,7 +16787,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"

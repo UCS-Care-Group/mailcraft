@@ -84,6 +84,8 @@ fn table(s: &Session) -> Vec<(&'static str, Reads, Value)> {
         "tasks.get",
         "tasks.complete",
         "tasks.delete",
+        "tasks.fromEvent",
+        "tasks.fromContact",
         "folder.delete",
         "folder.empty",
         "folder.select",

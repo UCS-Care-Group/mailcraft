@@ -60,7 +60,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 
 /// The heading a task sits under, in the order the list shows them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Bucket {
+pub(crate) enum Bucket {
     Overdue,
     Today,
     Tomorrow,
@@ -73,7 +73,7 @@ enum Bucket {
 impl Bucket {
     /// Where a task goes, from its due date seen from `today`. This week runs to the end of the
     /// week that starts on `week_start`; a finished task is `Completed` whatever its date.
-    fn of(due: Option<Date>, complete: bool, today: Date, week_start: Weekday) -> Bucket {
+    pub(crate) fn of(due: Option<Date>, complete: bool, today: Date, week_start: Weekday) -> Bucket {
         if complete {
             return Bucket::Completed;
         }
@@ -87,7 +87,7 @@ impl Bucket {
         }
     }
 
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Bucket::Overdue => "Overdue",
             Bucket::Today => "Today",
@@ -114,7 +114,7 @@ fn due_choices(today: Date) -> [(&'static str, Option<Date>); 5] {
 }
 
 /// When a task is due, as a row says it; empty without a due date.
-fn due_text(task: &Task, today: Date) -> String {
+pub(crate) fn due_text(task: &Task, today: Date) -> String {
     if task.due.is_none() {
         return String::new();
     }
@@ -144,7 +144,7 @@ fn importance_label(importance: Importance) -> &'static str {
 }
 
 /// The title a row and the details pane show.
-fn shown_title(task: &Task) -> String {
+pub(crate) fn shown_title(task: &Task) -> String {
     let title = one_line(&task.title, 300);
     if title.is_empty() { tl!("(no title)").to_string() } else { title }
 }
@@ -462,7 +462,7 @@ fn add_hint(app: &MailApp, today: bool) -> String {
 }
 
 /// One line of text cut to `width` with an ellipsis, struck through when `strike`.
-fn paint_title(p: &egui::Painter, pos: egui::Pos2, width: f32, text: &str, font: FontId, color: Color32, strike: bool) {
+pub(crate) fn paint_title(p: &egui::Painter, pos: egui::Pos2, width: f32, text: &str, font: FontId, color: Color32, strike: bool) {
     if width <= 4.0 || text.is_empty() {
         return;
     }
@@ -480,7 +480,7 @@ fn paint_title(p: &egui::Painter, pos: egui::Pos2, width: f32, text: &str, font:
 
 /// The round check box: filled with a tick when done, an outline (a faint tick under the pointer)
 /// when not.
-fn paint_check(p: &egui::Painter, center: egui::Pos2, done: bool, hot: bool, t: &Tokens) {
+pub(crate) fn paint_check(p: &egui::Painter, center: egui::Pos2, done: bool, hot: bool, t: &Tokens) {
     let tick = |color: Color32, width: f32| {
         p.add(Shape::line(
             vec![pos2(center.x - 3.8, center.y + 0.3), pos2(center.x - 1.2, center.y + 2.9), pos2(center.x + 4.0, center.y - 2.9)],

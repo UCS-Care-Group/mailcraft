@@ -135,6 +135,7 @@ pub(crate) enum Menu {
     Signature,
     MoveFolder,
     ReadingPane,
+    TodoBar,
     Preview,
     ArrangeBy,
     Theme,
@@ -981,6 +982,7 @@ fn view_of_any(app: &MailApp) -> Tab {
             vec![
                 Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
                 Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
+                Item::big_menu("todoBar", "todoBar", "To-Do\nBar", "To-Do Bar", Menu::TodoBar).at(0, 2),
                 Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4),
             ],
         ),
@@ -1415,6 +1417,14 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
+        }
+        // The To-Do Bar's parts, each on or off for the module in front, and Off (#831).
+        Menu::TodoBar => {
+            let parts = app.session.view.todo_bar.of(app.session.view.module);
+            for (label, code, on) in [("Calendar", "calendar", parts.calendar), ("People", "people", parts.people), ("Tasks", "tasks", parts.tasks)] {
+                mi_check(ui, app, label, on, "view.todoBar", json!({"part": code, "value": !on}));
+            }
+            mi_check(ui, app, "Off", !parts.any(), "view.todoBar", json!({"part": "off"}));
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;

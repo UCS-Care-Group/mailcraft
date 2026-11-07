@@ -40,7 +40,12 @@ pub(crate) fn apply(ctx: &egui::Context) {
     let over = ctx.data_mut(|d| d.remove_temp::<OverFolder>(EguiId::NULL).and_then(|o| o.0));
     if egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(ctx)
         || egui::DragAndDrop::has_payload_of_type::<crate::nav::AccountDrag>(ctx)
+        || egui::DragAndDrop::has_payload_of_type::<crate::todo_bar::ContactDrag>(ctx)
     {
+        ctx.set_cursor_icon(drag_pointer(over));
+    } else if egui::DragAndDrop::has_payload_of_type::<crate::todo_bar::EventDrag>(ctx) && over == Some(true) {
+        // An appointment over the To-Do Bar's tasks (#831); over the calendar, the calendar's
+        // own pointer says where it would go.
         ctx.set_cursor_icon(drag_pointer(over));
     }
 }

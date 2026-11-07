@@ -119,11 +119,29 @@ impl Own {
 enum Row {
     /// A command of the registry.
     Cmd(&'static str),
+    /// A command of the registry with params, under a label of its own.
+    With {
+        label: &'static str,
+        id: &'static str,
+        params: &'static str,
+    },
+    /// A menu inside the menu, with its own table.
+    Sub(&'static str, &'static [Row]),
     Own(Own),
     Sep,
 }
 
-use Row::{Cmd, Own as O, Sep};
+use Row::{Cmd, Own as O, Sep, Sub};
+
+/// View › To-Do Bar (#831): each part on or off for the module in front, and Off, as the
+/// ribbon's dropdown has them.
+const TODO_BAR: &[Row] = &[
+    Row::With { label: "Calendar", id: "view.todoBar", params: r#"{"part": "calendar"}"# },
+    Row::With { label: "People", id: "view.todoBar", params: r#"{"part": "people"}"# },
+    Row::With { label: "Tasks", id: "view.todoBar", params: r#"{"part": "tasks"}"# },
+    Sep,
+    Row::With { label: "Off", id: "view.todoBar", params: r#"{"part": "off"}"# },
+];
 
 const FILE: &[Row] = &[
     Cmd("mail.new"),
@@ -169,6 +187,7 @@ const VIEW: &[Row] = &[
     Sep,
     Cmd("view.readingPane"),
     Cmd("view.folderPane"),
+    Sub("To-Do Bar", TODO_BAR),
     Cmd("view.conversations"),
     Cmd("view.reverseSort"),
     Sep,
@@ -274,6 +293,8 @@ pub struct Item {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
     Item(Item),
+    /// A menu inside the menu (View › To-Do Bar).
+    Submenu(MenuBlock),
     Separator,
 }
 
@@ -369,6 +390,18 @@ fn block(app: &MailApp, title: &str, rows: &[Row], taken: &mut HashSet<Chord>) -
                 continue;
             }
             Row::Own(own) => Some(item(*own)),
+            Row::With { label, id, params } => app.session.registry.get(id).map(|spec| Item {
+                label: tl!(label).to_string(),
+                chord: None,
+                action: Action::Command { id: spec.id, params },
+            }),
+            Row::Sub(title, rows) => {
+                let sub = block(app, tl!(title), rows, taken);
+                if !sub.entries.is_empty() {
+                    entries.push(Entry::Submenu(sub));
+                }
+                continue;
+            }
             Row::Cmd(id) => app.session.registry.get(id).map(|spec| Item {
                 label: tl!(spec.label).to_string(),
                 chord: chord(spec.shortcut),
