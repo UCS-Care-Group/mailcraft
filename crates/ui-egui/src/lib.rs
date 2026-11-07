@@ -1355,7 +1355,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.updateCheck",
         "Check for New Versions",
         "File › About",
-        r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "downloaded": version|null}}"#,
+        r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page", "offer": "update"|"download"|"none"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "progress": number|null, "cancelling": bool, "chosen": version|null, "opened": url|null, "downloaded": version|null}}"#,
     ),
     (
         "ui.updateInstall",
