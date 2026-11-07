@@ -1,1 +1,0 @@
-| 2026-11-04 | The rows of the documents' revision histories and of the progress log are fragments, `docs/log.d/<document>/{revisions,progress}/<name>.md`, joined into their tables by `cargo xtask docs-log --write` in the release's pull request, beside the release notes' |
