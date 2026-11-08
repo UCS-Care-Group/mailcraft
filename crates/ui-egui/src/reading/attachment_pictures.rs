@@ -71,20 +71,24 @@ pub fn may_be_picture(a: &Attachment) -> bool {
 
 /// The files of `files` that are kept on disk and are to be brought in to be shown as pictures:
 /// those that may be one, within the reading pane's cap on a picture's bytes, the first
-/// [`MAX_PREVIEWS`] of them and no more than [`MAX_BROUGHT_IN`] bytes in all.
+/// [`MAX_PREVIEWS`] of them and no more than [`MAX_BROUGHT_IN`] bytes in all, counting those
+/// already brought in.
 pub fn to_bring_in(files: &[(usize, &Attachment)]) -> Vec<ContentRef> {
     let mut total = 0u64;
     let mut out = Vec::new();
     for (_, a) in files.iter().filter(|(_, a)| may_be_picture(a)).take(MAX_PREVIEWS) {
-        let Some(kept) = a.kept.filter(|_| !a.is_loaded()) else { continue };
+        let Some(kept) = a.kept else { continue };
         if kept.len > images::MAX_PICTURE_BYTES as u64 {
             continue;
         }
+        // What was brought in already counts too, so that the cap holds from one frame to the next.
         total = total.saturating_add(kept.len);
         if total > MAX_BROUGHT_IN {
             break;
         }
-        out.push(kept);
+        if !a.is_loaded() {
+            out.push(kept);
+        }
     }
     out
 }
@@ -323,6 +327,7 @@ impl Thumbs {
         let frame = images::frame(ctx);
         let inline = self.inline;
         let busy = self.busy(frame);
+        let decoded_here = self.decoded_in == Some(frame);
         let entry = self.entry(data, frame)?;
         match &entry.state {
             State::Ready(texture) => return Some(texture.clone()),
@@ -331,7 +336,14 @@ impl Thumbs {
                 entry.state = State::Failed;
                 return None;
             }
-            State::Waiting if busy => return None,
+            State::Waiting if busy => {
+                // A picture was decoded on the window's thread in this frame: the next frame
+                // takes this one. (A thread at work asks for one itself when it is done.)
+                if decoded_here {
+                    ctx.request_repaint();
+                }
+                return None;
+            }
             State::Waiting => {}
         }
         if !inline && self.spawn(ctx, data, max_side, max_width) {

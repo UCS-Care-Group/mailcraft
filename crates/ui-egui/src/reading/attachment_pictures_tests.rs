@@ -78,6 +78,17 @@ fn what_is_brought_in_from_disk_is_capped() {
     let wanted = to_bring_in(&files);
     assert_eq!(wanted.len() as u64, MAX_BROUGHT_IN / big);
     assert!(wanted.iter().map(|k| k.len).sum::<u64>() <= MAX_BROUGHT_IN);
+    // What was brought in at an earlier frame counts: the cap holds from frame to frame.
+    let mut heavy = heavy;
+    let brought = MAX_BROUGHT_IN / big;
+    for a in heavy.iter_mut().take(brought as usize) {
+        a.data = Arc::new(vec![0; 1]);
+    }
+    let files: Vec<(usize, &Attachment)> = heavy.iter().enumerate().collect();
+    assert!(to_bring_in(&files).is_empty());
+    let half: Vec<Attachment> = heavy.into_iter().skip(1).collect();
+    let files: Vec<(usize, &Attachment)> = half.iter().enumerate().collect();
+    assert_eq!(to_bring_in(&files).len(), 1);
 }
 
 #[test]
@@ -262,4 +273,24 @@ fn the_setting_is_kept_and_answers_the_command() {
     assert_eq!(app.execute("ui.attachmentPictures", json!({"value": true})).unwrap(), json!({"value": true}));
     assert!(app.execute("ui.attachmentPictures", json!({"value": "on"})).is_err());
     assert!(app.ui.attachment_pictures);
+}
+
+#[test]
+fn in_the_browser_one_picture_a_frame_and_the_next_frame_is_asked_for() {
+    let ctx = egui::Context::default();
+    let mut thumbs = Thumbs::default();
+    thumbs.inline = true;
+    let a = Arc::new(png(40, 20));
+    let b = Arc::new(gif(20, 20));
+    assert!(thumbs.texture(&ctx, &a, [40, 40]).is_some());
+    // (A new context, and a texture made, ask for a frame of their own: start from none asked.)
+    for _ in 0..3 {
+        ctx.run_ui(Default::default(), |_| {}).textures_delta.clear();
+    }
+    let c = Arc::new(jpeg(20, 20));
+    assert!(thumbs.texture(&ctx, &c, [20, 20]).is_some());
+    assert!(!ctx.has_requested_repaint());
+    // The second waits for the next frame, and the window is asked to draw one.
+    assert!(thumbs.texture(&ctx, &b, [20, 20]).is_none());
+    assert!(ctx.has_requested_repaint());
 }
