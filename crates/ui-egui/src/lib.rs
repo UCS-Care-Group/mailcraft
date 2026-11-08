@@ -4559,6 +4559,8 @@ impl MailApp {
             self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
+        // What was done in the Reminders window, which has passes of its own (#771).
+        reminders::carry_out(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));
         }
