@@ -915,4 +915,4 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 
 #[cfg(test)]
 #[path = "nav_tests.rs"]
-mod tests;
+pub(crate) mod tests;

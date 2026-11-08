@@ -165,7 +165,7 @@ fn counts_are_unread_or_a_total_in_brackets() {
     }
 }
 
-fn window() -> egui_kittest::Harness<'static, MailApp> {
+pub(crate) fn window() -> egui_kittest::Harness<'static, MailApp> {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
     let mut harness =

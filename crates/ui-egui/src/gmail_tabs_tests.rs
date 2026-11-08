@@ -16,23 +16,7 @@ const NOW: i64 = 1_791_993_600;
 
 type Harness = egui_kittest::Harness<'static, MailApp>;
 
-fn window() -> Harness {
-    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    app.autosave = false;
-    let mut harness =
-        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
-    harness.run_steps(4);
-    let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
-    harness.run_steps(3);
-    harness
-}
+use crate::nav::tests::window;
 
 /// The window with a Gmail account whose Inbox has a message in Primary, Social and Promotions
 /// each; the Inbox's id.
