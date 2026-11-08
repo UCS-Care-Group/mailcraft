@@ -256,6 +256,15 @@ pub struct Message {
     /// from before has none, and one that holds something other than a size there reads as 0.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
+    /// For a message of a Gmail account's Inbox: which of Gmail's five categories Gmail put it in
+    /// (#911), as its server last said, like a read mark. `None` for mail anywhere else, of any
+    /// other account, and of a file from before there were any (or one that holds something else).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub gmail_category: Option<crate::GmailCategory>,
+    /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
+    /// server gave it; 0 when it gave none.
+    #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
+    pub gmail_id: u64,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -407,10 +416,20 @@ fn is_zero_u64(n: &u64) -> bool {
 impl Message {
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
-    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451).
+    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
+    /// folder it was in, it is in none of Gmail's categories, which are of a Gmail Inbox (#911).
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
+        if folder != self.folder {
+            self.left_gmail_inbox();
+        }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
+    }
+
+    /// It is in none of Gmail's categories, and Gmail's id of it is forgotten: what the server
+    /// says of the folder it is in now says them again, if anything (#911).
+    pub fn left_gmail_inbox(&mut self) {
+        (self.gmail_category, self.gmail_id) = (None, 0);
     }
 
     /// Every recipient: To, Cc, Bcc.

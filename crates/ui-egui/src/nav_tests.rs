@@ -539,3 +539,33 @@ fn an_accounts_menu_moves_it_up_and_down() {
     assert_eq!(order(&harness), [family, work, first]);
     assert_eq!(harness.state().session.mailbox.default_account().map(|a| a.id), Some(first));
 }
+
+/// Gmail's categories under a Gmail account's Inbox (#911) are rows the keyboard reaches: each
+/// read out with its unread count, the arrow keys go from one to the next, and Enter shows it.
+#[test]
+fn gmail_categories_are_reached_and_chosen_with_the_keyboard() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{GmailCategory, Message};
+    let mut harness = window();
+    let app = harness.state_mut();
+    let servers = serde_json::json!({"email": "ada@mail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"}});
+    let account = app.execute("account.add", servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let new: Vec<Message> = [GmailCategory::Primary, GmailCategory::Social, GmailCategory::Promotions]
+        .into_iter()
+        .zip(1..)
+        .map(|(category, uid)| Message { uid, subject: format!("Message {uid}"), gmail_category: Some(category), ..Default::default() })
+        .collect();
+    let delta =
+        FolderDelta { id: Some(inbox), remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 3, new, ..Default::default() };
+    app.execute("sync.apply", serde_json::json!({"result": SyncResult { account, folders: vec![delta], ..Default::default() }})).unwrap();
+    harness.run_steps(4);
+    harness.get_by_role_and_label(egui::accesskit::Role::TreeItem, "Social, 1 unread").focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(harness.state().session.view.gmail, Some((inbox, GmailCategory::Promotions)));
+    assert_eq!(mailcraft_engine::gmail::in_view(&harness.state().session), Some(GmailCategory::Promotions));
+}

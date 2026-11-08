@@ -285,6 +285,11 @@ pub struct ViewState {
     #[serde(skip)]
     pub open: Vec<(Id, mailcraft_model::ThreadKey)>,
     pub filter: Filter,
+    /// The Gmail category of the folder in view the list shows (#911): that Inbox's mail Gmail
+    /// put in it. Only while that folder is in view (`folder.select` with `gmail`); `None` for
+    /// the whole folder. Not kept between sessions: the window opens on the whole folder.
+    #[serde(skip)]
+    pub gmail: Option<(Id, mailcraft_model::GmailCategory)>,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -324,6 +329,7 @@ impl Default for ViewState {
             conversations: false,
             open: Vec::new(),
             filter: Filter::All,
+            gmail: None,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
@@ -419,6 +425,8 @@ pub struct Stays {
 pub(crate) struct ListOf {
     folder: Id,
     filter: Filter,
+    /// The Gmail category it shows, if any (#911).
+    gmail: Option<(Id, mailcraft_model::GmailCategory)>,
     search: Option<(mailcraft_model::search::Query, Scope)>,
     /// The day, the first day of the week and the zone, for a search with dates in it:
     /// `received:today` is other messages tomorrow (#329).
@@ -432,7 +440,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, search, when }
+        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
     }
 }
 
@@ -1570,9 +1578,11 @@ impl Session {
         self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.list_of())));
     }
 
-    /// The list shows the whole folder in view: the All tab, and no search.
+    /// The list shows the whole folder in view: the All tab, none of Gmail's categories (#911),
+    /// and no search.
     pub(crate) fn show_whole_folder(&mut self) {
         self.view.filter = Filter::All;
+        self.view.gmail = None;
         self.clear_search();
     }
 
@@ -1713,13 +1723,13 @@ impl Session {
         // at each run (how far it has read, the server's ids), which would build the list again
         // every time mail is looked for.
         let folders = |mb: &Mailbox| mb.folders.iter().map(|f| (f.id, f.account, f.parent, f.kind)).collect::<Vec<_>>();
-        let accounts = |mb: &Mailbox| mb.accounts.iter().map(|a| (a.id, a.kind, a.email.clone())).collect::<Vec<_>>();
+        let accounts = |mb: &Mailbox| mb.accounts.iter().map(|a| (a.id, a.kind, a.email.clone(), a.hide_gmail_categories)).collect::<Vec<_>>();
         if folders(before) != folders(&self.mailbox) || accounts(before) != accounts(&self.mailbox) || before.categories != self.mailbox.categories {
             return None;
         }
         let same = |a: &Message, b: &Message| {
-            (a.folder, a.account, a.received, a.date, a.pinned, a.importance, a.unfetched)
-                == (b.folder, b.account, b.received, b.date, b.pinned, b.importance, b.unfetched)
+            (a.folder, a.account, a.received, a.date, a.pinned, a.importance, a.unfetched, a.gmail_category)
+                == (b.folder, b.account, b.received, b.date, b.pinned, b.importance, b.unfetched, b.gmail_category)
                 && a.subject == b.subject
                 && a.from == b.from
                 && a.categories == b.categories
@@ -1843,7 +1853,7 @@ impl Session {
         {
             let counts = Arc::make_mut(counts);
             for m in read.iter().filter_map(|id| mb.message(*id)) {
-                counts.read_changed(m.folder, m.account, m.read);
+                counts.read_changed(m.folder, m.account, m.gmail_category, m.read);
             }
             *at = (rev, mb.messages.len());
         }
@@ -1867,7 +1877,7 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{:?}|{}",
             self.rev,
             self.today().to_days(),
             // `received:"last week"` is other days for another first day of the week, and
@@ -1876,6 +1886,8 @@ impl Session {
             self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
+            // (Not saved with the rest of the view, so not in its text.)
+            self.view.gmail,
             serde_json::to_string(&self.view).unwrap_or_default()
         )
     }

@@ -521,6 +521,23 @@ pub struct FolderDelta {
     /// large to download), so that they are not asked for at every run.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_done: Vec<u32>,
+    /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
+    /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
+    /// ends the folder's reading; empty from every other server and folder.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail: Vec<GmailSorted>,
+}
+
+/// What Gmail said of one message of a Gmail account's Inbox ([`FolderDelta::gmail`], #911).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailSorted {
+    pub uid: u32,
+    /// The category Gmail put it in.
+    pub category: crate::GmailCategory,
+    /// Gmail's own id of it (`X-GM-MSGID`); 0 when the server gave none.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub id: u64,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -743,6 +760,7 @@ impl SyncResult {
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
+                    folder.gmail.extend(delta.gmail);
                     folder.complete |= delta.complete;
                 }
                 None => self.folders.push(delta),

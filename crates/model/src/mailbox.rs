@@ -402,6 +402,16 @@ pub struct Account {
     /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub skip_conversation_question: bool,
+    /// For a Gmail account: its owner turned off Gmail's categories (#911), which the folder pane
+    /// then doesn't show under its Inbox. Off for a new account and in a file from before there
+    /// was one: they are shown. Every other account has none to show, whatever this says.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub hide_gmail_categories: bool,
+    /// For a Gmail account: a desktop alert is shown only for new mail in Gmail's Primary category
+    /// (#911). Off for a new account and in a file from before there was one: all new mail in the
+    /// Inbox is told of, as for any account.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub alert_primary_only: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -2596,6 +2606,7 @@ impl Mailbox {
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
             copy.placed.clear();
+            copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
@@ -2621,6 +2632,7 @@ impl Mailbox {
         // the copy on a server it waits for.)
         copy.returned = 0;
         copy.placed.clear();
+        copy.left_gmail_inbox();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {

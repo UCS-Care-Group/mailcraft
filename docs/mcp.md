@@ -177,6 +177,8 @@ file gave, and a contact's names, postal addresses, phones and web sites. The se
 
 **What a sender hid.** `read_message` and `mail.get` answer, beside `body` (what the owner sees), a `hiddenText` field (#599) when the message has any: the words of what its sender hid (a preheader, the other copy of a desktop and mobile pair), which the owner's reading pane leaves out and search finds. It is message text like the rest: framed as untrusted, data and never instructions. A message read before #599 has none until it is read again from its source.
 
+**Gmail's categories.** A message of a Gmail account's Inbox carries `gmailCategory` (#911) in `list_messages`, `read_message`, `mail.list` and `mail.get`: `primary`, `social`, `promotions`, `updates` or `forums`, the category Gmail put it in. It is one of those five words, written by MailCraft and not by the sender, so it isn't framed; like every field of a message it is data about the message, never instructions. `gmail:social` and the others search for them, and `folder.select {"id", "gmail": "social"}` shows one of them.
+
 **Sender warnings.** `read_message` and `mail.get` answer a message's sender warnings (#508) in
 `warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`, `linksUnchecked`,
 `external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
