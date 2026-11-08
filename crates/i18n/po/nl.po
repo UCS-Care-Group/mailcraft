@@ -2165,7 +2165,7 @@ msgid "Change email address"
 msgstr "Wijzig e-mailadres"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
 msgstr "De kleur wijzigen"
@@ -2571,7 +2571,7 @@ msgid "Collapse the Ribbon"
 msgstr "Het lint samenvouwen"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Colour"
 msgstr "Kleur"
@@ -7348,6 +7348,12 @@ msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr "Er blijven geen wijzigingen achter: alleen e-mail in het Postvak UIT wacht."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No colour"
+msgstr "Geen kleur"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "No command matches."
@@ -10923,6 +10929,12 @@ msgstr "Weergegeven als Voornaam Achternaam wanneer leeg"
 #, fuzzy
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
 msgstr "Weergegeven als tekst: er wordt niets in uitgevoerd, geopend of gedownload."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
+msgstr "Getoond naast de naam van het account, en bij de e-mail ervan waar e-mail van meerdere accounts samen wordt weergegeven."
 
 #. interface
 #: crates/ui-egui/src/compose.rs

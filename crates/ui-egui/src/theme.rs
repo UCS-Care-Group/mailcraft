@@ -1303,20 +1303,7 @@ pub fn c32(c: mailcraft_model::Rgb) -> Color32 {
 }
 
 /// The colours a category can take: our own twelve, mid-tones that read in both themes.
-pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = [
-    mailcraft_model::Rgb(0xD1, 0x3B, 0x3B),
-    mailcraft_model::Rgb(0xE0, 0x7B, 0x1F),
-    mailcraft_model::Rgb(0xD9, 0xA4, 0x0C),
-    mailcraft_model::Rgb(0x2E, 0x8B, 0x57),
-    mailcraft_model::Rgb(0x1A, 0x9B, 0xA6),
-    mailcraft_model::Rgb(0x2F, 0x6F, 0xD0),
-    mailcraft_model::Rgb(0x7E, 0x57, 0xC2),
-    mailcraft_model::Rgb(0xC2, 0x4E, 0x9A),
-    mailcraft_model::Rgb(0x8A, 0x5A, 0x44),
-    mailcraft_model::Rgb(0x6B, 0x7A, 0x1F),
-    mailcraft_model::Rgb(0x4F, 0x6D, 0x8F),
-    mailcraft_model::Rgb(0x7A, 0x7A, 0x7A),
-];
+pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = mailcraft_model::PALETTE;
 
 /// A stable colour for a person's avatar, from their address.
 pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {

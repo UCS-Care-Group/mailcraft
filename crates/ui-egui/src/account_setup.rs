@@ -26,7 +26,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
+use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -468,6 +468,8 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
+    color: Option<(Option<Rgb>, Option<Rgb>)>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -574,6 +576,7 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            color: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -641,6 +644,9 @@ impl AccountSetup {
         }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
+        if !w.newer {
+            w.color = Some((a.color, a.color));
+        }
         if a.kind == AccountKind::Exchange {
             w.ews = Some(a.ews.clone().unwrap_or_default());
         }
@@ -1411,6 +1417,13 @@ impl AccountSetup {
             }
             self.ask_conversation = Some((ask, ask));
         }
+        if let Some((_, color)) = self.color.filter(|(was, color)| was != color) {
+            if let Err(e) = app.execute("account.edit", json!({"id": id, "color": color.map(Rgb::hex)})) {
+                self.error = e;
+                return false;
+            }
+            self.color = Some((color, color));
+        }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
             self.keep_offline = Some((keep, keep));
@@ -2032,6 +2045,13 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some((_, color)) = self.color.as_mut() {
+                caption(ui, tl!("Colour"), &t);
+                if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
+                    *color = picked;
+                }
+                note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
             }
         });
         problem(ui, &self.error);
