@@ -10,6 +10,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::bidi::{self, AlignFrom, Dir};
 use crate::data::{self, Budget};
 use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
@@ -210,6 +211,10 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    /// Whether that alignment names a side or follows the direction ([`bidi::placed`]).
+    align_from: AlignFrom,
+    /// The direction asked for (`dir`, `direction`), inherited as in a browser.
+    dir: Dir,
     /// The alignment in force comes from the `align` of a cell, a row, a `<div>` or a `<p>`, or
     /// from a `<center>`, not from a style: a table inside starts again at the left, as in a
     /// browser (its `-webkit-` alignments).
@@ -292,6 +297,9 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    align_from: AlignFrom,
+    dir: Option<Dir>,
     /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
     align_attr: bool,
     /// A table: the `align` of a cell, a row, a `<div>` or a `<p>`, or a `<center>`, outside does
@@ -323,6 +331,8 @@ impl Delta {
             size: css.size,
             font: css.font.as_deref().map(Rc::from),
             align: css.align,
+            align_from: css.align_from,
+            dir: css.direction,
             line_height: css.line_height,
             ..Delta::default()
         }
@@ -333,6 +343,7 @@ impl Delta {
     fn or_attr_align(&mut self, align: Option<Align>) {
         if self.align.is_none() && align.is_some() {
             self.align = align;
+            self.align_from = AlignFrom::Side;
             self.align_attr = true;
         }
     }
@@ -365,13 +376,19 @@ impl Delta {
         }
         if self.table && style.align_attr {
             style.align = Align::Left;
+            style.align_from = AlignFrom::Nothing;
             style.align_attr = false;
             style.align_reset = true;
         }
         if let Some(align) = self.align {
             style.align = align;
+            // (`align`, given as an attribute, names a side.)
+            style.align_from = if self.align_from == AlignFrom::Flow { AlignFrom::Flow } else { AlignFrom::Side };
             style.align_attr = self.align_attr;
             style.align_reset = false;
+        }
+        if let Some(dir) = self.dir {
+            style.dir = dir;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -602,6 +619,10 @@ struct Builder {
     spans: Vec<Span>,
     kind: BlockKind,
     align: Align,
+    /// Where that alignment came from, and the direction asked for: with the block's text, the
+    /// side it stands at ([`bidi`]).
+    align_from: AlignFrom,
+    dir: Dir,
     line_height: Option<LineHeight>,
     /// Room from the sides, left and right, that the open elements that are not boxes ask for
     /// (the margins and padding of a `<div>` that has no frame of its own), in pixels.
@@ -669,6 +690,8 @@ impl Builder {
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
             align: Align::Left,
+            align_from: AlignFrom::Nothing,
+            dir: Dir::Auto,
             line_height: None,
             inset: [0, 0],
             fresh: true,
@@ -761,6 +784,11 @@ impl Builder {
     /// table, as in a browser, aligned as what is round the table is (a table starts again at
     /// the left from some alignments: [`Style::align_attr`]).
     fn loose_align(&self) -> Align {
+        self.loose_style().align
+    }
+
+    /// The style [`Builder::loose_align`] takes the alignment from.
+    fn loose_style(&self) -> &Style {
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match node.kind {
                 // (A table too deep to be laid out holds its cells' content itself.)
@@ -768,13 +796,13 @@ impl Builder {
                 Kind::Table(ref t) if t.flat => break,
                 Kind::Table(_) | Kind::Row(_) => {
                     let table = self.nodes.get(..=i).and_then(|below| below.iter().rposition(|n| matches!(n.kind, Kind::Table(_))));
-                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align;
+                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style);
                 }
                 _ if node.delta.align.is_some() => break,
                 _ => {}
             }
         }
-        self.style().align
+        self.style()
     }
 
     // ---- text ----
@@ -890,7 +918,8 @@ impl Builder {
             } else {
                 BlockKind::Paragraph
             };
-            self.align = self.loose_align();
+            let loose = self.loose_style();
+            (self.align, self.align_from, self.dir) = (loose.align, loose.align_from, loose.dir);
             self.line_height = self.style().line_height;
             self.fresh = true;
         }
@@ -1017,7 +1046,12 @@ impl Builder {
                 }
             }
         }
-        let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        // Text in the line of a picture stays in that line, at the picture's side, unless the
+        // message says which way it reads.
+        let dir = if beside && self.dir == Dir::Auto { Dir::Ltr } else { self.dir };
+        let rtl = bidi::rtl(dir, spans.iter().flat_map(|s| s.text.chars()));
+        let align = bidi::placed(self.align, self.align_from, rtl);
+        let block = Block { quote: self.quote_depth(), align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -2339,7 +2373,14 @@ impl Builder {
             "tr" => self.open_row(tag),
             "td" | "th" => self.open_cell(tag, tag.name == "th"),
             "caption" | "thead" | "tfoot" => self.table_part(true),
-            "tbody" | "html" | "head" | "option" | "optgroup" => self.table_part(false),
+            "html" => {
+                // (The whole message reads the way `<html dir>` says, under what its body says.)
+                if let Some(dir) = css_of(tag).direction {
+                    self.base.dir = dir;
+                }
+                self.table_part(false);
+            }
+            "tbody" | "head" | "option" | "optgroup" => self.table_part(false),
             name => {
                 if let Some(name) = block_name(name) {
                     self.open_block(name, tag);
@@ -2438,10 +2479,13 @@ pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
 /// What an element's style sheet rules and its `style` attribute say, in the order of the
 /// cascade (`sheet::css_with`).
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
-    match &tag.sheet {
+    let mut css = match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),
         Some(applied) => sheet::css_with(applied, tag.attr("style").as_deref()),
-    }
+    };
+    // (`dir` is a style a browser gives the element, which the message's own beats.)
+    css.direction = css.direction.or_else(|| tag.attr("dir").as_deref().and_then(Dir::attr));
+    css
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).

@@ -15,7 +15,8 @@
 //! | background colour | `background-color`, the colour in `background` (a `url()` there is never used) |
 //! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
-//! | alignment | `text-align` |
+//! | alignment | `text-align`; `start`, `end` and `justify` follow the paragraph's direction, the sides don't |
+//! | direction | `direction` (`ltr`, `rtl`) and the `dir` attribute (`ltr`, `rtl`, `auto`): a paragraph that reads from the right stands at the right; one with none takes it from its first letter that has one (`bidi.rs`) |
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`, the families after the size in `font`: the list of names (at most [`MAX_FAMILIES`]), for the reading pane to draw in the first that is installed on this computer and for pasting into the composer; a font is never fetched (`@font-face` is ignored) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
@@ -49,6 +50,7 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
+use crate::bidi::{AlignFrom, Dir};
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
     MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
@@ -116,6 +118,10 @@ pub(crate) struct Css {
     pub underline: Option<bool>,
     pub strike: Option<bool>,
     pub align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    pub align_from: AlignFrom,
+    /// `direction`, and the `dir` attribute where it gives none ([`crate::blocks::css_of`]).
+    pub direction: Option<Dir>,
     pub size: Option<Size>,
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
@@ -221,7 +227,13 @@ impl Css {
                         css.strike = Some(true);
                     }
                 }
-                "text-align" => css.align = align(value).or(css.align),
+                "text-align" => {
+                    if let Some(side) = align(value) {
+                        css.align = Some(side);
+                        css.align_from = if matches!(value, "start" | "end" | "justify") { AlignFrom::Flow } else { AlignFrom::Side };
+                    }
+                }
+                "direction" => css.direction = Dir::css(value).or(css.direction),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
                 "display" => {

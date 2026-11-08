@@ -4000,6 +4000,7 @@ mod invitation;
 mod primary;
 mod remote_server;
 mod responsive;
+mod rtl;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
