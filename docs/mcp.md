@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-08 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -235,6 +235,10 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-08 | patch | AU3-R1: what is framed as untrusted also covers a message's source, the searches built from a message, an online meeting's link, categories, identifiers and a contact's details |
+| 2026-11-08 | patch | AU3-R2: with `--connect`, a request is sent again only when it never reached the app; a lost answer is an error that says the app may have run it |
+| 2026-11-08 | patch | AU3-R4: a message on stdio is at most 1 MiB; a longer line is answered with an error and the next one served |
+| 2026-11-07 | patch | AU3-14: a new sender warning kind, `linksUnchecked`, for a message with more looks than are checked |
 | 2026-11-04 | patch | #473 follow-up: `safe`, `delete` and `edit.undo` name messages among what an undo or redo removes (a server copy of a Microsoft or Exchange server account goes to Deleted Items instead); an undo or redo that puts back accounts or a change that writes to people and takes messages away is asked once, the question names the messages, and a yes covers Delete too |
 | 2026-11-03 | patch | #566 follow-up: `rules.move` of a rule its server has that deletes mail (or moves it to Deleted Items, or has parts MailCraft doesn't know) is `delete`, as `rules.enable` is |
 | 2026-11-02 | minor | #566: `delete` also covers deleting a rule its server has or may have, a rule that deletes mail or moves it to Deleted Items or a folder under it going to its server or switched on there, and a server's rule with parts MailCraft doesn't know switched on |
