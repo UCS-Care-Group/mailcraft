@@ -238,6 +238,29 @@ pub fn links(blocks: &[Block]) -> Vec<(String, String)> {
     out
 }
 
+/// The links of `html` in every look its style sheets give it (AU3-14): a pane of each width and
+/// theme its `@media` rules tell apart ([`mailcraft_html::media_envs`]), each link once, at most
+/// [`sender_warnings::MAX_LINKS`]. A deceptive link that only a narrow pane or a dark window shows
+/// is judged as one the default look shows. With them comes whether every look was looked at:
+/// not when the message has more than are tried.
+pub fn links_in_every_look(html: &str) -> (Vec<(String, String)>, bool) {
+    let lists = mailcraft_html::media_lists(html);
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    let (envs, every) = mailcraft_html::media_envs(&lists);
+    for env in envs {
+        for link in links(&mailcraft_html::parse_in(html, &env).blocks) {
+            if out.len() >= sender_warnings::MAX_LINKS {
+                return (out, every);
+            }
+            if seen.insert(link.clone()) {
+                out.push(link);
+            }
+        }
+    }
+    (out, every)
+}
+
 fn gather(blocks: &[Block], out: &mut Vec<(String, String)>, depth: usize) {
     if depth > 16 {
         return;
@@ -313,9 +336,19 @@ impl Session {
         }
         let facts = checks.facts();
         let kind = self.mailbox.folder(m.folder).map(|f| f.kind);
-        let body = links.then(|| m.body.html.as_deref().map(|html| self::links(&mailcraft_html::parse(html)))).flatten();
-        let pairs = body.as_ref().map(|pairs| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
-        let warnings = Arc::new(sender_warnings::check(m, account, kind, &facts, pairs));
+        let body = links.then(|| m.body.html.as_deref().map(links_in_every_look)).flatten();
+        let pairs = body.as_ref().map(|(pairs, _)| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
+        let mut warnings = sender_warnings::check(m, account, kind, &facts, pairs);
+        // A look not checked may hold a link that goes somewhere else (AU3-14): said, before the
+        // External tag, where the links are judged at all.
+        if body.as_ref().is_some_and(|(_, every)| !every)
+            && !matches!(kind, Some(FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox))
+            && !facts.is_own(&m.from.email)
+        {
+            let at = warnings.iter().position(|w| matches!(w, Warning::External { .. })).unwrap_or(warnings.len());
+            warnings.insert(at, Warning::LinksUnchecked);
+        }
+        let warnings = Arc::new(warnings);
         if checks.kept.len() >= MAX_KEPT {
             checks.kept.clear();
         }

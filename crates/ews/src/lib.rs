@@ -54,6 +54,8 @@ pub mod client;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod compose;
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+mod delete_check;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod error;
@@ -98,6 +100,8 @@ pub mod standin_ntlm;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_write;
 
+#[cfg(test)]
+mod delete_check_tests;
 #[cfg(test)]
 mod hostile_tests;
 #[cfg(test)]

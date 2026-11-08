@@ -326,10 +326,20 @@ fn the_owner_is_asked_before_the_sign_in_goes_to_another_host() {
 }
 
 #[test]
+fn a_long_host_is_shown_by_its_end_which_holds_its_domain() {
+    // (H5: what is cut off is in front, so the domain the host is in is always read.)
+    assert_eq!(super::exchange::host_shown("mail.example.org", 120), "mail.example.org");
+    let long = format!("{}.example.org", "a".repeat(200));
+    let shown = super::exchange::host_shown(&long, 40);
+    assert!(shown.starts_with('…') && shown.ends_with(".example.org") && shown.chars().count() == 40, "{shown}");
+}
+
+#[test]
 fn the_other_reasons_for_asking_are_said_in_plain_words() {
     for (reason, said) in [
         (EwsConsentReason::OtherDomain, "asks to start again with an address in another domain, mail.other.example"),
         (EwsConsentReason::MailServer, "name mail.other.example, which isn't in your address's own domain, as the mail server"),
+        (EwsConsentReason::SignIn, "mail.other.example is in your address's own domain, but it isn't the Autodiscover server your domain names"),
     ] {
         let mut a = app();
         let host = Host::default();

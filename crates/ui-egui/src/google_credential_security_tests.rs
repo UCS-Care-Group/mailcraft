@@ -128,9 +128,9 @@ fn google_security_only_passwords_and_refresh_tokens_may_reach_the_store() {
     assert!(store.0.lock().unwrap().values().all(|v| v != &access));
 
     // Even if a future caller passes the wrong kind, the storage boundary fails closed.
-    a.remember("access", "one@example.org", "do-not-persist-an-access-token");
-    a.remember("bearer", "one@example.org", "also-not-allowed");
-    assert!(a.remembered("access", "one@example.org").is_none());
+    a.remember("access", a.account_at("one@example.org").map_or(0, |x| x.id), "do-not-persist-an-access-token");
+    a.remember("bearer", a.account_at("one@example.org").map_or(0, |x| x.id), "also-not-allowed");
+    assert!(a.remembered("access", a.account_at("one@example.org").map_or(0, |x| x.id)).is_none());
     assert!(store.0.lock().unwrap().keys().all(|key| key.starts_with("refresh:")));
     assert!(!store.0.lock().unwrap().values().any(|value| value.contains("do-not-persist")));
 

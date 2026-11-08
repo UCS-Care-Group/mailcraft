@@ -362,7 +362,10 @@ pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
     Some(a)
 }
 
-/// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft.
+/// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft. An
+/// Exchange server account that trusts a certificate the system doesn't says which, whole, so
+/// that a question naming its servers names that too (Confirm Servers, an agent's
+/// `account.add` and `account.edit`, AU3-02).
 pub fn servers_text(a: &Account) -> String {
     let one = |name: &str, s: &Option<Server>| match s {
         Some(s) if s.port == 0 => Some(format!("{name} {}", s.host)),
@@ -380,12 +383,22 @@ pub fn servers_text(a: &Account) -> String {
     }
     if a.kind == AccountKind::Exchange {
         return match a.ews.as_ref().filter(|server| server.problem().is_none()) {
+            Some(server) if !server.trusted.is_empty() => {
+                format!("exchange {}, trusting the certificate {}", jmap_origin(&server.url), pin_text(&server.trusted))
+            }
             Some(server) => format!("exchange {}", jmap_origin(&server.url)),
             None => "exchange, no server address that can be used".to_string(),
         };
     }
     let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
+}
+
+/// A certificate's SHA-256 fingerprint as it is shown: in pairs of upper-case digits.
+/// (One that may be used is 64 hexadecimal digits: [`EwsServer::check_fingerprint`].)
+fn pin_text(fingerprint: &str) -> String {
+    let digits: Vec<char> = fingerprint.chars().filter(char::is_ascii_hexdigit).take(64).map(|c| c.to_ascii_uppercase()).collect();
+    digits.chunks(2).map(|pair| pair.iter().collect::<String>()).collect::<Vec<_>>().join(":")
 }
 
 /// The scheme and the server, with its port, of a JMAP session address that may be used
@@ -1103,6 +1116,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
+    // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
+    // said already that it couldn't send it.)
+    let mut said = Vec::new();
+    super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
         let free = !made.remote.is_empty() && !mb.folders.iter().any(|f| f.account == account && f.remote == made.remote);

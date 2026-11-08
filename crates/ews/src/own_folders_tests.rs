@@ -156,7 +156,7 @@ fn a_change_of_one_of_the_servers_own_is_refused_without_asking_and_the_list_is_
     let changes = vec![
         FolderChange::Rename { folder: 10, id: history.clone(), name: "Chats".into() },
         FolderChange::Move { folder: 10, id: own[1].clone(), parent: mine.clone() },
-        FolderChange::Delete { id: history.clone() },
+        FolderChange::Delete { id: history.clone(), shown: Default::default() },
         FolderChange::Rename { folder: 11, id: mine.clone(), name: "My chats".into() },
     ];
     let result = run(&standin, &EwsMailRequest { changes, hierarchy: first.hierarchy.clone(), ..request() });
@@ -193,7 +193,7 @@ fn a_run_that_lists_no_folders_still_reads_them_afresh_after_a_refused_deletion(
     let light = EwsMailRequest {
         list_folders: false,
         hierarchy: first.hierarchy.clone(),
-        changes: vec![FolderChange::Delete { id: own[0].clone() }],
+        changes: vec![FolderChange::Delete { id: own[0].clone(), shown: Default::default() }],
         ..request()
     };
     let result = run(&standin, &light);
@@ -205,12 +205,16 @@ fn a_run_that_lists_no_folders_still_reads_them_afresh_after_a_refused_deletion(
 #[test]
 fn a_deletion_the_server_refuses_has_the_folder_list_read_afresh() {
     let standin = StandIn::new();
-    mailbox(&standin);
+    let (_, mine) = mailbox(&standin);
     let first = run(&standin, &request());
-    // (The Inbox is no folder of [`OWN`]: the deletion is asked, and the server refuses it.)
+    // (The Inbox is no folder of [`OWN`]: the deletion is asked, and the server refuses it. What
+    // it holds, the owner's folder, was shown, AU3-H7.)
     let inbox = standin.state().folder_id("inbox").unwrap();
-    let result =
-        run(&standin, &EwsMailRequest { hierarchy: first.hierarchy.clone(), changes: vec![FolderChange::Delete { id: inbox.clone() }], ..request() });
+    let shown = mailcraft_model::sync::Shown::of("Inbox", [inbox.as_str(), mine.as_str()], []);
+    let result = run(
+        &standin,
+        &EwsMailRequest { hierarchy: first.hierarchy.clone(), changes: vec![FolderChange::Delete { id: inbox.clone(), shown }], ..request() },
+    );
     assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("doesn't let")));
     assert_eq!(standin.state().writes, ["DeleteFolder"]);
     let folders = result.folders.as_ref().unwrap();

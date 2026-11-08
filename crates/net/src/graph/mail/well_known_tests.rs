@@ -138,7 +138,7 @@ fn a_change_of_one_of_them_is_refused_without_asking_and_the_listing_goes_on() {
     let changes = vec![
         FolderChange::Rename { folder: 41, id: own.clone(), name: "Mine".into() },
         FolderChange::Move { folder: 41, id: own.clone(), parent: deleted.clone() },
-        FolderChange::Delete { id: own.clone() },
+        FolderChange::Delete { id: own.clone(), shown: Default::default() },
         // The owner's own still goes.
         FolderChange::Rename { folder: 42, id: projects.clone(), name: "Projects 2026".into() },
     ];
