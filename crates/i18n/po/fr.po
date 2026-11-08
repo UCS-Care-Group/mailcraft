@@ -62,8 +62,8 @@ msgstr "« {subject} » a peut-être été envoyé : vérifiez dans Élém
 msgid "(No title)"
 msgstr "(Sans titre)"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(sans nom)"
@@ -4531,6 +4531,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in needs Google's IMAP server"
 msgstr ""
 
@@ -7288,6 +7293,11 @@ msgid "Not connected: the rest of this message is on the server"
 msgstr "Non connecté : le reste de ce message se trouve sur le serveur"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Not every layout checked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Not in Outlook's list: no colour there"
@@ -7405,6 +7415,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sending.rs
+msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
 msgstr ""
 
 #. date and time
@@ -9361,8 +9376,8 @@ msgstr "Enregistrer la boîte aux lettres"
 msgid "Save Mailbox As"
 msgstr "Enregistrer la boîte aux lettres sous"
 
-#. command label
-#: crates/engine/src/cmd/file.rs
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Save Message As"
 msgstr "Enregistrer le message sous"
@@ -11599,6 +11614,13 @@ msgstr ""
 msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr "Le dossier « {folder} » et tout son contenu seront supprimés."
 
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
+msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "The folder isn't there."
@@ -11841,6 +11863,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The search for your Exchange server was sent on to {host}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected message, as .eml"
 msgstr ""
 
 #. interface
@@ -12338,13 +12365,13 @@ msgid "This build can't ask a server when other people are busy: only your own c
 msgstr "Cette version ne peut pas demander à un serveur quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "Cette version ne peut pas se connecter à Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Cette version ne peut pas se connecter aux serveurs de messagerie"
@@ -12563,6 +12590,11 @@ msgstr "Cette invitation n'indique pas quand a lieu la réunion."
 #, fuzzy
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr "Cette invitation n'indique pas de quelle réunion il s'agit ; il est donc impossible d'y répondre."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -12795,6 +12827,11 @@ msgstr ""
 #, fuzzy
 msgid "This message isn't on this computer yet. It will download when you're online."
 msgstr "Ce message n'est pas encore sur cet ordinateur. Il se téléchargera lorsque vous serez en ligne."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

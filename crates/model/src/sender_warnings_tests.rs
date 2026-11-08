@@ -65,11 +65,25 @@ fn a_dmarc_fail_from_the_own_server_is_a_warning() {
     let m = with_results(from("Shop", "news@shop.example"), "mx.lumen.example; dmarc=fail action=quarantine");
     assert_eq!(failed_check(Some(&account), &m), Some(Failed::Dmarc));
     assert_eq!(kinds(&m), ["failedCheck", "external"]);
-    // Exchange Online writes no id.
+    // Exchange Online's, with its id above the hop where it took the mail in (AU3-V5).
     let microsoft = Account { kind: AccountKind::Microsoft, ..account.clone() };
-    let m =
-        with_results(from("Shop", "news@shop.example"), "spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example");
+    let mut m = with_results(
+        from("Shop", "news@shop.example"),
+        "mx.microsoft.com 1; spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example",
+    );
+    m.headers.push(("Received".into(), "from mail.shop.example (192.0.2.1) by A1.mail.protection.outlook.com (10.0.0.1)".into()));
+    m.headers.push(("X-MS-Exchange-Organization-MessageDirectionality".into(), "Incoming".into()));
     assert_eq!(failed_check(Some(&microsoft), &m), Some(Failed::Dmarc));
+    // Without an id, as Exchange writes it for consumer mailboxes, it is Exchange's too.
+    m.headers[0].1 = "spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    assert_eq!(failed_check(Some(&microsoft), &m), Some(Failed::Dmarc));
+    // Another id, or not above that hop, it is not.
+    m.headers[0].1 = "mx.shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    assert_eq!(failed_check(Some(&microsoft), &m), None);
+    m.headers[0].1 = "spf=fail smtp.mailfrom=shop.example; dmarc=fail action=oreject header.from=shop.example".into();
+    let below = m.headers.remove(0);
+    m.headers.push(below);
+    assert_eq!(failed_check(Some(&microsoft), &m), None);
 }
 
 #[test]

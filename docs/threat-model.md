@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -47,6 +47,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   tucked away is out of reach of the owner's tools. For an agent it is message text like any
   other: framed as untrusted, data and never instructions. A message stored before this keeps no
   such text until it is read again from its source.
+- **A file is never hidden by what the body says of it.** A part is shown in place, and left out
+  of the attachment list, `has:attachment`, the rules that look for an attachment and a reply's
+  quote, only when an `<img>` of the body asks for it by `cid:` and it is a PNG, JPEG, GIF or WebP
+  by its own bytes; a `cid:` anywhere else (text, a comment, a link) or a file of another kind is
+  listed (`crates/model/src/shown.rs`, one bounded reader for the list, a reply, the parts brought
+  in with a body and a `.pst` file's inline pictures; AU3-15). While a body is kept outside
+  memory, only a part that is a picture is taken to be one it shows.
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
@@ -61,8 +68,20 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**
-  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account any
-  topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
+  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account (or
+  an IMAP account at Microsoft's host) only the topmost header with Exchange Online's authserv-id
+  `mx.microsoft.com`, or with none (as it writes for consumer mailboxes), that stands above the
+  topmost `Received` by one of its edge hosts (`*.mail.protection.outlook.com`), and only when
+  Exchange says the mail came in from outside
+  (`X-MS-Exchange-Organization-MessageDirectionality: Incoming`, every one of them, a header the
+  message reader keeps apart from its cap on headers as it does the one below):
+  what is below that hop came with the message, and mail sent inside the organisation gets no
+  such header, so no `Authentication-Results` in it vouches for anything
+  (`exchange_online_results`, AU3-V5). A failure in that topmost header is a warning without the
+  word that the mail came in: a forged one can only add a warning. This rests on Exchange's
+  header firewall, which removes its organisation's headers from mail that arrives through its
+  transport; mail another program puts into the mailbox (IMAP `APPEND`, an upload) is not
+  filtered, so headers it carries may be forged; for another account one whose
   authserv-id (RFC 8601) is a known id of its IMAP host's provider
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
@@ -80,6 +99,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   server's own `Authentication-Results` still wins, and so does one too long to be read whole. A colleague on another of the
   organisation's domains is not vouched for this way. A message moved or copied onto the
   server from another account or from this computer leaves the stamp behind (`forget_stamps`),
+  and with it every `Authentication-Results` and `ARC-Authentication-Results` it carried, so that
+  no copy MailCraft puts on a server (`APPEND`, a Graph upload) is vouched for by what another
+  server, or its author, wrote of it (AU3-11),
   and the reader keeps room for it past its caps on header fields and header bytes too; an undo
   that moves mail back from a shared mailbox leaves it behind as well. Versions from before kept
   it on such a move, so a stamp is believed only when this version read it from the message
@@ -166,7 +188,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `List-Post`, does an address in it); and the External tag alone is never a warning. Mail in
   Sent Items, Drafts and the Outbox is not checked, and mail from the owner's own addresses (a
   shared mailbox's too) only for a failed check, since anybody can write them on a message; Junk
-  E-mail is checked. Everything is bounded (so many characters of a name, a link's text or a
+  E-mail is checked. A message's links are gathered in every look its style sheets give it (a
+  pane of each width and theme its `@media` rules tell apart), so that a
+  deceptive link that only a narrow pane or a dark window shows is warned of too
+  (`links_in_every_look`, AU3-14); a message with more looks than are checked is said to have
+  them (`linksUnchecked`, a caution), so that one past the last never passes in silence. Everything is bounded (so many characters of a name, a link's text or a
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
@@ -177,10 +203,16 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **A cancellation calls off only what its sender may.** "Remove from Calendar" is offered, and
   `calendar.removeCancelled` acts, only for a meeting that is somebody else's and, on a local
   calendar, when the cancellation names the meeting's organizer **and** comes from that address; a
-  meeting an account's server keeps only for a cancellation received in that account
-  (`may_call_off`). Any other cancellation is shown and the owner removes the meeting
+  meeting an account's server keeps only for a cancellation received in that account that names
+  its organizer and comes from that address too (`may_call_off`). An invitation with the `UID` of
+  a meeting a server keeps is answered from the message only when it, too, names the meeting's
+  organizer and comes from that address (`blocked`, `respond`, AU3-13). Any other cancellation is shown and the owner removes the meeting
   themselves. No DMARC word is needed: the organizer and the From line must agree, and the
   limit is that both are written by the sender.
+- **Safe Senders don't overrule the server's word.** A safe sender's address brings new mail out
+  of the server's Junk E-mail only when the account's own server doesn't say that mail failed
+  its checks for the sender's domain (`Mailbox::sort_junk`, `failed_check`, AU3-12): the `From:`
+  line is the sender's to write.
 - **Links** are shown with their real destination; only `http`, `https`, `mailto`, `tel` and `cid`
   are followed. A web address is read by MailCraft's own strict reader (`crates/link`, RFC 3986;
   no `url` crate): the host shown (after any `@`, an international name as `xn--`, a number as
@@ -366,7 +398,17 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   confirmed it (AU3-02, AU3-03). A Microsoft or Google sign-in goes only to that provider's own mail
   servers, never to this computer outside a test (AU3-19). Work started for a mailbox (a sign-in, the copy
   before a switch to Graph) records `Session::openings()` and is dropped when another mailbox has
-  taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). A
+  taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
+  every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
+  Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
+  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  When another mailbox takes the place of the open one they are all called off, an answer that
+  still comes for the old one is let go of whole, and no answer is taken in for an account under
+  the address of the account open now; a shared mailbox's sign-in is checked against its owner's
+  address (AU3-08, AU3-09, AU3-10, AU3-21, AU3-V8). A message handed to a server to be sent is
+  marked so in the mailbox file first, and the run's answer clears the mark: a message still marked
+  at the account's next run (the answer was let go of, or MailCraft stopped mid-send) is held as
+  one that may have been sent, never sent again until the owner says so (AU3-26). A
   `mailto:` link handed in from outside saves a message with changes to Drafts first (AU2-19).
 - **The control channel** (only when started with `--control`) listens on `127.0.0.1` only, and every
   request must carry a key: 32 random bytes from the operating system, written to a key file created
@@ -533,6 +575,9 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
+| 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
+| 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
