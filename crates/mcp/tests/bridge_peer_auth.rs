@@ -78,3 +78,17 @@ fn the_app_that_proves_the_key_is_sent_the_key_and_the_request() {
     let second: Value = serde_json::from_str(&lines[1]).unwrap();
     assert_eq!((second["method"].as_str(), second["key"].as_str()), (Some("mailbox.inspect"), Some(KEY)));
 }
+
+#[test]
+fn an_over_cap_reply_is_refused_and_the_key_is_never_sent() {
+    // A peer that answers the challenge with an unbounded line does not choose how much the
+    // bridge buffers: the reply is refused at the cap, the connection is closed, and the key
+    // and any request are never sent to it.
+    let (port, rx) = listener(|_| json!({"ok": true, "result": {"proof": "x".repeat(2 << 20)}}));
+    let mut r = Remote::connect_with_key(&format!("127.0.0.1:{port}"), KEY).unwrap();
+    let e = r.call("engine.execute", json!({"command": "mail.flag"})).unwrap_err();
+    assert!(e.contains("reply too long") || e.contains("not reachable"), "{e}");
+    let lines = seen(&rx);
+    assert!(!lines.is_empty() && lines.iter().all(|l| l.contains("auth.challenge")), "{lines:?}");
+    assert!(lines.iter().all(|l| !l.contains(KEY) && !l.contains("engine.execute")), "{lines:?}");
+}

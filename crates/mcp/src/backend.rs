@@ -201,17 +201,27 @@ impl Remote {
     }
 
     fn roundtrip(&mut self, line: &str) -> std::io::Result<String> {
+        /// The most a reply line may hold, as the sibling channels cap their lines: the app's
+        /// own replies are small, so a longer one is a hostile peer's.
+        const MAX_LINE: u64 = 1 << 20;
         let Some((reader, writer)) = self.conn.as_mut() else {
             return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected"));
         };
         writer.write_all(line.as_bytes())?;
         writer.write_all(b"\n")?;
         writer.flush()?;
-        let mut reply = String::new();
-        if reader.read_line(&mut reply)? == 0 {
+        // Read with the same cap the app caps its request lines with: a peer that answers with
+        // an unbounded line does not choose how much this process buffers.
+        let mut buf = Vec::new();
+        let n = reader.by_ref().take(MAX_LINE + 1).read_until(b'\n', &mut buf)?;
+        if n == 0 {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed"));
         }
-        Ok(reply)
+        if buf.len() > MAX_LINE as usize {
+            self.conn = None;
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "reply too long"));
+        }
+        String::from_utf8(buf).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "reply not UTF-8"))
     }
 
     /// One request and its reply, with one retry on a new connection (the app may have
