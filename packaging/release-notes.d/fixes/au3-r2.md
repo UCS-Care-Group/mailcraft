@@ -1,1 +1,0 @@
-- With MCP connected to the running window, a command whose answer was lost is no longer sent a second time: the agent is told the app may have run it (AU3-R2).
