@@ -8,11 +8,18 @@
 //! extensions"): one search for each of the four that aren't Primary, and Primary is what none of
 //! them found.
 //!
-//! It is changed through Gmail's API (`messages.modify`, from Google's Gmail API reference): the
+//! It is changed through Gmail's API (`messages.batchModify`, from Google's Gmail API reference): the
 //! category's label is added and the other four taken off ([`GmailCategory::api_label`]). Only an
 //! account that signs in with Google has a token the API takes ([`Account::moves_gmail_categories`]).
 
 use serde::{Deserialize, Serialize};
+
+/// Whether mail can be moved between Gmail's categories in this build: the move goes through
+/// Gmail's API, which the justification Google is reviewing doesn't name yet. Off, the engine
+/// disables `mail.setGmailCategory`, the window offers no menu or drop for it, and `mailcraft-net`
+/// sends nothing to Gmail's API whatever a request asks.
+// ponytail: on once Google has verified the app (#232).
+pub const GMAIL_CATEGORY_MOVES: bool = false;
 
 use crate::{Account, Message, OAuthProvider};
 

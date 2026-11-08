@@ -144,16 +144,19 @@ Send/Receive, also when you made it offline; in conversation view, every message
 conversation in that Inbox moves. A move made here wins over Gmail until Gmail has it; a change
 made only in Gmail (on the web, on a phone) is taken in at the next Send/Receive. Agents move
 mail with `mail.setGmailCategory` (`{"ids": [...], "category": "social"}`), naming the messages
-as for a move to a folder.
+as for a move to a folder; exactly the messages named move.
 
 **This is switched off in this version**, and comes once Google has reviewed MailCraft's use of
-Gmail's API for it: until then the item isn't in the menu, the folders and tabs take no messages,
-and nothing is sent to Gmail's API.
+Gmail's API for it: until then the item isn't in the menu or in command search, the folders and
+tabs take no messages, and nothing is sent to Gmail's API. A move left waiting by a build that had
+it switched on gives way to Gmail's category at the next Send/Receive.
 
 Gmail's IMAP extensions can read the categories but not change them, so a move goes through
-Gmail's API (`gmail.googleapis.com`): the message's Gmail id (`X-GM-MSGID`) and the category's
-label (Primary is `CATEGORY_PERSONAL`; the other four are taken off), with the account's Google
-sign-in, whose `https://mail.google.com/` permission covers it. Nothing else of the message goes.
+Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
+ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
+taken off), with the account's Google sign-in, whose `https://mail.google.com/` permission covers
+it. Nothing else of the messages goes. Gmail answers such a request as a whole, so a message Gmail
+no longer has is set right at the next reading of the Inbox.
 That is why an account that signs in with an **app password** can show the categories but can't
 move between them: Gmail's API takes no app password. Its Move to Category is greyed, with a note
 that it needs Google sign-in; switch the account to Google sign-in to move. The browser build

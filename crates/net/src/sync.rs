@@ -683,31 +683,43 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
 }
 
 /// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
-/// #911), [`MAX_GMAIL_MOVES`] at most: each it takes, or that finds the message gone from Gmail,
-/// goes back as moved. Only for a Gmail account that signs in with Google, whose token the API
-/// takes; a request for any other has its moves left alone, and nothing is sent. A token or a
-/// permission Gmail doesn't take, Gmail busy or out of reach leave the rest for the next run; one
-/// move it refuses doesn't hold up the others. The problem is said once.
+/// #911), [`MAX_GMAIL_MOVES`] at most, in one `batchModify` for each category moved to: the moves
+/// of each batch it takes go back as moved (Gmail answers a batch as a whole, so a message it no
+/// longer has goes back as moved too, and the next reading of the Inbox sets it right). Only for a
+/// Gmail account that signs in with Google, whose token the API takes, and only while moves are
+/// switched on in this build; else nothing is sent, whatever the request asks. A token or a
+/// permission Gmail doesn't take, Gmail busy or out of reach leave the rest for the next run; a
+/// batch it refuses doesn't hold up the others. The problem is said once.
 fn gmail_moves(run: &mut Run, host: Host) {
     let request = run.request;
     let google = request.account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
-    if request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
+    if !crate::gmail::switched_on() || request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
         return;
     }
+    let moves: Vec<_> = request.gmail_moves.iter().take(MAX_GMAIL_MOVES).filter(|m| m.id != 0).collect();
+    let batches: Vec<Vec<_>> = GmailCategory::ALL
+        .iter()
+        .flat_map(|category| {
+            let these: Vec<_> = moves.iter().copied().filter(|m| m.category == *category).collect();
+            these.chunks(crate::gmail::MAX_BATCH).map(<[_]>::to_vec).collect::<Vec<_>>()
+        })
+        .collect();
     let mut problem: Option<NetError> = None;
     let mut failed = 0usize;
-    for (at, moving) in request.gmail_moves.iter().take(MAX_GMAIL_MOVES).enumerate() {
+    for (at, batch) in batches.iter().enumerate() {
         if run.cancelled() {
             break;
         }
-        match crate::gmail::modify(&request.access_token, moving.id, moving.category) {
-            Ok(_) => run.out.gmail_moved.push(*moving),
+        let Some(category) = batch.first().map(|m| m.category) else { continue };
+        let ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
+        match crate::gmail::batch_modify(&request.access_token, &ids, category) {
+            Ok(()) => run.out.gmail_moved.extend(batch.iter().copied().copied()),
             Err(e) => {
-                failed += 1;
-                let one = matches!(e, NetError::Proto(ProtoError::Rejected(_)) | NetError::Config(_));
+                failed += batch.len();
+                let these_alone = matches!(e, NetError::Proto(ProtoError::Rejected(_)) | NetError::Config(_));
                 problem.get_or_insert(e);
-                if !one {
-                    failed += request.gmail_moves.len().min(MAX_GMAIL_MOVES).saturating_sub(at + 1);
+                if !these_alone {
+                    failed += batches.iter().skip(at + 1).map(Vec::len).sum::<usize>();
                     break;
                 }
             }

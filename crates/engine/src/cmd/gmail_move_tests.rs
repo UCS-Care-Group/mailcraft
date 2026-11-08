@@ -169,26 +169,62 @@ fn undo_puts_it_back_and_after_gmail_had_it_moves_it_back_there() {
 }
 
 #[test]
-fn in_conversation_view_the_whole_conversation_in_the_inbox_moves() {
+fn in_conversation_view_the_selection_takes_its_conversation_and_named_ids_move_alone() {
     let (mut s, account, inbox) = sorted_inbox(true);
-    let (one, two, three) = (id_of(&s, account, 1), id_of(&s, account, 2), id_of(&s, account, 3));
+    let (one, two) = (id_of(&s, account, 1), id_of(&s, account, 2));
     s.run("view.conversations", &json!({"value": true})).unwrap();
     s.run("folder.select", &json!({"id": inbox})).unwrap();
-    let answer = s.run(ID, &json!({"ids": [two], "category": "primary"})).unwrap();
+    // Named, as an agent names them: that message alone, as `mail.move` moves it.
+    let answer = s.run(ID, &json!({"ids": [two], "category": "updates"})).unwrap();
+    assert_eq!(answer["moved"].as_u64(), Some(1));
+    assert_eq!(
+        (by_uid(&s, account, 1).gmail_category, by_uid(&s, account, 2).gmail_category),
+        (Some(GmailCategory::Promotions), Some(GmailCategory::Updates))
+    );
+    // The selection: its whole conversation in that Inbox, and nothing else.
+    s.sel.messages = vec![one];
+    let answer = s.run(ID, &json!({"category": "primary"})).unwrap();
     assert_eq!(answer["moved"].as_u64(), Some(2));
-    assert_eq!(by_uid(&s, account, 1).gmail_category, Some(GmailCategory::Primary));
+    assert_eq!(by_uid(&s, account, 2).gmail_category, Some(GmailCategory::Primary));
     assert_eq!(by_uid(&s, account, 3).gmail_category, Some(GmailCategory::Social), "not of the conversation");
     let mut waiting: Vec<Id> = moves(&s, account).iter().map(|m| m.0).collect();
     waiting.sort();
     assert_eq!(waiting, [one, two]);
-    // Without conversations, only the message named.
+    // Without conversations, the selection alone.
     s.run("view.conversations", &json!({"value": false})).unwrap();
-    s.run(ID, &json!({"ids": [one], "category": "forums"})).unwrap();
+    s.sel.messages = vec![one];
+    s.run(ID, &json!({"category": "forums"})).unwrap();
     assert_eq!(
         (by_uid(&s, account, 1).gmail_category, by_uid(&s, account, 2).gmail_category),
         (Some(GmailCategory::Forums), Some(GmailCategory::Primary))
     );
-    let _ = three;
+}
+
+#[test]
+fn switched_off_gmails_reading_wins_over_a_move_left_waiting() {
+    // A mailbox file saved with a move waiting (made in a build with moves on), opened in one with
+    // them off: the next reading of the Inbox has Gmail's word, and nothing is queued.
+    let (mut s, account, inbox) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    let saved = serde_json::to_string(&s.mailbox).unwrap();
+    let mut s = Session::empty();
+    s.mailbox = serde_json::from_str(&saved).unwrap();
+    assert!(!s.gmail_category_moves);
+    assert_eq!(by_uid(&s, account, 3).gmail_move_waiting(), Some(GmailCategory::Forums));
+    assert!(moves(&s, account).is_empty());
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Updates)])], Vec::new())).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_synced, m.gmail_move_waiting()), (Some(GmailCategory::Updates), Some(GmailCategory::Updates), None));
+    assert!(moves(&s, account).is_empty());
+    // Likewise once the account no longer signs in with Google, moves on or not.
+    let (mut s, account, inbox) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    s.mailbox.accounts.iter_mut().find(|a| a.id == account).unwrap().oauth = None;
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Social)])], Vec::new())).unwrap();
+    assert_eq!(by_uid(&s, account, 3).gmail_category, Some(GmailCategory::Social));
+    assert!(moves(&s, account).is_empty());
 }
 
 #[test]

@@ -3,11 +3,11 @@
 //! A stand-in for Gmail's API, for the tests: nothing here leaves this machine, and nothing here
 //! is in a build that isn't a test's.
 //!
-//! It answers the one call MailCraft makes (`POST /gmail/v1/users/me/messages/{id}/modify`) as
+//! It answers the one call MailCraft makes (`POST /gmail/v1/users/me/messages/batchModify`) as
 //! Google's reference has it, and holds a client to it: `Authorization: Bearer` with the token it
-//! was set up with (401 otherwise), a JSON body (400 otherwise) of `addLabelIds` and
-//! `removeLabelIds` holding only label ids it knows, an id in hex that names a message it has
-//! (404 otherwise). It keeps each message's labels, so a test sees what a move did, and every
+//! was set up with (401 otherwise), a JSON body (400 otherwise) of 1 to 1,000 `ids` in hex and
+//! `addLabelIds` and `removeLabelIds` holding only label ids it knows, answered 204 with nothing,
+//! an id it doesn't have changing nothing. It keeps each message's labels, so a test sees what a move did, and every
 //! request it was sent, so a test sees what went, and that nothing went. [`State::faults`] has it
 //! answer the next requests with a status of the test's choosing (401, 403, 429, 500…), and
 //! [`State::echo`] has a refusal repeat what it was sent, as a careless server might.
@@ -33,21 +33,33 @@ const MAX_KEPT: usize = 10_000;
 const CATEGORIES: [&str; 5] = ["CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"];
 
 thread_local! {
-    static ROUTE: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// Where the calls go, and whether moves count as switched on for them.
+    static ROUTE: RefCell<Option<(String, bool)>> = const { RefCell::new(None) };
 }
 
 /// Where this thread's calls to Gmail's API go instead, when a test has said so ([`route`]).
 pub(crate) fn routed() -> Option<String> {
-    ROUTE.with(|route| route.borrow().clone())
+    ROUTE.with(|route| route.borrow().as_ref().map(|(base, _)| base.clone()))
+}
+
+/// Whether a test on this thread has moves switched on, whatever the build's switch says
+/// ([`route`]; [`route_switched_off`] has them off).
+pub(crate) fn switched_on() -> bool {
+    ROUTE.with(|route| route.borrow().as_ref().is_some_and(|(_, on)| *on))
 }
 
 /// A stand-in is being spoken to in Gmail's API's place on this thread, for as long as this lives.
-pub struct Routed(Option<String>);
+pub struct Routed(Option<(String, bool)>);
 
-/// Have this thread's calls to Gmail's API go to `base` (`http://127.0.0.1:{port}`) until the
-/// guard is dropped.
+/// Have this thread's calls to Gmail's API go to `base` (`http://127.0.0.1:{port}`), with moves
+/// switched on, until the guard is dropped.
 pub fn route(base: &str) -> Routed {
-    Routed(ROUTE.with(|route| route.borrow_mut().replace(base.to_string())))
+    Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), true))))
+}
+
+/// [`route`] with moves left as the build has them: off.
+pub fn route_switched_off(base: &str) -> Routed {
+    Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), false))))
 }
 
 impl Drop for Routed {
@@ -111,18 +123,15 @@ impl State {
         if asked.header("authorization") != format!("Bearer {}", self.token) {
             return refuse(401, "Request had invalid authentication credentials.");
         }
-        let Some(id) = asked.path.strip_prefix("/gmail/v1/users/me/messages/").and_then(|rest| rest.strip_suffix("/modify")) else {
+        if asked.path != "/gmail/v1/users/me/messages/batchModify" {
             return refuse(404, "Not found.");
-        };
+        }
         if asked.method != "POST" {
             return refuse(405, "Method not allowed.");
         }
         if !asked.header("content-type").starts_with("application/json") {
             return refuse(400, "Invalid JSON payload received.");
         }
-        let Some(id) = u64::from_str_radix(id, 16).ok().filter(|_| !id.is_empty() && id.bytes().all(|b| b.is_ascii_hexdigit())) else {
-            return refuse(400, "Invalid id value");
-        };
         let Ok(body) = serde_json::from_str::<Value>(&asked.body) else { return refuse(400, "Invalid JSON payload received.") };
         let list = |key: &str| -> Option<Vec<String>> {
             match body.get(key) {
@@ -131,23 +140,30 @@ impl State {
                 Some(_) => None,
             }
         };
-        let (Some(add), Some(remove)) = (list("addLabelIds"), list("removeLabelIds")) else {
+        let (Some(ids), Some(add), Some(remove)) = (list("ids"), list("addLabelIds"), list("removeLabelIds")) else {
             return refuse(400, "Invalid JSON payload received.");
         };
-        if body.as_object().is_none_or(|o| o.keys().any(|k| k != "addLabelIds" && k != "removeLabelIds")) {
+        if body.as_object().is_none_or(|o| o.keys().any(|k| k != "ids" && k != "addLabelIds" && k != "removeLabelIds")) {
             return refuse(400, "Invalid JSON payload received. Unknown name.");
         }
+        let hex = |id: &String| u64::from_str_radix(id, 16).ok().filter(|_| !id.is_empty() && id.bytes().all(|b| b.is_ascii_hexdigit()));
+        let Some(ids) = ids.iter().map(hex).collect::<Option<Vec<u64>>>().filter(|ids| (1..=1000).contains(&ids.len())) else {
+            return refuse(400, "Invalid id value");
+        };
         if add.iter().chain(&remove).any(|l| !CATEGORIES.contains(&l.as_str()) && l != "INBOX" && l != "UNREAD") {
             return refuse(400, "Invalid label");
         }
-        let Some(labels) = self.messages.get_mut(&id) else { return refuse(404, "Requested entity was not found.") };
-        labels.retain(|l| !remove.contains(l));
-        for l in add {
-            if !labels.contains(&l) {
-                labels.push(l);
+        // A batch is answered as a whole: an id it doesn't have changes nothing and says nothing.
+        for id in ids {
+            let Some(labels) = self.messages.get_mut(&id) else { continue };
+            labels.retain(|l| !remove.contains(l));
+            for l in &add {
+                if !labels.contains(l) {
+                    labels.push(l.clone());
+                }
             }
         }
-        (200, json!({"id": format!("{id:x}"), "threadId": format!("{id:x}"), "labelIds": labels}))
+        (204, Value::Null)
     }
 }
 
@@ -205,6 +221,7 @@ impl StandIn {
                 drop(state);
                 let reason = match status {
                     200 => "OK",
+                    204 => "No Content",
                     400 => "Bad Request",
                     401 => "Unauthorized",
                     403 => "Forbidden",
@@ -212,7 +229,7 @@ impl StandIn {
                     429 => "Too Many Requests",
                     _ => "Other",
                 };
-                let body = body.to_string();
+                let body = if body.is_null() { String::new() } else { body.to_string() };
                 let answer = format!(
                     "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json; charset=UTF-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
@@ -241,5 +258,10 @@ impl StandIn {
     /// Have this thread's calls to Gmail's API come here until the guard is dropped ([`route`]).
     pub fn route(&self) -> Routed {
         route(&self.url())
+    }
+
+    /// [`StandIn::route`] with moves switched off, as the build ships ([`route_switched_off`]).
+    pub fn route_switched_off(&self) -> Routed {
+        route_switched_off(&self.url())
     }
 }

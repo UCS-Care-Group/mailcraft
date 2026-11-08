@@ -21,8 +21,8 @@ use crate::theme::{Tokens, regular};
 const SET: &str = "mail.setGmailCategory";
 
 /// Whether this window offers moves between Gmail's categories at all: switched on, and not in
-/// the browser.
-fn switched_on(app: &MailApp) -> bool {
+/// the browser. (Off, command search doesn't list it either.)
+pub(crate) fn switched_on(app: &MailApp) -> bool {
     app.session.gmail_category_moves && !cfg!(target_arch = "wasm32")
 }
 
@@ -55,7 +55,15 @@ pub(crate) fn drop_target(app: &mut MailApp, ui: &Ui, resp: &egui::Response, rec
     if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
         let ids = movable(app, &drag.0, category);
         if !ids.is_empty() {
-            let _ = app.run(SET, json!({"ids": ids, "category": category.code()}));
+            // The selection dragged goes unnamed, so that in conversation view its whole
+            // conversation in that Inbox goes along; anything else dragged, as named.
+            let sorted = |mut ids: Vec<Id>| {
+                ids.sort_unstable();
+                ids
+            };
+            let selection = sorted(app.session.acting_on()) == sorted(drag.0.clone());
+            let params = if selection { json!({"category": category.code()}) } else { json!({"ids": ids, "category": category.code()}) };
+            let _ = app.run(SET, params);
         }
     }
 }
@@ -96,10 +104,11 @@ pub(crate) fn menu(app: &mut MailApp, ui: &mut Ui) {
             ui.menu_button(tl!("Move to Category"), |ui| {
                 for category in GmailCategory::ALL {
                     if ui.add(egui::Button::new(gmail_name(category)).min_size(vec2(160.0, 0.0))).clicked() {
+                        // The selection, unnamed: in conversation view the command takes the
+                        // whole conversation in that Inbox along.
                         let ids = app.session.acting_on();
-                        let ids = movable(app, &ids, category);
-                        if !ids.is_empty() {
-                            let _ = app.run(SET, json!({"ids": ids, "category": category.code()}));
+                        if !movable(app, &ids, category).is_empty() {
+                            let _ = app.run(SET, json!({"category": category.code()}));
                         }
                         ui.close();
                     }

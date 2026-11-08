@@ -774,7 +774,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
 /// request for Gmail's API is ever made then.
 fn gmail_moves(s: &Session, account: Id) -> Vec<GmailMove> {
     let mb = &s.mailbox;
-    if crate::gmail::moves_offered(s).is_some() || !mb.account(account).is_some_and(|a| !a.is_shared() && a.moves_gmail_categories()) {
+    if !gmail_moves_go(s, account) {
         return Vec::new();
     }
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox);
@@ -784,6 +784,12 @@ fn gmail_moves(s: &Session, account: Id) -> Vec<GmailMove> {
         .filter_map(|m| m.gmail_move_waiting().map(|category| GmailMove { message: m.id, id: m.gmail_id, category }))
         .take(MAX_GMAIL_MOVES)
         .collect()
+}
+
+/// Whether moves between Gmail's categories made in `account` go to Gmail: switched on, and an
+/// account that signs in with Google. Else a move waiting here never goes, and what Gmail says wins.
+fn gmail_moves_go(s: &Session, account: Id) -> bool {
+    crate::gmail::moves_offered(s).is_none() && s.mailbox.account(account).is_some_and(|a| !a.is_shared() && a.moves_gmail_categories())
 }
 
 /// Moves between Gmail's categories that Gmail took (#911): Gmail has the message there now. One
@@ -1165,6 +1171,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    let gmail_moves = gmail_moves_go(s, account);
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
@@ -1194,7 +1201,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, &mut counts);
+        take_in(mb, account, &mut on_server, delta, gmail_moves, &mut counts);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1827,8 +1834,9 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
     }
 }
 
-/// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
+/// Take in what changed in one server mailbox. `gmail_moves`: moves between Gmail's categories
+/// made here go to Gmail ([`gmail_moves_go`]), so one waiting keeps its category against Gmail's.
+fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, gmail_moves: bool, counts: &mut Counts) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1969,13 +1977,15 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
     }
     // Gmail's categories of the Inbox's messages (#911), as its searches said this run: what
     // Gmail last said, and the category here too unless the owner moved the message here and
-    // Gmail hasn't had the move yet, which stays and goes at the next run.
+    // Gmail hasn't had the move yet, which stays and goes at the next run. While moves don't go
+    // (switched off, or the account no longer signs in with Google), Gmail's word wins and a move
+    // waiting here is dropped: it would never go.
     if !reset && mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox) {
         for sorted in &delta.gmail {
             // (Looked at before it is changed: a message shared with an undo step is copied to be.)
             let Some(id) = on_server.by_uid.get(&(folder, sorted.uid)).copied() else { continue };
             let Some(m) = mb.message(id).filter(|m| m.folder == folder) else { continue };
-            let waiting = m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
+            let waiting = gmail_moves && m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
             let category = if waiting { m.gmail_category } else { Some(sorted.category) };
             let gmail_id = if sorted.id != 0 { sorted.id } else { m.gmail_id };
             if (m.gmail_category, m.gmail_synced, m.gmail_id) != (category, Some(sorted.category), gmail_id)

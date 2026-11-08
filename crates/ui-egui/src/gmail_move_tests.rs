@@ -135,6 +135,23 @@ fn switched_off_the_menu_has_no_such_item_and_nothing_takes_a_drop() {
 }
 
 #[test]
+fn switched_off_command_search_finds_no_move_to_category() {
+    let found = |on: bool| {
+        let (mut harness, _, _) = gmail_window(true, on);
+        let query = "move to cat";
+        harness.state_mut().dialog = Some(crate::dialogs::Dialog::Commands { query: query.into(), selected: 0 });
+        harness.run_steps(3);
+        assert!(has_label(&harness, "Search Commands"));
+        let app = harness.state();
+        crate::dialogs::all_commands(app)
+            .into_iter()
+            .any(|c| c.0 == "mail.setGmailCategory" && crate::dialogs::score(query, &c.1, &c.2, &c.0).is_some())
+    };
+    assert!(!found(false), "not even greyed while it waits for Google's review");
+    assert!(found(true));
+}
+
+#[test]
 fn messages_let_go_over_a_categorys_row_move_to_it() {
     let (mut harness, account, inbox) = gmail_window(true, true);
     let promotions = message(&harness, account, 3);

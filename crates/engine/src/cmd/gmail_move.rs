@@ -22,7 +22,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.setGmailCategory", "Move to Category", "Home › Move", set_category)
             .params(
-                r#"{"category": "primary"|"social"|"promotions"|"updates"|"forums", "ids"?: [number]} (messages of a Gmail account's Inbox, of an account that signs in with Google; in conversation view, every message of their conversations in that Inbox)"#,
+                r#"{"category": "primary"|"social"|"promotions"|"updates"|"forums", "ids"?: [number]} (messages of a Gmail account's Inbox, of an account that signs in with Google; named ids move alone; without ids, the selection, and in conversation view every message of its conversations in that Inbox)"#,
             )
             .when(moves_offered),
     ]
@@ -54,7 +54,9 @@ fn set_category(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(why) = refused.filter(|_| named || ids.is_empty()) {
         return Err(fail(why));
     }
-    let all = with_conversations(s, &ids);
+    // Named messages move alone, as `mail.move` moves them; a selection in conversation view
+    // takes its conversations along.
+    let all = if named { ids } else { with_conversations(s, &ids) };
     let before = s.rows();
     let mut moved = Vec::new();
     for id in &all {

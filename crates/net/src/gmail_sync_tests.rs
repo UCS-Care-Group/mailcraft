@@ -167,23 +167,34 @@ fn moving(message: Id, uid: u32, category: GmailCategory) -> GmailMove {
     GmailMove { message, id: GMAIL_IDS + u64::from(uid), category }
 }
 
-fn modify_path(uid: u32) -> String {
-    format!("/gmail/v1/users/me/messages/{:x}/modify", GMAIL_IDS + u64::from(uid))
+/// The ids each batch the stand-in was sent named, in hex, in order.
+fn batches(api: &crate::gmail::standin::StandIn) -> Vec<Vec<String>> {
+    let ids = |body: &str| -> Option<Vec<String>> {
+        serde_json::from_str::<serde_json::Value>(body).ok()?["ids"].as_array()?.iter().map(|v| v.as_str().map(str::to_string)).collect()
+    };
+    api.requests().iter().map(|a| ids(&a.body).unwrap_or_default()).collect()
+}
+
+fn hex(uid: u32) -> String {
+    format!("{:x}", GMAIL_IDS + u64::from(uid))
 }
 
 #[test]
 fn moves_between_categories_go_to_gmails_api_before_the_inbox_is_read() {
     let imap = Fake::imap(google_world());
     let api = crate::gmail::standin::StandIn::start().unwrap();
+    api.state().add(GMAIL_IDS + 1, &["INBOX", "CATEGORY_SOCIAL"]);
     api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
     api.state().add(GMAIL_IDS + 5, &["INBOX", "CATEGORY_PROMOTIONS"]);
     let _routed = api.route();
-    let moves = vec![moving(31, 2, GmailCategory::Primary), moving(32, 5, GmailCategory::Updates)];
+    let moves = vec![moving(32, 5, GmailCategory::Updates), moving(31, 2, GmailCategory::Primary), moving(30, 1, GmailCategory::Primary)];
     let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
     assert_eq!(result.errors, Vec::<String>::new());
-    assert_eq!(result.gmail_moved, moves);
-    let paths: Vec<String> = api.requests().iter().map(|a| a.path.clone()).collect();
-    assert_eq!(paths, [modify_path(2), modify_path(5)]);
+    // One batch for each category moved to.
+    assert_eq!(result.gmail_moved, [moves[1], moves[2], moves[0]]);
+    assert!(api.requests().iter().all(|a| a.path == "/gmail/v1/users/me/messages/batchModify"));
+    assert_eq!(batches(&api), [vec![hex(2), hex(1)], vec![hex(5)]]);
+    assert_eq!(api.state().categories(GMAIL_IDS + 1), ["CATEGORY_PERSONAL"]);
     assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_PERSONAL"]);
     assert_eq!(api.state().categories(GMAIL_IDS + 5), ["CATEGORY_UPDATES"]);
     // The Inbox was read after them, as ever.
@@ -215,7 +226,27 @@ fn no_request_goes_to_gmails_api_without_moves_or_a_google_sign_in() {
 }
 
 #[test]
-fn a_move_gmail_refuses_waits_and_a_busy_gmail_holds_the_rest() {
+fn switched_off_a_request_with_moves_sends_nothing_to_gmails_api() {
+    // The build's switch, which this crate holds to whatever a request asks.
+    const { assert!(!mailcraft_model::gmail::GMAIL_CATEGORY_MOVES, "ships switched off until Google's review") };
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
+    let _routed = api.route_switched_off();
+    assert!(!crate::gmail::switched_on());
+    let result = whole(&signed_in(&imap, vec![moving(31, 2, GmailCategory::Primary)]), Limits::in_pieces(), gmail());
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert!(result.gmail_moved.is_empty());
+    assert!(api.requests().is_empty(), "{:?}", api.requests());
+    // Nor does the client itself, asked directly.
+    let asked = crate::gmail::batch_modify(crate::gmail::standin::TOKEN, &[GMAIL_IDS + 2], GmailCategory::Primary);
+    assert!(matches!(asked, Err(NetError::Config(_))), "{asked:?}");
+    assert!(api.requests().is_empty());
+    assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_SOCIAL"]);
+}
+
+#[test]
+fn a_batch_gmail_refuses_waits_and_a_busy_gmail_holds_the_rest() {
     let imap = Fake::imap(google_world());
     let api = crate::gmail::standin::StandIn::start().unwrap();
     for uid in [1u32, 2, 5] {
@@ -223,11 +254,13 @@ fn a_move_gmail_refuses_waits_and_a_busy_gmail_holds_the_rest() {
     }
     let _routed = api.route();
     let moves = vec![moving(30, 1, GmailCategory::Social), moving(31, 2, GmailCategory::Forums), moving(32, 5, GmailCategory::Updates)];
-    // One refused: the others go, and the problem is said once, without the token.
+    // One batch refused (Social's, the first): the others go, and the problem is said once,
+    // without the token.
     api.state().echo = true;
     api.state().faults.push_back(400);
     let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
-    assert_eq!(result.gmail_moved, moves[1..]);
+    assert_eq!(result.gmail_moved, [moves[2], moves[1]]);
+    assert_eq!(api.state().categories(GMAIL_IDS + 1), ["CATEGORY_PERSONAL"]);
     assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
     assert!(result.errors[0].contains("Gmail") && !result.errors[0].contains(crate::gmail::standin::TOKEN), "{:?}", result.errors);
     // Busy: nothing after it is asked this run.
