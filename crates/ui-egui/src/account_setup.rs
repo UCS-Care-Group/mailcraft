@@ -764,7 +764,7 @@ impl AccountSetup {
             incoming: self.incoming.server(),
             outgoing: self.outgoing.server(),
             username: self.login(email),
-            outgoing_without_sign_in: self.oauth.is_none() && self.outgoing_without_sign_in,
+            outgoing_without_sign_in: self.oauth.is_none() && self.outgoing_without_sign_in && self.outgoing.value().is_some(),
             oauth: self.oauth.clone(),
             ..Default::default()
         })

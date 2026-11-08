@@ -86,10 +86,11 @@ fn an_outgoing_relay_needs_no_sign_in_when_the_owner_says_so() {
     assert!(w.outgoing_without_sign_in);
     assert_eq!(w.edit_command(), Some(("account.edit", json!({"id": id, "outgoingWithoutSignIn": true}))));
     assert!(w.account().unwrap().outgoing_without_sign_in);
-    // Without an outgoing server there is nothing to tick.
+    // Without an outgoing server there is nothing to tick, and nothing of it is tried.
     wizard_mut(&mut h).outgoing.host.clear();
     h.run();
     assert!(h.query_by_label(tick).is_none());
+    assert!(!wizard(&h).unwrap().account().is_some_and(|a| a.outgoing_without_sign_in));
 }
 
 #[test]
