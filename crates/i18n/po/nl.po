@@ -3447,8 +3447,8 @@ msgstr "Afbeeldingen in e-mail automatisch downloaden"
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Download Pictures in Mail from People in My Contacts"
-msgstr "Afbeeldingen in e-mail van personen in mijn contactpersonen downloaden"
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Afbeeldingen in e-mail van contactpersonen downloaden"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs

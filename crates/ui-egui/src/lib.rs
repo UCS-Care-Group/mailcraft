@@ -1312,12 +1312,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"sender": address} | {"domain": name (what follows the @; everybody at that domain)} | {"message"?: number} (its sender), "value"?: bool (default: true; false forgets the sender or the domain)"#,
     ),
     ("ui.downloadPicturesAutomatically", "Download Pictures in Mail Automatically", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
-    (
-        "ui.downloadPicturesFromContacts",
-        "Download Pictures in Mail from People in My Contacts",
-        "File › Options",
-        r#"{"value"?: bool (default: toggle)} — pictures of mail from an address in your contacts (that address exactly), when your mail server confirms the sender; never for mail in Junk E-mail"#,
-    ),
+    ("ui.downloadPicturesFromContacts", "Download Pictures in Mail from Contacts", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.senderImages",
         "Show Sender Images",

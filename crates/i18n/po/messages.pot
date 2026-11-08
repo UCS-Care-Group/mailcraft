@@ -2860,7 +2860,7 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-msgid "Download Pictures in Mail from People in My Contacts"
+msgid "Download Pictures in Mail from Contacts"
 msgstr ""
 
 #. interface

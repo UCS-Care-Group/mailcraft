@@ -3283,8 +3283,8 @@ msgstr "Télécharger automatiquement les images du courrier"
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Download Pictures in Mail from People in My Contacts"
-msgstr "Télécharger les images du courrier des personnes de mes contacts"
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Télécharger les images du courrier des contacts"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
