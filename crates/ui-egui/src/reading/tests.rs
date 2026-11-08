@@ -4565,6 +4565,14 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     harness.run_steps(3);
     assert!(harness.state().dialog.is_none());
     assert!(!harness.state().ui.download_pictures);
+    // On again there asks the same question; Cancel leaves it off.
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
     harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
     select(&mut harness, second);
     select(&mut harness, first);
