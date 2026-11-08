@@ -9,41 +9,25 @@ use mailcraft_model::FolderKind;
 use serde_json::json;
 
 use super::*;
-use crate::Services;
-
-/// Wednesday 2026-10-14 16:00 UTC.
-const NOW: i64 = 1_791_993_600;
+use crate::people_view::testing;
 
 type Window = egui_kittest::Harness<'static, MailApp>;
 
 /// The sample mailbox with a second account, given a colour as a new account is, and one of the
-/// sample's messages moved into its Inbox; the window, the two accounts and the moved message.
+/// sample's messages moved into its Inbox; the window on the first account's Inbox, the two
+/// accounts and the moved message.
 fn window() -> (Window, Id, Id, Id) {
-    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    app.autosave = false;
-    app.auto_sync = false;
-    let first = app.session.mailbox.accounts[0].id;
-    let second = app.execute("account.add", json!({"email": "me@second.example"})).unwrap()["id"].as_u64().unwrap();
-    app.execute("account.edit", json!({"id": first, "color": "#2F6FD0"})).unwrap();
-    let inbox = app.session.mailbox.folder_of_kind(first, FolderKind::Inbox).unwrap();
-    let theirs = app.session.mailbox.folder_of_kind(second, FolderKind::Inbox).unwrap();
-    let moved = app.session.mailbox.messages_in(inbox).map(|m| m.id).next().unwrap();
-    app.execute("mail.move", json!({"id": moved, "folder": theirs})).unwrap();
-    app.execute("folder.select", json!({"id": inbox})).unwrap();
-    let mut harness = egui_kittest::Harness::builder()
-        .with_accessibility_check(false)
-        .allow_missing_glyphs()
-        .with_size(vec2(1280.0, 900.0))
-        .with_step_dt(1.0 / 60.0)
-        .build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
-    harness.run_steps(4);
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(testing::now(), 0), testing::now(), 0);
+    let first = s.mailbox.accounts[0].id;
+    let second = s.run("account.add", &json!({"email": "me@second.example"})).unwrap()["id"].as_u64().unwrap();
+    s.run("account.edit", &json!({"id": first, "color": "#2F6FD0"})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(first, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(second, FolderKind::Inbox).unwrap();
+    let moved = s.mailbox.messages_in(inbox).map(|m| m.id).next().unwrap();
+    s.run("mail.move", &json!({"id": moved, "folder": theirs})).unwrap();
+    let mut harness = testing::window_on(s.mailbox, "view.mail");
+    harness.state_mut().auto_sync = false;
+    harness.state_mut().execute("folder.select", json!({"id": inbox})).unwrap();
     let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     harness.run_steps(3);
     (harness, first, second, moved)
@@ -97,7 +81,7 @@ fn rows_wear_their_accounts_colour_only_in_a_search_of_every_mailbox() {
 
 #[test]
 fn one_account_never_mixes() {
-    let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(testing::now(), 0), testing::now(), 0);
     s.run("view.search", &json!({"query": "e", "scope": "everywhere"})).unwrap();
     assert!(!mixes_accounts(&s));
     s.run("account.add", &json!({"email": "me@second.example"})).unwrap();
