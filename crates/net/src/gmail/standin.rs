@@ -102,6 +102,8 @@ pub struct State {
     pub faults: VecDeque<u16>,
     /// A refusal repeats the request's `Authorization` header and body.
     pub echo: bool,
+    /// Ids that have a whole batch naming them refused (400), as one Gmail no longer has may.
+    pub refused: Vec<u64>,
 }
 
 impl State {
@@ -152,6 +154,9 @@ impl State {
         };
         if add.iter().chain(&remove).any(|l| !CATEGORIES.contains(&l.as_str()) && l != "INBOX" && l != "UNREAD") {
             return refuse(400, "Invalid label");
+        }
+        if ids.iter().any(|id| self.refused.contains(id)) {
+            return refuse(400, "Invalid id value");
         }
         // A batch is answered as a whole: an id it doesn't have changes nothing and says nothing.
         for id in ids {

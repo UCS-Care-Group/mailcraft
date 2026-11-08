@@ -3,7 +3,7 @@
 //! Gmail's inbox categories read with Gmail's own search (#911), against the fake server.
 
 use mailcraft_model::GmailCategory;
-use mailcraft_model::sync::{GmailMove, GmailSorted};
+use mailcraft_model::sync::{GmailMove, GmailSorted, MAX_GMAIL_MOVES};
 
 use super::*;
 use crate::fake::GMAIL_IDS;
@@ -193,7 +193,7 @@ fn moves_between_categories_go_to_gmails_api_before_the_inbox_is_read() {
     // One batch for each category moved to.
     assert_eq!(result.gmail_moved, [moves[1], moves[2], moves[0]]);
     assert!(api.requests().iter().all(|a| a.path == "/gmail/v1/users/me/messages/batchModify"));
-    assert_eq!(batches(&api), [vec![hex(2), hex(1)], vec![hex(5)]]);
+    assert_eq!(batches(&api), [vec![hex(1), hex(2)], vec![hex(5)]]);
     assert_eq!(api.state().categories(GMAIL_IDS + 1), ["CATEGORY_PERSONAL"]);
     assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_PERSONAL"]);
     assert_eq!(api.state().categories(GMAIL_IDS + 5), ["CATEGORY_UPDATES"]);
@@ -243,6 +243,51 @@ fn switched_off_a_request_with_moves_sends_nothing_to_gmails_api() {
     assert!(matches!(asked, Err(NetError::Config(_))), "{asked:?}");
     assert!(api.requests().is_empty());
     assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_SOCIAL"]);
+}
+
+#[test]
+fn two_moves_of_one_message_send_its_id_once() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
+    let _routed = api.route();
+    // Two copies here of Gmail's one message.
+    let moves = vec![moving(31, 2, GmailCategory::Primary), moving(41, 2, GmailCategory::Primary)];
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert_eq!(result.gmail_moved, moves);
+    assert_eq!(batches(&api), [vec![hex(2)]]);
+}
+
+#[test]
+fn a_stale_id_costs_a_few_requests_and_the_rest_go() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    for uid in 1..=8u32 {
+        api.state().add(GMAIL_IDS + u64::from(uid), &["INBOX", "CATEGORY_PERSONAL"]);
+    }
+    api.state().refused.push(GMAIL_IDS + 6);
+    let _routed = api.route();
+    let moves: Vec<GmailMove> = (1..=8u32).map(|uid| moving(Id::from(uid) + 100, uid, GmailCategory::Social)).collect();
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    // Halved: 1-8 refused, 1-4 taken, 5-8 refused, 5-6 refused, 5 taken, 6 refused alone, 7-8 taken.
+    let six = moves[5];
+    let taken: Vec<GmailMove> = moves.iter().copied().filter(|m| *m != six).collect();
+    let mut moved = result.gmail_moved.clone();
+    moved.sort_by_key(|m| m.message);
+    assert_eq!(moved, taken);
+    assert_eq!(api.requests().len(), 7);
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors[0].contains("a message"), "{:?}", result.errors);
+    assert_eq!(api.state().categories(GMAIL_IDS + 6), ["CATEGORY_PERSONAL"]);
+    assert_eq!(api.state().categories(GMAIL_IDS + 7), ["CATEGORY_SOCIAL"]);
+    // Every id refused: the requests stop at the cap, and all of them wait.
+    let all: Vec<GmailMove> = (1..=MAX_GMAIL_MOVES as u32).map(|uid| moving(Id::from(uid) + 1_000, uid, GmailCategory::Forums)).collect();
+    api.state().refused = all.iter().map(|m| m.id).collect();
+    let before = api.requests().len();
+    let result = whole(&signed_in(&imap, all), Limits::in_pieces(), gmail());
+    assert!(result.gmail_moved.is_empty());
+    assert_eq!(api.requests().len() - before, 32);
+    assert!(result.errors.iter().any(|e| e.contains(&format!("{MAX_GMAIL_MOVES} messages"))), "{:?}", result.errors);
 }
 
 #[test]

@@ -689,8 +689,11 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
 /// Gmail account that signs in with Google, whose token the API takes, and only while moves are
 /// switched on in this build; else nothing is sent, whatever the request asks. A token or a
 /// permission Gmail doesn't take, Gmail busy or out of reach leave the rest for the next run; a
-/// batch it refuses doesn't hold up the others. The problem is said once.
+/// batch it refuses doesn't hold up the others, and is sent again in halves. The problem is said
+/// once.
 fn gmail_moves(run: &mut Run, host: Host) {
+    /// The most requests to Gmail's API in one run, the halves of refused batches included.
+    const MAX_GMAIL_REQUESTS: usize = 32;
     let request = run.request;
     let google = request.account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
     if !crate::gmail::switched_on() || request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
@@ -706,24 +709,45 @@ fn gmail_moves(run: &mut Run, host: Host) {
         .collect();
     let mut problem: Option<NetError> = None;
     let mut failed = 0usize;
-    for (at, batch) in batches.iter().enumerate() {
+    // Batches still to send, the next last. A batch Gmail refuses (one id it no longer has
+    // refuses the lot) is sent again as two halves, down to single messages, so that the rest
+    // still go this run: one stale id costs a few requests, all of them at most
+    // `MAX_GMAIL_REQUESTS`. A message refused alone is left for the next reading of the Inbox.
+    let mut work: Vec<Vec<_>> = batches.into_iter().rev().collect();
+    let mut asked = 0usize;
+    while let Some(batch) = work.pop() {
         if run.cancelled() {
             break;
         }
+        if asked >= MAX_GMAIL_REQUESTS {
+            failed += batch.len() + work.iter().map(Vec::len).sum::<usize>();
+            break;
+        }
         let Some(category) = batch.first().map(|m| m.category) else { continue };
-        let ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
+        // Two moves of one message (two copies here with Gmail's one id) send it once.
+        let mut ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        asked += 1;
         match crate::gmail::batch_modify(&request.access_token, &ids, category) {
             Ok(()) => run.out.gmail_moved.extend(batch.iter().copied().copied()),
+            Err(NetError::Proto(ProtoError::Rejected(_))) if ids.len() > 1 => {
+                let (first, second) = batch.split_at(batch.len() / 2);
+                work.extend([second.to_vec(), first.to_vec()]);
+            }
             Err(e) => {
                 failed += batch.len();
                 let these_alone = matches!(e, NetError::Proto(ProtoError::Rejected(_)) | NetError::Config(_));
                 problem.get_or_insert(e);
                 if !these_alone {
-                    failed += batches.iter().skip(at + 1).map(Vec::len).sum::<usize>();
+                    failed += work.iter().map(Vec::len).sum::<usize>();
                     break;
                 }
             }
         }
+    }
+    if failed > 0 && problem.is_none() {
+        problem = Some(NetError::Busy { text: "the rest goes at the next Send/Receive".into(), retry_after: None });
     }
     if let Some(e) = problem {
         let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };

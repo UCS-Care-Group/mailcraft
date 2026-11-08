@@ -793,16 +793,21 @@ fn gmail_moves_go(s: &Session, account: Id) -> bool {
 }
 
 /// Moves between Gmail's categories that Gmail took (#911): Gmail has the message there now. One
-/// moved on here meanwhile differs from it again, and goes at the next run.
-fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) {
+/// moved on here meanwhile differs from it again, and goes at the next run. Gmail's ids of the
+/// messages of `account` it names.
+fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) -> HashSet<u64> {
+    let mut ids = HashSet::new();
     for done in moved {
-        let took = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0 && m.gmail_synced != Some(done.category);
-        if mb.message(done.message).is_some_and(took)
+        let ours = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0;
+        let Some(m) = mb.message(done.message).filter(|m| ours(m)) else { continue };
+        ids.insert(done.id);
+        if m.gmail_synced != Some(done.category)
             && let Ok(m) = mb.message_mut(done.message)
         {
             m.gmail_synced = Some(done.category);
         }
     }
+    ids
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -1194,14 +1199,14 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         move_finished(mb, account, &mut on_server, moved);
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
-    gmail_moved(mb, account, &result.gmail_moved);
+    let moved_now = gmail_moved(mb, account, &result.gmail_moved);
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, gmail_moves, &mut counts);
+        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1835,8 +1840,17 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 }
 
 /// Take in what changed in one server mailbox. `gmail_moves`: moves between Gmail's categories
-/// made here go to Gmail ([`gmail_moves_go`]), so one waiting keeps its category against Gmail's.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, gmail_moves: bool, counts: &mut Counts) {
+/// made here go to Gmail ([`gmail_moves_go`]), so one waiting keeps its category against Gmail's;
+/// `moved_now`: Gmail's ids of the messages Gmail took a move of in this same run, whose reading
+/// of this run (Gmail's search may not have caught up) is not believed over the move.
+fn take_in(
+    mb: &mut Mailbox,
+    account: Id,
+    on_server: &mut OnServer,
+    mut delta: FolderDelta,
+    (gmail_moves, moved_now): (bool, &HashSet<u64>),
+    counts: &mut Counts,
+) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1985,6 +1999,9 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             // (Looked at before it is changed: a message shared with an undo step is copied to be.)
             let Some(id) = on_server.by_uid.get(&(folder, sorted.uid)).copied() else { continue };
             let Some(m) = mb.message(id).filter(|m| m.folder == folder) else { continue };
+            if m.gmail_id != 0 && moved_now.contains(&m.gmail_id) {
+                continue;
+            }
             let waiting = gmail_moves && m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
             let category = if waiting { m.gmail_category } else { Some(sorted.category) };
             let gmail_id = if sorted.id != 0 { sorted.id } else { m.gmail_id };

@@ -146,6 +146,36 @@ fn a_move_waiting_wins_over_gmails_reading_until_gmail_has_it() {
 }
 
 #[test]
+fn the_reading_of_the_run_that_moved_it_doesnt_undo_the_move() {
+    let (mut s, account, inbox) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "primary"})).unwrap();
+    // Gmail took the move, and the same run's search, not caught up yet, still says Social.
+    let moved = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Primary }];
+    let stale = inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Social), sorted(4, GmailCategory::Updates)]);
+    apply_sync(&mut s, result(account, vec![stale], moved)).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_synced), (Some(GmailCategory::Primary), Some(GmailCategory::Primary)));
+    assert!(moves(&s, account).is_empty());
+    // The rest of the reading is taken in.
+    assert_eq!(by_uid(&s, account, 4).gmail_category, Some(GmailCategory::Updates));
+    // A later run's reading is believed: Gmail re-sorted it since.
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Forums)])], Vec::new())).unwrap();
+    assert_eq!(by_uid(&s, account, 3).gmail_category, Some(GmailCategory::Forums));
+}
+
+#[test]
+fn the_reasons_compared_are_the_reasons_given() {
+    // The window compares with these: they must be what the two functions say.
+    let (mut s, account, _) = sorted_inbox(false);
+    assert_eq!(crate::gmail::moves_offered(&s), Some(NEEDS_GOOGLE_SIGN_IN));
+    let three = by_uid(&s, account, 3).clone();
+    assert_eq!(crate::gmail::why_not_movable(&s, &three), Some(NEEDS_GOOGLE_SIGN_IN));
+    s.gmail_category_moves = false;
+    assert_eq!(crate::gmail::moves_offered(&s), Some(MOVES_NOT_YET));
+}
+
+#[test]
 fn undo_puts_it_back_and_after_gmail_had_it_moves_it_back_there() {
     let (mut s, account, _) = sorted_inbox(true);
     let three = id_of(&s, account, 3);

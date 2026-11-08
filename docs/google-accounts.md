@@ -155,12 +155,14 @@ Gmail's IMAP extensions can read the categories but not change them, so a move g
 Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
 ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
 taken off), with the account's Google sign-in, whose `https://mail.google.com/` permission covers
-it. Nothing else of the messages goes. Gmail answers such a request as a whole, so a message Gmail
-no longer has is set right at the next reading of the Inbox.
-That is why an account that signs in with an **app password** can show the categories but can't
-move between them: Gmail's API takes no app password. Its Move to Category is greyed, with a note
-that it needs Google sign-in; switch the account to Google sign-in to move. The browser build
-can't move them either.
+it. Nothing else of the messages goes. Gmail answers such a request as a whole; when it refuses
+one, MailCraft splits it a few times to send the rest, and a message Gmail no longer has is set
+right at the next reading of the Inbox.
+
+Once moving is switched on, an account that signs in with an **app password** will still only show
+the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a
+note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
+The browser build won't move them either.
 
 ## Google restrictions and useful error distinctions
 
