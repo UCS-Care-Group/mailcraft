@@ -83,6 +83,11 @@ pub fn waiting(mb: &Mailbox, account: Id) -> usize {
 /// it is held.
 pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
     let mut changed = false;
+    // Whether the owner queued it here, as it stood before the answer: `draft_done` may take away
+    // the pending change that alone says so of a draft begun elsewhere without a marker (#738).
+    // Not every answer is for a message the owner queued (`sync.holdSends` holds what waits in a
+    // shared mailbox's Outbox, the server's own mail too).
+    let queued_here = mb.message(done.message).is_some_and(|m| m.account == account && !from_server(m));
     if let Some(draft) = &done.draft {
         changed |= super::graph_drafts::draft_done(mb, account, draft, lang, said);
     }
@@ -93,13 +98,13 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         m.sending = false;
         changed = true;
     }
-    // Sent by a run, so queued here by the owner: one without MailCraft's marker (a draft begun
-    // elsewhere that an earlier version queued) gets it now (#738), as `compose.send` gives it.
-    // Its change may have just gone up, and without the marker it would then be taken for mail
-    // the server put in the Outbox: never sent again, even after Send Again. After `draft_done`,
-    // which matches the answer by the marker the draft went up with.
-    if let Ok(m) = mb.message_mut(done.message)
-        && m.account == account
+    // Queued here by the owner: one without MailCraft's marker (a draft begun elsewhere that an
+    // earlier version queued) gets it now (#738), as `compose.send` gives it. Its change may have
+    // just gone up, and without the marker it would then be taken for mail the server put in the
+    // Outbox: never sent again, even after Send Again. After `draft_done`, which matches the
+    // answer by the marker the draft went up with.
+    if queued_here
+        && let Ok(m) = mb.message_mut(done.message)
         && let Some(sd) = m.server_draft.as_mut().filter(|sd| sd.marker.is_empty())
     {
         sd.marker = super::graph_drafts::marker(done.message, u64::from(sd.saves));
