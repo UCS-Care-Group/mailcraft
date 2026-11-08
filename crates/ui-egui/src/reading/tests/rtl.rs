@@ -7,7 +7,7 @@ use egui::Align as HAlign;
 use serde_json::json;
 
 use super::super::layout::ItemKind;
-use super::{app_with, copy_key, copy_of, drag, find, gap, html_message, in_frame, lay_out, message, select, window};
+use super::{app_with, copy_key, copy_of, drag, find, gap, html_message, in_frame, lay_out, message, select, whole, window};
 
 const HTML: &str = "<p>שלום דנה, הפגישה ב-10:30 עם ACME נקבעה.</p>\
                     <p>مرحبا، رقم الطلب 4521 جاهز.</p>\
@@ -59,9 +59,16 @@ fn a_drag_across_a_right_aligned_paragraph_copies_it_in_written_order() {
         let id = ids[0];
         let mut harness = window(app, (1280.0, 900.0));
         select(&mut harness, id);
-        // From after "שלום " in the Hebrew paragraph to after "Thanks" in the last one.
-        let (from, to) = (gap(&harness, id, "שלום", 5), gap(&harness, id, "Thanks", 6));
-        drag(&mut harness, from, to);
-        assert_eq!(copy_key(&mut harness).as_deref(), Some("דנה, הפגישה ב-10:30 עם ACME נקבעה.\n\nمرحبا، رقم الطلب 4521 جاهز.\n\nThanks"), "{theme}");
+        // From the margin beside the Hebrew paragraph to after "Thanks" in the last one. (A
+        // point inside a run drawn from the right is not aimed at: which character sits there
+        // depends on the fonts the computer has, until the toolkit lays such runs out itself.)
+        let (_, origin) = whole(&harness, id);
+        let to = gap(&harness, id, "Thanks", 6);
+        drag(&mut harness, origin + egui::vec2(-12.0, 4.0), to);
+        assert_eq!(
+            copy_key(&mut harness).as_deref(),
+            Some("שלום דנה, הפגישה ב-10:30 עם ACME נקבעה.\n\nمرحبا، رقم الطلب 4521 جاهز.\n\nThanks"),
+            "{theme}"
+        );
     }
 }
