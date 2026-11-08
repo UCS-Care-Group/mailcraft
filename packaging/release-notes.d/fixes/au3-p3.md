@@ -1,0 +1,1 @@
+- Opening another mailbox while mail is being sent or received no longer lets that work change the newly opened mailbox, and a message whose sending was cut short (another mailbox opened, or MailCraft stopped) is held in the Outbox as one that may have been sent rather than sent a second time (AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8).

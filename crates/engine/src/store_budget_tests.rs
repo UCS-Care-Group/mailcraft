@@ -144,3 +144,19 @@ fn a_saved_mailbox_opens_under_the_budget_where_memory_cant_be_measured_in_propo
     let opened = with_limits(Limits { element_bytes: UNMEASURED_ELEMENTS / 150, stream: false }, || open(&path)).unwrap();
     assert_eq!(opened.mailbox.messages.len(), 20_000);
 }
+
+#[test]
+fn a_memory_reading_of_zero_falls_back_to_the_unmeasured_budget() {
+    // AU3-R3: Windows reads its memory through a call that says 0 when it fails.
+    assert_eq!(memory_reading(0), None);
+    assert_eq!(elements_for(memory_reading(0)), UNMEASURED_ELEMENTS);
+    assert_eq!(elements_for(memory_reading(16 << 30)), 8 << 30);
+}
+
+#[test]
+fn the_budget_is_half_the_memory_within_its_bounds() {
+    assert_eq!(elements_for(Some(512 << 20)), MIN_ELEMENTS);
+    assert_eq!(elements_for(Some(6 << 30)), 3 << 30);
+    assert_eq!(elements_for(Some(256 << 30)), MAX_ELEMENTS);
+    assert_eq!(elements_for(Some(u64::MAX)), MAX_ELEMENTS);
+}

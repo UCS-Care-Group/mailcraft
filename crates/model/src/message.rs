@@ -311,6 +311,13 @@ pub struct Message {
     /// what to check. It isn't sent again until the owner says so. Empty for every other message.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub held: String,
+    /// The message was handed to a server to be sent and what became of it hasn't been taken in
+    /// yet (AU3-26). Saved before the send leaves; cleared when the run's answer is applied. A
+    /// message still marked when the next run of its account begins is **held** (it may have
+    /// gone) rather than sent again: the window opened another mailbox meanwhile, or the program
+    /// stopped mid-send.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sending: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
