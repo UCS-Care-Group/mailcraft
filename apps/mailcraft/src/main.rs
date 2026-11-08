@@ -1120,9 +1120,13 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 refused = true;
                 out.held.push(message.id);
             }
-            // Whether it went is not known, or Microsoft said later: not sent a second way now.
+            // Whether it went is not known (then it is held for the owner), or Microsoft said
+            // later (then it goes next run): not sent a second way now.
             Err(e) => {
                 out.held.push(message.id);
+                if graph::send_unsure(&e) {
+                    out.unsure.push(message.id);
+                }
                 out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
             }
         }

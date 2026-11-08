@@ -643,6 +643,11 @@ pub struct SyncResult {
     /// (it wouldn't take it, or has no mailbox for sent mail): the copy here is the one there is.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unfiled: Vec<Id>,
+    /// Outbox messages whose send was cut off after they were handed to the outgoing server
+    /// (the connection broke, no answer came): whether they went is not known, so they are held
+    /// for the owner, never sent again by itself (AU3-26).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unsure: Vec<Id>,
     /// What became of [`SyncRequest::ops`]. An op that isn't here failed (see `errors`) or wasn't
     /// tried, and is still to be pushed.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -728,6 +733,7 @@ impl SyncResult {
             && self.sent.is_empty()
             && self.filed.is_empty()
             && self.unfiled.is_empty()
+            && self.unsure.is_empty()
             && self.pushed_count() == 0)
     }
 
@@ -746,6 +752,7 @@ impl SyncResult {
         self.filed.retain(|id| !later.unfiled.contains(id));
         self.filed.extend(later.filed);
         self.unfiled.extend(later.unfiled);
+        self.unsure.extend(later.unsure);
         self.flagged.extend(later.flagged);
         self.moved.extend(later.moved);
         self.deleted.extend(later.deleted);
@@ -844,8 +851,74 @@ pub enum FolderChange {
         #[serde(default, skip_serializing_if = "String::is_empty")]
         parent: String,
     },
-    /// The folder the server calls `id` was deleted for good here.
-    Delete { id: String },
+    /// The folder the server calls `id` was deleted for good here. `shown` is what the owner
+    /// had of it when it was (AU3-H7): the host sends the delete only when the server holds
+    /// nothing in it or under it beyond that ([`ChangeOutcome::NotShown`] otherwise).
+    Delete {
+        id: String,
+        #[serde(default, skip_serializing_if = "Shown::is_empty")]
+        shown: Shown,
+    },
+}
+
+/// What the owner had of a folder deleted for good here, and of everything under it, when it was
+/// deleted (AU3-H7): the server's ids of those folders and of their messages, each kept as its
+/// [`Shown::key`], and the folder's name for the line that says it wasn't deleted. Before the
+/// server is asked to delete the folder, which takes with it whatever the server holds there, the
+/// host reads what it holds, and anything not here (mail that arrived since, a folder made
+/// elsewhere) keeps the folder. One from a file of before has nothing: the folder goes only when
+/// the server holds nothing in it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Shown {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub folders: Vec<u64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub messages: Vec<u64>,
+}
+
+/// Most folders, and most messages, a [`Shown`] keeps, and that the host reads of a folder before
+/// deleting it: past either, the folder isn't deleted on the server.
+pub const MAX_SHOWN_FOLDERS: usize = MAX_LISTED_FOLDERS;
+pub const MAX_SHOWN_MESSAGES: usize = 500_000;
+/// Longest name a [`Shown`] keeps, in characters.
+const MAX_SHOWN_NAME: usize = 80;
+
+impl Shown {
+    /// What `name` (the folder's), `folders` and `messages` (server ids) come to, held to the
+    /// caps (what is past them is left out, and the server then holds what isn't shown).
+    pub fn of<'a>(name: &str, folders: impl IntoIterator<Item = &'a str>, messages: impl IntoIterator<Item = &'a str>) -> Self {
+        fn keys<'a>(ids: impl Iterator<Item = &'a str>, most: usize) -> Vec<u64> {
+            let mut out: Vec<u64> = ids.take(most).map(Shown::key).collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        }
+        Shown {
+            name: name.chars().filter(|c| !c.is_control()).take(MAX_SHOWN_NAME).collect(),
+            folders: keys(folders.into_iter(), MAX_SHOWN_FOLDERS),
+            messages: keys(messages.into_iter(), MAX_SHOWN_MESSAGES),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.name.is_empty() && self.folders.is_empty() && self.messages.is_empty()
+    }
+
+    /// A server id as it is kept: FNV-1a, 64 bits, of its bytes. (A name for telling ids apart,
+    /// not a secret: the ids are the mailbox's own.)
+    pub fn key(id: &str) -> u64 {
+        id.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, b| (hash ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3))
+    }
+
+    /// The keys of the folders and of the messages as sets, for the host's check (held to the
+    /// caps, whatever a file said).
+    pub fn sets(&self) -> (std::collections::HashSet<u64>, std::collections::HashSet<u64>) {
+        let set = |keys: &[u64], most: usize| keys.iter().take(most).copied().collect();
+        (set(&self.folders, MAX_SHOWN_FOLDERS), set(&self.messages, MAX_SHOWN_MESSAGES))
+    }
 }
 
 impl FolderChange {
@@ -1182,6 +1255,10 @@ pub enum ChangeOutcome {
     /// The server won't (403, 400, a name that is taken there): the folder is put back to what
     /// the server has, and this says why, in plain words.
     Refused { why: String },
+    /// A deletion that wasn't sent (AU3-H7): the server holds `items` folders and messages in the
+    /// folder or under it that weren't there when the owner deleted it (mail that arrived since,
+    /// a folder made elsewhere). The folder comes back as with a refusal.
+    NotShown { items: u32 },
 }
 
 /// A change and what became of it. A change that isn't answered (the server was busy, the
@@ -1416,7 +1493,7 @@ mod tests {
         // A mailbox of 0.4.0 (folder deletes only, or no queue at all) opens as it was.
         let before = r#"{"version": 1, "queued": [{"deleteFolder": {"account": 1, "id": "F9"}}]}"#;
         let mb: crate::Mailbox = serde_json::from_str(before).unwrap();
-        assert_eq!(mb.queued, [crate::Queued::DeleteFolder { account: 1, id: "F9".into() }]);
+        assert_eq!(mb.queued, [crate::Queued::DeleteFolder { account: 1, id: "F9".into(), shown: Default::default() }]);
         let mb: crate::Mailbox = serde_json::from_str(r#"{"version": 1}"#).unwrap();
         assert!(mb.queued.is_empty());
         // A kind of change from a later version is left out; the rest is kept.

@@ -210,7 +210,9 @@ fn what_is_changed_here_goes_up_as_the_difference_from_the_server() {
     s.run("folder.delete", &json!({"id": ab})).unwrap();
     assert!(s.mailbox.folder(ab).is_none());
     let request = graph_mail_request(&s, account).unwrap();
-    assert_eq!(request.changes, [FolderChange::Delete { id: "ab".into() }]);
+    // With what the owner had of it (AU3-H7): its name and its own server id.
+    let shown = mailcraft_model::sync::Shown::of("A\\B", ["ab"], []);
+    assert_eq!(request.changes, [FolderChange::Delete { id: "ab".into(), shown }]);
     let gone = FolderChangeDone { change: request.changes[0].clone(), outcome: ChangeOutcome::Gone };
     take(&mut s, account, GraphMailResult { changes: vec![gone], email: ACCOUNT_EMAIL.into(), ..Default::default() });
     assert!(s.mailbox.queued.is_empty() && unpushed(&s, account) == 0);
