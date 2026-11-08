@@ -260,6 +260,32 @@ pub struct Server {
     pub security: Security,
 }
 
+impl Server {
+    /// Whether the server is on this computer ([`is_loopback_host`]): the only kind a connection
+    /// with no encryption ([`Security::None`]) may go to, such as a mail bridge listening on
+    /// `127.0.0.1` (#836).
+    pub fn on_this_computer(&self) -> bool {
+        is_loopback_host(&self.host)
+    }
+
+    /// Whether the server is set to use no encryption although it isn't on this computer: what
+    /// is never connected to, since it would show the owner's mail and password to the network
+    /// ("Encrypt or refuse").
+    pub fn plain_over_the_network(&self) -> bool {
+        self.security == Security::None && !self.on_this_computer()
+    }
+}
+
+/// Whether `host` names this computer: `localhost` (with or without the final dot, in any case)
+/// or a loopback address (`127.0.0.0/8`, `::1`, an IPv6 one in brackets or not). Nothing else is
+/// taken for it, whatever it may resolve to; whoever connects still keeps to the loopback
+/// addresses a name resolves to.
+pub fn is_loopback_host(host: &str) -> bool {
+    let host = host.trim();
+    let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
+    host.trim_end_matches('.').eq_ignore_ascii_case("localhost") || host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AccountKind {
@@ -333,6 +359,11 @@ pub struct Account {
     /// Login name; the password is never stored in the mailbox.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub username: String,
+    /// The outgoing server takes mail without a sign-in (a relay, #836): the password is not
+    /// shown to it even when it offers a way to sign in. Off in a file from before there was
+    /// one, and for an account that signs in on the provider's page, whose token always goes.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub outgoing_without_sign_in: bool,
     /// The signature new messages start with (a [`Signature`] name; empty for none).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub signature: String,

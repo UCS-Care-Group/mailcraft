@@ -60,7 +60,7 @@ pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
     FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX,
     MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
-    preset_category_color,
+    is_loopback_host, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -164,6 +164,8 @@ mod load_limit_tests;
 mod mailbox_tests;
 #[cfg(test)]
 mod pictures_tests;
+#[cfg(test)]
+mod plain_servers_tests;
 #[cfg(test)]
 mod pop_tests;
 #[cfg(test)]

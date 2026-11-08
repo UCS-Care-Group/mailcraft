@@ -755,6 +755,60 @@ fn one_message_is_sent() {
 }
 
 #[test]
+fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
+    // #836: the relay offers a sign-in, and takes mail without one.
+    let smtp = Fake::smtp(SmtpWorld { auth_optional: true, ..smtp_world() });
+    let mut relay = account(None, Some(&smtp));
+    relay.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), date: SENT_AT, ..Default::default() };
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(test_account(&relay, PASSWORD), Ok(()));
+    {
+        let world = smtp.world();
+        assert_eq!((world.delivered.len(), world.sign_ins), (1, 0));
+        assert!(!world.log.iter().any(|line| line.starts_with("AUTH") || line.contains(PASSWORD)), "{:?}", world.log);
+    }
+    // Without the choice the same server is signed in to, as before.
+    relay.outgoing_without_sign_in = false;
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(smtp.world().sign_ins, 1);
+    // A relay that turns out to want one says so; the password still isn't sent.
+    smtp.world().auth_optional = false;
+    relay.outgoing_without_sign_in = true;
+    assert!(matches!(send(&relay, PASSWORD, &message), Err(NetError::Proto(_))));
+    assert_eq!(smtp.world().sign_ins, 1);
+    // An account that signs in on the provider's page always shows its token.
+    let (_, tokens) = token_servers();
+    let mut oauth = oauth_account(None, Some(&tokens));
+    oauth.outgoing_without_sign_in = true;
+    assert_eq!(send(&oauth, TOKEN, &message), Ok(()));
+    assert_eq!(tokens.world().sign_ins, 1);
+}
+
+#[test]
+fn a_bridge_on_this_computer_is_reached_without_encryption_by_its_name() {
+    // #836: a mail bridge (ProtonMail Bridge, DavMail) listens on this computer, unencrypted.
+    let imap = Fake::imap(imap_world());
+    let smtp = Fake::smtp(smtp_world());
+    let mut bridge = account(Some(&imap), Some(&smtp));
+    for server in [bridge.incoming.as_mut().unwrap(), bridge.outgoing.as_mut().unwrap()] {
+        server.host = "localhost".into();
+    }
+    assert_eq!(test_account(&bridge, PASSWORD), Ok(()));
+    assert!(imap.world().log.iter().any(|line| line.contains("LOGIN")));
+    assert_eq!(smtp.world().sign_ins, 1);
+    // The same settings for a server on the network are refused before anything is sent, a
+    // relay that needs no sign-in too: it would still show the mail.
+    bridge.incoming = None;
+    bridge.outgoing.as_mut().unwrap().host = "relay.example.org".into();
+    bridge.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], ..Default::default() };
+    let Err(NetError::Config(why)) = send(&bridge, PASSWORD, &message) else { panic!("sent in the clear") };
+    assert!(why.contains("relay.example.org") && why.contains("mail and password"), "{why}");
+    assert_eq!(smtp.world().connections, 1);
+}
+
+#[test]
 fn only_the_newest_are_downloaded_when_there_is_a_limit() {
     let imap = Fake::imap(imap_world());
     let mut request = request(account(Some(&imap), None), local_folders());

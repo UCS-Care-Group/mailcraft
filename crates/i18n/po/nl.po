@@ -4342,6 +4342,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "Voor een e-mailserver die uw organisatie zelf beheert. MailCraft zoekt de server op aan de hand van uw adres, of u typt het adres bij Serverinstellingen. Er wordt niets verzonden tot u op Verbinden drukt."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Voor een relay die e-mail zonder wachtwoord aanneemt: uw wachtwoord wordt er nooit naartoe gestuurd."
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -6961,6 +6967,12 @@ msgstr "Mijn taken"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mijn organisatie moet MailCraft eerst goedkeuren: wat u moet doen"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "Mijn server voor uitgaande e-mail vraagt niet om aanmelden"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -7396,6 +7408,12 @@ msgid "No due date"
 msgstr "Geen vervaldatum"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
+msgstr "Geen versleuteling is alleen voor een server op deze computer, zoals een mailbridge. MailCraft stuurt uw e-mail en wachtwoord nooit onversleuteld over het netwerk: kies TLS of STARTTLS."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -7646,6 +7664,18 @@ msgstr "Niet verbonden"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Niet verbonden: de rest van dit bericht staat op de server"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
+msgstr "Niet versleuteld: alleen voor een server op deze computer, zoals een mailbridge."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: only a server on this computer can be reached this way."
+msgstr "Niet versleuteld: zo is alleen een server op deze computer bereikbaar."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

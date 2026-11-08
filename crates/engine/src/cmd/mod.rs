@@ -89,6 +89,8 @@ pub mod picture;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
+mod plain_servers_tests;
+#[cfg(test)]
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;

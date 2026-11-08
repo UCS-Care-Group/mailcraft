@@ -4135,6 +4135,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Für ein Relay, das E-Mails ohne Kennwort annimmt: Ihr Kennwort wird nie dorthin gesendet."
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -6616,6 +6622,12 @@ msgstr "Meine Aufgaben"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "Mein Postausgangsserver erfordert keine Anmeldung"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -7044,6 +7056,12 @@ msgid "No due date"
 msgstr "Kein Fälligkeitsdatum"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
+msgstr "Keine Verschlüsselung gibt es nur für einen Server auf diesem Computer, etwa eine Mail-Bridge. MailCraft sendet Ihre E-Mails und Ihr Kennwort nie unverschlüsselt über das Netzwerk: Wählen Sie TLS oder STARTTLS."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -7282,6 +7300,18 @@ msgstr "Nicht verbunden"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Nicht verbunden: Der Rest dieser Nachricht liegt auf dem Server"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
+msgstr "Nicht verschlüsselt: nur für einen Server auf diesem Computer, etwa eine Mail-Bridge."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: only a server on this computer can be reached this way."
+msgstr "Nicht verschlüsselt: Auf diese Weise ist nur ein Server auf diesem Computer erreichbar."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
