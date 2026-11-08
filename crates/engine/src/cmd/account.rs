@@ -1124,6 +1124,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
+    // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
+    // said already that it couldn't send it.)
+    let mut said = Vec::new();
+    super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
         let free = !made.remote.is_empty() && !mb.folders.iter().any(|f| f.account == account && f.remote == made.remote);

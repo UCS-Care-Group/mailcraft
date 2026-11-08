@@ -401,6 +401,9 @@ pub struct AccountSetup {
     app_passwords: bool,
     /// A new Google account starts with OAuth; its password field appears only on request.
     google_app_password_selected: bool,
+    /// Google sign-in is open only to the project's testers ([`Services::google_testers_only`]):
+    /// a new Gmail account starts on an app password.
+    google_testers_only: bool,
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
@@ -544,6 +547,7 @@ impl AccountSetup {
             picked: false,
             app_passwords: false,
             google_app_password_selected: false,
+            google_testers_only: false,
             service: String::new(),
             note: String::new(),
             oauth: None,
@@ -610,6 +614,8 @@ impl AccountSetup {
     fn new(app: &MailApp, p: &Value) -> AccountSetup {
         let text = |k: &str| line(p.get(k).and_then(Value::as_str).unwrap_or_default(), LINE);
         let mut w = AccountSetup::blank(Page::Address);
+        w.google_testers_only = app.services.google_testers_only;
+        w.google_app_password_selected = w.google_testers_only;
         w.email = text("email");
         w.name = text("displayName");
         if w.name.is_empty() {
@@ -833,7 +839,7 @@ impl AccountSetup {
 
     /// Take over what `account.preset` answered.
     fn take(&mut self, preset: Preset) {
-        self.google_app_password_selected = false;
+        self.google_app_password_selected = self.google_testers_only;
         self.service = preset.service;
         self.note = preset.note;
         self.oauth = preset.oauth.map(|provider| OAuth { provider, ..Default::default() });
@@ -1773,7 +1779,11 @@ impl AccountSetup {
             }
             if oauth_first {
                 note(ui, tl!("Sign in securely with Google in your browser. Your Google password is never entered in MailCraft."), t.text);
-                note(ui, tl!("Recommended"), t.accent);
+                if self.google_testers_only {
+                    note(ui, google_testers_note(), t.orange);
+                } else {
+                    note(ui, tl!("Recommended"), t.accent);
+                }
                 ui.add_space(4.0);
                 if button(ui, tl!("Use an app password instead"), false, true).clicked() {
                     change_method = Some(Action::GooglePassword);
@@ -1782,8 +1792,13 @@ impl AccountSetup {
                 if google {
                     if !configured {
                         note(ui, tl!("Google sign-in is not configured for this build. Use an app password instead."), t.orange);
-                    } else if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
-                        change_method = Some(Action::GooglePreferSignIn);
+                    } else {
+                        if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
+                            change_method = Some(Action::GooglePreferSignIn);
+                        }
+                        if self.google_testers_only {
+                            note(ui, google_testers_note(), t.text_dim);
+                        }
                     }
                     note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
                 }
@@ -2248,6 +2263,10 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 /// What went wrong, in red above the buttons, where it stays in view however long the page is.
 /// Where a Google account's app passwords are made.
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
+
+fn google_testers_note() -> &'static str {
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+}
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
 fn is_google(host: &str) -> bool {

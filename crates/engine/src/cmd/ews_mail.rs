@@ -302,7 +302,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // refusal is said once per kind and reason), the drafts, and what was sent.
     let mut errors = result.errors.clone();
     for done in &result.changes {
-        if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, &mut taken) {
+        if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, s.interface_language, &mut taken) {
             errors.push(said);
         }
     }
@@ -310,8 +310,9 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // folder list afresh (#779): its state goes, and the run's folder piece, when the run gets
     // that far, sets it again. A run that stops first (a 429, called off, a read that failed)
     // leaves the next one to read the list afresh.
-    let refused_delete =
-        |done: &FolderChangeDone| matches!((&done.change, &done.outcome), (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. }));
+    let refused_delete = |done: &FolderChangeDone| {
+        matches!((&done.change, &done.outcome), (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. } | ChangeOutcome::NotShown { .. }))
+    };
     if result.changes.iter().any(refused_delete)
         && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
     {

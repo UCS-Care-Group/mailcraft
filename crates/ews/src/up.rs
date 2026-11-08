@@ -39,6 +39,7 @@ use mailcraft_model::{FolderKind, Id, Importance};
 
 use crate::changes::{CreateFolder, DeleteFolder, DeleteItem, DeleteMode, GetItemNow, ItemUpdate, MoveFolder, MoveItem, RenameFolder, UpdateItem};
 use crate::compose::{AddAttachments, CreateDraft, DraftContent, FindDraft, RemoveAttachments, SendMessage};
+use crate::delete_check::Found;
 use crate::error::ResponseCode;
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, base};
@@ -98,7 +99,7 @@ impl<E: HttpExchange> Run<'_, E> {
         for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
             // One of the server's own folders (#779) is never renamed, moved or deleted: it is
             // refused here without asking, and put back as any refusal is.
-            if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id } = change
+            if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id, .. } = change
                 && self.own.contains(id)
             {
                 log::info!("ews up: a change of one of the server's own folders is refused without asking");
@@ -169,7 +170,23 @@ impl<E: HttpExchange> Run<'_, E> {
                 let op = MoveFolder::new(id, parent);
                 self.ask_once(&op.element(), &|reply| op.answer(reply)).await.map(|id| folder(&id, "", parent))
             }
-            FolderChange::Delete { id } => {
+            FolderChange::Delete { id, shown } => {
+                // Only what the owner was shown goes with it (AU3-H7): the server is asked what it
+                // holds there first, and anything more keeps the folder (and the folder list is read
+                // afresh, so that it comes back here).
+                match self.unshown(id, shown).await? {
+                    Found::Gone => return Ok(Some(ChangeOutcome::Gone)),
+                    Found::Unshown(0) => {}
+                    Found::Unshown(items) => {
+                        self.reread_folders = true;
+                        return Ok(Some(ChangeOutcome::NotShown { items }));
+                    }
+                    Found::Unknown => {
+                        self.reread_folders = true;
+                        let why = "what the server holds in it couldn't be checked first, so nothing was deleted".to_owned();
+                        return Ok(Some(ChangeOutcome::Refused { why }));
+                    }
+                }
                 let op = DeleteFolder::new(id, DeleteMode::SoftDelete);
                 self.ask(&op.element(), &|reply| op.answer(reply)).await.map(|()| GraphFolder::default())
             }

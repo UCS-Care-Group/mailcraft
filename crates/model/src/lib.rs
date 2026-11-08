@@ -36,6 +36,7 @@ pub mod rich;
 mod rule;
 pub mod search;
 pub mod sender_warnings;
+pub mod shown;
 pub mod signature;
 pub mod sync;
 mod task;
@@ -150,6 +151,8 @@ mod account_categories_tests;
 #[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
+mod auth_results_tests;
+#[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
@@ -183,6 +186,8 @@ mod search_suggest_tests;
 mod search_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod shown_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 
