@@ -210,10 +210,12 @@ pub enum CalView {
     #[default]
     Week,
     Month,
+    /// Every appointment of the calendars shown as a table, a series one row (#845).
+    List,
 }
 
 impl CalView {
-    pub const ALL: [CalView; 4] = [CalView::Day, CalView::WorkWeek, CalView::Week, CalView::Month];
+    pub const ALL: [CalView; 5] = [CalView::Day, CalView::WorkWeek, CalView::Week, CalView::Month, CalView::List];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -221,6 +223,76 @@ impl CalView {
             CalView::WorkWeek => "Work Week",
             CalView::Week => "Week",
             CalView::Month => "Month",
+            CalView::List => "List",
+        }
+    }
+}
+
+/// A column of the calendar's List view (#845), and what it can be sorted by.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListColumn {
+    Subject,
+    Location,
+    #[default]
+    Start,
+    End,
+    Recurrence,
+    /// Not sorted by, as in Outlook: an event can have several.
+    Categories,
+    Calendar,
+}
+
+impl ListColumn {
+    pub const ALL: [ListColumn; 7] = [
+        ListColumn::Subject,
+        ListColumn::Location,
+        ListColumn::Start,
+        ListColumn::End,
+        ListColumn::Recurrence,
+        ListColumn::Categories,
+        ListColumn::Calendar,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ListColumn::Subject => "Subject",
+            ListColumn::Location => "Location",
+            ListColumn::Start => "Start",
+            ListColumn::End => "End",
+            ListColumn::Recurrence => "Recurrence Pattern",
+            ListColumn::Categories => "Categories",
+            ListColumn::Calendar => "Calendar",
+        }
+    }
+
+    /// Whether a click on its heading sorts by it.
+    pub fn sorts(self) -> bool {
+        self != ListColumn::Categories
+    }
+}
+
+/// The groups the List view's rows are under (View › Arrange By).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListArrange {
+    /// By how each repeats, those that don't first: Outlook's own arrangement of its List view.
+    #[default]
+    Recurrence,
+    /// Under each of its categories, those with none first.
+    Categories,
+    /// No groups.
+    None,
+}
+
+impl ListArrange {
+    pub const ALL: [ListArrange; 3] = [ListArrange::Recurrence, ListArrange::Categories, ListArrange::None];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ListArrange::Recurrence => "Recurrence",
+            ListArrange::Categories => "Categories",
+            ListArrange::None => "None",
         }
     }
 }
@@ -292,6 +364,17 @@ pub struct ViewState {
     pub calendar: CalView,
     /// The day the calendar shows (its week or month, depending on the view).
     pub date: Date,
+    /// The column the List view is sorted by (`calendar.listSort`).
+    pub list_sort: ListColumn,
+    /// The List view is sorted the other way round: Z, or the latest, first.
+    pub list_descending: bool,
+    /// What the List view's rows are grouped by (`calendar.listArrange`).
+    pub list_arrange: ListArrange,
+    /// Goes up whenever a day is chosen (Today, Go to Date, the date navigator, the List view
+    /// itself): the List view then scrolls to the first row on or after `date`, the same day again
+    /// included. Not kept.
+    #[serde(skip)]
+    pub list_reveal: u32,
     /// How many days the Day view shows from `date` on (`view.days`: Alt+1…0, a drag over the
     /// date navigator); 0 and 1 are the one day.
     pub days: u8,
@@ -330,6 +413,10 @@ impl Default for ViewState {
             folder_pane: true,
             calendar: CalView::Week,
             date: Date::default(),
+            list_sort: ListColumn::Start,
+            list_descending: false,
+            list_arrange: ListArrange::Recurrence,
+            list_reveal: 0,
             days: 0,
             in_calendar: 0,
             overlay: Vec::new(),

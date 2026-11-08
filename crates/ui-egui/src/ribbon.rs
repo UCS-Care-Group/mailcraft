@@ -8,7 +8,7 @@
 //! fit first loses its label and then goes behind `…` ([`plan`]).
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
+use mailcraft_engine::{CalView, Filter, ListArrange, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
 use mailcraft_model::{FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
@@ -405,7 +405,7 @@ fn home_mail(app: &MailApp) -> Tab {
     ])
 }
 
-/// The calendar's four views, the one in use marked, in `section` of the simplified row: Home has
+/// The calendar's five views, the one in use marked, in `section` of the simplified row: Home has
 /// them, and View while the calendar is in front.
 fn calendar_views(cur: CalView, section: u8) -> Vec<Item> {
     vec![
@@ -413,6 +413,7 @@ fn calendar_views(cur: CalView, section: u8) -> Vec<Item> {
         Item::big("workWeek", "Work\nWeek", "view.workWeek", no()).checked(cur == CalView::WorkWeek).at(section, 2),
         Item::big("week", "Week", "view.week", no()).checked(cur == CalView::Week).at(section, 2),
         Item::big("month", "Month", "view.month", no()).checked(cur == CalView::Month).at(section, 2),
+        Item::big("list", "List", "view.list", no()).checked(cur == CalView::List).at(section, 2),
     ]
 }
 
@@ -421,7 +422,7 @@ fn home_calendar(app: &MailApp) -> Tab {
     let selected = app.session.sel.event.and_then(|id| app.session.mailbox.event(id));
     let private = selected.is_some_and(|e| e.private);
     let respond = |icon, label, key, answer: &str| Item::small(icon, label, label, "calendar.respond", json!({"response": answer})).key(key).at(4, 4);
-    // The simplified row reads: the new items | today and the next seven days | the four views,
+    // The simplified row reads: the new items | today and the next seven days | the five views,
     // with their names (which keep them longest: their icons alone don't tell them apart), the
     // one in use marked | and, while an event is selected, what is done with it and the answers
     // to somebody else's meeting | the rest.
@@ -953,7 +954,7 @@ fn view(app: &MailApp) -> Tab {
     let mut tab = view_of_any(app);
     if v.module == Module::Calendar {
         // The calendar's own, in place of the messages' preview and sorting, which mean nothing
-        // here: its four views, as Home has them (Outlook's View tab has them too, and that is
+        // here: its five views, as Home has them (Outlook's View tab has them too, and that is
         // where people look); what a row of its hours stands for; and whether the calendars that
         // are shown lie over one another or stand side by side.
         let scale = Item::big_menu("timeScale", "clock", "Time\nScale", "Time Scale", Menu::TimeScale).at(2, 3);
@@ -962,7 +963,22 @@ fn view(app: &MailApp) -> Tab {
         let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
         tab.groups.retain(|group| !["Current View", "Messages", "Arrangement", "Search"].contains(&group.title));
         let after_layout = tab.groups.len().min(1);
-        tab.groups.splice(after_layout..after_layout, [g("Arrangement", calendar_views(v.calendar, 1)), g("Calendar", vec![scale, overlay, beside])]);
+        let mut views = calendar_views(v.calendar, 1);
+        // The List view's groups (#845).
+        if v.calendar == CalView::List {
+            views.push(
+                Item::big_menu(
+                    "arrangeBy",
+                    "sort",
+                    "Arrange
+By",
+                    "Arrange By",
+                    Menu::ArrangeBy,
+                )
+                .at(1, 2),
+            );
+        }
+        tab.groups.splice(after_layout..after_layout, [g("Arrangement", views), g("Calendar", vec![scale, overlay, beside])]);
     }
     tab
 }
@@ -1430,6 +1446,12 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             let sort = app.session.view.task_sort;
             for s in TaskSort::ALL {
                 mi_check(ui, app, s.label(), sort == s, "tasks.arrange", json!({"by": s}));
+            }
+        }
+        Menu::ArrangeBy if app.session.view.module == Module::Calendar => {
+            let arrange = app.session.view.list_arrange;
+            for a in ListArrange::ALL {
+                mi_check(ui, app, a.label(), arrange == a, "calendar.listArrange", json!({"by": a}));
             }
         }
         Menu::ArrangeBy if app.session.view.module == Module::People => {
@@ -2472,12 +2494,13 @@ mod tests {
         assert!(follow_up.item.command.is_none() && !follow_up.is_split());
     }
 
-    /// Calendar › View has the four views, the one in use marked, in place of the messages'
-    /// sorting and preview, which mean nothing there; Mail › View keeps those and has no views.
+    /// Calendar › View has the five views, the one in use marked, in place of the messages'
+    /// sorting and preview, which mean nothing there, and the List view's Arrange By while it is
+    /// in use; Mail › View keeps those and has no views.
     #[test]
     fn the_calendar_view_tab_has_its_views() {
         let mail_only = ["view.conversations", "preview", "arrangeBy", "view.reverseSort"];
-        let views = ["view.day", "view.workWeek", "view.week", "view.month"];
+        let views = ["view.day", "view.workWeek", "view.week", "view.month", "view.list"];
         let checked_view = |a: &MailApp| -> Vec<&str> {
             describe(a).items().filter(|item| views.contains(&item.key) && item.checked).map(|item| item.key).collect()
         };
@@ -2488,7 +2511,16 @@ mod tests {
         assert_eq!(tab.groups.iter().map(|g| g.title).collect::<Vec<_>>(), ["Layout", "Arrangement", "Calendar", "Window"]);
         let arrangement: Vec<(&str, bool, u8, u8)> =
             tab.groups[1].items.iter().map(|item| (item.key, item.checked, item.section, item.rank)).collect();
-        assert_eq!(arrangement, [("view.day", false, 1, 2), ("view.workWeek", false, 1, 2), ("view.week", true, 1, 2), ("view.month", false, 1, 2)]);
+        assert_eq!(
+            arrangement,
+            [
+                ("view.day", false, 1, 2),
+                ("view.workWeek", false, 1, 2),
+                ("view.week", true, 1, 2),
+                ("view.month", false, 1, 2),
+                ("view.list", false, 1, 2)
+            ]
+        );
         // The calendar's own group is as it was.
         let calendar: Vec<&str> = tab.groups[2].items.iter().map(|item| item.key).collect();
         assert_eq!(calendar, ["timeScale", "view.overlay", "view.sideBySide"]);
@@ -2497,6 +2529,8 @@ mod tests {
         for view in views {
             a.execute(view, json!({})).unwrap();
             assert_eq!(checked_view(&a), [view]);
+            let arrange = describe(&a).items().any(|item| item.key == "arrangeBy" && item.menu == Some(Menu::ArrangeBy));
+            assert_eq!(arrange, view == "view.list", "{view}");
         }
         a.execute("view.mail", json!({})).unwrap();
         let tab = describe(&a);

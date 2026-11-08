@@ -345,7 +345,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
 }
 
 /// The arrow that says which way the list runs: a stem with a head, 7 wide and 12 tall.
-fn paint_direction(p: &egui::Painter, c: egui::Pos2, up: bool, color: Color32) {
+pub(crate) fn paint_direction(p: &egui::Painter, c: egui::Pos2, up: bool, color: Color32) {
     let line = Stroke::new(1.2, color);
     let tip = if up { -5.5 } else { 5.5 };
     let barb = if up { -2.0 } else { 2.0 };

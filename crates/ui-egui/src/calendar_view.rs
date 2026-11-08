@@ -3,7 +3,7 @@
 //! Calendar: the side pane (date navigator, calendars by group), the header strip, and the day,
 //! work-week, week and month grids, with what the pointer and the keyboard do in them: picking a
 //! time and typing into it, moving, resizing and copying events by dragging, and the keys of the
-//! grid.
+//! grid; and the List view (`list`).
 //!
 //! Several calendars that are shown stand side by side, each in a block of its own with a tab
 //! over it; the arrow on a tab lays a calendar over the others (overlay), where the one in front
@@ -26,6 +26,8 @@ use serde_json::{Value, json};
 
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
+
+mod list;
 
 /// Height of the strip with Today, Back and Forward and the days in view.
 const HEADER_H: f32 = 46.0;
@@ -118,6 +120,16 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         header(app, ui);
         connect_notice(app, ui);
         local_notice(app, ui);
+        // The List view has no grid: nothing is picked or dragged in it (#845).
+        if app.session.view.calendar == CalView::List {
+            list::show(app, ui);
+            let free = has_keyboard(app, ui.ctx());
+            ui.ctx().data_mut(|d| {
+                d.insert_temp(egui::Id::unique(ZONES_ID), Zones::default());
+                d.insert_temp(egui::Id::unique(KEYS_ID), free);
+            });
+            return;
+        }
         // After the header, whose buttons change the range; and after the list of calendars,
         // whose check boxes change what is shown.
         let (mut from, mut to) = calendar_range(&app.session);
@@ -533,8 +545,9 @@ pub(crate) fn range_title(view: CalView, date: Date, from: Date, to: Date) -> St
     let year = |d: Date| d.year.to_string();
     match view {
         CalView::Month => crate::dates::month_year(date),
-        // (The Day view names its day, or its days when it shows several.)
-        CalView::Day | CalView::Week | CalView::WorkWeek => {
+        // (The Day view names its day, or its days when it shows several; the List view the day
+        // it is at.)
+        CalView::Day | CalView::Week | CalView::WorkWeek | CalView::List => {
             use crate::dates::{long_without_weekday, month_day_long, month_name};
             if from.year != to.year {
                 format!("{} – {}", long_without_weekday(from), long_without_weekday(to))
@@ -2115,25 +2128,39 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
     if resp.secondary_clicked() {
         let _ = app.execute("calendar.select", json!({"id": id, "day": day}));
     }
-    let (repeats, show_as, private) = (item.ev.recurrence.is_some(), item.ev.show_as, item.ev.private);
+    event_menu(app, &resp, &item.ev, Some(item.occ.start.date));
+    if tips {
+        let twelve = app.session.prefs.twelve_hour;
+        let session = &app.session;
+        resp.on_hover_ui(|ui| tooltip(ui, item, twelve, own_time(session, item).as_deref()));
+    }
+}
+
+/// The menu of an event: of the occurrence on `day`, with what is done to that one alone beside
+/// what is done to its series; or, without a day, of the event or the whole series (a row of the
+/// List view).
+fn event_menu(app: &mut MailApp, resp: &Response, ev: &Event, day: Option<Date>) {
+    let id = ev.id;
+    let (repeats, show_as, private) = (ev.recurrence.is_some(), ev.show_as, ev.private);
+    let occurrence = day.filter(|_| repeats).map(|day| day.iso());
     // An event of the mailbox's own can be put into another calendar (into a server's too, which
     // then has it). One that a server keeps can go into another calendar of the same account
     // (the engine says what can't, and why: a meeting, a series); out of the account it can't,
     // as taking it out would delete it there.
-    let own = mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &item.ev.origin).is_none();
-    let account = item.ev.origin.account;
+    let own = mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &ev.origin).is_none();
+    let account = ev.origin.account;
     let others: Vec<(Id, String)> = {
-        let calendars = app.session.mailbox.calendars.iter().take(50).filter(|c| c.id != item.ev.calendar);
+        let calendars = app.session.mailbox.calendars.iter().take(50).filter(|c| c.id != ev.calendar);
         let fits = |c: &&mailcraft_model::Calendar| own || (c.origin.account == account && c.can_edit());
         calendars.filter(fits).map(|c| (c.id, calendar_label(&app.session, c))).collect()
     };
-    let importance = item.ev.importance;
-    let proposable = !own && item.ev.origin.guest && item.ev.response_options.allow_proposals;
+    let importance = ev.importance;
+    let proposable = !own && ev.origin.guest && ev.response_options.allow_proposals;
     // The link to join an online meeting by, when its server gave one that is one.
-    let join = item.ev.join_link().and_then(mailcraft_model::OnlineMeeting::clean_link);
-    let online = item.ev.online.as_ref().map(|online| online.provider.label());
+    let join = ev.join_link().and_then(mailcraft_model::OnlineMeeting::clean_link);
+    let online = ev.online.as_ref().map(|online| online.provider.label());
     // Somebody else's meeting can be answered from here; what the owner answered so far is ticked.
-    let (invited, answered) = invitation(app, &item.ev);
+    let (invited, answered) = invitation(app, ev);
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::{mi, mi_check};
@@ -2163,11 +2190,11 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
             }
         }
         mi(ui, app, "Forward…", "calendar.forward", json!({"id": id}));
-        if repeats {
+        if let Some(day) = &occurrence {
             mi(ui, app, "Forward This Occurrence…", "calendar.forward", json!({"id": id, "scope": "occurrence", "occurrence": day}));
         }
         mi(ui, app, "Delete", "calendar.delete", json!({"id": id}));
-        if repeats {
+        if let Some(day) = &occurrence {
             mi(ui, app, "Delete This Occurrence", "calendar.delete", json!({"id": id, "occurrence": day}));
         }
         if !others.is_empty() {
@@ -2192,11 +2219,6 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
         ui.separator();
         mi(ui, app, "Save as iCalendar…", "file.exportCalendar", json!({"id": id}));
     });
-    if tips {
-        let twelve = app.session.prefs.twelve_hour;
-        let session = &app.session;
-        resp.on_hover_ui(|ui| tooltip(ui, item, twelve, own_time(session, item).as_deref()));
-    }
 }
 
 /// Clicks on empty calendar: one picks the slot out (and lets go of the event that was
@@ -4587,7 +4609,7 @@ mod tests {
     }
 
     /// Wednesday 2026-10-14 16:00 UTC, as the screenshots use.
-    const NOW: i64 = 1_791_993_600;
+    pub(super) const NOW: i64 = 1_791_993_600;
 
     /// An occurrence from `start` to `end` that was grabbed by `grip` where `press` is.
     fn grabbed(start: DateTime, end: DateTime, all_day: bool, grip: Grip, press: Under) -> Drag {
@@ -4596,10 +4618,11 @@ mod tests {
         Drag { event: 1, start, end, all_day, bar, grip, menu: false, press, repeats: false, target, copy: false, cancelled: false, pane, over, into }
     }
 
-    /// The whole window at 1280×800, driven with real pointer input, a frame every 16 ms.
-    struct Rig {
+    /// The whole window at 1280×800, driven with real pointer input, a frame every 16 ms. (The
+    /// List view's tests drive it too.)
+    pub(super) struct Rig {
         ctx: egui::Context,
-        app: MailApp,
+        pub(super) app: MailApp,
         time: f64,
         /// The modifier keys that are held down.
         mods: egui::Modifiers,
@@ -4610,12 +4633,12 @@ mod tests {
     /// Ctrl, as the keyboard of this machine has it.
     const MAC: bool = cfg!(target_os = "macos");
     /// The key of a shortcut on this system: Ctrl, or Command on a Mac.
-    const CTRL: egui::Modifiers = egui::Modifiers { alt: false, ctrl: !MAC, shift: false, mac_cmd: MAC, command: true };
+    pub(super) const CTRL: egui::Modifiers = egui::Modifiers { alt: false, ctrl: !MAC, shift: false, mac_cmd: MAC, command: true };
     /// The key that makes a drag a copy on this system: Ctrl, or Option on a Mac ([`copy_key`]).
     const COPY: egui::Modifiers = if MAC { egui::Modifiers::ALT } else { CTRL };
 
     impl Rig {
-        fn new(mailbox: mailcraft_model::Mailbox) -> Rig {
+        pub(super) fn new(mailbox: mailcraft_model::Mailbox) -> Rig {
             let mut app = MailApp::new(Session::at(mailbox, NOW, 0), crate::Services::default());
             app.autosave = false;
             app.execute("view.calendar", json!({})).unwrap();
@@ -4628,7 +4651,7 @@ mod tests {
             rig
         }
 
-        fn sample() -> Rig {
+        pub(super) fn sample() -> Rig {
             Rig::new(mailcraft_engine::sample::mailbox(NOW, 0))
         }
 
@@ -4648,14 +4671,14 @@ mod tests {
             output.drop_without_applying_deltas();
         }
 
-        fn frames(&mut self, n: usize) {
+        pub(super) fn frames(&mut self, n: usize) {
             for _ in 0..n {
                 self.frame(Vec::new());
             }
         }
 
         /// Run a command and let the window catch up.
-        fn run(&mut self, id: &str, params: Value) {
+        pub(super) fn run(&mut self, id: &str, params: Value) {
             self.app.execute(id, params).unwrap();
             self.frames(3);
         }
@@ -4665,14 +4688,14 @@ mod tests {
             self.frame(vec![egui::Event::PointerMoved(pos), egui::Event::PointerButton { pos, button, pressed, modifiers }]);
         }
 
-        fn key(&mut self, key: egui::Key) {
+        pub(super) fn key(&mut self, key: egui::Key) {
             let modifiers = self.mods;
             self.frame(vec![egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }]);
             self.frame(vec![egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers }]);
         }
 
         /// Press `key` with `mods` held, and let them go again.
-        fn chord(&mut self, mods: egui::Modifiers, key: egui::Key) {
+        pub(super) fn chord(&mut self, mods: egui::Modifiers, key: egui::Key) {
             self.mods = mods;
             self.key(key);
             self.mods = egui::Modifiers::NONE;
@@ -4680,7 +4703,7 @@ mod tests {
         }
 
         /// Click `count` times at `pos`, a moment after whatever came before.
-        fn click(&mut self, pos: egui::Pos2, count: usize) {
+        pub(super) fn click(&mut self, pos: egui::Pos2, count: usize) {
             self.time += 1.0;
             self.frame(vec![egui::Event::PointerMoved(pos)]);
             for _ in 0..count {
@@ -4728,7 +4751,7 @@ mod tests {
             self.dragging().and_then(|drag| drag.target).map(|span| (span.start, span.end, span.all_day))
         }
 
-        fn event(&self, title: &str) -> Arc<Event> {
+        pub(super) fn event(&self, title: &str) -> Arc<Event> {
             self.app.session.mailbox.events.values().find(|e| e.title.starts_with(title)).cloned().unwrap_or_else(|| panic!("no event \"{title}\""))
         }
 
@@ -4742,11 +4765,11 @@ mod tests {
             self.app.hit.rect(kind, u64::try_from(day.to_days()).unwrap())
         }
 
-        fn dialog(&self) -> Option<&'static str> {
+        pub(super) fn dialog(&self) -> Option<&'static str> {
             self.app.dialog.as_ref().map(|d| d.name())
         }
 
-        fn selected(&self) -> (Option<Id>, Option<Date>) {
+        pub(super) fn selected(&self) -> (Option<Id>, Option<Date>) {
             (self.app.session.sel.event, self.app.session.sel.event_day)
         }
     }
