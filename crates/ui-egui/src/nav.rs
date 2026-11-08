@@ -506,8 +506,9 @@ fn gmail_hit(category: GmailCategory) -> &'static str {
 
 /// The row of one of Gmail's categories under a Gmail account's Inbox (#911), a level further in
 /// than the Inbox (`depth`): its name and its unread count, `selected` when the list shows it.
-/// It is a view of the Inbox, no folder: a click shows its mail, and it has nothing to rename,
-/// delete or file mail in, so no menu, and mail let go over it stays where it was.
+/// It is a view of the Inbox, no folder: a click shows its mail, and it has nothing to rename or
+/// delete, so no menu. Mail let go over it is moved to that category where moves between Gmail's
+/// categories are on ([`crate::gmail_move`]), and stays where it was otherwise.
 fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: GmailCategory, unread: usize, selected: bool) {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
@@ -552,6 +553,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     if resp.clicked() {
         let _ = app.run("folder.select", json!({"id": inbox, "gmail": category.code()}));
     }
+    crate::gmail_move::drop_target(app, ui, &resp, row, category);
 }
 
 /// A sentence under the Favorites heading that is longer than a row: wrapped to the pane, three

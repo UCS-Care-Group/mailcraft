@@ -123,6 +123,28 @@ pub struct SyncRequest {
     /// account or from this computer (#451); after `ops`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<ImapPlace>,
+    /// Messages of a Gmail account's Inbox the owner moved to another of Gmail's categories here
+    /// (#911), for Gmail's API: after `ops`, before anything is read. Only for an account that
+    /// signs in with Google, and only while moves are switched on; empty otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moves: Vec<GmailMove>,
+}
+
+/// Most moves between Gmail's categories asked of Gmail's API in one run ([`SyncRequest::gmail_moves`]):
+/// the rest wait for the next.
+pub const MAX_GMAIL_MOVES: usize = 500;
+
+/// One message moved to another of Gmail's categories here ([`SyncRequest::gmail_moves`]), or one
+/// Gmail took the move of ([`SyncResult::gmail_moved`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailMove {
+    /// The message here.
+    pub message: Id,
+    /// Gmail's own id of it (`X-GM-MSGID`), which its API knows it by (in hex).
+    pub id: u64,
+    /// The category it goes to.
+    pub category: crate::GmailCategory,
 }
 
 /// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).
@@ -164,6 +186,7 @@ impl std::fmt::Debug for SyncRequest {
             .field("outbox", &self.outbox.len())
             .field("ops", &self.ops.len())
             .field("places", &self.places.len())
+            .field("gmail_moves", &self.gmail_moves.len())
             .finish()
     }
 }
@@ -681,6 +704,10 @@ pub struct SyncResult {
     /// Messages the server wouldn't take (see `errors`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unplaced: Vec<Id>,
+    /// What became of [`SyncRequest::gmail_moves`]: the moves Gmail took (#911). One that isn't
+    /// here failed (see `errors`) or wasn't tried, and is asked for again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moved: Vec<GmailMove>,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before.
     pub errors: Vec<String>,
@@ -710,7 +737,13 @@ impl SyncResult {
 
     /// How many changes made here the server took on.
     pub fn pushed_count(&self) -> usize {
-        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len() + self.placed.len() + self.unplaced.len()
+        self.flagged.len()
+            + self.moved.len()
+            + self.deleted.len()
+            + self.created.len()
+            + self.placed.len()
+            + self.unplaced.len()
+            + self.gmail_moved.len()
     }
 
     /// Whether there is anything in it for a mailbox to take in. A piece with only a line of
@@ -747,6 +780,7 @@ impl SyncResult {
         self.created.extend(later.created);
         self.placed.extend(later.placed);
         self.unplaced.extend(later.unplaced);
+        self.gmail_moved.extend(later.gmail_moved);
         self.errors.extend(later.errors);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {

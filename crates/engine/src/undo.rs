@@ -310,6 +310,19 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
         }
     }
+    // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
+    // the change moved between Gmail's categories goes back to the one it was in, against what
+    // Gmail says now, so that a move Gmail has had already is moved back there at the next run.
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        if relevant(t, g) || relevant(c, g) || t.gmail_synced == c.gmail_synced || (t.folder, t.gmail_id) != (c.folder, c.gmail_id) {
+            continue;
+        }
+        let synced = c.gmail_synced;
+        if let Some(t) = out.messages.get_mut(id) {
+            Arc::make_mut(t).gmail_synced = synced;
+        }
+    }
     // Contacts the change didn't touch are as they are now (those an import put in and a later
     // step's snapshot holds are not brought back by undoing that step).
     let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();

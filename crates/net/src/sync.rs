@@ -17,7 +17,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
-use mailcraft_model::sync::{FolderDelta, FolderState, GmailSorted, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
+use mailcraft_model::sync::{
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+};
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
@@ -647,6 +649,9 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         return Some(imap);
     }
     let arrived = push(run, &mut imap, &mailboxes)?;
+    // Moves between Gmail's categories made here (#911), through Gmail's API: before anything is
+    // read, so that what the Inbox's reading says of them agrees.
+    gmail_moves(run, host);
     // Asked only to tell, not to read: done.
     if request.push_only {
         return Some(imap);
@@ -675,6 +680,44 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         }
     }
     Some(imap)
+}
+
+/// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
+/// #911), [`MAX_GMAIL_MOVES`] at most: each it takes, or that finds the message gone from Gmail,
+/// goes back as moved. Only for a Gmail account that signs in with Google, whose token the API
+/// takes; a request for any other has its moves left alone, and nothing is sent. A token or a
+/// permission Gmail doesn't take, Gmail busy or out of reach leave the rest for the next run; one
+/// move it refuses doesn't hold up the others. The problem is said once.
+fn gmail_moves(run: &mut Run, host: Host) {
+    let request = run.request;
+    let google = request.account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
+    if request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
+        return;
+    }
+    let mut problem: Option<NetError> = None;
+    let mut failed = 0usize;
+    for (at, moving) in request.gmail_moves.iter().take(MAX_GMAIL_MOVES).enumerate() {
+        if run.cancelled() {
+            break;
+        }
+        match crate::gmail::modify(&request.access_token, moving.id, moving.category) {
+            Ok(_) => run.out.gmail_moved.push(*moving),
+            Err(e) => {
+                failed += 1;
+                let one = matches!(e, NetError::Proto(ProtoError::Rejected(_)) | NetError::Config(_));
+                problem.get_or_insert(e);
+                if !one {
+                    failed += request.gmail_moves.len().min(MAX_GMAIL_MOVES).saturating_sub(at + 1);
+                    break;
+                }
+            }
+        }
+    }
+    if let Some(e) = problem {
+        let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
+        log::info!("gmail: {failed} moves between categories didn't go");
+        run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));
+    }
 }
 
 /// A size for a person to read: `100 MB`.

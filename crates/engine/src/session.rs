@@ -1181,6 +1181,11 @@ pub struct Session {
     /// English). What the engine writes for a person is to follow it; commands, their parameters
     /// and what agents read stay English. Never saved in the mailbox file.
     pub interface_language: mailcraft_i18n::Lang,
+    /// Whether mail can be moved between Gmail's categories (#911): what
+    /// [`crate::gmail::GMAIL_CATEGORY_MOVES`] says, and a test may turn it on. Off, the command
+    /// is disabled, the window offers nothing, and no move is put in a request for Gmail's API.
+    /// Never saved.
+    pub gmail_category_moves: bool,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1294,6 +1299,7 @@ impl Session {
             searched_for: None,
             index_words: false,
             interface_language: mailcraft_i18n::Lang::English,
+            gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

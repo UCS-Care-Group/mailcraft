@@ -3,7 +3,7 @@
 //! Gmail's inbox categories read with Gmail's own search (#911), against the fake server.
 
 use mailcraft_model::GmailCategory;
-use mailcraft_model::sync::GmailSorted;
+use mailcraft_model::sync::{GmailMove, GmailSorted};
 
 use super::*;
 use crate::fake::GMAIL_IDS;
@@ -149,4 +149,97 @@ fn deleted_messages_count_towards_the_sets_and_are_never_sorted() {
     assert!(inbox.gmail.iter().all(|g| g.uid % 2 == 1));
     assert!(inbox.gmail.contains(&sorted(5_999, GmailCategory::Social)));
     assert!(inbox.gmail.contains(&sorted(1, GmailCategory::Primary)));
+}
+
+/// A Gmail account that signs in with Google, against the fake IMAP server, with moves between
+/// categories to tell Gmail's API (the stand-in), whose token is the same as the IMAP server's.
+fn signed_in(imap: &FakeImap, moves: Vec<GmailMove>) -> SyncRequest {
+    let oauth = OAuth { provider: OAuthProvider::Google, client_id: "client-1".into(), ..Default::default() };
+    let account = Account { oauth: Some(oauth), ..oauth_account(Some(imap), None) };
+    SyncRequest { access_token: crate::gmail::standin::TOKEN.into(), gmail_moves: moves, ..request(account, local_folders()) }
+}
+
+fn google_world() -> ImapWorld {
+    ImapWorld { user: "ada@example.org".into(), token: crate::gmail::standin::TOKEN.into(), ..gmail_world() }
+}
+
+fn moving(message: Id, uid: u32, category: GmailCategory) -> GmailMove {
+    GmailMove { message, id: GMAIL_IDS + u64::from(uid), category }
+}
+
+fn modify_path(uid: u32) -> String {
+    format!("/gmail/v1/users/me/messages/{:x}/modify", GMAIL_IDS + u64::from(uid))
+}
+
+#[test]
+fn moves_between_categories_go_to_gmails_api_before_the_inbox_is_read() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
+    api.state().add(GMAIL_IDS + 5, &["INBOX", "CATEGORY_PROMOTIONS"]);
+    let _routed = api.route();
+    let moves = vec![moving(31, 2, GmailCategory::Primary), moving(32, 5, GmailCategory::Updates)];
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert_eq!(result.gmail_moved, moves);
+    let paths: Vec<String> = api.requests().iter().map(|a| a.path.clone()).collect();
+    assert_eq!(paths, [modify_path(2), modify_path(5)]);
+    assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_PERSONAL"]);
+    assert_eq!(api.state().categories(GMAIL_IDS + 5), ["CATEGORY_UPDATES"]);
+    // The Inbox was read after them, as ever.
+    assert!(!delta(&result, "INBOX").gmail.is_empty());
+}
+
+#[test]
+fn no_request_goes_to_gmails_api_without_moves_or_a_google_sign_in() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
+    let _routed = api.route();
+    // No moves (what a mailbox sends while moves are switched off): nothing at all.
+    let result = whole(&signed_in(&imap, Vec::new()), Limits::in_pieces(), gmail());
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert!(result.gmail_moved.is_empty());
+    // Moves, but for an account signed in with a password, or another provider, or a server that
+    // isn't Gmail's: none goes either.
+    let moves = vec![moving(31, 2, GmailCategory::Primary)];
+    let with_password = Fake::imap(gmail_world());
+    let request = SyncRequest { gmail_moves: moves.clone(), ..request(account(Some(&with_password), None), local_folders()) };
+    assert!(whole(&request, Limits::in_pieces(), gmail()).gmail_moved.is_empty());
+    let mut microsoft = signed_in(&imap, moves.clone());
+    microsoft.account.oauth = Some(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
+    assert!(whole(&microsoft, Limits::in_pieces(), gmail()).gmail_moved.is_empty());
+    assert!(whole(&signed_in(&imap, moves), Limits::in_pieces(), Host::default()).gmail_moved.is_empty());
+    assert!(api.requests().is_empty(), "{:?}", api.requests());
+    assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_SOCIAL"]);
+}
+
+#[test]
+fn a_move_gmail_refuses_waits_and_a_busy_gmail_holds_the_rest() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    for uid in [1u32, 2, 5] {
+        api.state().add(GMAIL_IDS + u64::from(uid), &["INBOX", "CATEGORY_PERSONAL"]);
+    }
+    let _routed = api.route();
+    let moves = vec![moving(30, 1, GmailCategory::Social), moving(31, 2, GmailCategory::Forums), moving(32, 5, GmailCategory::Updates)];
+    // One refused: the others go, and the problem is said once, without the token.
+    api.state().echo = true;
+    api.state().faults.push_back(400);
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert_eq!(result.gmail_moved, moves[1..]);
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors[0].contains("Gmail") && !result.errors[0].contains(crate::gmail::standin::TOKEN), "{:?}", result.errors);
+    // Busy: nothing after it is asked this run.
+    let before = api.requests().len();
+    api.state().faults.push_back(429);
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert!(result.gmail_moved.is_empty());
+    assert_eq!(api.requests().len(), before + 1);
+    assert!(result.errors.iter().any(|e| e.contains("3 messages")), "{:?}", result.errors);
+    // A token Gmail doesn't take: likewise, and the mail is read all the same.
+    api.state().faults.push_back(401);
+    let result = whole(&signed_in(&imap, moves), Limits::in_pieces(), gmail());
+    assert!(result.gmail_moved.is_empty());
+    assert!(!delta(&result, "INBOX").gmail.is_empty());
 }

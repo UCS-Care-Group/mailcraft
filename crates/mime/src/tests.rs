@@ -533,6 +533,7 @@ fn message() -> impl Strategy<Value = Message> {
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
             not_downloaded: 62_914_560,
             gmail_category: Some(mailcraft_model::GmailCategory::Social),
+            gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
             gmail_id: 42,
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,

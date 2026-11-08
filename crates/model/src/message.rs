@@ -256,11 +256,17 @@ pub struct Message {
     /// from before has none, and one that holds something other than a size there reads as 0.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
-    /// For a message of a Gmail account's Inbox: which of Gmail's five categories Gmail put it in
-    /// (#911), as its server last said, like a read mark. `None` for mail anywhere else, of any
-    /// other account, and of a file from before there were any (or one that holds something else).
+    /// For a message of a Gmail account's Inbox: which of Gmail's five categories it is in (#911),
+    /// like a read mark: as its server last said, or as the owner moved it here and Gmail hasn't
+    /// heard yet ([`Message::gmail_synced`]). `None` for mail anywhere else, of any other account,
+    /// and of a file from before there were any (or one that holds something else).
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub gmail_category: Option<crate::GmailCategory>,
+    /// The Gmail category Gmail last said the message is in (#911): where it differs from
+    /// `gmail_category`, the owner moved it here and the move goes to Gmail at the next run.
+    /// `None` until Gmail has said, and for a file from before moves.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub gmail_synced: Option<crate::GmailCategory>,
     /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
@@ -426,10 +432,11 @@ impl Message {
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it is forgotten: what the server
-    /// says of the folder it is in now says them again, if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
+    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
+    /// if anything (#911).
     pub fn left_gmail_inbox(&mut self) {
-        (self.gmail_category, self.gmail_id) = (None, 0);
+        (self.gmail_category, self.gmail_synced, self.gmail_id) = (None, None, 0);
     }
 
     /// Every recipient: To, Cc, Bcc.

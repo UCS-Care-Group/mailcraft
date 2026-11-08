@@ -9,8 +9,8 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, ImapPlace, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags, RemoteOp, SyncRequest,
-    SyncResult, SyncStage, summary_line_in,
+    Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_GMAIL_MOVES, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags,
+    RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
@@ -764,7 +764,39 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
     let outbox = s.loaded_outbox(outbox);
-    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, ..Default::default() })
+    let gmail_moves = gmail_moves(s, account);
+    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, gmail_moves, ..Default::default() })
+}
+
+/// The moves between Gmail's categories made in `account` that Gmail hasn't heard of (#911), for
+/// its API: [`MAX_GMAIL_MOVES`] at most, the rest at the next run. None while moves are switched
+/// off ([`crate::gmail::moves_offered`]), nor for an account that doesn't sign in with Google: no
+/// request for Gmail's API is ever made then.
+fn gmail_moves(s: &Session, account: Id) -> Vec<GmailMove> {
+    let mb = &s.mailbox;
+    if crate::gmail::moves_offered(s).is_some() || !mb.account(account).is_some_and(|a| !a.is_shared() && a.moves_gmail_categories()) {
+        return Vec::new();
+    }
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox);
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && Some(m.folder) == inbox)
+        .filter_map(|m| m.gmail_move_waiting().map(|category| GmailMove { message: m.id, id: m.gmail_id, category }))
+        .take(MAX_GMAIL_MOVES)
+        .collect()
+}
+
+/// Moves between Gmail's categories that Gmail took (#911): Gmail has the message there now. One
+/// moved on here meanwhile differs from it again, and goes at the next run.
+fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) {
+    for done in moved {
+        let took = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0 && m.gmail_synced != Some(done.category);
+        if mb.message(done.message).is_some_and(took)
+            && let Ok(m) = mb.message_mut(done.message)
+        {
+            m.gmail_synced = Some(done.category);
+        }
+    }
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -1155,6 +1187,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         move_finished(mb, account, &mut on_server, moved);
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
+    gmail_moved(mb, account, &result.gmail_moved);
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
@@ -1934,20 +1967,24 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
         }
         counts.new += usize::from(arriving);
     }
-    // Gmail's categories of the Inbox's messages (#911), as its searches said this run.
+    // Gmail's categories of the Inbox's messages (#911), as its searches said this run: what
+    // Gmail last said, and the category here too unless the owner moved the message here and
+    // Gmail hasn't had the move yet, which stays and goes at the next run.
     if !reset && mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox) {
         for sorted in &delta.gmail {
             // (Looked at before it is changed: a message shared with an undo step is copied to be.)
             let Some(id) = on_server.by_uid.get(&(folder, sorted.uid)).copied() else { continue };
-            let differs = |m: &Message| m.gmail_category != Some(sorted.category) || (sorted.id != 0 && m.gmail_id != sorted.id);
-            if mb.message(id).is_some_and(|m| m.folder == folder && differs(m))
+            let Some(m) = mb.message(id).filter(|m| m.folder == folder) else { continue };
+            let waiting = m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
+            let category = if waiting { m.gmail_category } else { Some(sorted.category) };
+            let gmail_id = if sorted.id != 0 { sorted.id } else { m.gmail_id };
+            if (m.gmail_category, m.gmail_synced, m.gmail_id) != (category, Some(sorted.category), gmail_id)
                 && let Ok(m) = mb.message_mut(id)
             {
-                m.gmail_category = Some(sorted.category);
-                if sorted.id != 0 {
-                    m.gmail_id = sorted.id;
+                if m.gmail_category != category {
+                    counts.updated += 1;
                 }
-                counts.updated += 1;
+                (m.gmail_category, m.gmail_synced, m.gmail_id) = (category, Some(sorted.category), gmail_id);
             }
         }
     }
