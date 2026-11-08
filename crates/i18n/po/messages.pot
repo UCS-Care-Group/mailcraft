@@ -9,7 +9,7 @@ msgstr ""
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 msgid "\"{address}\" isn't an e-mail address"
 msgstr ""
 
@@ -477,9 +477,14 @@ msgid ""
 "Settings"
 msgstr ""
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 msgid "Account Settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Account's signature"
 msgstr ""
 
 #. interface, ribbon
@@ -605,6 +610,11 @@ msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Add address"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Add an account"
 msgstr ""
@@ -677,13 +687,18 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 msgid "Address"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
 msgstr ""
 
 #. command label, interface
@@ -864,6 +879,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 msgid "An Agent Is Asking"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "An address this account may send from"
 msgstr ""
 
 #. interface
@@ -3368,7 +3388,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "File"
 msgstr ""
 
@@ -5779,6 +5799,11 @@ msgid "Name"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Name (optional)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "Name the people to invite on the Appointment page: their time shows here."
 msgstr ""
@@ -6921,6 +6946,11 @@ msgstr ""
 msgid "Other accounts and On this computer"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Other addresses you send from"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
@@ -7681,6 +7711,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove this action"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Remove this address"
 msgstr ""
 
 #. interface
@@ -8668,6 +8703,11 @@ msgstr ""
 msgid "Send/Receive with Microsoft Graph"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+msgid "Sender Addresses"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Sender's address contains"
@@ -8763,6 +8803,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Server: {address}"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/senders.rs
+msgid "Set Sender Addresses"
 msgstr ""
 
 #. name
@@ -10259,6 +10304,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The name of someone you know."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "The name recipients see; your own when empty"
 msgstr ""
 
 #. interface
@@ -12554,6 +12604,11 @@ msgid "a JMAP account's server and address can't be changed once its mail is her
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "a calendar named \"{name}\" already exists"
 msgstr ""
@@ -12741,6 +12796,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "an account can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "an account has {max} sender addresses at most"
 msgstr ""
 
 #. what a command says
@@ -13108,7 +13168,7 @@ msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -13218,7 +13278,7 @@ msgid "no signature named \"{from}\""
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs
 msgid "no signature named \"{name}\""
 msgstr ""
 
@@ -13320,6 +13380,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "only a message you sent can be sent again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "only an IMAP account sends from other addresses"
 msgstr ""
 
 #. what a command says
@@ -14172,6 +14237,11 @@ msgid "{address} is already set up"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
 msgstr ""
@@ -14184,6 +14254,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "{address} isn't a shared mailbox open here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
 msgstr ""
 
 #. interface

@@ -21,6 +21,7 @@
 
 mod exchange;
 mod help;
+mod senders;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -468,6 +469,8 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an IMAP account: the other addresses it sends from (#797).
+    senders: Option<senders::Senders>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -574,6 +577,7 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            senders: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -639,6 +643,7 @@ impl AccountSetup {
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
+        w.senders = senders::Senders::of(a);
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
         if a.kind == AccountKind::Exchange {
@@ -1411,6 +1416,15 @@ impl AccountSetup {
             }
             self.ask_conversation = Some((ask, ask));
         }
+        if let Some((command, params)) = self.senders.as_ref().and_then(|x| x.command(id)) {
+            if let Err(e) = app.execute(command, params) {
+                self.error = e;
+                return false;
+            }
+            if let Some(x) = self.senders.as_mut() {
+                x.saved();
+            }
+        }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
             self.keep_offline = Some((keep, keep));
@@ -1956,6 +1970,7 @@ impl AccountSetup {
         // the scrollable body instead (where keyboard focus can still reach it).
         let footer_google_action = ui.available_width() >= 390.0;
         let (mut convert, mut reconnect) = (false, false);
+        let signatures: Vec<String> = app.session.mailbox.signatures.iter().map(|x| x.name.clone()).collect();
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -2032,6 +2047,9 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some(senders) = self.senders.as_mut() {
+                senders.show(ui, &t, &signatures);
             }
         });
         problem(ui, &self.error);
@@ -2338,6 +2356,8 @@ mod delete_question_tests;
 mod exchange_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod senders_tests;
 
 #[cfg(test)]
 mod tests {

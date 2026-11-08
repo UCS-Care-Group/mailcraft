@@ -2561,3 +2561,7 @@ fn a_server_that_floods_one_answer_is_given_up_on() {
         assert!(result.folders.iter().all(|folder| folder.new.is_empty()), "{at}");
     }
 }
+
+// (Sending from an account's other addresses, #797: its own file, with these helpers.)
+#[path = "sender_address_tests.rs"]
+mod sender_address_tests;

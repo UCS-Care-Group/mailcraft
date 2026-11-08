@@ -229,6 +229,10 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
             a.signature.clear();
         }
         a.reply_signature = Some(if reply.eq_ignore_ascii_case(&name) { String::new() } else { reply });
+        // A sender address that had it starts with the account's (#797).
+        for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&name)) {
+            x.signature.clear();
+        }
     }
     done()
 }
@@ -252,6 +256,9 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
             a.signature = to.clone();
         }
         a.reply_signature = Some(if reply.eq_ignore_ascii_case(&from) { to.clone() } else { reply });
+        for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&from)) {
+            x.signature = to.clone();
+        }
     }
     Ok(json!({"name": to}))
 }

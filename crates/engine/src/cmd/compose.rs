@@ -26,7 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .key("Mod+N")
             .params(
-                r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
+                r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "from"?: string (one of the account's sender addresses, account.senderAddresses; default: its own), "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
             ),
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
@@ -46,7 +46,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
-            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number}"#)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number, "from"?: string (the address it is from: the account's own, or one of its sender addresses, account.senderAddresses; "" for its own. Another account without `from` sends from that one's own)}"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.attach", "Attach File", "Message › Include", attach)
             .pure()
@@ -188,12 +188,13 @@ fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
     s.compose.as_mut().ok_or_else(|| fail("no message is being written"))
 }
 
-/// The signature `name` names, else the account's for new messages, or for replies and forwards
-/// when `reply`; `None` when that is none, or one with nothing in it.
-fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -> Option<Signature> {
-    let name = name
-        .map(str::to_string)
-        .or_else(|| s.mailbox.account(account).map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
+/// The signature `name` names, else that of the sender address `from` when it has one of its
+/// own (#797), else the account's for new messages, or for replies and forwards when `reply`;
+/// `None` when that is none, or one with nothing in it.
+fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, reply: bool) -> Option<Signature> {
+    let a = s.mailbox.account(account);
+    let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| !n.is_empty());
+    let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
     s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
 }
 
@@ -222,6 +223,30 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
     Ok(())
 }
 
+/// Whether `email` is one of the owner's: an account's own address or one of its sender
+/// addresses (#797), whatever its letter case.
+fn is_owners(s: &Session, email: &str) -> bool {
+    s.mailbox.accounts.iter().any(|a| a.sends_as(email))
+}
+
+/// An address for an error message: short, and without control characters.
+fn shown_address(text: &str) -> String {
+    text.trim().chars().filter(|ch| !ch.is_control()).take(80).collect()
+}
+
+/// The sender address `from` names for a message from `account`, as the account keeps it: `""`
+/// for its own address (also when `from` is none, or the account's own).
+fn sender_of(s: &Session, account: Id, from: Option<&str>) -> Result<String, CmdError> {
+    let Some(from) = from.map(str::trim).filter(|f| !f.is_empty()) else { return Ok(String::new()) };
+    let a = s.mailbox.account(account).ok_or_else(|| fail("add an account first (File › Add Account)"))?;
+    if from.eq_ignore_ascii_case(a.email.trim()) {
+        return Ok(String::new());
+    }
+    a.sender_address(from)
+        .map(|x| x.email.clone())
+        .ok_or_else(|| failed!("{address} isn't one of this account's sender addresses (add it in Account Settings)", address = shown_address(from)))
+}
+
 fn is_response(mode: ComposeMode) -> bool {
     matches!(mode, ComposeMode::Reply | ComposeMode::ReplyAll | ComposeMode::Forward)
 }
@@ -237,10 +262,12 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     };
     let text = |key: &str, linked: String| p::str(v, key).map_or(linked, str::to_string);
     let body = text("body", link.body);
-    let sig = chosen_signature(s, account, None, false);
+    let from = sender_of(s, account, p::str(v, "from"))?;
+    let sig = chosen_signature(s, account, &from, None, false);
     let mut c = Compose {
         mode: ComposeMode::New,
         account,
+        from,
         to: text("to", link.to.join("; ")),
         cc: text("cc", link.cc.join("; ")),
         bcc: text("bcc", link.bcc.join("; ")),
@@ -382,8 +409,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         ComposeMode::Forward => source_message(s, v)?,
         _ => reply_source(s, v)?,
     };
-    let mine: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.to_lowercase()).filter(|e| !e.is_empty()).collect();
-    let is_mine = |a: &Address| mine.contains(&a.email.to_lowercase());
+    let is_mine = |a: &Address| is_owners(s, &a.email);
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
@@ -443,13 +469,16 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => None,
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
-    let sig = chosen_signature(s, m.account, None, true);
+    // From the address the original was sent to (#797).
+    let from = s.mailbox.account(m.account).map(|a| a.reply_from(&m)).unwrap_or_default();
+    let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
     let mut c = Compose {
         mode,
         source: Some(m.id),
         account: m.account,
+        from,
         to: format_list(&to),
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
@@ -577,13 +606,15 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
         [_] => prefixed("FW", &m.subject),
         _ => String::new(),
     };
-    let sig = chosen_signature(s, account, None, true);
+    let from = s.mailbox.account(account).map(|a| a.reply_from(m)).unwrap_or_default();
+    let sig = chosen_signature(s, account, &from, None, true);
     let mut c = Compose {
         mode: ComposeMode::Forward,
         source: Some(focus),
         also: ids.iter().copied().filter(|id| *id != focus).collect(),
         as_attachment: true,
         account,
+        from,
         subject,
         // A line to write on, a blank one, then the signature.
         body: RichBody::from_plain(if sig.is_some() { "\n" } else { "" }),
@@ -804,8 +835,7 @@ fn resend(s: &mut Session, v: &Value) -> CmdResult {
     if m.draft {
         return Err(fail("that message is a draft: open it to send it"));
     }
-    let mine = s.mailbox.accounts.iter().any(|a| !a.email.is_empty() && a.email.eq_ignore_ascii_case(m.from.email.trim()));
-    if !mine {
+    if !is_owners(s, &m.from.email) {
         return Err(fail("only a message you sent can be sent again"));
     }
     if m.unfetched || m.incomplete || not_downloaded(&m) {
@@ -916,6 +946,8 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
     Compose {
         account: m.account,
+        // From the sender address it was from, while the account still has it (#797).
+        from: s.mailbox.account(m.account).and_then(|a| a.sender_address(&m.from.email)).map(|x| x.email.clone()).unwrap_or_default(),
         to: format_list(&m.to),
         cc: format_list(&m.cc),
         bcc: format_list(&m.bcc),
@@ -950,11 +982,22 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         Some(i) => Some(Importance::parse(i).ok_or_else(|| bad("`importance` is low, normal or high"))?),
         None => None,
     };
-    // Sent from another account, the message takes that account's signature, unless the owner
+    // Another account is from its own address unless `from` names another of its (#797).
+    let (was_account, was_from) = s.compose.as_ref().map(|c| (c.account, c.from.clone())).unwrap_or_default();
+    let new_account = account.unwrap_or(was_account);
+    let from = match p::str(v, "from") {
+        Some(from) => Some(sender_of(s, new_account, Some(from))?),
+        None if new_account != was_account => Some(String::new()),
+        None => None,
+    };
+    let new_from = from.clone().unwrap_or_else(|| was_from.clone());
+    // Sent from another account or address, the message takes its signature, unless the owner
     // edited the one in it.
     // ponytail: a message that started with no signature gets none; add one when owners ask.
-    let swap = match (account, s.compose.as_ref()) {
-        (Some(a), Some(c)) if a != c.account && c.signature_unedited() => Some(chosen_signature(s, a, None, is_response(c.mode))),
+    let swap = match s.compose.as_ref() {
+        Some(c) if (new_account != c.account || !new_from.eq_ignore_ascii_case(&c.from)) && c.signature_unedited() => {
+            Some(chosen_signature(s, new_account, &new_from, None, is_response(c.mode)))
+        }
         _ => None,
     };
     let c = compose_mut(s)?;
@@ -976,6 +1019,9 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(a) = account {
         c.account = a;
+    }
+    if let Some(from) = from {
+        c.from = from;
     }
     if *c != before {
         c.dirty = true;
@@ -1017,15 +1063,15 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn signature(s: &mut Session, v: &Value) -> CmdResult {
-    let account = s.compose.as_ref().map_or(0, |c| c.account);
+    let (account, from) = s.compose.as_ref().map_or((0, String::new()), |c| (c.account, c.from.clone()));
     if let Some(name) = p::str(v, "name")
         && s.mailbox.signature(name).is_none()
     {
         return Err(failed!("no signature named \"{name}\"", name));
     }
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
-    let sig =
-        chosen_signature(s, account, p::str(v, "name"), reply).ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
+    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply)
+        .ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
     let c = compose_mut(s)?;
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
@@ -1122,8 +1168,15 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
     if strict && to.is_empty() && cc.is_empty() && bcc.is_empty() {
         return Err(fail("add at least one recipient"));
     }
+    // From the sender address chosen (#797), while the account still sends from it; a message
+    // sent is never from an address that isn't the account's.
+    let from = account.from_address(&c.from);
+    if strict && !c.from.trim().is_empty() && !from.email.eq_ignore_ascii_case(c.from.trim()) {
+        return Err(failed!("{address} is no longer one of this account's sender addresses: choose another From", address = shown_address(&c.from)));
+    }
     let now = s.now();
-    let domain = account.email.rsplit_once('@').map_or("", |(_, d)| d);
+    // (Its Message-ID names the domain it is from, not the account's other one.)
+    let domain = from.email.rsplit_once('@').map_or("", |(_, d)| d);
     let message_id = match message_id {
         Some(id) => id.to_string(),
         None => mailcraft_mime::new_message_id(
@@ -1136,7 +1189,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         account: account.id,
         in_reply_to: c.in_reply_to.clone(),
         references: c.references.clone(),
-        from: account.address(),
+        from,
         to,
         cc,
         bcc,

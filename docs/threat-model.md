@@ -226,6 +226,15 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Header injection.** A value that reaches a header loses CR, LF and NUL
   (`crates/mime/src/header.rs`, `clean`; `crates/mime/src/write.rs`), so a reply can't be made to
   carry headers the owner didn't write.
+- **Who mail says it is from.** A message is from the account's own address or one of the other
+  sender addresses its owner listed for an IMAP account (#797; `account.setSenderAddresses`,
+  each checked as a mailbox's own address: plain ASCII, nothing a protocol line could read
+  otherwise). A From that isn't one of them never reaches SMTP's `MAIL FROM`, which falls back to
+  the account's own (`crates/net/src/send.rs`, `Envelope::of`), and a message being written from
+  an address taken off the list isn't sent. A reply's From is picked from the original's To, Cc,
+  `X-Original-To` and `Delivered-To`, but only among the owner's own addresses: what a sender
+  writes there can't make the owner's mail claim to be from an address the owner didn't list.
+  An agent changes the list only on the owner's yes (class accounts), shown every address.
 
 ### A malicious picture host
 

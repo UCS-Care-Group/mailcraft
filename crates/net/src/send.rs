@@ -25,9 +25,13 @@ pub(crate) struct Envelope {
 }
 
 impl Envelope {
-    /// The account's address, and To + Cc + Bcc, each address once.
+    /// The address the message is from when that is the account's own or one of its sender
+    /// addresses (#797), else the account's own; and To + Cc + Bcc, each address once.
     pub(crate) fn of(account: &Account, message: &Message) -> Result<Envelope, NetError> {
-        let from = account.email.trim();
+        let from = match account.sender_address(&message.from.email) {
+            Some(sender) => sender.email.trim(),
+            None => account.email.trim(),
+        };
         if !is_address(from) {
             return Err(NetError::Config("the account has no usable e-mail address to send from".into()));
         }

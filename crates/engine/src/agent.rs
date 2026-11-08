@@ -349,6 +349,7 @@ const SAFE: &[&str] = &[
     "category.rename",
     "category.list",
     "account.list",
+    "account.senderAddresses",
     "account.offlineSize",
     "account.preset",
     // What Send/Receive is doing, or did: read only.
@@ -437,6 +438,8 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // Who the owner's mail can say it is from (#797).
+    "account.setSenderAddresses",
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
@@ -1271,7 +1274,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     let names: Vec<String> = c.attachments.iter().take(5).map(|a| clip(&a.name, 40)).collect();
                     format!(" with {} ({})", plural(c.attachments.len(), "{n} attachment", "{n} attachments"), names.join(", "))
                 };
-                format!("send {} to {to}{files}", quoted(&c.subject))
+                // From a sender address other than the account's own, said (#797).
+                let from = if c.from.is_empty() { String::new() } else { format!(" from {}", clip(&c.from, 80)) };
+                format!("send {}{from} to {to}{files}", quoted(&c.subject))
             }
             None => "send the message being written".to_string(),
         },
@@ -1566,6 +1571,22 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        "account.setSenderAddresses" => {
+            let a = p::id(params, "id")
+                .and_then(|a| s.mailbox.account(a))
+                .map_or_else(|| "an account that isn't there".to_string(), |a| clip(&a.email, 80));
+            let listed: Vec<String> = params
+                .get("addresses")
+                .and_then(Value::as_array)
+                .map(|list| list.iter().filter_map(|x| x.get("email").and_then(Value::as_str)).map(|e| clip(e, 80)).collect())
+                .unwrap_or_default();
+            if listed.is_empty() {
+                format!("let the account {a} send from its own address only")
+            } else {
+                // Every one, in full: the owner is never asked about what they can't read.
+                format!("let the account {a} send mail as {}", listed.join(", "))
+            }
+        }
         "calendar.openShared" => {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }
