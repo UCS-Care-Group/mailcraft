@@ -7,7 +7,7 @@
 use crate::{Align, Block, BlockKind, parse};
 
 /// Every block that holds text or a picture, with its alignment, tables opened.
-fn aligned(blocks: &[Block]) -> Vec<(String, Align)> {
+pub(crate) fn aligned(blocks: &[Block]) -> Vec<(String, Align)> {
     let mut out = Vec::new();
     for block in blocks {
         match &block.kind {

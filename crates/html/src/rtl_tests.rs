@@ -2,27 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! #603: Hebrew and Arabic mail stands at the right in the reading pane. A paragraph reads the
 //! way `dir`, `direction` or its first strong letter says, and one that reads from the right is
-//! aligned right unless the message names a side. The letters keep the order they were written
-//! in. The messages are made up.
+//! aligned right unless the message names a side. The text is kept as it was written. The
+//! messages are made up.
 
-use crate::{Align, Block, BlockKind, parse, text_blocks};
-
-/// Every block that holds text, with its alignment, tables opened.
-fn aligned(blocks: &[Block]) -> Vec<(String, Align)> {
-    let mut out = Vec::new();
-    for block in blocks {
-        match &block.kind {
-            BlockKind::Table(t) => {
-                for cell in t.rows.iter().flat_map(|r| &r.cells) {
-                    out.extend(aligned(&cell.blocks));
-                }
-            }
-            BlockKind::Image { .. } => out.push(("[picture]".to_string(), block.align)),
-            _ => out.push((block.text(), block.align)),
-        }
-    }
-    out
-}
+use crate::nested_align_tests::aligned;
+use crate::{Align, Block, parse, text_blocks};
 
 fn align_of(html: &str, text: &str) -> Align {
     let blocks = parse(html);
@@ -109,6 +93,13 @@ fn text_beside_a_picture_stays_in_its_line_unless_the_message_gives_a_direction(
     let blocks = parse("<p><img src='cid:logo' width=20 height=20> שלום</p>");
     let text = blocks.iter().find(|b| b.text() == "שלום");
     assert_eq!(text.map(|b| (b.beside, b.align)), Some((true, Align::Left)));
+}
+
+#[test]
+fn a_picture_and_its_text_keep_to_one_side_where_the_message_says_it_reads_from_the_right() {
+    let blocks = parse("<p dir=rtl><img src='cid:logo' width=20 height=20> שלום</p>");
+    let got: Vec<(bool, Align)> = blocks.iter().map(|b| (b.beside, b.align)).collect();
+    assert_eq!(got, [(false, Align::Right), (true, Align::Right)]);
 }
 
 #[test]

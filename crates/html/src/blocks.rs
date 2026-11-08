@@ -779,15 +779,10 @@ impl Builder {
         }
     }
 
-    /// The alignment of text or a picture that starts here. One written in a table or a row
-    /// outside its cells (bare, or in an element there that doesn't align it) stands before the
-    /// table, as in a browser, aligned as what is round the table is (a table starts again at
-    /// the left from some alignments: [`Style::align_attr`]).
-    fn loose_align(&self) -> Align {
-        self.loose_style().align
-    }
-
-    /// The style [`Builder::loose_align`] takes the alignment from.
+    /// The style whose alignment and direction text or a picture that starts here takes. One
+    /// written in a table or a row outside its cells (bare, or in an element there that doesn't
+    /// align it) stands before the table, as in a browser, aligned as what is round the table is
+    /// (a table starts again at the left from some alignments: [`Style::align_attr`]).
     fn loose_style(&self) -> &Style {
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match node.kind {
@@ -1163,7 +1158,11 @@ impl Builder {
                 };
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
+                // A picture where the message says its text reads from the right stands where
+                // that text does, so that it and the text beside it keep to one line.
+                let loose = self.loose_style();
+                let align = bidi::placed(loose.align, loose.align_from, loose.dir == Dir::Rtl);
+                let block = Block { quote: self.quote_depth(), align, beside, ..Block::new(kind, spans) };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
