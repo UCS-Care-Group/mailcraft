@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Where MCP tool calls end up: a control-channel method call.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::time::Duration;
@@ -213,7 +213,7 @@ impl Remote {
         // Read with the same cap the app caps its request lines with: a peer that answers with
         // an unbounded line does not choose how much this process buffers.
         let mut buf = Vec::new();
-        let n = reader.by_ref().take(MAX_LINE + 1).read_until(b'\n', &mut buf)?;
+        let n = Read::take(reader, MAX_LINE + 1).read_until(b'\n', &mut buf)?;
         if n == 0 {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed"));
         }
