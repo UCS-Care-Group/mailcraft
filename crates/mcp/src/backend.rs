@@ -85,6 +85,36 @@ fn may_send_key(addr: &str, peer: Option<SocketAddr>) -> bool {
     is_loopback_addr(addr) && peer.is_some_and(|p| p.ip().to_canonical().is_loopback())
 }
 
+/// Why a request's answer did not come.
+enum Trip {
+    /// The request line was not written: nothing reached the app, and it may be sent again.
+    NotSent(std::io::Error),
+    /// The request line was written, and no answer came: the app may have run it.
+    Lost(std::io::Error),
+}
+
+/// Whether a connection the app may have closed since its last answer (it quit or restarted) is
+/// still open: it is when nothing is waiting to be read and the other end hasn't closed it.
+/// Looked at before a request is written, so that a stale connection is replaced without anything
+/// being sent on it.
+fn still_open(reader: &BufReader<TcpStream>, stream: &TcpStream) -> bool {
+    if !reader.buffer().is_empty() || stream.set_nonblocking(true).is_err() {
+        return false;
+    }
+    let peeked = stream.peek(&mut [0u8; 1]);
+    let blocking = stream.set_nonblocking(false).is_ok();
+    blocking && matches!(peeked, Err(e) if e.kind() == std::io::ErrorKind::WouldBlock)
+}
+
+/// One line from `reader`.
+fn read_reply(reader: &mut BufReader<TcpStream>) -> Result<String, Trip> {
+    let mut reply = String::new();
+    if reader.read_line(&mut reply).map_err(Trip::Lost)? == 0 {
+        return Err(Trip::Lost(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed")));
+    }
+    Ok(reply)
+}
+
 /// Why the app could not be made to prove itself.
 enum Auth {
     /// The connection failed: tried again on a new one.
@@ -168,7 +198,10 @@ impl Remote {
             let key = (self.find_key)(&self.addr).map_err(Auth::Refused)?;
             let nonce = mailcraft_control_key::proof::new_nonce().ok_or_else(|| Auth::Refused("no random bytes for the challenge".to_string()))?;
             let line = json!({"id": 0, "method": "auth.challenge", "params": {"nonce": nonce}}).to_string();
-            let reply = self.roundtrip(&line).map_err(Auth::Io)?;
+            let reply = match self.roundtrip(&line) {
+                Ok(reply) => reply,
+                Err(Trip::NotSent(e) | Trip::Lost(e)) => return Err(Auth::Io(e)),
+            };
             let v: Value = serde_json::from_str(reply.trim()).unwrap_or(Value::Null);
             let proof = v.pointer("/result/proof").and_then(Value::as_str).unwrap_or("");
             if v.get("ok").and_then(Value::as_bool) == Some(true) && mailcraft_control_key::proof::proof_ok(&key, &nonce, proof) {
@@ -200,26 +233,37 @@ impl Remote {
         Ok(req.to_string())
     }
 
-    fn roundtrip(&mut self, line: &str) -> std::io::Result<String> {
+    /// Write one line and read its answer.
+    fn roundtrip(&mut self, line: &str) -> Result<String, Trip> {
         let Some((reader, writer)) = self.conn.as_mut() else {
-            return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected"));
+            return Err(Trip::NotSent(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected")));
         };
-        writer.write_all(line.as_bytes())?;
-        writer.write_all(b"\n")?;
-        writer.flush()?;
-        let mut reply = String::new();
-        if reader.read_line(&mut reply)? == 0 {
-            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed"));
+        // One write of the whole line: when it fails, the line's end never left, and the app
+        // runs no request without it.
+        let mut out = Vec::with_capacity(line.len().saturating_add(1));
+        out.extend_from_slice(line.as_bytes());
+        out.push(b'\n');
+        writer.write_all(&out).and_then(|()| writer.flush()).map_err(Trip::NotSent)?;
+        let reply = read_reply(reader);
+        if reply.is_err() {
+            self.conn = None;
         }
-        Ok(reply)
+        reply
     }
 
-    /// One request and its reply, with one retry on a new connection (the app may have
-    /// restarted; a new connection also reads the key again).
+    /// One request and its reply. It is sent again, once, on a new connection only when it
+    /// demonstrably did not reach the app: the connection could not be made, the challenge failed
+    /// on the connection, or the request line could not be written (the app may have restarted; a
+    /// new connection also reads the key again). A connection the app closed since its last
+    /// answer is replaced before anything is written on it. Once the line is written, no answer
+    /// is an error: the app may have run the request, so it is never sent twice.
     fn exchange(&mut self, id: u64, method: &str, params: &Value) -> Result<Value, String> {
         let unreachable = |addr: &str, e: std::io::Error| format!("MailCraft app at {addr} is not reachable: {e}");
         let mut first = true;
         let reply = loop {
+            if self.conn.as_ref().is_some_and(|(reader, stream)| !still_open(reader, stream)) {
+                self.conn = None;
+            }
             let tried = if self.conn.is_some() { Ok(()) } else { self.reconnect() };
             let tried = match tried {
                 Ok(()) if self.send_key && !self.verified => match self.authenticate() {
@@ -234,16 +278,23 @@ impl Remote {
                     let line = self.request_line(id, method, params)?;
                     self.roundtrip(&line)
                 }
-                Err(e) => Err(e),
+                Err(e) => Err(Trip::NotSent(e)),
             };
             match result {
                 Ok(r) => break r,
-                Err(e) => {
+                Err(Trip::NotSent(e)) => {
                     self.conn = None;
                     if !first {
                         return Err(unreachable(&self.addr, e));
                     }
                     first = false;
+                }
+                Err(Trip::Lost(e)) => {
+                    self.conn = None;
+                    return Err(format!(
+                        "the MailCraft app at {} did not answer ({e}): it may have run the request, so it was not sent again; look at the app before trying again",
+                        self.addr
+                    ));
                 }
             }
         };

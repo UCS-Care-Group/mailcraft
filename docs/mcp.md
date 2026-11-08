@@ -15,7 +15,10 @@ mailcraft-cli mcp --sample --files ~/agent-files --allow send   # what the owner
 
 With `--connect`, the bridge sends the app's control key, which it reads from
 `MAILCRAFT_CONTROL_KEY` or from the key file the app writes at start. It sends the key only to
-loopback addresses; see [Keys](control-protocol.md#keys).
+loopback addresses; see [Keys](control-protocol.md#keys). A request is sent again on a new
+connection only when it never reached the app (the connection could not be made, or the request
+could not be written); once it was written, a connection lost before the answer is an error that
+says the app may have run it, and the request is not sent a second time.
 
 ## Agents get only what the owner allows
 
