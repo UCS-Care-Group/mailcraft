@@ -1,1 +1,0 @@
-- An agent connected through MCP now sees a message's source, the searches made from a message's subject or sender, an online meeting's link, and a contact's details and categories marked as text written by somebody else, like the rest of a message (AU3-R1).

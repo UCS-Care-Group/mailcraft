@@ -1857,6 +1857,8 @@ fn services(
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),
+        // ponytail: false once Google has verified the app (#232).
+        google_testers_only: true,
         // Whether a new version is out: GitHub is asked about this build's repository and told
         // nothing else, once a day when the owner wants that, or when they press Check for Updates.
         update_check: Some(Box::new(move |pre_releases| {
