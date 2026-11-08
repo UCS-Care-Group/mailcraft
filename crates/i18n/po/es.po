@@ -3274,11 +3274,23 @@ msgstr "Descargar mensajes completos"
 msgid "Download Pictures"
 msgstr "Descargar imágenes"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download Pictures in All Mail"
+msgstr "Descargar imágenes en todo el correo"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Descargar imágenes del correo automáticamente"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download in all mail"
+msgstr "Descargar en todo el correo"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3291,6 +3303,18 @@ msgstr "Descargar mensajes completos:"
 #, fuzzy
 msgid "Download pictures"
 msgstr "Descargar imágenes"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in all mail"
+msgstr "Descargar imágenes en todo el correo"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
+msgstr "Descarga las imágenes de cada mensaje sin preguntar, excepto en Correo no deseado. Pregunta antes; Archivo › Opciones lo desactiva de nuevo."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -5784,6 +5808,12 @@ msgid "Mail from the shared mailbox waits: {error}"
 msgstr "El correo del buzón compartido está en espera: {error}"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "El correo en Correo no deseado sigue preguntando antes. Archivo › Opciones lo desactiva de nuevo."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
@@ -8256,6 +8286,12 @@ msgstr "Imágenes no mostradas."
 #: crates/ui-egui/src/reading.rs
 msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Las imágenes de la web se descargarán en cada mensaje que abra. El servidor de cada remitente sabrá entonces cuándo abrió el mensaje y desde qué dirección de Internet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
