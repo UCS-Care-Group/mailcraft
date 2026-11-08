@@ -1,0 +1,1 @@
+- Google sign-in is built in, open for now only to invited testers while Google reviews MailCraft: to join, email systems@ucscaregroup.co.uk. Everyone else adds Gmail with an app password, as before, which a new Gmail account now offers first, with Use Google sign-in instead as the second choice ([#232](https://github.com/GITHUB_REPOSITORY/issues/232)).

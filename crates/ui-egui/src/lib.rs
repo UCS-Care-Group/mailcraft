@@ -343,6 +343,10 @@ pub struct Services {
     /// Desktop registration supplied by the host's build or process environment. Kept in
     /// memory, never in UI preferences; not an owner access or refresh token.
     pub google_client_secret: String,
+    /// While Google reviews the project's registration (Testing mode), only the testers added to
+    /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
+    /// a new Gmail account starts on an app password, Google sign-in second with how to join.
+    pub google_testers_only: bool,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
