@@ -323,7 +323,7 @@ pub fn tool_definitions() -> Value {
 /// what needs the owner.
 pub fn exec(b: &mut dyn Backend, pol: &Policy, id: &str, params: Value) -> Result<Value, String> {
     if matches!(agent::access(id), None | Some(Access::Never)) {
-        return Err(format!("`{id}` isn't available to agents"));
+        return Err(format!("`{}` isn't available to agents", crate::server::clip(id)));
     }
     let mut params = if params.is_null() { json!({}) } else { params };
     let mut target = None;
@@ -509,6 +509,6 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
         "click" => input(b, "ui.click", a.clone()),
         "key" => input(b, "ui.key", a.clone()),
         "ui_inspect" => wrap(b.call("ui.inspect", json!({}))),
-        other => ToolResult::error(format!("unknown tool `{other}`")),
+        other => ToolResult::error(format!("unknown tool `{}`", crate::server::clip(other))),
     }
 }

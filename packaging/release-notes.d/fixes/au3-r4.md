@@ -1,0 +1,1 @@
+- The MCP server reads each request within a bound: an over-long one is answered with an error and the server carries on with the next (AU3-R4).

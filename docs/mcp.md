@@ -3,7 +3,9 @@
 > **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
-agents can read, file and write mail and keep a calendar.
+agents can read, file and write mail and keep a calendar. Each message is one line of at most
+1 MiB: a longer one is answered with an error (`-32600`, "line too long") and the next line is
+served.
 
 ```sh
 mailcraft-cli mcp --file my.mailcraft      # headless session on a mailbox file (no window)
