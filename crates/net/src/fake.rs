@@ -5,13 +5,37 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+
+/// Stops a fake server's listening thread when the fake is dropped, so a test run doesn't keep
+/// one thread per fake it ever started (FreeBSD allows a process 1,500).
+struct Stop {
+    port: u16,
+    flag: Arc<AtomicBool>,
+}
+
+impl Stop {
+    fn new(port: u16) -> (Stop, Arc<AtomicBool>) {
+        let flag = Arc::new(AtomicBool::new(false));
+        (Stop { port, flag: flag.clone() }, flag)
+    }
+}
+
+impl Drop for Stop {
+    fn drop(&mut self) {
+        self.flag.store(true, Ordering::SeqCst);
+        // Wake the listener's `accept`, which then sees the flag and returns.
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
 
 /// A fake web server (a token endpoint, a name server that answers over HTTP): each request is
 /// answered with bytes of the test's choosing, and kept for the test to look at.
 pub(crate) struct FakeHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -23,8 +47,12 @@ impl FakeHttp {
         let port = listener.local_addr().unwrap().port();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let kept = requests.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for (n, mut stream) in listener.incoming().flatten().enumerate() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let (mut request, mut length) = (String::new(), 0usize);
                 loop {
@@ -48,7 +76,7 @@ impl FakeHttp {
                 let _ = stream.write_all(&answer);
             }
         });
-        FakeHttp { port, requests }
+        FakeHttp { port, _stop: stop, requests }
     }
 
     /// Answer every request with the same bytes.
@@ -86,6 +114,7 @@ pub(crate) enum Kept {
 /// own and is read request after request. It counts the connections it took.
 pub(crate) struct FakeKeptHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     connections: Arc<Mutex<usize>>,
     requests: Arc<Mutex<Vec<String>>>,
 }
@@ -99,8 +128,12 @@ impl FakeKeptHttp {
         let (connections, requests) = (Arc::new(Mutex::new(0usize)), Arc::new(Mutex::new(Vec::new())));
         let (counted, kept) = (connections.clone(), requests.clone());
         let answer = Arc::new(answer);
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for mut stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let connection = {
                     let mut count = counted.lock().unwrap();
                     *count += 1;
@@ -132,7 +165,7 @@ impl FakeKeptHttp {
                 });
             }
         });
-        FakeKeptHttp { port, connections, requests }
+        FakeKeptHttp { port, _stop: stop, connections, requests }
     }
 
     /// `http://127.0.0.1:{port}{path}`.
@@ -365,6 +398,7 @@ pub(crate) struct SmtpWorld {
 /// A fake server and its state.
 pub(crate) struct Fake<W> {
     pub(crate) port: u16,
+    _stop: Stop,
     world: Arc<Mutex<W>>,
 }
 
@@ -378,13 +412,17 @@ impl<W: Send + 'static> Fake<W> {
         let port = listener.local_addr().unwrap().port();
         let world = Arc::new(Mutex::new(world));
         let shared = world.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let shared = shared.clone();
                 std::thread::spawn(move || serve(stream, shared));
             }
         });
-        Fake { port, world }
+        Fake { port, _stop: stop, world }
     }
 
     /// The server's state, to set up or to look at.
