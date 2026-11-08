@@ -7,6 +7,8 @@
 //! by UID (`UID FETCH … BODY.PEEK[]`, which never sets `\Seen`, [`FolderState::again`]), and what
 //! comes ([`FolderDelta::refetched`]) is read anew and its subject, names and text written over
 //! the old ones. Microsoft accounts have their own way ([`super::graph_down::refetch_unreadable`]).
+//! The same mark asks for a Digitally signed or Encrypted message read before the bytes it came
+//! as were kept (`mail.checkAgain`, #30), which then keeps them ([`Message::original`]).
 //!
 //! [`FolderState::again`]: mailcraft_model::sync::FolderState::again
 
@@ -102,6 +104,10 @@ pub fn take_again(mb: &mut Mailbox, id: Id, read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
+    // Digitally signed or Encrypted: the bytes it came as, which Check again asked for (#30).
+    if read.original.is_some() {
+        m.original = read.original;
+    }
 }
 
 /// Take in what a folder's delta says of messages downloaded again. `by_uid` finds a message of

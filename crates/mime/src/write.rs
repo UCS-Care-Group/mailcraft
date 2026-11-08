@@ -68,7 +68,15 @@ const NAME_PIECE: usize = 52;
 /// CRLF. Attachments are base64 in 76-column lines; an attached message (`message/rfc822`) that is
 /// clean 7-bit text goes as it is, as RFC 2046 asks. Boundaries are made from the content, so the
 /// same message always gives the same bytes.
+///
+/// A Digitally signed or Encrypted message that isn't a draft, whose original is in memory
+/// ([`Message::original`], #30), is that original exactly as it came, whatever `opts` say: what
+/// was built of its parts would no longer check, or open. (One whose original is kept outside
+/// memory is brought in by whoever writes it; without it, the message is built as any other.)
 pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
+    if let Some(original) = message.original_bytes().filter(|_| !message.draft) {
+        return original.to_vec();
+    }
     let mut out = Vec::new();
     write_field(&mut out, "Date", &mailcraft_time::format_rfc5322(message.date, opts.offset_minutes));
     addresses(&mut out, "From", std::slice::from_ref(&message.from));

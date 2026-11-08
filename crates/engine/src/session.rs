@@ -47,6 +47,8 @@ pub enum Part {
     Hidden,
     /// An attachment, by its index in `Message::attachments`.
     Attachment(usize),
+    /// The bytes a Digitally signed or Encrypted message came as (`Message::original`, #30).
+    Original,
 }
 
 /// The part of the app in front: mail, calendar, people or tasks.
@@ -2124,6 +2126,13 @@ impl Session {
                     None => Ok(a.data.clone()),
                 }
             }
+            Part::Original => {
+                let o = m.original.as_ref().filter(|o| o.is_there()).ok_or_else(|| failed!("message {id} keeps no original", id = message))?;
+                match o.kept.filter(|_| o.data.is_empty()) {
+                    Some(r) => self.fetch(&r),
+                    None => Ok(o.data.clone()),
+                }
+            }
         }
     }
 
@@ -2153,9 +2162,28 @@ impl Session {
         Ok(Arc::new(copy))
     }
 
-    /// [`Session::loaded_message_where`] with every attachment.
+    /// [`Session::loaded_message_where`] with every attachment, and the bytes a Digitally signed
+    /// or Encrypted message came as (#30), which is what writing it whole writes. An original
+    /// that can't be read is no reason to keep the message from going anywhere: the copy is
+    /// without it then (built from the parts, as before it was kept), with a line in the log.
     pub fn loaded_message(&self, id: Id) -> Result<Arc<Message>, CmdError> {
-        self.loaded_message_where(id, |_| true)
+        let m = self.loaded_message_where(id, |_| true)?;
+        if m.original.as_ref().is_none_or(|o| o.is_loaded()) {
+            return Ok(m);
+        }
+        let mut copy = Message::clone(&m);
+        match self.content(id, Part::Original) {
+            Ok(bytes) => {
+                if let Some(o) = copy.original.as_mut() {
+                    (o.data, o.kept) = (bytes, None);
+                }
+            }
+            Err(e) => {
+                log::warn!("message {id}: the bytes it came as couldn't be read ({e}); it is written from its parts");
+                copy.original = None;
+            }
+        }
+        Ok(Arc::new(copy))
     }
 
     /// Whether every part of `m` can be read here: what is in memory, and what the mailbox keeps
@@ -3458,7 +3486,8 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
 /// How many bytes of a message's body and attachments are in memory.
 fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
-    m.attachments.iter().fold(body as u64, |n, a| n.saturating_add(a.data.len() as u64))
+    let original = m.original.as_ref().map_or(0, |o| o.data.len() as u64);
+    m.attachments.iter().fold((body as u64).saturating_add(original), |n, a| n.saturating_add(a.data.len() as u64))
 }
 
 /// A body an opening for a window left on disk though the memory budget holds it, to be read

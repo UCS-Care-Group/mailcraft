@@ -550,6 +550,7 @@ fn message() -> impl Strategy<Value = Message> {
             sending: false,
             answers: None,
             kept: None,
+            original: None,
         },
     )
 }

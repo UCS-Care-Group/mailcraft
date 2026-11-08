@@ -849,6 +849,9 @@ fn kept_for_put_back(m: &Message) -> Message {
         for a in &mut copy.attachments {
             a.kept = None;
         }
+        if let Some(o) = copy.original.as_mut() {
+            o.kept = None;
+        }
     } else {
         copy.to_fetch_again();
     }

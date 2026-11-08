@@ -289,15 +289,17 @@ struct Parts {
     /// The words the sender hid ([`Message::hidden_text`]), when over [`INLINE_MAX`] (#599).
     hidden: Option<Part>,
     attachments: Vec<Option<Part>>,
+    /// The bytes a Digitally signed or Encrypted message came as ([`Message::original`], #30).
+    original: Option<Part>,
 }
 
 impl Parts {
     fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none)
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none) && self.original.is_none()
     }
 
     fn all(&self) -> impl Iterator<Item = &Part> {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten())
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -315,6 +317,9 @@ impl Parts {
         }
         if !self.attachments.is_empty() {
             fields.push(format!("\"attachments\":[{}]", self.attachments.iter().map(one).collect::<Vec<_>>().join(",")));
+        }
+        if self.original.is_some() {
+            fields.push(format!("\"original\":{}", one(&self.original)));
         }
         format!("{{{}}}", fields.join(","))
     }
@@ -337,6 +342,9 @@ impl Parts {
                 out.push((r, a.data.as_slice()));
             }
         }
+        if let (Some(r), Some(bytes)) = (held(&self.original), m.original_bytes()) {
+            out.push((r, bytes));
+        }
         out
     }
 }
@@ -358,6 +366,7 @@ struct WireParts {
     hidden: Option<(String, u64)>,
     #[serde(deserialize_with = "capped")]
     attachments: Vec<Option<(String, u64)>>,
+    original: Option<(String, u64)>,
 }
 
 /// At most [`MAX_PARTS`] entries of a list; the rest is skipped without being kept.
@@ -390,13 +399,26 @@ fn parse_ref(wire: &(String, u64)) -> Option<Ref> {
 impl WireParts {
     /// Every name given, parsed or not.
     fn hashes(&self) -> impl Iterator<Item = Digest> + '_ {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
+        self.text
+            .iter()
+            .chain(&self.html)
+            .chain(&self.hidden)
+            .chain(self.attachments.iter().flatten())
+            .chain(&self.original)
+            .filter_map(parse_ref)
+            .map(|r| r.hash)
     }
 
     /// The parts as named, all taken to be in memory (what couldn't be read is marked after).
     fn parts(&self) -> Parts {
         let one = |p: &Option<(String, u64)>| p.as_ref().and_then(parse_ref).map(|r| Part { r, held: true });
-        Parts { text: one(&self.text), html: one(&self.html), hidden: one(&self.hidden), attachments: self.attachments.iter().map(one).collect() }
+        Parts {
+            text: one(&self.text),
+            html: one(&self.html),
+            hidden: one(&self.hidden),
+            attachments: self.attachments.iter().map(one).collect(),
+            original: one(&self.original),
+        }
     }
 }
 
@@ -835,6 +857,7 @@ impl Pins {
                 out.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(|r| Digest(r.sha256)));
             }
             out.extend(m.attachments.iter().filter_map(|a| a.kept).map(|r| Digest(r.sha256)));
+            out.extend(m.original.as_ref().and_then(|o| o.kept).map(|r| Digest(r.sha256)));
         }
         out
     }
@@ -868,7 +891,7 @@ const MAX_FORGETTING: usize = 4_000_000;
 
 /// Whether message `m` names content it keeps on disk rather than in memory.
 fn names_kept(m: &Message) -> bool {
-    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some())
+    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some()) || m.original.as_ref().is_some_and(|o| o.kept.is_some())
 }
 
 /// Keep the content that `messages` keep on disk (named on them, not in memory) from being swept
@@ -1233,6 +1256,7 @@ pub fn copy_content(from: &Path, to: &Path, mailbox: &Mailbox) -> Result<usize, 
             wanted.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(Ref::from_model));
         }
         wanted.extend(m.attachments.iter().filter(|a| a.data.is_empty()).filter_map(|a| a.kept.as_ref()).map(Ref::from_model));
+        wanted.extend(m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept.as_ref()).map(Ref::from_model));
     }
     if wanted.is_empty() {
         return Ok(0);
@@ -2355,11 +2379,14 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             let hidden_wire = wire.hidden.clone().filter(|(_, len)| *len <= mailcraft_model::MAX_HIDDEN_TEXT as u64);
             let hidden = want(&hidden_wire, true, now, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
-            plan.push((id, text, html, hidden, attachments));
+            // (A message's original, #30, is never brought in at opening: it is read when it is
+            // written whole.)
+            let original = want(&wire.original, false, true, &mut st.live);
+            plan.push((id, text, html, hidden, attachments, original));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
-                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()) {
+                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()).chain(&wire.original) {
                     want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
@@ -2378,7 +2405,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
         let later = plan
             .iter()
-            .filter_map(|(id, text, html, hidden, _)| {
+            .filter_map(|(id, text, html, hidden, _, _)| {
                 let (text, html, hidden) = (pick(text), pick(html), pick(hidden));
                 (text.is_some() || html.is_some() || hidden.is_some()).then_some(crate::session::BodyLater { id: *id, text, html, hidden })
             })
@@ -2389,7 +2416,8 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut seen: HashMap<Ref, usize> = HashMap::new();
     // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
     // a loss the owner is told of.)
-    for (_, text, html, _, attachments) in &plan {
+    // (Nor is a message's original: without it the message is as one read before it was kept.)
+    for (_, text, html, _, attachments, _) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
@@ -2438,7 +2466,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
         Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    for (id, text, html, hidden, attachments) in plan {
+    for (id, text, html, hidden, attachments, original) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
         let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
         let mut kept = KeptBody::default();
@@ -2508,6 +2536,16 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             a.kept = want.kept();
             stand(want, &mut filled);
             if let Some(p) = held.as_mut().and_then(|p| p.attachments.get_mut(i)).and_then(Option::as_mut) {
+                p.held = false;
+            }
+        }
+        if let Some(want) = &original {
+            // (Neither looked for nor counted: one that is missing is found so when it is read,
+            // and the message is then written from its parts, #30. It stays named, as missing
+            // content does. A name that isn't one: no original.)
+            m.original =
+                stand(want, &mut Filled::default()).zip(want.kept()).map(|(_, r)| mailcraft_model::Original { data: Arc::default(), kept: Some(r) });
+            if let Some(p) = held.as_mut().and_then(|p| p.original.as_mut()) {
                 p.held = false;
             }
         }
@@ -2645,6 +2683,22 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
             }
             a.kept = None;
         }
+        // An original that can't be read leaves the copy without one (#30): the message is whole
+        // without it, and is written from its parts.
+        if let Some(o) = m.original.as_mut()
+            && let Some(r) = o.kept.filter(|_| o.data.is_empty())
+        {
+            match take(&r) {
+                Ok(bytes) => {
+                    (o.data, o.kept) = (bytes, None);
+                    n += 1;
+                }
+                Err(e) => {
+                    log::warn!("{e}: the bytes it came as are left out");
+                    m.original = None;
+                }
+            }
+        }
         mailbox.messages.insert(id, Arc::new(m));
     }
     Ok(n)
@@ -2708,6 +2762,14 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
             a.kept = Some(p.r.to_model());
             any = true;
         }
+    }
+    if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
+        && !o.data.is_empty()
+        && o.data.len() as u64 == p.r.len
+        && Ref::of(&o.data) == p.r
+    {
+        (o.data, o.kept) = (Arc::default(), Some(p.r.to_model()));
+        any = true;
     }
     if !any {
         return None;
@@ -2846,6 +2908,11 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
             outside(m.hidden_text.as_bytes())
         },
         attachments: Vec::new(),
+        // The bytes it came as (#30): what stayed on disk keeps its name, as an attachment does.
+        original: m.original.as_ref().and_then(|o| match o.kept.as_ref().filter(|_| o.data.is_empty()) {
+            Some(r) => Some(on_disk(r)),
+            None => outside(&o.data),
+        }),
     };
     for a in m.attachments.iter().take(MAX_PARTS) {
         let was = a.kept.as_ref().filter(|_| a.data.is_empty()).map(on_disk);
@@ -2881,6 +2948,11 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
         if part.is_some() {
             a.data = nothing.clone();
         }
+    }
+    if let (Some(o), Some(_)) = (lean.original.as_mut(), parts.original) {
+        o.data = nothing.clone();
+    } else if !m.has_original() {
+        lean.original = None;
     }
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };

@@ -114,6 +114,64 @@ impl Attachment {
     }
 }
 
+/// The most bytes of a Digitally signed or Encrypted message's original that are kept
+/// ([`Message::original`], #30): a larger one is read as any other message, without them.
+pub const MAX_ORIGINAL: usize = 64 << 20;
+
+/// The bytes a Digitally signed or Encrypted message came as (#30): its MIME exactly as its
+/// server or file gave it, which a Digital signature is checked against and which a copy of it
+/// elsewhere (another account's server, a saved `.eml`) is made of, so that the signature still
+/// checks there. Kept as an attachment is: in memory (`data`) or in the content folder beside
+/// the mailbox file (`kept`), hashed and checked against its length when read back.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Original {
+    /// The bytes, when they are in memory. Empty while they are kept outside (`kept`).
+    #[serde(with = "crate::b64")]
+    pub data: Arc<Vec<u8>>,
+    /// Where the bytes are when `data` doesn't hold them ([`Attachment::kept`]). Not written.
+    #[serde(skip)]
+    pub kept: Option<ContentRef>,
+}
+
+impl std::fmt::Debug for Original {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Original({} bytes{})", self.size(), if self.is_loaded() { "" } else { ", kept" })
+    }
+}
+
+impl Original {
+    /// `bytes` as a message's original; `None` when there are none, or more than [`MAX_ORIGINAL`].
+    pub fn new(bytes: Vec<u8>) -> Option<Original> {
+        (!bytes.is_empty() && bytes.len() <= MAX_ORIGINAL).then(|| Original { data: Arc::new(bytes), kept: None })
+    }
+
+    /// How many bytes it is, in memory or where it is kept.
+    pub fn size(&self) -> u64 {
+        match self.kept {
+            Some(k) if self.data.is_empty() => k.len,
+            _ => self.data.len() as u64,
+        }
+    }
+
+    /// Whether its bytes are in memory, or there is nothing kept outside to bring in.
+    pub fn is_loaded(&self) -> bool {
+        self.kept.is_none() || !self.data.is_empty()
+    }
+
+    /// Whether there is anything of it: bytes in memory or kept outside.
+    pub fn is_there(&self) -> bool {
+        !self.data.is_empty() || self.kept.is_some()
+    }
+}
+
+/// [`Message::original`] as a file or a synchronisation result holds it: past [`MAX_ORIGINAL`]
+/// it is read as none.
+fn capped_original<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Original>, D::Error> {
+    let original = Option::<Original>::deserialize(d)?;
+    Ok(original.filter(|o| o.data.len() <= MAX_ORIGINAL))
+}
+
 /// Most characters of its text a message to be fetched again keeps as its preview
 /// ([`Message::to_fetch_again`]): as many as Microsoft Graph gives as one.
 pub const PREVIEW_CHARS: usize = 255;
@@ -348,6 +406,14 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
+    /// For a Digitally signed or Encrypted message (#30): the bytes it came as ([`Original`]).
+    /// `None` for every other message, for one read before they were kept (Check again downloads
+    /// them, `mail.checkAgain`), and once something the bytes hold was taken out of it here (an
+    /// attachment removed). Wherever the message is written whole (another account's server, a
+    /// saved `.eml`, a forward as an attachment) these bytes are what is written, whatever is
+    /// kept beside them; the owner's marks go as the server's flags do.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "capped_original")]
+    pub original: Option<Original>,
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).
@@ -543,6 +609,7 @@ impl Message {
         self.hidden_text = String::new();
         self.attachments.clear();
         self.kept = None;
+        self.original = None;
         self.attachments_on_server = had_files;
         self.unfetched = true;
     }
@@ -570,7 +637,27 @@ impl Message {
 
     /// Whether everything of the message is in memory: its body and every attachment.
     pub fn is_loaded(&self) -> bool {
-        !self.body_is_kept() && self.attachments.iter().all(Attachment::is_loaded)
+        !self.body_is_kept() && self.attachments.iter().all(Attachment::is_loaded) && self.original.as_ref().is_none_or(Original::is_loaded)
+    }
+
+    /// Whether the bytes it came as are here ([`Message::original`]): in memory or kept outside.
+    pub fn has_original(&self) -> bool {
+        self.original.as_ref().is_some_and(Original::is_there)
+    }
+
+    /// The bytes it came as, when they are in memory ([`Message::original`]).
+    pub fn original_bytes(&self) -> Option<&[u8]> {
+        self.original.as_ref().map(|o| o.data.as_slice()).filter(|d| !d.is_empty())
+    }
+
+    /// Whether it looks Digitally signed or Encrypted by what was read of it (#30), for a message
+    /// without the bytes it came as: a part that carries a signature or encrypted content
+    /// (`smime.p7s`, `smime.p7m`, `signature.asc`, PGP/MIME's control part), or OpenPGP armour
+    /// at the start of a line in the first 64 KB of its text in memory
+    /// ([`crate::protected::has_armour_within`]): cheap enough to ask as a menu is drawn.
+    pub fn looks_protected(&self) -> bool {
+        self.attachments.iter().any(|a| crate::protected::is_protection_part(&a.mime, &a.name))
+            || crate::protected::has_armour_within(self.body.text.as_bytes(), 64 * 1024)
     }
 
     pub fn has_category(&self, name: &str) -> bool {

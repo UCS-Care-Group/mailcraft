@@ -28,6 +28,7 @@ mod messages_tests;
 mod offline;
 pub mod pictures;
 pub mod pop;
+pub mod protected;
 pub mod provider;
 pub mod remote;
 pub mod remote_rules;
@@ -66,8 +67,8 @@ pub use mailbox::{
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, Original, PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use messages::Messages;
 pub use offline::{KeepOffline, OfflineWindow};
@@ -166,6 +167,8 @@ mod junk_tests;
 mod load_limit_tests;
 #[cfg(test)]
 mod mailbox_tests;
+#[cfg(test)]
+mod original_tests;
 #[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]

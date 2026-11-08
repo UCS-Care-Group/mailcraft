@@ -488,7 +488,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m)) {
         return None;
     }
-    let read = crate::mime::parse(mime);
+    let read = crate::mime::parse_fetched(mime);
     let m = mb.message_mut(here).ok()?;
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
@@ -513,6 +513,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
+    // The bytes it came as, when it is Digitally signed or Encrypted (#30).
+    m.original = read.original;
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
@@ -560,6 +562,7 @@ pub fn thin_message(m: &mut Message, preview: String) {
     m.hidden_text = String::new();
     m.attachments.clear();
     m.kept = None;
+    m.original = None;
     m.unfetched = true;
 }
 

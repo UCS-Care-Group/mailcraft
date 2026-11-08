@@ -20,6 +20,7 @@ mod mailto;
 mod mbox;
 mod media;
 mod parse;
+mod protected;
 pub mod rich;
 mod transfer;
 mod words;
@@ -31,6 +32,8 @@ mod fields_tests;
 mod hidden_text_tests;
 #[cfg(test)]
 mod private_headers_tests;
+#[cfg(test)]
+mod protected_tests;
 #[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
@@ -55,7 +58,10 @@ pub const PST_ITEM_HEADER: &str = "X-MailCraft-Pst-Item";
 /// ([`write_placed`]), never from a message's kept headers into anything else.
 pub const PLACE_HEADER: &str = "X-MailCraft-Place";
 
-/// `message` as [`write()`] writes it, with [`PLACE_HEADER`] carrying `marker` first.
+/// `message` as [`write()`] writes it, with [`PLACE_HEADER`] carrying `marker` first. For a
+/// Digitally signed or Encrypted message whose original is in memory that is the original as it
+/// came, after the one line: a field put before the others is outside what a Digital signature
+/// covers, so it still checks there (#30).
 pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
     let mut out = Vec::new();
     header::write_field(&mut out, PLACE_HEADER, marker);
@@ -70,6 +76,7 @@ pub fn carries_place(header: &[u8], marker: &str) -> bool {
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
+pub use protected::{Protection, is_protected, parse_fetched, protection};
 pub use words::{decode_words, encode_words};
 pub use write::{write, written_message_id};
 
