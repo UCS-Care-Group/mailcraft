@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Where MCP tool calls end up: a control-channel method call.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::time::Duration;
@@ -19,6 +19,16 @@ pub trait Backend {
     /// Short human description ("headless", "connected to 127.0.0.1:7981").
     fn describe(&self) -> String;
 }
+
+/// The longest line read from a program that has not proved it holds the control key (the
+/// answer to the challenge, and every answer when the key is not sent): 1 MiB, as the app's own
+/// control port reads requests.
+const MAX_LINE: usize = 1 << 20;
+
+/// The longest answer read from the app once it has proved it holds the key: room for what it
+/// hands over as base64 `data` (attachments up to 64 MB, a screenshot of the window, a message's
+/// source), and a bound all the same.
+const MAX_REPLY: usize = 256 << 20;
 
 /// Looks up the control key for an address (`HOST:PORT`).
 type KeyFinder = Box<dyn Fn(&str) -> Result<String, String> + Send>;
@@ -91,6 +101,8 @@ enum Trip {
     NotSent(std::io::Error),
     /// The request line was written, and no answer came: the app may have run it.
     Lost(std::io::Error),
+    /// The answer was longer than its bound: the connection is dropped.
+    TooLong,
 }
 
 /// Whether a connection the app may have closed since its last answer (it quit or restarted) is
@@ -106,13 +118,18 @@ fn still_open(reader: &BufReader<TcpStream>, stream: &TcpStream) -> bool {
     blocking && matches!(peeked, Err(e) if e.kind() == std::io::ErrorKind::WouldBlock)
 }
 
-/// One line from `reader`.
-fn read_reply(reader: &mut BufReader<TcpStream>) -> Result<String, Trip> {
-    let mut reply = String::new();
-    if reader.read_line(&mut reply).map_err(Trip::Lost)? == 0 {
+/// One line from `reader`, of at most `max` bytes: what is read is bounded, never a line of
+/// whatever length the other end sends.
+fn read_reply(reader: &mut BufReader<TcpStream>, max: usize) -> Result<String, Trip> {
+    let mut buf = Vec::new();
+    let n = reader.by_ref().take(max as u64 + 1).read_until(b'\n', &mut buf).map_err(Trip::Lost)?;
+    if n == 0 {
         return Err(Trip::Lost(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed")));
     }
-    Ok(reply)
+    if buf.len() > max {
+        return Err(Trip::TooLong);
+    }
+    String::from_utf8(buf).map_err(|_| Trip::Lost(std::io::Error::new(std::io::ErrorKind::InvalidData, "the answer is not UTF-8")))
 }
 
 /// Why the app could not be made to prove itself.
@@ -198,9 +215,15 @@ impl Remote {
             let key = (self.find_key)(&self.addr).map_err(Auth::Refused)?;
             let nonce = mailcraft_control_key::proof::new_nonce().ok_or_else(|| Auth::Refused("no random bytes for the challenge".to_string()))?;
             let line = json!({"id": 0, "method": "auth.challenge", "params": {"nonce": nonce}}).to_string();
-            let reply = match self.roundtrip(&line) {
+            let reply = match self.roundtrip(&line, MAX_LINE) {
                 Ok(reply) => reply,
                 Err(Trip::NotSent(e) | Trip::Lost(e)) => return Err(Auth::Io(e)),
+                // A proof is a short line: one this long is no proof, and that program is not
+                // asked again.
+                Err(Trip::TooLong) => {
+                    self.conn = None;
+                    return Err(Auth::Refused(self.not_proved()));
+                }
             };
             let v: Value = serde_json::from_str(reply.trim()).unwrap_or(Value::Null);
             let proof = v.pointer("/result/proof").and_then(Value::as_str).unwrap_or("");
@@ -214,10 +237,14 @@ impl Remote {
             }
         }
         self.conn = None;
-        Err(Auth::Refused(format!(
+        Err(Auth::Refused(self.not_proved()))
+    }
+
+    fn not_proved(&self) -> String {
+        format!(
             "the program at {} did not prove it is the MailCraft app that wrote the control key, so neither the key nor any request was sent to it (an older MailCraft that cannot answer the challenge, or another program on that port)",
             self.addr
-        )))
+        )
     }
 
     /// The request line; it carries the key when this connection may (the app has proved it holds
@@ -233,8 +260,9 @@ impl Remote {
         Ok(req.to_string())
     }
 
-    /// Write one line and read its answer.
-    fn roundtrip(&mut self, line: &str) -> Result<String, Trip> {
+    /// Write one line and read its answer, of at most `max` bytes (over that, the connection is
+    /// dropped).
+    fn roundtrip(&mut self, line: &str, max: usize) -> Result<String, Trip> {
         let Some((reader, writer)) = self.conn.as_mut() else {
             return Err(Trip::NotSent(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected")));
         };
@@ -244,7 +272,7 @@ impl Remote {
         out.extend_from_slice(line.as_bytes());
         out.push(b'\n');
         writer.write_all(&out).and_then(|()| writer.flush()).map_err(Trip::NotSent)?;
-        let reply = read_reply(reader);
+        let reply = read_reply(reader, max);
         if reply.is_err() {
             self.conn = None;
         }
@@ -276,7 +304,8 @@ impl Remote {
             let result = match tried {
                 Ok(()) => {
                     let line = self.request_line(id, method, params)?;
-                    self.roundtrip(&line)
+                    let max = if self.verified { MAX_REPLY } else { MAX_LINE };
+                    self.roundtrip(&line, max)
                 }
                 Err(e) => Err(Trip::NotSent(e)),
             };
@@ -295,6 +324,10 @@ impl Remote {
                         "the MailCraft app at {} did not answer ({e}): it may have run the request, so it was not sent again; look at the app before trying again",
                         self.addr
                     ));
+                }
+                Err(Trip::TooLong) => {
+                    self.conn = None;
+                    return Err(format!("the answer of the MailCraft app at {} was too long, so the connection was dropped", self.addr));
                 }
             }
         };
