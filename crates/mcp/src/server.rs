@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! JSON-RPC 2.0 framing and the MCP lifecycle / tools / resources methods.
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 
 use serde_json::{Value, json};
 
@@ -77,7 +77,7 @@ impl Server {
     /// the protocol stream). Inbound lines are capped as the sibling control channel caps its
     /// request lines: a longer line is refused with a bounded error reply, its remainder is
     /// dropped, and the stream continues.
-    pub fn serve(&mut self, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+    pub fn serve(&mut self, mut input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
         /// Longer lines are refused and their remainder dropped, as in the sibling control channel.
         const MAX_LINE: u64 = 1 << 20;
         /// The most of an over-cap line's remainder dropped per round: a peer that never sends a
@@ -86,7 +86,7 @@ impl Server {
         let mut buf = Vec::new();
         loop {
             buf.clear();
-            let n = input.by_ref().take(MAX_LINE + 1).read_until(b'\n', &mut buf)?;
+            let n = Read::take(input.by_ref(), MAX_LINE + 1).read_until(b'\n', &mut buf)?;
             if n == 0 {
                 return Ok(());
             }
@@ -96,7 +96,7 @@ impl Server {
                 if !buf.ends_with(b"\n") {
                     loop {
                         buf.clear();
-                        let n = input.by_ref().take(DRAIN).read_until(b'\n', &mut buf)?;
+                        let n = Read::take(input.by_ref(), DRAIN).read_until(b'\n', &mut buf)?;
                         if n == 0 || buf.ends_with(b"\n") {
                             break;
                         }
