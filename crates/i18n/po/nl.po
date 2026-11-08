@@ -3235,6 +3235,11 @@ msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed wi
 msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar van MailCraft is niet met het installatieprogramma (.msi) geïnstalleerd, waardoor Windows het niet herkent."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Desktop alerts only for mail in Primary"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Detail"
@@ -4401,6 +4406,11 @@ msgstr "Opmaken als HTML"
 msgid "Format as Plain Text"
 msgstr "Opmaken als tekst zonder opmaak"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Forums"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4622,6 +4632,11 @@ msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. Mail
 #, fuzzy
 msgid "Gmail and Google Workspace"
 msgstr "Gmail en Google Workspace"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Gmail categories"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7187,6 +7202,11 @@ msgid "New mail"
 msgstr "Nieuwe e-mail"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
@@ -8799,11 +8819,26 @@ msgstr "Vorig bericht"
 msgid "Previous Month"
 msgstr "Vorige maand"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Primary"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Private"
 msgstr "Persoonlijk"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Promotions"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -10721,6 +10756,11 @@ msgstr "Contactpersonen tonen van"
 msgid "Show Contributors"
 msgstr "Bijdragers weergeven"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show Gmail's categories under the Inbox"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -11256,6 +11296,11 @@ msgstr "Uitstellen"
 #, fuzzy
 msgid "Snooze Reminders"
 msgstr "Herinneringen uitstellen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Social"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -14160,7 +14205,7 @@ msgid "Updated {folder} on the server"
 msgstr "{folder} op de server bijgewerkt"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
 msgstr "Updates"
@@ -16073,6 +16118,11 @@ msgstr "op"
 #, fuzzy
 msgid "only a message you sent can be sent again"
 msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "only the Inbox of a Gmail account whose categories are shown has Gmail's categories"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -18141,7 +18191,7 @@ msgstr[0] "{n} ding erin paste niet bij de rest en is hersteld."
 msgstr[1] "{n} dingen erin pasten niet bij de rest en zijn hersteld."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{n} unread"
 msgid_plural "{n} unread"

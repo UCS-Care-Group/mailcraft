@@ -256,6 +256,15 @@ pub struct Message {
     /// from before has none, and one that holds something other than a size there reads as 0.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
+    /// For a message of a Gmail account's Inbox: which of Gmail's five categories Gmail put it in
+    /// (#911), as its server last said, like a read mark. `None` for mail anywhere else, of any
+    /// other account, and of a file from before there were any (or one that holds something else).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub gmail_category: Option<crate::GmailCategory>,
+    /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
+    /// server gave it; 0 when it gave none.
+    #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
+    pub gmail_id: u64,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and

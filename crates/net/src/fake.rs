@@ -338,6 +338,11 @@ pub(crate) struct ImapWorld {
     /// adds a label and leaves the message in it; a move to `\Trash` takes the message out of
     /// every other mailbox; and a message expunged from a label is still in `\All`.
     pub(crate) gmail: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and the word Gmail's search
+    /// finds it by after `category:` (`social`) of each message that is in one of Gmail's
+    /// categories other than Primary. Such a server answers `UID SEARCH UID <set> X-GM-RAW
+    /// "category:…"` and gives each message an `X-GM-MSGID` (its UID plus [`GMAIL_IDS`]).
+    pub(crate) gmail_categories: Vec<(String, u32, String)>,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -525,6 +530,9 @@ fn in_set(set: &str, uid: u32) -> bool {
 fn quote(name: &str) -> String {
     format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
 }
+
+/// What a server that behaves as Gmail does adds to a message's UID for its `X-GM-MSGID`.
+pub(crate) const GMAIL_IDS: u64 = 1_500_000_000_000_000_000;
 
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
@@ -744,11 +752,27 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
-            // `UID SEARCH UNDELETED HEADER <field> <text>`: the one search asked of a server.
+            // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
+            // X-GM-RAW "category:…"`: the searches asked of a server.
             "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
                 let said = words(args);
                 let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                let gmail_raw = said.len() == 5 && asked(1, "UID") && asked(3, "X-GM-RAW");
                 match open.and_then(|i| world.mailboxes.get(i)) {
+                    _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    Some(mailbox) if gmail_raw => match said[4].to_ascii_lowercase().strip_prefix("category:") {
+                        Some(wanted) => {
+                            let found: String = mailbox
+                                .messages
+                                .iter()
+                                .filter(|m| !m.has("\\Deleted") && in_set(&said[2], m.uid))
+                                .filter(|m| world.gmail_categories.iter().any(|(at, uid, c)| *at == mailbox.raw && *uid == m.uid && *c == wanted))
+                                .map(|m| format!(" {}", m.uid))
+                                .collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                        None => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    },
                     _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
                     None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
                     Some(mailbox) => {
@@ -879,6 +903,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
+                    } else if world.gmail && items.contains("X-GM-MSGID") {
+                        let id = GMAIL_IDS + u64::from(uid);
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid} X-GM-MSGID {id})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }
