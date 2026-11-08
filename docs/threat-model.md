@@ -142,7 +142,8 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
 - **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
-  the owner's switch (`ui.attachmentPictures`, off by default) an attached file is shown as a
+  the owner's switch (`ui.attachmentPictures`, on by default as
+  pictures written into a message are) an attached file is shown as a
   picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
   name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
   bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the

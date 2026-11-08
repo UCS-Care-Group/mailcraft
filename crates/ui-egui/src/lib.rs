@@ -872,6 +872,15 @@ struct SigningIn {
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// A switch's new state from a command's params: `value` when it is given (true or false), or
+/// else `now` turned over.
+fn switched(p: &serde_json::Value, now: bool) -> Result<bool, String> {
+    match p.get("value").filter(|v| !v.is_null()) {
+        None => Ok(!now),
+        Some(v) => v.as_bool().ok_or_else(|| "`value` is true or false".to_string()),
+    }
+}
+
 /// UI state that persists between runs (and that agents can read and set).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -897,8 +906,9 @@ pub struct UiState {
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
     /// A picture that comes as an attachment is shown as a small picture rather than as a chip
-    /// with its name (#834), in every message; the switch is where the attachments are. Off
-    /// unless the owner turns it on, as classic Outlook shows chips; kept as `attachmentPictures`.
+    /// with its name (#834), in every message; the switch is where the attachments are. On
+    /// unless the owner turns it off (classic Outlook shows chips; the issue asks for pictures
+    /// with a switch back); kept as `attachmentPictures`.
     pub attachment_pictures: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
@@ -1003,7 +1013,7 @@ impl Default for UiState {
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
-            attachment_pictures: false,
+            attachment_pictures: true,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -1088,7 +1098,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.attachmentPictures",
         "Show Picture Attachments as Pictures",
         "Message",
-        r#"{"value"?: bool (default: toggle)} — whether a PNG, JPEG, GIF or WebP that comes as an attachment is shown as a small picture rather than as a chip with its name, in every message (off unless turned on). Answers the switch"#,
+        r#"{"value"?: bool (default: toggle)} — whether a PNG, JPEG, GIF or WebP that comes as an attachment is shown as a small picture rather than as a chip with its name, in every message (on unless turned off). Answers the switch"#,
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
@@ -2406,23 +2416,17 @@ impl MailApp {
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
             }
             "ui.repliesInWindow" => {
-                let value = match p.get("value").filter(|v| !v.is_null()) {
-                    None => !self.ui.replies_in_window,
-                    Some(v) => match v.as_bool() {
-                        Some(value) => value,
-                        None => return Some(Err("`value` is true or false".into())),
-                    },
+                let value = match switched(p, self.ui.replies_in_window) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
                 };
                 self.ui.replies_in_window = value;
                 Ok(json!({"value": value}))
             }
             "ui.attachmentPictures" => {
-                let value = match p.get("value").filter(|v| !v.is_null()) {
-                    None => !self.ui.attachment_pictures,
-                    Some(v) => match v.as_bool() {
-                        Some(value) => value,
-                        None => return Some(Err("`value` is true or false".into())),
-                    },
+                let value = match switched(p, self.ui.attachment_pictures) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
                 };
                 self.ui.attachment_pictures = value;
                 Ok(json!({"value": value}))

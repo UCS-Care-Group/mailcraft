@@ -194,28 +194,28 @@ fn item(h: &Window, index: usize) -> egui::Rect {
 #[test]
 fn the_switch_shows_picture_attachments_as_pictures() {
     let mut h = window_with_picture();
-    // Chips at first, as classic Outlook shows them, with the switch beside them.
-    assert!(!h.state().ui.attachment_pictures);
-    assert!(item(&h, 0).height() < 40.0 && item(&h, 1).height() < 40.0);
-    let pictures = h.state().hit.rect_in(0, "attachmentView", 1).expect("the switch");
-    click(&mut h, pictures.center(), PointerButton::Primary, 1);
-    h.run_steps(5);
+    // Pictures at first, with the switch beside them: the picture is a picture, the PDF a chip.
     assert!(h.state().ui.attachment_pictures);
-    // The picture is a picture now; the PDF stays a chip.
     assert!(item(&h, 0).height() > 100.0, "{:?}", item(&h, 0));
     assert!(item(&h, 1).height() < 40.0);
     let (kept, decoded) = Thumbs::of(&h.ctx).lock().unwrap().counts();
     assert!(kept >= 1 && decoded == 1, "{kept} {decoded}");
     // Its `▾` is the chip's.
     assert!(h.state().hit.rect_in(0, "attachmentMenu", attachment_key(ID, 0)).is_some());
-    // The choice is for every message, kept in ui.json, and turned back from the switch.
-    let saved = serde_json::to_value(&h.state().ui).unwrap();
-    assert_eq!(saved["attachmentPictures"], true);
+    // Names: chips, as classic Outlook shows them, for every message, and kept in ui.json.
     let names = h.state().hit.rect_in(0, "attachmentView", 0).expect("the switch");
     click(&mut h, names.center(), PointerButton::Primary, 1);
     h.run_steps(5);
     assert!(!h.state().ui.attachment_pictures);
-    assert!(item(&h, 0).height() < 40.0);
+    assert!(item(&h, 0).height() < 40.0 && item(&h, 1).height() < 40.0);
+    let saved = serde_json::to_value(&h.state().ui).unwrap();
+    assert_eq!(saved["attachmentPictures"], false);
+    // And back.
+    let pictures = h.state().hit.rect_in(0, "attachmentView", 1).expect("the switch");
+    click(&mut h, pictures.center(), PointerButton::Primary, 1);
+    h.run_steps(5);
+    assert!(h.state().ui.attachment_pictures);
+    assert!(item(&h, 0).height() > 100.0);
 }
 
 #[test]
@@ -248,13 +248,17 @@ fn no_switch_without_a_picture() {
 
 #[test]
 fn the_setting_is_kept_and_answers_the_command() {
-    assert!(!crate::UiState::default().attachment_pictures);
-    let read: crate::UiState = serde_json::from_value(json!({"attachmentPictures": true})).unwrap();
+    assert!(crate::UiState::default().attachment_pictures);
+    // A ui.json from before keeps the default; one that says chips, chips.
+    let read: crate::UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
     assert!(read.attachment_pictures);
+    let read: crate::UiState = serde_json::from_value(json!({"attachmentPictures": false})).unwrap();
+    assert!(!read.attachment_pictures);
     let mut h = testing::window("view.mail");
     let app = h.state_mut();
-    assert_eq!(app.execute("ui.attachmentPictures", json!({})).unwrap(), json!({"value": true}));
-    assert_eq!(app.execute("ui.attachmentPictures", json!({"value": null})).unwrap(), json!({"value": false}));
+    assert_eq!(app.execute("ui.attachmentPictures", json!({})).unwrap(), json!({"value": false}));
+    assert_eq!(app.execute("ui.attachmentPictures", json!({"value": null})).unwrap(), json!({"value": true}));
+    assert_eq!(app.execute("ui.attachmentPictures", json!({"value": false})).unwrap(), json!({"value": false}));
     assert_eq!(app.execute("ui.attachmentPictures", json!({"value": true})).unwrap(), json!({"value": true}));
     assert!(app.execute("ui.attachmentPictures", json!({"value": "on"})).is_err());
     assert!(app.ui.attachment_pictures);

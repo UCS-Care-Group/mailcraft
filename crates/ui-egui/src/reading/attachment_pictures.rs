@@ -4,7 +4,7 @@
 //!
 //! A photo sent from a phone comes as a file, not written into the body, and as a chip it says
 //! nothing of what is in it. With the switch where the attachments are (`ui.attachmentPictures`,
-//! kept in `ui.json`, off unless the owner turns it on, as classic Outlook shows chips), each
+//! kept in `ui.json`, on unless the owner turns it off; classic Outlook shows chips), each
 //! attachment that is a PNG, JPEG, GIF or WebP by its own bytes is a small picture, scaled down
 //! to fit; a double-click opens it and its `▾` menu is the chip's. Everything else stays a chip.
 //!
