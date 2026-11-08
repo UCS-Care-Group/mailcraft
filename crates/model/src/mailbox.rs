@@ -3409,6 +3409,7 @@ impl Mailbox {
         }
         for a in &mut self.accounts {
             a.clamp_opened_calendars();
+            a.clamp_sender_addresses();
             if a.id == 0 || !sane(&a.id) || !seen.insert(a.id) {
                 let old = a.id;
                 a.id = self.next_id;

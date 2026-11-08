@@ -1275,7 +1275,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     format!(" with {} ({})", plural(c.attachments.len(), "{n} attachment", "{n} attachments"), names.join(", "))
                 };
                 // From a sender address other than the account's own, said (#797).
-                let from = if c.from.is_empty() { String::new() } else { format!(" from {}", clip(&c.from, 80)) };
+                let from = if c.from.is_empty() { String::new() } else { format!(" from {}", plain(&c.from)) };
                 format!("send {}{from} to {to}{files}", quoted(&c.subject))
             }
             None => "send the message being written".to_string(),
@@ -1578,7 +1578,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let listed: Vec<String> = params
                 .get("addresses")
                 .and_then(Value::as_array)
-                .map(|list| list.iter().filter_map(|x| x.get("email").and_then(Value::as_str)).map(|e| clip(e, 80)).collect())
+                .map(|list| list.iter().filter_map(|x| x.get("email").and_then(Value::as_str)).map(plain).collect())
                 .unwrap_or_default();
             if listed.is_empty() {
                 format!("let the account {a} send from its own address only")

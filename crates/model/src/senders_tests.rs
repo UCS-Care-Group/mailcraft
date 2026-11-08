@@ -159,3 +159,32 @@ fn mail_to_an_alias_in_bcc_is_answered_from_it_by_its_delivery_headers() {
     let m = Message { to: to(&["support@product.example"]), ..Default::default() };
     assert_eq!(plain.reply_from(&m), "");
 }
+
+#[test]
+fn a_list_read_from_a_file_is_clamped_when_the_mailbox_is_repaired() {
+    let mut mb = Mailbox::with_local_account("Ada", "ada@example.org");
+    let mut many: Vec<SenderAddress> = vec![
+        sender(
+            "bad
+@example.org",
+            "",
+        ),
+        sender("ADA@example.org", ""),
+        sender(
+            "x@example.org",
+            "Line
+one",
+        ),
+    ];
+    many.extend((0..80).map(|n| sender(&format!("a{n}@example.org"), &"n".repeat(500))));
+    let id = mb.add_account(Account { sender_addresses: many, ..ada() });
+    let local = mb.accounts[0].id;
+    mb.account_mut(local).unwrap().sender_addresses = vec![sender("kept as it is", "")];
+    mb.repair();
+    let kept = &mb.account(id).unwrap().sender_addresses;
+    assert_eq!(kept.len(), crate::MAX_SENDER_ADDRESSES);
+    assert_eq!(kept[0], sender("x@example.org", "Lineone"));
+    assert!(kept.iter().all(|s| s.display_name.chars().count() <= crate::MAX_NAME));
+    // Another kind's list stays as its file had it.
+    assert_eq!(mb.account(local).unwrap().sender_addresses, [sender("kept as it is", "")]);
+}

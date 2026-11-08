@@ -72,6 +72,28 @@ pub fn clean_sender_addresses(main: &str, list: &[SenderAddress]) -> Result<Vec<
 }
 
 impl Account {
+    /// Keep the sender addresses an IMAP account read from its file to what can be kept: the
+    /// entries that are addresses, once each, names and signature names on one line, at most
+    /// [`MAX_SENDER_ADDRESSES`] (a file is anybody's to write). Another account's list is kept
+    /// as it is, never used.
+    pub fn clamp_sender_addresses(&mut self) {
+        if !self.takes_sender_addresses() {
+            return;
+        }
+        let mut kept: Vec<SenderAddress> = Vec::new();
+        for s in std::mem::take(&mut self.sender_addresses) {
+            if kept.len() >= MAX_SENDER_ADDRESSES {
+                break;
+            }
+            // (One at a time: an entry that isn't an address is dropped, not the whole list.)
+            let one = clean_sender_addresses(&self.email, &[s]).unwrap_or_default().into_iter().next();
+            if let Some(s) = one.filter(|s| !kept.iter().any(|k| k.email.eq_ignore_ascii_case(&s.email))) {
+                kept.push(s);
+            }
+        }
+        self.sender_addresses = kept;
+    }
+
     /// Whether the account sends from other addresses of its own: one kept in step by IMAP that
     /// sends through SMTP.
     pub fn takes_sender_addresses(&self) -> bool {

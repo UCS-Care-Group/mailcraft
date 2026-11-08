@@ -198,6 +198,10 @@ fn an_agent_is_asked_before_it_changes_them_and_told_who_mail_is_from() {
     assert_eq!(crate::agent::check(&s, "account.senderAddresses", &json!({"id": id}), &[]), crate::agent::Verdict::Run);
     let said = crate::agent::describe(&s, "account.setSenderAddresses", &params);
     assert!(said.contains("ceo@company.example") && said.contains(OWN), "{said}");
+    // Every address whole, however long: the end of its domain is what says whose it is.
+    let long = format!("{}@{}.example", "a".repeat(60), "sub.".repeat(20));
+    let said = crate::agent::describe(&s, "account.setSenderAddresses", &json!({"id": id, "addresses": [{"email": long}]}));
+    assert!(said.contains(&long), "{said}");
     s.run("mail.new", &json!({"account": id, "from": SUPPORT, "to": "customer@example.net", "subject": "Plans"})).unwrap();
     let said = crate::agent::describe(&s, "compose.send", &json!({}));
     assert!(said.contains(&format!("from {SUPPORT}")), "{said}");
