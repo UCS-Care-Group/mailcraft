@@ -1,1 +1,1 @@
-- A draft begun on another device and sent from MailCraft is sent with the next Send/Receive instead of waiting in the Outbox, including one an earlier version left there (Microsoft and Exchange server accounts).
+- A draft begun on another device and sent from MailCraft is sent with the next Send/Receive instead of waiting in the Outbox, including one an earlier version left there, and one of those that a run held goes again with Send Again (Microsoft and Exchange server accounts; [#738](https://github.com/GITHUB_REPOSITORY/issues/738)).

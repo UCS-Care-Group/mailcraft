@@ -93,6 +93,18 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         m.sending = false;
         changed = true;
     }
+    // Sent by a run, so queued here by the owner: one without MailCraft's marker (a draft begun
+    // elsewhere that an earlier version queued) gets it now (#738), as `compose.send` gives it.
+    // Its change may have just gone up, and without the marker it would then be taken for mail
+    // the server put in the Outbox: never sent again, even after Send Again. After `draft_done`,
+    // which matches the answer by the marker the draft went up with.
+    if let Ok(m) = mb.message_mut(done.message)
+        && m.account == account
+        && let Some(sd) = m.server_draft.as_mut().filter(|sd| sd.marker.is_empty())
+    {
+        sd.marker = super::graph_drafts::marker(done.message, u64::from(sd.saves));
+        changed = true;
+    }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
     let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) { "the server" } else { "Microsoft" };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
