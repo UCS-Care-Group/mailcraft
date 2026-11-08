@@ -74,17 +74,47 @@ impl Server {
     }
 
     /// Serve newline-delimited JSON-RPC until `input` closes. Logs go to stderr only (stdout is
-    /// the protocol stream).
+    /// the protocol stream). Inbound lines are capped as the sibling control channel caps its
+    /// request lines: a longer line is refused with a bounded error reply, its remainder is
+    /// dropped, and the stream continues.
     pub fn serve(&mut self, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
-        for line in input.lines() {
-            let line = line?;
-            if let Some(reply) = self.handle_line(&line) {
+        /// Longer lines are refused and their remainder dropped, as in the sibling control channel.
+        const MAX_LINE: u64 = 1 << 20;
+        /// The most of an over-cap line's remainder dropped per round: a peer that never sends a
+        /// newline costs one reply per round instead of unbounded buffering.
+        const DRAIN: u64 = 64 << 20;
+        let mut buf = Vec::new();
+        loop {
+            buf.clear();
+            let n = input.by_ref().take(MAX_LINE + 1).read_until(b'\n', &mut buf)?;
+            if n == 0 {
+                return Ok(());
+            }
+            if buf.len() as u64 > MAX_LINE {
+                // The line continues past the cap: drop its remainder (at most [`DRAIN`] bytes a
+                // round) before answering, so the next line is served, not swallowed.
+                if !buf.ends_with(b"\n") {
+                    loop {
+                        buf.clear();
+                        let n = input.by_ref().take(DRAIN).read_until(b'\n', &mut buf)?;
+                        if n == 0 || buf.ends_with(b"\n") {
+                            break;
+                        }
+                    }
+                }
+                let reply = error(Value::Null, INVALID_REQUEST, "line too long").to_string();
+                output.write_all(reply.as_bytes())?;
+                output.write_all(b"\n")?;
+                output.flush()?;
+                continue;
+            }
+            let line = String::from_utf8_lossy(&buf);
+            if let Some(reply) = self.handle_line(line.trim()) {
                 output.write_all(reply.as_bytes())?;
                 output.write_all(b"\n")?;
                 output.flush()?;
             }
         }
-        Ok(())
     }
 
     /// Handle one line; returns the reply line (None for notifications and blank lines).

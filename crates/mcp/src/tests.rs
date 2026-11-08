@@ -33,6 +33,46 @@ fn lifecycle_and_tools() {
     assert!(s.handle_line("{not json").unwrap().contains("parse error"));
 }
 
+#[test]
+fn a_line_over_the_cap_is_refused_and_the_next_one_still_served() {
+    // The stdio stream caps inbound lines as the sibling control channel caps its request lines:
+    // a longer line is refused with a bounded error reply, its remainder is dropped, and the
+    // stream continues.
+    let mut s = Server::new(Box::new(Headless::default()));
+    let big = format!(r#"{{"id":1,"jsonrpc":"2.0","method":"initialize","params":{{"pad":"{}"}}}}"#, "x".repeat(1 << 20));
+    let mut input = big.clone();
+    input.push('\n');
+    input.push_str(&big);
+    input.push('\n');
+    input.push_str(r#"{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#);
+    input.push('\n');
+    let mut out = Vec::new();
+    s.serve(&mut std::io::Cursor::new(input.as_bytes()), &mut out).unwrap();
+    let replies: Vec<Value> = out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
+    assert_eq!(replies.len(), 3, "{replies:?}");
+    assert_eq!(replies[0]["error"]["message"], "line too long");
+    assert_eq!(replies[1]["error"]["message"], "line too long");
+    assert_eq!(replies[2]["result"]["serverInfo"]["name"], "mailcraft");
+}
+
+#[test]
+fn an_over_cap_line_without_a_newline_does_not_swallow_the_next_line() {
+    // The over-cap line runs past the cap without a newline; its remainder is dropped and the
+    // line that follows is served.
+    let mut s = Server::new(Box::new(Headless::default()));
+    let mut input = format!(r#"{{"id":1,"jsonrpc":"2.0","method":"initialize","params":{{"pad":"{}"#, "x".repeat(1 << 20));
+    input.push_str(r#"","pad2":""#);
+    input.push_str("}}\n");
+    input.push_str(r#"{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#);
+    input.push('\n');
+    let mut out = Vec::new();
+    s.serve(&mut std::io::Cursor::new(input.as_bytes()), &mut out).unwrap();
+    let replies: Vec<Value> = out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
+    assert_eq!(replies.len(), 2, "{replies:?}");
+    assert_eq!(replies[0]["error"]["message"], "line too long");
+    assert_eq!(replies[1]["result"]["serverInfo"]["name"], "mailcraft");
+}
+
 /// A frame's text without the frame.
 fn plain(v: &Value) -> String {
     v.as_str().unwrap_or("").replace(crate::tools::UNTRUSTED_OPEN, "").replace(crate::tools::UNTRUSTED_CLOSE, "")
