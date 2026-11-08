@@ -764,9 +764,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 .collect();
             // The folder in view is highlighted once: under Favorites when it shows there, unless
             // it was picked in its account's list and shows there too. While the list shows one of
-            // Gmail's categories of it (#911), that category's row is, and the Inbox's isn't.
+            // Gmail's categories of it (#911), that category's row is, and the Inbox's isn't; when
+            // they are tabs above the list instead (`view.gmailCategories`), the Inbox's is.
+            let gmail_tabs = app.session.view.gmail_tabs;
             let gmail_now = mailcraft_engine::gmail::in_view(&app.session);
-            let current = if gmail_now.is_some() { 0 } else { app.session.view.folder };
+            let current = if gmail_now.is_some() && !gmail_tabs { 0 } else { app.session.view.folder };
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
@@ -807,8 +809,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     continue;
                 }
                 for (f, depth, has_children) in rows {
-                    // A Gmail account's Inbox has Gmail's categories under it, folded with it.
-                    let gmail = f.kind == FolderKind::Inbox && mailcraft_engine::gmail::listed_under(&mut app.session, f.id);
+                    // A Gmail account's Inbox has Gmail's categories under it, folded with it,
+                    // unless they are tabs above its list.
+                    let gmail = !gmail_tabs && f.kind == FolderKind::Inbox && mailcraft_engine::gmail::listed_under(&mut app.session, f.id);
                     folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {
@@ -912,4 +915,4 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 
 #[cfg(test)]
 #[path = "nav_tests.rs"]
-mod tests;
+pub(crate) mod tests;

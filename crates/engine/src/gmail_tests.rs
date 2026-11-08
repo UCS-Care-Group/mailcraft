@@ -277,3 +277,44 @@ fn the_category_in_view_is_not_kept_between_sessions() {
     s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
     assert_eq!(s.rows().len(), 1);
 }
+
+/// View › Gmail Categories (#911): folders until the owner chooses tabs, kept with the rest of the
+/// view's settings, and offered only while a Gmail account shows its categories.
+#[test]
+fn gmail_categories_are_folders_until_tabs_are_chosen() {
+    let mut empty = Session::empty();
+    assert!(!empty.view.gmail_tabs);
+    assert!(crate::gmail::offered(&empty).is_some());
+    assert!(!empty.enabled("view.gmailCategories"));
+    assert!(empty.run("view.gmailCategories", &json!({"value": "tabs"})).is_err());
+
+    let (mut s, account, inbox) = sorted_inbox();
+    assert!(crate::gmail::offered(&s).is_none() && s.enabled("view.gmailCategories"));
+    assert!(!crate::gmail::tabs_shown(&mut s), "folders by default");
+    assert!(s.run("view.gmailCategories", &json!({"value": "sideways"})).is_err());
+    assert!(s.run("view.gmailCategories", &json!({})).is_err());
+    assert_eq!(s.run("view.gmailCategories", &json!({"value": "tabs"})).unwrap()["value"], "tabs");
+    assert!(s.view.gmail_tabs);
+    // Tabs only over that Inbox's list, while Mail is in front.
+    s.run("folder.select", &json!({"id": inbox})).unwrap();
+    assert!(crate::gmail::tabs_shown(&mut s));
+    s.run("view.calendar", &json!({})).unwrap();
+    assert!(!crate::gmail::tabs_shown(&mut s));
+    let sent = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    s.run("folder.select", &json!({"id": sent})).unwrap();
+    assert!(!crate::gmail::tabs_shown(&mut s));
+    // A tab selects as the folder pane's row does, through the same command.
+    s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
+    assert_eq!(crate::gmail::in_view(&s), Some(GmailCategory::Social));
+    assert_eq!(listed(&s), ["Party photos"]);
+    // Kept with the view's settings, as the reading pane is.
+    let saved: crate::ViewState = serde_json::from_value(serde_json::to_value(&s.view).unwrap()).unwrap();
+    assert!(saved.gmail_tabs && saved.gmail.is_none());
+    // An account whose owner hid the categories has no tabs either, and nothing offers the choice.
+    s.run("account.edit", &json!({"id": account, "showGmailCategories": false})).unwrap();
+    assert!(!crate::gmail::tabs_shown(&mut s));
+    assert!(crate::gmail::offered(&s).is_some());
+    s.run("account.edit", &json!({"id": account, "showGmailCategories": true})).unwrap();
+    assert_eq!(s.run("view.gmailCategories", &json!({"value": "folders"})).unwrap()["value"], "folders");
+    assert!(!crate::gmail::tabs_shown(&mut s));
+}
