@@ -48,7 +48,8 @@ fn a_line_over_the_cap_is_refused_and_the_next_one_still_served() {
     input.push('\n');
     let mut out = Vec::new();
     s.serve(&mut std::io::Cursor::new(input.as_bytes()), &mut out).unwrap();
-    let replies: Vec<Value> = out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
+    let replies: Vec<Value> =
+        out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
     assert_eq!(replies.len(), 3, "{replies:?}");
     assert_eq!(replies[0]["error"]["message"], "line too long");
     assert_eq!(replies[1]["error"]["message"], "line too long");
@@ -67,7 +68,8 @@ fn an_over_cap_line_without_a_newline_does_not_swallow_the_next_line() {
     input.push('\n');
     let mut out = Vec::new();
     s.serve(&mut std::io::Cursor::new(input.as_bytes()), &mut out).unwrap();
-    let replies: Vec<Value> = out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
+    let replies: Vec<Value> =
+        out.split(|&b| b == b'\n').filter(|l| !l.is_empty()).map(|l| serde_json::from_str(std::str::from_utf8(l).unwrap()).unwrap()).collect();
     assert_eq!(replies.len(), 2, "{replies:?}");
     assert_eq!(replies[0]["error"]["message"], "line too long");
     assert_eq!(replies[1]["result"]["serverInfo"]["name"], "mailcraft");
