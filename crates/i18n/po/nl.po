@@ -6979,8 +6979,8 @@ msgstr "Geef de personen op die u wilt uitnodigen op de pagina Afspraak: hun tij
 msgid "Name who it is to go to. Nobody is written to until you press Send."
 msgstr "Geef op naar wie het moet. Er wordt niemand aangeschreven totdat u op Verzenden drukt."
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Names"
 msgstr "Namen"
@@ -8625,8 +8625,8 @@ msgstr "Afbeelding boven de tekst"
 msgid "Picture beside text"
 msgstr "Afbeelding naast de tekst"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pictures"
 msgstr "Afbeeldingen"
@@ -10729,6 +10729,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Favorieten van Outlook weergeven"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -10833,6 +10839,18 @@ msgstr "Berichten op een lichte achtergrond tonen in het donkere thema"
 #, fuzzy
 msgid "Show password"
 msgstr "Wachtwoord tonen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures, in every message"
+msgstr "Afbeeldingsbijlagen in elk bericht als afbeeldingen weergeven"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments by their names, in every message"
+msgstr "Afbeeldingsbijlagen in elk bericht met hun naam weergeven"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs

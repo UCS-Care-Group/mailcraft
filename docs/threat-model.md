@@ -141,6 +141,16 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's switch (`ui.attachmentPictures`, off by default) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB, through the session's memory budget
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. An agent asks before it turns the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause

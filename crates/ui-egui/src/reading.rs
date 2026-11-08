@@ -23,6 +23,9 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
+mod attachment_pictures;
+#[cfg(test)]
+mod attachment_pictures_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
@@ -516,7 +519,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
             });
         });
         notes(app, ui, m, &t, pictures);
-        attachments(app, ui, m, &t);
+        attachments(app, ui, m, place, &t);
     });
     select::header(app, ui, place, fields, around.response.rect);
     let r = ui.available_rect_before_wrap();
@@ -597,7 +600,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     }
 }
 
-fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
+fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
     let files: Vec<(usize, &mailcraft_model::Attachment)> =
@@ -605,73 +608,105 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     if files.is_empty() {
         return;
     }
+    // Which of them are shown as pictures, when the owner has them so (#834).
+    let looks = attachment_pictures::looks(app, ui.ctx(), m, place, &files);
     ui.add_space(2.0);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-        for (index, a) in files {
-            // The name it is opened and saved under, not the one the sender wrote: a right-to-left
-            // override can make `fdp.exe` read as `exe.pdf`.
-            let shown = mailcraft_engine::opening::file_name(&a.name);
-            let name_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), regular(12.0), t.text).size().x).min(220.0);
-            // The chip, and at its right end a `▾` that opens the menu a right-click opens (#785).
-            let (r, _) = ui.allocate_exact_size(vec2(name_w + 44.0 + crate::ribbon::DROP_W, 38.0), Sense::hover());
-            let drop_rect = Rect::from_min_max(pos2(r.max.x - crate::ribbon::DROP_W, r.min.y), r.max);
-            let main_rect = Rect::from_min_max(r.min, pos2(drop_rect.min.x, r.max.y));
-            let filed = m.id != 0;
-            let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
-            let drop_sense = if filed { Sense::click() } else { Sense::hover() };
-            let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
-            app.hit.add("attachment", attachment_key(m.id, index), main_rect);
-            app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
-            ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-            let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
-            let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
-            if resp.hovered() {
-                ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+        for ((index, a), look) in files.iter().zip(&looks.items) {
+            match look {
+                Some(size) => attachment_pictures::tile(app, ui, m, *index, a, *size, t),
+                None => chip(app, ui, m, *index, a, t),
             }
-            if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
-                ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
-            }
-            let divider = ui.painter().round_to_pixel_center(drop_rect.min.x);
-            ui.painter().line_segment([pos2(divider, r.min.y + 7.0), pos2(divider, r.max.y - 7.0)], Stroke::new(1.0, t.border));
-            crate::ribbon::drop_mark(ui, drop_rect.center(), if filed { t.icon } else { t.text_disabled });
-            if resp.has_focus() {
-                ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
-            }
-            if drop.has_focus() {
-                ui.painter().rect_stroke(drop_rect.shrink(1.0), right, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
-            }
-            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &shown));
-            icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
-            paint_clipped(ui.painter(), pos2(r.min.x + 34.0, r.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
-            ui.painter().text(
-                pos2(r.min.x + 34.0, r.min.y + 27.0),
-                Align2::LEFT_CENTER,
-                mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
-                regular(10.5),
-                t.text_dim,
-            );
-            // Double-click opens it, as in Outlook; its menu opens or saves it.
-            // (A message that is not in the mailbox has no number to name it by: attachments are
-            // opened and saved once it is filed, and its `▾` is greyed and opens nothing.)
-            if !filed {
-                let why = tl!("Move the message to a folder to open or save its attachments");
-                resp.on_hover_text(why);
-                drop.on_hover_text(why);
-                continue;
-            }
-            let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", &shown)]));
-            if resp.double_clicked() {
-                let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
-            }
-            resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
-            // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
-            let label = crate::i18n::fmt(tl!("Attachment options for {name}"), &[("name", &shown)]);
-            drop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-            let drop = drop.on_hover_text(tl!("Attachment options"));
-            egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
+        }
+        if looks.switch {
+            attachment_pictures::switch(app, ui, t);
         }
     });
+}
+
+/// An attachment as a chip: its icon, its name and its size.
+fn chip(app: &mut MailApp, ui: &mut Ui, m: &Message, index: usize, a: &mailcraft_model::Attachment, t: &Tokens) {
+    // The name it is opened and saved under, not the one the sender wrote: a right-to-left
+    // override can make `fdp.exe` read as `exe.pdf`.
+    let shown = mailcraft_engine::opening::file_name(&a.name);
+    let name_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), regular(12.0), t.text).size().x).min(220.0);
+    let size = vec2(name_w + 44.0 + crate::ribbon::DROP_W, 38.0);
+    file_item(app, ui, m, index, &shown, size, t, |painter, main| {
+        icons::paint(painter, Rect::from_center_size(pos2(main.min.x + 17.0, main.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
+        paint_clipped(painter, pos2(main.min.x + 34.0, main.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
+        painter.text(
+            pos2(main.min.x + 34.0, main.min.y + 27.0),
+            Align2::LEFT_CENTER,
+            mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
+            regular(10.5),
+            t.text_dim,
+        );
+    });
+}
+
+/// One attachment of `size` points, as a chip or as a picture (#834): `paint` draws what it shows
+/// in its main part, and at its right end a `▾` opens the menu a right-click opens (#785).
+/// `shown` is the name it is opened and saved under.
+#[allow(clippy::too_many_arguments)]
+fn file_item(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    m: &Message,
+    index: usize,
+    shown: &str,
+    size: egui::Vec2,
+    t: &Tokens,
+    paint: impl FnOnce(&egui::Painter, Rect),
+) {
+    let (r, _) = ui.allocate_exact_size(size, Sense::hover());
+    let drop_rect = Rect::from_min_max(pos2(r.max.x - crate::ribbon::DROP_W, r.min.y), r.max);
+    let main_rect = Rect::from_min_max(r.min, pos2(drop_rect.min.x, r.max.y));
+    let filed = m.id != 0;
+    let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
+    let drop_sense = if filed { Sense::click() } else { Sense::hover() };
+    let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
+    app.hit.add("attachment", attachment_key(m.id, index), main_rect);
+    app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
+    ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
+    let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
+    if resp.hovered() {
+        ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+    }
+    if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
+        ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
+    }
+    let divider = ui.painter().round_to_pixel_center(drop_rect.min.x);
+    ui.painter().line_segment([pos2(divider, r.min.y + 7.0), pos2(divider, r.max.y - 7.0)], Stroke::new(1.0, t.border));
+    crate::ribbon::drop_mark(ui, drop_rect.center(), if filed { t.icon } else { t.text_disabled });
+    if resp.has_focus() {
+        ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+    }
+    if drop.has_focus() {
+        ui.painter().rect_stroke(drop_rect.shrink(1.0), right, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+    }
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, shown));
+    paint(&ui.painter().with_clip_rect(main_rect.intersect(ui.clip_rect())), main_rect);
+    // Double-click opens it, as in Outlook; its menu opens or saves it.
+    // (A message that is not in the mailbox has no number to name it by: attachments are
+    // opened and saved once it is filed, and its `▾` is greyed and opens nothing.)
+    if !filed {
+        let why = tl!("Move the message to a folder to open or save its attachments");
+        resp.on_hover_text(why);
+        drop.on_hover_text(why);
+        return;
+    }
+    let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", shown)]));
+    if resp.double_clicked() {
+        let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
+    }
+    resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
+    // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
+    let label = crate::i18n::fmt(tl!("Attachment options for {name}"), &[("name", shown)]);
+    drop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    let drop = drop.on_hover_text(tl!("Attachment options"));
+    egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
 }
 
 /// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,

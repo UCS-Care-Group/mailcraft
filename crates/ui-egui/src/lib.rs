@@ -896,6 +896,10 @@ pub struct UiState {
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
+    /// A picture that comes as an attachment is shown as a small picture rather than as a chip
+    /// with its name (#834), in every message; the switch is where the attachments are. Off
+    /// unless the owner turns it on, as classic Outlook shows chips; kept as `attachmentPictures`.
+    pub attachment_pictures: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -999,6 +1003,7 @@ impl Default for UiState {
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
+            attachment_pictures: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -1078,6 +1083,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Open Replies and Forwards in a New Window",
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
+    ),
+    (
+        "ui.attachmentPictures",
+        "Show Picture Attachments as Pictures",
+        "Message",
+        r#"{"value"?: bool (default: toggle)} — whether a PNG, JPEG, GIF or WebP that comes as an attachment is shown as a small picture rather than as a chip with its name, in every message (off unless turned on). Answers the switch"#,
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
@@ -2403,6 +2414,17 @@ impl MailApp {
                     },
                 };
                 self.ui.replies_in_window = value;
+                Ok(json!({"value": value}))
+            }
+            "ui.attachmentPictures" => {
+                let value = match p.get("value").filter(|v| !v.is_null()) {
+                    None => !self.ui.attachment_pictures,
+                    Some(v) => match v.as_bool() {
+                        Some(value) => value,
+                        None => return Some(Err("`value` is true or false".into())),
+                    },
+                };
+                self.ui.attachment_pictures = value;
                 Ok(json!({"value": value}))
             }
             "ui.lightMessages" => {

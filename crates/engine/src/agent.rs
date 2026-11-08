@@ -513,6 +513,7 @@ const SETTINGS: &[&str] = &[
     "ui.senderImages",
     "ui.desktopAlerts",
     "ui.repliesInWindow",
+    "ui.attachmentPictures",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",

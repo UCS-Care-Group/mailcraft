@@ -223,6 +223,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
+    ("ui.attachmentPictures", "{}", Setup::None),
     ("ui.updateCheck", "{}", Setup::None),
     ("ui.updateInstall", "{}", Setup::None),
     ("ui.dismissUpdateNotice", "{}", Setup::None),

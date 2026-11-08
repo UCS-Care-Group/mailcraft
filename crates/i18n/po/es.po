@@ -6638,8 +6638,8 @@ msgstr "Indique las personas que desea invitar en la página Cita: su disponibil
 msgid "Name who it is to go to. Nobody is written to until you press Send."
 msgstr "Indique a quién debe ir. No se escribe a nadie hasta que presione Enviar."
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Names"
 msgstr "Nombres"
@@ -8218,8 +8218,8 @@ msgstr "Imagen encima del texto"
 msgid "Picture beside text"
 msgstr "Imagen junto al texto"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 msgid "Pictures"
 msgstr ""
 
@@ -10216,6 +10216,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Mostrar los Favoritos de Outlook"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Mostrar los datos adjuntos de imagen como imágenes"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -10315,6 +10321,18 @@ msgstr "Mostrar los mensajes sobre fondo claro en el tema oscuro"
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures, in every message"
+msgstr "Mostrar los datos adjuntos de imagen como imágenes, en todos los mensajes"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments by their names, in every message"
+msgstr "Mostrar los datos adjuntos de imagen por su nombre, en todos los mensajes"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs
