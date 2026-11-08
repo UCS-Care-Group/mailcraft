@@ -98,6 +98,79 @@ fn a_block_of_armour_is_begin_and_end() {
     assert!(!has_armour_block(&late));
 }
 
+/// The running total of originals is what a fresh sum gives, whichever way the messages change.
+#[test]
+fn the_running_total_of_originals_follows_every_change() {
+    let mut mb = crate::Mailbox::with_local_account("Avery", "avery@example.org");
+    let inbox = mb.inbox().unwrap();
+    let fresh = |mb: &crate::Mailbox| mb.messages.values().filter_map(|m| m.original.as_ref()).map(Original::size).sum::<u64>();
+    let check = |mb: &mut crate::Mailbox| {
+        let sum = fresh(mb);
+        assert_eq!(mb.messages.originals_size(), sum);
+        // A copy keeps it, and works it out the same.
+        assert_eq!(mb.clone().messages.originals_size(), sum);
+    };
+    // Adds over several chunks, with and without originals.
+    let mut ids = Vec::new();
+    for i in 0..3000u64 {
+        let original = (i % 3 == 0).then(|| Original::new(vec![b'x'; 1 + (i % 7) as usize])).flatten();
+        ids.push(mb.add_message(Message { folder: inbox, original, ..Default::default() }).unwrap());
+        if i % 500 == 0 {
+            check(&mut mb);
+        }
+    }
+    check(&mut mb);
+    // Removed, dropped, put back, made larger, by every way the map is changed.
+    for id in ids.iter().step_by(5) {
+        mb.messages.remove(id);
+    }
+    check(&mut mb);
+    for id in ids.iter().skip(1).step_by(4) {
+        if let Ok(m) = mb.message_mut(*id) {
+            m.original = None;
+        }
+    }
+    check(&mut mb);
+    for id in ids.iter().skip(2).step_by(6) {
+        if let Ok(m) = mb.message_mut(*id) {
+            m.original = Original::new(vec![b'y'; 100]);
+        }
+    }
+    check(&mut mb);
+    for m in mb.messages.values_mut().take(50) {
+        Arc::make_mut(m).original = Original::new(vec![b'z'; 3]);
+    }
+    check(&mut mb);
+    for (_, m) in mb.messages.iter_mut().skip(100).take(50) {
+        Arc::make_mut(m).original = None;
+    }
+    check(&mut mb);
+    mb.messages.retain(|id, _| id % 2 == 0);
+    check(&mut mb);
+    let id = *mb.messages.keys().next().unwrap();
+    let mut m = Message::clone(mb.message(id).unwrap());
+    m.original = Some(Original { data: Arc::default(), kept: Some(ContentRef { sha256: [2; 32], len: 12_345 }) });
+    mb.messages.insert(id, Arc::new(m));
+    check(&mut mb);
+    while mb.messages.pop_first().is_some() && mb.messages.len() > 10 {}
+    check(&mut mb);
+    mb.messages.clear();
+    check(&mut mb);
+    assert_eq!(mb.messages.originals_size(), 0);
+    // Read from a file, it is worked out from what the file holds.
+    let mut back: crate::Mailbox = serde_json::from_str(
+        &serde_json::to_string(&{
+            let mut full = crate::Mailbox::with_local_account("Avery", "avery@example.org");
+            let inbox = full.inbox().unwrap();
+            full.add_message(Message { folder: inbox, original: Original::new(vec![b'q'; 77]), ..Default::default() }).unwrap();
+            full
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(back.messages.originals_size(), 77);
+}
+
 #[test]
 fn a_mailbox_keeps_originals_within_its_cap() {
     let mut mb = crate::Mailbox::with_local_account("Avery", "avery@example.org");

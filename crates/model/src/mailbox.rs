@@ -1991,12 +1991,10 @@ impl Mailbox {
         Ok(id)
     }
 
-    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30).
-    // ponytail: a sum over every message, asked only for a message that has an original; a
-    // running total when mailboxes of millions of signed messages show it.
-    pub fn room_for_original(&self, size: u64) -> bool {
-        let held = self.messages.values().filter_map(|m| m.original.as_ref()).map(crate::Original::size).fold(0u64, u64::saturating_add);
-        held.saturating_add(size) <= crate::MAX_ORIGINALS
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30), by the
+    /// running total the messages keep ([`Messages::originals_size`]).
+    pub fn room_for_original(&mut self, size: u64) -> bool {
+        self.messages.originals_size().saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {
