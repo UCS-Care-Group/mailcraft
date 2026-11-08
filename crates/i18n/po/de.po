@@ -3280,6 +3280,12 @@ msgstr "Bilder herunterladen"
 msgid "Download Pictures in Mail Automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from People in My Contacts"
+msgstr "Bilder in E-Mails von Personen in meinen Kontakten herunterladen"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -3297,6 +3303,12 @@ msgstr "Bilder herunterladen"
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "Bilder in E-Mails von Personen in meinen Kontakten herunterladen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8230,6 +8242,12 @@ msgstr "Bilder werden immer heruntergeladen von ({n}):"
 #, fuzzy
 msgid "Pictures in mail"
 msgstr "Bilder in E-Mails"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from it, and never in Junk E-mail."
+msgstr "Bilder in E-Mails von einer Adresse in Ihren Kontakten werden ohne Nachfrage heruntergeladen: genau diese Adresse, nur wenn Ihr Mailserver bestätigt, dass die Nachricht von ihr stammt, und nie im Junk-E-Mail-Ordner."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13959,6 +13977,12 @@ msgstr ""
 #, fuzzy
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
 msgstr "Sie haben keinen Zugriff auf {address}. Wenn der Zugriff gerade erst erteilt wurde, versuchen Sie es in einer Stunde erneut."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "Sie laden Bilder von Ihren Kontakten herunter, aber der Mailserver hat nicht bestätigt, dass diese Nachricht von diesem Kontakt stammt. Deshalb wird zuerst nachgefragt."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

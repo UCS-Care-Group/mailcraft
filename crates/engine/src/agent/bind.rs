@@ -133,6 +133,7 @@ pub fn object(id: &str) -> Option<Object> {
         "file.options"
         | "sync.offline"
         | "ui.downloadPicturesAutomatically"
+        | "ui.downloadPicturesFromContacts"
         | "ui.senderImages"
         | "ui.desktopAlerts"
         | "ui.repliesInWindow"
