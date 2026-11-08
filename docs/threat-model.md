@@ -64,7 +64,10 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   in mail from people in my contacts" (#891): a contact is an address anybody can write in a
   `From:` too. A remembered sender or domain, and a sender in the contacts (that address exactly,
   ASCII only and letter case aside, never a lookalike or another address at its domain;
-  `reading::remote::from_contact`), holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
+  `reading::remote::from_contact`; the server's word below is for the sender's domain, not the
+  mailbox, so whoever may send authenticated mail for a contact's domain can write the contact's
+  address, and File › Options says the switch trusts no more than that), holds only for a message
+  whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**
   (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account (or

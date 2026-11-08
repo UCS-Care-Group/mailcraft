@@ -522,7 +522,7 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let mut contacts = app.ui.download_pictures_from_contacts;
     let tip = tl!(
-        "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from it, and never in Junk E-mail."
+        "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail."
     );
     if ui
         .add_enabled(!all, egui::Checkbox::new(&mut contacts, tl!("Download pictures in mail from people in my contacts")))

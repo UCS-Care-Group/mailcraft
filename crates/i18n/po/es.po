@@ -8250,8 +8250,8 @@ msgstr "Imágenes en el correo"
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
-msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from it, and never in Junk E-mail."
-msgstr "Las imágenes de los correos de una dirección de sus contactos se descargan sin preguntar: esa dirección exacta, solo cuando su servidor de correo confirma que el mensaje procede de ella, y nunca en Correo no deseado."
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail."
+msgstr "Las imágenes de los correos de una dirección de sus contactos se descargan sin preguntar: esa dirección exacta, solo cuando su servidor de correo confirma que el mensaje procede del dominio de esa dirección (no puede confirmar la dirección en sí), y nunca en Correo no deseado."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
