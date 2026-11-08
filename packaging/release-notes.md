@@ -1,10 +1,13 @@
 **MailCraft 0.11.1 in short**: a security and fixes release of the public beta, for Microsoft accounts (testers welcome; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
 - Safer: the fixes from a third security review, three of them published as advisories ([GHSA-qwvc-cmh6-9h8x](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-qwvc-cmh6-9h8x), [GHSA-ppcq-57r6-r2cm](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-ppcq-57r6-r2cm), [GHSA-hqm2-x252-pj57](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-hqm2-x252-pj57)): update.
 - Sturdier: a message with a huge number of links, or a large mailbox, can't use up the computer's memory.
-- Files saved from mail are marked as coming from the Internet, so Windows and macOS warn before opening them.
+- On Windows and macOS, files saved from mail are marked as coming from the Internet, so the system can warn before opening them.
 - Google sign-in for Gmail, for invited testers while Google reviews MailCraft: to join, email systems@ucscaregroup.co.uk ([#232](https://github.com/GITHUB_REPOSITORY/issues/232)).
 - File › Open & Export › Save Message As saves a message as `.eml`.
 - And more fixes, listed below.
+
+**What's new**
+- No new features in this release: it is fixes only.
 
 **Fixes**
 - Google sign-in is built in, open for now only to invited testers while Google reviews MailCraft: to join, email systems@ucscaregroup.co.uk. Everyone else adds Gmail with an app password, as before, which a new Gmail account now offers first, with Use Google sign-in instead as the second choice ([#232](https://github.com/GITHUB_REPOSITORY/issues/232)).
@@ -21,7 +24,7 @@
 - A remembered password or sign-in is used only for the account it was remembered for, as that account is, a certificate it trusts included; a mailbox where two accounts have the same address asks you to confirm its servers before any is used; Remove all data removes every remembered sign-in it read, and removing an account removes its sign-in under every name it was kept by; Exchange server setup asks before your password goes to a server in your domain other than its Autodiscover server; a change to a meeting in a shared mailbox waits until sending from it is allowed (AU3-02, AU3-03, AU3-18, AU3-19, AU3-V1, AU3-V2).
 - A late download of a message no longer changes a draft edited or queued to send meanwhile, and a change waiting through a server renumbering goes to the one matching message or is dropped with a word (AU3-16, AU3-17).
 - Nine more kinds of file that run or hand off to a program that runs what is in them are never opened from mail, and a file kind with a non-ASCII letter is asked about before it opens instead of being taken for a harmless one (AU3-V3, AU3-V4).
-- Security fixes AU3-24, AU3-25, AU3-23 and AU3-20: a yes to an agent's question now covers only what the question showed; anything that changed while it was asked is refused, and Empty Folder leaves mail and folders that arrived in the meantime. AU3-V6: every file saved from mail, an agent's saves included, is marked as coming from the Internet ([GHSA-ppcq-57r6-r2cm](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-ppcq-57r6-r2cm)).
+- Security fixes AU3-24, AU3-25, AU3-23 and AU3-20: a yes to an agent's question now covers only what the question showed; anything that changed while it was asked is refused, and Empty Folder leaves mail and folders that arrived in the meantime. AU3-V6: on Windows and macOS, every file saved from mail, an agent's saves included, is marked as coming from the Internet when the system lets the mark be written; Linux and FreeBSD have no such mark ([GHSA-ppcq-57r6-r2cm](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-ppcq-57r6-r2cm)).
 - A mailbox file that would take more memory to open than MailCraft allows for it on this computer is refused with an error when it is opened, in every form it comes in, instead of using up the memory (AU3-05, AU3-06, AU3-07).
 - Reading HTML mail and reopening a draft stay within bounded memory and time (AU3-01, AU3-22) ([GHSA-qwvc-cmh6-9h8x](https://github.com/GITHUB_REPOSITORY/security/advisories/GHSA-qwvc-cmh6-9h8x)).
 - Safer releases: the signing steps are kept apart from the build (AU3-04).
