@@ -1,1 +1,0 @@
-- With MCP connected to the running window, the bridge reads the window's answers within a bound, and an over-long answer from the control port is refused rather than read to the end (AU3-R3).
