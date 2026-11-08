@@ -1,1 +1,0 @@
-- Safer releases: the signing steps are kept apart from the build (AU3-04).

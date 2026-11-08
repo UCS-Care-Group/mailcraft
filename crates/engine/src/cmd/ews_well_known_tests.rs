@@ -132,8 +132,8 @@ fn a_deletion_queued_of_one_no_longer_here_is_dropped() {
     first_read(&mut s, account);
     // Deleted for good by an earlier version: gone here, its deletion waiting.
     s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "co"));
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into(), shown: Default::default() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into(), shown: Default::default() });
     take(&mut s, account, empty_delta(&["co"]));
     let left: Vec<&str> = s
         .mailbox
@@ -156,7 +156,7 @@ fn a_deletion_queued_of_one_no_longer_here_is_dropped() {
 fn a_dropped_deletion_of_one_still_here_keeps_the_folder_list_going_on_from_its_state() {
     let (mut s, account) = session();
     first_read(&mut s, account);
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into(), shown: Default::default() });
     take(&mut s, account, empty_delta(&["co"]));
     assert!(s.mailbox.queued.is_empty());
     assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER");
@@ -167,9 +167,9 @@ fn a_refused_deletion_is_dropped_and_the_folder_comes_back_from_the_read_afresh_
     let (mut s, account) = session();
     first_read(&mut s, account);
     s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "co"));
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into(), shown: Default::default() });
     let refused = FolderChangeDone {
-        change: FolderChange::Delete { id: "co".into() },
+        change: FolderChange::Delete { id: "co".into(), shown: Default::default() },
         outcome: ChangeOutcome::Refused { why: "it is one of the server's own folders, which may not be renamed, moved or deleted".into() },
     };
     apply_ews_mail(&mut s, EwsMailResult { changes: vec![refused], ..piece(account) }).unwrap();
@@ -188,9 +188,11 @@ fn a_run_that_stops_after_a_refused_deletion_reads_the_folder_list_afresh_next_t
     let (mut s, account) = session();
     first_read(&mut s, account);
     s.mailbox.folders.retain(|f| f.server.as_ref().is_none_or(|server| server.id != "pr"));
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into() });
-    let refused =
-        FolderChangeDone { change: FolderChange::Delete { id: "pr".into() }, outcome: ChangeOutcome::Refused { why: "access denied".into() } };
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into(), shown: Default::default() });
+    let refused = FolderChangeDone {
+        change: FolderChange::Delete { id: "pr".into(), shown: Default::default() },
+        outcome: ChangeOutcome::Refused { why: "access denied".into() },
+    };
     // The push piece of a run the server then asked to leave alone: no folder piece follows.
     apply_ews_mail(&mut s, EwsMailResult { changes: vec![refused], ..piece(account) }).unwrap();
     let request = ews_mail_request(&s, account, false).unwrap();

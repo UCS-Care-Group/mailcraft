@@ -1986,8 +1986,9 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
 }
 
 /// How the machine's memory stands, in bytes, where it can be read: Linux from `/proc/meminfo`,
-/// macOS and FreeBSD from the system's own `sysctl` (asked once). Not on Windows, where only a
-/// call this code can't make without `unsafe` says it.
+/// macOS and FreeBSD from the system's own `sysctl` (asked once), Windows through `sysinfo` (asked
+/// once; the system's own call needs `unsafe`, which this crate forbids). A reading of 0 is no
+/// reading ([`memory_reading`]).
 fn physical_memory() -> Option<u64> {
     #[cfg(target_os = "linux")]
     let total = {
@@ -2001,9 +2002,28 @@ fn physical_memory() -> Option<u64> {
         static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
         *TOTAL.get_or_init(sysctl_memory)
     };
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
+    #[cfg(windows)]
+    let total = {
+        static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
+        *TOTAL.get_or_init(windows_memory)
+    };
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", windows)))]
     let total = None;
-    total
+    total.and_then(memory_reading)
+}
+
+/// A reading of the machine's memory, or none when it says 0 (a call that failed).
+pub(crate) fn memory_reading(total: u64) -> Option<u64> {
+    (total > 0).then_some(total)
+}
+
+/// The machine's physical memory as Windows says it (`GlobalMemoryStatusEx`, through `sysinfo`),
+/// 0 when the call fails.
+#[cfg(windows)]
+fn windows_memory() -> Option<u64> {
+    let mut system = sysinfo::System::new().ok()?;
+    system.refresh_memory_specifics(sysinfo::MemoryRefreshKind::nothing().with_ram());
+    Some(system.total_memory())
 }
 
 /// The machine's memory as `sysctl` says it (`hw.memsize` on macOS, `hw.physmem` on FreeBSD), run
@@ -2120,7 +2140,12 @@ pub(crate) fn max_json_bytes() -> u64 {
     if cfg!(test) {
         return TEST_ELEMENTS;
     }
-    physical_memory().map_or(UNMEASURED_ELEMENTS, |m| m / 2).clamp(MIN_ELEMENTS, MAX_ELEMENTS)
+    elements_for(physical_memory())
+}
+
+/// [`max_json_bytes`] for a machine with `memory` bytes (`None`: unknown).
+pub(crate) fn elements_for(memory: Option<u64>) -> u64 {
+    memory.map_or(UNMEASURED_ELEMENTS, |m| m / 2).clamp(MIN_ELEMENTS, MAX_ELEMENTS)
 }
 
 /// [`max_json_bytes`] under test, small as the other limits are there: 256 MB.
@@ -2129,8 +2154,8 @@ const TEST_ELEMENTS: u64 = 256 << 20;
 /// The least [`max_json_bytes`] is: 1 GiB.
 const MIN_ELEMENTS: u64 = 1 << 30;
 
-/// [`max_json_bytes`] where the machine's memory can't be read (Windows, and systems other than
-/// Linux, macOS and FreeBSD): 8 GiB, which a mailbox of a million messages fits in several times
+/// [`max_json_bytes`] where the machine's memory can't be read (a failed reading, and systems
+/// other than Linux, macOS, FreeBSD and Windows): 8 GiB, which a mailbox of a million messages fits in several times
 /// over (`store_budget_tests.rs`).
 const UNMEASURED_ELEMENTS: u64 = 8 << 30;
 

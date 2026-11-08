@@ -202,12 +202,22 @@ fn what_graph_says_to_a_message_it_does_not_take() {
         ("503 Service Unavailable", "Retry-After: 0\r\n", Some(0), "Microsoft Graph is busy; try again in 0 seconds"),
         ("503 Service Unavailable", "", None, "Microsoft Graph is busy; try again later"),
         ("503 Service Unavailable", "Retry-After: 99999999999999\r\n", Some(86_400), "Microsoft Graph is busy; try again in 86400 seconds"),
-        ("504 Gateway Timeout", "Retry-After: soon\r\n", None, "Microsoft Graph is busy; try again later"),
+        ("503 Service Unavailable", "Retry-After: soon\r\n", None, "Microsoft Graph is busy; try again later"),
         ("429 Too Many Requests", "Retry-After: -5\r\n", None, "Microsoft Graph is busy; try again later"),
     ] {
         let busy = sent_to(answer(status, headers, &graph_error("TooManyRequests", "Please retry again later."))).unwrap_err();
         assert_eq!(busy, NetError::Busy { text: said.into(), retry_after: wait }, "{status} {headers}");
         assert!(busy.to_string() == said && !busy.is_refused_sign_in() && !busy.is_consent_needed());
+        // Not taken: it goes again next run (AU3-26).
+        assert!(!send_unsure(&busy), "{status}");
+    }
+    // A gateway that gave up waiting, a server error and a timeout don't say whether it went: held.
+    let gave_up = sent_to(answer("504 Gateway Timeout", "", "")).unwrap_err();
+    assert!(send_unsure(&gave_up) && !matches!(gave_up, NetError::Busy { .. }), "{gave_up:?}");
+    assert!(send_unsure(&sent_to(answer("500 Internal Server Error", "", "")).unwrap_err()));
+    assert!(send_unsure(&NetError::Proto(ProtoError::Io("timed out".into()))));
+    for sure in [NetError::Config("no recipients".into()), NetError::Connect { host: "graph.example".into(), reason: "refused".into() }] {
+        assert!(!send_unsure(&sure), "{sure:?}");
     }
     assert!(started.elapsed() < Duration::from_secs(20), "{:?}", started.elapsed());
 
@@ -1231,7 +1241,7 @@ proptest! {
                     prop_assert!((0..sent.len() - MAX_ECHO).all(|from| !shown.contains(&sent[from..from + MAX_ECHO])), "{}", shown);
                 }
                 if let NetError::Busy { retry_after, .. } = error {
-                    prop_assert!(matches!(status, 429 | 503 | 504) && retry_after.is_none_or(|seconds| seconds <= 86_400));
+                    prop_assert!(matches!(status, 429 | 503 | 504) && !(status == 504 && doing == Doing::Sending) && retry_after.is_none_or(|seconds| seconds <= 86_400));
                 }
             }
         }
