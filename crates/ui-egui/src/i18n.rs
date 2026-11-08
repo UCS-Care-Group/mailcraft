@@ -130,6 +130,15 @@ macro_rules! count {
 }
 count!(u8, u16, u32, u64, usize, i32, i64, isize);
 
+/// What didn't happen and then why, as one sentence: `heading` ("Your automatic replies weren't
+/// changed") and `reason` ("you are working offline.") are each translated by themselves, so a
+/// heading is written once for all its reasons (#912), and the pattern that joins them is
+/// translated too, so a language puts its own spacing and punctuation between them (French
+/// `{heading} : {reason}`). Its context is what a translator sees beside it.
+pub fn with_reason(heading: &str, reason: &str) -> String {
+    fmt(crate::tlc!("what didn't happen, then why", "{heading}: {reason}"), &[("heading", heading), ("reason", reason)])
+}
+
 /// A command's location (`Home › Respond`) in the interface language, part by part.
 pub fn location(loc: &str) -> String {
     mailcraft_i18n::location(current(), loc)

@@ -2663,24 +2663,14 @@ msgstr ""
 msgid "Desktop alerts"
 msgstr ""
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
 msgstr ""
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
-msgid "Desktop alerts can't be shown: no notification service answers on this desktop."
-msgstr ""
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-msgid "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."
-msgstr ""
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+msgid "Desktop alerts can't be shown"
 msgstr ""
 
 #. interface
@@ -12279,41 +12269,6 @@ msgid "Your automatic replies weren't changed"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: you are working offline."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: {error}"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Your calendar: {day}"
 msgstr ""
@@ -14060,6 +14015,12 @@ msgid "week"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/i18n.rs
+msgctxt "what didn't happen, then why"
+msgid "{heading}: {reason}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "what the server sent is not a picture"
 msgstr ""
@@ -14087,6 +14048,60 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft needs your permission first (File › Info › Ask again)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft wasn't allowed to change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "Microsoft no longer takes your sign-in."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "sign in again to let MailCraft read them (File › Info)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "you are working offline."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "your organisation doesn't let MailCraft change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgctxt "why desktop alerts can't be shown"
+msgid "no notification service answers on this desktop."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy doesn't run from the MailCraft app."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr ""
 
 #. name
