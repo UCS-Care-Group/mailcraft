@@ -271,4 +271,9 @@ fn the_category_in_view_is_not_kept_between_sessions() {
     s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
     let saved = serde_json::to_value(&s.view).unwrap();
     assert!(saved.get("gmail").is_none(), "{saved}");
+    // The list the window keeps follows the category all the same.
+    s.run("folder.select", &json!({"id": inbox})).unwrap();
+    assert_eq!(s.rows().len(), 4);
+    s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
+    assert_eq!(s.rows().len(), 1);
 }

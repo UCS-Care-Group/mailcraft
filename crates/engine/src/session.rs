@@ -1877,7 +1877,7 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{:?}|{}",
             self.rev,
             self.today().to_days(),
             // `received:"last week"` is other days for another first day of the week, and
@@ -1886,6 +1886,8 @@ impl Session {
             self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
+            // (Not saved with the rest of the view, so not in its text.)
+            self.view.gmail,
             serde_json::to_string(&self.view).unwrap_or_default()
         )
     }
