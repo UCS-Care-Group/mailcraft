@@ -41,11 +41,13 @@ pub fn in_view(s: &Session) -> Option<GmailCategory> {
     (folder == s.view.folder && has_categories(s, folder) && sorted(s, folder)).then_some(category)
 }
 
-/// Whether any message of `folder` is in a category other than Primary: [`listed_under`] without
-/// the counts, for a caller that can't count.
-// ponytail: a walk over the messages until the first one sorted; [`listed_under`]'s counts if it shows up in a profile.
+/// Whether any message of `folder` is in a category other than Primary: [`listed_under`]'s test,
+/// from the counts when they are up to date, else a walk over the messages.
 fn sorted(s: &Session, folder: Id) -> bool {
-    s.mailbox.messages.values().any(|m| m.folder == folder && m.gmail_category.is_some_and(|c| c != GmailCategory::Primary))
+    match s.fresh_counts() {
+        Some(counts) => GmailCategory::SEARCHED.iter().any(|c| counts.gmail(folder, *c).total > 0),
+        None => s.mailbox.messages.values().any(|m| m.folder == folder && m.gmail_category.is_some_and(|c| c != GmailCategory::Primary)),
+    }
 }
 
 /// What the list in view keeps of a Gmail account's Inbox, while it shows one of its categories:
