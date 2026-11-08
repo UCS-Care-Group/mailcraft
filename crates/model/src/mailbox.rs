@@ -1978,6 +1978,10 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        // Within what the mailbox keeps of originals in all (#30).
+        if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
+            m.original = None;
+        }
         if m.id == 0 || self.messages.contains_key(&m.id) {
             m.id = self.alloc_id();
         }
@@ -1985,6 +1989,14 @@ impl Mailbox {
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
+    }
+
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30).
+    // ponytail: a sum over every message, asked only for a message that has an original; a
+    // running total when mailboxes of millions of signed messages show it.
+    pub fn room_for_original(&self, size: u64) -> bool {
+        let held = self.messages.values().filter_map(|m| m.original.as_ref()).map(crate::Original::size).fold(0u64, u64::saturating_add);
+        held.saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {

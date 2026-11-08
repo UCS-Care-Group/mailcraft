@@ -82,3 +82,36 @@ fn a_message_read_before_looks_protected_by_its_parts_or_its_text() {
     assert!(inline.looks_protected());
     assert!(!Message { body: Body { text: "Hello.".into(), html: None }, ..Default::default() }.looks_protected());
 }
+
+#[test]
+fn a_block_of_armour_is_begin_and_end() {
+    use crate::protected::has_armour_block;
+    assert!(has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n-----END PGP MESSAGE-----\n"));
+    assert!(has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\r\nHi\r\n-----BEGIN PGP SIGNATURE-----\r\nx\r\n-----END PGP SIGNATURE-----"));
+    assert!(!has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n"));
+    assert!(!has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\nHi\n-----END PGP SIGNATURE-----\n"));
+    assert!(!has_armour_block(b"-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n"));
+    assert!(!has_armour_block(b"> -----BEGIN PGP MESSAGE-----\n> -----END PGP MESSAGE-----\n"));
+    assert!(!has_armour_block(b""));
+    // Past the scan, an END isn't looked for.
+    let late = [&b"-----BEGIN PGP MESSAGE-----\n"[..], &vec![b'a'; crate::protected::MAX_ARMOUR_SCAN], b"\n-----END PGP MESSAGE-----\n"].concat();
+    assert!(!has_armour_block(&late));
+}
+
+#[test]
+fn a_mailbox_keeps_originals_within_its_cap() {
+    let mut mb = crate::Mailbox::with_local_account("Avery", "avery@example.org");
+    let inbox = mb.inbox().unwrap();
+    assert!(mb.room_for_original(crate::MAX_ORIGINALS));
+    assert!(!mb.room_for_original(crate::MAX_ORIGINALS + 1));
+    // Originals named on disk count with their length, without their bytes in memory.
+    let big = ContentRef { sha256: [1; 32], len: crate::MAX_ORIGINALS - 10 };
+    let first = Message { folder: inbox, original: Some(Original { data: Arc::default(), kept: Some(big) }), ..Default::default() };
+    let first = mb.add_message(first).unwrap();
+    assert!(mb.message(first).unwrap().has_original());
+    // One more past the cap is kept without its original; one that fits, with it.
+    let over = mb.add_message(Message { folder: inbox, original: Original::new(vec![b'x'; 11]), ..Default::default() }).unwrap();
+    assert!(mb.message(over).unwrap().original.is_none());
+    let fits = mb.add_message(Message { folder: inbox, original: Original::new(vec![b'x'; 10]), ..Default::default() }).unwrap();
+    assert!(mb.message(fits).unwrap().has_original());
+}

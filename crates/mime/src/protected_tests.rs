@@ -14,7 +14,7 @@ Subject: Signed\r\n\
 Message-ID: <signed-1@example.org>\r\n\
 MIME-Version: 1.0\r\n\
 Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha-256;\r\n\
- boundary=\"sig-b\"\r\n\
+\x20boundary=\"sig-b\"\r\n\
 \r\n\
 This is a cryptographically signed message in MIME format.\r\n\
 \r\n\
@@ -89,9 +89,9 @@ fn each_kind_is_told() {
     let inline_encrypted = b"Subject: x\r\n\r\n-----BEGIN PGP MESSAGE-----\r\nZHVtbXk=\r\n-----END PGP MESSAGE-----\r\n";
     assert_eq!(protection(inline_encrypted), Some(Protection::InlinePgp));
     // Armour in a body sent as base64 or quoted-printable is read once decoded.
-    let base64 = b"Content-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\nLS0tLS1CRUdJTiBQR1AgTUVTU0FHRS0tLS0tCmFiYwo=\r\n";
+    let base64 = b"Content-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\nLS0tLS1CRUdJTiBQR1AgTUVTU0FHRS0tLS0tCmFiYwotLS0tLUVORCBQR1AgTUVTU0FHRS0tLS0tCg==\r\n";
     assert_eq!(protection(base64), Some(Protection::InlinePgp));
-    let qp = b"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n=2D----BEGIN PGP MESSAGE-----\r\nabc\r\n";
+    let qp = b"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n=2D----BEGIN PGP MESSAGE-----\r\nabc\r\n=2D----END PGP MESSAGE-----\r\n";
     assert_eq!(protection(qp), Some(Protection::InlinePgp));
 }
 
@@ -100,13 +100,13 @@ fn a_wrapped_body_is_looked_into() {
     // A mailing list puts the signed message first in a multipart/mixed, with its footer after.
     let wrapped = [
         &b"From: list@example.org\r\nContent-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n--outer\r\n"[..],
-        b"Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; boundary=\"sig-b\"\r\n\r\n--sig-b\r\nContent-Type: text/plain\r\n\r\nx\r\n--sig-b--\r\n",
+        b"Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; boundary=\"sig-b\"\r\n\r\n--sig-b\r\nContent-Type: text/plain\r\n\r\nx\r\n--sig-b\r\nContent-Type: application/pkcs7-signature\r\n\r\nZHVtbXk=\r\n--sig-b--\r\n",
         b"--outer\r\nContent-Type: text/plain\r\n\r\nList footer\r\n--outer--\r\n",
     ]
     .concat();
     assert_eq!(protection(&wrapped), Some(Protection::Signed));
     // Plain text in an alternative with inline armour.
-    let alternative = b"Content-Type: multipart/alternative; boundary=\"a\"\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\nx\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--a--\r\n";
+    let alternative = b"Content-Type: multipart/alternative; boundary=\"a\"\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\nx\r\n-----BEGIN PGP SIGNATURE-----\r\nZHVtbXk=\r\n-----END PGP SIGNATURE-----\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--a--\r\n";
     assert_eq!(protection(alternative), Some(Protection::InlinePgp));
 }
 
@@ -130,6 +130,52 @@ fn what_only_mentions_protection_is_not_protected() {
     assert!(!is_protected(b""));
 }
 
+/// Only a well-formed structure is kept: what merely claims to be one would let any sender
+/// double what the mailbox stores of their mail.
+#[test]
+fn what_is_not_well_formed_is_not_kept() {
+    let signed = String::from_utf8_lossy(PGP_SIGNED).into_owned();
+    let encrypted = String::from_utf8_lossy(PGP_ENCRYPTED).into_owned();
+    let pkcs7 = String::from_utf8_lossy(PKCS7).into_owned();
+    let cases = [
+        // multipart/signed: no protocol, an unknown one, one the signature part doesn't match,
+        // one part only, three parts, no boundary, an empty signature.
+        signed.replace(" protocol=\"application/pgp-signature\";", ""),
+        signed.replace("protocol=\"application/pgp-signature\"", "protocol=\"application/x-anything\""),
+        signed.replace("Content-Type: application/pgp-signature; name", "Content-Type: application/octet-stream; name"),
+        signed.replace("--p\r\nContent-Type: application/pgp-signature; name=\"signature.asc\"\r\n\r\n-----BEGIN PGP SIGNATURE-----\r\nZHVtbXk=\r\n-----END PGP SIGNATURE-----\r\n", ""),
+        signed.replace("--p--", "--p\r\nContent-Type: text/plain\r\n\r\nmore\r\n--p--"),
+        signed.replace("; boundary=\"p\"", ""),
+        signed.replace("-----BEGIN PGP SIGNATURE-----\r\nZHVtbXk=\r\n-----END PGP SIGNATURE-----\r\n", "\r\n"),
+        // multipart/encrypted: no or another protocol, parts of other types, one part.
+        encrypted.replace(" protocol=\"application/pgp-encrypted\";", ""),
+        encrypted.replace("protocol=\"application/pgp-encrypted\"", "protocol=\"application/pkcs7-mime\""),
+        encrypted.replace("Content-Type: application/octet-stream", "Content-Type: text/plain"),
+        encrypted.replace("--e\r\nContent-Type: application/pgp-encrypted\r\n\r\nVersion: 1\r\n", ""),
+        // application/pkcs7-mime: neither an smime-type nor base64.
+        pkcs7.replace("; smime-type=enveloped-data", "").replace("Content-Transfer-Encoding: base64\r\n", ""),
+        // Inline PGP: a lone line that opens armour, a signed message without its signature, an
+        // END before its BEGIN.
+        "Subject: x\r\n\r\n-----BEGIN PGP MESSAGE-----\r\nZHVtbXk=\r\n".into(),
+        "Subject: x\r\n\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\nHash: SHA256\r\n\r\nHello.\r\n".into(),
+        "Subject: x\r\n\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\nHello.\r\n-----END PGP SIGNATURE-----\r\n-----BEGIN PGP SIGNATURE-----\r\n".into(),
+        "Subject: x\r\n\r\n-----END PGP MESSAGE-----\r\n-----BEGIN PGP MESSAGE-----\r\n".into(),
+    ];
+    for case in &cases {
+        assert_eq!(protection(case.as_bytes()), None, "{case}");
+        assert!(parse_fetched(case.as_bytes()).original.is_none(), "{case}");
+    }
+    // Each of those was one change from a kept message.
+    for whole in [PGP_SIGNED, PGP_ENCRYPTED, PKCS7] {
+        assert!(parse_fetched(whole).original.is_some());
+    }
+    // S/MIME's old x- type for the signature, and pkcs7-mime with only one of the two signs.
+    let x_sig = String::from_utf8_lossy(SMIME_SIGNED).replace("pkcs7-signature", "x-pkcs7-signature");
+    assert_eq!(protection(x_sig.as_bytes()), Some(Protection::Signed));
+    assert_eq!(protection(pkcs7.replace("; smime-type=enveloped-data", "").as_bytes()), Some(Protection::Pkcs7));
+    assert_eq!(protection(pkcs7.replace("Content-Transfer-Encoding: base64\r\n", "").as_bytes()), Some(Protection::Pkcs7));
+}
+
 #[test]
 fn a_protected_message_keeps_its_bytes_and_others_keep_none() {
     for bytes in [SMIME_SIGNED, PGP_SIGNED, PGP_ENCRYPTED, PKCS7, INLINE_SIGNED] {
@@ -143,20 +189,96 @@ fn a_protected_message_keeps_its_bytes_and_others_keep_none() {
     assert_eq!(parse_fetched(plain), parse(plain));
 }
 
+/// The body of a message: what follows its first empty line.
+fn body(bytes: &[u8]) -> &[u8] {
+    bytes.windows(4).position(|w| w == b"\r\n\r\n").and_then(|at| bytes.get(at + 4..)).unwrap_or_default()
+}
+
+/// The header block of a message, up to its first empty line.
+fn head(bytes: &[u8]) -> String {
+    let all = String::from_utf8_lossy(bytes);
+    all.split("\r\n\r\n").next().unwrap_or_default().to_string()
+}
+
 #[test]
-fn written_whole_it_is_the_original() {
+fn written_its_body_is_the_original_and_its_header_the_message() {
     let m = parse_fetched(SMIME_SIGNED);
     for include_bcc in [false, true] {
-        assert_eq!(write(&m, &WriteOptions { include_bcc, offset_minutes: 60 }), SMIME_SIGNED);
+        let out = write(&m, &WriteOptions { include_bcc, offset_minutes: 60 });
+        assert_eq!(body(&out), body(SMIME_SIGNED));
+        let head = head(&out);
+        // The original's own content fields, folds and all, once each.
+        assert!(head.contains("\r\nMIME-Version: 1.0\r\n"), "{head}");
+        assert!(
+            head.ends_with("Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha-256;\r\n boundary=\"sig-b\""),
+            "{head}"
+        );
+        assert_eq!(head.matches("Content-Type").count(), 1, "{head}");
+        assert_eq!(head.to_ascii_lowercase().matches("mime-version").count(), 1, "{head}");
+        // The rest written from the message.
+        assert!(head.contains("Subject: Signed") && head.contains("Message-ID: <signed-1@example.org>"), "{head}");
+        // Read again, it is the same message.
+        let again = parse(&out);
+        assert_eq!((again.subject.as_str(), again.body.text.trim()), ("Signed", "Signed text."));
     }
-    // The copy put on a server carries MailCraft's marker first, outside what is signed.
+    // The copy put on a server carries MailCraft's marker first.
     let placed = write_placed(&m, &WriteOptions::default(), "m4rk3r");
-    assert_eq!(placed, [format!("{PLACE_HEADER}: m4rk3r\r\n").as_bytes(), SMIME_SIGNED].concat());
-    // That copy, come down again, keeps the original without the marker.
-    assert_eq!(parse_fetched(&placed).original_bytes(), Some(SMIME_SIGNED));
+    assert!(placed.starts_with(format!("{PLACE_HEADER}: m4rk3r\r\n").as_bytes()));
+    assert_eq!(body(&placed), body(SMIME_SIGNED));
+    // That copy, come down again, keeps an original without the marker and the same body.
+    let down = parse_fetched(&placed);
+    let kept = down.original_bytes().unwrap();
+    assert!(!String::from_utf8_lossy(kept).contains(PLACE_HEADER));
+    assert_eq!(body(kept), body(SMIME_SIGNED));
     // A draft is the owner's own: it is built from its parts.
     let draft = mailcraft_model::Message { draft: true, ..m };
-    assert_ne!(write(&draft, &WriteOptions::default()), SMIME_SIGNED);
+    assert_ne!(body(&write(&draft, &WriteOptions::default())), body(SMIME_SIGNED));
+}
+
+#[test]
+fn the_owners_marks_travel_and_forged_or_bent_fields_dont_get_in() {
+    let mut m = parse_fetched(SMIME_SIGNED);
+    m.categories = vec!["Taxes".into()];
+    m.flag = mailcraft_model::FlagStatus::Flagged;
+    m.importance = mailcraft_model::Importance::High;
+    m.subject = "Signed\r\nBcc: evil@example.org".into();
+    let out = write(&m, &WriteOptions::default());
+    let head = head(&out);
+    assert!(head.contains("Keywords: Taxes"), "{head}");
+    assert!(head.contains("Importance: high") && head.contains("X-Status: F"), "{head}");
+    assert!(!head.contains("\r\nBcc:"), "{head}");
+    assert_eq!(body(&out), body(SMIME_SIGNED));
+}
+
+#[test]
+fn an_original_of_lf_lines_is_kept_and_written_in_crlf() {
+    let lf: Vec<u8> = String::from_utf8_lossy(SMIME_SIGNED).replace("\r\n", "\n").into_bytes();
+    let m = parse_fetched(&lf);
+    assert_eq!(m.original_bytes(), Some(SMIME_SIGNED));
+    let out = write_placed(&m, &WriteOptions::default(), "m");
+    // Every line ends in CRLF, and the signed body is the canonical one.
+    assert!(out.windows(2).all(|w| w[1] != b'\n' || w[0] == b'\r'));
+    assert_eq!(body(&out), body(SMIME_SIGNED));
+}
+
+#[test]
+fn crlf_and_content_of() {
+    assert_eq!(crate::crlf(b"a\nb\r\nc\n\n"), b"a\r\nb\r\nc\r\n\r\n");
+    assert_eq!(crate::crlf(b""), b"");
+    assert_eq!(crate::crlf(b"\r\r\n"), b"\r\r\n");
+    let (fields, body) = crate::protected::content_of(b"Subject: x\nContent-Type: a/b;\n\tc=d\r\nX-A: y\nMIME-Version: 1.0\0\n\nbody\n");
+    assert_eq!(fields, b"Content-Type: a/b;\r\n\tc=d\r\nMIME-Version: 1.0\r\n");
+    assert_eq!(body, b"body\r\n");
+    // No header block, no body: nothing, and no panic.
+    assert_eq!(crate::protected::content_of(b""), (Vec::new(), Vec::new()));
+}
+
+proptest! {
+    #[test]
+    fn content_of_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..512)) {
+        let _ = crate::protected::content_of(&bytes);
+        let _ = crate::crlf(&bytes);
+    }
 }
 
 #[test]

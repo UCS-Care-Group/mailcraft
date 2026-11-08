@@ -5,8 +5,9 @@
 //! next Send/Receive. The engine only marks it: an IMAP message is asked for again by its UID
 //! ([`Message::refetch`], as for #650), the message of a Microsoft, Exchange server or JMAP
 //! account is fetched whole again ([`Message::unfetched`], as for #185), keeping meanwhile the
-//! text, attachments and everything else it has here. Nothing changes of it but the bytes it came
-//! as, which it then keeps.
+//! text, attachments and everything else it has here. What comes is taken for the bytes it came
+//! as alone ([`Message::original_wanted`]): nothing else of it changes. A message a part was
+//! removed from here ([`Message::parts_removed`]) is never checked again.
 
 use mailcraft_model::{AccountKind, Mailbox, Message};
 use serde_json::{Value, json};
@@ -23,22 +24,49 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
     if m.draft {
         return Some("the message isn't Digitally signed or Encrypted");
     }
+    if m.parts_removed {
+        return Some("a part was removed from the message here, so the bytes it came as aren't this message any more");
+    }
+    if m.original_wanted {
+        return Some("the bytes it came as are asked for already");
+    }
     // (Where it is first, and what it holds last: this is asked every frame a menu shows it.)
-    let kind = mb.account(m.account).map(|a| a.kind);
-    let on_server = match kind {
-        Some(AccountKind::Imap) => m.uid != 0 && m.not_downloaded == 0 && !m.unfetched,
-        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
-            m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty()) && m.server_draft.is_none()
-        }
-        _ => false,
-    };
-    if !on_server || m.incomplete || m.moving_out.is_some() {
+    if !on_server(mb.account(m.account).map(|a| a.kind), m) {
         return Some("no server has this message to download it from");
     }
     if !m.looks_protected() {
         return Some("the message isn't Digitally signed or Encrypted");
     }
     None
+}
+
+/// Whether a server still has message `m`, of an account of `kind`, whole, to download again.
+fn on_server(kind: Option<AccountKind>, m: &Message) -> bool {
+    let there = match kind {
+        Some(AccountKind::Imap) => m.uid != 0 && m.not_downloaded == 0 && !m.unfetched,
+        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
+            m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty()) && m.server_draft.is_none()
+        }
+        _ => false,
+    };
+    there && !m.incomplete && m.moving_out.is_none()
+}
+
+/// Mark `m`, of an account of `kind`, to have the bytes it came as downloaded at the next
+/// Send/Receive, alone ([`Message::original_wanted`]): by its UID (IMAP) or fetched whole again,
+/// keeping meanwhile all it has here. Nothing when no server has it whole, or a part was removed.
+pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
+    if m.draft || m.parts_removed || m.original_wanted || !on_server(kind, m) {
+        return;
+    }
+    m.original_wanted = true;
+    if kind == Some(AccountKind::Imap) {
+        m.refetch = true;
+    } else if !m.unfetched {
+        // Its text and files stay until the new copy comes and is taken in.
+        m.attachments_on_server = m.has_attachments();
+        m.unfetched = true;
+    }
 }
 
 /// Enabled for a message selected that can be checked again ([`why_not`]).
@@ -58,14 +86,7 @@ pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(why) = why_not(&s.mailbox, m) {
         return Err(fail(why));
     }
-    let imap = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Imap);
-    let m = s.mailbox.message_mut(id)?;
-    if imap {
-        m.refetch = true;
-    } else if !m.unfetched {
-        // Its text and files stay until the new copy comes and is taken in.
-        m.attachments_on_server = m.has_attachments();
-        m.unfetched = true;
-    }
+    let kind = s.mailbox.account(m.account).map(|a| a.kind);
+    ask(kind, s.mailbox.message_mut(id)?);
     Ok(json!({"id": id, "downloads": true}))
 }

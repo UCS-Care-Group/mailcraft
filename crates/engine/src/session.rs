@@ -1020,6 +1020,9 @@ pub struct Session {
     pub mailbox: Mailbox,
     pub view: ViewState,
     pub sel: Selection,
+    /// Messages whose original (#30) couldn't be read when they were written whole: at the next
+    /// command each lets it go and asks its server for it again ([`Session::loaded_message`]).
+    lost_originals: std::sync::Mutex<Vec<Id>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -1243,6 +1246,7 @@ impl Session {
             mailbox,
             view: ViewState::default(),
             sel: Selection::default(),
+            lost_originals: std::sync::Mutex::default(),
             compose: None,
             composing: Vec::new(),
             compose_seq: 0,
@@ -2179,8 +2183,13 @@ impl Session {
                 }
             }
             Err(e) => {
-                log::warn!("message {id}: the bytes it came as couldn't be read ({e}); it is written from its parts");
+                log::warn!("message {id}: the bytes it came as couldn't be read ({e}); it is written from its parts and asked for again");
                 copy.original = None;
+                if let Ok(mut lost) = self.lost_originals.lock()
+                    && lost.len() < crate::cmd::imap_again::MAX_AGAIN
+                {
+                    lost.push(id);
+                }
             }
         }
         Ok(Arc::new(copy))
@@ -3140,8 +3149,24 @@ impl Session {
         self.run_on_message(id, params)
     }
 
+    /// The messages whose original couldn't be read let it go, and ask their servers for it again
+    /// at the next Send/Receive (#30). Outside the history: nothing the owner did.
+    pub fn ask_for_lost_originals(&mut self) {
+        let lost = self.lost_originals.get_mut().map(std::mem::take).unwrap_or_default();
+        for id in lost {
+            let kind = self.mailbox.message(id).and_then(|m| self.mailbox.account(m.account)).map(|a| a.kind);
+            if let Ok(m) = self.mailbox.message_mut(id)
+                && m.original.as_ref().is_some_and(|o| !o.is_loaded())
+            {
+                m.original = None;
+                crate::cmd::mail::check_again::ask(kind, m);
+            }
+        }
+    }
+
     /// [`Session::run`] on the message being written that is current now.
     pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
+        self.ask_for_lost_originals();
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).

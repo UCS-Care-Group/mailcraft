@@ -78,9 +78,20 @@ pub fn wanted(mb: &Mailbox, account: Id) -> HashMap<Id, Vec<u32>> {
 /// the mark gone. Where it is, its flags, categories and everything else stay. A draft is the
 /// owner's own and keeps its text; a name list of another length or of other addresses is not
 /// the same list and stays.
-pub fn take_again(mb: &mut Mailbox, id: Id, read: Message) {
+pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
+    // Within what the mailbox keeps of originals in all (#30).
+    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size())) {
+        read.original = None;
+    }
     let Ok(m) = mb.message_mut(id) else { return };
     (m.refetch, m.refetched) = (false, true);
+    // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
+    if std::mem::take(&mut m.original_wanted) {
+        if !m.parts_removed && read.original.is_some() {
+            m.original = read.original;
+        }
+        return;
+    }
     if m.draft {
         return;
     }
@@ -104,8 +115,8 @@ pub fn take_again(mb: &mut Mailbox, id: Id, read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
-    // Digitally signed or Encrypted: the bytes it came as, which Check again asked for (#30).
-    if read.original.is_some() {
+    // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here.
+    if read.original.is_some() && !m.parts_removed {
         m.original = read.original;
     }
 }

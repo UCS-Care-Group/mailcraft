@@ -118,10 +118,15 @@ impl Attachment {
 /// ([`Message::original`], #30): a larger one is read as any other message, without them.
 pub const MAX_ORIGINAL: usize = 64 << 20;
 
-/// The bytes a Digitally signed or Encrypted message came as (#30): its MIME exactly as its
-/// server or file gave it, which a Digital signature is checked against and which a copy of it
-/// elsewhere (another account's server, a saved `.eml`) is made of, so that the signature still
-/// checks there. Kept as an attachment is: in memory (`data`) or in the content folder beside
+/// The most bytes of originals a mailbox keeps in all (#30): past it, a message that comes in is
+/// kept without its original, as one read before they were kept, and Check again
+/// (`mail.checkAgain`) can fetch it once there is room.
+pub const MAX_ORIGINALS: u64 = 1 << 30;
+
+/// The bytes a Digitally signed or Encrypted message came as (#30): its MIME as its server or
+/// file gave it, in CRLF lines, which a Digital signature is checked against and whose body a
+/// copy of it elsewhere (another account's server, a saved `.eml`) carries, so that the
+/// signature still checks there. Kept as an attachment is: in memory (`data`) or in the content folder beside
 /// the mailbox file (`kept`), hashed and checked against its length when read back.
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -410,10 +415,19 @@ pub struct Message {
     /// `None` for every other message, for one read before they were kept (Check again downloads
     /// them, `mail.checkAgain`), and once something the bytes hold was taken out of it here (an
     /// attachment removed). Wherever the message is written whole (another account's server, a
-    /// saved `.eml`, a forward as an attachment) these bytes are what is written, whatever is
-    /// kept beside them; the owner's marks go as the server's flags do.
+    /// saved `.eml`, a forward as an attachment) its body is these bytes' body, under their own
+    /// content fields, and its header is written from the message, with the filters every
+    /// message's header goes through.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "capped_original")]
     pub original: Option<Original>,
+    /// A part of it was taken out here (Remove Attachment): the bytes it came as no longer are
+    /// this message, and Check again never brings them back (#30).
+    #[serde(skip_serializing_if = "is_false")]
+    pub parts_removed: bool,
+    /// Check again asked for the bytes it came as (#30): what its server gives next brings those
+    /// and nothing else; its text, files, headers and marks stay as they are here.
+    #[serde(skip_serializing_if = "is_false")]
+    pub original_wanted: bool,
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).
@@ -581,7 +595,8 @@ impl Message {
         Some(self.size())
     }
 
-    /// Size in bytes, roughly: text, HTML and attachments, in memory or where they are kept.
+    /// Size in bytes, roughly: text, HTML, attachments and the bytes a Digitally signed or
+    /// Encrypted message came as (#30), in memory or where they are kept.
     pub fn size(&self) -> u64 {
         let kept = self.kept.as_deref();
         let text = if self.body.text.is_empty() { kept.and_then(|k| k.text).map_or(0, |r| r.len) } else { self.body.text.len() as u64 };
@@ -590,7 +605,11 @@ impl Message {
             None => kept.and_then(|k| k.html).map_or(0, |r| r.len),
         };
         let hidden = if self.hidden_text.is_empty() { kept.and_then(|k| k.hidden).map_or(0, |r| r.len) } else { self.hidden_text.len() as u64 };
-        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html).saturating_add(hidden), u64::saturating_add)
+        let original = self.original.as_ref().map_or(0, Original::size);
+        self.attachments
+            .iter()
+            .map(|a| a.size() as u64)
+            .fold(text.saturating_add(html).saturating_add(hidden).saturating_add(original), u64::saturating_add)
     }
 
     /// To be fetched again, whole, from the server that has it (#793): its headers, marks and
@@ -609,7 +628,7 @@ impl Message {
         self.hidden_text = String::new();
         self.attachments.clear();
         self.kept = None;
-        self.original = None;
+        (self.original, self.original_wanted) = (None, false);
         self.attachments_on_server = had_files;
         self.unfetched = true;
     }

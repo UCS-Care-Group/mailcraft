@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A Digitally signed message comes down with the bytes it came as, and goes onto another
-//! account's server as exactly those bytes, so that its signature still checks there (#30).
+//! account's server with its body as exactly those bytes, so that its signature still checks there (#30).
 //! A synthetic message with a dummy signature on the in-process fake server: no real crypto.
 
 use mailcraft_model::sync::ImapPlace;
@@ -18,8 +18,13 @@ Caf=E9 at  noon,   with odd   spacing kept.  \r\n--=_b\r\n\
 Content-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\nContent-Transfer-Encoding: base64\r\n\
 Content-Disposition: attachment; filename=\"smime.p7s\"\r\n\r\nZHVtbXkgc2lnbmF0dXJlIGJ5dGVz\r\n--=_b--\r\n";
 
+/// The body of a message: what follows its first empty line.
+fn body(bytes: &[u8]) -> &[u8] {
+    bytes.windows(4).position(|w| w == b"\r\n\r\n").and_then(|at| bytes.get(at + 4..)).unwrap_or_default()
+}
+
 #[test]
-fn a_signed_message_comes_down_whole_and_goes_up_byte_for_byte() {
+fn a_signed_message_comes_down_whole_and_its_body_goes_up_byte_for_byte() {
     let mut world = imap_world();
     world.mailbox("INBOX").messages.push(FakeMessage { body: SIGNED.to_vec(), ..message(7, "", "unused") });
     let imap = Fake::imap(world);
@@ -33,8 +38,8 @@ fn a_signed_message_comes_down_whole_and_goes_up_byte_for_byte() {
     assert!(inbox.new.iter().filter(|m| m.uid != 7).all(|m| m.original.is_none()));
     assert!(!inbox.new.is_empty());
 
-    // Moved into another account: what is put on its server is the message as it came, after
-    // the one line of MailCraft's own, which no Digital signature covers.
+    // Moved into another account: what is put on its server is its header written from the
+    // message (MailCraft's own line first) and its body as it came, which the signature covers.
     let other = two_way(true, true);
     let folders = synced_folders(&other);
     let mut message = signed.clone();
@@ -46,9 +51,10 @@ fn a_signed_message_comes_down_whole_and_goes_up_byte_for_byte() {
     let world = other.world();
     let put = world.mailboxes.iter().find(|m| m.raw == "Projects").unwrap().messages.last().unwrap().body.clone();
     drop(world);
-    assert_eq!(put, [&b"X-MailCraft-Place: m4rk-3r\r\n"[..], SIGNED].concat());
-    // Come down from there, it is the same original again.
-    assert_eq!(mailcraft_mime::parse_fetched(&put).original_bytes(), Some(SIGNED));
+    assert!(put.starts_with(b"X-MailCraft-Place: m4rk-3r\r\n"));
+    assert_eq!(body(&put), body(SIGNED));
+    // Come down from there, it has the same body again.
+    assert_eq!(mailcraft_mime::parse_fetched(&put).original_bytes().map(body), Some(body(SIGNED)));
 }
 
 #[test]

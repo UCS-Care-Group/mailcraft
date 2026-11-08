@@ -55,10 +55,17 @@ fn the_original_is_kept_outside_named_read_back_and_written_whole() {
     assert!(m.has_original() && m.original_bytes().is_none() && !m.is_loaded());
     assert_eq!(m.original.as_ref().map(Original::size), Some(bytes.len() as u64));
     assert_eq!(s.content(id, crate::Part::Original).unwrap().as_slice(), bytes.as_slice());
-    // Written whole (Save Message As), it is the original byte for byte.
+    // Written whole (Save Message As), its body is the original's byte for byte, under the
+    // original's own Content-Type.
     let saved = s.run("file.exportMessage", &serde_json::json!({"id": id})).unwrap();
-    let data = saved["data"].as_str().unwrap();
-    assert_eq!(mailcraft_charset::base64::STANDARD.decode(data).unwrap(), bytes);
+    let data = mailcraft_charset::base64::STANDARD.decode(saved["data"].as_str().unwrap()).unwrap();
+    let body = |b: &[u8]| b.windows(4).position(|w| w == b"\r\n\r\n").map(|at| b[at + 4..].to_vec()).unwrap();
+    assert_eq!(body(&data), body(&bytes));
+    let text = String::from_utf8_lossy(&data);
+    assert!(
+        text.contains("\r\nContent-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha-256; boundary=\"b\"\r\n\r\n"),
+        "{text}"
+    );
     // A self-contained copy of the mailbox carries it.
     let loaded = s.loaded_mailbox().unwrap();
     assert_eq!(loaded.message(id).unwrap().original_bytes(), Some(bytes.as_slice()));
@@ -88,40 +95,62 @@ fn the_original_is_kept_outside_named_read_back_and_written_whole() {
     assert!(thin.original.is_none());
 }
 
+/// [`with_signed`], in an IMAP account's Inbox as UID 7.
+fn with_signed_on_imap() -> (Mailbox, Id) {
+    let (mut mb, id) = with_signed();
+    let account = mb.message(id).unwrap().account;
+    mb.account_mut(account).unwrap().kind = mailcraft_model::AccountKind::Imap;
+    mb.message_mut(id).unwrap().uid = 7;
+    (mb, id)
+}
+
+/// A build from before #30 swept the original's file: the message opens whole, is written from
+/// its parts, and asks its server for the bytes again (Check again's mark), with nothing said to
+/// be unavailable.
 #[test]
-fn a_missing_original_is_no_loss_to_tell_of_and_stays_named() {
-    let (mb, id) = with_signed();
+fn a_missing_original_is_asked_for_again() {
+    let (mb, id) = with_signed_on_imap();
     let tmp = Temp::new("original-missing");
     let path = tmp.file();
     save(&path, &mb).unwrap();
     clear_cache();
     fs::remove_file(blob_file(&path, &signed_bytes())).unwrap();
     let opened = open(&path).unwrap();
-    // Nothing is said to be unavailable: the message is whole without it.
     assert_eq!(opened.unavailable, 0);
     assert!(opened.notice().is_none(), "{:?}", opened.notice());
     let m = opened.mailbox.message(id).unwrap();
     assert_ne!(m.body.text, UNAVAILABLE);
-    // Still named, as missing content is, so that a file that turns up again is found.
-    assert!(content_names(id, mb.messages.get(&id).unwrap()).iter().any(|r| r.len == signed_bytes().len() as u64));
-    assert!(m.has_original());
+    assert!(m.original.is_none());
+    assert!(m.original_wanted && m.refetch);
+    // Written whole meanwhile, it is built from its parts.
+    let written = String::from_utf8_lossy(&mailcraft_mime::write(m, &Default::default())).into_owned();
+    assert!(written.contains("multipart/") && written.contains("Signed text"), "{written}");
+    // What the server gives again is the original once more.
+    let mut mb = opened.mailbox;
+    crate::cmd::imap_again::take_again(&mut mb, id, mailcraft_mime::parse_fetched(&signed_bytes()));
+    assert_eq!(mb.message(id).unwrap().original_bytes(), Some(signed_bytes().as_slice()));
 }
 
 #[test]
-fn an_original_that_cant_be_read_writes_the_message_from_its_parts() {
-    let (mb, id) = with_signed();
+fn an_original_that_cant_be_read_writes_the_message_from_its_parts_and_is_asked_for_again() {
+    let (mb, id) = with_signed_on_imap();
     let tmp = Temp::new("original-unreadable");
     let path = tmp.file();
     save(&path, &mb).unwrap();
     clear_cache();
     let mut s = Session::new(with_budget(1, || open(&path).unwrap()).mailbox);
     s.path = Some(path.clone());
+    assert!(s.mailbox.message(id).unwrap().has_original());
     // Gone after the opening looked for it.
     fs::remove_file(blob_file(&path, &signed_bytes())).unwrap();
     clear_cache();
     let m = s.loaded_message(id).unwrap();
     assert!(m.original.is_none());
     assert!(!mailcraft_mime::write(&m, &Default::default()).is_empty());
+    // At the next command it lets the original go and asks for it again.
+    s.ask_for_lost_originals();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original.is_none() && m.original_wanted && m.refetch);
 }
 
 #[test]

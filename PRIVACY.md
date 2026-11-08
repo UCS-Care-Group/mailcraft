@@ -24,11 +24,14 @@ you.
   says why. MailCraft notes the names (never the contents) of the entries it puts there in its
   settings, so that Remove MailCraft's data, and turning remembering off, can remove every one,
   also those of mailboxes you opened earlier, and list any that could not be removed.
-- **Digitally signed and encrypted messages** (S/MIME and OpenPGP) are also kept exactly as
-  they arrived, beside the mailbox file with the rest of its content, so that their signature can
-  still be checked and a copy moved to another account or saved as a file is the message as it
-  came. For an encrypted message these bytes are the encrypted message itself, as the server holds
-  it. They go when the message goes, and nothing is sent anywhere for them.
+- **Digitally signed and encrypted messages** (S/MIME and OpenPGP) are also kept as they
+  arrived, beside the mailbox file with the rest of its content (up to 64 MB a message and 1 GB in
+  all), so that their signature can still be checked and a copy moved to another account or saved
+  as a file carries the signed body as it came; that copy's header is written as any other
+  message's is, so what the owner's own servers stamped on it stays behind. For an encrypted
+  message these bytes are the encrypted message itself, as the server holds it. They go when the
+  message goes. When they are missing, or were never kept, the message's own server is asked for
+  it again at the next Send/Receive, as for any message downloaded; nothing else is sent.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.

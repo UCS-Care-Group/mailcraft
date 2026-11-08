@@ -2540,13 +2540,22 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             }
         }
         if let Some(want) = &original {
-            // (Neither looked for nor counted: one that is missing is found so when it is read,
-            // and the message is then written from its parts, #30. It stays named, as missing
-            // content does. A name that isn't one: no original.)
+            // (Not counted among what is unavailable: without it the message is as one read
+            // before it was kept, #30. A name that isn't one: no original.)
             m.original =
                 stand(want, &mut Filled::default()).zip(want.kept()).map(|(_, r)| mailcraft_model::Original { data: Arc::default(), kept: Some(r) });
             if let Some(p) = held.as_mut().and_then(|p| p.original.as_mut()) {
                 p.held = false;
+            }
+            // Its file gone (a build from before #30 swept it, say): the message is written from
+            // its parts, and asks its server for the bytes again at the next Send/Receive.
+            if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| !present(dir, &Ref::from_model(&r), &folders)) {
+                m.original = None;
+                if let Some(p) = held.as_mut() {
+                    p.original = None;
+                }
+                let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
+                crate::cmd::mail::check_again::ask(kind, m);
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
@@ -2766,7 +2775,12 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
         && !o.data.is_empty()
         && o.data.len() as u64 == p.r.len
-        && Ref::of(&o.data) == p.r
+        && st
+            .hashes
+            .get(&(Arc::as_ptr(&o.data) as usize))
+            .filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&o.data)))
+            .map_or_else(|| Digest::of(&o.data), |(_, hash)| *hash)
+            == p.r.hash
     {
         (o.data, o.kept) = (Arc::default(), Some(p.r.to_model()));
         any = true;
@@ -2908,28 +2922,31 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
             outside(m.hidden_text.as_bytes())
         },
         attachments: Vec::new(),
-        // The bytes it came as (#30): what stayed on disk keeps its name, as an attachment does.
-        original: m.original.as_ref().and_then(|o| match o.kept.as_ref().filter(|_| o.data.is_empty()) {
-            Some(r) => Some(on_disk(r)),
-            None => outside(&o.data),
-        }),
+        original: None,
+    };
+    // A file's bytes are hashed once while the same bytes are in memory: a save after a read mark
+    // doesn't hash every attachment and original again.
+    let mut held = |data: &Arc<Vec<u8>>| {
+        (data.len() > INLINE_MAX).then(|| {
+            let key = Arc::as_ptr(data) as usize;
+            let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(data))).map(|(_, hash)| *hash);
+            let hash = known.unwrap_or_else(|| {
+                let hash = Digest::of(data);
+                hashes.insert(key, (Arc::downgrade(data), hash));
+                hash
+            });
+            Part { r: Ref { hash, len: data.len() as u64 }, held: true }
+        })
     };
     for a in m.attachments.iter().take(MAX_PARTS) {
         let was = a.kept.as_ref().filter(|_| a.data.is_empty()).map(on_disk);
-        let part = was.or_else(|| {
-            (a.data.len() > INLINE_MAX).then(|| {
-                let key = Arc::as_ptr(&a.data) as usize;
-                let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&a.data))).map(|(_, hash)| *hash);
-                let hash = known.unwrap_or_else(|| {
-                    let hash = Digest::of(&a.data);
-                    hashes.insert(key, (Arc::downgrade(&a.data), hash));
-                    hash
-                });
-                Part { r: Ref { hash, len: a.data.len() as u64 }, held: true }
-            })
-        });
-        parts.attachments.push(part);
+        parts.attachments.push(was.or_else(|| held(&a.data)));
     }
+    // The bytes it came as (#30): what stayed on disk keeps its name, as an attachment does.
+    parts.original = m.original.as_ref().and_then(|o| match o.kept.as_ref().filter(|_| o.data.is_empty()) {
+        Some(r) => Some(on_disk(r)),
+        None => held(&o.data),
+    });
     if parts.attachments.iter().all(Option::is_none) {
         parts.attachments.clear();
     }

@@ -488,8 +488,20 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m)) {
         return None;
     }
-    let read = crate::mime::parse_fetched(mime);
+    let mut read = crate::mime::parse_fetched(mime);
+    // Within what the mailbox keeps of originals in all (#30).
+    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size())) {
+        read.original = None;
+    }
     let m = mb.message_mut(here).ok()?;
+    // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
+    if std::mem::take(&mut m.original_wanted) {
+        if !m.parts_removed {
+            m.original = read.original;
+        }
+        (m.unfetched, m.attachments_on_server) = (false, false);
+        return Some(here);
+    }
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
     m.references = read.references;
@@ -562,7 +574,7 @@ pub fn thin_message(m: &mut Message, preview: String) {
     m.hidden_text = String::new();
     m.attachments.clear();
     m.kept = None;
-    m.original = None;
+    (m.original, m.original_wanted) = (None, false);
     m.unfetched = true;
 }
 

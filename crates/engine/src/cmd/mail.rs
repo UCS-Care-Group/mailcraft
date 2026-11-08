@@ -965,7 +965,7 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let removed = m.attachments.remove(index);
     // The bytes it came as hold the file still: they go with it (#30), so that a copy of the
     // message elsewhere never brings it back. Its Digital signature can't check without it.
-    m.original = None;
+    (m.original, m.parts_removed) = (None, true);
     Ok(json!({"removed": removed.name}))
 }
 
