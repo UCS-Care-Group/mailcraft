@@ -3435,7 +3435,7 @@ msgstr "Bearbeiten"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
+msgid ""
 "Edit\n"
 "Contact"
 msgstr ""
@@ -4929,7 +4929,7 @@ msgstr "In der Auswahl"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "In {folder}"
-msgid "In {folder}"
+msgstr "In {folder}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
