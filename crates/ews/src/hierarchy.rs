@@ -51,6 +51,10 @@ pub struct HierarchyPage {
     pub deleted: Vec<String>,
     /// How many folders were passed over for not being mail folders, or for not being readable.
     pub skipped: usize,
+    /// Where the mail folders that couldn't be read lie: the server's id of the folder above
+    /// each, empty when that couldn't be read either (AU3-H7: a folder above one isn't deleted
+    /// unseen with it).
+    pub unreadable: Vec<String>,
 }
 
 impl std::fmt::Debug for HierarchyPage {
@@ -60,6 +64,7 @@ impl std::fmt::Debug for HierarchyPage {
             .field("changed", &self.changed.len())
             .field("deleted", &self.deleted.len())
             .field("skipped", &self.skipped)
+            .field("unreadable", &self.unreadable.len())
             .finish()
     }
 }
@@ -102,8 +107,12 @@ impl SyncFolderHierarchy {
             }
             match change.name.as_str() {
                 "Create" | "Update" => match read_folder(change) {
-                    Some(folder) => page.changed.push(folder),
-                    None => page.skipped = page.skipped.saturating_add(1),
+                    Read::Folder(folder) => page.changed.push(folder),
+                    Read::Other => page.skipped = page.skipped.saturating_add(1),
+                    Read::Unreadable { parent } => {
+                        page.skipped = page.skipped.saturating_add(1);
+                        page.unreadable.push(parent.unwrap_or_default());
+                    }
                 },
                 "Delete" => {
                     if let Some(id) = change.child_in(TYPES, "FolderId").and_then(|id| id.attribute("Id")).filter(|id| valid_id(id)) {
@@ -117,28 +126,43 @@ impl SyncFolderHierarchy {
     }
 }
 
+/// What a `Create` or `Update` holds.
+enum Read {
+    /// A mail folder that can be taken in.
+    Folder(GraphFolder),
+    /// No folder of mail (a calendar, contacts, tasks or search folder), or nothing at all.
+    Other,
+    /// A folder of mail that can't be taken in (no usable id or name), in the folder `parent`
+    /// when that could be read.
+    Unreadable { parent: Option<String> },
+}
+
 /// The folder in a `Create` or `Update`, when it is a mail folder that can be taken in.
-fn read_folder(change: &Node) -> Option<GraphFolder> {
-    let folder = change.children.iter().find(|child| *child.namespace == *TYPES)?;
+fn read_folder(change: &Node) -> Read {
+    let Some(folder) = change.children.iter().find(|child| *child.namespace == *TYPES) else { return Read::Other };
     // A calendar, contacts, tasks or search folder is no folder of mail, whatever class it says
     // (or doesn't: Grommunio's listing gave none without being asked).
     if ["CalendarFolder", "ContactsFolder", "TasksFolder", "SearchFolder"].contains(&&*folder.name) {
-        return None;
+        return Read::Other;
     }
-    let id = folder.child_in(TYPES, "FolderId")?.attribute("Id").and_then(FolderId::new)?;
     let class = folder.child_in(TYPES, "FolderClass").map_or("", |c| c.text.trim());
     // (A folder without a class is a plain folder of mail; `IPF.Note.*` are its kinds.)
     if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) {
-        return None;
+        return Read::Other;
     }
     let parent = folder.child_in(TYPES, "ParentFolderId").and_then(|p| p.attribute("Id")).and_then(FolderId::new);
-    let name: String = folder.child_in(TYPES, "DisplayName")?.text.trim().chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();
+    let unreadable = || Read::Unreadable { parent: parent.as_ref().map(|p| p.as_str().to_owned()) };
+    let Some(id) = folder.child_in(TYPES, "FolderId").and_then(|id| id.attribute("Id")).and_then(FolderId::new) else {
+        return unreadable();
+    };
+    let name: String =
+        folder.child_in(TYPES, "DisplayName").map(|n| n.text.trim().chars().filter(|c| !c.is_control()).take(MAX_NAME).collect()).unwrap_or_default();
     if name.is_empty() {
-        return None;
+        return unreadable();
     }
     let count = |name: &str| folder.child_in(TYPES, name).and_then(|n| n.text.trim().parse::<u32>().ok());
     let (total, unread) = (count("TotalCount"), count("UnreadCount"));
-    Some(GraphFolder {
+    Read::Folder(GraphFolder {
         id: id.as_str().to_owned(),
         parent: parent.map(|p| p.as_str().to_owned()).unwrap_or_default(),
         name,

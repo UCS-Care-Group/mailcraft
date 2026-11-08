@@ -121,8 +121,13 @@ impl MailApp {
         if self.offline() {
             return Err(crate::send_receive::said());
         }
-        let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
+        if self.services.graph.is_none() {
+            return Err(tl!("This build can't connect to Microsoft").to_string());
+        }
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let opening = self.session.openings();
+        let rx = self.hand_graph(account, ask)?;
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
@@ -133,7 +138,7 @@ impl MailApp {
             self.shared_send_waits.remove(&account);
         }
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, false, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, opening, rx));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true, "shared": true}))
     }
@@ -148,7 +153,9 @@ impl MailApp {
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
-        if let (Some(tokens), Some((owner, _))) = (result.tokens.take(), owner.as_ref()) {
+        // (Only the owner's own sign-in: somebody else's is neither kept nor remembered, AU3-10.)
+        let tokens = result.tokens.take().filter(|tokens| owner.as_ref().is_some_and(|(owner, _)| !self.signed_in_as_other(*owner, tokens)));
+        if let (Some(tokens), Some((owner, _))) = (tokens, owner.as_ref()) {
             if !tokens.refresh.is_empty() {
                 self.remember("refresh", *owner, &tokens.refresh);
                 if let Some(kept) = self.tokens.get_mut(owner) {

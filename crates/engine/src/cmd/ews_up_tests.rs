@@ -408,5 +408,5 @@ fn a_folder_deleted_for_good_goes_up() {
     s.run("folder.delete", &json!({"id": projects})).unwrap();
     assert!(s.mailbox.folder(projects).is_none());
     let request = ews_mail_request(&s, account, false).unwrap();
-    assert!(request.changes.iter().any(|c| matches!(c, FolderChange::Delete { id } if id == "F5")), "{:?}", request.changes);
+    assert!(request.changes.iter().any(|c| matches!(c, FolderChange::Delete { id, .. } if id == "F5")), "{:?}", request.changes);
 }

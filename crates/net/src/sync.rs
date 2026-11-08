@@ -335,6 +335,11 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
             }
             Err(e) => {
                 run.out.errors.push(format!("Couldn't send \"{}\": {e}", subject_of(&message)));
+                // Cut off once it was handed over: whether it went is not known (AU3-26). A
+                // refusal the server answered with is known not to have gone.
+                if matches!(e, NetError::Proto(ProtoError::Io(_)) | NetError::Tls { .. }) {
+                    run.out.unsure.push(message.id);
+                }
                 // The rest waits for the next run when the connection is gone.
                 if e.is_fatal() {
                     return sent;
