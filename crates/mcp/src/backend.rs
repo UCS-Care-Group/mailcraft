@@ -93,6 +93,16 @@ enum Auth {
     Refused(String),
 }
 
+/// Why a request's reply is missing: the request never went out (the retry on a new
+/// connection answers it safely), or it did and the reply was lost (an unknown outcome).
+enum NotSentOrSent {
+    /// The write failed: the retry on a new connection sends nothing twice.
+    NotSent(std::io::Error),
+    /// The request was written and the reply was lost: not sent again.
+    Sent(std::io::Error),
+}
+use NotSentOrSent::{NotSent, Sent};
+
 impl Remote {
     /// Connect to `addr` (`127.0.0.1:7981`), failing fast when nothing is listening.
     pub fn connect(addr: &str) -> std::io::Result<Self> {
@@ -200,13 +210,24 @@ impl Remote {
         Ok(req.to_string())
     }
 
-    fn roundtrip(&mut self, line: &str) -> std::io::Result<String> {
-        let Some((reader, writer)) = self.conn.as_mut() else {
+    /// Writes one request line to the control channel. Errors here are before the request is
+    /// out (the app is not reachable, the write fails): the retry on a new connection sends
+    /// nothing twice.
+    fn send_line(&mut self, line: &str) -> std::io::Result<()> {
+        let Some((_, writer)) = self.conn.as_mut() else {
             return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected"));
         };
         writer.write_all(line.as_bytes())?;
         writer.write_all(b"\n")?;
-        writer.flush()?;
+        writer.flush()
+    }
+
+    /// Reads one reply line. Errors here are after the request was written: a lost reply is an
+    /// unknown outcome, not a reason to send the same request again.
+    fn read_reply(&mut self) -> std::io::Result<String> {
+        let Some((reader, _)) = self.conn.as_mut() else {
+            return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected"));
+        };
         let mut reply = String::new();
         if reader.read_line(&mut reply)? == 0 {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed"));
@@ -214,8 +235,19 @@ impl Remote {
         Ok(reply)
     }
 
-    /// One request and its reply, with one retry on a new connection (the app may have
-    /// restarted; a new connection also reads the key again).
+    /// One request line and its reply. The challenge is the bridge's own and carries no
+    /// state change, so the authenticate flow uses this directly; a state-changing request
+    /// goes through [`Remote::exchange`], which tells a not-sent error from a lost reply.
+    fn roundtrip(&mut self, line: &str) -> std::io::Result<String> {
+        self.send_line(line)?;
+        self.read_reply()
+    }
+
+    /// One request and its reply, with one retry on a new connection when the request was
+    /// demonstrably not sent (the app may have restarted; a new connection also reads the key
+    /// again). A lost reply after the request was written is an unknown outcome: a resend
+    /// would run a state-changing command twice (compose.send, mail.sendAgain,
+    /// calendar.propose), and the app side has no idempotency.
     fn exchange(&mut self, id: u64, method: &str, params: &Value) -> Result<Value, String> {
         let unreachable = |addr: &str, e: std::io::Error| format!("MailCraft app at {addr} is not reachable: {e}");
         let mut first = true;
@@ -232,18 +264,28 @@ impl Remote {
             let result = match tried {
                 Ok(()) => {
                     let line = self.request_line(id, method, params)?;
-                    self.roundtrip(&line)
+                    match self.send_line(&line) {
+                        Err(e) => Err(NotSent(e)),
+                        Ok(()) => self.read_reply().map_err(Sent),
+                    }
                 }
-                Err(e) => Err(e),
+                Err(e) => Err(NotSent(e)),
             };
             match result {
                 Ok(r) => break r,
-                Err(e) => {
+                Err(NotSent(e)) => {
                     self.conn = None;
                     if !first {
                         return Err(unreachable(&self.addr, e));
                     }
                     first = false;
+                }
+                Err(Sent(e)) => {
+                    self.conn = None;
+                    return Err(format!(
+                        "the MailCraft app at {} lost the reply after the request was sent ({e}); the command may have run, so it is not sent again",
+                        self.addr
+                    ));
                 }
             }
         };

@@ -153,7 +153,9 @@ fn reads_the_key_again_on_a_new_connection() {
     assert_eq!(r.call("mailbox.inspect", json!({})).unwrap(), json!(1));
     assert_eq!(reads.load(Ordering::SeqCst), 2);
 
-    // The app quits mid-session (connection closed): the retry reads the key again.
+    // The app quits mid-session (connection closed after the request was read): the reply is
+    // lost, so the request is an unknown outcome and is not sent again — a resend would run
+    // a state-changing command twice, and the app side has no idempotency.
     let challenges = Arc::new(AtomicUsize::new(0));
     let c = challenges.clone();
     let (port, seen) = fake_app(move |req| {
@@ -167,10 +169,17 @@ fn reads_the_key_again_on_a_new_connection() {
     let finder: KeyFinder = Box::new(move |_| Ok(format!("key-{}", n.fetch_add(1, Ordering::SeqCst))));
     let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), finder).unwrap();
     r.call("mailbox.inspect", json!({})).unwrap();
-    r.call("mailbox.inspect", json!({})).unwrap_err();
-    let keys: Vec<Value> = seen.try_iter().map(|v| v["key"].clone()).collect();
-    assert_eq!(keys.first(), Some(&json!("key-0")), "{keys:?}");
-    assert_eq!(keys.last(), Some(&json!("key-1")), "{keys:?}");
+    let e = r.call("mailbox.inspect", json!({})).unwrap_err();
+    assert!(e.contains("may have run"), "{e}");
+    // Only the first connection's key was sent: no retry, no second copy of the request.
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
+    let mut requests = 0;
+    while let Ok(req) = seen.recv_timeout(WAIT) {
+        if req["method"] == "mailbox.inspect" {
+            requests += 1;
+        }
+    }
+    assert_eq!(requests, 2, "one request per call, no resend");
 }
 
 #[test]
