@@ -34,10 +34,18 @@ pub fn listed_under(s: &mut Session, folder: Id) -> bool {
 }
 
 /// The Gmail category the list in view shows (#911): the one chosen for the folder in view,
-/// while that folder still has categories.
+/// while the folder pane lists that folder's categories ([`listed_under`]); else the list shows
+/// the whole folder, and the pane has the folder itself as the one in view.
 pub fn in_view(s: &Session) -> Option<GmailCategory> {
     let (folder, category) = s.view.gmail?;
-    (folder == s.view.folder && has_categories(s, folder)).then_some(category)
+    (folder == s.view.folder && has_categories(s, folder) && sorted(s, folder)).then_some(category)
+}
+
+/// Whether any message of `folder` is in a category other than Primary: [`listed_under`] without
+/// the counts, for a caller that can't count.
+// ponytail: a walk over the messages until the first one sorted; [`listed_under`]'s counts if it shows up in a profile.
+fn sorted(s: &Session, folder: Id) -> bool {
+    s.mailbox.messages.values().any(|m| m.folder == folder && m.gmail_category.is_some_and(|c| c != GmailCategory::Primary))
 }
 
 /// What the list in view keeps of a Gmail account's Inbox, while it shows one of its categories:

@@ -200,8 +200,8 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(code)) => {
             let category =
                 mailcraft_model::GmailCategory::parse(code).ok_or_else(|| bad("`gmail` is primary, social, promotions, updates or forums"))?;
-            if !crate::gmail::has_categories(s, id) {
-                return Err(fail("only the Inbox of a Gmail account whose categories are shown has Gmail's categories"));
+            if !crate::gmail::listed_under(s, id) {
+                return Err(fail("only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"));
             }
             Some((id, category))
         }

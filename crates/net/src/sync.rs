@@ -812,7 +812,7 @@ impl FolderSync<'_> {
         let present: BTreeMap<u32, &Fetched> = listed.iter().filter(|m| !has(&m.flags, "\\Deleted")).map(|m| (m.uid, m)).collect();
         let mut alive = true;
         // Gmail's categories, before any message comes down, so that each comes with its own.
-        let sorted = if self.gmail { self.gmail_sort(imap, &present, run, &mut alive) } else { None };
+        let sorted = if self.gmail { self.gmail_sort(imap, &listed, &present, run, &mut alive) } else { None };
 
         // What to download, in UID order: what isn't here of the newest the limit allows (of
         // all, without one), above how far the mailbox was read or below how far down. So what
@@ -1019,19 +1019,21 @@ impl FolderSync<'_> {
 
     /// Which of Gmail's categories each message of a Gmail account's Inbox is in (#911): four of
     /// Gmail's own searches (`X-GM-RAW "category:social"` and the rest), each over sets of at most
-    /// [`MAX_GMAIL_FOUND`] of the messages, the newest [`MAX_GMAIL_SORTED`] alone; Primary is
-    /// what none of them found. Only what the sets name is taken from an answer, and a message two
+    /// [`MAX_GMAIL_FOUND`] of the messages the server listed, marked as deleted or not, so that no
+    /// answer can be longer than a line may be; the newest [`MAX_GMAIL_SORTED`] alone; Primary is
+    /// what none of them found of the messages not marked as deleted. Only what the sets name is taken from an answer, and a message two
     /// answers name is in the first of them. `None` when any search didn't answer or the run was
     /// called off: no message is then taken for Primary for want of an answer. A refusal is not
     /// said to the owner, whose mail comes as it would without them; a lost connection is.
     fn gmail_sort(
         &self,
         imap: &mut Imap<Stream<'_>>,
+        listed: &[Fetched],
         present: &BTreeMap<u32, &Fetched>,
         run: &mut Run,
         alive: &mut bool,
     ) -> Option<BTreeMap<u32, GmailCategory>> {
-        let uids: Vec<u32> = present.keys().copied().collect();
+        let uids: Vec<u32> = listed.iter().map(|m| m.uid).collect::<BTreeSet<u32>>().into_iter().collect();
         let newest = uids.get(uids.len().saturating_sub(MAX_GMAIL_SORTED)..).unwrap_or_default();
         let mut sorted: BTreeMap<u32, GmailCategory> = BTreeMap::new();
         for chunk in newest.chunks(MAX_GMAIL_FOUND) {
@@ -1059,7 +1061,7 @@ impl FolderSync<'_> {
                     }
                 }
             }
-            for uid in chunk {
+            for uid in chunk.iter().filter(|uid| present.contains_key(uid)) {
                 sorted.entry(*uid).or_insert(GmailCategory::Primary);
             }
         }

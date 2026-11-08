@@ -520,6 +520,10 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     } else if resp.hovered() {
         ui.painter().rect_filled(row, 6.0, t.hover_nav);
     }
+    // Reached with Tab or the arrow keys (Enter or Space shows it): where the keyboard is.
+    if resp.has_focus() {
+        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     let y = r.center().y - TEXT_RISE;
     let mut name_end = r.max.x - COUNT_RIGHT;

@@ -416,10 +416,20 @@ fn is_zero_u64(n: &u64) -> bool {
 impl Message {
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
-    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451).
+    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
+    /// folder it was in, it is in none of Gmail's categories, which are of a Gmail Inbox (#911).
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
+        if folder != self.folder {
+            self.left_gmail_inbox();
+        }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
+    }
+
+    /// It is in none of Gmail's categories, and Gmail's id of it is forgotten: what the server
+    /// says of the folder it is in now says them again, if anything (#911).
+    pub fn left_gmail_inbox(&mut self) {
+        (self.gmail_category, self.gmail_id) = (None, 0);
     }
 
     /// Every recipient: To, Cc, Bcc.

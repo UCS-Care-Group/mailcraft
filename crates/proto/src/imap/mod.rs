@@ -78,6 +78,10 @@ pub struct Imap<S> {
     text_seen: usize,
     /// Most responses the current command may bring.
     response_cap: usize,
+    /// Untagged lines too long to take are read past instead of ending the session, for the
+    /// current command alone (a Gmail search, #911); `skipped` says one was.
+    skip_long: bool,
+    skipped: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -570,6 +574,8 @@ impl<S: Read + Write> Imap<S> {
             leaving: false,
             text_seen: 0,
             response_cap: MAX_RESPONSES,
+            skip_long: false,
+            skipped: false,
         }
     }
 
@@ -854,14 +860,16 @@ impl<S: Read + Write> Imap<S> {
         Ok(found.into_iter().collect())
     }
 
-    /// UID SEARCH UID <set> X-GM-RAW "<query>": the messages of the open mailbox, among those
-    /// `set` names, that Gmail's own search finds for `query` (`category:social`), by UID in UID
-    /// order. `X-GM-RAW` is Gmail's (Google's "Gmail IMAP extensions"): for Gmail's server alone.
+    /// UID SEARCH UID <set> UNDELETED X-GM-RAW "<query>": the messages of the open mailbox, among
+    /// those `set` names and not marked as deleted, that Gmail's own search finds for `query`
+    /// (`category:social`), by UID in UID order. `X-GM-RAW` is Gmail's (Google's "Gmail IMAP extensions"): for Gmail's server alone.
     ///
     /// The query goes in quotes, without the CR, LF and NUL that could end the command early; one
     /// that is empty then, or isn't printable ASCII within [`MAX_QUOTED`] bytes, is refused unsent.
     /// Of the answer, only UIDs inside `set` are taken, at most [`MAX_GMAIL_FOUND`] of them: a
-    /// caller that wants them all asks for sets of fewer messages than that.
+    /// caller that wants them all asks for sets of fewer messages than that. An answer longer than
+    /// [`MAX_LINE`](crate::MAX_LINE) is read past and refused ([`ProtoError::Rejected`]): the
+    /// session goes on.
     pub fn uid_search_gmail(&mut self, set: &str, query: &str) -> Result<Vec<u32>, ProtoError> {
         if !is_set(set) {
             return Err(ProtoError::Protocol(format!("\"{}\" is not a set of messages", tidy(set))));
@@ -872,8 +880,10 @@ impl<S: Read + Write> Imap<S> {
             return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
         }
         let mut found = BTreeSet::new();
-        let command = Command::new("UID SEARCH UID").arg(set).arg("X-GM-RAW").string(query.as_bytes());
-        self.run(command, &mut |values| {
+        // Messages marked as deleted aren't shown, so they aren't asked about either.
+        let command = Command::new("UID SEARCH UID").arg(set).arg("UNDELETED X-GM-RAW").string(query.as_bytes());
+        (self.skip_long, self.skipped) = (true, false);
+        let answer = self.run(command, &mut |values| {
             if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
                 let uids = values.iter().skip(1).filter_map(Value::number).filter(|uid| *uid != 0);
                 for uid in uids.filter(|uid| ranges.iter().any(|(from, to)| (*from..=*to).contains(uid))) {
@@ -883,7 +893,14 @@ impl<S: Read + Write> Imap<S> {
                     found.insert(uid);
                 }
             }
-        })?;
+        });
+        let skipped = std::mem::take(&mut self.skipped);
+        self.skip_long = false;
+        answer?;
+        // An answer too long to read is no answer: the session goes on without it.
+        if skipped {
+            return Err(ProtoError::Rejected(format!("the server's answer was longer than {} KB", crate::MAX_LINE / 1024)));
+        }
         Ok(found.into_iter().collect())
     }
 
@@ -1086,9 +1103,19 @@ impl<S: Read + Write> Imap<S> {
 
     /// A line of the server's text, counted against what one command may take.
     fn read_text(&mut self) -> Result<Vec<u8>, ProtoError> {
-        let line = self.wire.read_line()?;
-        self.text_seen = self.text_seen.saturating_add(line.len()).saturating_add(2);
-        Ok(line)
+        loop {
+            let line = if self.skip_long { self.wire.read_line_or_skip()? } else { Some(self.wire.read_line()?) };
+            let Some(line) = line else {
+                self.skipped = true;
+                self.text_seen = self.text_seen.saturating_add(crate::MAX_LINE);
+                if self.text_seen > MAX_COMMAND_TEXT {
+                    return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));
+                }
+                continue;
+            };
+            self.text_seen = self.text_seen.saturating_add(line.len()).saturating_add(2);
+            return Ok(line);
+        }
     }
 
     fn read_response(&mut self) -> Result<Response, ProtoError> {

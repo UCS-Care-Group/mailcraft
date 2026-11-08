@@ -105,7 +105,7 @@ on Gmail's servers (`imap.gmail.com`), personal or Google Workspace, whether it 
 Google or with an app password. Each shows the Inbox's mail Gmail put in it, with its count of
 unread messages; in conversation view, a conversation is listed in a category when any of its
 messages is in it. The mail stays in the Inbox: the five are views of it, and can't be renamed,
-deleted or have mail moved into them.
+deleted or have mail moved into them. Mail moved or copied out of the Inbox is in none of them.
 
 At every Send/Receive, MailCraft asks Gmail's own search (the `X-GM-RAW` search of Google's
 Gmail IMAP extensions) which of the Inbox's messages are in Social, Promotions, Updates and

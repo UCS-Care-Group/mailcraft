@@ -49,14 +49,15 @@ fn an_inbox_on_gmail_comes_with_its_categories() {
     );
     // And every message of the Inbox's, said once with the piece that ends it.
     assert_eq!(inbox.gmail, [sorted(1, GmailCategory::Primary), sorted(2, GmailCategory::Social), sorted(5, GmailCategory::Promotions)]);
-    // Four searches of the Inbox, over the messages it has; no other folder is asked.
+    // Four searches of the Inbox, over the messages it lists (6 is marked as deleted, and not
+    // asked about); no other folder is asked.
     assert_eq!(
         searches(&imap),
         [
-            "UID SEARCH UID 1:5 X-GM-RAW \"category:social\"",
-            "UID SEARCH UID 1:5 X-GM-RAW \"category:promotions\"",
-            "UID SEARCH UID 1:5 X-GM-RAW \"category:updates\"",
-            "UID SEARCH UID 1:5 X-GM-RAW \"category:forums\""
+            "UID SEARCH UID 1:6 UNDELETED X-GM-RAW \"category:social\"",
+            "UID SEARCH UID 1:6 UNDELETED X-GM-RAW \"category:promotions\"",
+            "UID SEARCH UID 1:6 UNDELETED X-GM-RAW \"category:updates\"",
+            "UID SEARCH UID 1:6 UNDELETED X-GM-RAW \"category:forums\""
         ]
     );
     let projects = delta(&result, "Projects");
@@ -98,7 +99,8 @@ fn a_search_that_is_refused_leaves_the_categories_out_and_the_mail_in() {
 #[test]
 fn a_server_naming_other_messages_is_believed_for_its_own_alone() {
     let imap = Fake::imap(gmail_world());
-    // Messages the Inbox hasn't got, a deleted one, and one the set didn't name.
+    // Messages the Inbox hasn't got, a deleted one inside the set asked about, and one the set
+    // didn't name.
     let said = "* SEARCH 1 6 99 4294967295\r\n{tag} OK done\r\n".to_string();
     imap.world().answers.push(("category:social".into(), said));
     let result = whole(&request(account(Some(&imap), None), local_folders()), Limits::in_pieces(), gmail());
@@ -123,4 +125,28 @@ fn a_large_inbox_is_searched_in_sets_the_answer_fits() {
     assert_eq!(inbox.gmail.len(), 12_001);
     assert_eq!(inbox.new.first().map(|m| (m.uid, m.gmail_category)), Some((12_001, Some(GmailCategory::Forums))));
     assert!(inbox.gmail.contains(&sorted(3, GmailCategory::Social)));
+}
+
+#[test]
+fn deleted_messages_count_towards_the_sets_and_are_never_sorted() {
+    let mut world = gmail_world();
+    // Every other message marked as deleted by another program: the sets are of what the server
+    // lists, so an answer naming all of a set still fits in a line.
+    let many: Vec<FakeMessage> = (1..=6_000).map(|uid| message(uid, if uid % 2 == 0 { "\\Deleted" } else { "\\Seen" }, "Many")).collect();
+    inbox(&mut world).messages = many;
+    world.gmail_categories = vec![("INBOX".into(), 4, "social".into()), ("INBOX".into(), 5_999, "social".into())];
+    // And a server whose search finds deleted messages anyway.
+    world.gmail_finds_deleted = true;
+    let imap = Fake::imap(world);
+    let request = SyncRequest { max_per_folder: 1, ..request(account(Some(&imap), None), local_folders()) };
+    let result = whole(&request, Limits::in_pieces(), gmail());
+    assert_eq!(result.errors, Vec::<String>::new());
+    let sets: Vec<String> =
+        searches(&imap).iter().filter(|s| s.ends_with("social\"")).map(|s| s.split(' ').nth(3).unwrap_or("").to_string()).collect();
+    assert_eq!(sets, ["1:5000", "5001:6000"]);
+    let inbox = delta(&result, "INBOX");
+    assert_eq!(inbox.gmail.len(), 3_000, "the messages not marked as deleted, and no other");
+    assert!(inbox.gmail.iter().all(|g| g.uid % 2 == 1));
+    assert!(inbox.gmail.contains(&sorted(5_999, GmailCategory::Social)));
+    assert!(inbox.gmail.contains(&sorted(1, GmailCategory::Primary)));
 }

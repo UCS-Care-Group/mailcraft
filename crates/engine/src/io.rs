@@ -496,6 +496,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 m.id = 0;
                 m.uid = 0;
                 m.folder = folder;
+                m.left_gmail_inbox();
                 m.draft = drafts;
                 // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
                 m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));

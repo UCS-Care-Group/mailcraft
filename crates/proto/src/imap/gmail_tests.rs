@@ -36,8 +36,8 @@ fn gmail_search_is_quoted_and_kept_to_its_set() {
     assert_eq!(imap.uid_search_gmail("1:*", "category:\"x\"\r\nA9 DELETE INBOX\0"), Ok(vec![]));
     assert_eq!(
         s.sent(),
-        "A0001 UID SEARCH UID 4:12 X-GM-RAW \"category:social\"\r\n\
-         A0002 UID SEARCH UID 1:* X-GM-RAW \"category:\\\"x\\\"A9 DELETE INBOX\"\r\n"
+        "A0001 UID SEARCH UID 4:12 UNDELETED X-GM-RAW \"category:social\"\r\n\
+         A0002 UID SEARCH UID 1:* UNDELETED X-GM-RAW \"category:\\\"x\\\"A9 DELETE INBOX\"\r\n"
     );
     // A refusal is said.
     let mut s = Script::new("A0001 BAD no such search\r\n");
@@ -58,4 +58,21 @@ fn gmail_search_takes_no_more_than_its_cap() {
     // As many as the cap, at the longest a UID is written, fit in one line.
     let longest: String = (0..MAX_GMAIL_FOUND).map(|_| " 4294967295").collect();
     assert!(format!("* SEARCH{longest}").len() < crate::MAX_LINE);
+}
+
+#[test]
+fn a_gmail_answer_too_long_is_refused_and_the_session_goes_on() {
+    let long: String = (0..20_000).map(|n| format!(" {}", 1_000_000_000u32 + n)).collect();
+    assert!(long.len() > crate::MAX_LINE);
+    let server = format!("* SEARCH{long}\r\n* SEARCH 3\r\nA0001 OK done\r\n* SEARCH 5\r\nA0002 OK done\r\n");
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    assert!(matches!(imap.uid_search_gmail("1:*", "category:social"), Err(ProtoError::Rejected(_))));
+    // The next command is answered as if nothing had happened.
+    assert_eq!(imap.uid_search_gmail("1:*", "category:social"), Ok(vec![5]));
+    // Elsewhere a line that long still ends the session, and a tagged one is never read past.
+    let mut s = Script::new(format!("* SEARCH{long}\r\nA0001 OK done\r\n"));
+    assert!(matches!(Imap::resume(&mut s).uid_search_header("Message-ID", "x"), Err(ProtoError::Protocol(_))));
+    let mut s = Script::new(format!("A0001 OK{long}\r\n"));
+    assert!(matches!(Imap::resume(&mut s).uid_search_gmail("1:*", "category:social"), Err(ProtoError::Protocol(_))));
 }

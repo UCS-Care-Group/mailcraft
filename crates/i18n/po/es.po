@@ -15298,7 +15298,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-msgid "only the Inbox of a Gmail account whose categories are shown has Gmail's categories"
+msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
 msgstr ""
 
 #. what a command says

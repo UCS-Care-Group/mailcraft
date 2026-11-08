@@ -224,3 +224,51 @@ fn alerts_for_primary_alone_when_the_owner_asks() {
     assert_eq!(told, ["Dinner?", "Not sorted yet"]);
     assert!(s.run("account.edit", &json!({"id": account, "alertPrimaryOnly": 1})).is_err());
 }
+
+#[test]
+fn mail_that_leaves_the_inbox_leaves_its_category() {
+    let (mut s, account, _) = sorted_inbox();
+    let social = by_uid(&s, account, 2).id;
+    let kept = s.mailbox.add_folder(account, None, "Kept").unwrap();
+    s.run("mail.copy", &json!({"ids": [social], "folder": kept})).unwrap();
+    s.run("mail.move", &json!({"ids": [social], "folder": kept})).unwrap();
+    let filed: Vec<&Message> = s.mailbox.messages.values().filter(|m| m.folder == kept).map(|m| m.as_ref()).collect();
+    assert_eq!(filed.len(), 2);
+    for m in filed {
+        assert_eq!((m.gmail_category, m.gmail_id), (None, 0), "{}", m.subject);
+    }
+    s.run("view.search", &json!({"query": "gmail:social", "scope": "mailbox"})).unwrap();
+    assert!(listed(&s).is_empty());
+    assert_eq!(s.folder_counts(), std::sync::Arc::new(crate::counts::FolderCounts::of(&s.mailbox)));
+}
+
+#[test]
+fn a_category_no_longer_listed_shows_the_whole_inbox() {
+    let (mut s, account, inbox) = sorted_inbox();
+    s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
+    // Gmail puts everything in Primary: the five rows go, and the list is the whole Inbox.
+    let gmail = (1..=4).map(|uid| sorted(uid, GmailCategory::Primary)).collect();
+    apply(&mut s, account, vec![inbox_delta(inbox, Vec::new(), gmail)]);
+    assert!(!crate::gmail::listed_under(&mut s, inbox));
+    assert_eq!((crate::gmail::in_view(&s), listed(&s).len()), (None, 4));
+    // And none can be chosen while they aren't listed.
+    assert!(s.run("folder.select", &json!({"id": inbox, "gmail": "primary"})).is_err());
+}
+
+#[test]
+fn a_message_opened_from_elsewhere_shows_its_whole_folder() {
+    let (mut s, account, inbox) = sorted_inbox();
+    let primary = by_uid(&s, account, 1).id;
+    s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
+    s.run("mail.select", &json!({"id": primary, "elsewhere": true})).unwrap();
+    assert_eq!((s.view.folder, s.view.gmail), (inbox, None));
+    assert!(listed(&s).contains(&"Lunch".to_string()));
+}
+
+#[test]
+fn the_category_in_view_is_not_kept_between_sessions() {
+    let (mut s, _, inbox) = sorted_inbox();
+    s.run("folder.select", &json!({"id": inbox, "gmail": "social"})).unwrap();
+    let saved = serde_json::to_value(&s.view).unwrap();
+    assert!(saved.get("gmail").is_none(), "{saved}");
+}

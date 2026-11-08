@@ -287,8 +287,8 @@ pub struct ViewState {
     pub filter: Filter,
     /// The Gmail category of the folder in view the list shows (#911): that Inbox's mail Gmail
     /// put in it. Only while that folder is in view (`folder.select` with `gmail`); `None` for
-    /// the whole folder.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// the whole folder. Not kept between sessions: the window opens on the whole folder.
+    #[serde(skip)]
     pub gmail: Option<(Id, mailcraft_model::GmailCategory)>,
     pub search: String,
     pub scope: Scope,
@@ -1578,9 +1578,11 @@ impl Session {
         self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.list_of())));
     }
 
-    /// The list shows the whole folder in view: the All tab, and no search.
+    /// The list shows the whole folder in view: the All tab, none of Gmail's categories (#911),
+    /// and no search.
     pub(crate) fn show_whole_folder(&mut self) {
         self.view.filter = Filter::All;
+        self.view.gmail = None;
         self.clear_search();
     }
 

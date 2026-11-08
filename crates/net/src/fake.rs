@@ -340,9 +340,11 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail: bool,
     /// For a server that behaves as Gmail does: the mailbox, the UID and the word Gmail's search
     /// finds it by after `category:` (`social`) of each message that is in one of Gmail's
-    /// categories other than Primary. Such a server answers `UID SEARCH UID <set> X-GM-RAW
-    /// "category:…"` and gives each message an `X-GM-MSGID` (its UID plus [`GMAIL_IDS`]).
+    /// categories other than Primary. Such a server answers `UID SEARCH UID <set> UNDELETED
+    /// X-GM-RAW "category:…"` and gives each message an `X-GM-MSGID` (its UID plus [`GMAIL_IDS`]).
     pub(crate) gmail_categories: Vec<(String, u32, String)>,
+    /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
+    pub(crate) gmail_finds_deleted: bool,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -753,19 +755,19 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
             // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
-            // X-GM-RAW "category:…"`: the searches asked of a server.
+            // UNDELETED X-GM-RAW "category:…"`: the searches asked of a server.
             "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
                 let said = words(args);
                 let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
-                let gmail_raw = said.len() == 5 && asked(1, "UID") && asked(3, "X-GM-RAW");
+                let gmail_raw = said.len() == 6 && asked(1, "UID") && asked(3, "UNDELETED") && asked(4, "X-GM-RAW");
                 match open.and_then(|i| world.mailboxes.get(i)) {
                     _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),
-                    Some(mailbox) if gmail_raw => match said[4].to_ascii_lowercase().strip_prefix("category:") {
+                    Some(mailbox) if gmail_raw => match said[5].to_ascii_lowercase().strip_prefix("category:") {
                         Some(wanted) => {
                             let found: String = mailbox
                                 .messages
                                 .iter()
-                                .filter(|m| !m.has("\\Deleted") && in_set(&said[2], m.uid))
+                                .filter(|m| (world.gmail_finds_deleted || !m.has("\\Deleted")) && in_set(&said[2], m.uid))
                                 .filter(|m| world.gmail_categories.iter().any(|(at, uid, c)| *at == mailbox.raw && *uid == m.uid && *c == wanted))
                                 .map(|m| format!(" {}", m.uid))
                                 .collect();
