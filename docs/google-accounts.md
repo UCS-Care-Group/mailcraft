@@ -120,6 +120,17 @@ In **Account Settings**, under **Gmail categories**:
 - **Desktop alerts only for mail in Primary** (off by default) keeps new mail that Gmail puts in
   the other four categories from raising a desktop alert.
 
+### As tabs above the Inbox
+
+To have the five as a row of tabs above the Inbox's message list instead of folders in the folder
+pane, choose **View** › **Gmail Categories** › **As Tabs above the Inbox** (**As Folders** goes
+back). The choice is offered while a Gmail account shows its categories, and the window keeps it
+with its other View settings. Each tab shows its count of unread messages. The Inbox opens on all
+of its mail with no tab chosen; choosing a tab shows that category's mail, and choosing it again
+goes back to the whole Inbox. Tab reaches the tabs, the arrow keys move between them, and Enter or
+Space chooses one. In a narrow message list the tabs take two lines rather than shortening their
+names. Agents choose the same with `view.gmailCategories` (`{"value": "tabs"}` or `"folders"`).
+
 Gmail's categories are not MailCraft's own categories: search for them with
 `gmail:primary`, `gmail:social`, `gmail:promotions`, `gmail:updates` or `gmail:forums`, while
 `category:` still finds your own. Agents see a message's `gmailCategory` beside its other fields.

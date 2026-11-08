@@ -22,6 +22,20 @@ pub fn has_categories(s: &Session, folder: Id) -> bool {
         .is_some_and(|f| f.kind == FolderKind::Inbox && mb.account(f.account).is_some_and(|a| !a.is_shared() && a.shows_gmail_categories()))
 }
 
+/// Whether View › Gmail Categories is offered (`view.gmailCategories`): `None` when an account of
+/// the mailbox is a Gmail account whose owner didn't turn its categories off, else why not.
+pub fn offered(s: &Session) -> Option<&'static str> {
+    let any = s.mailbox.accounts.iter().any(|a| !a.is_shared() && a.shows_gmail_categories());
+    (!any).then_some("needs a Gmail account whose categories are shown")
+}
+
+/// Whether the list in view has Gmail's categories as a row of tabs above it (#911): the setting
+/// is tabs (`view.gmailCategories`), Mail is in front, and the folder in view is a Gmail Inbox
+/// whose categories are listed ([`listed_under`]). The folder pane then lists none under it.
+pub fn tabs_shown(s: &mut Session) -> bool {
+    s.view.gmail_tabs && s.view.module == crate::Module::Mail && listed_under(s, s.view.folder)
+}
+
 /// Whether the folder pane lists the five under `folder`: [`has_categories`], and Gmail put at
 /// least one of its messages in a category other than Primary (an account whose owner turned
 /// categories off in Gmail has everything in Primary, and nothing to sort).

@@ -290,6 +290,9 @@ pub struct ViewState {
     /// the whole folder. Not kept between sessions: the window opens on the whole folder.
     #[serde(skip)]
     pub gmail: Option<(Id, mailcraft_model::GmailCategory)>,
+    /// Gmail's categories as a row of tabs above a Gmail Inbox's list, in place of the five
+    /// folders under it in the folder pane (#911; `view.gmailCategories`). Off: as folders.
+    pub gmail_tabs: bool,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -330,6 +333,7 @@ impl Default for ViewState {
             open: Vec::new(),
             filter: Filter::All,
             gmail: None,
+            gmail_tabs: false,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
