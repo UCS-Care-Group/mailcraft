@@ -1,0 +1,398 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Checking S/MIME Digital signatures (#30): fixed vectors signed with RFC 9216's example
+//! certificate for Alice (by OpenSSL, `testdata/`), and certificates of example.org authorities
+//! and signers made here; and never a panic on any bytes.
+
+use cms::cert::IssuerAndSerialNumber;
+use cms::content_info::{CmsVersion, ContentInfo};
+use cms::signed_data::{CertificateSet, EncapsulatedContentInfo, SignedData, SignerIdentifier, SignerInfo, SignerInfos};
+use const_oid::ObjectIdentifier;
+use der::asn1::{OctetString, SetOfVec};
+use der::{Any, Decode, Encode};
+use mailcraft_model::digital_signature::{Verdict, Why};
+use proptest::prelude::*;
+use spki::AlgorithmIdentifierOwned;
+use x509_cert::Certificate;
+use x509_cert::attr::Attribute;
+
+use crate::{Anchors, Checked, Context, Signed, check};
+
+const CA: &[u8] = include_bytes!("../testdata/ca.rsa.der");
+const ALICE: &[u8] = include_bytes!("../testdata/alice.sign.der");
+const DETACHED: &[u8] = include_bytes!("../testdata/detached.eml");
+const OPAQUE: &[u8] = include_bytes!("../testdata/opaque.eml");
+const OPAQUE_BER: &[u8] = include_bytes!("../testdata/opaque-ber.eml");
+const SHA1: &[u8] = include_bytes!("../testdata/sha1.eml");
+const NO_ATTRIBUTES: &[u8] = include_bytes!("../testdata/noattr.eml");
+const PSS: &[u8] = include_bytes!("../testdata/pss.eml");
+const NO_CERTS: &[u8] = include_bytes!("../testdata/nocerts.eml");
+
+/// 2026-11-09, within the RFC 9216 certificates' years.
+const NOW: i64 = 1_794_182_400;
+
+fn base64(text: &[u8]) -> Vec<u8> {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for c in text {
+        let Some(v) = ALPHABET.iter().position(|a| a == c) else { continue };
+        acc = (acc << 6) | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    out
+}
+
+/// A message's body: what follows its first empty line.
+fn body(message: &[u8]) -> &[u8] {
+    let at = message.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    &message[at + 4..]
+}
+
+/// The two halves of a detached fixture: the signed part as it came, and the CMS.
+fn halves(message: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let text = String::from_utf8_lossy(message);
+    let boundary = text.split("boundary=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let delimiter = format!("\r\n--{boundary}");
+    let body = String::from_utf8_lossy(body(message)).into_owned();
+    let pieces: Vec<&str> = body.split(delimiter.as_str()).collect();
+    // pieces[0] is the preamble up to the first delimiter line; the content follows its CRLF.
+    let content = pieces[1].strip_prefix("\r\n").unwrap().as_bytes().to_vec();
+    let signature_part = pieces[2].strip_prefix("\r\n").unwrap();
+    (content, base64(body_of(signature_part.as_bytes())))
+}
+
+fn body_of(part: &[u8]) -> &[u8] {
+    let at = part.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    &part[at + 4..]
+}
+
+fn anchors() -> Anchors {
+    Anchors::new([CA])
+}
+
+fn checked_detached(message: &[u8], anchors: &Anchors, from: &str, now: i64, known: &[&[u8]]) -> Checked {
+    let (content, signature) = halves(message);
+    check(Signed::Detached { content: &content, signature: &signature }, &Context { anchors, from, now, known }).unwrap()
+}
+
+fn checked_opaque(message: &[u8], anchors: &Anchors, from: &str) -> Checked {
+    let cms = base64(body(message));
+    check(Signed::Opaque(&cms), &Context { anchors, from, now: NOW, known: &[] }).unwrap()
+}
+
+#[test]
+fn alices_detached_signature_is_verified() {
+    let c = checked_detached(DETACHED, &anchors(), "alice@smime.example", NOW, &[]);
+    assert_eq!(c.signature.verdict, Verdict::Verified, "{c:?}");
+    assert_eq!(c.signature.why, None);
+    let signer = c.signature.signer.clone().unwrap();
+    assert_eq!(signer.name, "Alice Lovelace");
+    assert_eq!(signer.addresses, vec!["alice@smime.example".to_string()]);
+    assert_eq!(signer.issuer, "Sample LAMPS RSA Certification Authority");
+    assert_eq!(signer.fingerprint.len(), 32 * 3 - 1);
+    assert!(signer.not_before < NOW && NOW < signer.not_after);
+    assert!(c.signature.signed_at.is_some(), "OpenSSL gives a signing time");
+    assert!(!c.signature.revocation_checked);
+    assert_eq!(c.certificate.as_deref(), Some(ALICE), "the certificate is worth keeping");
+}
+
+#[test]
+fn the_address_is_compared_without_regard_to_case() {
+    let c = checked_detached(DETACHED, &anchors(), "Alice@SMIME.example", NOW, &[]);
+    assert_eq!(c.signature.verdict, Verdict::Verified);
+}
+
+#[test]
+fn opaque_ber_pss_and_bare_signatures_are_verified() {
+    for message in [OPAQUE, OPAQUE_BER] {
+        let c = checked_opaque(message, &anchors(), "alice@smime.example");
+        assert_eq!(c.signature.verdict, Verdict::Verified, "{c:?}");
+    }
+    for message in [NO_ATTRIBUTES, PSS] {
+        let c = checked_detached(message, &anchors(), "alice@smime.example", NOW, &[]);
+        assert_eq!(c.signature.verdict, Verdict::Verified, "{c:?}");
+    }
+}
+
+#[test]
+fn sha1_is_no_longer_safe() {
+    let c = checked_detached(SHA1, &anchors(), "alice@smime.example", NOW, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Unchecked, Some(Why::WeakAlgorithm)));
+    assert_eq!(c.certificate, None);
+}
+
+#[test]
+fn a_signature_without_its_certificate_needs_one_kept_here() {
+    let c = checked_detached(NO_CERTS, &anchors(), "alice@smime.example", NOW, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Unchecked, Some(Why::NoPublicKey)));
+    let c = checked_detached(NO_CERTS, &anchors(), "alice@smime.example", NOW, &[ALICE]);
+    assert_eq!(c.signature.verdict, Verdict::Verified);
+}
+
+#[test]
+fn an_unknown_issuer_another_address_and_an_expired_certificate_are_not_verified() {
+    let c = checked_detached(DETACHED, &Anchors::default(), "alice@smime.example", NOW, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
+    assert!(c.certificate.is_some(), "kept all the same: the signature is the certificate's");
+    let c = checked_detached(DETACHED, &anchors(), "bob@smime.example", NOW, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+    assert_eq!(c.certificate, None, "not kept for an address it isn't for");
+    // 2060: past 2052.
+    let c = checked_detached(DETACHED, &anchors(), "alice@smime.example", 2_840_140_800, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::Expired)));
+}
+
+#[test]
+fn a_change_after_signing_is_seen() {
+    let (mut content, signature) = halves(DETACHED);
+    let at = content.windows(7).position(|w| w == b"Tuesday").unwrap();
+    content[at] = b'W';
+    let c = check(
+        Signed::Detached { content: &content, signature: &signature },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+    )
+    .unwrap();
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Changed, Some(Why::Altered)));
+    // Opaque: the content inside the CMS.
+    let mut cms = base64(body(OPAQUE));
+    let at = cms.windows(7).position(|w| w == b"Tuesday").unwrap();
+    cms[at] = b'W';
+    let c = check(Signed::Opaque(&cms), &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] }).unwrap();
+    assert_eq!(c.signature.verdict, Verdict::Changed);
+    // The signature itself.
+    let (content, mut signature) = halves(DETACHED);
+    let last = signature.len() - 1;
+    signature[last] ^= 1;
+    let c = check(
+        Signed::Detached { content: &content, signature: &signature },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+    )
+    .unwrap();
+    assert_eq!(c.signature.verdict, Verdict::Changed);
+}
+
+#[test]
+fn content_in_lf_lines_is_checked_in_its_canonical_form() {
+    let (content, signature) = halves(DETACHED);
+    let lf: Vec<u8> = String::from_utf8_lossy(&content).replace("\r\n", "\n").into_bytes();
+    let c = check(
+        Signed::Detached { content: &lf, signature: &signature },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+    )
+    .unwrap();
+    assert_eq!(c.signature.verdict, Verdict::Verified);
+}
+
+#[test]
+fn enveloped_data_is_no_digital_signature_and_junk_is_unreadable() {
+    // ContentInfo { envelopedData, [0] { SEQUENCE {} } }.
+    let enveloped = [0x30, 0x0f, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x03, 0xa0, 0x02, 0x30, 0x00];
+    let context = Context { anchors: &Anchors::default(), from: "a@example.org", now: NOW, known: &[] };
+    assert_eq!(check(Signed::Opaque(&enveloped), &context), None);
+    let junk = check(Signed::Opaque(b"not a CMS"), &context).unwrap();
+    assert_eq!((junk.signature.verdict, junk.signature.why), (Verdict::Unchecked, Some(Why::Unreadable)));
+}
+
+// ---- certificates made here ----
+
+const SHA256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.1");
+const ECDSA_SHA256: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.4.3.2");
+const ECDSA_SHA384: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.4.3.3");
+const SHA384: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.2");
+
+struct Made {
+    der: Vec<u8>,
+    key: rcgen::KeyPair,
+    params: rcgen::CertificateParams,
+}
+
+fn params(name: &str) -> rcgen::CertificateParams {
+    let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+    p.distinguished_name = rcgen::DistinguishedName::new();
+    p.distinguished_name.push(rcgen::DnType::CommonName, name);
+    p.not_before = rcgen::date_time_ymd(2020, 1, 1);
+    p.not_after = rcgen::date_time_ymd(2050, 1, 1);
+    p
+}
+
+fn ca_params(name: &str) -> rcgen::CertificateParams {
+    let mut p = params(name);
+    p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    p.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign, rcgen::KeyUsagePurpose::CrlSign];
+    p
+}
+
+fn signer_params(name: &str, address: &str) -> rcgen::CertificateParams {
+    let mut p = params(name);
+    p.subject_alt_names = vec![rcgen::SanType::Rfc822Name(address.try_into().unwrap())];
+    p.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
+    p.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection];
+    p
+}
+
+fn key(alg: &'static rcgen::SignatureAlgorithm) -> rcgen::KeyPair {
+    rcgen::KeyPair::generate_for(alg).unwrap()
+}
+
+fn root(name: &str) -> Made {
+    let key = key(&rcgen::PKCS_ECDSA_P256_SHA256);
+    let params = ca_params(name);
+    let der = params.self_signed(&key).unwrap().der().to_vec();
+    Made { der, key, params }
+}
+
+fn issued(params: rcgen::CertificateParams, key: rcgen::KeyPair, by: &Made) -> Made {
+    let issuer = rcgen::Issuer::new(by.params.clone(), &by.key);
+    let der = params.signed_by(&key, &issuer).unwrap().der().to_vec();
+    Made { der, key, params }
+}
+
+/// A detached CMS SignedData over `content` by `signer`, carrying `certs`.
+fn sign(content: &[u8], signer: &Made, certs: &[&Made], p384: bool) -> Vec<u8> {
+    let cert = Certificate::from_der(&signer.der).unwrap();
+    let (digest_oid, sig_oid) = if p384 { (SHA384, ECDSA_SHA384) } else { (SHA256, ECDSA_SHA256) };
+    let digest = if p384 { ring::digest::digest(&ring::digest::SHA384, content) } else { ring::digest::digest(&ring::digest::SHA256, content) };
+    let attr = |oid: &str, value: Any| Attribute { oid: ObjectIdentifier::new_unwrap(oid), values: SetOfVec::try_from(vec![value]).unwrap() };
+    let attrs: SetOfVec<Attribute> = SetOfVec::try_from(vec![
+        attr("1.2.840.113549.1.9.3", Any::encode_from(&ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1")).unwrap()),
+        attr("1.2.840.113549.1.9.4", Any::encode_from(&OctetString::new(digest.as_ref().to_vec()).unwrap()).unwrap()),
+    ])
+    .unwrap();
+    let to_sign = attrs.to_der().unwrap();
+    let alg = if p384 { &ring::signature::ECDSA_P384_SHA384_ASN1_SIGNING } else { &ring::signature::ECDSA_P256_SHA256_ASN1_SIGNING };
+    let rng = ring::rand::SystemRandom::new();
+    let pair = ring::signature::EcdsaKeyPair::from_pkcs8(alg, &signer.key.serialize_der(), &rng).unwrap();
+    let signature = pair.sign(&rng, &to_sign).unwrap();
+    let info = SignerInfo {
+        version: CmsVersion::V1,
+        sid: SignerIdentifier::IssuerAndSerialNumber(IssuerAndSerialNumber {
+            issuer: cert.tbs_certificate().issuer().clone(),
+            serial_number: cert.tbs_certificate().serial_number().clone(),
+        }),
+        digest_alg: AlgorithmIdentifierOwned { oid: digest_oid, parameters: None },
+        signed_attrs: Some(attrs),
+        signature_algorithm: AlgorithmIdentifierOwned { oid: sig_oid, parameters: None },
+        signature: OctetString::new(signature.as_ref().to_vec()).unwrap(),
+        unsigned_attrs: None,
+    };
+    let set: Vec<cms::cert::CertificateChoices> =
+        certs.iter().map(|c| cms::cert::CertificateChoices::Certificate(Certificate::from_der(&c.der).unwrap())).collect();
+    let data = SignedData {
+        version: CmsVersion::V1,
+        digest_algorithms: SetOfVec::try_from(vec![AlgorithmIdentifierOwned { oid: digest_oid, parameters: None }]).unwrap(),
+        encap_content_info: EncapsulatedContentInfo { econtent_type: ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1"), econtent: None },
+        certificates: Some(CertificateSet::try_from(set).unwrap()),
+        crls: None,
+        signer_infos: SignerInfos::try_from(vec![info]).unwrap(),
+    };
+    ContentInfo { content_type: ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.2"), content: Any::encode_from(&data).unwrap() }.to_der().unwrap()
+}
+
+fn verdict(cms: &[u8], content: &[u8], anchors: &Anchors, from: &str) -> (Verdict, Option<Why>) {
+    let c = check(Signed::Detached { content, signature: cms }, &Context { anchors, from, now: NOW, known: &[] }).unwrap();
+    (c.signature.verdict, c.signature.why)
+}
+
+const CONTENT: &[u8] = b"Content-Type: text/plain\r\n\r\nThe accounts are ready.\r\n";
+
+#[test]
+fn a_path_through_an_intermediate_authority_is_verified() {
+    let root = root("Example Root");
+    let intermediate = issued(ca_params("Example Mail CA"), key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    let ada = issued(signer_params("Ada", "ada@example.org"), key(&rcgen::PKCS_ECDSA_P256_SHA256), &intermediate);
+    let cms = sign(CONTENT, &ada, &[&ada, &intermediate], false);
+    let anchors = Anchors::new([&root.der]);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "ada@example.org"), (Verdict::Verified, None));
+    // Without the intermediate authority's certificate there is no path.
+    let alone = sign(CONTENT, &ada, &[&ada], false);
+    assert_eq!(verdict(&alone, CONTENT, &anchors, "ada@example.org"), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
+    // A P-384 signer.
+    let grace = issued(signer_params("Grace", "grace@example.org"), key(&rcgen::PKCS_ECDSA_P384_SHA384), &intermediate);
+    let cms = sign(CONTENT, &grace, &[&grace, &intermediate], true);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "grace@example.org"), (Verdict::Verified, None));
+}
+
+#[test]
+fn a_certificate_not_for_mail_or_signed_by_itself_is_not_verified() {
+    let root = root("Example Root");
+    let anchors = Anchors::new([&root.der]);
+    let mut web = signer_params("Web", "web@example.org");
+    web.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+    let web = issued(web, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    let cms = sign(CONTENT, &web, &[&web], false);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "web@example.org"), (Verdict::NotVerified, Some(Why::NotForEmail)));
+    let own_key = key(&rcgen::PKCS_ECDSA_P256_SHA256);
+    let own_params = signer_params("Self", "self@example.org");
+    let own = Made { der: own_params.self_signed(&own_key).unwrap().der().to_vec(), key: own_key, params: own_params };
+    let cms = sign(CONTENT, &own, &[&own], false);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "self@example.org"), (Verdict::NotVerified, Some(Why::SelfSigned)));
+    // Unless the host trusts it itself.
+    assert_eq!(verdict(&cms, CONTENT, &Anchors::new([&own.der]), "self@example.org"), (Verdict::Verified, None));
+}
+
+#[test]
+fn an_expired_link_is_not_verified() {
+    let root = root("Example Root");
+    let mut old = signer_params("Old", "old@example.org");
+    old.not_after = rcgen::date_time_ymd(2021, 1, 1);
+    let old = issued(old, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    let cms = sign(CONTENT, &old, &[&old], false);
+    assert_eq!(verdict(&cms, CONTENT, &Anchors::new([&root.der]), "old@example.org"), (Verdict::NotVerified, Some(Why::Expired)));
+}
+
+#[test]
+fn a_certificate_from_another_authority_of_the_same_name_is_not_trusted() {
+    let real = root("Example Root");
+    let fake = root("Example Root");
+    let ada = issued(signer_params("Ada", "ada@example.org"), key(&rcgen::PKCS_ECDSA_P256_SHA256), &fake);
+    let cms = sign(CONTENT, &ada, &[&ada], false);
+    assert_eq!(verdict(&cms, CONTENT, &Anchors::new([&real.der]), "ada@example.org"), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
+}
+
+#[test]
+fn the_ber_reader_keeps_der_as_it_is_and_joins_pieces() {
+    assert_eq!(crate::ber::to_der(CA).as_deref(), Some(CA));
+    // SEQUENCE (indefinite) { OCTET STRING in pieces "ab" "c" }.
+    let ber = [0x30, 0x80, 0x24, 0x80, 0x04, 0x02, b'a', b'b', 0x04, 0x01, b'c', 0x00, 0x00, 0x00, 0x00];
+    assert_eq!(crate::ber::to_der(&ber), Some(vec![0x30, 0x05, 0x04, 0x03, b'a', b'b', b'c']));
+    // Nesting past the bound is refused, not followed.
+    let deep: Vec<u8> = std::iter::repeat_n([0x30u8, 0x80], 200).flatten().chain(std::iter::repeat_n(0u8, 400)).collect();
+    assert_eq!(crate::ber::to_der(&deep), None);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(512))]
+
+    #[test]
+    fn any_bytes_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+        let anchors = Anchors::new([CA]);
+        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[&bytes] };
+        let _ = check(Signed::Opaque(&bytes), &context);
+        let _ = check(Signed::Detached { content: b"x", signature: &bytes }, &context);
+        let _ = crate::ber::to_der(&bytes);
+        let _ = Anchors::new([&bytes]);
+    }
+
+    #[test]
+    fn a_damaged_cms_never_panics(flip in 0usize..3000, byte in any::<u8>(), cut in 0usize..3000) {
+        let mut cms = base64(body(OPAQUE_BER));
+        if let Some(b) = cms.get_mut(flip) {
+            *b = byte;
+        }
+        cms.truncate(cut);
+        let anchors = Anchors::new([CA]);
+        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[] };
+        let _ = check(Signed::Opaque(&cms), &context);
+        let (content, signature) = halves(DETACHED);
+        let mut signature = signature;
+        if let Some(b) = signature.get_mut(flip) {
+            *b = byte;
+        }
+        let _ = check(Signed::Detached { content: &content, signature: &signature }, &context);
+    }
+}
