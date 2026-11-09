@@ -335,3 +335,32 @@ fn check_again_on_text_read_wrongly_takes_the_text_too() {
     assert_eq!(m.body.text.trim(), "Signed text.");
     assert!(m.refetched && !m.refetch && !m.original_wanted);
 }
+
+/// Its text read wrongly kept on disk, not in memory: Check again reads it for that, and takes
+/// the whole download too, even once the text is let go of again.
+#[test]
+fn check_again_on_text_read_wrongly_on_disk_takes_the_text_too() {
+    let (mut s, id) = read_before(AccountKind::Imap, SIGNED);
+    s.mailbox.message_mut(id).unwrap().body.text = format!("Signed t\u{fffd}xt. {}", "More. ".repeat(400));
+    let dir = std::env::temp_dir().join(format!("mailcraft-check-again-disk-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("mailbox.mailcraft");
+    crate::store::save(&path, &s.mailbox).unwrap();
+    crate::store::clear_cache();
+    let mut s = Session::new(crate::store::with_budget(1, || crate::store::open(&path).unwrap()).mailbox);
+    s.path = Some(path.clone());
+    assert!(s.mailbox.message(id).unwrap().body.text.is_empty(), "kept on disk");
+    s.run("mail.checkAgain", &json!({"id": id})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.refetch && !m.original_wanted);
+    // Let go of again before the download comes.
+    let mut thin = mailcraft_model::Message::clone(m);
+    thin.body.text = String::new();
+    *s.mailbox.message_mut(id).unwrap() = thin;
+    imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(SIGNED));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.original_bytes(), Some(SIGNED));
+    assert_eq!(m.body.text.trim(), "Signed text.");
+    let _ = std::fs::remove_dir_all(&dir);
+}

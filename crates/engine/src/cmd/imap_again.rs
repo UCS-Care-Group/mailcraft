@@ -21,7 +21,7 @@ use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message};
 pub const MAX_AGAIN: usize = 200;
 
 /// Whether `m` holds a character that couldn't be read, in its subject, names or text.
-fn unreadable(m: &Message) -> bool {
+pub(crate) fn unreadable(m: &Message) -> bool {
     const MARK: char = char::REPLACEMENT_CHARACTER;
     let names = std::iter::once(&m.from).chain(&m.to).chain(&m.cc).chain(&m.reply_to).map(|a| a.name.as_str());
     let texts = [m.subject.as_str(), m.body.text.as_str(), m.body.html.as_deref().unwrap_or("")];
@@ -66,6 +66,9 @@ pub fn wanted(mb: &Mailbox, account: Id) -> HashMap<Id, Vec<u32>> {
     // In folder and UID order, so that which are asked for first doesn't change from run to run.
     let mut marked: Vec<(Id, u32)> =
         mb.messages.values().filter(|m| m.refetch && m.uid != 0 && m.account == account).map(|m| (m.folder, m.uid)).collect();
+    // And the bytes a message being moved into another account came as (#30), from the copy it
+    // came from, which waits here to go ([`crate::cmd::mail::check_again::ask_source`]).
+    marked.extend(moved_out(mb, account).into_keys());
     marked.sort_unstable();
     marked.truncate(MAX_AGAIN);
     for (folder, uid) in marked {
@@ -79,6 +82,8 @@ pub fn wanted(mb: &Mailbox, account: Id) -> HashMap<Id, Vec<u32>> {
 /// owner's own and keeps its text; a name list of another length or of other addresses is not
 /// the same list and stays.
 pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
+    // What came brought no original (#30): its server's copy isn't protected either.
+    let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
     let replaced = mb.message(id).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
     if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
@@ -86,10 +91,13 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     }
     let Ok(m) = mb.message_mut(id) else { return };
     (m.refetch, m.refetched) = (false, true);
+    let wanted = std::mem::take(&mut m.original_wanted);
+    m.original_asked |= wanted && !brought;
     // Check again asked for the bytes it came as alone (#30): nothing else of it changes, but
     // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
-    // would have been had it been marked for that.
-    if std::mem::take(&mut m.original_wanted) && (m.draft || !unreadable(m)) {
+    // would have been had it been marked for that. (One being moved into another account, asked
+    // for from the copy it came from, alike.)
+    if wanted && (m.draft || !unreadable(m)) {
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }
@@ -125,6 +133,24 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     }
 }
 
+/// The messages moved out of `account` whose original is asked for from the copy they came from
+/// ([`crate::cmd::mail::check_again::ask_source`]), by that copy's folder here and UID.
+pub(crate) fn moved_out(mb: &Mailbox, account: Id) -> HashMap<(Id, u32), Id> {
+    mb.pending
+        .iter()
+        .filter(|p| p.account() == account)
+        .filter_map(|p| match p {
+            mailcraft_model::Pending::Move { message, .. } => {
+                let (from, uid) = p.source();
+                let m = mb.message(*message).filter(|m| m.refetch && m.original_wanted && m.account != account && uid != 0)?;
+                let folder = mb.folders.iter().find(|f| f.account == account && f.remote == from)?;
+                Some(((folder.id, uid), m.id))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// Take in what a folder's delta says of messages downloaded again. `by_uid` finds a message of
 /// the folder by its UID.
 pub fn take_in(mb: &mut Mailbox, delta: &mut FolderDelta, by_uid: impl Fn(u32) -> Option<Id>) {
@@ -138,6 +164,8 @@ pub fn take_in(mb: &mut Mailbox, delta: &mut FolderDelta, by_uid: impl Fn(u32) -
             && let Ok(m) = mb.message_mut(id)
         {
             (m.refetch, m.refetched) = (false, true);
+            // (Nothing came: nothing to wait for there, #30.)
+            m.original_asked |= std::mem::take(&mut m.original_wanted);
         }
     }
 }

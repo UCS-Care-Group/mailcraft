@@ -1023,6 +1023,9 @@ pub struct Session {
     /// Messages whose original (#30) couldn't be read when they were written whole, each once:
     /// looked at again at the next command ([`Session::ask_for_lost_originals`]).
     pub(crate) lost_originals: std::sync::Mutex<Vec<Id>>,
+    /// The messages said to wait for the bytes they came as (#30), each said once
+    /// ([`Session::first_told_held`]).
+    told_held: std::sync::Mutex<HashSet<Id>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -1247,6 +1250,7 @@ impl Session {
             view: ViewState::default(),
             sel: Selection::default(),
             lost_originals: std::sync::Mutex::default(),
+            told_held: std::sync::Mutex::default(),
             compose: None,
             composing: Vec::new(),
             compose_seq: 0,
@@ -2185,12 +2189,7 @@ impl Session {
             Err(e) => {
                 log::warn!("message {id}: the bytes it came as couldn't be read ({e}); it is written from its parts and asked for again");
                 copy.original = None;
-                if let Ok(mut lost) = self.lost_originals.lock()
-                    && lost.len() < crate::cmd::imap_again::MAX_AGAIN
-                    && !lost.contains(&id)
-                {
-                    lost.push(id);
-                }
+                self.want_original(id);
             }
         }
         Ok(Arc::new(copy))
@@ -2212,8 +2211,8 @@ impl Session {
     }
 
     /// [`Session::readable_whole`] but for the bytes a protected message came as (#30), which
-    /// [`Session::original_waiting`] answers for: what a copy put on a server is made of when
-    /// they are surely gone.
+    /// [`Session::held_for_original`] answers for: what a copy is made of when nothing else can
+    /// hold them.
     pub(crate) fn parts_readable(&self, m: &Message) -> bool {
         let mut parts = Message::clone(m);
         parts.original = None;
@@ -2228,13 +2227,45 @@ impl Session {
         m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).chain(original).all(|r| self.fetch(&r).is_ok())
     }
 
-    /// Whether the bytes protected message `m` came as (#30) are named, can't be read now, and
-    /// aren't surely gone ([`crate::io::ContentSource::absent`]): a copy of it put on a server
-    /// waits for them, rather than be made of its parts and taken for the message, the copy it
-    /// came from let go once it is there.
-    pub(crate) fn original_waiting(&self, m: &Message) -> bool {
+    /// What a copy of `m` put on another server is made of ([`Session::loaded_message`]), or
+    /// `None` while it waits: the bytes a protected message came as (#30) couldn't be read in that
+    /// one read, and the copy it is being moved out of may hold them
+    /// ([`crate::cmd::mail::check_again::source_may_hold`]). That copy is asked for them first
+    /// ([`Session::ask_for_lost_originals`]), and goes only once nothing can be lost with it:
+    /// made of its parts the copy would be taken for the message.
+    pub(crate) fn placeable(&self, m: &Message) -> Result<Option<Arc<Message>>, CmdError> {
+        let whole = self.loaded_message(m.id)?;
+        let fell_back = m.original.is_some() && whole.original.is_none();
+        Ok((!fell_back || !crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id)).then_some(whole))
+    }
+
+    /// Whether message `m`, moved elsewhere, waits for the bytes it came as (#30): they can't be
+    /// read here, and the copy it is being moved out of may hold them. Asked for from there
+    /// ([`Session::want_original`]).
+    pub(crate) fn held_for_original(&self, m: &Message) -> bool {
         let Some(r) = m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept) else { return false };
-        self.fetch(&r).is_err() && !self.path.clone().zip(self.source()).is_some_and(|(path, source)| source.absent(&path, &r))
+        let held = crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id) && self.fetch(&r).is_err();
+        if held {
+            self.want_original(m.id);
+        }
+        held
+    }
+
+    /// Message `id`'s original couldn't be read (#30): it is asked for again at the next command
+    /// ([`Session::ask_for_lost_originals`]).
+    pub(crate) fn want_original(&self, id: Id) {
+        if let Ok(mut lost) = self.lost_originals.lock()
+            && lost.len() < crate::cmd::imap_again::MAX_AGAIN
+            && !lost.contains(&id)
+        {
+            lost.push(id);
+        }
+    }
+
+    /// Whether message `id` is said, for the first time this session, to wait for the bytes it
+    /// came as (#30): said once.
+    pub(crate) fn first_told_held(&self, id: Id) -> bool {
+        self.told_held.lock().is_ok_and(|mut told| told.len() < crate::cmd::imap_again::MAX_AGAIN && told.insert(id))
     }
 
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
@@ -2381,23 +2412,19 @@ impl Session {
         if !marked.is_empty() || !hidden_gone.is_empty() {
             self.loads += 1;
         }
-        // An original (#30) named among them that is surely gone asks its server for it again,
-        // keeping it named. Looked at again for that: content of the same bytes (an attachment
-        // that is the same file) is named among them when a look at it only found it unreadable.
-        let source = self.path.clone().zip(self.source());
-        let surely = |o: &mailcraft_model::Original| {
-            o.data.is_empty() && gone(o.kept) && o.kept.zip(source.as_ref()).is_some_and(|(r, (path, source))| source.absent(path, &r))
-        };
-        let originals: Vec<Id> = self.mailbox.messages.iter().filter(|(_, m)| m.original.as_ref().is_some_and(surely)).map(|(id, _)| *id).collect();
+        // An original (#30) named among them is asked for again, from its server or from the
+        // copy it is being moved out of, and stays named: asking takes nothing away, so content
+        // of the same bytes found unreadable is reason enough.
+        let originals: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(_, m)| m.original.as_ref().is_some_and(|o| o.data.is_empty() && gone(o.kept)))
+            .map(|(id, _)| *id)
+            .collect();
         let mut asked = false;
         for id in originals {
-            let Some(m) = self.mailbox.messages.get(&id) else { continue };
-            let kind = self.mailbox.account(m.account).map(|a| a.kind);
-            let mut copy = Message::clone(m);
-            if crate::cmd::mail::check_again::lost(kind, &mut copy) {
-                self.put_message(id, copy);
-                asked = true;
-            }
+            asked |= self.ask_original(id);
         }
         if asked {
             self.rev += 1;
@@ -3193,30 +3220,16 @@ impl Session {
         self.run_on_message(id, params)
     }
 
-    /// The messages whose original couldn't be read (#30), where it is surely gone from the
-    /// content folder ([`crate::io::ContentSource::absent`]), let it go and ask their servers for
-    /// it again at the next Send/Receive, or, when no server has them, keep it named
-    /// ([`crate::cmd::mail::check_again::lost`]). One that only couldn't be read for now stays as
-    /// it is, to be read the next time. Outside the history: nothing the owner did.
+    /// The messages whose original couldn't be read (#30) ask for it again at the next
+    /// Send/Receive ([`Session::ask_original`]), keeping it named: asking takes nothing away, so
+    /// a file unreadable for good (damaged, or not to be looked at) is asked for as one gone is.
+    /// Outside the history: nothing the owner did.
     pub fn ask_for_lost_originals(&mut self) {
         let lost = self.lost_originals.get_mut().map(std::mem::take).unwrap_or_default();
-        let (Some(path), Some(source)) = (self.path.clone(), self.source()) else { return };
         let mut changed = false;
         for id in lost {
-            let Some(m) = self.mailbox.message(id) else { continue };
-            // A read that failed for a moment (a file another program holds, a drive away) is
-            // no reason to let the original go: only one surely gone is.
-            let Some(r) = m.original.as_ref().filter(|o| !o.is_loaded()).and_then(|o| o.kept) else { continue };
-            if !source.absent(&path, &r) {
-                continue;
-            }
-            let kind = self.mailbox.account(m.account).map(|a| a.kind);
-            let mut copy = Message::clone(m);
-            let before = (copy.original.is_some(), copy.original_wanted, copy.refetch, copy.unfetched);
-            crate::cmd::mail::check_again::lost(kind, &mut copy);
-            if before != (copy.original.is_some(), copy.original_wanted, copy.refetch, copy.unfetched) {
-                self.put_message(id, copy);
-                changed = true;
+            if self.mailbox.message(id).is_some_and(|m| m.original.as_ref().is_some_and(|o| !o.is_loaded())) {
+                changed |= self.ask_original(id);
             }
         }
         if changed {
@@ -3224,6 +3237,25 @@ impl Session {
             self.rev += 1;
             self.dirty = true;
         }
+    }
+
+    /// Ask for the original of message `id` (#30) again: from its server
+    /// ([`crate::cmd::mail::check_again::lost`]), or from the copy it is being moved out of
+    /// ([`crate::cmd::mail::check_again::ask_source`]). Whether it was asked for.
+    fn ask_original(&mut self, id: Id) -> bool {
+        let Some(m) = self.mailbox.message(id) else { return false };
+        let kind = self.mailbox.account(m.account).map(|a| a.kind);
+        let source = crate::cmd::mail::check_again::source_copy(&self.mailbox, id);
+        let mut copy = Message::clone(m);
+        let asked = if source.is_some() {
+            crate::cmd::mail::check_again::ask_source(source, &mut copy)
+        } else {
+            crate::cmd::mail::check_again::lost(kind, &mut copy)
+        };
+        if asked {
+            self.put_message(id, copy);
+        }
+        asked
     }
 
     /// [`Session::run`] on the message being written that is current now.

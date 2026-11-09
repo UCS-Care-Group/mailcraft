@@ -57,14 +57,11 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
             continue;
         }
         spent = spent.saturating_add(m.size());
-        // (Nor one whose original can't be read for now, #30: made of its parts, it would be
-        // taken for the message, and the copy it came from let go.)
-        if s.original_waiting(m) {
-            log::warn!("message {} waits to go to another mailbox: the bytes it came as can't be read for now", m.id);
-            continue;
-        }
-        match s.loaded_message(m.id) {
-            Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
+        // (Nor one whose original can't be read while the copy it came from may hold it, #30:
+        // made of its parts, it would be taken for the message, and that copy let go.)
+        match s.placeable(m) {
+            Ok(None) => log::warn!("message {} waits to go to another mailbox: the bytes it came as can't be read here, and are asked for", m.id),
+            Ok(Some(m)) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
         }
     }
@@ -91,9 +88,16 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
             break;
         }
         spent = spent.saturating_add(m.size());
-        // One whose original can't be read for now waits for it, and says nothing (#30); one
-        // whose original is surely gone goes made of its parts.
-        if s.original_waiting(m) {
+        // One whose original can't be read while the copy it came from may hold it waits for it
+        // from there, and says so once (#30); one whose original nothing else can hold goes made
+        // of its parts.
+        if s.held_for_original(m) {
+            if s.first_told_held(m.id) {
+                let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+                said.push(format!(
+                    "\"{subject}\" waits to go to the server: the bytes it came as can't be read on this computer, and are asked for from where it came"
+                ));
+            }
             continue;
         }
         if m.kept.as_deref().is_some_and(|k| k.failed) || !s.parts_readable(m) {
@@ -121,7 +125,9 @@ pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bo
         m.uid != 0
     } else {
         let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
-        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || s.readable_whole(m))
+        // (The bytes a protected message came as, #30, that can't be read here: asked for from
+        // the copy it came from first, which goes then only when it brought none.)
+        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || s.readable_whole(m) || (!s.held_for_original(m) && s.parts_readable(m)))
     }
 }
 

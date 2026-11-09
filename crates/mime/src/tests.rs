@@ -553,6 +553,7 @@ fn message() -> impl Strategy<Value = Message> {
             original: None,
             parts_removed: false,
             original_wanted: false,
+            original_asked: false,
         },
     )
 }

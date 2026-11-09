@@ -159,8 +159,9 @@ fn an_original_that_cant_be_read_writes_the_message_from_its_parts_and_is_asked_
     assert!(s.rev() > rev && s.dirty);
 }
 
-/// A file that doesn't read back for now (its bytes not what they should be, as with a file
-/// another program holds) never lets the original go: it stays named, to be read the next time.
+/// A file that doesn't read back (its bytes not what they should be, damaged, or held by
+/// another program for now) never lets the original go: it stays named, to be read the next
+/// time, and is asked for again from the server meanwhile, which takes nothing away.
 #[test]
 fn an_original_unreadable_for_now_stays_named() {
     let (mb, id) = with_signed_on_imap();
@@ -182,8 +183,8 @@ fn an_original_unreadable_for_now_stays_named() {
     let rev = s.rev();
     s.ask_for_lost_originals();
     let m = s.mailbox.message(id).unwrap();
-    assert!(m.has_original() && !m.original_wanted && !m.refetch);
-    assert_eq!(s.rev(), rev);
+    assert!(m.has_original() && m.original_wanted && m.refetch);
+    assert!(s.rev() > rev);
     // Readable again, it is the original once more.
     fs::remove_file(&file).unwrap();
     fs::write(&file, signed_bytes()).unwrap();
@@ -318,10 +319,10 @@ fn an_original_that_cant_be_looked_at_isnt_gone() {
     }
 }
 
-/// Content of the same bytes as an attachment found unreadable after the window showed is no
-/// word that the original is gone.
+/// Content of the same bytes found unreadable after the window showed asks for the original
+/// again, which takes nothing away: it stays named.
 #[test]
-fn an_original_sharing_its_file_isnt_gone_for_a_read_that_failed() {
+fn an_original_sharing_its_file_found_unreadable_is_asked_for_and_stays_named() {
     let tmp = Temp::new("original-shared");
     let path = tmp.file();
     let (id, file, _) = saved_on_imap(&path);
@@ -333,8 +334,8 @@ fn an_original_sharing_its_file_isnt_gone_for_a_read_that_failed() {
     let r = s.mailbox.message(id).unwrap().original.as_ref().and_then(|o| o.kept).unwrap();
     s.mark_unavailable(&[r]);
     let m = s.mailbox.message(id).unwrap();
-    assert!(m.has_original() && !m.original_wanted && !m.refetch);
-    assert!(!s.dirty);
+    assert!(m.has_original() && m.original_wanted && m.refetch);
+    assert!(s.dirty);
 }
 
 #[test]

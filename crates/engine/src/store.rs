@@ -2276,7 +2276,8 @@ fn one_reads(dir: &Path, first: &Path) -> bool {
     let others = fs::read_dir(dir).into_iter().flatten().flatten().filter(|e| e.file_name().to_str().is_some_and(|n| n.len() == 2 && is_hex(n)));
     let subs = std::iter::once(first.to_path_buf()).chain(others.map(|e| e.path()));
     subs.flat_map(|sub| fs::read_dir(sub).into_iter().flatten().flatten()).take(WHOLE_LOOKS).any(|e| {
-        e.file_name().to_str().is_some_and(|n| Digest::parse(n).is_some())
+        // (A name of 64 hex digits alone: never a cloud drive's `.<name>.icloud` stand-in.)
+        e.file_name().to_str().is_some_and(|n| !n.starts_with('.') && Digest::parse(n).is_some())
             && open_plain(&e.path()).is_some_and(|(mut f, len)| len > 0 && std::io::Read::read(&mut f, &mut [0u8; 1]).is_ok_and(|n| n == 1))
     })
 }
@@ -2287,11 +2288,6 @@ fn absent_of(dir: &Path, refs: &[Ref], folders: &Folders) -> Vec<Ref> {
     let deadline = Instant::now().checked_add(STAT_TIME);
     let looked = fan_out(refs.len(), |i| refs.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| absent_in(dir, r, folders))));
     refs.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(true))))).map(|(r, _)| *r).collect()
-}
-
-/// Whether the content `r` of the mailbox file at `path` is surely gone ([`absent_in`]).
-pub(crate) fn absent(path: &Path, r: &ContentRef) -> bool {
-    absent_in(&blob_dir(&resolve(path)), &Ref::from_model(r), &Folders::new())
 }
 
 /// Look for the content files the mailbox file at `path` names and its opening left on disk
@@ -2707,10 +2703,6 @@ pub struct Content;
 impl ContentSource for Content {
     fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
         fetch(mailbox, r)
-    }
-
-    fn absent(&self, mailbox: &Path, r: &ContentRef) -> bool {
-        absent(mailbox, r)
     }
 }
 

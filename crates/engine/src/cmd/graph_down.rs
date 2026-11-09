@@ -489,6 +489,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         return None;
     }
     let mut read = crate::mime::parse_fetched(mime);
+    // What came brought no original (#30): the server's copy isn't protected either.
+    let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
     let replaced = mb.message(here).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
     if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
@@ -497,6 +499,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
     if std::mem::take(&mut m.original_wanted) {
+        m.original_asked |= !brought;
         // (A copy that brings none, one put on the server from its parts, takes nothing away.)
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;

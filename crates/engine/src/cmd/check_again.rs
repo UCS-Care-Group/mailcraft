@@ -9,7 +9,7 @@
 //! as alone ([`Message::original_wanted`]): nothing else of it changes. A message a part was
 //! removed from here ([`Message::parts_removed`]) is never checked again.
 
-use mailcraft_model::{AccountKind, Mailbox, Message};
+use mailcraft_model::{AccountKind, Id, Mailbox, Message, Pending};
 use serde_json::{Value, json};
 
 use super::{fail, needs_message};
@@ -27,7 +27,7 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
     if m.parts_removed {
         return Some("a part was removed from the message here, so the bytes it came as aren't this message any more");
     }
-    if m.original_wanted {
+    if m.original_wanted || m.refetch {
         return Some("the bytes it came as are asked for already");
     }
     // (Where it is first, and what it holds last: this is asked every frame a menu shows it.)
@@ -59,7 +59,7 @@ fn on_server(kind: Option<AccountKind>, m: &Message) -> bool {
 /// Send/Receive, alone ([`Message::original_wanted`]): by its UID (IMAP) or fetched whole again,
 /// keeping meanwhile all it has here. Nothing when no server has it whole, or a part was removed.
 pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
-    if m.draft || m.parts_removed || m.original_wanted || !on_server(kind, m) {
+    if m.draft || m.parts_removed || m.original_wanted || m.refetch || !on_server(kind, m) {
         return;
     }
     m.original_wanted = true;
@@ -72,20 +72,57 @@ pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
     }
 }
 
-/// The original of `m`, of an account of `kind`, is surely gone from the content folder (a
-/// build before #30 swept it, say): a message a server still has whole asks the server for it
+/// The original of `m`, of an account of `kind`, couldn't be read (gone from the content folder,
+/// a build before #30 swept it, say): a message a server still has whole asks the server for it
 /// again ([`ask`]). Either way it stays named, until a download brings the bytes it came as to
 /// take its place: a look that wrongly found it gone (a drive put back later) loses nothing, and
 /// a server whose copy isn't protected (one put there from its parts) never takes it away. It is
-/// written from its parts meanwhile. Whether the server was asked.
-// ponytail: asked again at each opening while the file stays gone and the server's copy brings
-// none; a mark of "asked, none came" if that ever costs.
+/// written from its parts meanwhile. Asked once: when what came brought none
+/// ([`Message::original_asked`]), not again. Whether the server was asked.
 pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
-    if m.draft || m.parts_removed || m.original_wanted || !on_server(kind, m) {
-        log::warn!("message {}: the bytes it came as are missing from the content folder; it is written from its parts", m.id);
+    if m.draft || m.parts_removed || m.original_wanted || m.original_asked || m.refetch || !on_server(kind, m) {
+        log::warn!("message {}: the bytes it came as can't be read from the content folder; it is written from its parts", m.id);
         return false;
     }
     ask(kind, m);
+    true
+}
+
+/// Where the copy message `id` is being moved out of is, on a server that still has it whole
+/// (#451): its account, and whether that is an IMAP account's.
+pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
+    let m = mb.message(id)?;
+    if let Some(out) = m.moving_out.as_ref().filter(|out| !out.left && !out.id.is_empty()) {
+        return Some((out.account, false));
+    }
+    let pending = mb.pending.iter().find(|p| matches!(p, Pending::Move { message, .. } if *message == id))?;
+    (pending.source().1 != 0 && pending.account() != m.account).then(|| (pending.account(), true))
+}
+
+/// Whether the copy message `id` is being moved out of may hold the bytes it came as (#30)
+/// when nothing here does: a server has it ([`source_copy`]), and wasn't asked for them yet
+/// ([`Message::original_asked`]). That copy stays until it has been.
+pub(crate) fn source_may_hold(mb: &Mailbox, id: Id) -> bool {
+    mb.message(id).is_some_and(|m| !m.original_asked && !m.draft && !m.parts_removed) && source_copy(mb, id).is_some()
+}
+
+/// Mark message `m`, whose original can't be read here, to have it downloaded from the copy it
+/// is being moved out of (`source`, [`source_copy`]) at that account's next Send/Receive, alone
+/// ([`Message::original_wanted`]): by its UID there (IMAP), or fetched whole from there
+/// (Microsoft's server), keeping meanwhile all it has here. Where it goes waits for it. Whether
+/// it was asked for.
+pub(crate) fn ask_source(source: Option<(Id, bool)>, m: &mut Message) -> bool {
+    let Some((_, imap)) = source else { return false };
+    if m.draft || m.parts_removed || m.original_asked || m.original_wanted || m.refetch || m.unfetched {
+        return false;
+    }
+    m.original_wanted = true;
+    if imap {
+        m.refetch = true;
+    } else {
+        m.attachments_on_server = m.has_attachments();
+        m.unfetched = true;
+    }
     true
 }
 
@@ -107,6 +144,13 @@ pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail(why));
     }
     let kind = s.mailbox.account(m.account).map(|a| a.kind);
-    ask(kind, s.mailbox.message_mut(id)?);
+    // Text read wrongly before (U+FFFD), here or on disk (read in above): the whole of what comes
+    // is taken, text and all, as for #650, not the original alone.
+    let garbled = kind == Some(AccountKind::Imap) && crate::cmd::imap_again::unreadable(m);
+    let m = s.mailbox.message_mut(id)?;
+    ask(kind, m);
+    if garbled {
+        m.original_wanted = false;
+    }
     Ok(json!({"id": id, "downloads": true}))
 }

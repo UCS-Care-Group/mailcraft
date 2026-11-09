@@ -428,6 +428,11 @@ pub struct Message {
     /// and nothing else; its text, files, headers and marks stay as they are here.
     #[serde(skip_serializing_if = "is_false")]
     pub original_wanted: bool,
+    /// The bytes it came as were asked for again (#30), and what came didn't bring them: the
+    /// server's copy isn't protected either (one put there from its parts). Not asked again, and
+    /// a copy made of its parts may stand for it where it goes.
+    #[serde(skip_serializing_if = "is_false")]
+    pub original_asked: bool,
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).
