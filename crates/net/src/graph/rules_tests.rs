@@ -239,6 +239,34 @@ fn a_rule_made_here_is_sent_whole_and_comes_back_with_its_id() {
 }
 
 #[test]
+fn a_rule_starts_with_conditions_are_sent_and_read_whole() {
+    let mut rule = news_rule();
+    rule.conditions = vec![
+        Condition::FromStartsWith("news@".into()),
+        Condition::SubjectStartsWith("Order".into()),
+        Condition::BodyStartsWith("Amount due".into()),
+        Condition::ToStartsWith("me@".into()),
+    ];
+    let body = rule_body(&rule).unwrap();
+    assert_eq!(
+        body["conditions"],
+        json!({
+            "senderStartsWith": ["news@"],
+            "subjectStartsWith": ["Order"],
+            "bodyStartsWith": ["Amount due"],
+            "recipientStartsWith": ["me@"],
+        })
+    );
+    // And they read back as they were sent (with the id the server gives the rule).
+    let mut as_server = body.clone();
+    as_server["id"] = json!("A1");
+    let back = rule_of(&as_server).unwrap();
+    assert!(rule.conditions.iter().all(|c| back.conditions.contains(c)));
+    assert_eq!(back.conditions.len(), 4);
+    assert!(back.unknown.is_empty(), "{:?}", back.unknown);
+}
+
+#[test]
 fn a_rule_the_server_cannot_keep_is_not_sent() {
     let mut flagged = news_rule();
     flagged.actions.push(Action::Flag);
@@ -255,6 +283,10 @@ fn a_rule_the_server_cannot_keep_is_not_sent() {
     let mut two = news_rule();
     two.actions.extend([Action::SetImportance(Importance::High), Action::SetImportance(Importance::Low)]);
     assert!(rule_body(&two).is_err());
+    // A pattern is no part of a server's rules.
+    let mut pattern = news_rule();
+    pattern.conditions.push(Condition::SubjectMatches("invoice #2[0-9]{4}".into()));
+    assert!(rule_body(&pattern).is_err());
 
     let s = state(Vec::new());
     let server = serve(&s);

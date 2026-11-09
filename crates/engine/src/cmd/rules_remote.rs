@@ -232,6 +232,9 @@ fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
     let words = |c: &Condition| match c {
         Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) => Some(t.to_lowercase()),
+        Condition::FromStartsWith(t) | Condition::ToStartsWith(t) | Condition::SubjectStartsWith(t) | Condition::BodyStartsWith(t) => {
+            Some(t.to_lowercase())
+        }
         _ => None,
     };
     same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))

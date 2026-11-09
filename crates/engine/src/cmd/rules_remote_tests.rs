@@ -1212,6 +1212,10 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
     assert_eq!(draft(json!([{"type": "moveTo", "value": 0}])), None);
     assert_eq!(draft(json!([{"type": "markRead"}, {"type": "flag"}])), Some(super::rules::NotOnServer::Flag));
     assert_eq!(draft(json!([{"type": "moveTo", "value": inbox_here}])), Some(super::rules::NotOnServer::FolderHere));
+    // A pattern can't be kept on a server, on any account that has one.
+    let pattern =
+        json!({"account": account, "conditions": [{"type": "subjectMatches", "value": "invoice #2[0-9]{4}"}], "actions": [{"type": "markRead"}]});
+    assert_eq!(super::rules::server_cannot_draft(&s, &pattern), Some(super::rules::NotOnServer::Pattern));
     assert_eq!(
         super::rules::server_cannot_draft(&s, &json!({"account": local, "actions": [{"type": "markRead"}]})),
         Some(super::rules::NotOnServer::NoServer)

@@ -16,7 +16,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Id, Importance, Message, contains_ci};
+use std::sync::Arc;
+
+use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "value")]
@@ -29,6 +31,22 @@ pub enum Condition {
     ToContains(String),
     SubjectContains(String),
     BodyContains(String),
+    /// The sender's name or address starts with the text (a rule kept on a Microsoft account's
+    /// server: the address alone, as the server reads it).
+    FromStartsWith(String),
+    /// Any To/Cc recipient's name or address starts with the text (a rule kept on a Microsoft
+    /// account's server: the addresses alone).
+    ToStartsWith(String),
+    /// The subject starts with the text.
+    SubjectStartsWith(String),
+    /// The body starts with the text.
+    BodyStartsWith(String),
+    /// The subject is read as a regular expression (case-insensitive) and matches somewhere.
+    /// A rule with a regex condition is kept on this computer: a server has no such rule.
+    SubjectMatches(String),
+    /// The body is read as a regular expression (case-insensitive) and matches somewhere.
+    /// A rule with a regex condition is kept on this computer: a server has no such rule.
+    BodyMatches(String),
     HasAttachment,
     Importance(Importance),
 }
@@ -48,6 +66,22 @@ impl Condition {
             Condition::ToContains(t) => m.to.iter().chain(&m.cc).any(|a| person(a, t)),
             Condition::SubjectContains(t) => contains_ci(&m.subject, t),
             Condition::BodyContains(t) => contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t),
+            Condition::FromStartsWith(t) => {
+                let email_match = person(&m.from, t) && starts_with_ci(&m.from.email, t);
+                let name_match = !addresses_only && starts_with_ci(&m.from.name, t);
+                email_match || name_match
+            }
+            Condition::ToStartsWith(t) => m.to.iter().chain(&m.cc).any(|a| {
+                let email_match = person(a, t) && starts_with_ci(&a.email, t);
+                let name_match = !addresses_only && starts_with_ci(&a.name, t);
+                email_match || name_match
+            }),
+            Condition::SubjectStartsWith(t) => starts_with_ci(&m.subject, t),
+            Condition::BodyStartsWith(t) => starts_with_ci(&m.body.text, t) || starts_with_ci(&m.hidden_text, t),
+            // A pattern the owner wrote is the rule's, not the message's: a message with a bad
+            // pattern in its text does nothing here (the pattern is what it is, or is not).
+            Condition::SubjectMatches(p) => regex_ci(p).is_some_and(|re| re.is_match(&m.subject)),
+            Condition::BodyMatches(p) => regex_ci(p).is_some_and(|re| re.is_match(&m.body.text) || re.is_match(&m.hidden_text)),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }
@@ -67,6 +101,14 @@ impl Condition {
             Condition::ToContains(t) => format!("sent to \"{t}\""),
             Condition::SubjectContains(t) => format!("subject contains \"{t}\""),
             Condition::BodyContains(t) => format!("body contains \"{t}\""),
+            Condition::FromStartsWith(t) if addresses_only => format!("sender's address starts with \"{t}\""),
+            Condition::ToStartsWith(t) if addresses_only => format!("recipient's address starts with \"{t}\""),
+            Condition::FromStartsWith(t) => format!("from starts with \"{t}\""),
+            Condition::ToStartsWith(t) => format!("sent to addresses that start with \"{t}\""),
+            Condition::SubjectStartsWith(t) => format!("subject starts with \"{t}\""),
+            Condition::BodyStartsWith(t) => format!("body starts with \"{t}\""),
+            Condition::SubjectMatches(_) => "the subject matches a pattern".into(),
+            Condition::BodyMatches(_) => "the body matches a pattern".into(),
             Condition::HasAttachment => "has an attachment".into(),
             Condition::Importance(i) => format!("importance is {}", i.code()),
         }
@@ -84,6 +126,21 @@ pub enum Action {
     SetImportance(Importance),
     /// Move to Deleted Items.
     Delete,
+}
+
+/// Read `pattern` as a case-insensitive regular expression, bounded so that a hostile or
+/// careless one can't hang the window: the engine caps what it can grow to. A pattern it
+/// doesn't read (a bad escape, an unbalanced bracket) matches nothing, and is left for the
+/// window to say is wrong.
+fn regex_ci(pattern: &str) -> Option<Arc<regex::Regex>> {
+    let r = regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
+    Some(Arc::new(r))
+}
+
+/// Whether `pattern` reads as a regular expression (and so would match): what the rule window
+/// checks before Add, so that a pattern that would never match is not made.
+pub fn regex_is_ok(pattern: &str) -> bool {
+    regex_ci(pattern).is_some()
 }
 
 impl Action {

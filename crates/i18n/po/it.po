@@ -1739,6 +1739,16 @@ msgstr ""
 msgid "Body contains"
 msgstr "Il corpo contiene"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4294,6 +4304,11 @@ msgstr "Da contiene"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "From outside your organisation."
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
 msgstr ""
 
 #. interface
@@ -8607,6 +8622,11 @@ msgstr "Posta recente"
 msgid "Recipient's address contains"
 msgstr "L'indirizzo del destinatario contiene"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Recommended"
@@ -8646,6 +8666,11 @@ msgstr "Ripeti digitazione"
 #, fuzzy
 msgid "Redo {what}"
 msgstr "Ripeti {what}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9980,6 +10005,11 @@ msgid "Sender's address contains"
 msgstr "L'indirizzo del mittente contiene"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -10039,6 +10069,11 @@ msgstr ""
 #, fuzzy
 msgid "Sent to"
 msgstr "Inviato a"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -10956,6 +10991,16 @@ msgstr "Oggetto"
 #, fuzzy
 msgid "Subject contains"
 msgstr "L'oggetto contiene"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -14467,6 +14512,11 @@ msgstr "la regola di un account non può andare sul server di un altro account"
 #, fuzzy
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "una regola in attesa di andare sul server viene dopo quelle già lì; potrà essere spostata quando sarà lì"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

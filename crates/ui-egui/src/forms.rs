@@ -5702,6 +5702,31 @@ pub(crate) mod rules {
     /// The width of a rule's button (an icon of 14 points, as `icon_button` lays it out).
     const BUTTON: f32 = 22.0;
 
+    /// How a condition's words are looked for.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum Op {
+        #[default]
+        Contains,
+        StartsWith,
+        /// Read as a regular expression (Subject and Body alone).
+        Matches,
+    }
+
+    impl Op {
+        /// The condition's `type` in `rules.add`, for `kind`.
+        fn code(self, kind: When) -> &'static str {
+            match (self, kind) {
+                (Op::Contains, k) => k.code(),
+                (Op::StartsWith, When::From) => "fromStartsWith",
+                (Op::StartsWith, When::To) => "toStartsWith",
+                (Op::StartsWith, When::Subject) => "subjectStartsWith",
+                (Op::StartsWith, _) => "bodyStartsWith",
+                (Op::Matches, When::Subject) => "subjectMatches",
+                _ => "bodyMatches",
+            }
+        }
+    }
+
     /// What a condition looks at.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum When {
@@ -5715,8 +5740,24 @@ pub(crate) mod rules {
     }
 
     impl When {
-        const ALL: [When; 6] = [When::From, When::To, When::Subject, When::Body, When::Attachment, When::Importance];
+        /// Every choice the builder offers, in the order they are shown: each text kind with
+        /// its operators (Subject and Body also read a pattern), then the kinds that take no text.
+        const CHOICES: [(When, Op); 12] = [
+            (When::From, Op::Contains),
+            (When::From, Op::StartsWith),
+            (When::To, Op::Contains),
+            (When::To, Op::StartsWith),
+            (When::Subject, Op::Contains),
+            (When::Subject, Op::StartsWith),
+            (When::Subject, Op::Matches),
+            (When::Body, Op::Contains),
+            (When::Body, Op::StartsWith),
+            (When::Body, Op::Matches),
+            (When::Attachment, Op::Contains),
+            (When::Importance, Op::Contains),
+        ];
 
+        /// "From contains" and friends.
         fn label(self) -> &'static str {
             match self {
                 When::From => "From contains",
@@ -5728,9 +5769,29 @@ pub(crate) mod rules {
             }
         }
 
-        /// The label for a rule of an account whose server looks for a sender's or a recipient's
-        /// words in their addresses alone (#566).
+        /// "From starts with" and friends.
         fn what(self) -> &'static str {
+            match self {
+                When::From => "From starts with",
+                When::To => "Sent to addresses that start with",
+                When::Subject => "Subject starts with",
+                When::Body => "Body starts with",
+                When::Attachment => "Has an attachment",
+                When::Importance => "Importance is",
+            }
+        }
+
+        /// "Subject matches" and friends (a pattern reads a Subject's or a Body's alone).
+        fn detail(self) -> &'static str {
+            match self {
+                When::Subject => "Subject matches",
+                When::Body => "Body matches",
+                other => other.label(),
+            }
+        }
+
+        /// "Sender's address contains" and friends.
+        fn title(self) -> &'static str {
             match self {
                 When::From => "Sender's address contains",
                 When::To => "Recipient's address contains",
@@ -5738,8 +5799,24 @@ pub(crate) mod rules {
             }
         }
 
-        fn label_as(self, addresses: bool) -> &'static str {
-            if addresses { self.what() } else { self.label() }
+        /// "Sender's address starts with" and friends.
+        fn notice(self) -> &'static str {
+            match self {
+                When::From => "Sender's address starts with",
+                When::To => "Recipient's address starts with",
+                other => other.what(),
+            }
+        }
+
+        /// The condition's label for the operator and whether the server reads addresses alone.
+        fn label_as(self, op: Op, addresses: bool) -> &'static str {
+            match (op, addresses) {
+                (Op::Contains, false) => self.label(),
+                (Op::StartsWith, false) => self.what(),
+                (Op::Matches, _) => self.detail(),
+                (Op::Contains, true) => self.title(),
+                (Op::StartsWith, true) => self.notice(),
+            }
         }
 
         /// The condition's `type` in `rules.add`.
@@ -5764,13 +5841,14 @@ pub(crate) mod rules {
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Cond {
         kind: When,
+        op: Op,
         text: String,
         importance: Importance,
     }
 
     impl Default for Cond {
         fn default() -> Self {
-            Cond { kind: When::From, text: String::new(), importance: Importance::High }
+            Cond { kind: When::From, op: Op::default(), text: String::new(), importance: Importance::High }
         }
     }
 
@@ -6159,7 +6237,7 @@ pub(crate) mod rules {
                 .map(|c| match c.kind {
                     When::Attachment => json!({"type": c.kind.code()}),
                     When::Importance => json!({"type": c.kind.code(), "value": c.importance.code()}),
-                    kind => json!({"type": kind.code(), "value": c.text}),
+                    kind => json!({"type": c.op.code(kind), "value": c.text}),
                 })
                 .collect();
             let actions: Vec<Value> = self
@@ -6184,10 +6262,18 @@ pub(crate) mod rules {
             ("rules.add", params)
         }
 
-        /// Whether Add can run: the rule has a name, every text condition a text, every move a
-        /// folder and every Categorize a category.
+        /// Whether Add can run: the rule has a name, every text condition a text (a pattern
+        /// that reads as a regex), every move a folder and every Categorize a category.
         fn ready(&self) -> bool {
-            let conds = self.conds.iter().all(|c| !c.kind.takes_text() || !c.text.trim().is_empty());
+            let conds = self.conds.iter().all(|c| {
+                if !c.kind.takes_text() {
+                    return true;
+                }
+                if c.text.trim().is_empty() {
+                    return false;
+                }
+                c.op != Op::Matches || mailcraft_model::regex_is_ok(&c.text)
+            });
             let acts = self.acts.iter().all(|a| match a.kind {
                 Do::Move => a.folder != 0,
                 Do::Categorize => !a.category.trim().is_empty(),
@@ -6364,10 +6450,11 @@ pub(crate) mod rules {
             let many = self.conds.len() > 1;
             for (i, c) in self.conds.iter_mut().enumerate() {
                 row(ui, if i == 0 { tl!("When") } else { tl!("and") }, |ui| {
-                    egui::ComboBox::from_id_salt(("when", i)).width(190.0).selected_text(tl!(c.kind.label_as(on_server))).show_ui(ui, |ui| {
-                        for kind in When::ALL {
-                            if ui.selectable_label(kind == c.kind, tl!(kind.label_as(on_server))).clicked() {
+                    egui::ComboBox::from_id_salt(("when", i)).width(240.0).selected_text(tl!(c.kind.label_as(c.op, on_server))).show_ui(ui, |ui| {
+                        for (kind, op) in When::CHOICES {
+                            if ui.selectable_label(kind == c.kind && op == c.op, tl!(kind.label_as(op, on_server))).clicked() {
                                 c.kind = kind;
+                                c.op = op;
                             }
                         }
                     });
@@ -6376,7 +6463,8 @@ pub(crate) mod rules {
                         When::Importance => importance_combo(ui, ("when_importance", i), &mut c.importance),
                         _ => {
                             let width = (ui.available_width() - if many { 30.0 } else { 0.0 }).max(60.0);
-                            pass.text(ui, ("when_text", i), &mut c.text, width, tl!("Text to look for"));
+                            let hint = if c.op == Op::Matches { tl!("Regular expression (case-insensitive)") } else { tl!("Text to look for") };
+                            pass.text(ui, ("when_text", i), &mut c.text, width, hint);
                         }
                     }
                     if many && remove_button(ui, tl!("Remove this condition")) {
@@ -6580,6 +6668,37 @@ pub(crate) mod rules {
                 "When from contains \"billing\" and sent to \"accounts@\" and subject contains \"invoice\" and body contains \"amount due\" and has an attachment: \
                  move it to Receipts, categorize it as \"Green category\", flag it, mark it as read, set importance to low"
             );
+            // The "starts with" operator, for each kind it looks at.
+            f.conds = vec![
+                Cond { kind: When::From, op: Op::StartsWith, text: "news@".into(), ..Default::default() },
+                Cond { kind: When::To, op: Op::StartsWith, text: "me@".into(), ..Default::default() },
+                Cond { kind: When::Subject, op: Op::StartsWith, text: "invoice".into(), ..Default::default() },
+                Cond { kind: When::Body, op: Op::StartsWith, text: "amount due".into(), ..Default::default() },
+            ];
+            assert_eq!(
+                f.command().1["conditions"],
+                json!([
+                    {"type": "fromStartsWith", "value": "news@"}, {"type": "toStartsWith", "value": "me@"},
+                    {"type": "subjectStartsWith", "value": "invoice"}, {"type": "bodyStartsWith", "value": "amount due"},
+                ])
+            );
+            // The "matches" operator, for a subject's or a body's alone.
+            f.conds = vec![
+                Cond { kind: When::Subject, op: Op::Matches, text: "invoice #2[0-9]{4}".into(), ..Default::default() },
+                Cond { kind: When::Body, op: Op::Matches, text: "amount due|total due".into(), ..Default::default() },
+            ];
+            assert!(f.ready());
+            assert_eq!(
+                f.command().1["conditions"],
+                json!([
+                    {"type": "subjectMatches", "value": "invoice #2[0-9]{4}"},
+                    {"type": "bodyMatches", "value": "amount due|total due"},
+                ])
+            );
+            // A pattern a reader doesn't take is not ready.
+            f.conds = vec![Cond { kind: When::Subject, op: Op::Matches, text: "(unbalanced".into(), ..Default::default() }];
+            assert!(!f.ready());
+            f.conds = vec![Cond { kind: When::Subject, op: Op::Matches, text: "invoice #2[0-9]{4}".into(), ..Default::default() }];
             // The other kinds.
             f.conds = vec![Cond { kind: When::Importance, ..Default::default() }];
             f.acts = vec![Act { kind: Do::Delete, ..f.fresh_action() }];

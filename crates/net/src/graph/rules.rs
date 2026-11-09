@@ -180,6 +180,10 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
             "recipientContains" => one_word(value).map(Condition::ToContains),
             "subjectContains" => one_word(value).map(Condition::SubjectContains),
             "bodyContains" => one_word(value).map(Condition::BodyContains),
+            "senderStartsWith" => one_word(value).map(Condition::FromStartsWith),
+            "recipientStartsWith" => one_word(value).map(Condition::ToStartsWith),
+            "subjectStartsWith" => one_word(value).map(Condition::SubjectStartsWith),
+            "bodyStartsWith" => one_word(value).map(Condition::BodyStartsWith),
             "hasAttachments" if value.as_bool() == Some(true) => Some(Condition::HasAttachment),
             "importance" => value.as_str().and_then(Importance::parse).map(Condition::Importance),
             _ => None,
@@ -261,8 +265,16 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
             Condition::ToContains(t) => ("recipientContains", json!([t])),
             Condition::SubjectContains(t) => ("subjectContains", json!([t])),
             Condition::BodyContains(t) => ("bodyContains", json!([t])),
+            Condition::FromStartsWith(t) => ("senderStartsWith", json!([t])),
+            Condition::ToStartsWith(t) => ("recipientStartsWith", json!([t])),
+            Condition::SubjectStartsWith(t) => ("subjectStartsWith", json!([t])),
+            Condition::BodyStartsWith(t) => ("bodyStartsWith", json!([t])),
             Condition::HasAttachment => ("hasAttachments", json!(true)),
             Condition::Importance(i) => ("importance", json!(i.code())),
+            // A server's rules read no pattern: a rule with one is not made there.
+            Condition::SubjectMatches(_) | Condition::BodyMatches(_) => {
+                return Err("a server's rules read no pattern");
+            }
         };
         if conditions.insert(name.into(), value).is_some() {
             return Err("the server's rules have one condition of each kind");
