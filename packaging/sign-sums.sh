@@ -31,7 +31,7 @@ checked_openssl() {
     echo "::error::OpenSSL 3 isn't on this runner: the checksums can't be signed"
     exit 1
   fi
-  if [ -n "${GITHUB_ACTIONS:-}" ] && command -v dpkg >/dev/null 2>&1; then
+  if [[ -n "${GITHUB_ACTIONS:-}" ]] && command -v dpkg >/dev/null 2>&1; then
     local bin lib file pkg verify
     bin="$(readlink -f "$(command -v openssl)")"
     lib="$(ldd "$bin" | awk '/libcrypto/ { print $3; exit }')"
@@ -40,8 +40,8 @@ checked_openssl() {
       # Only this file's line counts: a changed file elsewhere in the package (its config) is
       # not what signs. `dpkg --verify` ends each line with the file's path.
       # (dpkg --verify fails for any changed file, so its status alone says nothing here.)
-      verify="$( [ -z "$pkg" ] || dpkg --verify "$pkg" 2>&1 || true)"
-      if [ -z "$pkg" ] || printf '%s\n' "$verify" | awk -v f="$file" '$NF == f { bad = 1 } END { exit !bad }'; then
+      verify="$( [[ -z "$pkg" ]] || dpkg --verify "$pkg" 2>&1 || true)"
+      if [[ -z "$pkg" ]] || printf '%s\n' "$verify" | awk -v f="$file" '$NF == f { bad = 1 } END { exit !bad }'; then
         echo "::error::$file isn't as its package (${pkg:-none}) installed it"
         exit 1
       fi
@@ -80,10 +80,10 @@ sign_with_openssl() {
   KEY_SEED=""
   # Two layouts and no other: v2 as ring writes it (83 bytes: version 1, the seed, then the public
   # half as [1] 33 bytes), and v1 (48 bytes: version 0 and the seed).
-  if [ "${#hex}" = 166 ] && [ "${hex:0:32}" = 3051020101300506032b657004220420 ] && [ "${hex:96:6}" = 812100 ]; then
+  if [[ ${#hex} == 166 ]] && [[ ${hex:0:32} == 3051020101300506032b657004220420 ]] && [[ ${hex:96:6} == 812100 ]]; then
     KEY_SEED="${hex:32:64}"
     embedded="${hex:102:64}"
-  elif [ "${#hex}" = 96 ] && [ "${hex:0:32}" = 302e020100300506032b657004220420 ]; then
+  elif [[ ${#hex} == 96 ]] && [[ ${hex:0:32} == 302e020100300506032b657004220420 ]]; then
     KEY_SEED="${hex:32:64}"
   fi
   hex=""
@@ -97,12 +97,12 @@ sign_with_openssl() {
   # An ed25519 key's public half is 44 bytes of DER: this prefix (id-Ed25519) and 32 bytes; and in
   # a v2 key it must be the half the key carries.
   spki="$(v1_der | openssl pkey -inform DER -pubout -outform DER 2>/dev/null | od -An -v -tx1 | tr -d ' \n' || true)"
-  if [ "${#spki}" != 88 ] || [ "${spki:0:24}" != 302a300506032b6570032100 ]; then
+  if [[ ${#spki} != 88 ]] || [[ ${spki:0:24} != 302a300506032b6570032100 ]]; then
     KEY_SEED=""
     echo "::error::$bad"
     exit 1
   fi
-  if [ -n "$embedded" ] && [ "${spki:24:64}" != "$embedded" ]; then
+  if [[ -n "$embedded" ]] && [[ ${spki:24:64} != "$embedded" ]]; then
     KEY_SEED=""
     echo "::error::$var carries a public key that isn't its own"
     exit 1
@@ -118,16 +118,16 @@ sign_with_openssl() {
 DIR="${1:?usage: packaging/sign-sums.sh <folder with SHA256SUMS.txt>}"
 SUMS="$(cd "$DIR" && pwd)/SHA256SUMS.txt"
 
-if [ ! -f "$SUMS" ]; then
+if [[ ! -f "$SUMS" ]]; then
   echo "::error::$SUMS isn't there"
   exit 1
 fi
 rm -f "$SUMS.sig"
-if [ -z "${MAILCRAFT_RELEASE_KEY:-}" ]; then
+if [[ -z "${MAILCRAFT_RELEASE_KEY:-}" ]]; then
   echo "unsigned: MAILCRAFT_RELEASE_KEY isn't set, so there is no SHA256SUMS.txt.sig and no copy of MailCraft will install this release by itself"
   exit 0
 fi
-if [ -n "${GITHUB_ACTIONS:-}" ] || openssl3; then
+if [[ -n "${GITHUB_ACTIONS:-}" ]] || openssl3; then
   checked_openssl
   sign_with_openssl "$SUMS" MAILCRAFT_RELEASE_KEY
   exit 0

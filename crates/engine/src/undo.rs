@@ -210,6 +210,9 @@ struct Said {
     folders: Vec<String>,
     sent: Vec<String>,
     moved_out: Vec<String>,
+    /// Moved on from a mailbox whose copy was let go while the copy it was first moved out of
+    /// waits for the bytes it came as (#30).
+    held: Vec<String>,
     /// What the server is to be told besides (#70): a copy made in another mailbox of the
     /// owner's that goes again, a move back into the mailbox a message came from.
     queued: Vec<Queued>,
@@ -224,7 +227,7 @@ fn shown(text: &str) -> String {
 }
 
 impl Said {
-    fn lines(&self) -> Vec<String> {
+    fn lines(&self, lang: mailcraft_i18n::Lang) -> Vec<String> {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
@@ -247,6 +250,22 @@ impl Said {
             many => lines
                 .push(format!("{} messages were moved out of their account and the server's copies removed: that can't be undone here.", many.len())),
         }
+        match self.held.as_slice() {
+            [] => {}
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."),
+                &[("subject", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
+                    "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
+        }
         match self.no_room.as_slice() {
             [] => {}
             [one] => lines.push(format!("The category '{}' couldn't be put back: the list of categories is full.", shown(one))),
@@ -259,7 +278,7 @@ impl Said {
 /// `target`, the mailbox an undo (or redo) goes back to, with the Microsoft accounts' mail kept in
 /// step with `now`; `touched` is what the change being undone did. Answers the mailbox and what
 /// couldn't be undone, in words.
-pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -> (Mailbox, Vec<String>) {
+pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     returned(&mut out, now);
@@ -289,7 +308,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, touched, now, &g, &mut said);
     out.favorites_from_server = now.favorites_from_server.clone();
-    (out, said.lines())
+    (out, said.lines(lang))
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept, and
@@ -543,6 +562,29 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
         }
     }
+    // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
+    // the change moved between Gmail's categories goes back to the one it was in, against what
+    // Gmail says now, so that a move Gmail has had already is moved back there at the next run.
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        if relevant(t, g) || relevant(c, g) || t.gmail_synced == c.gmail_synced || (t.folder, t.gmail_id) != (c.folder, c.gmail_id) {
+            continue;
+        }
+        let synced = c.gmail_synced;
+        if let Some(t) = out.messages.get_mut(id) {
+            let t = Arc::make_mut(t);
+            (t.gmail_synced, t.gmail_refusals) = (synced, 0);
+        }
+    }
+    // Gmail's refusals count against a move waiting, and nothing else.
+    for id in &touched.changed_messages {
+        if let Some(t) = out.messages.get_mut(id)
+            && t.gmail_refusals != 0
+            && t.gmail_move_waiting().is_none()
+        {
+            Arc::make_mut(t).gmail_refusals = 0;
+        }
+    }
     // Contacts the change didn't touch are as they are now (those an import put in and a later
     // step's snapshot holds are not brought back by undoing that step).
     let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();
@@ -758,6 +800,7 @@ fn merge(
                 && !now.subtree(deleted).contains(&c.folder)
             {
                 m.folder = deleted;
+                m.left_gmail_inbox();
             }
             Some(Arc::new(m))
         }
@@ -773,10 +816,22 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
     if t.account != c.account {
         let placed = c.server.as_ref().filter(|s| !s.gone && !s.id.is_empty() && g.contains(&c.account));
         if g.contains(&t.account) && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
+            // The copy it was first moved out of, in a third mailbox, is kept while it may hold the
+            // bytes a protected message came as (#30, `Mailbox::place_called_off`): it stays the
+            // one this message is moved out of, and the copy made here goes instead.
+            let first = c.moving_out.as_ref().is_some_and(|out| out.account != t.account && out.account != c.account && (!out.left || out.listing))
+                || now
+                    .pending
+                    .iter()
+                    .any(|p| matches!(p, Pending::Move { message, .. } if *message == c.id) && p.account() != t.account && p.account() != c.account);
             // Moved into another mailbox of the owner's, and the original removed (#70): moved
             // back as it went, a copy made there from the whole message, and this one gone once it is.
             let Some(placed) = placed.filter(|_| now.between_mailboxes(c.account, t.account)) else {
-                said.moved_out.push(t.subject.clone());
+                if first {
+                    said.held.push(t.subject.clone())
+                } else {
+                    said.moved_out.push(t.subject.clone())
+                }
                 return Some(c.clone());
             };
             let source = mailcraft_model::sync::fingerprint(placed.id.as_bytes());
@@ -789,7 +844,11 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 copy: false,
                 from: None,
             });
-            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
+            if first {
+                said.queued.push(Queued::DeleteMessage { account: c.account, id: placed.id.clone(), kept: None });
+            } else {
+                m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
+            }
             (m.server, m.uid, m.synced) = (None, 0, None);
         } else if g.contains(&t.account) {
             // Moved out of a Microsoft account: back while the server's copy is still there.
