@@ -816,25 +816,44 @@ fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) -> HashSet<u6
 /// the message stays where Gmail has it, and the owner is told. Said in `said`, in `lang`.
 fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove], usize), lang: mailcraft_i18n::Lang, said: &mut Vec<String>) {
     // Said by Gmail's message: two copies here of one message are one message there.
-    let (mut again, mut given_up) = (HashSet::new(), HashSet::new());
-    let mut seen = HashSet::new();
-    for done in refused {
-        // Still that move waiting (not moved on since), and counted once a run.
-        let waiting = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0 && m.gmail_move_waiting() == Some(done.category);
-        if !seen.insert(done.message) || !mb.message(done.message).is_some_and(waiting) {
-            continue;
+    let (mut again, mut given_up) = (0u64, 0u64);
+    if !refused.is_empty() {
+        // The account's moves waiting, by Gmail's id: the copies here of one Gmail message.
+        let mut copies: HashMap<u64, Vec<(Id, mailcraft_model::GmailCategory)>> = HashMap::new();
+        for m in mb.messages.values().filter(|m| m.account == account && m.gmail_id != 0) {
+            if let Some(category) = m.gmail_move_waiting() {
+                copies.entry(m.gmail_id).or_default().push((m.id, category));
+            }
         }
-        let Ok(m) = mb.message_mut(done.message) else { continue };
-        m.gmail_refusals = m.gmail_refusals.saturating_add(1);
-        if m.gmail_refusals >= MAX_GMAIL_REFUSALS {
-            (m.gmail_category, m.gmail_refusals) = (m.gmail_synced, 0);
-            given_up.insert(done.id);
-        } else {
-            again.insert(done.id);
+        let mut seen = HashSet::new();
+        for done in refused {
+            // Counted once a run for each Gmail message, and only while that move still waits.
+            if !seen.insert(done.id) {
+                continue;
+            }
+            let Some(these) = copies.get(&done.id) else { continue };
+            let these: Vec<Id> = these.iter().filter(|(_, category)| *category == done.category).map(|(id, _)| *id).collect();
+            if these.is_empty() {
+                continue;
+            }
+            // One count for the message: the highest of its copies', one more, on all of them.
+            let count = these.iter().filter_map(|id| mb.message(*id)).map(|m| m.gmail_refusals).max().unwrap_or(0).saturating_add(1);
+            let give_up = count >= MAX_GMAIL_REFUSALS;
+            for id in these {
+                let Ok(m) = mb.message_mut(id) else { continue };
+                if give_up {
+                    (m.gmail_category, m.gmail_refusals) = (m.gmail_synced, 0);
+                } else {
+                    m.gmail_refusals = count;
+                }
+            }
+            if give_up {
+                given_up += 1;
+            } else {
+                again += 1;
+            }
         }
     }
-    let again = u64::try_from(again.difference(&given_up).count()).unwrap_or(u64::MAX);
-    let given_up = u64::try_from(given_up.len()).unwrap_or(u64::MAX);
     let fmt = |text: &str, n: u64, m: u64| mailcraft_i18n::fmt(text, &[("n", &n.to_string()), ("m", &m.to_string())]);
     if given_up > 0 {
         let text = lang.tn(

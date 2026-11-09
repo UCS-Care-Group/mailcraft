@@ -264,6 +264,43 @@ fn refusals_go_back_to_nothing_whenever_no_move_is_waiting() {
 }
 
 #[test]
+fn undo_leaves_no_refusals_where_no_move_waits_even_from_an_older_file() {
+    // A file from before refusals were cleared with the move: a count left on a message whose
+    // move is no longer waiting.
+    let (mut s, account, _) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    s.mailbox.message_mut(three).unwrap().gmail_refusals = 2;
+    assert_eq!(by_uid(&s, account, 3).gmail_move_waiting(), None);
+    // A move and its undo: the step's snapshot holds the count from before.
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_move_waiting(), m.gmail_refusals), (Some(GmailCategory::Social), None, 0));
+}
+
+#[test]
+fn copies_share_one_count_and_are_given_up_together() {
+    let (mut s, account, _) = sorted_inbox(true);
+    let mut copy = by_uid(&s, account, 3).clone();
+    (copy.id, copy.uid, copy.message_id) = (0, 30, "<copy@sender.example>".into());
+    let copy = s.mailbox.add_message(copy).unwrap();
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    // Counts that drifted apart (an older file): 1 and 2.
+    s.mailbox.message_mut(three).unwrap().gmail_refusals = 1;
+    s.mailbox.message_mut(copy).unwrap().gmail_refusals = 2;
+    // One refusal, of one copy: the message's count is the higher, one more, and that is three.
+    let no = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Forums }];
+    let lines = said(&mut s, refused(account, no, 0));
+    assert_eq!(lines, ["Gmail wouldn't move 1 message; it stays where Gmail has it"]);
+    for id in [three, copy] {
+        let m = s.mailbox.message(id).unwrap();
+        assert_eq!((m.gmail_category, m.gmail_move_waiting(), m.gmail_refusals), (Some(GmailCategory::Social), None, 0));
+    }
+    assert!(moves(&s, account).is_empty());
+}
+
+#[test]
 fn moves_left_unsent_are_said_without_blaming_gmail_for_them() {
     let (mut s, account, _) = sorted_inbox(true);
     let (three, four) = (id_of(&s, account, 3), id_of(&s, account, 4));
