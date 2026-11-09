@@ -409,7 +409,7 @@ pub fn fetch_queue_passing_over(mb: &Mailbox, account: Id, most: usize, now: Tim
     let mut out: Vec<String> = mb
         .messages
         .values()
-        .filter(|m| still_to_fetch(mb, m) && !m.incomplete)
+        .filter(|m| (still_to_fetch(mb, m) || wants_from_source(m)) && !m.incomplete)
         .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account && !skip(&out.id)).map(|out| out.id.clone()))
         .take(most)
         .collect();
@@ -485,7 +485,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     // Only while it is still what it was when it was asked for (AU3-16): headers only, no change
     // of the owner's waiting to go up, not queued to be sent. An answer that comes after it was
     // fetched another way, edited or sent is dropped, so that it never undoes what was done here.
-    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m)) {
+    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
     let mut read = crate::mime::parse_fetched(mime);
@@ -493,13 +493,20 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
     let replaced = mb.message(here).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
+    // (No room for it: what the mailbox keeps then, below which it is asked for again.)
+    let mut no_room = 0;
     if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
         read.original = None;
+        no_room = mb.messages.originals_size().max(1);
     }
     let m = mb.message_mut(here).ok()?;
-    // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
+    // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
+    // from for them: nothing else of it changes.
     if std::mem::take(&mut m.original_wanted) {
         m.original_asked |= !brought;
+        if no_room > 0 {
+            m.original_no_room = no_room;
+        }
         // (A copy that brings none, one put on the server from its parts, takes nothing away.)
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
@@ -563,6 +570,13 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         }
     }
     Some(here)
+}
+
+/// Whether `m`, being moved out of a Microsoft account, asks the copy it came from there for the
+/// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): fetched for them alone,
+/// all it has here staying as it is.
+pub(crate) fn wants_from_source(m: &Message) -> bool {
+    m.original_wanted && !m.unfetched && m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty())
 }
 
 /// Whether `m` is one to fetch whole, and may take what was fetched: it is still only its headers

@@ -81,25 +81,21 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
         let Some(m) = mb.message(*message).filter(|m| *a == account && m.account == account && m.uid == 0 && m.server.is_none()) else {
             continue;
         };
-        if Some(m.folder) == outbox || m.unfetched || m.incomplete || m.not_downloaded > 0 {
-            continue;
-        }
         if taken >= MAX_PLACES || (taken > 0 && spent.saturating_add(m.size()) > PLACE_BYTES) {
             break;
         }
-        spent = spent.saturating_add(m.size());
         // One whose original can't be read while the copy it came from may hold it waits for it
-        // from there, and says so once (#30); one whose original nothing else can hold goes made
-        // of its parts.
-        if s.held_for_original(m) {
-            if s.first_told_held(m.id) {
-                let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
-                said.push(format!(
-                    "\"{subject}\" waits to go to the server: the bytes it came as can't be read on this computer, and are asked for from where it came"
-                ));
-            }
+        // from there, and says so once for each reason (#30), whatever else it waits for; one
+        // whose original nothing else can hold goes made of its parts.
+        if let Some(notice) = s.held_notice(m) {
+            said.extend(notice);
+            taken += 1;
             continue;
         }
+        if Some(m.folder) == outbox || m.unfetched || m.incomplete || m.not_downloaded > 0 {
+            continue;
+        }
+        spent = spent.saturating_add(m.size());
         if m.kept.as_deref().is_some_and(|k| k.failed) || !s.parts_readable(m) {
             let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             said.push(format!("Couldn't put \"{subject}\" on the server: it couldn't be read on this computer"));
@@ -108,6 +104,20 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
         }
     }
     said
+}
+
+/// What is said once of the messages moved out of `account` onto this computer that wait for the
+/// bytes they came as (#30, [`Session::held_notice`]): this account's run says it, as no run of
+/// theirs does. As far as a run looks ([`MAX_PLACES`]).
+pub(crate) fn held_for_this_computer(s: &Session, account: Id) -> Vec<String> {
+    let mb = &s.mailbox;
+    let local = |m: &Message| mb.account(m.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Local);
+    let moved = mb.pending.iter().filter_map(|p| match p {
+        mailcraft_model::Pending::Move { message, .. } if p.account() == account => Some(*message),
+        _ => None,
+    });
+    let out = mb.messages.values().filter(|m| m.moving_out.as_ref().is_some_and(|o| o.account == account)).map(|m| m.id);
+    moved.chain(out).filter_map(|id| mb.message(id)).filter(|m| local(m)).take(MAX_PLACES).filter_map(|m| s.held_notice(m).flatten()).collect()
 }
 
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where

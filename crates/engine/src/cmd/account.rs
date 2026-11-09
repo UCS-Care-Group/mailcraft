@@ -656,6 +656,8 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
+    // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
+    super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
     // whose `normalize` moves the folder on screen to its Inbox and a message being written to
     // it: with no account yet, both would be left pointing at nothing.
@@ -1216,7 +1218,10 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     run.stopped |= stopped;
     run.finished = !partial;
     if !partial {
-        for said in super::graph_place::unreadable_waiting(s, account) {
+        // What nothing will answer any more is let go of (#30).
+        super::mail::check_again::settle(&mut s.mailbox);
+        let held = super::graph_place::held_for_this_computer(s, account);
+        for said in super::graph_place::unreadable_waiting(s, account).into_iter().chain(held) {
             if !run.errors.contains(&said) {
                 run.errors.push(said);
             }

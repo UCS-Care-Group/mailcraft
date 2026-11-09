@@ -203,37 +203,216 @@ fn a_move_into_microsoft_waits_for_the_original_from_the_imap_copy() {
 }
 
 /// Out of a Microsoft account into an IMAP one: the Microsoft copy is fetched for it first.
-#[test]
-fn a_move_out_of_microsoft_waits_for_the_original_from_its_copy() {
+/// The message moved through a Microsoft account (made "AAkA2" there, the IMAP copy gone) and
+/// on into the second IMAP account, its original's file gone: the session, the second IMAP
+/// account, the Microsoft account, the message and the folder to remove after.
+fn moved_out_of_microsoft(name: &str) -> (Session, Id, Id, Id, std::path::PathBuf) {
     use mailcraft_model::sync::{GraphMailResult, MessageOutcome, PlaceDone};
     let (mut s, from, to, id) = two_imap();
     let ms = microsoft(&mut s, "owner@example.org");
-    // Into Microsoft's server first (made "AAkA2"), the IMAP copy gone.
     s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
     let asked = crate::cmd::graph_mail::graph_mail_request(&s, ms).unwrap();
     let made = MessageOutcome::Done { categories: None, flag: None, folder: "in".into(), id: "AAkA2".into() };
     let placed = asked.places.iter().map(|p| PlaceDone { change: p.without_data(), outcome: made.clone() }).collect();
-    crate::cmd::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account: ms, email: "owner@example.org".into(), placed, ..Default::default() },
-    )
-    .unwrap();
+    let result = GraphMailResult { account: ms, email: "owner@example.org".into(), placed, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
     let deleted = vec![mailcraft_model::sync::Deleted { from: "INBOX".into(), uid: 1 }];
     apply_sync(&mut s, SyncResult { account: from, deleted, ..Default::default() }).unwrap();
-    // Then on into the second IMAP account.
     s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap()})).unwrap();
     assert!(s.mailbox.message(id).unwrap().moving_out.is_some());
-    let (mut s, dir) = without_original(&s, id, "from-ms");
+    let (s, dir) = without_original(&s, id, name);
+    (s, to, ms, id, dir)
+}
+
+/// Out of a Microsoft account into an IMAP one: the Microsoft copy is fetched for the bytes
+/// first (the message staying as it is here, and the owner told), and the move goes made of its
+/// parts once it brought none.
+#[test]
+fn a_move_out_of_microsoft_waits_for_the_original_from_its_copy() {
+    let (mut s, to, ms, id, dir) = moved_out_of_microsoft("from-ms");
     assert!(sync_request(&s, to).unwrap().places.is_empty());
     s.ask_for_lost_originals();
     let m = s.mailbox.message(id).unwrap();
-    assert!(m.original_wanted && m.unfetched);
+    assert!(m.original_wanted && !m.unfetched);
     assert!(crate::cmd::graph_down::fetch_queue(&s.mailbox, ms, 10, m.received).contains(&"AAkA2".to_string()));
+    // Waiting, the owner is told, once.
+    let said = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    assert!(matches!(said.as_slice(), [one] if one.contains("asked for from where it came")), "{said:?}");
+    assert!(crate::cmd::graph_place::unreadable_waiting(&s, to).is_empty());
     let mut index = Default::default();
     assert!(crate::cmd::graph_down::take_fetched(&mut s.mailbox, &mut index, ms, "AAkA2", &long_unprotected()));
     assert!(s.mailbox.message(id).unwrap().original_asked);
     let asked = sync_request(&s, to).unwrap();
     assert!(matches!(asked.places.as_slice(), [p] if p.message.original_bytes().is_none()), "{:?}", asked.places);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The Microsoft copy gone meanwhile (deleted there by the owner): the ask is let go of, and the
+/// move goes made of its parts, there being nothing left to hold the bytes.
+#[test]
+fn a_move_out_of_microsoft_whose_copy_went_goes_made_of_its_parts() {
+    let (mut s, to, _, id, dir) = moved_out_of_microsoft("ms-gone");
+    assert!(sync_request(&s, to).unwrap().places.is_empty());
+    s.ask_for_lost_originals();
+    assert!(s.mailbox.message(id).unwrap().original_wanted);
+    if let Some(out) = s.mailbox.message_mut(id).unwrap().moving_out.as_mut() {
+        out.left = true;
+    }
+    crate::cmd::mail::check_again::settle(&mut s.mailbox);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(!m.original_wanted && !m.refetch && !m.unfetched);
+    let asked = sync_request(&s, to).unwrap();
+    assert!(matches!(asked.places.as_slice(), [p] if p.message.original_bytes().is_none()), "{:?}", asked.places);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// [`two_imap`]'s message moved to this computer with its original's file gone, the copy it came
+/// from asked for it: the session, the IMAP account, the message and the folder to remove after.
+fn moved_here_asking(name: &str) -> (Session, Id, Id, std::path::PathBuf) {
+    let (mut s, from, _, id) = two_imap();
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap()})).unwrap();
+    let (mut s, dir) = without_original(&s, id, name);
+    s.note_saved();
+    assert!(!deletes(&s, from));
+    s.ask_for_lost_originals();
+    assert!(s.mailbox.message(id).unwrap().refetch);
+    (s, from, id, dir)
+}
+
+/// What the IMAP server says of UID 1 of its Inbox asked for again and not given: `refused` or
+/// too large (`too_large`), or neither, as a version before #30 said both.
+fn not_given(s: &mut Session, account: Id, refused: bool, too_large: bool) {
+    let inbox = FolderDelta {
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 7,
+        uid_seen: 1,
+        refetch_done: vec![1],
+        refetch_refused: if refused { vec![1] } else { vec![] },
+        refetch_too_large: if too_large { vec![1] } else { vec![] },
+        ..Default::default()
+    };
+    apply_sync(s, SyncResult { account, folders: vec![inbox], ..Default::default() }).unwrap();
+}
+
+/// A server that refuses the bytes (`NO`, a failed fetch) brings nothing: the copy there stays,
+/// they are asked for again by the runs after, and, given up on, the move goes on waiting and
+/// the owner is told why.
+#[test]
+fn a_refusal_from_the_copy_it_came_from_never_lets_it_go() {
+    for refused in [true, false] {
+        let (mut s, from, id, dir) = moved_here_asking(if refused { "refused" } else { "refused-old" });
+        for _ in 1..mailcraft_model::ORIGINAL_TRIES {
+            not_given(&mut s, from, refused, false);
+            s.note_saved();
+            let m = s.mailbox.message(id).unwrap();
+            assert!(m.refetch && m.original_wanted && !m.original_asked, "{refused}");
+            assert!(!deletes(&s, from), "{refused}");
+        }
+        not_given(&mut s, from, refused, false);
+        s.note_saved();
+        let m = s.mailbox.message(id).unwrap();
+        assert!(!m.refetch && !m.original_asked && m.original_tries == mailcraft_model::ORIGINAL_TRIES);
+        assert!(!deletes(&s, from));
+        // Not asked again, and said.
+        let m = s.mailbox.message(id).cloned().unwrap();
+        s.want_original(id);
+        s.ask_for_lost_originals();
+        assert!(!s.mailbox.message(id).unwrap().refetch);
+        // The IMAP account's run said it already, as the message is on this computer.
+        assert!(s.held_notice(&m).is_some() && !s.first_told_held(id, crate::session::Held::NotGiven));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Too large to take here: given up on at once, the copy where it came from staying.
+#[test]
+fn a_copy_too_large_to_take_holds_the_move() {
+    let (mut s, from, id, dir) = moved_here_asking("too-large");
+    not_given(&mut s, from, false, true);
+    s.note_saved();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(!m.refetch && !m.original_asked && m.original_tries == mailcraft_model::ORIGINAL_TRIES);
+    assert!(!deletes(&s, from));
+    // The owner was told by the IMAP account's run, as the message is on this computer.
+    let m = s.mailbox.message(id).cloned().unwrap();
+    assert!(s.held_notice(&m).is_some() && !s.first_told_held(id, crate::session::Held::NotGiven));
+    assert!(crate::cmd::graph_place::held_for_this_computer(&s, from).is_empty(), "said once");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// No room here for the bytes when they came: not asked for again while the mailbox keeps as
+/// much, and said; asked again once it keeps less.
+#[test]
+fn no_room_for_the_original_holds_the_move_until_there_is() {
+    let (mut s, from, id, dir) = moved_here_asking("no-room");
+    // As if they had come with no room: what the mailbox kept then.
+    let m = s.mailbox.message_mut(id).unwrap();
+    (m.refetch, m.original_wanted, m.original_no_room) = (false, false, 1);
+    s.want_original(id);
+    s.ask_for_lost_originals();
+    assert!(!s.mailbox.message(id).unwrap().refetch);
+    let m = s.mailbox.message(id).cloned().unwrap();
+    assert!(s.held_notice(&m).flatten().is_some_and(|said| said.contains("no room")));
+    assert!(!deletes(&s, from));
+    // The mailbox keeps less now than then.
+    s.mailbox.message_mut(id).unwrap().original_no_room = u64::MAX;
+    s.want_original(id);
+    s.ask_for_lost_originals();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.refetch && m.original_no_room == 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A mailbox numbered anew on the server it came from (its UID there not known for now): the
+/// copy there still counts, and the move waits until it is known, then asks.
+#[test]
+fn a_move_out_of_a_mailbox_numbered_anew_waits_for_its_uid() {
+    let (mut s, from, to, id) = two_imap();
+    s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap()})).unwrap();
+    let (mut s, dir) = without_original(&s, id, "renumbered");
+    let set_uid = |s: &mut Session, to: u32| {
+        for p in &mut s.mailbox.pending {
+            if let mailcraft_model::Pending::Move { uid, .. } = p {
+                *uid = to;
+            }
+        }
+    };
+    set_uid(&mut s, 0);
+    assert!(sync_request(&s, to).unwrap().places.is_empty());
+    s.ask_for_lost_originals();
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    assert!(s.mailbox.message(id).unwrap().original_wanted);
+    assert!(!crate::cmd::imap_again::wanted(&s.mailbox, from).contains_key(&inbox));
+    assert!(sync_request(&s, to).unwrap().places.is_empty());
+    set_uid(&mut s, 1);
+    assert_eq!(crate::cmd::imap_again::wanted(&s.mailbox, from).get(&inbox).map(Vec::as_slice), Some(&[1u32][..]));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The copy it came from gone on the server (deleted there by the owner): the ask is let go of
+/// with the move, and Check again isn't told it was asked for already.
+#[test]
+fn an_ask_of_a_copy_that_went_is_let_go_of() {
+    let (mut s, from, id, dir) = moved_here_asking("source-gone");
+    let deleted = vec![mailcraft_model::sync::Deleted { from: "INBOX".into(), uid: 1 }];
+    apply_sync(&mut s, SyncResult { account: from, deleted, ..Default::default() }).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(!m.refetch && !m.original_wanted, "{:?}", s.mailbox.pending);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Another mailbox opened in the session starts with nothing asked or said of the last one's.
+#[test]
+fn another_mailbox_forgets_what_was_asked_and_said() {
+    let (mut s, _, id, dir) = moved_here_asking("replaced");
+    s.want_original(id);
+    let m = s.mailbox.message(id).cloned().unwrap();
+    assert!(s.held_notice(&m).is_some());
+    s.replace_mailbox(mailcraft_model::Mailbox::default());
+    assert!(s.lost_originals.lock().unwrap().is_empty());
+    assert!(s.first_told_held(id, crate::session::Held::Asked));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

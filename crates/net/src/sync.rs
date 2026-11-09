@@ -932,6 +932,8 @@ impl FolderSync<'_> {
             complete: false,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
+            refetch_too_large: Vec::new(),
+            refetch_refused: Vec::new(),
             gmail: Vec::new(),
         };
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -1058,6 +1060,7 @@ impl FolderSync<'_> {
             let size = sizes.get(&uid).copied().unwrap_or(0);
             if size > run.limits.largest {
                 delta.refetch_done.push(uid);
+                delta.refetch_too_large.push(uid);
                 continue;
             }
             if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
@@ -1080,6 +1083,7 @@ impl FolderSync<'_> {
                     *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
                     if !fatal && !run.cancelled() {
                         delta.refetch_done.push(uid);
+                        delta.refetch_refused.push(uid);
                     }
                 }
             }

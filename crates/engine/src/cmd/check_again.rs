@@ -9,7 +9,7 @@
 //! as alone ([`Message::original_wanted`]): nothing else of it changes. A message a part was
 //! removed from here ([`Message::parts_removed`]) is never checked again.
 
-use mailcraft_model::{AccountKind, Id, Mailbox, Message, Pending};
+use mailcraft_model::{AccountKind, Id, Mailbox, Message, ORIGINAL_TRIES, Pending};
 use serde_json::{Value, json};
 
 use super::{fail, needs_message};
@@ -80,7 +80,7 @@ pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
 /// written from its parts meanwhile. Asked once: when what came brought none
 /// ([`Message::original_asked`]), not again. Whether the server was asked.
 pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
-    if m.draft || m.parts_removed || m.original_wanted || m.original_asked || m.refetch || !on_server(kind, m) {
+    if m.draft || m.parts_removed || m.original_wanted || m.original_asked || m.refetch || given_up(m) || !on_server(kind, m) {
         log::warn!("message {}: the bytes it came as can't be read from the content folder; it is written from its parts", m.id);
         return false;
     }
@@ -88,15 +88,55 @@ pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
     true
 }
 
-/// Where the copy message `id` is being moved out of is, on a server that still has it whole
-/// (#451): its account, and whether that is an IMAP account's.
+/// Whether the bytes `m` came as are asked for no more (#30): refused too often, too large to
+/// take here ([`Message::original_tries`]), or no room for them here until the mailbox keeps less
+/// ([`Message::original_no_room`], which a caller with the mailbox looks at).
+pub(crate) fn given_up(m: &Message) -> bool {
+    m.original_tries >= ORIGINAL_TRIES || m.original_no_room > 0
+}
+
+/// Where the copy message `id` is being moved out of is, on a server that still has it (#451):
+/// its account, and whether that is an IMAP account's. A move out of an IMAP mailbox numbered
+/// anew counts while its UID there isn't known again: the copy is there still, and is asked for
+/// the bytes once it is.
 pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
     let m = mb.message(id)?;
     if let Some(out) = m.moving_out.as_ref().filter(|out| !out.left && !out.id.is_empty()) {
         return Some((out.account, false));
     }
     let pending = mb.pending.iter().find(|p| matches!(p, Pending::Move { message, .. } if *message == id))?;
-    (pending.source().1 != 0 && pending.account() != m.account).then(|| (pending.account(), true))
+    (pending.account() != m.account).then(|| (pending.account(), true))
+}
+
+/// The asks for the bytes a message came as (#30) that nothing will answer any more: made of
+/// the copy it was being moved out of, which is gone (deleted there, its account removed, the
+/// move called off), with no copy of its own on a server. Let go of, so that Check again may be
+/// asked, and so that it waits for nothing.
+pub(crate) fn settle(mb: &mut Mailbox) {
+    let stale: Vec<Id> = mb
+        .messages
+        .values()
+        .filter(|m| m.original_wanted && !asked_of_own(mb.account(m.account).map(|a| a.kind), m))
+        .map(|m| m.id)
+        .filter(|id| source_copy(mb, *id).is_none())
+        .collect();
+    for id in stale {
+        if let Ok(m) = mb.message_mut(id) {
+            (m.original_wanted, m.refetch) = (false, false);
+        }
+    }
+}
+
+/// Whether the ask for the bytes `m` came as goes to its own account's server (of `kind`), which
+/// has it: by its UID there (IMAP), or fetched whole from there.
+fn asked_of_own(kind: Option<AccountKind>, m: &Message) -> bool {
+    match kind {
+        Some(AccountKind::Imap) => m.refetch && m.uid != 0,
+        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
+            m.unfetched && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty())
+        }
+        _ => false,
+    }
 }
 
 /// Whether the copy message `id` is being moved out of may hold the bytes it came as (#30)
@@ -113,16 +153,13 @@ pub(crate) fn source_may_hold(mb: &Mailbox, id: Id) -> bool {
 /// it was asked for.
 pub(crate) fn ask_source(source: Option<(Id, bool)>, m: &mut Message) -> bool {
     let Some((_, imap)) = source else { return false };
-    if m.draft || m.parts_removed || m.original_asked || m.original_wanted || m.refetch || m.unfetched {
+    if m.draft || m.parts_removed || m.original_asked || m.original_wanted || m.refetch || given_up(m) {
         return false;
     }
+    // (From Microsoft's server, fetched for them alone: `graph_down::wants_from_source`. The
+    // message stays as it is here meanwhile.)
     m.original_wanted = true;
-    if imap {
-        m.refetch = true;
-    } else {
-        m.attachments_on_server = m.has_attachments();
-        m.unfetched = true;
-    }
+    m.refetch = imap;
     true
 }
 
@@ -137,6 +174,15 @@ pub(crate) fn needs_checkable(s: &Session) -> Option<&'static str> {
 /// `mail.checkAgain`: mark the message to have the bytes it came as downloaded again.
 pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    // An ask nothing will answer any more doesn't stand in the way.
+    settle(&mut s.mailbox);
+    // Asked by the owner: whatever the server said before, it is asked again.
+    if let Ok(m) = s.mailbox.message_mut(id)
+        && given_up(m)
+        && !m.has_original()
+    {
+        (m.original_tries, m.original_no_room) = (0, 0);
+    }
     // Its text in memory, for armour at the start of a line to be seen.
     let _ = s.load_where(id, |_| false);
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;

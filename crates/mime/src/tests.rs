@@ -554,6 +554,8 @@ fn message() -> impl Strategy<Value = Message> {
             parts_removed: false,
             original_wanted: false,
             original_asked: false,
+            original_tries: 0,
+            original_no_room: 0,
         },
     )
 }

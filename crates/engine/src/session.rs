@@ -1025,7 +1025,7 @@ pub struct Session {
     pub(crate) lost_originals: std::sync::Mutex<Vec<Id>>,
     /// The messages said to wait for the bytes they came as (#30), each said once
     /// ([`Session::first_told_held`]).
-    told_held: std::sync::Mutex<HashSet<Id>>,
+    told_held: std::sync::Mutex<HashSet<(Id, Held)>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -2239,6 +2239,38 @@ impl Session {
         Ok((!fell_back || !crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id)).then_some(whole))
     }
 
+    /// Why message `m`, moved elsewhere, waits for the bytes it came as (#30), when it does
+    /// ([`Session::held_for_original`]), and what the owner is told of it, once for each why
+    /// ([`Session::first_told_held`]).
+    /// `None` when it doesn't wait; `Some(None)` when it was said already.
+    pub(crate) fn held_notice(&self, m: &Message) -> Option<Option<String>> {
+        if !self.held_for_original(m) {
+            return None;
+        }
+        let why = if m.original_no_room > 0 {
+            Held::NoRoom
+        } else if m.original_tries >= mailcraft_model::ORIGINAL_TRIES {
+            Held::NotGiven
+        } else {
+            Held::Asked
+        };
+        if !self.first_told_held(m.id, why) {
+            return Some(None);
+        }
+        let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+        Some(Some(match why {
+            Held::Asked => {
+                format!("\"{subject}\" waits to go: the bytes it came as can't be read on this computer, and are asked for from where it came")
+            }
+            Held::NotGiven => {
+                format!("\"{subject}\" waits to go: the server it came from didn't give the bytes it came as, and the copy there stays")
+            }
+            Held::NoRoom => format!(
+                "\"{subject}\" waits to go: there is no room on this computer for the bytes it came as, and the copy where it came from stays"
+            ),
+        }))
+    }
+
     /// Whether message `m`, moved elsewhere, waits for the bytes it came as (#30): they can't be
     /// read here, and the copy it is being moved out of may hold them. Asked for from there
     /// ([`Session::want_original`]).
@@ -2264,8 +2296,8 @@ impl Session {
 
     /// Whether message `id` is said, for the first time this session, to wait for the bytes it
     /// came as (#30): said once.
-    pub(crate) fn first_told_held(&self, id: Id) -> bool {
-        self.told_held.lock().is_ok_and(|mut told| told.len() < crate::cmd::imap_again::MAX_AGAIN && told.insert(id))
+    pub(crate) fn first_told_held(&self, id: Id, why: Held) -> bool {
+        self.told_held.lock().is_ok_and(|mut told| told.len() < crate::cmd::imap_again::MAX_AGAIN && told.insert((id, why)))
     }
 
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
@@ -2848,6 +2880,12 @@ impl Session {
         self.searched_for = None;
         self.saved_whole.clear();
         self.kept_for_now.clear();
+        if let Ok(lost) = self.lost_originals.get_mut() {
+            lost.clear();
+        }
+        if let Ok(told) = self.told_held.get_mut() {
+            told.clear();
+        }
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
@@ -3243,10 +3281,15 @@ impl Session {
     /// ([`crate::cmd::mail::check_again::lost`]), or from the copy it is being moved out of
     /// ([`crate::cmd::mail::check_again::ask_source`]). Whether it was asked for.
     fn ask_original(&mut self, id: Id) -> bool {
+        // No room here for them when they last came: asked again once the mailbox keeps less.
+        let kept = self.mailbox.messages.originals_size();
         let Some(m) = self.mailbox.message(id) else { return false };
         let kind = self.mailbox.account(m.account).map(|a| a.kind);
         let source = crate::cmd::mail::check_again::source_copy(&self.mailbox, id);
         let mut copy = Message::clone(m);
+        if copy.original_no_room > 0 && kept < copy.original_no_room {
+            copy.original_no_room = 0;
+        }
         let asked = if source.is_some() {
             crate::cmd::mail::check_again::ask_source(source, &mut copy)
         } else {
@@ -3646,3 +3689,14 @@ fn text_of(bytes: &[u8]) -> String {
 #[cfg(test)]
 #[path = "session_tests.rs"]
 mod tests;
+
+/// Why a message moved elsewhere waits for the bytes it came as (#30): what it is told for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Held {
+    /// They are asked for from the copy it came from.
+    Asked,
+    /// That copy's server didn't give them (refused too often, or too large to take).
+    NotGiven,
+    /// They came, and there was no room for them here.
+    NoRoom,
+}

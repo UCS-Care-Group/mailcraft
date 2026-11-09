@@ -449,7 +449,10 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // (The Inbox pass is never the end of the account's part of the run.)
     let last = !result.partial && !result.inbox_pass;
     if last {
+        // What nothing will answer any more is let go of (#30).
+        super::mail::check_again::settle(&mut s.mailbox);
         errors.extend(super::graph_place::unreadable_waiting(s, account));
+        errors.extend(super::graph_place::held_for_this_computer(s, account));
     }
     let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);

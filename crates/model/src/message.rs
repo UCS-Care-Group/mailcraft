@@ -433,6 +433,23 @@ pub struct Message {
     /// a copy made of its parts may stand for it where it goes.
     #[serde(skip_serializing_if = "is_false")]
     pub original_asked: bool,
+    /// How many times the server refused the bytes it came as when they were asked for again
+    /// (#30), or [`ORIGINAL_TRIES`] once it is given up on (refused that often, or too large to
+    /// take): not asked again then, and what waits for them goes on waiting.
+    #[serde(skip_serializing_if = "is_zero_u8")]
+    pub original_tries: u8,
+    /// What the mailbox kept of originals in all when there was no room for this one's (#30), the
+    /// bytes having come: not asked for again until the mailbox keeps less. 0: none of that.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub original_no_room: u64,
+}
+
+/// How many refusals of the bytes a message came as are taken before they are asked for no more
+/// ([`Message::original_tries`]).
+pub const ORIGINAL_TRIES: u8 = 5;
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).

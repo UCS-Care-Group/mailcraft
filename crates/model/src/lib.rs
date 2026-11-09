@@ -68,7 +68,7 @@ pub use mailbox::{
 pub use mailcraft_time as time;
 pub use message::{
     Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, MAX_ORIGINALS, Message, NOT_DOWNLOADED,
-    NOT_DOWNLOADED_NOTE, Original, PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    NOT_DOWNLOADED_NOTE, ORIGINAL_TRIES, Original, PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use messages::Messages;
 pub use offline::{KeepOffline, OfflineWindow};

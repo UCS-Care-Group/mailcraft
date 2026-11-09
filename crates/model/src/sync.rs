@@ -544,6 +544,14 @@ pub struct FolderDelta {
     /// large to download), so that they are not asked for at every run.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_done: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those too large to download (#30): what waits for the
+    /// bytes they came as can't have them here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_too_large: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those the server refused (#30): asked for again by a run
+    /// after, so many times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_refused: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.

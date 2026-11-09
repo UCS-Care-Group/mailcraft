@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::sync::FolderDelta;
-use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message};
+use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message, ORIGINAL_TRIES};
 
 /// Most messages one synchronisation request asks to have downloaded again, over all folders.
 pub const MAX_AGAIN: usize = 200;
@@ -86,13 +86,19 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
     let replaced = mb.message(id).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
+    // (No room for it: what the mailbox keeps then, below which it is asked for again.)
+    let mut no_room = 0;
     if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
         read.original = None;
+        no_room = mb.messages.originals_size().max(1);
     }
     let Ok(m) = mb.message_mut(id) else { return };
     (m.refetch, m.refetched) = (false, true);
     let wanted = std::mem::take(&mut m.original_wanted);
     m.original_asked |= wanted && !brought;
+    if wanted && no_room > 0 {
+        m.original_no_room = no_room;
+    }
     // Check again asked for the bytes it came as alone (#30): nothing else of it changes, but
     // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
     // would have been had it been marked for that. (One being moved into another account, asked
@@ -159,13 +165,25 @@ pub fn take_in(mb: &mut Mailbox, delta: &mut FolderDelta, by_uid: impl Fn(u32) -
             take_again(mb, id, read);
         }
     }
+    let too_large = std::mem::take(&mut delta.refetch_too_large);
+    delta.refetch_refused.clear();
     for uid in std::mem::take(&mut delta.refetch_done) {
         if let Some(id) = by_uid(uid)
             && let Ok(m) = mb.message_mut(id)
         {
+            // The bytes it came as asked for (#30), and nothing came: never taken for a copy
+            // without them, which would let a copy that may hold them go. Refused, they are
+            // asked for again by the runs after, so many times; too large to take here, they
+            // are given up on. What waits for them goes on waiting either way.
+            if m.original_wanted {
+                let tries = if too_large.contains(&uid) { ORIGINAL_TRIES } else { m.original_tries.saturating_add(1).min(ORIGINAL_TRIES) };
+                m.original_tries = tries;
+                if tries >= ORIGINAL_TRIES {
+                    (m.refetch, m.original_wanted) = (false, false);
+                }
+                continue;
+            }
             (m.refetch, m.refetched) = (false, true);
-            // (Nothing came: nothing to wait for there, #30.)
-            m.original_asked |= std::mem::take(&mut m.original_wanted);
         }
     }
 }
