@@ -142,14 +142,13 @@ impl MailApp {
         use crate::approval::NO_BROWSER;
         use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
         match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => {
                 self.shared_calendar_perm.insert(shared, Permission::Needed);
             }
             Ok(tokens) => {
-                self.keep_shared_calendar_tokens(shared, owner, &address, tokens);
+                self.keep_shared_calendar_tokens(shared, owner, tokens);
                 // Allowed, as far as is known: the next look at the calendar finds out.
                 self.shared_calendar_perm.insert(shared, Permission::Allowed);
                 self.calendar.failures.remove(&shared);
@@ -215,9 +214,9 @@ impl MailApp {
 
     /// Keep the tokens a calendar job or the page brought back: the access token is the shared
     /// mailbox's calendars' own, the refresh token the owner's newest, for mail and Graph alike.
-    pub(crate) fn keep_shared_calendar_tokens(&mut self, shared: Id, owner: Id, address: &str, tokens: Tokens) {
+    pub(crate) fn keep_shared_calendar_tokens(&mut self, shared: Id, owner: Id, tokens: Tokens) {
         if !tokens.refresh.is_empty() {
-            self.remember("refresh", address, &tokens.refresh);
+            self.remember("refresh", owner, &tokens.refresh);
             if let Some(kept) = self.tokens.get_mut(&owner) {
                 kept.refresh = tokens.refresh.clone();
             }

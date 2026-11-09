@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Header fields: reading them (unfolding, parameters) and writing them (folding).
 
-use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+use mailcraft_model::auth_results::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
 
 use crate::charset;
 use crate::words::decode_words;
@@ -16,7 +16,7 @@ const MAX_VALUE: usize = 256 * 1024;
 /// Most header bytes kept from one header block in all (names and values together).
 const MAX_BLOCK: usize = 4 * 1024 * 1024;
 
-/// Longest value of an [`AUTH_AS`] field kept, in bytes.
+/// Longest value of an [`AUTH_AS`] or [`DIRECTIONALITY`] field kept, in bytes.
 const AUTH_AS_BYTES: usize = 64;
 
 /// Most parameters read from one `Content-Type` or `Content-Disposition`.
@@ -59,12 +59,15 @@ pub(crate) fn line_at(bytes: &[u8], pos: usize) -> (&[u8], usize) {
 /// empty line, or at the first line that can't be a header field (some senders forget the empty
 /// line). At the `top` of a message a leading mbox `From ` line is skipped.
 pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
-    fn push(fields: &mut Vec<Field>, kept: &mut usize, current: Option<(String, Vec<u8>)>) {
+    fn push(fields: &mut Vec<Field>, kept: &mut usize, stamps: &mut [usize; 2], current: Option<(String, Vec<u8>)>) {
         let Some((name, value)) = current else { return };
         // Exchange's own stamps get room past both caps, so that a sender's padding can't push
-        // them out; each is cut short, with a mark so that it is never cut down to `Internal`.
-        if name.eq_ignore_ascii_case(AUTH_AS) {
-            if fields.len() < MAX_FIELDS + MAX_AUTH_AS {
+        // them out, at most `MAX_AUTH_AS` of each; each is cut short, with a mark so that it is
+        // never cut down to `Internal` or `Incoming`.
+        let stamp = [AUTH_AS, DIRECTIONALITY].iter().position(|stamp| name.eq_ignore_ascii_case(stamp));
+        if let Some(count) = stamp.and_then(|i| stamps.get_mut(i)) {
+            if *count < MAX_AUTH_AS {
+                *count += 1;
                 let value = value.trim_ascii();
                 let mut text = charset::guess(value.get(..AUTH_AS_BYTES).unwrap_or(value));
                 if value.len() > AUTH_AS_BYTES {
@@ -81,6 +84,7 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
     }
     let mut fields = Vec::new();
     let mut kept = 0usize;
+    let mut stamps = [0usize; 2];
     let mut current: Option<(String, Vec<u8>)> = None;
     let mut pos = 0;
     let mut first = true;
@@ -103,7 +107,7 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
                 None => break pos,
             }
         } else if let Some((name, value)) = field(line) {
-            push(&mut fields, &mut kept, current.take());
+            push(&mut fields, &mut kept, &mut stamps, current.take());
             current = Some((name, value.get(..MAX_VALUE).unwrap_or(value).to_vec()));
         } else if !(top && first && (line.starts_with(b"From ") || line.starts_with(b">From "))) {
             break pos;
@@ -111,7 +115,7 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
         first = false;
         pos = next;
     };
-    push(&mut fields, &mut kept, current.take());
+    push(&mut fields, &mut kept, &mut stamps, current.take());
     (Headers(fields), bytes.get(body..).unwrap_or_default())
 }
 

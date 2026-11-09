@@ -402,6 +402,16 @@ pub struct Account {
     /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub skip_conversation_question: bool,
+    /// For a Gmail account: its owner turned off Gmail's categories (#911), which the folder pane
+    /// then doesn't show under its Inbox. Off for a new account and in a file from before there
+    /// was one: they are shown. Every other account has none to show, whatever this says.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub hide_gmail_categories: bool,
+    /// For a Gmail account: a desktop alert is shown only for new mail in Gmail's Primary category
+    /// (#911). Off for a new account and in a file from before there was one: all new mail in the
+    /// Inbox is told of, as for any account.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub alert_primary_only: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -749,8 +759,15 @@ pub struct OAuth {
 #[serde(rename_all = "camelCase")]
 pub enum Queued {
     /// A folder was deleted for good here (from Deleted Items, or by emptying it): the server
-    /// deletes it too, which keeps it recoverable for the server's retention period.
-    DeleteFolder { account: Id, id: String },
+    /// deletes it too, which keeps it recoverable for the server's retention period. `shown`:
+    /// what the owner had of it and under it then (AU3-H7), so that what the server holds there
+    /// beyond that (mail that arrived since, a folder made elsewhere) keeps it on the server.
+    DeleteFolder {
+        account: Id,
+        id: String,
+        #[serde(default, skip_serializing_if = "crate::sync::Shown::is_empty")]
+        shown: crate::sync::Shown,
+    },
     /// A message the server has was copied here into another of the account's server folders
     /// (R3 spec S16, S21). `id` is the source's server id, `to` the destination folder's;
     /// `copy` is the copy made here, which takes the server's copy's id once the server has
@@ -831,6 +848,9 @@ fn kept_for_put_back(m: &Message) -> Message {
         copy.kept = None;
         for a in &mut copy.attachments {
             a.kept = None;
+        }
+        if let Some(o) = copy.original.as_mut() {
+            o.kept = None;
         }
     } else {
         copy.to_fetch_again();
@@ -1206,8 +1226,11 @@ pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again
 
 /// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
-/// that leaves an Outbox is no longer held for having been put in it.
+/// that leaves an Outbox is no longer held for having been put in it. Whatever the move or copy,
+/// the message (or the copy) is not one being sent from where it was any more (AU3-26): filed in
+/// Sent Items, moved away by the owner, or a copy made of it.
 fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
+    m.sending = false;
     if into_outbox {
         if m.held.is_empty() {
             m.held = MOVED_INTO_OUTBOX.to_string();
@@ -1875,11 +1898,14 @@ impl Mailbox {
                 // doesn't have among them (deleting that takes what is under it along).
                 if self.names_may_hold_slashes(f.account) {
                     let on_server = |p: Id| gone.contains(&p) && self.folder(p).is_some_and(|parent| parent.server.is_some());
+                    let shown = self.shown_of(f.account, &f.name, &gone);
                     let deletes: Vec<Queued> = self
                         .folders
                         .iter()
                         .filter(|g| gone.contains(&g.id) && (g.id == id || !g.parent.is_some_and(on_server)))
-                        .filter_map(|g| g.server.as_ref().map(|server| Queued::DeleteFolder { account: f.account, id: server.id.clone() }))
+                        .filter_map(|g| {
+                            g.server.as_ref().map(|server| Queued::DeleteFolder { account: f.account, id: server.id.clone(), shown: shown.clone() })
+                        })
                         .collect();
                     self.queued.extend(deletes);
                 }
@@ -1931,12 +1957,31 @@ impl Mailbox {
         }
     }
 
+    /// What the owner has of the folders `gone` of `account` as they are deleted for good (AU3-H7):
+    /// the server's ids of those folders and of the messages in them, and of the messages of the
+    /// account already waiting to be deleted on the server (the owner deleted those too). `name`
+    /// is the folder's, for the line that says when the server kept it.
+    fn shown_of(&self, account: Id, name: &str, gone: &[Id]) -> crate::sync::Shown {
+        let gone: HashSet<Id> = gone.iter().copied().collect();
+        let folders = self.folders.iter().filter(|g| gone.contains(&g.id)).filter_map(|g| g.server.as_ref()).map(|s| s.id.as_str());
+        let held = self.messages.values().filter(|m| gone.contains(&m.folder)).filter_map(|m| m.server.as_ref()).map(|s| s.id.as_str());
+        let deleting = self.queued.iter().filter_map(|q| match q {
+            Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.as_str()),
+            _ => None,
+        });
+        crate::sync::Shown::of(name, folders, held.chain(deleting))
+    }
+
     // ---- messages ----
 
     /// Add a message to its folder (`folder` must exist); gives it an id when it has none.
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        // Within what the mailbox keeps of originals in all (#30).
+        if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
+            m.original = None;
+        }
         if m.id == 0 || self.messages.contains_key(&m.id) {
             m.id = self.alloc_id();
         }
@@ -1944,6 +1989,12 @@ impl Mailbox {
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
+    }
+
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30), by the
+    /// running total the messages keep ([`Messages::originals_size`]).
+    pub fn room_for_original(&mut self, size: u64) -> bool {
+        self.messages.originals_size().saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {
@@ -2381,6 +2432,17 @@ impl Mailbox {
             self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
             return;
         }
+        // The bytes a protected message came as may be lost with the original (#30): it stays the
+        // copy the message is moved out of, by the gate every release goes through, and this one,
+        // which Graph made of its parts and so holds none of them, goes. (A record of where it
+        // was put is of the mailbox it leaves: [`Message::original_placed`] counts not here.)
+        let protected = m.original.is_some() && !m.original_asked;
+        let held = original.as_ref().is_some_and(|out| (!out.left || out.listing) && !out.id.is_empty())
+            || self.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() != m.account);
+        if protected && held {
+            self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
+            return;
+        }
         if let Ok(m) = self.message_mut(id) {
             m.moving_out = Some(copy);
         }
@@ -2568,6 +2630,7 @@ impl Mailbox {
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
             copy.placed.clear();
+            copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
@@ -2593,6 +2656,7 @@ impl Mailbox {
         // the copy on a server it waits for.)
         copy.returned = 0;
         copy.placed.clear();
+        copy.left_gmail_inbox();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {
@@ -2732,7 +2796,8 @@ impl Mailbox {
 
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a
     /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
-    /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
+    /// into Junk E-mail, to the Inbox, unless the account's own server says it failed its checks
+    /// ([`crate::auth_results::failed_check`]). The move is noted for the server as the owner's own is.
     /// Whether it moved. Never in a shared mailbox, and the callers sort only new mail of a folder
     /// read whole once ([`Folder::read_whole`], Graph's [`ServerFolder::round_ended`]), never a first download:
     /// mail that was here before (or before a list changed) stays where it is.
@@ -2742,7 +2807,11 @@ impl Mailbox {
         let Some(kind) = self.folder(m.folder).map(|f| f.kind) else { return false };
         let to = match (kind, lists.verdict(&m.from.email)) {
             (FolderKind::Inbox, Some(crate::JunkList::Blocked)) => FolderKind::Junk,
-            (FolderKind::Junk, Some(crate::JunkList::Safe)) => FolderKind::Inbox,
+            // The `From:` is the sender's word: a safe sender's mail leaves Junk E-mail only when
+            // the account's own server doesn't say it failed its checks.
+            (FolderKind::Junk, Some(crate::JunkList::Safe)) if crate::auth_results::failed_check(self.account(m.account), m).is_none() => {
+                FolderKind::Inbox
+            }
             _ => return false,
         };
         // The lists are the owner's: a shared mailbox's mail is other people's too, and stays

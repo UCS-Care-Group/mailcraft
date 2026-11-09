@@ -15,7 +15,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .reads()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
+            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
@@ -194,16 +194,37 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     } else {
         return Err(bad("`id`, `kind` or `path` is required"));
     };
-    if s.view.folder != id || s.view.module != Module::Mail {
+    // One of Gmail's categories of a Gmail account's Inbox (#911).
+    let gmail = match v.get("gmail") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(code)) => {
+            let category =
+                mailcraft_model::GmailCategory::parse(code).ok_or_else(|| bad("`gmail` is primary, social, promotions, updates or forums"))?;
+            if !crate::gmail::listed_under(s, id) {
+                return Err(fail("only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"));
+            }
+            Some((id, category))
+        }
+        Some(_) => return Err(bad("`gmail` is primary, social, promotions, updates or forums")),
+    };
+    if s.view.folder != id || s.view.module != Module::Mail || s.view.gmail != gmail {
         s.view.folder = id;
         s.view.module = Module::Mail;
+        s.view.gmail = gmail;
         s.sel.messages.clear();
     }
     // A search belongs to the folder it was typed in.
     s.view.search.clear();
     // From the counts the window has anyway, not two walks over every message.
     let counts = s.folder_counts();
-    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)}))
+    let mut out = json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)});
+    if let (Some((_, category)), Some(o)) = (gmail, out.as_object_mut()) {
+        let held = counts.gmail(id, category);
+        o.insert("gmail".into(), json!(category.code()));
+        o.insert("gmailMessages".into(), json!(held.total));
+        o.insert("gmailUnread".into(), json!(held.unread));
+    }
+    Ok(out)
 }
 
 /// The folders under `parent`, each with its counts from `counts` (counted once for the whole
