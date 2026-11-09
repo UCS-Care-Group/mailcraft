@@ -175,9 +175,31 @@ fn text_is_never_taken_for_binary() {
         "KEY;TYPE=X509;ENCODING=QUOTED-PRINTABLE:0hello",
         "KEY;TYPE=PGP;VALUE=text:ABCD 1234 EF56",
         "KEY;TYPE=PGP:ABCD1234EF56",
+        // Text that looks like an address is text, not the address of a key.
+        "KEY;VALUE=text:https://keys.example.org/ada.asc",
+        "KEY;TYPE=PGP;VALUE=TEXT:openpgp4fpr:ABCDEF01",
     ] {
         assert!(keys("3.0", line).is_empty(), "{line}");
     }
+}
+
+#[test]
+fn an_indeterminate_length_is_no_keys() {
+    // Old format, tag 6, length type 3 (the rest of the bytes): only data packets may have it.
+    for header in [0x9b_u8, 0xbb] {
+        let bytes = [header, 0x04, 0x5e, 0x00, 0x00, 0x01, 0x16];
+        assert!(keys("3.0", &format!("KEY;TYPE=PGP;ENCODING=b:{}", STANDARD.encode(bytes))).is_empty(), "{header:#x}");
+        assert!(keys("3.0", &format!("KEY;ENCODING=b:{}", STANDARD.encode([PGP, &bytes].concat()))).is_empty(), "{header:#x}");
+    }
+}
+
+#[test]
+fn armour_headers_without_a_space_are_headers() {
+    let armour = format!(
+        "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion:GnuPG v2\nComment:made up\n\n{}\n=AAAA\n-----END PGP PUBLIC KEY BLOCK-----",
+        STANDARD.encode(PGP)
+    );
+    assert_eq!(keys("3.0", &format!("KEY;TYPE=PGP:{}", escaped(&armour))), [openpgp(armour.as_bytes())]);
 }
 
 #[test]

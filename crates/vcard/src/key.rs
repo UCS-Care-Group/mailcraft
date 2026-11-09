@@ -138,9 +138,10 @@ fn says_secret(text: &str) -> bool {
 fn armour_body(armour: &str) -> Option<Vec<u8>> {
     let mut lines = armour.lines().skip(1).map(str::trim);
     let mut body = String::new();
-    // Header lines (`Version: …`) end at a blank line; an armour without headers begins at once.
+    // Header lines (`Version: …`, `Version:GnuPG`) end at a blank line; an armour without headers
+    // begins at once. (A colon is never base64.)
     let mut first = lines.next()?;
-    if first.contains(": ") {
+    if first.contains(':') {
         first = lines.by_ref().find(|l| l.is_empty())?;
     }
     for line in std::iter::once(first).chain(lines) {
@@ -220,8 +221,8 @@ fn packet(bytes: &[u8], at: usize) -> Option<(u8, usize)> {
             0 => (tag, byte(1)?, 2usize),
             1 => (tag, big_endian(1, 2)?, 3),
             2 => (tag, big_endian(1, 4)?, 5),
-            // The rest of the bytes.
-            _ => (tag, bytes.len().checked_sub(at.checked_add(1)?)?, 1),
+            // An indeterminate length, which only data packets may have: not a key's.
+            _ => return None,
         }
     } else {
         let tag = header & 0x3f;
