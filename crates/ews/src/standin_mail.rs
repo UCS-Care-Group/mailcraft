@@ -427,14 +427,15 @@ impl State {
         let [one] = node.children.as_slice() else { return Err(invalid("SyncFolderId names one folder")) };
         let found = if one.is(TYPES, "DistinguishedFolderId") {
             Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
+            self.mailbox_of(one)?;
             self.folder(Check::attribute(one, "Id")?, true)
         } else if one.is(TYPES, "FolderId") {
             Check::is(one, TYPES, "FolderId", &["Id", "ChangeKey"])?;
+            Check::empty(one)?;
             self.folder(Check::attribute(one, "Id")?, false)
         } else {
             return Err(invalid("SyncFolderId has no place for that"));
         };
-        Check::empty(one)?;
         found.cloned().ok_or(Refusal { code: "ErrorFolderNotFound", why: "no such folder".into() })
     }
 

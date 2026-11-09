@@ -498,8 +498,9 @@ impl Lap {
 
 /// [`run_mail`] on this thread: every piece through `emit`.
 pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &AtomicBool, emit: &mut dyn FnMut(EwsMailResult)) {
+    // (A shared mailbox, #482: the owner's sign-in, and the shared mailbox's address on each distinguished folder.)
     let client = match client(&request.url, &request.username, &request.email, password) {
-        Ok(client) => client,
+        Ok(client) => client.with_mailbox(&request.mailbox),
         Err(why) => return emit(mailcraft_ews::failed_run(request, why)),
     };
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));

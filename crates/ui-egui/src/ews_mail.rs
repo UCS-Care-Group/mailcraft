@@ -64,24 +64,36 @@ impl MailApp {
     /// the one typed this session, or else the one the operating system was asked to remember (what
     /// the background read of the store brought, never the store itself, #613).
     pub(crate) fn ews_secret(&self, account: Id) -> Option<String> {
+        // (A shared mailbox is read with the password of the account it was opened through, #482.)
+        let account = self.ews_sign_in_of(account);
         if let Some(typed) = self.passwords.get(&account) {
             return Some(typed.clone());
         }
         self.remembered("password", account)
     }
 
+    /// The account whose password signs `account` in: itself, or for a shared mailbox opened
+    /// through an Exchange server account (#482) that account. Its password is the only one there is:
+    /// the shared mailbox's own address has none, and is never offered the owner's anywhere else.
+    pub(crate) fn ews_sign_in_of(&self, account: Id) -> Id {
+        self.session.mailbox.ews_owner_of(account).map_or(account, |owner| owner.id)
+    }
+
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
+        // (A shared mailbox signs in as the account it was opened through: that one's password.)
+        let signer = self.ews_sign_in_of(account);
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
-            self.passwords.insert(account, typed.to_string());
+            self.passwords.insert(signer, typed.to_string());
         }
         // The owner asked: a password turned down before is tried again.
         if !quiet {
             self.jmap_refused.remove(&account);
+            self.jmap_refused.remove(&signer);
         }
         let Some(secret) = self.ews_secret(account) else {
-            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": signer}));
             return Ok(json!({"pending": "password"}));
         };
         let inbox_pass = p.get("inboxPass").and_then(Value::as_bool).unwrap_or(false);
@@ -146,8 +158,9 @@ impl MailApp {
             }
             let untrusted = !piece.untrusted.is_empty();
             // The server answered with its folders or its mail: it took the password (#802).
+            let signer = self.ews_sign_in_of(account);
             if piece.server_answered() {
-                self.keep_accepted_password(account);
+                self.keep_accepted_password(signer);
             }
             // What File › Info says: how this run signed in, and a certificate that needs a say.
             if !piece.signed_in_with.is_empty() {
@@ -170,8 +183,20 @@ impl MailApp {
                             self.ews_unreadable.insert(account, folders);
                         }
                     }
-                    let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
-                    self.note_sync_problems(account, &errors.unwrap_or_default(), false);
+                    let errors = said["errors"]
+                        .as_array()
+                        .map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>())
+                        .unwrap_or_default();
+                    self.note_sync_problems(account, &errors, false);
+                    // A shared mailbox being added (#482): kept once its Inbox is read, or removed again
+                    // with the reason, as for a Microsoft account's.
+                    if self.shared_checking.contains(&account) {
+                        self.shared_check_piece(account, last);
+                        if last && self.shared_checking.contains(&account) {
+                            let words = errors.first().cloned().unwrap_or_else(|| tl!("The shared mailbox couldn't be read.").to_string());
+                            self.finish_shared_check(account, Err(words));
+                        }
+                    }
                 }
                 Err(e) => {
                     self.status(e.to_string());
@@ -198,9 +223,11 @@ impl MailApp {
             if std::mem::take(&mut self.sync_refused) {
                 // Turned down: the next Send/Receive asks for it again, and no round by itself goes
                 // back until then. What the system remembered is no good either.
-                self.passwords.remove(&account);
+                let signer = self.ews_sign_in_of(account);
+                self.passwords.remove(&signer);
                 self.jmap_refused.insert(account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
+                self.jmap_refused.insert(signer);
+                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(signer)) {
                     let key = Self::secret_key("password", a);
                     store.delete(&key);
                     self.secret_cache.remove(&key);
@@ -211,7 +238,8 @@ impl MailApp {
             } else if whole {
                 // It went through: that password is worth remembering (when the owner lets it be,
                 // and no piece said so before), and nothing is left of the last run's problems.
-                self.keep_accepted_password(account);
+                let signer = self.ews_sign_in_of(account);
+                self.keep_accepted_password(signer);
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }

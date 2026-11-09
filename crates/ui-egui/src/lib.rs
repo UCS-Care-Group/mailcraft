@@ -3375,7 +3375,8 @@ impl MailApp {
             return Err(tl!("This build can't connect to Microsoft").to_string());
         }
         // A shared mailbox is read with its owner's sign-in, at its own address (#70).
-        if self.session.mailbox.account(account).is_some_and(|a| a.is_shared()) {
+        // (A shared mailbox opened through an Exchange server account is read as any Exchange account is.)
+        if self.session.mailbox.account(account).is_some_and(|a| a.is_shared() && a.kind == mailcraft_model::AccountKind::Microsoft) {
             return self.start_shared_mail(account, quiet);
         }
         let owner = self.session.mailbox.account(account).cloned().ok_or_else(|| tl!("The account is gone").to_string())?;
