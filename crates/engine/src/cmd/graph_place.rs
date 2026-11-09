@@ -134,11 +134,12 @@ pub(crate) fn held_for_this_computer(s: &Session, account: Id) -> Vec<String> {
 /// counts one that can't be read as it does a change the server refused.
 ///
 /// And, of a Digitally signed or Encrypted message (#30), only once the bytes it came as can't be
-/// lost with the original ([`Message::may_release`]), or, when `read`, are read
-/// whole here: the gate every release of a copy something was moved out of goes through.
+/// lost with the original ([`Message::may_release`]), or, when `read`, are whole on the disk here
+/// ([`Session::original_readable`], whatever account it is in): the gate every release of a copy
+/// something was moved out of goes through.
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bool {
     let released = || {
-        if m.may_release() || !read || s.original_readable(m) {
+        if m.may_release() || !read || s.original_readable(m, saved) {
             return true;
         }
         // Read and lost: asked for from the copy it came from.

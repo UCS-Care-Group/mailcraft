@@ -608,7 +608,7 @@ pub(crate) fn gone_with_folders(s: &mut crate::Session, account: Id, listing: &m
             out.listing = false;
         }
         let Some(m) = s.mailbox.message(id) else { continue };
-        if !m.may_release() && !s.original_readable(m) && said.len() < crate::cmd::imap_again::MAX_AGAIN {
+        if said.len() < crate::cmd::imap_again::MAX_AGAIN && !m.may_release() && !s.original_readable(m, true) {
             let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             said.push(format!(
                 "\"{subject}\": the copy it was moved out of went with its folder on the server, so it goes made of its parts, without the bytes it came as"

@@ -2210,14 +2210,18 @@ impl Session {
         text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
-    /// Whether the bytes message `m` came as (#30) are whole here: in memory, or read back from
-    /// the disk now (not from a copy kept in memory: a copy something was moved out of goes on it).
-    pub(crate) fn original_readable(&self, m: &Message) -> bool {
+    /// Whether the bytes message `m` came as (#30) are whole on the disk here: read back from
+    /// their file now (not from a copy kept in memory), or in memory while the mailbox file is
+    /// known to hold the mailbox as it is (`saved`, [`Session::file_is_current`]). A copy
+    /// something was moved out of goes on it, so bytes in memory alone, which a failed save or a
+    /// crash would lose, never count.
+    pub(crate) fn original_readable(&self, m: &Message, saved: bool) -> bool {
         let fresh = |r: &ContentRef| {
             let (Some(path), Some(source)) = (self.path.as_deref(), self.source()) else { return false };
             source.fetch_fresh(path, r).is_ok()
         };
-        m.original.as_ref().is_some_and(|o| !o.data.is_empty() || o.kept.as_ref().is_some_and(fresh))
+        let saved = saved && self.file_is_current();
+        m.original.as_ref().is_some_and(|o| (saved && !o.data.is_empty()) || o.kept.as_ref().is_some_and(fresh))
     }
 
     /// [`Session::readable_whole`] but for the bytes a protected message came as (#30), which

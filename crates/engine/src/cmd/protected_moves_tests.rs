@@ -710,10 +710,9 @@ fn the_gate_reads_the_original_from_the_disk() {
     let file = std::cell::RefCell::new(None);
     let (s, dir) = with_original_file(&s, id, "fresh", |path| *file.borrow_mut() = Some(path.to_path_buf()));
     let m = s.mailbox.message(id).cloned().unwrap();
-    assert!(s.readable_whole(&m) && s.original_readable(&m));
+    assert!(s.readable_whole(&m) && s.original_readable(&m, true));
     std::fs::remove_file(file.borrow().as_ref().unwrap()).unwrap();
-    assert!(s.readable_whole(&m), "read from what memory kept");
-    assert!(!s.original_readable(&m));
+    assert!(!s.original_readable(&m, true));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -739,4 +738,103 @@ fn a_folder_gone_while_listed_afresh_lets_the_copy_go_and_says_so() {
     assert!(m.moving_out.as_ref().is_some_and(|out| out.left && !out.listing) && !m.original_wanted);
     assert!(matches!(sync_request(&s, to).unwrap().places.as_slice(), [p] if p.message.original_bytes().is_none()));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The bytes come back into memory from the copy it came from, and the mailbox isn't saved yet
+/// (a save that fails, or a crash, would lose them): that copy stays; once saved, it goes.
+#[test]
+fn bytes_in_memory_alone_never_release_the_original() {
+    let (mut s, from, id, dir) = moved_here_asking("in-memory");
+    refetched(&mut s, from, 1, &long_signed());
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original_bytes().is_some() && !m.original_asked);
+    assert!(!s.file_is_current());
+    assert!(!deletes(&s, from));
+    s.run("file.save", &json!({})).unwrap();
+    assert!(s.file_is_current());
+    assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Moved on from a second mailbox into a shared mailbox of it while the copy it was first moved
+/// out of is kept for the bytes it came as (#30), and the move undone: back in the second
+/// mailbox, that first copy stays the one it is moved out of (a Microsoft one, or an IMAP
+/// server's, never tracked twice), and the copy the shared mailbox was given goes.
+#[test]
+fn undoing_a_move_on_keeps_the_first_copy() {
+    use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone};
+    use mailcraft_model::{Pending, Queued};
+    for imap_first in [false, true] {
+        let (mut s, from, _, id) = two_imap();
+        let place_in = |s: &mut Session, account: Id, email: &str, made: &str| {
+            s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap()})).unwrap();
+            let asked = crate::cmd::graph_mail::graph_mail_request(s, account).unwrap();
+            let done = MessageOutcome::Done { categories: None, flag: None, folder: "in".into(), id: made.into() };
+            let placed: Vec<PlaceDone> = asked.places.iter().map(|p| PlaceDone { change: p.without_data(), outcome: done.clone() }).collect();
+            assert_eq!(placed.len(), 1, "{email}");
+            crate::cmd::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: email.into(), placed, ..Default::default() }).unwrap();
+        };
+        let a = microsoft(&mut s, "first@example.org");
+        if !imap_first {
+            place_in(&mut s, a, "first@example.org", "AAkA2");
+            let deleted = vec![mailcraft_model::sync::Deleted { from: "INBOX".into(), uid: 1 }];
+            apply_sync(&mut s, SyncResult { account: from, deleted, ..Default::default() }).unwrap();
+        }
+        let b = microsoft(&mut s, "second@example.org");
+        let c = s.run("account.addSharedMailbox", &json!({"account": b, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+        let folders = vec![GraphFolder { id: "in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+        let listing = GraphMailResult {
+            account: c,
+            email: "team@example.org".into(),
+            listing: Some(FolderListing { folders, complete: true }),
+            ..Default::default()
+        };
+        crate::cmd::graph_mail::apply_graph_mail(&mut s, listing).unwrap();
+        place_in(&mut s, b, "second@example.org", "AAkB3");
+        place_in(&mut s, c, "team@example.org", "AAkC4");
+        assert_eq!(s.mailbox.message(id).unwrap().account, c);
+        s.run("edit.undo", &json!({})).unwrap();
+        let m = s.mailbox.message(id).unwrap();
+        assert_eq!(m.account, b, "{imap_first}");
+        assert!(
+            s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account, id, .. } if *account == c && id == "AAkC4")),
+            "{imap_first}: {:?}",
+            s.mailbox.queued
+        );
+        let first_ms = |m: &mailcraft_model::Message| m.moving_out.as_ref().is_some_and(|out| out.account == a && out.id == "AAkA2");
+        if imap_first {
+            assert!(m.moving_out.is_none(), "{:?}", m.moving_out);
+            assert!(s.mailbox.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() == from));
+        } else {
+            assert!(first_ms(m), "{:?}", m.moving_out);
+        }
+        assert!(!s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account, .. } if *account == a)));
+    }
+}
+
+/// Moved on between two Microsoft accounts of different sign-ins while the copy it was first
+/// moved out of is kept for the bytes it came as, and the move undone: it stays where it went,
+/// the copy it had in the mailbox it left being gone, and the owner is told why.
+#[test]
+fn undoing_a_move_on_between_sign_ins_says_why_it_stays() {
+    use mailcraft_model::sync::{GraphMailResult, MessageOutcome, PlaceDone};
+    let (mut s, from, _, id) = two_imap();
+    let place_in = |s: &mut Session, account: Id, email: &str, made: &str| {
+        s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap()})).unwrap();
+        let asked = crate::cmd::graph_mail::graph_mail_request(s, account).unwrap();
+        let done = MessageOutcome::Done { categories: None, flag: None, folder: "in".into(), id: made.into() };
+        let placed = asked.places.iter().map(|p| PlaceDone { change: p.without_data(), outcome: done.clone() }).collect();
+        crate::cmd::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: email.into(), placed, ..Default::default() }).unwrap();
+    };
+    let a = microsoft(&mut s, "first@example.org");
+    place_in(&mut s, a, "first@example.org", "AAkA2");
+    let deleted = vec![mailcraft_model::sync::Deleted { from: "INBOX".into(), uid: 1 }];
+    apply_sync(&mut s, SyncResult { account: from, deleted, ..Default::default() }).unwrap();
+    let b = microsoft(&mut s, "second@example.org");
+    place_in(&mut s, b, "second@example.org", "AAkB3");
+    let c = microsoft(&mut s, "third@example.org");
+    place_in(&mut s, c, "third@example.org", "AAkC4");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.message(id).unwrap().account, c);
+    assert!(s.undo_said().iter().any(|said| said.contains("Digitally signed or Encrypted")), "{:?}", s.undo_said());
 }
