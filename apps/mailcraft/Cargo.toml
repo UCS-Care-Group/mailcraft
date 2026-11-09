@@ -134,6 +134,10 @@ base64 = { workspace = true }
 # are its unsafe, behind a safe API. Under it: cryptoki-sys (Apache-2.0), libloading (ISC) and
 # secrecy (Apache-2.0 OR MIT), which clears the PIN it is handed.
 cryptoki = "0.12.1"
+# Checking a token's signature against its certificate when the key was paired with it only
+# through a public-key object (`key_holders/verify.rs`): big numbers for public-key arithmetic
+# (MIT OR Apache-2.0, already in the tree).
+num-bigint = "0.4"
 # On Linux and FreeBSD the store is the desktop's Secret Service (GNOME Keyring, KWallet,
 # KeePassXC…), spoken to over D-Bus. These features keep it pure Rust: zbus rather than libdbus,
 # so neither building nor installing needs a system library, and the secret travels to the

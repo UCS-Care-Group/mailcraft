@@ -15,14 +15,17 @@
 //! A certificate's private key is the token's private-key object with the same `CKA_ID`
 //! (PKCS#11 v2.40 §4.6.3) whose public half is the certificate's: the RSA modulus or the EC
 //! point, read from the key or else from the public-key object with that id. A key that doesn't
-//! match is never used.
+//! match is never used. A key paired through a public-key object (which may be a stale one of
+//! another key) has each signature checked against the certificate before it is given back
+//! (`verify.rs`); what it unwraps can't be checked so, and a wrong key's unwrapping fails when
+//! the message is decrypted with it.
 //!
 //! Logging in: a token with a protected authentication path (a PIN pad) is logged in to with no
 //! PIN and asks on the reader; it never has the window ask for one. Any other token that needs a
 //! login ends the call with [`KeyHolderError::PinNeeded`], naming the token by slot, serial
 //! number and label; the window asks the owner and calls again with that [`TokenRef`] and the
-//! [`Pin`], which then goes to that slot only, and only while the session opened on it shows the
-//! token with that serial number (a token without one: that label) and the certificate
+//! [`Pin`], which then goes to that slot only, and only while the slot, read after a session
+//! was opened on it, shows the token with that serial number (a token without one: that label) and the certificate
 //! ([`KeyHolderError::TokenChanged`] otherwise). A key marked `CKA_ALWAYS_AUTHENTICATE` (a PIV
 //! card's signing key) needs a second, context-specific login between `C_SignInit` and
 //! `C_Sign`, which `cryptoki`'s single-part `sign` and `decrypt` don't leave room for: such a key
@@ -123,9 +126,10 @@ where
     Err(last)
 }
 
-/// One module file's place in a [`Registry`]: empty until it loads, then kept.
+/// One module file's place in a [`Registry`]: empty while it loads, then kept.
 type Place<T> = Arc<Mutex<Option<Arc<T>>>>;
-/// What is kept of each module file tried: never emptied, so that no module is unloaded.
+/// Each module file loaded or loading: a loaded one is never let go of, so that no module is
+/// unloaded; one that fails to load gives its place back.
 pub type Registry<T> = Mutex<Vec<(PathBuf, Place<T>)>>;
 
 fn modules() -> &'static Registry<Pkcs11Holder> {
@@ -140,33 +144,51 @@ pub fn module_key(module: &Path) -> PathBuf {
 }
 
 /// The one `T` kept in `registry` for the file `module`, made by `make` (given the file's
-/// [`module_key`]) the first time; at most `max` files tried. A failure is not kept, so a later
-/// call tries again. The registry's lock is held only to find the file's place: a module that
-/// hangs while loading holds up the calls for that file alone.
+/// [`module_key`]) the first time; at most `max` modules loaded or loading. A failure is not
+/// kept and gives its place back, so a later call tries again. The registry's lock is held only
+/// to find or free the file's place: a module that hangs while loading holds up the calls for
+/// that file alone.
 pub fn shared<T, F>(registry: &Registry<T>, module: &Path, max: usize, make: F) -> Result<Arc<T>, KeyHolderError>
 where
     F: FnOnce(&Path) -> Result<T, KeyHolderError>,
 {
     let key = module_key(module);
-    let place: Place<T> = {
-        let mut kept = registry.lock().unwrap_or_else(PoisonError::into_inner);
-        match kept.iter().find(|(path, _)| *path == key) {
-            Some((_, place)) => Arc::clone(place),
-            None if kept.len() >= max => return Err(KeyHolderError::Unavailable("too many PKCS#11 modules".into())),
-            None => {
-                let place = Place::default();
-                kept.push((key.clone(), Arc::clone(&place)));
-                place
+    let registered = |place: &Place<T>| registry.lock().unwrap_or_else(PoisonError::into_inner).iter().any(|(_, p)| Arc::ptr_eq(p, place));
+    // A place a failed load gave back while this call waited for it is looked for again.
+    for _ in 0..4 {
+        let place: Place<T> = {
+            let mut kept = registry.lock().unwrap_or_else(PoisonError::into_inner);
+            match kept.iter().find(|(path, _)| *path == key) {
+                Some((_, place)) => Arc::clone(place),
+                None if kept.len() >= max => return Err(KeyHolderError::Unavailable("too many PKCS#11 modules".into())),
+                None => {
+                    let place = Place::default();
+                    kept.push((key.clone(), Arc::clone(&place)));
+                    place
+                }
             }
+        };
+        // Lock order: a place, then the registry; never the other way round.
+        let mut held = place.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(found) = held.as_ref() {
+            return Ok(Arc::clone(found));
         }
-    };
-    let mut held = place.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(found) = held.as_ref() {
-        return Ok(Arc::clone(found));
+        if !registered(&place) {
+            continue;
+        }
+        return match make(&key) {
+            Ok(made) => {
+                let made = Arc::new(made);
+                *held = Some(Arc::clone(&made));
+                Ok(made)
+            }
+            Err(e) => {
+                registry.lock().unwrap_or_else(PoisonError::into_inner).retain(|(_, p)| !Arc::ptr_eq(p, &place));
+                Err(e)
+            }
+        };
     }
-    let made = Arc::new(make(&key)?);
-    *held = Some(Arc::clone(&made));
-    Ok(made)
+    Err(KeyHolderError::Unavailable("the PKCS#11 module is being loaded".into()))
 }
 
 /// What the logic here needs of a PKCS#11 module: its slots with a token, and a read-only
@@ -184,7 +206,9 @@ pub trait Module {
 pub trait TokenSession {
     /// A handle on a key object.
     type Key: Copy;
-    /// The token in the session's slot, read while the session is open.
+    /// The token in the session's slot (`C_GetTokenInfo` on the slot, read after the session was
+    /// opened: what guards a swap is the session, whose every later call fails once its token is
+    /// taken out).
     fn facts(&self) -> Result<TokenFacts, KeyHolderError>;
     /// The X.509 certificates on the token with their `CKA_ID`, at most [`MAX_SCANNED`].
     fn certificates(&self) -> Vec<(Vec<u8>, Vec<u8>)>;
@@ -275,6 +299,9 @@ pub fn sign_digest<M: Module>(
         SignatureScheme::Ecdsa => (Mechanism::Ecdsa, digest.to_vec()),
     };
     let signature = found.session.sign(&mechanism, found.key, &input).map_err(|e| token_error(e, &found.facts, found.logged_in))?;
+    if found.paired_by_public_object && !super::verify::signed_by(&found.certificate, scheme, algorithm, digest, &signature) {
+        return Err(KeyHolderError::NotAllowed("the token signed with a key that isn't the certificate's"));
+    }
     match scheme {
         SignatureScheme::Ecdsa => ecdsa_raw_to_der(&signature, found.certificate.key),
         _ => Ok(signature),
@@ -309,6 +336,9 @@ struct FoundKey<S: TokenSession> {
     facts: TokenFacts,
     /// Whether the session is known to be logged in, by a login in this call.
     logged_in: bool,
+    /// Whether the key was matched to the certificate through its public-key object, so that
+    /// what it signs is checked against the certificate.
+    paired_by_public_object: bool,
 }
 
 /// The session, token and private key for the certificate `fingerprint`, after `check` allowed
@@ -326,8 +356,12 @@ fn key_for<M: Module>(
         if named.is_some_and(|n| n.slot != slot) {
             continue;
         }
-        // The token is read through the open session: a token swapped after this point ends
-        // the session, and what follows fails with `TokenChanged` instead of taking the PIN.
+        // The token's facts are read for the slot (`C_GetTokenInfo`), after the session is
+        // opened; the session is what guards a swap. A token taken out after this point closes
+        // its sessions, so the certificate search, the login and the use that follow on this
+        // session fail (`TokenChanged`) and the PIN never reaches another token; a token put in
+        // between the opening and the reading shows a serial number, label or certificates that
+        // aren't the ones the PIN was asked for.
         let Ok(session) = module.open(slot) else { continue };
         let Ok(facts) = session.facts() else { continue };
         let Some((der, id)) = session.certificates().into_iter().find(|(der, _)| sha256(der) == *fingerprint) else { continue };
@@ -348,11 +382,11 @@ fn key_for<M: Module>(
                 Err(e) => return Err(token_error(e, &facts, false)),
             }
         }
-        let key = find_key(&session, &id, &certificate).ok_or(KeyHolderError::NotFound)?;
+        let (key, paired_by_public_object) = find_key(&session, &id, &certificate).ok_or(KeyHolderError::NotFound)?;
         if session.always_authenticate(key) {
             return Err(KeyHolderError::Unsupported("a key that asks for its PIN at every use"));
         }
-        return Ok(FoundKey { session, key, certificate, facts, logged_in });
+        return Ok(FoundKey { session, key, certificate, facts, logged_in, paired_by_public_object });
     }
     Err(not_there())
 }
@@ -414,23 +448,30 @@ fn same_point(on_token: &[u8], point: &[u8]) -> bool {
     on_token == point || OctetString::from_der(on_token).is_ok_and(|inner| inner.as_bytes() == point)
 }
 
-/// The private key with this `CKA_ID` whose public half is the certificate's.
-fn find_key<S: TokenSession>(session: &S, id: &[u8], certificate: &HeldCertificate) -> Option<S::Key> {
+/// The private key with this `CKA_ID` whose public half is the certificate's, and whether that
+/// public half came from the public-key object (see [`public_half`]).
+fn find_key<S: TokenSession>(session: &S, id: &[u8], certificate: &HeldCertificate) -> Option<(S::Key, bool)> {
     if id.is_empty() {
         return None;
     }
-    session.keys(ObjectClass::PRIVATE_KEY, id).into_iter().take(MAX_KEYS_PER_ID).find(|key| key_matches(certificate, &public_half(session, *key, id)))
+    session.keys(ObjectClass::PRIVATE_KEY, id).into_iter().take(MAX_KEYS_PER_ID).find_map(|key| {
+        let (facts, from_public_object) = public_half(session, key, id);
+        key_matches(certificate, &facts).then_some((key, from_public_object))
+    })
 }
 
-/// What the token says of `key`'s public half. What the private key doesn't say (its type, its
-/// modulus or point) is taken from the public-key object with the same id, when there is
-/// exactly one; a type still unsaid is the one its modulus or point shows.
-fn public_half<S: TokenSession>(session: &S, key: S::Key, id: &[u8]) -> KeyFacts {
+/// What the token says of `key`'s public half, and whether its modulus or point came from the
+/// public-key object. What the private key doesn't say (its type, its modulus or point) is taken
+/// from the public-key object with the same id, when there is exactly one; a type still unsaid
+/// is the one its modulus or point shows.
+fn public_half<S: TokenSession>(session: &S, key: S::Key, id: &[u8]) -> (KeyFacts, bool) {
     let mut facts = session.key_facts(key);
+    let mut from_public_object = false;
     if (facts.kind.is_none() || (facts.modulus.is_none() && facts.ec_point.is_none()))
         && let [public] = session.keys(ObjectClass::PUBLIC_KEY, id).as_slice()
     {
         let public = session.key_facts(*public);
+        from_public_object = (facts.modulus.is_none() && public.modulus.is_some()) || (facts.ec_point.is_none() && public.ec_point.is_some());
         facts.kind = facts.kind.or(public.kind);
         facts.modulus = facts.modulus.or(public.modulus);
         facts.ec_point = facts.ec_point.or(public.ec_point);
@@ -442,7 +483,7 @@ fn public_half<S: TokenSession>(session: &S, key: S::Key, id: &[u8]) -> KeyFacts
             _ => None,
         };
     }
-    facts
+    (facts, from_public_object)
 }
 
 fn hash_and_mgf(algorithm: DigestAlgorithm) -> (MechanismType, PkcsMgfType) {

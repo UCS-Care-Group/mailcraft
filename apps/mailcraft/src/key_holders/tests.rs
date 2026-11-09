@@ -449,23 +449,61 @@ fn critical_policy_extensions_are_known() {
     }
 }
 
-/// The body of `fn name` in `source`, to the closing brace at the start of a line.
-fn body_of<'a>(source: &'a str, name: &str) -> &'a str {
+/// The lines of the body of `pub fn name` in `source`, to its closing brace at the start of a
+/// line, without comment lines.
+fn body_of(source: &str, name: &str) -> Vec<String> {
     let start = source.find(&format!("pub fn {name}(")).unwrap_or_else(|| panic!("no pub fn {name}"));
     let rest = source.get(start..).unwrap();
-    rest.get(..rest.find("\n}\n").unwrap()).unwrap()
+    let body = rest.get(..rest.find("\n}\n").unwrap()).unwrap();
+    body.lines().skip(1).filter(|line| !line.trim_start().starts_with("//")).map(str::to_string).collect()
 }
 
-/// Re-review P1 (b): the Windows and macOS stores can't run here, so their source is read: each
-/// use applies the same check as the listing, and an unwrap checks its input first.
+/// Where `statement` is in `body` as a statement of the function's own (four spaces in: not in
+/// a closure or a block), before the first line that has `use_of`.
+fn checked_before(body: &[String], statement: &str, use_of: &str) -> Result<(), String> {
+    let at = body.iter().position(|line| line == &format!("    {statement}")).ok_or(format!("no `{statement}` of its own"))?;
+    let used = body.iter().position(|line| line.contains(use_of)).ok_or(format!("no `{use_of}`"))?;
+    if at < used { Ok(()) } else { Err(format!("`{statement}` comes after `{use_of}`")) }
+}
+
+/// Whether each use in a system store's source checks first: the check a statement of the
+/// function's own, before the key is opened.
+fn store_checks(source: &str, opens_key: &str) -> Result<(), String> {
+    let sign = body_of(source, "sign_digest");
+    checked_before(&sign, "check_for_signing(&held, scheme)?;", opens_key).map_err(|e| format!("sign_digest: {e}"))?;
+    let decrypt = body_of(source, "decrypt_key");
+    checked_before(&decrypt, "let wrapped = check_wrapped(wrapped)?;", opens_key).map_err(|e| format!("decrypt_key: {e}"))?;
+    checked_before(&decrypt, "check_for_decrypting(&held)?;", opens_key).map_err(|e| format!("decrypt_key: {e}"))
+}
+
+/// Re-review P1 (b) and round 3 P3 1: the Windows and macOS stores can't run here, so their
+/// source is read: each use applies the same check as the listing, and an unwrap checks its
+/// input, before the key is opened.
 #[test]
 fn the_system_stores_check_before_each_use() {
-    for (file, source) in [("windows_store.rs", include_str!("windows_store.rs")), ("macos_keychain.rs", include_str!("macos_keychain.rs"))] {
-        assert!(body_of(source, "sign_digest").contains("check_for_signing(&held, scheme)?;"), "{file}: sign_digest");
-        let decrypt = body_of(source, "decrypt_key");
-        assert!(decrypt.contains("check_wrapped(wrapped)?;"), "{file}: decrypt_key checks its input");
-        assert!(decrypt.contains("check_for_decrypting(&held)?;"), "{file}: decrypt_key");
-    }
+    assert_eq!(store_checks(include_str!("windows_store.rs"), "open_key("), Ok(()), "windows_store.rs");
+    assert_eq!(store_checks(include_str!("macos_keychain.rs"), "private_key()"), Ok(()), "macos_keychain.rs");
+
+    // What the check would have missed before: a check commented out, moved after the key is
+    // used, or put in a closure that never runs.
+    let windows = include_str!("windows_store.rs");
+    let check = "    check_for_signing(&held, scheme)?;\n";
+    let commented = windows.replacen(check, "    // check_for_signing(&held, scheme)?;\n", 1);
+    assert!(store_checks(&commented, "open_key(").is_err());
+    let used = "    let signature = bytes(&CryptographicEngine::SignHashedData(&key, &data).map_err(system)?)?;\n";
+    let moved = windows.replacen(check, "", 1).replacen(used, &format!("{used}{check}"), 1);
+    assert_ne!(moved, windows.replacen(check, "", 1), "the test's own edit took");
+    assert!(store_checks(&moved, "open_key(").is_err());
+    let closure = windows.replacen(
+        check,
+        "    let _later = || -> Result<(), KeyHolderError> {\n        check_for_signing(&held, scheme)?;\n        Ok(())\n    };\n",
+        1,
+    );
+    assert!(store_checks(&closure, "open_key(").is_err());
+    let one_line = windows.replacen(check, "    let _later = || check_for_signing(&held, scheme);\n", 1);
+    assert!(store_checks(&one_line, "open_key(").is_err());
+    let mac = include_str!("macos_keychain.rs");
+    assert!(store_checks(&mac.replacen("    check_for_decrypting(&held)?;\n", "", 1), "private_key()").is_err());
 }
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -487,7 +525,12 @@ mod pkcs11 {
         check_same_token, choose_module, decrypt_key, first_that_opens, key_matches, list, module_key, open_default, shared, sign_digest,
         token_error,
     };
-    use super::super::{DigestAlgorithm, KeyHolderError, Pin, RsaPadding, SignatureScheme, TokenRef};
+    use x509_cert::der::Decode;
+    use x509_cert::spki::SubjectPublicKeyInfoOwned;
+
+    use super::super::encoding::ecdsa_raw_to_der;
+    use super::super::verify::signed_by;
+    use super::super::{DigestAlgorithm, HeldCertificate, KeyHolderError, Pin, RsaPadding, SignatureScheme, TokenRef};
     use super::{EC, P256, SERVER_AUTH, Spec, alice_rsa, certificate, ec_key, ec_point, eku, example_token, mail_extensions, modulus, read, rsa_key};
 
     // ---- A fake token ---------------------------------------------------------------------
@@ -508,6 +551,8 @@ mod pkcs11 {
         pin: &'static str,
         /// The token wants a login at every use (a key it doesn't mark as such).
         login_at_every_use: bool,
+        /// What the token's key signs anything to.
+        signature: Vec<u8>,
     }
 
     struct FakeModule {
@@ -581,7 +626,7 @@ mod pkcs11 {
         }
         fn sign(&self, _: &Mechanism<'_>, key: usize, _: &[u8]) -> Result<Vec<u8>, Error> {
             self.use_key("sign", key)?;
-            Ok(vec![0x5a; 256])
+            Ok(self.token.signature.clone())
         }
         fn decrypt(&self, _: &Mechanism<'_>, key: usize, _: &[u8]) -> Result<Vec<u8>, Error> {
             self.use_key("decrypt", key)?;
@@ -625,6 +670,7 @@ mod pkcs11 {
             keys,
             pin: "246813",
             login_at_every_use: false,
+            signature: vec![0x5a; 256],
         }
     }
 
@@ -795,13 +841,17 @@ mod pkcs11 {
         let named = |fake: &FakeModule| fake.tokens[0].facts.token.clone();
         let public = |facts| FakeKey { id: ID.to_vec(), public: true, facts, always: false };
 
-        // RSA: no modulus on the private key; the public key has it.
+        // RSA: no modulus on the private key; the public key has it. The key is found and used,
+        // and what it signs is then checked (the fake's filler isn't the certificate's).
+        let not_its = Err(KeyHolderError::NotAllowed("the token signed with a key that isn't the certificate's"));
         let modulus_object = public(KeyFacts { kind: Some(KeyKindOnToken::Rsa), modulus: Some(modulus(2048)), ec_point: None });
         let fake = module(vec![token(3, "0123", &der, vec![rsa_private(None, Some(KeyKindOnToken::Rsa)), modulus_object.clone()])]);
-        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), not_its);
+        assert_eq!(log(&fake).last().map(String::as_str), Some("sign slot 3 key 0"));
         // Nor any type.
         let fake = module(vec![token(3, "0123", &der, vec![rsa_private(None, None), modulus_object])]);
-        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), not_its);
+        assert_eq!(log(&fake).last().map(String::as_str), Some("sign slot 3 key 0"));
         // No type, its own modulus.
         let fake = module(vec![token(3, "0123", &der, vec![rsa_private(Some(modulus(2048)), None)])]);
         assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
@@ -818,10 +868,123 @@ mod pkcs11 {
         let point = public(KeyFacts { kind: None, modulus: None, ec_point: Some(ec_point()) });
         let fake = module(vec![token(3, "0123", &ec, vec![private, point])]);
         let signed = sign_digest(&fake, &fingerprint(&ec), SignatureScheme::Ecdsa, DigestAlgorithm::Sha256, &[0; 32], Some((&named(&fake), &pin())));
-        // The fake's 256 bytes aren't a P-256 signature: the key was found and used.
-        assert!(matches!(signed, Err(KeyHolderError::BadInput(_)) | Err(KeyHolderError::System(_))), "{signed:?}");
+        // The fake's 256 bytes aren't the certificate's signature: the key was found and used.
+        assert_eq!(signed, not_its);
         assert_eq!(log(&fake).last().map(String::as_str), Some("sign slot 3 key 0"));
         let _ = EC;
+    }
+
+    // Round 3 P3 2: synthetic keys made with OpenSSL for these tests, and their signatures of
+    // the SHA-256 (and SHA-384) of "MailCraft test vector".
+    const DIGEST_256: &str = "173ad5d5c3b26001033e2774e682a79ef77b7e9b200f210c70d406857eb37130";
+    const DIGEST_384: &str = "4db194dc7d0dde2aa9183f3f514bdb8c0f4b1456cab3b5b3afb549fd1820ca5883c341d66b5a708febc90ad52e6d2d24";
+    const RSA_SPKI: &str = "30820122300d06092a864886f70d01010105000382010f003082010a02820101009923a05fe685f7a3e0bc3c8a79b109d81b364fdedec495c83d9b1f5ee4b00dc8e0e812e4543440e8b521ab853d7be920f42441ca6bb14d4efe627e8d6b1426e9debbf05efcc5b9aced5aa35959d92e00b3490b408158f7bd163f429e79e8eee4a555615b902cd2040266da52599f473063a7f71e06a50d7b32bcfe4fe5ea96e8f90f0e75bc07d2eca8fa2cd6f815afe5cc9cc0c41c7d0c01d8915c7ac433fd9a283d0926f9cd963cae3829ef0cd7104ff346310ad8ed2f9da1d41897b0718a195a88b29684f99244467ddfe8d83011868a342596282efcbd9e1e231a6f97fbb67dbde4914d06c76f731ec65827786569b0df9e250f4dff346b48d70064304a0f0203010001";
+    const RSA_PKCS1: &str = "3edf67f9f0edaaa5215c25d2acd03e408a68e32c2860246e4c0f2b402c0b66e343d4ccb525a0973abb7c3660eea9e781c4b2c7b0a571ce0fe203bb5b63af538a03289903c41aeab59ae75b2e6dc6a72a0fa38b260f15e6420f8c6e5ceff24ca3d657aeb1aa4c74ed595acd7c403ee0a8baa5546dbd41da7d2248ccad67343c1f323b8a607b135b680ee67932f4fbcc5510823f320587e5b6a07ed935131ff15f04a12442556e63c8588e2f3e1b4bbc6cfb75cf5ad61c56969427578dfac5eee16a7049f0a7d7bec212d60ea76c0b41004381170412a768ff5bc8a62b346603249a7d8db5f165319d3b917a96d0cd8cf39a987331f761caff2edd90eb8d908ac4";
+    const RSA_PSS: &str = "092374646bd5ab25811dd2c957f624e59dc50c421fd08b2ff04583e09823def0ceb815054ed7b39ad82229ac5fb7e2a500ecaa398981ace25c2cef41aa5b8feb51bc0c4395aa23dcffcefe99fc76bd931c12da75e04aee3594ef239aaf6a58d194ec7b1e8eb2bb6d87182ce152e10bff94b4f5ebc9ff9d0dfa8e9f9b6282ade4a47a75cb87a1e27445c85921622cc2f080d14e0c8b48be1de5b385a7f3819c02713311b5c73b02ee1788f5b0efc9cf89e27428878294feb6348dc017806e4cfae11c6ae2b8425c4ee77640a7dce6e54afa3650611ed3675403c97f2dade35e5d311713bdb4e47afa43699ee43bb6d04164e1babe8b38bd776a039b86fce2f932";
+    const P256_SPKI: &str = "3059301306072a8648ce3d020106082a8648ce3d03010703420004bfb8dba0cc93640e5fe0577b7857de542026519556d69d8f96e3c778d01ae19ef2076fbbc2330d6ebe043d06642235e01922a85de081715426292fd254b511bd";
+    const P256_SIG: &str =
+        "9021b9a7a31384e635a4270123a0ebe1cfaeaacbfc142c9d023a025aa82de2afcc86ad3e9354393998d65df3aa61441e102df7efa9c1bb3bc02452be3de44595";
+    /// The P-256 key's signature of the SHA-384 digest (the digest cut to the curve's length).
+    const P256_SHA384_SIG: &str =
+        "77c079d101525ff2213fdc9d7a215b6a32692a52877518c77e5f024639dc6b330434cefd029e67890246b877ca1508dce659e78aaff7102171588a7b7986c392";
+    const P384_SPKI: &str = "3076301006072a8648ce3d020106052b8104002203620004aa45843a107d00a658b8135282583c5142e8272aa5c07349511c9e9a002f30f4021a578d4edaaf3816cc4b626cc15a986d585332fe23eaf02b23e0e4e34105b3aeee7c8a1d50c96818cca2b89465f454bcd857e5e0d1ba79cc5f159167d957db";
+    const P384_SIG: &str = "75c34ce17d395c9bbbdd280f3ddf60d6478ef04f271628abcef78458f8c4a0b5f0fddcc33ee6c960bb4e03d2c8ce622d30ae3dee915063d47524acb8714e0bf689bafbeb27f4d5922b6cad4e80a678335c9044e55d19050bbffa9294cbd41549";
+
+    fn unhex(text: &str) -> Vec<u8> {
+        (0..text.len()).step_by(2).map(|i| u8::from_str_radix(text.get(i..i + 2).unwrap(), 16).unwrap()).collect()
+    }
+
+    fn flipped(text: &str) -> Vec<u8> {
+        let mut bytes = unhex(text);
+        if let Some(last) = bytes.last_mut() {
+            *last ^= 1;
+        }
+        bytes
+    }
+
+    /// A long-lived certificate for mail with the synthetic key `spki`.
+    fn real(spki: &str) -> HeldCertificate {
+        let mut spec = Spec::new("CN=Alice Example", SubjectPublicKeyInfoOwned::from_der(&unhex(spki)).unwrap(), mail_extensions());
+        spec.validity = ("200101000000Z", "491231235959Z");
+        read(certificate(spec))
+    }
+
+    #[test]
+    fn signatures_are_checked_against_the_certificates_key() {
+        let rsa = real(RSA_SPKI);
+        let (p256, p384) = (real(P256_SPKI), real(P384_SPKI));
+        let (d256, d384) = (unhex(DIGEST_256), unhex(DIGEST_384));
+        let (sha256, sha384) = (DigestAlgorithm::Sha256, DigestAlgorithm::Sha384);
+        let (pkcs1, pss, ecdsa) = (SignatureScheme::RsaPkcs1v15, SignatureScheme::RsaPss, SignatureScheme::Ecdsa);
+        assert!(signed_by(&rsa, pkcs1, sha256, &d256, &unhex(RSA_PKCS1)));
+        assert!(signed_by(&rsa, pss, sha256, &d256, &unhex(RSA_PSS)));
+        assert!(signed_by(&p256, ecdsa, sha256, &d256, &unhex(P256_SIG)));
+        assert!(signed_by(&p256, ecdsa, sha384, &d384, &unhex(P256_SHA384_SIG)));
+        assert!(signed_by(&p384, ecdsa, sha384, &d384, &unhex(P384_SIG)));
+
+        // A byte off, another digest, another scheme, another key, the wrong length: no.
+        assert!(!signed_by(&rsa, pkcs1, sha256, &d256, &flipped(RSA_PKCS1)));
+        assert!(!signed_by(&rsa, pss, sha256, &d256, &flipped(RSA_PSS)));
+        assert!(!signed_by(&rsa, pss, sha256, &d256, &unhex(RSA_PKCS1)));
+        assert!(!signed_by(&rsa, pkcs1, sha256, &d256, &unhex(RSA_PSS)));
+        assert!(!signed_by(&rsa, pkcs1, sha256, &flipped(DIGEST_256), &unhex(RSA_PKCS1)));
+        assert!(!signed_by(&rsa, pkcs1, sha256, &d256, &[]));
+        assert!(!signed_by(&p256, ecdsa, sha256, &d256, &flipped(P256_SIG)));
+        assert!(!signed_by(&p256, ecdsa, sha256, &flipped(DIGEST_256), &unhex(P256_SIG)));
+        assert!(!signed_by(&p256, ecdsa, sha256, &d256, &unhex(P256_SHA384_SIG)));
+        assert!(!signed_by(&p384, ecdsa, sha384, &d384, &flipped(P384_SIG)));
+        assert!(!signed_by(&p384, ecdsa, sha256, &d256, &unhex(P256_SIG)));
+        assert!(!signed_by(&p256, ecdsa, sha256, &d256, &[0; 64]));
+        assert!(!signed_by(&p256, pkcs1, sha256, &d256, &unhex(P256_SIG)));
+        assert!(!signed_by(&rsa, ecdsa, sha256, &d256, &unhex(RSA_PKCS1)));
+        // A certificate's point that isn't on the curve.
+        let mut off = p256.clone();
+        if let Some(last) = off.public_key.last_mut() {
+            *last ^= 1;
+        }
+        assert!(!signed_by(&off, ecdsa, sha256, &d256, &unhex(P256_SIG)));
+    }
+
+    /// Round 3 P3 2: a key paired with its certificate through a stale public-key object of
+    /// another key signs, and the signature is found not to be the certificate's.
+    #[test]
+    fn a_key_paired_through_its_public_object_must_sign_as_the_certificate() {
+        let public = |facts| FakeKey { id: ID.to_vec(), public: true, facts, always: false };
+        let hidden = FakeKey { id: ID.to_vec(), public: false, facts: KeyFacts::default(), always: false };
+        let digest = unhex(DIGEST_256);
+        let sign_with = |held: &HeldCertificate, object: KeyFacts, scheme, signature: Vec<u8>| {
+            let mut card = token(3, "0123", &held.der, vec![hidden.clone(), public(object)]);
+            card.signature = signature;
+            let named = card.facts.token.clone();
+            sign_digest(&module(vec![card]), &held.fingerprint, scheme, DigestAlgorithm::Sha256, &digest, Some((&named, &pin())))
+        };
+        let not_its = Err(KeyHolderError::NotAllowed("the token signed with a key that isn't the certificate's"));
+
+        let rsa = real(RSA_SPKI);
+        let modulus_object = KeyFacts { kind: Some(KeyKindOnToken::Rsa), modulus: Some(rsa.public_key.clone()), ec_point: None };
+        assert_eq!(sign_with(&rsa, modulus_object.clone(), SignatureScheme::RsaPkcs1v15, unhex(RSA_PKCS1)), Ok(unhex(RSA_PKCS1)));
+        assert_eq!(sign_with(&rsa, modulus_object.clone(), SignatureScheme::RsaPss, unhex(RSA_PSS)), Ok(unhex(RSA_PSS)));
+        assert_eq!(sign_with(&rsa, modulus_object, SignatureScheme::RsaPkcs1v15, flipped(RSA_PKCS1)), not_its);
+
+        let p256 = real(P256_SPKI);
+        let point_object = KeyFacts { kind: Some(KeyKindOnToken::Ec), modulus: None, ec_point: Some(p256.public_key.clone()) };
+        let signed = sign_with(&p256, point_object.clone(), SignatureScheme::Ecdsa, unhex(P256_SIG));
+        assert_eq!(signed, ecdsa_raw_to_der(&unhex(P256_SIG), p256.key));
+        assert_eq!(sign_with(&p256, point_object, SignatureScheme::Ecdsa, unhex(P256_SHA384_SIG)), not_its);
+
+        // A key that shows its own modulus is the certificate's by that, and isn't checked again.
+        let mut card = token(3, "0123", &rsa.der, vec![rsa_private(Some(rsa.public_key.clone()), Some(KeyKindOnToken::Rsa))]);
+        card.signature = flipped(RSA_PKCS1);
+        let named = card.facts.token.clone();
+        let own = sign_digest(
+            &module(vec![card]),
+            &rsa.fingerprint,
+            SignatureScheme::RsaPkcs1v15,
+            DigestAlgorithm::Sha256,
+            &digest,
+            Some((&named, &pin())),
+        );
+        assert_eq!(own, Ok(flipped(RSA_PKCS1)));
     }
 
     /// Re-review P1 (open_default) and P3 6: a module the owner named is the only one tried,
@@ -879,6 +1042,21 @@ mod pkcs11 {
         let counts: Vec<usize> =
             registry.lock().unwrap().iter().map(|(_, place)| place.lock().unwrap().as_ref().map_or(0, Arc::strong_count)).collect();
         assert_eq!(counts, vec![1, 1]);
+    }
+
+    /// Round 3 P3 3: a file that fails to load gives its place back; only loaded modules count.
+    #[test]
+    fn a_module_that_fails_to_load_keeps_no_place() {
+        let registry: Registry<u32> = Mutex::new(Vec::new());
+        for i in 0..10 {
+            let path = PathBuf::from(format!("/example/broken-{i}.so"));
+            assert_eq!(shared(&registry, &path, 2, |_| Err(KeyHolderError::Unavailable("no".into()))), Err(KeyHolderError::Unavailable("no".into())));
+        }
+        assert!(registry.lock().unwrap().is_empty());
+        assert_eq!(shared(&registry, Path::new("/example/a.so"), 2, |_| Ok(1)).map(|m| *m), Ok(1));
+        assert_eq!(shared(&registry, Path::new("/example/b.so"), 2, |_| Ok(2)).map(|m| *m), Ok(2));
+        assert!(shared(&registry, Path::new("/example/broken-0.so"), 2, |_| Ok(3)).is_err());
+        assert_eq!(registry.lock().unwrap().len(), 2);
     }
 
     /// Re-review P3 5: the same file by another path is the same module, and a module that

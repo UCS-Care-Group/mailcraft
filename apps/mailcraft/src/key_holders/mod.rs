@@ -46,6 +46,8 @@ pub mod encoding;
 pub mod macos_keychain;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub mod pkcs11;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub mod verify;
 #[cfg(target_os = "windows")]
 #[expect(dead_code, reason = "called from the signing and decrypting parts of #30; no test can reach the store")]
 pub mod windows_store;
