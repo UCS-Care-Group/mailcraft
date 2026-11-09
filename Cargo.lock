@@ -2544,6 +2544,7 @@ version = "0.11.1"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-time",
  "proptest",
 ]

@@ -520,9 +520,18 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         }
     }
     out.imported = keys.join(" ");
-    // The certificates and keys of every contact merged, each once (at most what a contact keeps).
+    // The certificates and keys of every contact merged, each once; as for the lists, more than a
+    // contact keeps is refused, never cut.
+    let had = out.keys.len();
     for key in contacts.iter().skip(1).flat_map(|c| &c.keys) {
-        if out.keys.len() < Contact::MAX_KEYS && !out.keys.contains(key) {
+        if !out.keys.contains(key) {
+            if out.keys.len() >= Contact::MAX_KEYS {
+                return Err(failed!(
+                    "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged.",
+                    max = Contact::MAX_KEYS,
+                    had
+                ));
+            }
             out.keys.push(key.clone());
         }
     }

@@ -34,9 +34,17 @@ fn keys_round_trip_as_base64() {
 }
 
 #[test]
-fn a_kind_from_a_later_version_is_unknown() {
+fn a_kind_from_a_later_version_survives_a_save() {
     let c: Contact = serde_json::from_str(r#"{"keys":[{"kind":"somethingNew","data":"AAEC"},{}]}"#).unwrap();
-    assert_eq!(c.keys[0], ContactKey { kind: KeyKind::Unknown, data: vec![0, 1, 2], ..Default::default() });
+    assert_eq!(c.keys[0], ContactKey { kind: KeyKind::Unknown("somethingNew".into()), data: vec![0, 1, 2], ..Default::default() });
     assert_eq!(c.keys[1], ContactKey::default());
+    let saved = serde_json::to_string(&c).unwrap();
+    assert!(saved.contains(r#""kind":"somethingNew""#), "{saved}");
+    assert_eq!(serde_json::from_str::<Contact>(&saved).unwrap(), c);
+    // A name past the cap is cut on a character boundary; junk is still refused.
+    let long = format!(r#"{{"keys":[{{"kind":"{}"}}]}}"#, "é".repeat(100));
+    let cut: Contact = serde_json::from_str(&long).unwrap();
+    assert_eq!(cut.keys[0].kind, KeyKind::Unknown("é".repeat(KeyKind::MAX_NAME / 2)));
     assert!(serde_json::from_str::<Contact>(r#"{"keys":[{"data":"not base64!"}]}"#).is_err());
+    assert!(serde_json::from_str::<Contact>(r#"{"keys":[{"kind":7}]}"#).is_err());
 }

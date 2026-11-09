@@ -342,8 +342,14 @@ fn a_merge_keeps_every_contacts_keys_once() {
     let mut s = Session::empty();
     let keep = add(&mut s, Contact { keys: vec![key(1), key(2)], ..person("Ada", "Lovelace", "ada@example.org", "") });
     let other = add(&mut s, Contact { keys: vec![key(2), key(3)], ..person("Ada", "Lovelace", "ada@example.org", "") });
-    // A crowd of keys stops at what one contact keeps.
-    let crowd = add(&mut s, Contact { keys: (10..60).map(key).collect(), ..person("Ada", "Lovelace", "ada@example.org", "") });
+    // A crowd of keys past what one contact keeps is refused by name, and nothing changes.
+    let crowd = add(&mut s, Contact { keys: (10..40).map(key).collect(), ..person("Ada", "Lovelace", "ada@example.org", "") });
+    let before = s.mailbox.contacts.clone();
+    let why = err(&mut s, "people.merge", json!({"keep": keep, "others": [other, crowd]}));
+    assert!(why.contains("more certificates and keys than a contact holds (at most 32, the kept contact has 2)"), "{why}");
+    assert_eq!(s.mailbox.contacts, before);
+    // Exactly as many as a contact keeps is merged: 1, 2, 3 and 29 of the crowd's.
+    s.mailbox.contact_mut(crowd).unwrap().keys.truncate(29);
     s.run("people.merge", &json!({"keep": keep, "others": [other, crowd]})).unwrap();
     let c = s.mailbox.contact(keep).unwrap();
     assert_eq!(c.keys.len(), Contact::MAX_KEYS);

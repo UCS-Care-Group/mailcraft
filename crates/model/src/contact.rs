@@ -48,9 +48,8 @@ impl PostalAddress {
     }
 }
 
-/// What a key on a contact's card is.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// What a key on a contact's card is. In JSON its name: `x509`, `openPgp`, `uri`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum KeyKind {
     /// An S/MIME certificate (X.509, DER).
     #[default]
@@ -59,14 +58,60 @@ pub enum KeyKind {
     OpenPgp,
     /// Where the card says a key is ([`ContactKey::uri`]); never fetched.
     Uri,
-    /// A kind written by a later version: kept, never written to a vCard.
-    #[serde(other)]
-    Unknown,
+    /// A kind written by a later version, by the name it was written under (at most
+    /// [`KeyKind::MAX_NAME`] bytes), so that saving here keeps it; never written to a vCard.
+    Unknown(String),
 }
 
-/// A public key or certificate a contact's card carries (vCard `KEY`), kept as it came. Nothing
-/// here reads, checks or trusts it: these are bytes that travel with the contact through import
-/// and export.
+impl KeyKind {
+    /// Longest name of an unknown kind kept, in bytes.
+    pub const MAX_NAME: usize = 64;
+
+    /// The kind's name in JSON.
+    pub fn name(&self) -> &str {
+        match self {
+            KeyKind::X509 => "x509",
+            KeyKind::OpenPgp => "openPgp",
+            KeyKind::Uri => "uri",
+            KeyKind::Unknown(name) => name,
+        }
+    }
+
+    /// The kind a name gives; a name this version doesn't know is kept as it is, cut to
+    /// [`KeyKind::MAX_NAME`] bytes on a character boundary.
+    pub fn named(name: &str) -> KeyKind {
+        match name {
+            "x509" => KeyKind::X509,
+            "openPgp" => KeyKind::OpenPgp,
+            "uri" => KeyKind::Uri,
+            other => {
+                let mut end = other.len().min(KeyKind::MAX_NAME);
+                while end > 0 && !other.is_char_boundary(end) {
+                    end -= 1;
+                }
+                KeyKind::Unknown(other.get(..end).unwrap_or("").to_string())
+            }
+        }
+    }
+}
+
+impl Serialize for KeyKind {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<KeyKind, D::Error> {
+        let name = String::deserialize(d)?;
+        Ok(KeyKind::named(&name))
+    }
+}
+
+/// A public key or certificate a contact's card carries (vCard `KEY`). The vCard reader keeps
+/// only what has the shape of a certificate or of an OpenPGP public key, never secret key
+/// material; nothing here checks a signature or trusts it: these are bytes that travel with the
+/// contact through import and export.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ContactKey {

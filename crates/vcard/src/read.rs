@@ -28,9 +28,10 @@ pub(crate) const MAX_KEY_BYTES: usize = 64 << 20;
 /// `FN` gives the display name; without one it stays empty and the model derives a name. A label
 /// comes from `TYPE` (`work`, `home`, `other`, and for phones `mobile`, `fax`, `pager`), or from the
 /// `X-ABLabel` of the property's group (`item1.X-ABLabel:Family`); it is empty when neither says
-/// anything. An S/MIME certificate or OpenPGP key (`KEY`) is kept as bytes, and the address of one
-/// as an address, never fetched (`crate::key`). Photos, logos, sounds and unknown properties are
-/// skipped.
+/// anything. An S/MIME certificate or OpenPGP public key (`KEY`) is kept as bytes when its bytes
+/// have the shape of one, and the address of one as an address, never fetched; secret key
+/// material is never kept (`crate::key`). A card with nothing but keys is skipped. Photos, logos,
+/// sounds and unknown properties are skipped.
 ///
 /// Work is bounded: at most 100 000 cards are read, 100 e-mail addresses, phone numbers, postal
 /// addresses and web sites per card, 32 keys of at most 64 KiB per card and 64 MiB of keys in all,
@@ -212,7 +213,11 @@ impl Card {
         contact.emails = emails.into_iter().map(|(group, e)| Labeled { label: label(&group, e.label), value: e.value }).collect();
         contact.phones = phones.into_iter().map(|(group, p)| Labeled { label: label(&group, p.label), value: p.value }).collect();
         contact.addresses = addresses.into_iter().map(|(group, a)| PostalAddress { label: label(&group, a.label.clone()), ..a }).collect();
-        (contact != Contact::default()).then_some((order, contact))
+        // Keys alone make no contact: a card of nothing but keys is skipped as an empty one is.
+        let keys = std::mem::take(&mut contact.keys);
+        let empty = contact == Contact::default();
+        contact.keys = keys;
+        (!empty).then_some((order, contact))
     }
 }
 
