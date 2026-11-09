@@ -158,6 +158,8 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     // The conversation ids of mail listed before they were asked for, in a run of every folder (#795).
     if !light {
         request.threads = super::thread_ids::to_ask(mb, account);
+        // And the owner's signature, which Outlook on the web keeps in the mailbox (#484).
+        request.signature = true;
     }
     Ok(request)
 }
@@ -387,7 +389,9 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
+    // The signature the server keeps for the owner (#484).
+    let signed = result.signature.as_ref().is_some_and(|found| super::ews_signature::take(&mut s.mailbox, account, found));
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded || signed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

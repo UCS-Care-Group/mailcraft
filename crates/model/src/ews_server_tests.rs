@@ -59,6 +59,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        ..Default::default()
     };
     let text = format!("{server:?}");
     assert!(!text.contains("secret") && !text.contains("ada") && !text.contains("abab") && !text.contains("HIER"), "{text}");
@@ -80,6 +81,7 @@ fn an_exchange_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        ..Default::default()
     };
     let account = Account { id: 4, email: "ada@example.org".into(), kind: AccountKind::Exchange, ews: Some(server), ..Default::default() };
     let json = serde_json::to_string(&account).unwrap();
@@ -119,4 +121,16 @@ fn an_address_on_a_microsoft_host_is_refused_and_a_lookalike_is_not() {
         assert!(EwsServer::check_url(url).is_ok(), "{url}");
     }
     assert!(is_microsoft_domain("hotmail.co.uk") && is_microsoft_domain("live.com.au") && !is_microsoft_domain("live.bbc.com"));
+}
+
+#[test]
+fn the_fingerprint_of_the_signature_taken_in_is_kept_with_the_server_and_opens_as_nothing_from_an_older_file() {
+    let mut server = EwsServer { url: "https://mail.example.org/EWS/Exchange.asmx".into(), ..Default::default() };
+    assert!(!serde_json::to_string(&server).unwrap().contains("signatureSeen"), "nothing seen, nothing written");
+    server.signature_seen = 0xfeed_beef;
+    let json = serde_json::to_string(&server).unwrap();
+    assert!(json.contains(r#""signatureSeen":4276993775"#), "{json}");
+    assert_eq!(serde_json::from_str::<EwsServer>(&json).unwrap(), server);
+    assert_eq!(serde_json::from_str::<EwsServer>(r#"{"url":"https://mail.example.org/EWS/Exchange.asmx"}"#).unwrap().signature_seen, 0);
+    assert!(!format!("{server:?}").contains("4276993775"), "a fingerprint of somebody's text is not shown");
 }

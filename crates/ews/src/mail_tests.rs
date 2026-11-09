@@ -481,3 +481,71 @@ fn a_run_is_called_off_before_its_next_request() {
     assert_eq!(pieces.len(), 1);
     assert!(last(&pieces).stopped && standin.state().requests.is_empty());
 }
+
+// ---- the owner's signature (#484) ----
+
+fn with_signature() -> StandIn {
+    let standin = StandIn::new();
+    standin.state().user_options = Some(vec![
+        ("signaturehtml".into(), "String".into(), vec!["<div>Ada</div>".into()]),
+        ("signaturetext".into(), "String".into(), vec!["Ada".into()]),
+        ("autoaddsignature".into(), "Boolean".into(), vec!["true".into()]),
+    ]);
+    standin
+}
+
+fn asked_for_the_signature(standin: &StandIn) -> usize {
+    standin.state().requests.iter().filter(|r| r.operation == "GetUserConfiguration").count()
+}
+
+#[test]
+fn the_signature_is_asked_for_once_at_the_end_of_a_run_that_wants_it_and_comes_in_the_last_piece() {
+    let standin = with_signature();
+    let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
+    let found = last(&pieces).signature.as_ref().expect("the last piece carries it");
+    assert_eq!((found.html.as_str(), found.text.as_str(), found.on_new, found.on_reply), ("<div>Ada</div>", "Ada", true, false));
+    assert!(pieces[..pieces.len() - 1].iter().all(|p| p.signature.is_none()));
+    assert_eq!(asked_for_the_signature(&standin), 1);
+    // The signature is asked for after the mail: it never delays what the owner is waiting for.
+    let operations: Vec<String> = standin.state().requests.iter().map(|r| r.operation.clone()).collect();
+    assert_eq!(operations.last().map(String::as_str), Some("GetUserConfiguration"), "{operations:?}");
+    assert!(standin.state().writes.is_empty());
+}
+
+#[test]
+fn a_run_that_does_not_ask_for_it_does_not_ask_the_server() {
+    let standin = with_signature();
+    let (pieces, _) = run(&standin, &request());
+    assert!(pieces.iter().all(|p| p.signature.is_none()));
+    assert_eq!(asked_for_the_signature(&standin), 0);
+}
+
+#[test]
+fn the_inbox_pass_never_asks_for_it() {
+    let standin = with_signature();
+    let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, inbox_pass: true, ..request() });
+    assert!(pieces.iter().all(|p| p.signature.is_none()));
+    assert_eq!(asked_for_the_signature(&standin), 0);
+}
+
+#[test]
+fn a_server_that_will_not_say_leaves_the_run_whole() {
+    let standin = StandIn::new();
+    standin.state().user_options = None;
+    let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
+    assert!(last(&pieces).signature.is_none() && last(&pieces).errors.is_empty() && last(&pieces).whole, "{:?}", last(&pieces));
+    assert_eq!(asked_for_the_signature(&standin), 1);
+}
+
+#[test]
+fn a_run_that_was_stopped_does_not_ask_for_it() {
+    let standin = with_signature();
+    let cancel = AtomicBool::new(true);
+    let mut pieces = Vec::new();
+    block_on(sync_mail(&client(), &standin, &EwsMailRequest { signature: true, ..request() }, &cancel, &mut |_| true, &mut |piece| {
+        pieces.push(piece)
+    }))
+    .unwrap();
+    assert!(last(&pieces).stopped && last(&pieces).signature.is_none());
+    assert_eq!(asked_for_the_signature(&standin), 0);
+}

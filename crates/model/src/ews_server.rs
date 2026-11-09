@@ -34,6 +34,16 @@ pub struct EwsServer {
     /// of the settings leaves it as it is, and it is never checked as one.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub hierarchy: String,
+    /// A fingerprint ([`crate::sync::fingerprint`]) of the signature the server last gave and
+    /// MailCraft took in (#484), 0 for none yet: the server's signature is taken in again only
+    /// when it is not this one, so that what the owner changed here stays until the server's changes.
+    /// Not a setting: an edit of the settings leaves it as it is.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub signature_seen: u64,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 /// The address, the name and the fingerprint stay out of debug output, which may reach a log.
@@ -44,6 +54,7 @@ impl std::fmt::Debug for EwsServer {
             .field("username", &!self.username.is_empty())
             .field("trusted", &!self.trusted.is_empty())
             .field("hierarchy", &!self.hierarchy.is_empty())
+            .field("signature_seen", &(self.signature_seen != 0))
             .finish()
     }
 }

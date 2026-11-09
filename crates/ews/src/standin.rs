@@ -198,6 +198,10 @@ pub struct State {
     /// (`folder:FolderClass` among the additional properties), as Grommunio does: its Default
     /// shape leaves it out (E8).
     pub class_only_when_asked: bool,
+    /// The dictionary of the `OWA.UserOptions` configuration of the root folder (#484): `None` for a
+    /// mailbox that has none (`ErrorItemNotFound`, as one whose options were never saved), else
+    /// its entries as `(key, type, values)`.
+    pub user_options: Option<Vec<(String, String, Vec<String>)>>,
     /// Distinguished names this server's schema lacks (an older or another server's): a request
     /// that names one is a schema fault (`ErrorSchemaValidation`, HTTP 500), as for any name the
     /// schema hasn't.
@@ -273,6 +277,7 @@ impl Default for State {
             outgoing: Vec::new(),
             deletes: Vec::new(),
             class_only_when_asked: false,
+            user_options: None,
             unknown_names: Vec::new(),
             refuse_names: None,
         }
@@ -464,6 +469,7 @@ impl State {
             "SyncFolderHierarchy" => self.sync_hierarchy(operation),
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
+            "GetUserConfiguration" => self.get_user_configuration(operation),
             name if crate::standin_write::HANDLED.contains(&name) => {
                 self.writes.push(name.to_owned());
                 self.write(name, operation)
