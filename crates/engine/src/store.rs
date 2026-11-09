@@ -814,7 +814,7 @@ struct State {
     ahead: Option<(Box<Opened>, Stamp)>,
     /// The content folder, and the content in it the opening left on disk without looking for
     /// it, with how many parts name each, for [`check_parts`].
-    unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
+    unchecked: Option<(PathBuf, Vec<(Ref, u32)>, Vec<Ref>)>,
     /// The bodies the budget holds that an opening for a window left on disk, newest first, for
     /// [`bodies_later`].
     later: Option<Vec<crate::session::BodyLater>>,
@@ -2237,19 +2237,50 @@ fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref
     on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
 }
 
+/// Whether the content `r` is surely not under `dir`: the content folder is there, and the
+/// file isn't (the system says there is no such file) or isn't the length it must be. A look
+/// that fails any other way (a folder on a drive that is away for a moment, a file another
+/// program holds) is no answer, and says not.
+fn absent_in(dir: &Path, r: &Ref, folders: &Folders) -> bool {
+    if !fs::metadata(dir).is_ok_and(|m| m.is_dir()) {
+        return false;
+    }
+    blob_path(dir, &r.hash).is_some_and(|(sub, file)| match fs::symlink_metadata(&file) {
+        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+        Ok(m) => folders.real(&r.hash, &sub) && !(m.file_type().is_file() && m.len() == r.len),
+    })
+}
+
+/// Which of `refs` are surely gone from under `dir` ([`absent_in`]), looked for as
+/// [`missing_of`] looks, within [`STAT_TIME`]: what isn't looked at in time is taken to be there.
+fn absent_of(dir: &Path, refs: &[Ref], folders: &Folders) -> Vec<Ref> {
+    let deadline = Instant::now().checked_add(STAT_TIME);
+    let looked = fan_out(refs.len(), |i| refs.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| absent_in(dir, r, folders))));
+    refs.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(true))))).map(|(r, _)| *r).collect()
+}
+
+/// Whether the content `r` of the mailbox file at `path` is surely gone ([`absent_in`]).
+pub(crate) fn absent(path: &Path, r: &ContentRef) -> bool {
+    absent_in(&blob_dir(&resolve(path)), &Ref::from_model(r), &Folders::new())
+}
+
 /// Look for the content files the mailbox file at `path` names and its opening left on disk
 /// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
 /// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
 /// that, and for a file opened otherwise. Saves aren't held up meanwhile.
 pub fn check_parts(path: &Path) -> crate::session::Missing {
     let shared = shared(path);
-    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
-    let missing = missing_of(&dir, &on_disk, &Folders::new());
+    let Some((dir, on_disk, originals)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
+    let folders = Folders::new();
+    let missing = missing_of(&dir, &on_disk, &folders);
     let count = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
     if count > 0 {
         log::warn!("{}: {count} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
     }
-    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r.to_model()).collect() }
+    // (The originals found gone are named too, and counted nowhere: without one a message is
+    // whole, #30. `Session::mark_unavailable` asks the server for each again.)
+    let gone = absent_of(&dir, &originals, &folders);
+    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r).chain(gone).map(|r| r.to_model()).collect() }
 }
 
 /// The bodies the memory budget holds that the opening of the file at `path` for a window left on
@@ -2431,11 +2462,17 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         }
     }
     drop(seen);
-    let missing: HashSet<Ref> = if launch.checks_later {
-        st.unchecked = Some((dir.to_path_buf(), on_disk));
-        HashSet::new()
+    // The originals left on disk (#30), looked for as the rest is, but only to ask a server for
+    // one that is surely gone.
+    let mut originals: Vec<Ref> = plan.iter().filter_map(|p| p.5.as_ref().and_then(|w| w.r)).collect();
+    originals.sort_unstable_by_key(|r| r.hash.0);
+    originals.dedup();
+    let (missing, gone_originals): (HashSet<Ref>, HashSet<Ref>) = if launch.checks_later {
+        st.unchecked = Some((dir.to_path_buf(), on_disk, originals));
+        (HashSet::new(), HashSet::new())
     } else {
-        missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect()
+        let missing = missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect();
+        (missing, absent_of(dir, &originals, &folders).into_iter().collect())
     };
     let mut filled = Filled::default();
     // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
@@ -2547,15 +2584,16 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             if let Some(p) = held.as_mut().and_then(|p| p.original.as_mut()) {
                 p.held = false;
             }
-            // Its file gone (a build from before #30 swept it, say): the message is written from
-            // its parts, and asks its server for the bytes again at the next Send/Receive.
-            if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| !present(dir, &Ref::from_model(&r), &folders)) {
-                m.original = None;
-                if let Some(p) = held.as_mut() {
+            // Its file surely gone (a build from before #30 swept it, say): the message is
+            // written from its parts, and asks its server for the bytes again
+            // ([`crate::cmd::mail::check_again::lost`]).
+            if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| gone_originals.contains(&Ref::from_model(&r))) {
+                let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
+                if crate::cmd::mail::check_again::lost(kind, m)
+                    && let Some(p) = held.as_mut()
+                {
                     p.original = None;
                 }
-                let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
-                crate::cmd::mail::check_again::ask(kind, m);
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
@@ -2643,6 +2681,10 @@ pub struct Content;
 impl ContentSource for Content {
     fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
         fetch(mailbox, r)
+    }
+
+    fn absent(&self, mailbox: &Path, r: &ContentRef) -> bool {
+        absent(mailbox, r)
     }
 }
 

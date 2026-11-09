@@ -489,8 +489,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         return None;
     }
     let mut read = crate::mime::parse_fetched(mime);
-    // Within what the mailbox keeps of originals in all (#30).
-    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size())) {
+    // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
+    let replaced = mb.message(here).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
+    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
         read.original = None;
     }
     let m = mb.message_mut(here).ok()?;
@@ -525,8 +526,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
-    // The bytes it came as, when it is Digitally signed or Encrypted (#30).
-    m.original = read.original;
+    // The bytes it came as, when it is Digitally signed or Encrypted (#30): with its files from
+    // the same download, so nothing removed here before comes back in one and not the other.
+    (m.original, m.parts_removed) = (read.original, false);
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
@@ -616,6 +618,9 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
             let m = std::sync::Arc::make_mut(m);
             m.attachments_on_server = m.has_attachments();
             m.unfetched = true;
+            // Fetched whole: what comes is taken whole, original and all, not for the original
+            // alone (#30).
+            m.original_wanted = false;
             marked = marked.saturating_add(1);
         }
     }
@@ -653,6 +658,9 @@ pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
             let m = std::sync::Arc::make_mut(m);
             m.attachments_on_server = m.has_attachments();
             m.unfetched = true;
+            // Fetched whole: what comes is taken whole, original and all, not for the original
+            // alone (#30).
+            m.original_wanted = false;
             marked = marked.saturating_add(1);
         }
     }

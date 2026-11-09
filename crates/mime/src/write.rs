@@ -81,8 +81,9 @@ const NAME_PIECE: usize = 52;
 pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     let mut out = Vec::new();
     write_header(&mut out, message, opts);
-    if let Some(original) = message.original_bytes().filter(|_| !message.draft) {
-        let (content_fields, body) = crate::protected::content_of(original);
+    // (An original whose content fields can't be written as header lines is no original here:
+    // the message is built from its parts.)
+    if let Some((content_fields, body)) = message.original_bytes().filter(|_| !message.draft).and_then(crate::protected::content_of) {
         out.extend_from_slice(&content_fields);
         out.extend_from_slice(b"\r\n");
         out.extend_from_slice(&body);

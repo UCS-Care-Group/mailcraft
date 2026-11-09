@@ -79,8 +79,9 @@ pub fn wanted(mb: &Mailbox, account: Id) -> HashMap<Id, Vec<u32>> {
 /// owner's own and keeps its text; a name list of another length or of other addresses is not
 /// the same list and stays.
 pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
-    // Within what the mailbox keeps of originals in all (#30).
-    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size())) {
+    // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
+    let replaced = mb.message(id).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
+    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
         read.original = None;
     }
     let Ok(m) = mb.message_mut(id) else { return };
@@ -115,7 +116,8 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
-    // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here.
+    // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here:
+    // its files aren't taken from this download, so its original would bring a removed one back.
     if read.original.is_some() && !m.parts_removed {
         m.original = read.original;
     }

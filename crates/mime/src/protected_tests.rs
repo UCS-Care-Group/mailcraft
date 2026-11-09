@@ -266,11 +266,109 @@ fn crlf_and_content_of() {
     assert_eq!(crate::crlf(b"a\nb\r\nc\n\n"), b"a\r\nb\r\nc\r\n\r\n");
     assert_eq!(crate::crlf(b""), b"");
     assert_eq!(crate::crlf(b"\r\r\n"), b"\r\r\n");
-    let (fields, body) = crate::protected::content_of(b"Subject: x\nContent-Type: a/b;\n\tc=d\r\nX-A: y\nMIME-Version: 1.0\0\n\nbody\n");
+    let (fields, body) = crate::protected::content_of(b"Subject: x\nContent-Type: a/b;\n\tc=d\r\nX-A: y\nMIME-Version: 1.0\0\n\nbody\n").unwrap();
     assert_eq!(fields, b"Content-Type: a/b;\r\n\tc=d\r\nMIME-Version: 1.0\r\n");
     assert_eq!(body, b"body\r\n");
-    // No header block, no body: nothing, and no panic.
-    assert_eq!(crate::protected::content_of(b""), (Vec::new(), Vec::new()));
+    // Without a MIME-Version, one is written.
+    let (fields, _) = crate::protected::content_of(b"Content-Type: a/b\r\n\r\nbody\r\n").unwrap();
+    assert_eq!(fields, b"MIME-Version: 1.0\r\nContent-Type: a/b\r\n");
+    // No header block, no body: only the version, and no panic.
+    assert_eq!(crate::protected::content_of(b""), Some((b"MIME-Version: 1.0\r\n".to_vec(), Vec::new())));
+}
+
+/// What S/MIME programs write on enveloped and opaque-signed mail (RFC 8551 §3.2.1): the
+/// message itself says it is an attachment `smime.p7m`. It is protected all the same.
+#[test]
+fn smime_that_says_attachment_at_the_top_is_protected() {
+    for smime_type in ["enveloped-data", "signed-data"] {
+        let bytes = format!(
+            "From: ada@example.org\r\nMIME-Version: 1.0\r\nContent-Type: application/pkcs7-mime; smime-type={smime_type}; name=\"smime.p7m\"\r\n\
+             Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"smime.p7m\"\r\n\r\nZHVtbXk=\r\n"
+        );
+        assert_eq!(protection(bytes.as_bytes()), Some(Protection::Pkcs7), "{smime_type}");
+        let m = parse_fetched(bytes.as_bytes());
+        assert_eq!(m.original_bytes(), Some(bytes.as_bytes()));
+        // Written, it says so still.
+        assert!(head(&write(&m, &WriteOptions::default())).contains("Content-Disposition: attachment; filename=\"smime.p7m\""));
+    }
+}
+
+/// DER sent as `binary` holds LF bytes that are data: kept and written byte for byte.
+#[test]
+fn a_binary_part_is_kept_byte_for_byte() {
+    let der: &[u8] = b"\x30\x0a\x06\x09\n\x2a\x86\nraw\r\n\n";
+    let bytes = [
+        &b"From: ada@example.org\r\nContent-Type: application/pkcs7-mime; smime-type=enveloped-data\r\nContent-Transfer-Encoding: binary\r\n\r\n"[..],
+        der,
+    ]
+    .concat();
+    let m = parse_fetched(&bytes);
+    assert_eq!(m.original_bytes(), Some(bytes.as_slice()));
+    assert_eq!(body(&write(&m, &WriteOptions::default())), der);
+    // Inside a signed message, too.
+    let signed = String::from_utf8_lossy(PGP_SIGNED).replace(
+        "Content-Type: text/plain\r\n\r\nHello.",
+        "Content-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\n\r\nHel\nlo.",
+    );
+    let m = parse_fetched(signed.as_bytes());
+    assert_eq!(m.original_bytes(), Some(signed.as_bytes()));
+}
+
+/// The signature part's type and `protocol` may differ by S/MIME's old `x-`, in case and in
+/// quoting; the signed part may be empty.
+#[test]
+fn signed_messages_written_by_other_programs_are_told() {
+    let smime = String::from_utf8_lossy(SMIME_SIGNED).into_owned();
+    let x_part = smime.replace("Content-Type: application/pkcs7-signature; name", "Content-Type: application/x-pkcs7-signature; name");
+    assert_eq!(protection(x_part.as_bytes()), Some(Protection::Signed));
+    let x_protocol = smime.replace("protocol=\"application/pkcs7-signature\"", "protocol=application/x-pkcs7-signature");
+    assert_eq!(protection(x_protocol.as_bytes()), Some(Protection::Signed));
+    let upper = smime.replace("protocol=\"application/pkcs7-signature\"", "PROTOCOL=\"Application/PKCS7-Signature\"");
+    assert_eq!(protection(upper.as_bytes()), Some(Protection::Signed));
+    let empty = smime.replace("Content-Type: text/plain; charset=utf-8\r\n\r\nSigned text.\r\n", "Content-Type: text/plain; charset=utf-8\r\n\r\n");
+    assert_eq!(protection(empty.as_bytes()), Some(Protection::Signed), "{empty}");
+    // The signature itself must be there.
+    let unsigned = smime.replace("ZHVtbXkgc2lnbmF0dXJl\r\n", "");
+    assert_eq!(protection(unsigned.as_bytes()), None);
+}
+
+/// A content field longer than a header line may be is folded at white space; one that can't be
+/// folded leaves the original out of what is written, which is then built from the parts.
+#[test]
+fn long_content_fields_are_folded_or_left_out() {
+    let smime = String::from_utf8_lossy(SMIME_SIGNED).into_owned();
+    let long = smime.replace("micalg=sha-256;", &format!("micalg=sha-256; x-a=\"{}\";", "a ".repeat(700)));
+    let m = parse_fetched(long.as_bytes());
+    assert!(m.has_original());
+    let out = write(&m, &WriteOptions::default());
+    assert!(String::from_utf8_lossy(&out).split("\r\n").all(|line| line.len() <= 998));
+    assert_eq!(body(&out), body(SMIME_SIGNED));
+    assert_eq!(parse(&out).body.text.trim(), "Signed text.");
+    let unfoldable = smime.replace("micalg=sha-256;", &format!("micalg=sha-256; x-a={};", "a".repeat(1200)));
+    let m = parse_fetched(unfoldable.as_bytes());
+    let out = write(&m, &WriteOptions::default());
+    assert!(String::from_utf8_lossy(&out).split("\r\n").all(|line| line.len() <= 998));
+    assert!(!String::from_utf8_lossy(&out).contains(&"a".repeat(1200)));
+}
+
+/// The sending server's DKIM and a forwarder's ARC seals cover the header as it came, which a
+/// copy put on another server doesn't keep: they don't go there.
+#[test]
+fn a_placed_copy_carries_no_dkim_or_arc_seal() {
+    let mut m = parse_fetched(SMIME_SIGNED);
+    for (name, value) in [
+        ("DKIM-Signature", "v=1; d=example.org; b=x"),
+        ("ARC-Seal", "i=1; b=y"),
+        ("ARC-Message-Signature", "i=1; b=z"),
+        ("List-Id", "<l.example.org>"),
+    ] {
+        m.headers.push((name.into(), value.into()));
+    }
+    let placed = String::from_utf8_lossy(&write_placed(&m, &WriteOptions::default(), "m")).to_ascii_lowercase();
+    assert!(!placed.contains("dkim-signature") && !placed.contains("arc-seal") && !placed.contains("arc-message-signature"), "{placed}");
+    assert!(placed.contains("list-id"));
+    // Saved as a file, the message keeps them.
+    assert!(String::from_utf8_lossy(&write(&m, &WriteOptions::default())).contains("DKIM-Signature"));
 }
 
 proptest! {

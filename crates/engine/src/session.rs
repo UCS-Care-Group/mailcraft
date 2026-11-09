@@ -1020,9 +1020,9 @@ pub struct Session {
     pub mailbox: Mailbox,
     pub view: ViewState,
     pub sel: Selection,
-    /// Messages whose original (#30) couldn't be read when they were written whole: at the next
-    /// command each lets it go and asks its server for it again ([`Session::loaded_message`]).
-    lost_originals: std::sync::Mutex<Vec<Id>>,
+    /// Messages whose original (#30) couldn't be read when they were written whole, each once:
+    /// looked at again at the next command ([`Session::ask_for_lost_originals`]).
+    pub(crate) lost_originals: std::sync::Mutex<Vec<Id>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -2187,6 +2187,7 @@ impl Session {
                 copy.original = None;
                 if let Ok(mut lost) = self.lost_originals.lock()
                     && lost.len() < crate::cmd::imap_again::MAX_AGAIN
+                    && !lost.contains(&id)
                 {
                     lost.push(id);
                 }
@@ -2210,9 +2211,12 @@ impl Session {
         text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
-    /// Whether every attachment of `m` that isn't in memory can be read back whole.
+    /// Whether every attachment of `m` that isn't in memory, and its original, can be read back whole.
     fn files_readable(&self, m: &Message) -> bool {
-        m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).all(|r| self.fetch(&r).is_ok())
+        // (And the bytes a Digitally signed or Encrypted message came as, #30: the copy put
+        // elsewhere is made of them.)
+        let original = m.original.as_ref().and_then(|o| o.kept.filter(|_| o.data.is_empty()));
+        m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).chain(original).all(|r| self.fetch(&r).is_ok())
     }
 
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
@@ -2358,6 +2362,29 @@ impl Session {
         }
         if !marked.is_empty() || !hidden_gone.is_empty() {
             self.loads += 1;
+        }
+        // An original (#30) named among them is surely gone (`store::check_parts` looks for it
+        // so): the message asks its server for it again, or keeps it named when none has it.
+        let originals: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(_, m)| m.original.as_ref().is_some_and(|o| o.data.is_empty() && gone(o.kept)))
+            .map(|(id, _)| *id)
+            .collect();
+        let mut asked = false;
+        for id in originals {
+            let Some(m) = self.mailbox.messages.get(&id) else { continue };
+            let kind = self.mailbox.account(m.account).map(|a| a.kind);
+            let mut copy = Message::clone(m);
+            if crate::cmd::mail::check_again::lost(kind, &mut copy) {
+                self.put_message(id, copy);
+                asked = true;
+            }
+        }
+        if asked {
+            self.rev += 1;
+            self.dirty = true;
         }
         marked.len()
     }
@@ -3149,18 +3176,36 @@ impl Session {
         self.run_on_message(id, params)
     }
 
-    /// The messages whose original couldn't be read let it go, and ask their servers for it again
-    /// at the next Send/Receive (#30). Outside the history: nothing the owner did.
+    /// The messages whose original couldn't be read (#30), where it is surely gone from the
+    /// content folder ([`crate::io::ContentSource::absent`]), let it go and ask their servers for
+    /// it again at the next Send/Receive, or, when no server has them, keep it named
+    /// ([`crate::cmd::mail::check_again::lost`]). One that only couldn't be read for now stays as
+    /// it is, to be read the next time. Outside the history: nothing the owner did.
     pub fn ask_for_lost_originals(&mut self) {
         let lost = self.lost_originals.get_mut().map(std::mem::take).unwrap_or_default();
+        let (Some(path), Some(source)) = (self.path.clone(), self.source()) else { return };
+        let mut changed = false;
         for id in lost {
-            let kind = self.mailbox.message(id).and_then(|m| self.mailbox.account(m.account)).map(|a| a.kind);
-            if let Ok(m) = self.mailbox.message_mut(id)
-                && m.original.as_ref().is_some_and(|o| !o.is_loaded())
-            {
-                m.original = None;
-                crate::cmd::mail::check_again::ask(kind, m);
+            let Some(m) = self.mailbox.message(id) else { continue };
+            // A read that failed for a moment (a file another program holds, a drive away) is
+            // no reason to let the original go: only one surely gone is.
+            let Some(r) = m.original.as_ref().filter(|o| !o.is_loaded()).and_then(|o| o.kept) else { continue };
+            if !source.absent(&path, &r) {
+                continue;
             }
+            let kind = self.mailbox.account(m.account).map(|a| a.kind);
+            let mut copy = Message::clone(m);
+            let before = (copy.original.is_some(), copy.original_wanted, copy.refetch, copy.unfetched);
+            crate::cmd::mail::check_again::lost(kind, &mut copy);
+            if before != (copy.original.is_some(), copy.original_wanted, copy.refetch, copy.unfetched) {
+                self.put_message(id, copy);
+                changed = true;
+            }
+        }
+        if changed {
+            // What it says of the message is saved, and what was worked out from it is due again.
+            self.rev += 1;
+            self.dirty = true;
         }
     }
 

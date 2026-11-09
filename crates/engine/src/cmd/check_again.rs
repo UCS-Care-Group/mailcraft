@@ -43,13 +43,16 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
 /// Whether a server still has message `m`, of an account of `kind`, whole, to download again.
 fn on_server(kind: Option<AccountKind>, m: &Message) -> bool {
     let there = match kind {
-        Some(AccountKind::Imap) => m.uid != 0 && m.not_downloaded == 0 && !m.unfetched,
+        Some(AccountKind::Imap) => m.uid != 0 && m.not_downloaded == 0,
         Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
             m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty()) && m.server_draft.is_none()
         }
         _ => false,
     };
-    there && !m.incomplete && m.moving_out.is_none()
+    // Only a message whose body is here: one that is only its headers and preview is fetched
+    // whole, original and all, when it is opened, and what Check again brings is taken for the
+    // original alone, which would leave the preview as its body.
+    there && !m.unfetched && !m.incomplete && m.moving_out.is_none()
 }
 
 /// Mark `m`, of an account of `kind`, to have the bytes it came as downloaded at the next
@@ -62,11 +65,26 @@ pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
     m.original_wanted = true;
     if kind == Some(AccountKind::Imap) {
         m.refetch = true;
-    } else if !m.unfetched {
+    } else {
         // Its text and files stay until the new copy comes and is taken in.
         m.attachments_on_server = m.has_attachments();
         m.unfetched = true;
     }
+}
+
+/// The original of `m`, of an account of `kind`, is surely gone from the content folder (a
+/// build before #30 swept it, say): a message a server still has whole lets it go and asks the
+/// server for it again ([`ask`]); one no server has keeps it named, as missing content stays
+/// named, so that a file put back is found, and is written from its parts meanwhile. Whether
+/// the original was let go of.
+pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
+    if m.draft || m.parts_removed || !on_server(kind, m) {
+        log::warn!("message {}: the bytes it came as are missing from the content folder; it is written from its parts", m.id);
+        return false;
+    }
+    m.original = None;
+    ask(kind, m);
+    true
 }
 
 /// Enabled for a message selected that can be checked again ([`why_not`]).

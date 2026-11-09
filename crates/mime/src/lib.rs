@@ -61,7 +61,21 @@ pub const PLACE_HEADER: &str = "X-MailCraft-Place";
 /// `message` as [`write()`] writes it, with [`PLACE_HEADER`] carrying `marker` first: for a
 /// Digitally signed or Encrypted message that keeps its original, its body as it came, which a
 /// header field put before the others leaves as its Digital signature covers it (#30).
+///
+/// The sending server's DKIM signature and a forwarder's ARC seals (`DKIM-Signature`,
+/// `ARC-Seal`, `ARC-Message-Signature`) are left out: they cover header fields as the sender
+/// wrote them, which a copy written from the message doesn't keep byte for byte, so they would
+/// fail there. A Digital signature (S/MIME, OpenPGP) covers the body, which goes as it came.
 pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
+    let breaks = |name: &str| ["dkim-signature", "arc-seal", "arc-message-signature"].iter().any(|n| name.eq_ignore_ascii_case(n));
+    let unsigned;
+    let message = if message.headers.iter().any(|(name, _)| breaks(name)) {
+        let headers = message.headers.iter().filter(|(name, _)| !breaks(name)).cloned().collect();
+        unsigned = mailcraft_model::Message { headers, ..message.clone() };
+        &unsigned
+    } else {
+        message
+    };
     let mut out = Vec::new();
     header::write_field(&mut out, PLACE_HEADER, marker);
     out.extend(write(message, opts));

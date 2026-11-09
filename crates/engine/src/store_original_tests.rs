@@ -147,10 +147,102 @@ fn an_original_that_cant_be_read_writes_the_message_from_its_parts_and_is_asked_
     let m = s.loaded_message(id).unwrap();
     assert!(m.original.is_none());
     assert!(!mailcraft_mime::write(&m, &Default::default()).is_empty());
-    // At the next command it lets the original go and asks for it again.
+    // Nor can it be put elsewhere whole meanwhile (#451: the server's copy stays).
+    assert!(!s.readable_whole(s.mailbox.message(id).unwrap()));
+    // At the next command, the file surely gone, it lets the original go and asks for it again,
+    // and that is a change to save and to show.
+    let (rev, dirty) = (s.rev(), s.dirty);
+    assert!(!dirty);
     s.ask_for_lost_originals();
     let m = s.mailbox.message(id).unwrap();
     assert!(m.original.is_none() && m.original_wanted && m.refetch);
+    assert!(s.rev() > rev && s.dirty);
+}
+
+/// A file that doesn't read back for now (its bytes not what they should be, as with a file
+/// another program holds) never lets the original go: it stays named, to be read the next time.
+#[test]
+fn an_original_unreadable_for_now_stays_named() {
+    let (mb, id) = with_signed_on_imap();
+    let tmp = Temp::new("original-for-now");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let file = blob_file(&path, &signed_bytes());
+    fs::remove_file(&file).unwrap();
+    fs::write(&file, vec![b'z'; signed_bytes().len()]).unwrap();
+    let mut s = Session::new(open(&path).unwrap().mailbox);
+    s.path = Some(path.clone());
+    assert!(s.mailbox.message(id).unwrap().has_original());
+    assert!(s.loaded_message(id).unwrap().original.is_none());
+    // Asked about twice, it is looked at once.
+    assert!(s.loaded_message(id).unwrap().original.is_none());
+    assert_eq!(s.lost_originals.lock().unwrap().len(), 1);
+    assert!(!s.readable_whole(s.mailbox.message(id).unwrap()));
+    let rev = s.rev();
+    s.ask_for_lost_originals();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.has_original() && !m.original_wanted && !m.refetch);
+    assert_eq!(s.rev(), rev);
+    // Readable again, it is the original once more.
+    fs::remove_file(&file).unwrap();
+    fs::write(&file, signed_bytes()).unwrap();
+    clear_cache();
+    assert_eq!(s.loaded_message(id).unwrap().original_bytes(), Some(signed_bytes().as_slice()));
+    assert!(s.readable_whole(s.mailbox.message(id).unwrap()));
+}
+
+/// A message no server has (brought in from a file, moved to this computer) keeps its original
+/// named when the file is gone: nothing could bring it back, and a file put back is found.
+#[test]
+fn a_local_messages_missing_original_stays_named() {
+    let (mb, id) = with_signed();
+    let tmp = Temp::new("original-local");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let file = blob_file(&path, &signed_bytes());
+    fs::remove_file(&file).unwrap();
+    let mut s = Session::new(open(&path).unwrap().mailbox);
+    s.path = Some(path.clone());
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.has_original() && !m.original_wanted);
+    // Written from its parts meanwhile.
+    let copy = s.loaded_message(id).unwrap();
+    assert!(copy.original.is_none());
+    assert!(String::from_utf8_lossy(&mailcraft_mime::write(&copy, &Default::default())).contains("Signed text"));
+    s.ask_for_lost_originals();
+    assert!(s.mailbox.message(id).unwrap().has_original());
+    // A save keeps it named, and the file put back is the original again.
+    save(&path, &s.mailbox).unwrap();
+    fs::write(&file, signed_bytes()).unwrap();
+    clear_cache();
+    assert_eq!(whole(&path).message(id).unwrap().original_bytes(), Some(signed_bytes().as_slice()));
+}
+
+/// Opened for a window that shows at once (#519), the originals are looked for afterwards, with
+/// the rest ([`check_parts`]), not while opening: a missing one is told then, and asks then.
+#[test]
+fn an_opening_for_a_window_looks_for_originals_afterwards() {
+    let (mb, id) = with_signed_on_imap();
+    let tmp = Temp::new("original-later");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    fs::remove_file(blob_file(&path, &signed_bytes())).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    let opened = with_budget(1 << 30, || open_as(&path, &OpenProgress::default(), Launch { checks_later: true, rows: Some(3) }).unwrap());
+    // Nothing decided while opening.
+    assert!(opened.mailbox.message(id).unwrap().has_original());
+    assert!(!opened.mailbox.message(id).unwrap().original_wanted);
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.clone());
+    let missing = check_parts(&path);
+    assert_eq!(missing.count, 0, "an original is counted nowhere");
+    s.mark_unavailable(&missing.refs);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original.is_none() && m.original_wanted && m.refetch);
+    assert!(s.dirty);
 }
 
 #[test]

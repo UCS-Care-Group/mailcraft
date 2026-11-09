@@ -279,6 +279,12 @@ pub trait ContentSource: Send + Sync {
     /// The bytes kept under `r` for the mailbox file at `mailbox`, checked against the length and
     /// SHA-256 the reference names (anything else is "missing or damaged", never bytes).
     fn fetch(&self, mailbox: &std::path::Path, r: &ContentRef) -> Result<std::sync::Arc<Vec<u8>>, String>;
+
+    /// Whether the content `r` is surely gone (its folder is there and it isn't), as opposed to
+    /// merely unreadable for now. Never sure, unless a source can tell.
+    fn absent(&self, _mailbox: &std::path::Path, _r: &ContentRef) -> bool {
+        false
+    }
 }
 
 pub use mailcraft_model::ContentRef;

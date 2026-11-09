@@ -203,3 +203,69 @@ fn the_size_of_a_message_counts_its_original() {
     let without = mailcraft_model::Message { original: None, ..m.clone() };
     assert_eq!(m.size(), without.size() + SIGNED.len() as u64);
 }
+
+/// A message that is only its headers and preview (armour in a preview looks protected) isn't
+/// checked again: opening it fetches it whole, original and all; what Check again brings would
+/// be taken for the original alone and leave the preview as its body.
+#[test]
+fn a_message_not_downloaded_yet_isnt_checked_again() {
+    for kind in [AccountKind::Microsoft, AccountKind::Exchange, AccountKind::Jmap, AccountKind::Imap] {
+        let (mut s, id) = read_before(kind, INLINE);
+        s.mailbox.message_mut(id).unwrap().unfetched = true;
+        assert!(s.mailbox.message(id).unwrap().looks_protected());
+        assert!(!s.enabled("mail.checkAgain"), "{kind:?}");
+        assert!(s.run("mail.checkAgain", &json!({"id": id})).is_err(), "{kind:?}");
+        assert!(!s.mailbox.message(id).unwrap().original_wanted, "{kind:?}");
+    }
+    // Fetched whole when opened, it takes its body and its original.
+    let (mut s, id) = read_before(AccountKind::Microsoft, INLINE);
+    s.mailbox.message_mut(id).unwrap().unfetched = true;
+    s.mailbox.message_mut(id).unwrap().body.text = "-----BEGIN PGP SIGNED MESSAGE-----".into();
+    let account = s.mailbox.message(id).unwrap().account;
+    let mut index = Default::default();
+    assert!(graph_down::take_fetched(&mut s.mailbox, &mut index, account, "AAkA1", INLINE));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.original_bytes(), Some(INLINE));
+    assert!(m.body.text.contains("Hi."));
+}
+
+/// The room for an original counts the one it replaces: a mailbox at its cap takes a new copy of
+/// an original it holds already.
+#[test]
+fn an_original_taken_again_counts_only_what_it_adds() {
+    let (mut s, id) = read_before(AccountKind::Imap, SIGNED);
+    s.mailbox.message_mut(id).unwrap().original = mailcraft_model::Original::new(SIGNED.to_vec());
+    let folder = s.mailbox.message(id).unwrap().folder;
+    let rest = mailcraft_model::ContentRef { sha256: [7; 32], len: mailcraft_model::MAX_ORIGINALS - SIGNED.len() as u64 };
+    let original = Some(mailcraft_model::Original { data: std::sync::Arc::default(), kept: Some(rest) });
+    s.mailbox.add_message(mailcraft_model::Message { folder, original, ..Default::default() }).unwrap();
+    assert!(!s.mailbox.room_for_original(1));
+    // Downloaded again (#650), the same bytes come: the mailbox holds no more than before.
+    s.mailbox.message_mut(id).unwrap().refetch = true;
+    imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(SIGNED));
+    assert_eq!(s.mailbox.message(id).unwrap().original_bytes(), Some(SIGNED));
+}
+
+/// After Remove Attachment, a download again by UID (#650) takes the text alone, not the files,
+/// so not the original either; a fetch whole (Microsoft Graph) takes the files and the original
+/// from the same download, and the message is that download again.
+#[test]
+fn a_whole_download_again_takes_the_files_and_the_original_together() {
+    let (mut s, id) = read_before(AccountKind::Imap, SIGNED);
+    s.run("mail.removeAttachment", &json!({"id": id, "index": 0})).unwrap();
+    s.mailbox.message_mut(id).unwrap().refetch = true;
+    imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(SIGNED));
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original.is_none() && m.attachments.is_empty() && m.parts_removed);
+
+    let (mut s, id) = read_before(AccountKind::Microsoft, SIGNED);
+    s.run("mail.removeAttachment", &json!({"id": id, "index": 0})).unwrap();
+    let account = s.mailbox.message(id).unwrap().account;
+    graph_down::thin_message(s.mailbox.message_mut(id).unwrap(), "preview".into());
+    let mut index = Default::default();
+    assert!(graph_down::take_fetched(&mut s.mailbox, &mut index, account, "AAkA1", SIGNED));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.original_bytes(), Some(SIGNED));
+    assert_eq!(m.attachments.len(), 1);
+    assert!(!m.parts_removed);
+}
