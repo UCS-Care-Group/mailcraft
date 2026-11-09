@@ -762,6 +762,17 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
+    // A message that lies, after the undo, where it waits now to be made on another account's
+    // server, still waits to be: one moved out of a Microsoft account before its server had it,
+    // which stays where it was moved ([`fields`]), or one put there since the change.
+    for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
+        if let Queued::PlaceMessage { account, message, .. } = q
+            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
+            && !queued.iter().any(|o| matches!(o, Queued::PlaceMessage { message: other, .. } if other == message))
+        {
+            queued.push(q.clone());
+        }
+    }
     for q in then.iter().filter(|q| g.contains(&q.account())) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())

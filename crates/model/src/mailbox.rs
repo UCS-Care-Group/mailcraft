@@ -2765,9 +2765,7 @@ impl Mailbox {
             })
             .or_else(|| {
                 self.queued.iter().find_map(|q| match q {
-                    Queued::DeleteMessage { account, id, kept } if held(kept) && kept.as_ref().is_some_and(|k| k.on_server_as(id)) => {
-                        Some((*account, false))
-                    }
+                    Queued::DeleteMessage { account, kept, .. } if held(kept) => Some((*account, false)),
                     _ => None,
                 })
             })

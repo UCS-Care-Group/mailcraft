@@ -432,27 +432,36 @@ fn a_waiting_copy_into_microsoft_isnt_moved_onto_this_computer_and_undo_lets_not
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// The server no longer has the message (deleted there meanwhile): its copy asks it for the bytes
-/// no more, and waits for them no more.
+/// A copy into a Microsoft account moved on into an IMAP account, and that move undone: it stays
+/// where it was moved, as one moved out of a Microsoft account does, and still waits to be made
+/// on that account's server, so the delete still waits for it; Redo and Undo again alike.
 #[test]
-fn a_copy_stops_asking_a_microsoft_server_that_no_longer_has_the_message() {
-    use mailcraft_model::sync::{GraphMailResult, MessagePage};
-    let dir = folder("ms-gone");
+fn undoing_a_move_of_a_waiting_copy_out_of_microsoft_keeps_it_waiting_and_the_delete_held() {
+    let dir = folder("undo-out-of-ms");
     let path = dir.join("mailbox.mailcraft");
-    let (mut s, ms, to, id) = microsoft_and_imap(&path);
-    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
-    s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap();
+    let (s, from, _, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let ms = microsoft(&mut s, "owner@example.org");
+    let third = imap_account(&mut s, "home@mail.example", vec![]);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let c = s.mailbox.folder_of_kind(third, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
-    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
-    s.ask_for_lost_originals();
-    assert_eq!(crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap().ids, ["AAkA7"]);
-    let page = MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], link: "d1".into(), caught_up: true, ..Default::default() };
-    let run = GraphMailResult { account: ms, email: "owner@example.org".into(), pages: vec![page], whole: true, ..Default::default() };
-    crate::cmd::graph_mail::apply_graph_mail(&mut s, run).unwrap();
-    assert!(crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap().ids.is_empty());
-    // Nothing has the bytes now: it waits for nothing, and goes made of its parts.
-    save(&mut s, &path);
-    assert_eq!(sync_request(&s, to).unwrap().places.len(), 1);
+    s.run("mail.move", &json!({"ids": [copy], "folder": c})).unwrap();
+    let waits = |s: &Session| {
+        s.mailbox
+            .queued
+            .iter()
+            .filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account, message, .. } if *message == copy && *account == third))
+            .count()
+    };
+    for step in ["undo", "redo", "undo again"] {
+        assert!(if step == "redo" { s.redo() } else { s.undo() }, "{step}");
+        save(&mut s, &path);
+        assert_eq!(s.mailbox.message(copy).map(|m| m.account), Some(third), "{step}");
+        assert_eq!(waits(&s), 1, "{step}");
+        assert!(!deletes(&s, from), "{step}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 
