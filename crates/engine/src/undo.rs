@@ -268,8 +268,19 @@ impl Said {
         }
         match self.no_room.as_slice() {
             [] => {}
-            [one] => lines.push(format!("The category '{}' couldn't be put back: the list of categories is full.", shown(one))),
-            many => lines.push(format!("{} categories couldn't be put back: the list of categories is full.", many.len())),
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("The category '{name}' couldn't be put back: the list of categories is full."),
+                &[("name", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} category couldn't be put back: the list of categories is full.",
+                    "{n} categories couldn't be put back: the list of categories is full.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
         }
         lines
     }

@@ -11740,6 +11740,12 @@ msgid "The categories sent couldn't be noted: {error}"
 msgstr "Les catégories envoyées n'ont pas pu être notées : {error}"
 
 #. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The category '{name}' couldn't be put back: the list of categories is full."
+msgstr "La catégorie « {name} » n'a pas pu être rétablie : la liste des catégories est pleine."
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "The certificate of the server of {name} needs your say"
 msgstr ""
@@ -16935,6 +16941,14 @@ msgid "{n} byte"
 msgid_plural "{n} bytes"
 msgstr[0] "{n} octet"
 msgstr[1] "{n} octets"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} category couldn't be put back: the list of categories is full."
+msgid_plural "{n} categories couldn't be put back: the list of categories is full."
+msgstr[0] "{n} catégorie n'a pas pu être rétablie : la liste des catégories est pleine."
+msgstr[1] "{n} catégories n'ont pas pu être rétablies : la liste des catégories est pleine."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
