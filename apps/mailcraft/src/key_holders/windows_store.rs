@@ -10,9 +10,8 @@
 //! Windows itself, in its own window; MailCraft never sees it. Each call waits for the system,
 //! so it is made on a background thread, never the window's.
 //!
-//! The store's enumeration leaves out expired certificates (as Microsoft documents it), which
-//! is what signing wants; decrypting old mail with an expired certificate's key is part 6's
-//! question.
+//! Expired certificates are listed as on the other systems (the query is asked to include
+//! them), marked, and sign nothing; their keys still unwrap old mail.
 
 use base64::Engine as _;
 use windows::Security::Cryptography::Certificates::{
@@ -26,35 +25,36 @@ use windows::core::{Array, HSTRING};
 use super::certificate::sha256;
 use super::encoding::ecdsa_raw_to_der;
 use super::{
-    DigestAlgorithm, HeldCertificate, KeyHolderError, KeyKind, MAX_CERTIFICATE_LEN, MAX_CERTIFICATES, MAX_P12_LEN, MAX_WRAPPED_KEY_LEN, Pin,
-    RsaPadding, SignatureScheme, UnwrappedKey,
+    DigestAlgorithm, HeldCertificate, KeyHolderError, MAX_CERTIFICATE_LEN, MAX_SCANNED, Pin, RsaPadding, SignatureScheme, UnwrappedKey,
+    check_for_decrypting, check_for_signing, check_p12, check_wrapped, now,
 };
 
-/// How strongly an imported key is guarded by Windows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// How Windows guards a key imported from a `.p12`. Either way Windows asks before the key is
+/// used, so an imported key stays protected as the file was (R13): a key usable without a word
+/// is not offered.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ImportProtection {
-    /// Used without asking, while the owner is signed in to Windows.
-    NoConsent,
     /// Windows asks the owner each time the key is used.
+    #[default]
     Consent,
-    /// Windows asks for a password of the owner's choosing, set at import.
+    /// Windows asks for a password of the owner's choosing, set at import, each time.
     ConsentWithPassword,
 }
 
-/// The certificates in Current User › Personal that have a private key and may be used for mail.
+/// The certificates in Current User › Personal that have a private key and may be used for
+/// mail, expired ones included (marked).
 pub fn certificates() -> Result<Vec<HeldCertificate>, KeyHolderError> {
     let found = personal()?;
-    Ok(super::usable(found.into_iter().map(|(_, der)| der)))
+    Ok(super::usable(found.into_iter().map(|(_, der)| der), now()))
 }
 
 /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`: the raw RSA
-/// signature, or DER `Ecdsa-Sig-Value` for ECDSA.
+/// signature, or DER `Ecdsa-Sig-Value` for ECDSA. The certificate must be for mail and in its
+/// dates.
 pub fn sign_digest(fingerprint: &[u8; 32], scheme: SignatureScheme, algorithm: DigestAlgorithm, digest: &[u8]) -> Result<Vec<u8>, KeyHolderError> {
     let digest = algorithm.check(digest)?;
     let (certificate, held) = find(fingerprint)?;
-    if !held.can_sign || !scheme.fits(held.key) {
-        return Err(KeyHolderError::Unsupported("this certificate's key doesn't sign that way"));
-    }
+    check_for_signing(&held, scheme)?;
     let padding = match scheme {
         SignatureScheme::RsaPkcs1v15 => CryptographicPadding::RsaPkcs1V15,
         SignatureScheme::RsaPss => CryptographicPadding::RsaPss,
@@ -65,21 +65,18 @@ pub fn sign_digest(fingerprint: &[u8; 32], scheme: SignatureScheme, algorithm: D
     let signature = bytes(&CryptographicEngine::SignHashedData(&key, &data).map_err(system)?)?;
     match scheme {
         // CNG gives an ECDSA signature as `r || s`.
-        SignatureScheme::Ecdsa => ecdsa_raw_to_der(&signature),
+        SignatureScheme::Ecdsa => ecdsa_raw_to_der(&signature, held.key),
         _ => Ok(signature),
     }
 }
 
 /// Unwraps an RSA-encrypted content-encryption key with the key of the certificate whose
-/// SHA-256 is `fingerprint`. The Windows Runtime's OAEP is SHA-1's alone.
+/// SHA-256 is `fingerprint` (an expired certificate's too). The Windows Runtime's OAEP is
+/// SHA-1's alone.
 pub fn decrypt_key(fingerprint: &[u8; 32], padding: RsaPadding, wrapped: &[u8]) -> Result<UnwrappedKey, KeyHolderError> {
-    if wrapped.is_empty() || wrapped.len() > MAX_WRAPPED_KEY_LEN {
-        return Err(KeyHolderError::BadInput("the wrapped key's length"));
-    }
+    let wrapped = check_wrapped(wrapped)?;
     let (certificate, held) = find(fingerprint)?;
-    if !held.can_decrypt {
-        return Err(KeyHolderError::Unsupported("this certificate's key doesn't unwrap keys"));
-    }
+    check_for_decrypting(&held)?;
     let padding = match padding {
         RsaPadding::Pkcs1v15 => CryptographicPadding::RsaPkcs1V15,
         RsaPadding::OaepSha1 => CryptographicPadding::RsaOaep,
@@ -93,55 +90,58 @@ pub fn decrypt_key(fingerprint: &[u8; 32], padding: RsaPadding, wrapped: &[u8]) 
 }
 
 /// Imports a `.p12` (PFX) into Current User › Personal, its key not exportable, guarded as
-/// `protection` says. The passphrase is handed to Windows and not kept.
+/// `protection` says ([`ImportProtection::default`]: asked each time).
+///
+/// The certificates of the authorities that come in the file go to Windows as well; Windows
+/// asks the owner itself, in its own window, before it trusts a root among them.
+///
+/// The passphrase has to reach Windows as a Windows string (`HSTRING`), a copy that safe code
+/// can't overwrite: it is made inside the call and let go of when the call returns, and
+/// nothing else of it is made.
 pub fn import_p12(p12: &[u8], passphrase: &Pin, protection: ImportProtection) -> Result<(), KeyHolderError> {
-    if p12.is_empty() || p12.len() > MAX_P12_LEN {
-        return Err(KeyHolderError::BadInput("the .p12 file's size"));
-    }
+    let p12 = check_p12(p12)?;
     let manager = CertificateEnrollmentManager::UserCertificateEnrollmentManager().map_err(system)?;
     let level = match protection {
-        ImportProtection::NoConsent => KeyProtectionLevel::NoConsent,
         ImportProtection::Consent => KeyProtectionLevel::ConsentOnly,
         ImportProtection::ConsentWithPassword => KeyProtectionLevel::ConsentWithPassword,
     };
     let data = HSTRING::from(base64::engine::general_purpose::STANDARD.encode(p12));
-    let password = HSTRING::from(passphrase.expose());
-    manager
-        .ImportPfxDataAsync(&data, &password, ExportOption::NotExportable, level, InstallOptions::None, &HSTRING::new())
-        .map_err(system)?
-        .join()
-        .map_err(system)
+    let started = manager.ImportPfxDataAsync(
+        &data,
+        &HSTRING::from(passphrase.expose()),
+        ExportOption::NotExportable,
+        level,
+        InstallOptions::None,
+        &HSTRING::new(),
+    );
+    started.map_err(system)?.join().map_err(system)
 }
 
-/// Every certificate in Current User › Personal with a private key, with its DER.
+/// The certificates in Current User › Personal with a private key, expired ones included, with
+/// their DER: at most [`MAX_SCANNED`] looked through.
 fn personal() -> Result<Vec<(Certificate, Vec<u8>)>, KeyHolderError> {
     let query = CertificateQuery::new().map_err(|e| KeyHolderError::Unavailable(e.message()))?;
     query.SetStoreName(&HSTRING::from("MY")).map_err(system)?;
+    query.SetIncludeExpiredCertificates(true).map_err(system)?;
     let found = CertificateStores::FindAllWithQueryAsync(&query)
         .map_err(|e| KeyHolderError::Unavailable(e.message()))?
         .join()
         .map_err(|e| KeyHolderError::Unavailable(e.message()))?;
     let mut out = Vec::new();
-    for certificate in found.into_iter().take(MAX_CERTIFICATES) {
+    for certificate in found.into_iter().take(MAX_SCANNED) {
         if !certificate.HasPrivateKey().unwrap_or(false) {
             continue;
         }
         let Ok(blob) = certificate.GetCertificateBlob() else { continue };
         let Ok(der) = bytes(&blob) else { continue };
-        if der.len() <= MAX_CERTIFICATE_LEN {
-            out.push((certificate, der));
-        }
+        out.push((certificate, der));
     }
     Ok(out)
 }
 
 fn find(fingerprint: &[u8; 32]) -> Result<(Certificate, HeldCertificate), KeyHolderError> {
     let (certificate, der) = personal()?.into_iter().find(|(_, der)| sha256(der) == *fingerprint).ok_or(KeyHolderError::NotFound)?;
-    let held = HeldCertificate::from_der(der)?;
-    if matches!(held.key, KeyKind::Other) {
-        return Err(KeyHolderError::Unsupported("this kind of key"));
-    }
-    Ok((certificate, held))
+    Ok((certificate, HeldCertificate::read(der, now())?))
 }
 
 fn open_key(certificate: &Certificate, hash: &str, padding: CryptographicPadding) -> Result<CryptographicKey, KeyHolderError> {

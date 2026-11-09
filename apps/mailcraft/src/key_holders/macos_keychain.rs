@@ -8,6 +8,9 @@
 //! a "MailCraft wants to use your key" consent is asked for by macOS itself, in its own window;
 //! MailCraft never sees it. Each call may wait on that prompt, so it is made on a background
 //! thread, never the window's.
+//!
+//! The keychain search gives expired identities as well; they are listed as on the other
+//! systems, marked, and sign nothing; their keys still unwrap old mail.
 
 use security_framework::identity::SecIdentity;
 use security_framework::import_export::Pkcs12ImportOptions;
@@ -16,8 +19,8 @@ use security_framework::key::Algorithm;
 
 use super::certificate::sha256;
 use super::{
-    DigestAlgorithm, HeldCertificate, KeyHolderError, KeyKind, MAX_CERTIFICATE_LEN, MAX_CERTIFICATES, MAX_P12_LEN, MAX_WRAPPED_KEY_LEN, Pin,
-    RsaPadding, SignatureScheme, UnwrappedKey,
+    DigestAlgorithm, HeldCertificate, KeyHolderError, MAX_CERTIFICATES, MAX_SCANNED, Pin, RsaPadding, SignatureScheme, UnwrappedKey,
+    check_for_decrypting, check_for_signing, check_p12, check_wrapped, now,
 };
 
 /// `errSecItemNotFound`: a search that found nothing.
@@ -29,19 +32,19 @@ const AUTH_FAILED: i32 = -25293;
 /// `errSecPkcs12VerifyFailure`: a wrong `.p12` passphrase.
 const PKCS12_VERIFY_FAILURE: i32 = -25264;
 
-/// The identities in the owner's keychains whose certificates may be used for mail.
+/// The identities in the owner's keychains whose certificates may be used for mail, expired
+/// ones included (marked).
 pub fn certificates() -> Result<Vec<HeldCertificate>, KeyHolderError> {
-    Ok(super::usable(identities()?.into_iter().map(|(_, der)| der)))
+    Ok(super::usable(identities()?.into_iter().map(|(_, der)| der), now()))
 }
 
 /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`: the raw RSA
 /// signature, or DER `Ecdsa-Sig-Value` for ECDSA (what the keychain's X9.62 algorithms give).
+/// The certificate must be for mail and in its dates.
 pub fn sign_digest(fingerprint: &[u8; 32], scheme: SignatureScheme, algorithm: DigestAlgorithm, digest: &[u8]) -> Result<Vec<u8>, KeyHolderError> {
     let digest = algorithm.check(digest)?;
     let (identity, held) = find(fingerprint)?;
-    if !held.can_sign || !scheme.fits(held.key) {
-        return Err(KeyHolderError::Unsupported("this certificate's key doesn't sign that way"));
-    }
+    check_for_signing(&held, scheme)?;
     let algorithm = match (scheme, algorithm) {
         (SignatureScheme::RsaPkcs1v15, DigestAlgorithm::Sha256) => Algorithm::RSASignatureDigestPKCS1v15SHA256,
         (SignatureScheme::RsaPkcs1v15, DigestAlgorithm::Sha384) => Algorithm::RSASignatureDigestPKCS1v15SHA384,
@@ -58,15 +61,11 @@ pub fn sign_digest(fingerprint: &[u8; 32], scheme: SignatureScheme, algorithm: D
 }
 
 /// Unwraps an RSA-encrypted content-encryption key with the key of the certificate whose
-/// SHA-256 is `fingerprint`.
+/// SHA-256 is `fingerprint` (an expired certificate's too).
 pub fn decrypt_key(fingerprint: &[u8; 32], padding: RsaPadding, wrapped: &[u8]) -> Result<UnwrappedKey, KeyHolderError> {
-    if wrapped.is_empty() || wrapped.len() > MAX_WRAPPED_KEY_LEN {
-        return Err(KeyHolderError::BadInput("the wrapped key's length"));
-    }
+    let wrapped = check_wrapped(wrapped)?;
     let (identity, held) = find(fingerprint)?;
-    if !held.can_decrypt {
-        return Err(KeyHolderError::Unsupported("this certificate's key doesn't unwrap keys"));
-    }
+    check_for_decrypting(&held)?;
     let algorithm = match padding {
         RsaPadding::Pkcs1v15 => Algorithm::RSAEncryptionPKCS1,
         RsaPadding::OaepSha1 => Algorithm::RSAEncryptionOAEPSHA1,
@@ -76,13 +75,16 @@ pub fn decrypt_key(fingerprint: &[u8; 32], padding: RsaPadding, wrapped: &[u8]) 
     key.decrypt_data(algorithm, wrapped).map(UnwrappedKey::new).map_err(|e| cf_error(e.code(), e.description().to_string()))
 }
 
-/// Imports a `.p12` into the owner's default keychain (the login keychain). The passphrase is
-/// handed to macOS and not kept. Gives the fingerprints of the certificates that came in with a
-/// key.
+/// Imports a `.p12` into the owner's default keychain (the login keychain), where the keychain
+/// asks before another program uses the key. Gives the fingerprints of the certificates that
+/// came in with a key. The authorities' certificates in the file go into the keychain too, with
+/// no trust set on them: macOS asks the owner itself before it trusts a root.
+///
+/// The passphrase has to reach macOS as a `CFString`, a copy that safe code can't overwrite: it
+/// is made inside the import's options, which live for this one statement, and nothing else of
+/// it is made.
 pub fn import_p12(p12: &[u8], passphrase: &Pin) -> Result<Vec<[u8; 32]>, KeyHolderError> {
-    if p12.is_empty() || p12.len() > MAX_P12_LEN {
-        return Err(KeyHolderError::BadInput("the .p12 file's size"));
-    }
+    let p12 = check_p12(p12)?;
     let imported = Pkcs12ImportOptions::new().passphrase(passphrase.expose()).import(p12).map_err(|e| match e.code() {
         AUTH_FAILED | PKCS12_VERIFY_FAILURE => KeyHolderError::PinIncorrect,
         _ => status(e),
@@ -96,33 +98,26 @@ pub fn import_p12(p12: &[u8], passphrase: &Pin) -> Result<Vec<[u8; 32]>, KeyHold
     Ok(fingerprints)
 }
 
-/// Every identity the keychains hold, with its certificate's DER.
+/// The identities the keychains hold, with their certificates' DER: at most [`MAX_SCANNED`].
 fn identities() -> Result<Vec<(SecIdentity, Vec<u8>)>, KeyHolderError> {
-    let limit = i64::try_from(MAX_CERTIFICATES).unwrap_or(i64::MAX);
+    let limit = i64::try_from(MAX_SCANNED).unwrap_or(i64::MAX);
     let results = match ItemSearchOptions::new().class(ItemClass::identity()).load_refs(true).limit(Limit::Max(limit)).search() {
         Ok(results) => results,
         Err(e) if e.code() == ITEM_NOT_FOUND => return Ok(Vec::new()),
         Err(e) => return Err(KeyHolderError::Unavailable(describe(e))),
     };
     let mut out = Vec::new();
-    for result in results {
+    for result in results.into_iter().take(MAX_SCANNED) {
         let SearchResult::Ref(Reference::Identity(identity)) = result else { continue };
         let Ok(certificate) = identity.certificate() else { continue };
-        let der = certificate.to_der();
-        if der.len() <= MAX_CERTIFICATE_LEN {
-            out.push((identity, der));
-        }
+        out.push((identity, certificate.to_der()));
     }
     Ok(out)
 }
 
 fn find(fingerprint: &[u8; 32]) -> Result<(SecIdentity, HeldCertificate), KeyHolderError> {
     let (identity, der) = identities()?.into_iter().find(|(_, der)| sha256(der) == *fingerprint).ok_or(KeyHolderError::NotFound)?;
-    let held = HeldCertificate::from_der(der)?;
-    if matches!(held.key, KeyKind::Other) {
-        return Err(KeyHolderError::Unsupported("this kind of key"));
-    }
-    Ok((identity, held))
+    Ok((identity, HeldCertificate::read(der, now())?))
 }
 
 fn describe(error: security_framework::base::Error) -> String {

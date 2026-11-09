@@ -5,7 +5,7 @@
 //! signatures as `r || s` (what PKCS#11 and Windows' CNG give back, PKCS#11 v2.40 §2.3.1) turned
 //! into DER `Ecdsa-Sig-Value` (RFC 5753 §7.2, RFC 3279 §2.2.3), which CMS carries.
 
-use super::{DigestAlgorithm, KeyHolderError};
+use super::{DigestAlgorithm, KeyHolderError, KeyKind};
 
 /// `DigestInfo` up to the digest's bytes, for each hash (RFC 8017 §9.2, note 1).
 fn digest_info_prefix(algorithm: DigestAlgorithm) -> &'static [u8] {
@@ -33,12 +33,16 @@ pub fn digest_info(algorithm: DigestAlgorithm, digest: &[u8]) -> Result<Vec<u8>,
     Ok(out)
 }
 
-/// The DER `Ecdsa-Sig-Value` for an ECDSA signature given as `r || s` (two halves of the same
-/// length).
-pub fn ecdsa_raw_to_der(raw: &[u8]) -> Result<Vec<u8>, KeyHolderError> {
-    // P-521's halves are 66 bytes; nothing larger is an ECDSA signature.
-    if raw.is_empty() || !raw.len().is_multiple_of(2) || raw.len() > 132 {
-        return Err(KeyHolderError::System("the ECDSA signature has an odd length".into()));
+/// The DER `Ecdsa-Sig-Value` for an ECDSA signature given as `r || s` with a key of kind `key`:
+/// exactly 64 bytes for P-256, 96 for P-384.
+pub fn ecdsa_raw_to_der(raw: &[u8], key: KeyKind) -> Result<Vec<u8>, KeyHolderError> {
+    let expected = match key {
+        KeyKind::EcP256 => 64,
+        KeyKind::EcP384 => 96,
+        KeyKind::Rsa { .. } | KeyKind::Other => return Err(KeyHolderError::Unsupported("an ECDSA signature for a key that isn't P-256 or P-384")),
+    };
+    if raw.len() != expected {
+        return Err(KeyHolderError::System("the ECDSA signature's length doesn't fit its curve".into()));
     }
     let (r, s) = raw.split_at(raw.len() / 2);
     let mut body = Vec::with_capacity(raw.len().saturating_add(8));

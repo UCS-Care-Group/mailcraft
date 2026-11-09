@@ -2324,6 +2324,7 @@ dependencies = [
  "mailcraft-jmap",
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-net",
  "mailcraft-proto",
  "mailcraft-time",
