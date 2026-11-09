@@ -25,7 +25,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
@@ -219,6 +219,17 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(Value::Bool(ask)) => a.skip_conversation_question = !ask,
         Some(_) => return Err(bad("`askBeforeDeletingConversation` is true or false")),
     }
+    // Gmail's categories under the Inbox, and alerts for Primary alone (#911).
+    match v.get("showGmailCategories") {
+        None => {}
+        Some(Value::Bool(show)) => a.hide_gmail_categories = !show,
+        Some(_) => return Err(bad("`showGmailCategories` is true or false")),
+    }
+    match v.get("alertPrimaryOnly") {
+        None => {}
+        Some(Value::Bool(only)) => a.alert_primary_only = *only,
+        Some(_) => return Err(bad("`alertPrimaryOnly` is true or false")),
+    }
     // A Microsoft account kept in step through Graph (R3), or an account kept in step over JMAP
     // (M6): asked for by name; one that is that already stays it. (One kept in step by IMAP becomes
     // one through Graph by switching: `account.graphSwitch`.) Otherwise the servers say: IMAP, or
@@ -337,8 +348,16 @@ fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdErr
 /// it so (`before`: what an edited account was), which holds imported mail, when nothing else of it
 /// changes but its question before deleting a conversation (#503): it is no account to sign in with.
 fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> {
-    let none_kept = before
-        .is_some_and(|b| b.kind == AccountKind::Local && *a == Account { skip_conversation_question: a.skip_conversation_question, ..b.clone() });
+    let none_kept = before.is_some_and(|b| {
+        b.kind == AccountKind::Local
+            && *a
+                == Account {
+                    skip_conversation_question: a.skip_conversation_question,
+                    hide_gmail_categories: a.hide_gmail_categories,
+                    alert_primary_only: a.alert_primary_only,
+                    ..b.clone()
+                }
+    });
     if !none_kept && !a.address().is_valid() {
         return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
     }
@@ -362,7 +381,10 @@ pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
     Some(a)
 }
 
-/// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft.
+/// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft. An
+/// Exchange server account that trusts a certificate the system doesn't says which, whole, so
+/// that a question naming its servers names that too (Confirm Servers, an agent's
+/// `account.add` and `account.edit`, AU3-02).
 pub fn servers_text(a: &Account) -> String {
     let one = |name: &str, s: &Option<Server>| match s {
         Some(s) if s.port == 0 => Some(format!("{name} {}", s.host)),
@@ -380,12 +402,22 @@ pub fn servers_text(a: &Account) -> String {
     }
     if a.kind == AccountKind::Exchange {
         return match a.ews.as_ref().filter(|server| server.problem().is_none()) {
+            Some(server) if !server.trusted.is_empty() => {
+                format!("exchange {}, trusting the certificate {}", jmap_origin(&server.url), pin_text(&server.trusted))
+            }
             Some(server) => format!("exchange {}", jmap_origin(&server.url)),
             None => "exchange, no server address that can be used".to_string(),
         };
     }
     let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
+}
+
+/// A certificate's SHA-256 fingerprint as it is shown: in pairs of upper-case digits.
+/// (One that may be used is 64 hexadecimal digits: [`EwsServer::check_fingerprint`].)
+fn pin_text(fingerprint: &str) -> String {
+    let digits: Vec<char> = fingerprint.chars().filter(char::is_ascii_hexdigit).take(64).map(|c| c.to_ascii_uppercase()).collect();
+    digits.chunks(2).map(|pair| pair.iter().collect::<String>()).collect::<Vec<_>>().join(":")
 }
 
 /// The scheme and the server, with its port, of a JMAP session address that may be used
@@ -660,7 +692,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -1109,6 +1141,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let clock = s.rule_clock();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
+    // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
+    // said already that it couldn't send it.)
+    let mut said = Vec::new();
+    super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
         let free = !made.remote.is_empty() && !mb.folders.iter().any(|f| f.account == account && f.remote == made.remote);
@@ -1617,47 +1653,89 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
     gone
 }
 
-/// Whether `theirs`, come down from server mailbox `remote` after it was numbered anew, is the
-/// copy a move or a deletion made here waits for ([`renumbered`]): it then gets its UID, and the
-/// next run pushes it. A Message-ID is the sender's to choose, so the change goes only to the
-/// one arrival with that id that is also the same mail (date, sender, subject and recipients).
-/// When several arrivals share the id, or the one that does is not that mail, the change is
-/// dropped, and the owner told: it must never reach another message. `shared` is how many
-/// arrivals of this run have `theirs`'s Message-ID.
-fn waited_for(mb: &mut Mailbox, account: Id, remote: &str, theirs: &Message, shared: usize, counts: &mut Counts) -> bool {
-    if theirs.message_id.is_empty() {
-        return false;
+/// The mail a move or a deletion made here waits for in server mailbox `remote`, numbered anew
+/// ([`renumbered`]), by Message-ID and what it was: an arrival that is that mail is not new mail,
+/// and stays as it came until [`waited_for`] settles which copy, if any, the change is about. One
+/// that only carries the id is mail as any other, and goes through the owner's lists and rules.
+fn awaited(mb: &Mailbox, account: Id, remote: &str) -> Vec<(String, MailIdentity)> {
+    mb.pending
+        .iter()
+        .filter(|p| p.account() == account && p.source() == (remote, 0))
+        .filter_map(|p| match p {
+            Pending::Move { message, .. } => mb.message(*message).map(|m| (m.message_id.clone(), MailIdentity::of(m))),
+            Pending::Delete { message_id, seen, .. } => seen.clone().map(|seen| (message_id.clone(), seen)),
+        })
+        .filter(|(id, _)| !id.is_empty())
+        .collect()
+}
+
+/// Once `folder`, which follows server mailbox `remote` numbered anew, has been read whole: each
+/// move or deletion made here that waits with UID 0 for its copy ([`renumbered`]) gets the UID of
+/// that copy, which goes from here, and the next run pushes the change. A Message-ID is the
+/// sender's to choose, so the change goes only when exactly one message of the mailbox has that
+/// id, counted over all that came down, in whatever pieces and runs, and all on its way out of
+/// it, and that message is also the same mail (date, sender, subject and recipients). Otherwise
+/// the change is dropped, and the owner told: it must never reach another message.
+fn waited_for(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: Id, remote: &str, counts: &mut Counts) {
+    if !mb.pending.iter().any(|p| p.account() == account && p.source() == (remote, 0)) {
+        return;
     }
-    let messages = &mb.messages;
-    let at = mb.pending.iter().position(|p| {
-        p.account() == account
-            && p.source() == (remote, 0)
-            && match p {
-                Pending::Move { message, .. } => messages.get(message).is_some_and(|m| m.message_id == theirs.message_id),
-                Pending::Delete { message_id, .. } => *message_id == theirs.message_id,
-            }
-    });
-    let Some(at) = at else { return false };
-    let is_it = shared == 1
-        && match mb.pending.get(at) {
-            Some(Pending::Move { message, .. }) => messages.get(message).is_some_and(|m| MailIdentity::of(m).fits(theirs)),
-            Some(Pending::Delete { seen, .. }) => seen.as_ref().is_some_and(|seen| seen.fits(theirs)),
-            None => false,
+    // Every copy the mailbox has of each Message-ID: the messages here (`Some`), and those on
+    // their way out of it by a change still to go up (`None`).
+    let mut copies: HashMap<String, Vec<Option<Id>>> = HashMap::new();
+    for m in mb.messages.values().filter(|m| m.folder == folder && m.uid != 0 && !m.message_id.is_empty()) {
+        copies.entry(m.message_id.clone()).or_default().push(Some(m.id));
+    }
+    for p in mb.pending.iter().filter(|p| p.account() == account && p.source().0 == remote && p.source().1 != 0) {
+        let id = match p {
+            Pending::Move { message, .. } => mb.message(*message).map(|m| m.message_id.clone()),
+            Pending::Delete { message_id, .. } => Some(message_id.clone()),
         };
-    if !is_it {
-        mb.pending.remove(at);
+        if let Some(id) = id.filter(|id| !id.is_empty()) {
+            copies.entry(id).or_default().push(None);
+        }
+    }
+    let mut pending = std::mem::take(&mut mb.pending);
+    let mut dropped = false;
+    pending.retain_mut(|p| {
+        if p.account() != account || p.source() != (remote, 0) {
+            return true;
+        }
+        let (message_id, seen) = match &*p {
+            Pending::Move { message, .. } => {
+                mb.message(*message).map_or((String::new(), None), |m| (m.message_id.clone(), Some(MailIdentity::of(m))))
+            }
+            Pending::Delete { message_id, seen, .. } => (message_id.clone(), seen.clone()),
+        };
+        let found = match copies.get(&message_id).map(Vec::as_slice) {
+            Some([Some(id)]) => mb.message(*id).filter(|theirs| seen.as_ref().is_some_and(|seen| seen.fits(theirs))).map(|m| (m.id, m.uid)),
+            _ => None,
+        };
+        let Some((id, uid)) = found else {
+            dropped = true;
+            return false;
+        };
+        // Taken: another change waiting for the same id finds no copy left.
+        copies.remove(&message_id);
+        match p {
+            Pending::Move { uid: at, synced, .. } => (*at, *synced) = (uid, synced.map(|flags| flags.at(uid))),
+            Pending::Delete { uid: at, .. } => *at = uid,
+        }
+        // Moved or deleted here before it came down again: it goes from here.
+        if mb.forget_message(id).is_ok() {
+            on_server.by_uid.remove(&(folder, uid));
+            on_server.leaving.insert((folder, uid));
+            counts.matched += 1;
+        }
+        true
+    });
+    mb.pending = pending;
+    if dropped {
         counts.notes.push(
-            "A change made here to a message could not be matched to its new copy for certain (more than one message has its Message-ID, or the copy differs), so it was not made on the server."
+            "A change made here to a message could not be matched to its new copy for certain (no message, or more than one, has its Message-ID, or the copy differs), so it was not made on the server."
                 .to_string(),
         );
-        return false;
     }
-    match mb.pending.get_mut(at) {
-        Some(Pending::Move { uid, synced, .. }) => (*uid, *synced) = (theirs.uid, synced.map(|flags| flags.at(theirs.uid))),
-        Some(Pending::Delete { uid, .. }) => *uid = theirs.uid,
-        None => return false,
-    }
-    true
 }
 
 /// The local folder of a server mailbox that has none yet: the standard folder of its kind when
@@ -1828,23 +1906,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
     // up in Deleted Items, Junk, Sent and the rest was put there (a message deleted on a phone
     // was "1 new message").
     let arriving = matches!(delta.kind, FolderKind::Inbox | FolderKind::Custom) || old_seen == 0;
-    // How many of these arrivals have each Message-ID: only a lone one can be the copy a change waits for.
-    let mut shared: HashMap<String, usize> = HashMap::new();
-    if reset {
-        for m in &delta.new {
-            *shared.entry(m.message_id.clone()).or_default() += 1;
-        }
-    }
+    // Copies a move or deletion made here waits for, the mailbox numbered anew (AU3-17): taken in
+    // as they come, and settled once the mailbox has been read whole ([`waited_for`]).
+    let awaited = awaited(mb, account, &delta.remote);
     for mut m in delta.new {
         let uid = m.uid;
         // Here already, or on its way out of that mailbox by a change still to be pushed.
         if uid != 0 && (on_server.by_uid.contains_key(&(folder, uid)) || on_server.leaving.contains(&(folder, uid))) {
-            continue;
-        }
-        // The copy a move or deletion made here was waiting for, the mailbox numbered anew.
-        if uid != 0 && waited_for(mb, account, &delta.remote, &m, shared.get(&m.message_id).copied().unwrap_or(1), counts) {
-            on_server.leaving.insert((folder, uid));
-            counts.matched += 1;
             continue;
         }
         if matched(mb, on_server, folder, &m).is_some() {
@@ -1854,9 +1922,14 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
         m.id = 0;
         m.folder = folder;
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
+        // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
+        let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
+        }
+        if waited {
+            continue;
         }
         if inbox || junk {
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
@@ -1880,6 +1953,26 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
             }
         }
         counts.new += usize::from(arriving);
+    }
+    // Gmail's categories of the Inbox's messages (#911), as its searches said this run.
+    if !reset && mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox) {
+        for sorted in &delta.gmail {
+            // (Looked at before it is changed: a message shared with an undo step is copied to be.)
+            let Some(id) = on_server.by_uid.get(&(folder, sorted.uid)).copied() else { continue };
+            let differs = |m: &Message| m.gmail_category != Some(sorted.category) || (sorted.id != 0 && m.gmail_id != sorted.id);
+            if mb.message(id).is_some_and(|m| m.folder == folder && differs(m))
+                && let Ok(m) = mb.message_mut(id)
+            {
+                m.gmail_category = Some(sorted.category);
+                if sorted.id != 0 {
+                    m.gmail_id = sorted.id;
+                }
+                counts.updated += 1;
+            }
+        }
+    }
+    if delta.complete {
+        waited_for(mb, account, on_server, folder, &delta.remote, counts);
     }
     if let Ok(f) = mb.folder_mut(folder) {
         if delta.complete {

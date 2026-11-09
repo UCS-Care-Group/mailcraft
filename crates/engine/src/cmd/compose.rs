@@ -369,9 +369,11 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
     out
 }
 
-/// The original's pictures that its HTML shows in place.
+/// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
+/// `<img>` asks for by `cid:` and is a picture by its bytes.
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
-    m.attachments.iter().filter(|a| !a.content_id.is_empty() && html.contains(&format!("cid:{}", a.content_id))).cloned().collect()
+    let ids = mailcraft_model::shown::shown_ids(html);
+    m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
@@ -1314,6 +1316,15 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // the server has taken it, at once for a local account, which files it as sent.
     m.answers = answers_of(s, &c).or_else(|| c.draft.and_then(|d| s.mailbox.message(d)).and_then(|d| d.answers.clone()));
     let id = s.mailbox.add_message(m.clone())?;
+    // A draft begun elsewhere and sent here is queued here: it carries MailCraft's marker, as one
+    // saved here does, so that it is the owner's to send and never taken for mail the server
+    // itself put in the Outbox (`graph_send::from_server`).
+    let now = u64::try_from(s.now()).unwrap_or_default();
+    if let Ok(going) = s.mailbox.message_mut(id)
+        && let Some(sd) = going.server_draft.as_mut().filter(|sd| sd.marker.is_empty())
+    {
+        sd.marker = super::graph_drafts::marker(id, now);
+    }
     if !queued {
         s.mailbox.mark_answered(id);
     }

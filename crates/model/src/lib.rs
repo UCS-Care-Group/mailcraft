@@ -16,6 +16,7 @@ pub mod confusables;
 mod contact;
 pub mod dav;
 mod ews_server;
+pub mod gmail;
 mod jmap_server;
 mod junk;
 pub mod load_limit;
@@ -35,6 +36,7 @@ pub mod rich;
 mod rule;
 pub mod search;
 pub mod sender_warnings;
+pub mod shown;
 pub mod signature;
 pub mod sync;
 mod task;
@@ -52,6 +54,7 @@ pub use calendar::{
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
+pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::JmapServer;
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
@@ -151,9 +154,13 @@ mod account_categories_tests;
 #[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
+mod auth_results_tests;
+#[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod gmail_tests;
 #[cfg(test)]
 mod hidden_text_tests;
 #[cfg(test)]
@@ -186,6 +193,8 @@ mod search_suggest_tests;
 mod search_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod shown_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use mailcraft_model::sync::{FolderDelta, SyncResult};
-use mailcraft_model::{Address, FolderKind, Id, Message, ServerFolder};
+use mailcraft_model::{Address, FolderKind, GmailCategory, Id, Message, ServerFolder};
 use serde_json::json;
 
 use super::*;
@@ -334,4 +334,26 @@ fn mail_a_rule_alerts_for_once_it_is_fetched_whole_is_told_of_in_the_owners_own_
     assert_eq!(subjects(&found), ["Invoice"]);
     assert!(found[0].rule && found[0].sender == "Zoe" && found[0].account == owner);
     assert!(alerted(&s.mailbox, &[]).is_empty());
+}
+
+#[test]
+fn a_rules_alert_is_told_of_in_any_gmail_category_when_alerts_are_for_primary_alone() {
+    let mut s = Session::empty();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"}});
+    let account = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(1, "Old", "Already here")])]);
+    s.run("account.edit", &json!({"id": account, "alertPrimaryOnly": true})).unwrap();
+    let urgent = json!({"name": "Urgent", "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [], "alert": true});
+    s.run("rules.add", &urgent).unwrap();
+    let before = mark(&s.mailbox);
+    let promotion = |uid: u32, subject: &str| Message {
+        gmail_category: Some(GmailCategory::Promotions),
+        gmail_id: 9_000 + u64::from(uid),
+        ..message(uid, "Shop", subject)
+    };
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![promotion(2, "Urgent: last day"), promotion(3, "Flash sale")])]);
+    let found = arrivals(&s.mailbox, &before);
+    assert_eq!(subjects(&found), ["Urgent: last day"], "the rule's alert, and not the new mail in Promotions");
+    assert!(found[0].rule);
 }

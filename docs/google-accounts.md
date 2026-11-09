@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-04 · **Change:** major
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-08 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -12,6 +12,12 @@ SMTP. It does not add Google Calendar or Contacts, nor Gmail access in the brows
 [browser Gmail #233](https://github.com/UCS-Care-Group/mailcraft/issues/233) is separate.
 
 ## Add a Google account
+
+> **For now, testers only.** While Google reviews MailCraft, Google sign-in works only for the
+> addresses added to the project's test users; anyone else gets Google's "Access blocked" page.
+> To join, email systems@ucscaregroup.co.uk. Until then a new Gmail account starts on an
+> [app password](#app-password-alternative), with **Use Google sign-in instead** as the second
+> choice.
 
 1. Open **Send / Receive → Add Account**, enter your email address and continue. For a custom
    Workspace domain that is not recognised, select **Google — Gmail and Google Workspace** as
@@ -90,6 +96,45 @@ not replaced by a plaintext mailbox credential file.
 The application registration discussed below is different from your account credential. Its
 Desktop registration value comes from the build or process environment; MailCraft does not
 provide a client-secret preference or write that value to `ui.json`.
+
+## Gmail's inbox categories
+
+Gmail sorts the mail of an Inbox into five categories: **Primary**, **Social**, **Promotions**,
+**Updates** and **Forums**. MailCraft shows them as five folders under the Inbox of every account
+on Gmail's servers (`imap.gmail.com`), personal or Google Workspace, whether it signs in with
+Google or with an app password. Each shows the Inbox's mail Gmail put in it, with its count of
+unread messages; in conversation view, a conversation is listed in a category when any of its
+messages is in it. The mail stays in the Inbox: the five are views of it, and can't be renamed,
+deleted or have mail moved into them. Mail moved or copied out of the Inbox is in none of them.
+
+At every Send/Receive, MailCraft asks Gmail's own search (the `X-GM-RAW` search of Google's
+Gmail IMAP extensions) which of the Inbox's messages are in Social, Promotions, Updates and
+Forums; Primary is the rest. Nothing else is sent for it, and it is read the same way over an
+app password as over Google sign-in. Only Inbox mail is sorted; archived mail is not. An account
+whose Inbox Gmail doesn't sort (every message in Primary) shows no categories. The browser build
+doesn't read them; a mailbox opened there keeps what was last read.
+
+In **Account Settings**, under **Gmail categories**:
+
+- **Show Gmail's categories under the Inbox** (on by default) hides the five when it is off.
+- **Desktop alerts only for mail in Primary** (off by default) keeps new mail that Gmail puts in
+  the other four categories from raising a desktop alert.
+
+### As tabs above the Inbox
+
+To have the five as a row of tabs above the Inbox's message list instead of folders in the folder
+pane, choose **View** › **Gmail Categories** › **As Tabs above the Inbox** (**As Folders** goes
+back). The choice is offered while a Gmail account shows its categories, and the window keeps it
+with its other View settings. Each tab shows its count of unread messages. The Inbox opens on all
+of its mail with no tab chosen; choosing a tab shows that category's mail, and choosing it again
+goes back to the whole Inbox. Tab reaches the tabs, the arrow keys move between them, and Enter or
+Space chooses one. In a narrow message list the tabs take two lines rather than shortening their
+names. Agents choose the same with `view.gmailCategories` (`{"value": "tabs"}` or `"folders"`).
+
+Gmail's categories are not MailCraft's own categories: search for them with
+`gmail:primary`, `gmail:social`, `gmail:promotions`, `gmail:updates` or `gmail:forums`, while
+`category:` still finds your own. Agents see a message's `gmailCategory` beside its other fields.
+Moving mail from one Gmail category to another is not available yet.
 
 ## Google restrictions and useful error distinctions
 
@@ -232,6 +277,7 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-08 | minor | #232: Google sign-in is for invited testers while Google reviews MailCraft, with how to join; a new Gmail account starts on an app password |
 | 2026-11-04 | minor | #232: document primary-address identity checks and unsupported Workspace aliases; keep the public client-ID option while taking the matching registration secret only from build or environment configuration, including migration from the former preference |
 | 2026-11-03 | major | Desktop Google sign-in, app-password alternative, explicit conversion, registration overrides, restrictions and verified acceptance scope (#232) |
 

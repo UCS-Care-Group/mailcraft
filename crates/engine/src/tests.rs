@@ -1588,7 +1588,11 @@ mod two_way {
         let anew_with = |arrivals: Vec<Message>, s: &mut Session, a: Id, inbox: Id| {
             apply(
                 s,
-                SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 70, arrivals, vec![])], ..Default::default() },
+                SyncResult {
+                    account: a,
+                    folders: vec![FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 70, arrivals, vec![]) }],
+                    ..Default::default()
+                },
             )
         };
         let deletes = |s: &Session, a: Id| request(s, a).ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. }));
@@ -2248,7 +2252,11 @@ mod two_way {
             vec![again(11, 1, "One"), again(12, 2, "Two"), again(13, 3, "Three"), Message { message_id: String::new(), ..from_server(14, "Four") }];
         let r = apply(
             &mut s,
-            SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 70, anew, vec![])], ..Default::default() },
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 70, anew, vec![]) }],
+                ..Default::default()
+            },
         );
         let note = r["errors"][0].as_str().unwrap();
         assert!(note.contains("anew") && note.contains("3 change(s)") && note.contains("1 change(s)"), "{note}");

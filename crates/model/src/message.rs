@@ -298,6 +298,15 @@ pub struct Message {
     /// from before has none, and one that holds something other than a size there reads as 0.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
+    /// For a message of a Gmail account's Inbox: which of Gmail's five categories Gmail put it in
+    /// (#911), as its server last said, like a read mark. `None` for mail anywhere else, of any
+    /// other account, and of a file from before there were any (or one that holds something else).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub gmail_category: Option<crate::GmailCategory>,
+    /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
+    /// server gave it; 0 when it gave none.
+    #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
+    pub gmail_id: u64,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -358,6 +367,13 @@ pub struct Message {
     /// what to check. It isn't sent again until the owner says so. Empty for every other message.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub held: String,
+    /// The message was handed to a server to be sent and what became of it hasn't been taken in
+    /// yet (AU3-26). Saved before the send leaves; cleared when the run's answer is applied. A
+    /// message still marked when the next run of its account begins is **held** (it may have
+    /// gone) rather than sent again: the window opened another mailbox meanwhile, or the program
+    /// stopped mid-send.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sending: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
@@ -452,8 +468,12 @@ fn is_zero_u64(n: &u64) -> bool {
 impl Message {
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
-    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451).
+    /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
+    /// folder it was in, it is in none of Gmail's categories, which are of a Gmail Inbox (#911).
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
+        if folder != self.folder {
+            self.left_gmail_inbox();
+        }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
     }
@@ -485,6 +505,12 @@ impl Message {
         }
     }
 
+    /// It is in none of Gmail's categories, and Gmail's id of it is forgotten: what the server
+    /// says of the folder it is in now says them again, if anything (#911).
+    pub fn left_gmail_inbox(&mut self) {
+        (self.gmail_category, self.gmail_id) = (None, 0);
+    }
+
     /// Every recipient: To, Cc, Bcc.
     pub fn recipients(&self) -> impl Iterator<Item = &Address> {
         self.to.iter().chain(&self.cc).chain(&self.bcc)
@@ -497,17 +523,23 @@ impl Message {
     }
 
     /// The attachments the attachment list shows, with their index: everything except pictures
-    /// the HTML body shows in place (`cid:` references). A file merely marked "inline" by the
-    /// sending program, which nothing in the body refers to, is still listed. While the HTML is
-    /// kept outside memory ([`Message::kept`]), an inline picture with a `Content-ID` is taken to
-    /// be one it shows, until the HTML is read and says.
+    /// the HTML body shows in place ([`crate::shown`]: an `<img>` asks for it by `cid:`, and it is
+    /// a PNG, JPEG, GIF or WebP by its bytes). A file merely marked "inline" by the sending
+    /// program, which no `<img>` of the body asks for, is still listed, and so is a file of any
+    /// other kind, whatever the body says of it. While the HTML is kept outside memory
+    /// ([`Message::kept`]), an inline picture with a `Content-ID` is taken to be one it shows,
+    /// until the HTML is read and says; a file that is no picture is listed all the same.
     pub fn listed_attachments(&self) -> impl Iterator<Item = (usize, &Attachment)> {
-        let html = self.body.html.as_deref().unwrap_or("");
         let html_kept = self.body.html.is_none() && self.kept.as_ref().is_some_and(|k| k.html.is_some() && !k.failed);
-        self.attachments
-            .iter()
-            .enumerate()
-            .filter(move |(_, a)| !(a.inline && !a.content_id.is_empty() && (html_kept || html.contains(&format!("cid:{}", a.content_id)))))
+        // Read only when some part may be one it shows.
+        let may_show = self.attachments.iter().any(|a| a.inline && !a.content_id.is_empty());
+        let ids = if may_show && !html_kept { crate::shown::shown_ids(self.body.html.as_deref().unwrap_or("")) } else { Default::default() };
+        self.attachments.iter().enumerate().filter(move |(_, a)| {
+            let shown = a.inline
+                && !a.content_id.is_empty()
+                && if html_kept { crate::shown::is_picture_part(a) } else { crate::shown::shown_in_place(&ids, a) };
+            !shown
+        })
     }
 
     /// The subject without `Re:` / `Fw:` prefixes: what a conversation is about.
@@ -749,7 +781,8 @@ mod tests {
 
     #[test]
     fn inline_files_nothing_refers_to_are_still_listed() {
-        let picture = Attachment { content_id: "logo@x".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![1]) };
+        let picture =
+            Attachment { content_id: "logo@x".into(), inline: true, ..Attachment::new("logo.png", "image/png", b"\x89PNG\r\n\x1a\n".to_vec()) };
         let report = Attachment { inline: true, ..Attachment::new("report.pdf", "application/pdf", vec![2]) };
         let mut m = Message { attachments: vec![picture, report], ..Default::default() };
         m.body.html = Some("<p>Hello <img src=\"cid:logo@x\"></p>".into());
@@ -772,7 +805,8 @@ mod tests {
     #[test]
     fn what_is_kept_outside_memory_counts_and_is_never_written() {
         let r = |len: u64| ContentRef { sha256: [7; 32], len };
-        let logo = Attachment { content_id: "logo@x.example".into(), inline: true, kept: Some(r(900)), ..Attachment::default() };
+        let logo =
+            Attachment { content_id: "logo@x.example".into(), mime: "image/png".into(), inline: true, kept: Some(r(900)), ..Attachment::default() };
         let file = Attachment { name: "a.pdf".into(), kept: Some(r(5_000)), ..Attachment::default() };
         let mut m = Message {
             body: Body { text: "Short text.".into(), html: None },

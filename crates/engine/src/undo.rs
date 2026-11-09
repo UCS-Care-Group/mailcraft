@@ -525,6 +525,7 @@ fn merge(
                 && !now.subtree(deleted).contains(&c.folder)
             {
                 m.folder = deleted;
+                m.left_gmail_inbox();
             }
             Some(Arc::new(m))
         }

@@ -31,6 +31,7 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+pub mod gmail;
 pub mod import_pst;
 pub mod import_tree;
 pub mod io;
@@ -415,6 +416,8 @@ mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
+mod gmail_tests;
+#[cfg(test)]
 mod import_pst_memory_tests;
 #[cfg(test)]
 mod import_pst_review_tests;
@@ -430,6 +433,8 @@ mod import_tree_tests;
 mod list_sort_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod sender_trust_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]

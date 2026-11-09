@@ -17,7 +17,9 @@
 //!   added, which no run here keeps in step (nothing arrives in either by itself);
 //! - an Inbox the server numbered anew during the run (UIDVALIDITY changed), whose mail all comes
 //!   down again;
-//! - mail already read (on another device, or by a rule).
+//! - mail already read (on another device, or by a rule);
+//! - for a Gmail account whose owner asked for alerts for Primary alone (#911), mail Gmail put in
+//!   another of its categories.
 //!
 //! But a message a rule that shows a desktop alert acted on as it arrived counts wherever the
 //! rule put it, read or not ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's
@@ -94,7 +96,9 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
         .messages
         .range(from..)
         .map(|(_, m)| &**m)
-        .filter(|m| !m.draft && own(mailbox, m.account) && ((!m.read && watched(m.folder)) || (m.rule_alert && known(m.account))))
+        .filter(|m| {
+            !m.draft && own(mailbox, m.account) && ((!m.read && watched(m.folder) && alerts_for(mailbox, m)) || (m.rule_alert && known(m.account)))
+        })
         .take(MOST)
         .map(arrival)
         .collect()
@@ -116,6 +120,15 @@ fn arrival(m: &mailcraft_model::Message) -> Arrival {
         subject: m.subject.clone(),
         rule: m.rule_alert,
     }
+}
+
+/// Whether `m` is new mail its account alerts for: any, but for a Gmail account that alerts for
+/// Primary alone (#911), mail Gmail put in another category. One whose category isn't known yet
+/// is alerted for: better told once too often than not at all. (A rule's alert is the owner's own
+/// ask, and is told of whatever the category.)
+fn alerts_for(mailbox: &Mailbox, m: &mailcraft_model::Message) -> bool {
+    let primary_only = mailbox.account(m.account).is_some_and(|a| a.is_gmail() && a.alert_primary_only);
+    !primary_only || m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)
 }
 
 #[cfg(test)]

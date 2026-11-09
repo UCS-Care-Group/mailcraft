@@ -428,7 +428,7 @@ fn add_shared_mailbox_waits_for_a_graph_job_that_brings_no_mail_down_without_cal
     // The owner's run has its mail in and is on its calendar and contacts: short, and not
     // called off; the shared mailbox's run starts once it has ended.
     let (end, held) = mpsc::channel::<GraphResult>();
-    app.graph_rx = Some((owner, true, false, held));
+    app.graph_rx = Some((owner, true, false, app.session.openings(), held));
     add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
@@ -451,7 +451,7 @@ fn add_shared_mailbox_called_off_while_it_waits_starts_nothing() {
     let (mut app, owner, answers, jobs, _) = window();
     // A run that never ends by itself.
     let (_hold, held) = mpsc::channel::<GraphResult>();
-    app.graph_rx = Some((owner, true, false, held));
+    app.graph_rx = Some((owner, true, false, app.session.openings(), held));
     add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     app.drop_shared_check(shared);
