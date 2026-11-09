@@ -36,6 +36,7 @@ mod autocrypt_tests;
 #[cfg(test)]
 mod coverage_tests;
 #[cfg(test)]
+#[path = "fixtures_tests.rs"]
 mod fixtures;
 #[cfg(test)]
 mod keys_tests;
