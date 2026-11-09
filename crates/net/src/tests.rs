@@ -1719,13 +1719,13 @@ fn a_copy_of_what_was_sent_is_kept_on_the_server() {
     // A server that keeps what is sent through it gets no second copy: the mailbox is told that
     // one is on its way, to be matched when it shows.
     let files_it_itself = SyncRequest { outbox: vec![hello()], ..request(account(Some(&imap), Some(&smtp)), folders.clone()) };
-    let result = whole(&files_it_itself, Limits::in_pieces(), Host { files_sent: true, microsoft: false });
+    let result = whole(&files_it_itself, Limits::in_pieces(), Host { files_sent: true, microsoft: false, gmail: false });
     assert_eq!(result.errors, Vec::<String>::new());
     assert_eq!((result.sent.as_slice(), result.filed.as_slice()), (&[9][..], &[9][..]));
     assert_eq!((sent(&imap, "APPEND"), server_uids(&imap, "Sent Items").len()), (2, 3));
     // Also when its incoming side can't be reached just now.
     imap.world().password = "changed".into();
-    let result = whole(&files_it_itself, Limits::in_pieces(), Host { files_sent: true, microsoft: false });
+    let result = whole(&files_it_itself, Limits::in_pieces(), Host { files_sent: true, microsoft: false, gmail: false });
     assert_eq!((result.errors.len(), result.sent.as_slice(), result.filed.as_slice()), (1, &[9][..], &[9][..]));
     // A server that doesn't, and can't be reached: the mailbox was told to expect the copy when
     // the message went, and is told that it didn't get there.
@@ -2324,7 +2324,7 @@ fn folders_with_such_names_on_another_kind_of_server_are_folders_of_mail() {
     assert_eq!(result.new_count(), 9);
     // From a server of Microsoft's, the same list is that of a mailbox at Outlook.com which was
     // never opened in Outlook: its "Notes" and "Outbox" are Exchange's own, and no mail to keep.
-    let result = whole(&asked, Limits::in_pieces(), Host { files_sent: true, microsoft: true });
+    let result = whole(&asked, Limits::in_pieces(), Host { files_sent: true, microsoft: true, gmail: false });
     assert_eq!(result.errors, Vec::<String>::new());
     assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Deleted Items", "Junk Email", "Projects"]);
     assert_eq!((sent(&imap, "EXAMINE \"Notes\""), sent(&imap, "EXAMINE \"Outbox\"")), (1, 1));
@@ -2615,3 +2615,9 @@ fn a_server_that_floods_one_answer_is_given_up_on() {
         assert!(result.folders.iter().all(|folder| folder.new.is_empty()), "{at}");
     }
 }
+
+#[path = "gmail_sync_tests.rs"]
+mod gmail_sync;
+
+#[path = "protected_sync_tests.rs"]
+mod protected_sync;
