@@ -108,10 +108,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 s.gone = true;
             }
             // Being moved out of the account: still in that folder only if the listing has it (#451).
+            // Until the listing has ended, it may be in a page to come (#30): `listing`.
             if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && !out.left)
                 && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
             {
-                out.left = true;
+                (out.left, out.listing) = (true, true);
             }
         }
     }
@@ -124,7 +125,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 && let Ok(m) = mb.message_mut(m)
                 && let Some(out) = m.moving_out.as_mut().filter(|out| out.folder == page.folder)
             {
-                out.left = true;
+                (out.left, out.listing) = (true, false);
             }
             continue;
         };
@@ -164,7 +165,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     && let Ok(m) = mb.message_mut(m)
                     && let Some(out) = m.moving_out.as_mut()
                 {
-                    (out.folder, out.left) = (page.folder.clone(), false);
+                    (out.folder, out.left, out.listing) = (page.folder.clone(), false, false);
                 }
             }
             None => {
@@ -196,6 +197,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     }
                     down.new += 1;
                 }
+            }
+        }
+    }
+    // A listing afresh that ended without a copy being moved out: it left that folder (#30).
+    if page.caught_up {
+        for m in mb.messages.values_mut() {
+            if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && out.listing)
+                && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
+            {
+                out.listing = false;
             }
         }
     }
@@ -409,7 +420,7 @@ pub fn fetch_queue_passing_over(mb: &Mailbox, account: Id, most: usize, now: Tim
     let mut out: Vec<String> = mb
         .messages
         .values()
-        .filter(|m| still_to_fetch(mb, m) && !m.incomplete)
+        .filter(|m| (still_to_fetch(mb, m) || wants_from_source(m)) && !m.incomplete)
         .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account && !skip(&out.id)).map(|out| out.id.clone()))
         .take(most)
         .collect();
@@ -485,11 +496,36 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     // Only while it is still what it was when it was asked for (AU3-16): headers only, no change
     // of the owner's waiting to go up, not queued to be sent. An answer that comes after it was
     // fetched another way, edited or sent is dropped, so that it never undoes what was done here.
-    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m)) {
+    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
-    let read = crate::mime::parse(mime);
+    let mut read = crate::mime::parse_fetched(mime);
+    // What came brought no original (#30): the server's copy isn't protected either.
+    let brought = read.original.is_some();
+    // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
+    let replaced = mb.message(here).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
+    // (No room for it: how much room it needs, which there must be before it is asked again.)
+    let mut no_room = 0;
+    let needs = read.original.as_ref().map_or(0, |o| o.size().saturating_sub(replaced));
+    if read.original.is_some() && !mb.room_for_original(needs) {
+        read.original = None;
+        no_room = needs.max(1);
+    }
     let m = mb.message_mut(here).ok()?;
+    // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
+    // from for them: nothing else of it changes.
+    if std::mem::take(&mut m.original_wanted) {
+        m.original_asked |= !brought;
+        if no_room > 0 {
+            m.original_no_room = no_room;
+        }
+        // (A copy that brings none, one put on the server from its parts, takes nothing away.)
+        if !m.parts_removed && read.original.is_some() {
+            m.original = read.original;
+        }
+        (m.unfetched, m.attachments_on_server) = (false, false);
+        return Some(here);
+    }
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
     m.references = read.references;
@@ -513,6 +549,15 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
+    // The bytes it came as, when it is Digitally signed or Encrypted (#30): with its files from
+    // the same download, so nothing removed here before comes back in one and not the other.
+    // A copy that brings none (one put on the server from its parts, as Microsoft Graph puts a
+    // message) leaves the one kept here: it is the message as it came, and what Save As and a
+    // move to another server write.
+    if read.original.is_some() {
+        m.original = read.original;
+    }
+    m.parts_removed = false;
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
@@ -539,6 +584,48 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     Some(here)
 }
 
+/// The copies being moved out of `account` that a listing afresh of their folder hadn't come to
+/// when a complete listing of the folders left that folder out (#30): no page of it will come, so
+/// they went with it. What waited for the bytes it came as from one goes made of its parts, and
+/// says so (at most [`crate::cmd::imap_again::MAX_AGAIN`] are said).
+pub(crate) fn gone_with_folders(s: &mut crate::Session, account: Id, listing: &mailcraft_model::sync::FolderListing) -> Vec<String> {
+    if !listing.complete {
+        return Vec::new();
+    }
+    let listed: HashSet<&str> = listing.folders.iter().map(|f| f.id.as_str()).collect();
+    let gone: Vec<Id> = s
+        .mailbox
+        .messages
+        .values()
+        .filter(|m| m.moving_out.as_ref().is_some_and(|out| out.account == account && out.listing && !listed.contains(out.folder.as_str())))
+        .map(|m| m.id)
+        .collect();
+    let mut said = Vec::new();
+    for id in gone {
+        if let Ok(m) = s.mailbox.message_mut(id)
+            && let Some(out) = m.moving_out.as_mut()
+        {
+            out.listing = false;
+        }
+        let Some(m) = s.mailbox.message(id) else { continue };
+        if said.len() < crate::cmd::imap_again::MAX_AGAIN && !m.may_release() && !s.original_readable(m, true) {
+            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+            said.push(format!(
+                "\"{subject}\": the copy it was moved out of went with its folder on the server, so it goes made of its parts, without the bytes it came as"
+            ));
+        }
+    }
+    crate::cmd::mail::check_again::settle(&mut s.mailbox);
+    said
+}
+
+/// Whether `m`, being moved out of a Microsoft account, asks the copy it came from there for the
+/// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): fetched for them alone,
+/// all it has here staying as it is.
+pub(crate) fn wants_from_source(m: &Message) -> bool {
+    m.original_wanted && !m.unfetched && m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty())
+}
+
 /// Whether `m` is one to fetch whole, and may take what was fetched: it is still only its headers
 /// here, has no change of the owner's waiting to go up, and isn't in an Outbox. Only such a message
 /// is asked for, so that one whose answer would be dropped is never asked for again and again.
@@ -549,7 +636,8 @@ pub(crate) fn still_to_fetch(mb: &Mailbox, m: &Message) -> bool {
 }
 
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the
-/// message is not fetched again, as it was when it came down. Everything else stays as it is:
+/// message is not fetched again, as it was when it came down. Everything else stays as it is
+/// (the bytes a protected message came as, #30, too):
 /// where it is, its marks, the server's state of it, what waits to go up, its headers. It wears
 /// the paperclip still when it had attachments; opening it fetches it whole again.
 pub fn thin_message(m: &mut Message, preview: String) {
@@ -560,6 +648,9 @@ pub fn thin_message(m: &mut Message, preview: String) {
     m.hidden_text = String::new();
     m.attachments.clear();
     m.kept = None;
+    // The bytes a Digitally signed or Encrypted message came as stay (#30): the server's copy
+    // may be one put there from its parts, which brings none back.
+    m.original_wanted = false;
     m.unfetched = true;
 }
 
@@ -601,6 +692,9 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
             let m = std::sync::Arc::make_mut(m);
             m.attachments_on_server = m.has_attachments();
             m.unfetched = true;
+            // Fetched whole: what comes is taken whole, original and all, not for the original
+            // alone (#30).
+            m.original_wanted = false;
             marked = marked.saturating_add(1);
         }
     }
@@ -638,6 +732,9 @@ pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
             let m = std::sync::Arc::make_mut(m);
             m.attachments_on_server = m.has_attachments();
             m.unfetched = true;
+            // Fetched whole: what comes is taken whole, original and all, not for the original
+            // alone (#30).
+            m.original_wanted = false;
             marked = marked.saturating_add(1);
         }
     }

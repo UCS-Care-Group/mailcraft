@@ -849,6 +849,9 @@ fn kept_for_put_back(m: &Message) -> Message {
         for a in &mut copy.attachments {
             a.kept = None;
         }
+        if let Some(o) = copy.original.as_mut() {
+            o.kept = None;
+        }
     } else {
         copy.to_fetch_again();
     }
@@ -1149,6 +1152,10 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The Public keys of the people mail came from, by address (#30 R9): certificates
+    /// collected from Digitally signed mail, contact or not.
+    #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
+    pub public_keys: crate::public_keys::PublicKeys,
     next_id: Id,
 }
 
@@ -1185,6 +1192,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            public_keys: Default::default(),
             next_id: 1,
         }
     }
@@ -1975,6 +1983,10 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        // Within what the mailbox keeps of originals in all (#30).
+        if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
+            m.original = None;
+        }
         if m.id == 0 || self.messages.contains_key(&m.id) {
             m.id = self.alloc_id();
         }
@@ -1982,6 +1994,12 @@ impl Mailbox {
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
+    }
+
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30), by the
+    /// running total the messages keep ([`Messages::originals_size`]).
+    pub fn room_for_original(&mut self, size: u64) -> bool {
+        self.messages.originals_size().saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {
@@ -2416,6 +2434,17 @@ impl Mailbox {
         let copy = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone(), ..Default::default() };
         let original = m.moving_out.clone();
         if original.as_ref().is_some_and(|out| out.account == to && !out.left) {
+            self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
+            return;
+        }
+        // The bytes a protected message came as may be lost with the original (#30): it stays the
+        // copy the message is moved out of, by the gate every release goes through, and this one,
+        // which Graph made of its parts and so holds none of them, goes. (A record of where it
+        // was put is of the mailbox it leaves: [`Message::original_placed`] counts not here.)
+        let protected = m.original.is_some() && !m.original_asked;
+        let held = original.as_ref().is_some_and(|out| (!out.left || out.listing) && !out.id.is_empty())
+            || self.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() != m.account);
+        if protected && held {
             self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
             return;
         }

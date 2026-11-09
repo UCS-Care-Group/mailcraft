@@ -44,3 +44,8 @@ real_name = "Valentin Klein"
 [people.SetsuaD]
 real_name = "Setsua Dammaggher"
 display_name = "Setsua Dammaggher"
+
+[people.MPro87]
+real_name = "Michael Proff"
+display_name = "Michael Proff"
+sync_github_name = false

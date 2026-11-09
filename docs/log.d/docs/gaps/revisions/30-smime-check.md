@@ -1,0 +1,1 @@
+| 2026-11-09 | minor | #30 part 2: gap 16: an S/MIME Digital signature is checked, one of four results in a bar with Details and a seal on the row, read by agents too; certificates kept for the sender; the browser build trusts no authority; revocation not checked; OpenPGP not checked yet |
