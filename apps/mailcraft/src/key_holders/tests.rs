@@ -714,6 +714,22 @@ mod pkcs11 {
     /// Re-review P1 (find_key): a key whose public half isn't the certificate's is skipped, at
     /// use and at listing.
     #[test]
+    fn a_certificate_without_an_id_is_never_listed() {
+        let der = long_lived("CN=Alice Example");
+        let mut card = token(3, "0123", &der, vec![the_key()]);
+        assert_eq!(list(&module(vec![card.clone()]), super::IN_DATE).unwrap().len(), 1);
+        // On a token that needs a login, a certificate with an empty id would ask for a PIN it
+        // can't use.
+        card.certificates = vec![(der, Vec::new())];
+        let mut no_id = card.clone();
+        no_id.keys = vec![FakeKey { id: Vec::new(), ..the_key() }];
+        assert!(list(&module(vec![card.clone()]), super::IN_DATE).unwrap().is_empty());
+        assert!(list(&module(vec![no_id]), super::IN_DATE).unwrap().is_empty());
+        card.facts.login_required = false;
+        assert!(list(&module(vec![card]), super::IN_DATE).unwrap().is_empty());
+    }
+
+    #[test]
     fn a_key_that_isnt_the_certificates_is_never_used() {
         let der = long_lived("CN=Alice Example");
         let fake = module(vec![token(3, "0123", &der, vec![other_key(), the_key()])]);

@@ -257,9 +257,11 @@ pub fn list<M: Module>(module: &M, now: Option<u64>) -> Result<Vec<TokenCertific
         let Ok(facts) = session.facts() else { continue };
         for (der, id) in session.certificates() {
             for certificate in super::usable([der], now) {
-                // Without a login a token may hide its private keys: a certificate with an
-                // id is listed then, and its key is looked for when it is used.
-                if !facts.login_required && find_key(&session, &id, &certificate).is_none() {
+                // A certificate without an id has no key to pair with: never listed, so no PIN
+                // is asked for it. Without a login a token may hide its private keys: a
+                // certificate with an id is listed then, and its key is looked for when it is
+                // used; a token that shows them lists only a certificate whose key it holds.
+                if id.is_empty() || (!facts.login_required && find_key(&session, &id, &certificate).is_none()) {
                     continue;
                 }
                 if out.len() < MAX_CERTIFICATES && !out.iter().any(|c| c.certificate.fingerprint == certificate.fingerprint) {
