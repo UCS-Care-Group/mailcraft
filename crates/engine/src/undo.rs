@@ -182,7 +182,7 @@ fn shown(text: &str) -> String {
 }
 
 impl Said {
-    fn lines(&self) -> Vec<String> {
+    fn lines(&self, lang: mailcraft_i18n::Lang) -> Vec<String> {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
@@ -207,14 +207,19 @@ impl Said {
         }
         match self.held.as_slice() {
             [] => {}
-            [one] => lines.push(format!(
-                "'{}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
-                shown(one)
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."),
+                &[("subject", &shown(one))],
             )),
-            many => lines.push(format!(
-                "{} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
-                many.len()
-            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
+                    "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
         }
         lines
     }
@@ -223,7 +228,7 @@ impl Said {
 /// `target`, the mailbox an undo (or redo) goes back to, with the Microsoft accounts' mail kept in
 /// step with `now`; `touched` is what the change being undone did. Answers the mailbox and what
 /// couldn't be undone, in words.
-pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -> (Mailbox, Vec<String>) {
+pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     returned(&mut out, now);
@@ -253,7 +258,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
-    (out, said.lines())
+    (out, said.lines(lang))
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name

@@ -1817,6 +1817,10 @@ impl Session {
         m.read = true;
         self.dirty = true;
         if !light {
+            // A new revision whatever the command's own comparison does after (an Undo or Redo
+            // that moved it on already doesn't again): a save of the one before never counts
+            // the mark as saved.
+            self.rev += 1;
             return;
         }
         self.hold([&old]);
@@ -3050,7 +3054,7 @@ impl Session {
     /// the server last said is kept, so the next run sends the reverse ([`crate::undo`]).
     fn swap(&mut self, u: Undo) -> Undo {
         let now = std::mem::take(&mut self.mailbox);
-        let (back, said) = crate::undo::keep_in_step(u.mailbox, &u.touched, &now);
+        let (back, said) = crate::undo::keep_in_step(u.mailbox, &u.touched, &now, self.interface_language);
         // Undone, the step is to be done again from here: what that does is the way back.
         let touched = crate::undo::touched(&now, &back);
         self.mailbox = back;
@@ -3155,7 +3159,7 @@ impl Session {
     /// makes, by the merge it runs (on a copy, O(n), once for both).
     pub fn undo_takes(&self, redo: bool) -> (Vec<Id>, Vec<String>) {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (Vec::new(), Vec::new()) };
-        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox);
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
         let now = &self.mailbox;
         let taken = now.messages.keys().filter(|k| !back.messages.contains_key(k)).copied().collect();
         let categories_gone = |now: &[Category], to: &[Category]| -> Vec<String> {
